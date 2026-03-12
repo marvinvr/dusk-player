@@ -1,0 +1,42 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+*.moved-aside
+*.hmap
+*.ipa
+*.dSYM.zip
+*.dSYM
+
+# Swift Package Manager
+.build/
+Packages/
+Package.resolved
+
+# CocoaPods (just in case)
+Pods/
+
+# Carthage
+Carthage/Build/
+
+# VLCKit vendored framework (large binary)
+*.xcframework/
+
+# OS files
+.DS_Store
+*.swp
+*~
+
+# IDE
+*.idea/
+.vscode/
+
+# Claude Code
+.claude/

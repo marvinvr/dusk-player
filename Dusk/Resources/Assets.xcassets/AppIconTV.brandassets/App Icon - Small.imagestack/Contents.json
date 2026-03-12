@@ -1,0 +1,20 @@
+{
+  "layers" : [
+    {
+      "filename" : "Back.imagestacklayer"
+    },
+    {
+      "filename" : "Front.imagestacklayer"
+    }
+  ],
+  "info" : {
+    "author" : "com.dusk-player.app",
+    "version" : 1
+  },
+  "properties" : {
+    "canvasSize" : {
+      "width" : 400,
+      "height" : 240
+    }
+  }
+}
