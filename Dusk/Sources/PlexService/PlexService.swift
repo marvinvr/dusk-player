@@ -101,7 +101,8 @@ final class PlexService {
     func generatePin() async throws -> PlexPin {
         try await plexTVRequest(
             method: "POST",
-            path: "/api/v2/pins"
+            path: "/api/v2/pins",
+            formBody: ["strong": "true"]
         )
     }
 
