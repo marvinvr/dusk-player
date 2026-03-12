@@ -15,7 +15,7 @@ struct ContentView: View {
                 MainTabView()
             } else if let servers = discoveredServers, servers.count > 1 {
                 ServerPickerView(servers: servers) { server in
-                    Task { await connectTo(server) }
+                    try await plexService.connect(to: server)
                 }
             } else {
                 serverDiscoveryView
@@ -68,16 +68,6 @@ struct ContentView: View {
             }
         } catch {
             connectError = error.localizedDescription
-        }
-    }
-
-    private func connectTo(_ server: PlexServer) async {
-        connectError = nil
-        do {
-            try await plexService.connect(to: server)
-            // Connection succeeded — isConnected becomes true and ContentView switches to MainTabView
-        } catch {
-            connectError = "Could not connect to \(server.name): \(error.localizedDescription)"
         }
     }
 }

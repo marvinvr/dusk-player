@@ -248,11 +248,9 @@ struct SettingsView: View {
     private var serverPickerSheet: some View {
         if let servers = availableServers {
             ServerPickerView(servers: servers) { server in
-                Task {
-                    try? await plexService.connect(to: server)
-                    showServerPicker = false
-                    availableServers = nil
-                }
+                try await plexService.connect(to: server)
+                showServerPicker = false
+                availableServers = nil
             }
         }
     }
