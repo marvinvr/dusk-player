@@ -65,6 +65,17 @@ struct SettingsIOSView: View {
                         }
                     }
                     .foregroundStyle(Color.duskTextPrimary)
+
+                    Picker(
+                        "Pause After",
+                        selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit
+                    ) {
+                        ForEach(SettingsSupport.passoutProtectionEpisodeOptions, id: \.self) { episodeLimit in
+                            Text(SettingsSupport.passoutProtectionDisplayName(for: episodeLimit))
+                                .tag(episodeLimit as Int?)
+                        }
+                    }
+                    .foregroundStyle(Color.duskTextPrimary)
                 }
 
                 Toggle("Double-Tap to Seek", isOn: $preferences.playerDoubleTapSeekEnabled)

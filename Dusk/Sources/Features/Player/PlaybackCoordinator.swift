@@ -27,6 +27,7 @@ final class PlaybackCoordinator {
     var isHandlingPlaybackEnded = false
     var lastReportedTimeMs = 0
     var lastReportedDurationMs = 0
+    var continuousPlayEpisodeRunCount = 0
 
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
@@ -47,22 +48,32 @@ final class PlaybackCoordinator {
         isLoading = true
         defer { isLoading = false }
 
-        _ = await startPlaybackSession(
+        let didStart = await startPlaybackSession(
             ratingKey: ratingKey,
             startPositionOverride: nil,
             presentPlayer: true
         )
+        if didStart {
+            resetContinuousPlayEpisodeRunCountForCurrentItem()
+        } else {
+            continuousPlayEpisodeRunCount = 0
+        }
     }
 
     func playFromStart(ratingKey: String) async {
         isLoading = true
         defer { isLoading = false }
 
-        _ = await startPlaybackSession(
+        let didStart = await startPlaybackSession(
             ratingKey: ratingKey,
             startPositionOverride: 0,
             presentPlayer: true
         )
+        if didStart {
+            resetContinuousPlayEpisodeRunCountForCurrentItem()
+        } else {
+            continuousPlayEpisodeRunCount = 0
+        }
     }
 
     /// Called when the full-screen player cover is dismissed.
@@ -77,5 +88,9 @@ final class PlaybackCoordinator {
     /// Dismiss any loading error so the UI can return to normal.
     func clearError() {
         loadError = nil
+    }
+
+    func resetContinuousPlayEpisodeRunCountForCurrentItem() {
+        continuousPlayEpisodeRunCount = activeItemDetails?.type == .episode ? 1 : 0
     }
 }

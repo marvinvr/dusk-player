@@ -158,5 +158,6 @@ extension PlaybackCoordinator {
         isHandlingPlaybackEnded = false
         lastReportedTimeMs = 0
         lastReportedDurationMs = 0
+        continuousPlayEpisodeRunCount = 0
     }
 }

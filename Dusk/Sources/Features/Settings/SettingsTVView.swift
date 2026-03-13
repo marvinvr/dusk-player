@@ -61,6 +61,19 @@ struct SettingsTVView: View {
                             selection: $preferences.continuousPlayCountdown,
                             selectedTitle: preferences.continuousPlayCountdown.displayName
                         ) { $0.displayName }
+
+                        tvRowDivider
+
+                        TVSettingsMenuRow(
+                            title: "Pause After",
+                            options: SettingsSupport.passoutProtectionEpisodeOptions,
+                            selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit,
+                            selectedTitle: SettingsSupport.passoutProtectionDisplayName(
+                                for: preferences.continuousPlayPassoutProtectionEpisodeLimit
+                            )
+                        ) {
+                            SettingsSupport.passoutProtectionDisplayName(for: $0)
+                        }
                     }
                 }
 

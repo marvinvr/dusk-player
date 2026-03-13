@@ -187,9 +187,10 @@ struct PlayerControlsOverlay: View {
         showsTitle: Bool,
         isEnabled: Bool
     ) -> some View {
-        HStack(spacing: 8) {
+        HStack(spacing: showsTitle ? 8 : 0) {
             Image(systemName: icon)
                 .font(.body)
+                .frame(width: 16, height: 16, alignment: .center)
 
             if showsTitle {
                 Text(title)
@@ -199,8 +200,12 @@ struct PlayerControlsOverlay: View {
             }
         }
         .foregroundStyle(.white.opacity(isEnabled ? 1.0 : 0.72))
-        .padding(.horizontal, 10)
-        .frame(width: showsTitle ? 132 : 36, height: 36, alignment: .leading)
+        .padding(.horizontal, showsTitle ? 10 : 0)
+        .frame(
+            width: showsTitle ? 132 : 36,
+            height: 36,
+            alignment: showsTitle ? .leading : .center
+        )
         .background(.white.opacity(0.12), in: Capsule())
     }
 

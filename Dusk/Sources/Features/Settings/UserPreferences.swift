@@ -18,6 +18,7 @@ final class UserPreferences {
         static let defaultAudioLanguage = "defaultAudioLanguage"
         static let continuousPlayEnabled = "continuousPlayEnabled"
         static let continuousPlayCountdown = "continuousPlayCountdown"
+        static let continuousPlayPassoutProtectionEpisodeLimit = "continuousPlayPassoutProtectionEpisodeLimit"
         static let playerDoubleTapSeekEnabled = "playerDoubleTapSeekEnabled"
         static let playerDoubleTapForwardInterval = "playerDoubleTapForwardInterval"
         static let playerDoubleTapBackwardInterval = "playerDoubleTapBackwardInterval"
@@ -56,6 +57,15 @@ final class UserPreferences {
     /// Delay before automatically starting the next episode from the Up Next screen.
     var continuousPlayCountdown: ContinuousPlayCountdown {
         didSet { UserDefaults.standard.set(continuousPlayCountdown.rawValue, forKey: Keys.continuousPlayCountdown) }
+    }
+
+    /// Stops automatic episode chaining after a streak until the user confirms.
+    /// `nil` disables passout protection entirely.
+    var continuousPlayPassoutProtectionEpisodeLimit: Int? {
+        didSet {
+            let storedValue = max(continuousPlayPassoutProtectionEpisodeLimit ?? 0, 0)
+            UserDefaults.standard.set(storedValue, forKey: Keys.continuousPlayPassoutProtectionEpisodeLimit)
+        }
     }
 
     /// Enable left/right double-tap seeking on touch-based platforms.
@@ -125,6 +135,11 @@ final class UserPreferences {
             defaults: defaults,
             fallback: .fiveSeconds
         )
+        let continuousPlayPassoutProtectionEpisodeLimit = Self.storedOptionalPositiveInt(
+            forKey: Keys.continuousPlayPassoutProtectionEpisodeLimit,
+            defaults: defaults,
+            fallback: 3
+        )
         let playerDoubleTapSeekEnabled = defaults.object(forKey: Keys.playerDoubleTapSeekEnabled) as? Bool ?? true
         let playerDoubleTapForwardInterval = Self.storedSeekInterval(
             forKey: Keys.playerDoubleTapForwardInterval,
@@ -156,6 +171,7 @@ final class UserPreferences {
         self.defaultAudioLanguage = defaultAudioLanguage
         self.continuousPlayEnabled = continuousPlayEnabled
         self.continuousPlayCountdown = continuousPlayCountdown
+        self.continuousPlayPassoutProtectionEpisodeLimit = continuousPlayPassoutProtectionEpisodeLimit
         self.playerDoubleTapSeekEnabled = playerDoubleTapSeekEnabled
         self.playerDoubleTapForwardInterval = playerDoubleTapForwardInterval
         self.playerDoubleTapBackwardInterval = playerDoubleTapBackwardInterval
@@ -181,6 +197,16 @@ final class UserPreferences {
     ) -> ContinuousPlayCountdown {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return ContinuousPlayCountdown(rawValue: defaults.integer(forKey: key)) ?? fallback
+    }
+
+    private static func storedOptionalPositiveInt(
+        forKey key: String,
+        defaults: UserDefaults,
+        fallback: Int?
+    ) -> Int? {
+        guard defaults.object(forKey: key) != nil else { return fallback }
+        let value = defaults.integer(forKey: key)
+        return value > 0 ? value : nil
     }
 }
 

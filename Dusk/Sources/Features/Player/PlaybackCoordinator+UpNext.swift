@@ -1,9 +1,14 @@
 import Foundation
 
 extension PlaybackCoordinator {
+    private enum UpNextStartTrigger {
+        case autoplay
+        case manual
+    }
+
     func playUpNextNow() {
         Task { @MainActor in
-            await startUpNextPlayback()
+            await startUpNextPlayback(trigger: .manual)
         }
     }
 
@@ -18,14 +23,19 @@ extension PlaybackCoordinator {
     func presentUpNext(for episode: PlexEpisode) {
         cancelUpNextCountdown()
 
+        let autoplayBlockedByPassoutProtection = shouldPauseContinuousPlayAutoplay()
+        let shouldAutoplay = preferences.continuousPlayEnabled && !autoplayBlockedByPassoutProtection
+
         upNextPresentation = UpNextPresentation(
             episode: episode,
-            shouldAutoplay: preferences.continuousPlayEnabled,
+            shouldAutoplay: shouldAutoplay,
             countdownDuration: preferences.continuousPlayCountdown.rawValue,
-            secondsRemaining: preferences.continuousPlayEnabled ? preferences.continuousPlayCountdown.rawValue : nil
+            secondsRemaining: shouldAutoplay ? preferences.continuousPlayCountdown.rawValue : nil,
+            autoplayBlockedByPassoutProtection: autoplayBlockedByPassoutProtection,
+            passoutProtectionEpisodeLimit: preferences.continuousPlayPassoutProtectionEpisodeLimit
         )
 
-        if preferences.continuousPlayEnabled {
+        if shouldAutoplay {
             startUpNextCountdown()
         }
     }
@@ -55,7 +65,7 @@ extension PlaybackCoordinator {
             }
 
             if Task.isCancelled { return }
-            await self.startUpNextPlayback()
+            await self.startUpNextPlayback(trigger: .autoplay)
         }
     }
 
@@ -64,7 +74,7 @@ extension PlaybackCoordinator {
         upNextCountdownTask = nil
     }
 
-    func startUpNextPlayback() async {
+    private func startUpNextPlayback(trigger: UpNextStartTrigger) async {
         guard var presentation = upNextPresentation,
               !presentation.isStarting else { return }
 
@@ -79,7 +89,15 @@ extension PlaybackCoordinator {
             startPositionOverride: nil,
             presentPlayer: false
         )
-        if didStart { return }
+        if didStart {
+            switch trigger {
+            case .autoplay:
+                continuousPlayEpisodeRunCount += 1
+            case .manual:
+                resetContinuousPlayEpisodeRunCountForCurrentItem()
+            }
+            return
+        }
 
         guard var failedPresentation = upNextPresentation else { return }
         failedPresentation.isStarting = false
@@ -88,5 +106,14 @@ extension PlaybackCoordinator {
         failedPresentation.errorMessage = loadError ?? "Could not start the next episode."
         upNextPresentation = failedPresentation
         loadError = nil
+    }
+
+    private func shouldPauseContinuousPlayAutoplay() -> Bool {
+        guard preferences.continuousPlayEnabled,
+              let episodeLimit = preferences.continuousPlayPassoutProtectionEpisodeLimit else {
+            return false
+        }
+
+        return continuousPlayEpisodeRunCount >= episodeLimit
     }
 }

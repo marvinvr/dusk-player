@@ -54,7 +54,7 @@ struct PlayerUpNextOverlayView: View {
         VStack(alignment: .leading, spacing: metrics.sectionSpacing) {
             HStack(alignment: .top, spacing: 16) {
                 VStack(alignment: .leading, spacing: 6) {
-                    Text("UP NEXT")
+                    Text(eyebrowText)
                         .font(.caption.weight(.semibold))
                         .tracking(1.2)
                         .foregroundStyle(Color.duskAccent)
@@ -175,10 +175,17 @@ struct PlayerUpNextOverlayView: View {
 
     private func details(metrics: UpNextLayoutMetrics) -> some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text(presentation.episode.title)
+            Text(primaryTitle)
                 .font(metrics.titleFont)
                 .foregroundStyle(.white)
                 .lineLimit(metrics.titleLineLimit)
+
+            if !presentation.shouldAutoplay {
+                Text(presentation.episode.title)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(2)
+            }
 
             if let metadata = metadataText {
                 Text(metadata)
@@ -191,7 +198,7 @@ struct PlayerUpNextOverlayView: View {
                let countdownLabel = presentation.secondsRemaining.map({ "Continues in \($0)s" }) {
                 countdownCard(label: countdownLabel, progress: presentation.autoplayProgress)
             } else {
-                Text("Playback finished. Select the next episode when you're ready.")
+                Text(manualPromptMessage)
                     .font(.body)
                     .foregroundStyle(.white.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
@@ -228,6 +235,24 @@ struct PlayerUpNextOverlayView: View {
         .compactMap { $0 }
         .joined(separator: " · ")
         .nilIfEmpty
+    }
+
+    private var eyebrowText: String {
+        presentation.autoplayBlockedByPassoutProtection ? "AUTOPLAY PAUSED" : "UP NEXT"
+    }
+
+    private var primaryTitle: String {
+        presentation.shouldAutoplay ? presentation.episode.title : "Are You Still Watching?"
+    }
+
+    private var manualPromptMessage: String {
+        if presentation.autoplayBlockedByPassoutProtection,
+           let episodeLimit = presentation.passoutProtectionEpisodeLimit {
+            let episodeLabel = episodeLimit == 1 ? "episode" : "episodes"
+            return "Autoplay paused after \(episodeLimit) \(episodeLabel). Start the next episode when you're ready."
+        }
+
+        return "Playback finished. Start the next episode when you're ready."
     }
 
     private func countdownCard(label: String, progress: Double?) -> some View {

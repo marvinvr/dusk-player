@@ -1,5 +1,7 @@
 This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. See `SPEC.md` for the full technical spec.
 
+`ARCHITECTURE.md` is the quick map of the current code structure after the refactor. Read it before doing discovery-heavy work.
+
 `STYLE.md` is the visual source of truth and must be followed at all times for colors, materials, spacing, and overall UI styling.
 
 ## Essential Context

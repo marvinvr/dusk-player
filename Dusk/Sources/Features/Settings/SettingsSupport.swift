@@ -4,9 +4,9 @@ enum SettingsSupport {
     static let playbackDefaultsFooterText = "Choose preferred stream quality and default audio or subtitle languages. Forced Only limits automatic subtitle selection to forced tracks."
 
     #if os(tvOS)
-    static let playbackBehaviorFooterText = "Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay."
+    static let playbackBehaviorFooterText = "Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm."
     #else
-    static let playbackBehaviorFooterText = "Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Double-Tap to Seek adds left and right double-tap seek zones in the player."
+    static let playbackBehaviorFooterText = "Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Double-Tap to Seek adds left and right double-tap seek zones in the player."
     #endif
 
     static let playbackAdvancedFooterText = "Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle. Player Debug Overlay shows stream stats during playback."
@@ -19,6 +19,10 @@ enum SettingsSupport {
 
     static var audioLanguageOptions: [String] {
         CommonLanguage.allCases.map(\.code)
+    }
+
+    static var passoutProtectionEpisodeOptions: [Int?] {
+        [nil] + Array(1...10).map(Optional.some)
     }
 
     static func subtitleLanguageBinding(_ preferences: UserPreferences) -> Binding<String> {
@@ -34,6 +38,11 @@ enum SettingsSupport {
 
     static func languageDisplayName(for code: String) -> String {
         CommonLanguage(rawValue: code)?.displayName ?? code.uppercased()
+    }
+
+    static func passoutProtectionDisplayName(for episodeLimit: Int?) -> String {
+        guard let episodeLimit else { return "Disabled" }
+        return episodeLimit == 1 ? "1 Episode" : "\(episodeLimit) Episodes"
     }
 }
 

@@ -161,31 +161,37 @@ struct SeasonDetailView: View {
                                 progress: viewModel.progress(for: episode),
                                 artworkWidth: artworkWidth
                             )
+                            .id(episode.ratingKey)
+                            .contextMenu {
+                                episodeContextMenu(episode)
+                            }
                         }
                         .buttonStyle(.plain)
                         .duskSuppressTVOSButtonChrome()
                         .duskTVOSFocusEffectShape(Rectangle())
-                        .contextMenu {
-                            if episode.isPartiallyWatched {
-                                Button {
-                                    Task { await playback.playFromStart(ratingKey: episode.ratingKey) }
-                                } label: {
-                                    Label("Play from Start", systemImage: "arrow.counterclockwise")
-                                }
-                            }
-
-                            Button {
-                                Task { await viewModel.toggleWatched(for: episode) }
-                            } label: {
-                                Label(
-                                    episode.isWatched ? "Mark Unwatched" : "Mark Watched",
-                                    systemImage: episode.isWatched ? "eye.slash" : "eye"
-                                )
-                            }
-                        }
                     }
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func episodeContextMenu(_ episode: PlexEpisode) -> some View {
+        if episode.isPartiallyWatched {
+            Button {
+                Task { await playback.playFromStart(ratingKey: episode.ratingKey) }
+            } label: {
+                Label("Play from Start", systemImage: "arrow.counterclockwise")
+            }
+        }
+
+        Button {
+            Task { await viewModel.toggleWatched(for: episode) }
+        } label: {
+            Label(
+                episode.isWatched ? "Mark Unwatched" : "Mark Watched",
+                systemImage: episode.isWatched ? "eye.slash" : "eye"
+            )
         }
     }
 

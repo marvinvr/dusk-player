@@ -117,6 +117,8 @@ struct UpNextPresentation: Sendable {
     var shouldAutoplay: Bool
     let countdownDuration: Int
     var secondsRemaining: Int?
+    let autoplayBlockedByPassoutProtection: Bool
+    let passoutProtectionEpisodeLimit: Int?
     var isStarting = false
     var errorMessage: String?
 
