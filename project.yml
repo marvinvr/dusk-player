@@ -58,7 +58,6 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
         PRODUCT_NAME: Dusk
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: true
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UILaunchScreen_UIColorName: LaunchBackground
