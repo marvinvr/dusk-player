@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct SearchView: View {
     @Environment(PlexService.self) private var plexService
@@ -29,7 +32,7 @@ struct SearchView: View {
     private func searchContent(_ vm: SearchViewModel) -> some View {
         @Bindable var vm = vm
 
-        List {
+        let searchResultsList = List {
             if vm.isSearching && vm.results.isEmpty {
                 loadingRow
             } else if let error = vm.error, vm.results.isEmpty {
@@ -44,7 +47,6 @@ struct SearchView: View {
         }
         .listStyle(.plain)
         .duskScrollContentBackgroundHidden()
-        .searchable(text: $vm.query, prompt: "Movies, Shows, Actors...")
         .onChange(of: vm.query) {
             vm.searchDebounced()
         }
@@ -53,6 +55,23 @@ struct SearchView: View {
                 emptyPrompt
             }
         }
+
+        #if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            searchResultsList
+                .searchable(
+                    text: $vm.query,
+                    placement: .navigationBarDrawer(displayMode: .always),
+                    prompt: "Movies, Shows, Actors..."
+                )
+        } else {
+            searchResultsList
+                .searchable(text: $vm.query, prompt: "Movies, Shows, Actors...")
+        }
+        #else
+        searchResultsList
+            .searchable(text: $vm.query, prompt: "Movies, Shows, Actors...")
+        #endif
     }
 
     // MARK: - Result Sections
