@@ -142,7 +142,7 @@ struct MainTabView: View {
 
     private var availableTabs: [Tab] {
         var tabs: [Tab] = [.home]
-        tabs += librariesViewModel?.availableLibraryTypes.map(Tab.library) ?? []
+        tabs += PlexLibraryType.allCases.map(Tab.library)
         tabs += [.search, .settings]
         return tabs
     }
