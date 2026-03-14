@@ -15,16 +15,16 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] Movie & TV show detail views
 - [x] Subtitle & audio track selection
 - [x] Continuous Playback
-- [ ] App Store Release
-- [ ] tvOS App
-- [x] Skip Intro & Credits
-- [ ] Chapter Markers
-- [ ] Select which version to play
 - [x] Picture in Picture
+- [x] Skip Intro & Credits
 - [x] Passout Protection (Are you still watching?)
 - [x] macOS App
 - [ ] Proper Recommendations Section in TV Show and Movies Views
 - [ ] More elaborate Continue Watching section on the Home Page
+- [ ] Select which version to play
+- [ ] App Store Release
+- [ ] tvOS App
+- [ ] Chapter Markers
 - [ ] Transcoding Support
 - [ ] Offline playback (Downloads)
 - [ ] Plex Home Integration
