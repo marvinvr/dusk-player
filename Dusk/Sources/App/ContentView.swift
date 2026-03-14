@@ -31,25 +31,29 @@ struct ContentView: View {
 
     @ViewBuilder
     private var serverDiscoveryView: some View {
-        VStack(spacing: 16) {
-            if let error = connectError {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.largeTitle)
-                    .foregroundStyle(Color.duskTextSecondary)
-                Text(error)
-                    .foregroundStyle(Color.duskTextSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 40)
-                Button("Retry") {
-                    connectError = nil
-                    discoveredServers = nil
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                if let error = connectError {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.largeTitle)
+                        .foregroundStyle(Color.duskTextSecondary)
+                    Text(error)
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 40)
+                    Button("Retry") {
+                        connectError = nil
+                        discoveredServers = nil
+                    }
+                    .duskSuppressTVOSButtonChrome()
+                } else {
+                    ProgressView()
+                        .tint(Color.duskAccent)
+                    Text("Finding your servers…")
+                        .foregroundStyle(Color.duskTextSecondary)
                 }
-                .duskSuppressTVOSButtonChrome()
-            } else {
-                ProgressView()
-                    .tint(Color.duskAccent)
-                Text("Finding your servers…")
-                    .foregroundStyle(Color.duskTextSecondary)
             }
         }
         .task(id: connectError == nil) {
