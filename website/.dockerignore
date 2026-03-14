@@ -1,0 +1,4 @@
+Dockerfile
+.dockerignore
+.git
+.DS_Store

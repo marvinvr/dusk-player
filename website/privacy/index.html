@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — Dusk</title>
+  <meta name="description" content="Privacy Policy for Dusk, a native Plex client for Apple platforms.">
+  <meta name="theme-color" content="#090A0F" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#F5F7FA" media="(prefers-color-scheme: light)">
+  <link rel="icon" type="image/png" href="/assets/app-icon.png">
+  <link rel="apple-touch-icon" href="/assets/app-icon.png">
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="stylesheet" href="/css/privacy.css">
+</head>
+<body>
+
+  <!-- ===== Nav ===== -->
+  <nav class="nav">
+    <a href="/" class="nav-brand">
+      <img src="/assets/app-icon.png" alt="Dusk icon" width="36" height="36">
+      <span>Dusk</span>
+    </a>
+    <div class="theme-switch" id="theme-switch" role="switch" aria-checked="true" aria-label="Toggle theme" tabindex="0">
+      <div class="theme-switch-label">
+        <div class="theme-switch-label-inner">
+          <span class="theme-switch-label-text">Dawn</span>
+          <span class="theme-switch-label-text">Dusk</span>
+        </div>
+      </div>
+      <div class="theme-switch-track">
+        <div class="theme-switch-knob">
+          <svg class="theme-switch-icon-sun" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+          </svg>
+          <svg class="theme-switch-icon-moon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ===== Privacy Policy ===== -->
+  <main class="privacy">
+    <h1>Privacy Policy</h1>
+    <p class="privacy-updated">Last updated: March 14, 2026</p>
+
+    <section>
+      <h2>Overview</h2>
+      <p>Dusk is a native Plex client for Apple platforms. Your privacy is fundamental to how the app is built. Dusk does not collect, store, or transmit any personal data to us. There are no analytics, no tracking, no telemetry, and no third-party SDKs that phone home.</p>
+    </section>
+
+    <section>
+      <h2>Data stored on your device</h2>
+      <p>Dusk stores a small amount of data locally on your device to function. None of this data ever leaves your device or is sent to us.</p>
+      <ul>
+        <li><strong>Plex authentication token</strong> &mdash; stored securely in the iOS Keychain. Used to authenticate with your Plex server. You can remove it at any time by signing out.</li>
+        <li><strong>Client identifier</strong> &mdash; a randomly generated UUID created on first launch. Used by Plex to identify your device as a player. It contains no personally identifiable information.</li>
+        <li><strong>User preferences</strong> &mdash; your settings (subtitle language, audio language, playback preferences, appearance) are stored in UserDefaults on your device.</li>
+        <li><strong>Image cache</strong> &mdash; poster artwork and backdrops fetched from your Plex server are cached locally for performance. This cache can be cleared by deleting the app.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Network communication</h2>
+      <p>Dusk communicates exclusively with:</p>
+      <ul>
+        <li><strong>plex.tv</strong> &mdash; for authentication and server discovery. This is Plex's own service, governed by <a href="https://www.plex.tv/about/privacy-legal/" target="_blank" rel="noopener">Plex's Privacy Policy</a>.</li>
+        <li><strong>Your Plex Media Server</strong> &mdash; to browse your library, stream media, and sync playback progress. This is your own server, on your own network or infrastructure.</li>
+      </ul>
+      <p>Dusk does not communicate with any other servers, APIs, or services. There is no "home" for data to be sent to.</p>
+    </section>
+
+    <section>
+      <h2>Analytics and tracking</h2>
+      <p>None. Dusk contains no analytics frameworks, no crash reporting SDKs, no advertising identifiers, and no usage tracking of any kind. We have no idea how you use the app, and we prefer it that way.</p>
+    </section>
+
+    <section>
+      <h2>Third-party code</h2>
+      <p>Dusk uses one third-party library:</p>
+      <ul>
+        <li><strong>VLCKit</strong> &mdash; an open-source media playback framework (LGPL). It runs entirely on-device to decode video and audio. It does not collect or transmit any data.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Children's privacy</h2>
+      <p>Dusk does not collect any data from anyone, including children. The app requires a Plex account, which is managed entirely by Plex.</p>
+    </section>
+
+    <section>
+      <h2>Changes to this policy</h2>
+      <p>If this policy changes, the updated version will be posted on this page with a revised date. Since Dusk collects no data, meaningful changes are unlikely.</p>
+    </section>
+
+    <section>
+      <h2>Contact</h2>
+      <p>Questions or concerns? Reach out at <a id="contact-link" href="#">loading...</a>.</p>
+    </section>
+  </main>
+
+  <!-- ===== Footer ===== -->
+  <footer class="footer">
+    <div class="footer-content">
+      <div class="footer-left">&copy; <span id="year"></span> Dusk. All rights reserved.</div>
+      <div class="footer-links">
+        <a href="https://github.com/marvinvr/dusk-player" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://marvinvr.ch" target="_blank" rel="noopener">About Me</a>
+        <a href="/privacy/">Privacy Policy</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/js/main.js"></script>
+  <script>
+    (function() {
+      var c = [98,87,70,121,100,109,108,117,81,72,90,118,98,105,49,121,89,88,66,119,89,88,74,107,76,109,78,118,98,81,61,61];
+      var e = c.map(function(x) { return String.fromCharCode(x); }).join('');
+      var d = atob(e);
+      var link = document.getElementById('contact-link');
+      link.href = 'mailto:' + d;
+      link.textContent = d;
+    })();
+  </script>
+</body>
+</html>
