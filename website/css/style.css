@@ -232,8 +232,8 @@ img {
   align-items: center;
   justify-content: center;
   gap: 64px;
-  padding: 160px 48px 100px;
-  max-width: 1200px;
+  padding: 160px 24px 100px;
+  max-width: var(--max-width);
   margin: 0 auto;
   overflow: hidden;
 }
