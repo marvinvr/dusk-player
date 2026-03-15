@@ -13,7 +13,7 @@ struct HomeView: View {
     @State private var currentHeroIndex = 0
     @State private var heroRotationRevision = 0
     @State private var heroRotationProgress = 0.0
-    @State private var isHeroContextMenuPresented = false
+    @State private var heroMenuItem: PlexItem?
 
     private let heroRotationInterval: UInt64 = 5_000_000_000
 
@@ -69,8 +69,23 @@ struct HomeView: View {
                 currentHeroIndex = 0
             }
         }
+        .onChange(of: isHeroMenuPresented) { _, isPresented in
+            if isPresented {
+                pauseHeroRotation()
+            } else {
+                restartHeroRotation()
+            }
+        }
         .task(id: heroRotationSeed) {
             await rotateHeroIfNeeded()
+        }
+        .confirmationDialog(
+            "",
+            isPresented: heroMenuPresentedBinding,
+            titleVisibility: .hidden,
+            presenting: heroMenuItem
+        ) { item in
+            heroActionDialog(for: item)
         }
     }
 
@@ -239,6 +254,12 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroActionRow(_ vm: HomeViewModel, item: PlexItem) -> some View {
+        heroActionButton(vm, item: item)
+    }
+
+    @ViewBuilder
+    private func heroActionButton(_ vm: HomeViewModel, item: PlexItem) -> some View {
+        #if os(tvOS)
         Button {
             restartHeroRotation()
             play(item)
@@ -262,14 +283,22 @@ struct HomeView: View {
                 detailsRoute: AppNavigationRoute.destination(for: item),
                 detailsLabel: heroDetailsLabel(for: item)
             )
-            .onAppear {
-                isHeroContextMenuPresented = true
-            }
-            .onDisappear {
-                isHeroContextMenuPresented = false
-                restartHeroRotation()
-            }
         }
+        #else
+        HomeHeroActionButtonLabel(
+            title: vm.heroPrimaryActionTitle(for: item),
+            systemImage: "play.fill"
+        )
+        .contentShape(Capsule())
+        .onTapGesture {
+            restartHeroRotation()
+            play(item)
+        }
+        .onLongPressGesture(minimumDuration: 0.45) {
+            heroMenuItem = item
+        }
+        .accessibilityAddTraits(.isButton)
+        #endif
     }
 
     @ViewBuilder
@@ -397,16 +426,16 @@ struct HomeView: View {
         guard heroItemIDs.count > 1,
               !accessibilityReduceMotion,
               scenePhase == .active,
-              !isHeroContextMenuPresented else {
+              !isHeroMenuPresented else {
             await MainActor.run {
-                heroRotationProgress = 0
+                setHeroRotationProgress(0)
             }
             return
         }
 
         while !Task.isCancelled {
             await MainActor.run {
-                heroRotationProgress = 0
+                setHeroRotationProgress(0)
                 withAnimation(.linear(duration: Double(heroRotationInterval) / 1_000_000_000)) {
                     heroRotationProgress = 1
                 }
@@ -416,7 +445,7 @@ struct HomeView: View {
                 try await Task.sleep(nanoseconds: heroRotationInterval)
             } catch {
                 await MainActor.run {
-                    heroRotationProgress = 0
+                    setHeroRotationProgress(0)
                 }
                 return
             }
@@ -434,6 +463,37 @@ struct HomeView: View {
         }
     }
 
+    @ViewBuilder
+    private func heroActionDialog(for item: PlexItem) -> some View {
+        if item.canMarkWatchedFromContextMenu, let viewModel {
+            Button("Mark Watched") {
+                Task { await viewModel.setWatched(true, for: item) }
+            }
+        }
+
+        if item.canMarkUnwatchedFromContextMenu, let viewModel {
+            Button("Mark Unwatched") {
+                Task { await viewModel.setWatched(false, for: item) }
+            }
+        }
+
+        Button(heroDetailsLabel(for: item)) {
+            path.append(AppNavigationRoute.destination(for: item))
+        }
+
+        if let seasonRoute = item.contextMenuSeasonRoute {
+            Button("Go to Season") {
+                path.append(seasonRoute)
+            }
+        }
+
+        if let showRoute = item.contextMenuShowRoute {
+            Button("Go to Show") {
+                path.append(showRoute)
+            }
+        }
+    }
+
     private func selectHero(at index: Int) {
         guard index != currentHeroIndex else {
             restartHeroRotation()
@@ -447,7 +507,12 @@ struct HomeView: View {
     }
 
     private func restartHeroRotation() {
-        heroRotationProgress = 0
+        setHeroRotationProgress(0)
+        heroRotationRevision += 1
+    }
+
+    private func pauseHeroRotation() {
+        setHeroRotationProgress(0)
         heroRotationRevision += 1
     }
 
@@ -500,6 +565,10 @@ struct HomeView: View {
         !(viewModel?.heroItems().isEmpty ?? true)
     }
 
+    private var isHeroMenuPresented: Bool {
+        heroMenuItem != nil
+    }
+
     private var heroItemIDs: [String] {
         viewModel?.heroItems().map(\.ratingKey) ?? []
     }
@@ -510,8 +579,19 @@ struct HomeView: View {
             String(heroRotationRevision),
             String(accessibilityReduceMotion),
             String(scenePhase == .active),
-            String(isHeroContextMenuPresented)
+            String(isHeroMenuPresented)
         ].joined(separator: "::")
+    }
+
+    private var heroMenuPresentedBinding: Binding<Bool> {
+        Binding(
+            get: { heroMenuItem != nil },
+            set: { isPresented in
+                if !isPresented {
+                    heroMenuItem = nil
+                }
+            }
+        )
     }
 
     private var recentlyAddedInlineItemLimit: Int {
@@ -545,6 +625,14 @@ struct HomeView: View {
             return "Go to Movie"
         default:
             return "View Details"
+        }
+    }
+
+    private func setHeroRotationProgress(_ progress: Double) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            heroRotationProgress = progress
         }
     }
 

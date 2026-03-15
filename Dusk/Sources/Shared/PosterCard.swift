@@ -185,7 +185,7 @@ struct PlexItemContextMenuContent: View {
     }
 }
 
-private extension PlexItem {
+extension PlexItem {
     var canMarkWatchedFromContextMenu: Bool {
         switch type {
         case .movie, .episode, .clip:
