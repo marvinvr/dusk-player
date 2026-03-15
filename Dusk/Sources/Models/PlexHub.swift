@@ -47,8 +47,79 @@ struct PlexHub: Decodable, Sendable, Identifiable, Hashable {
         more = try container.decodeIfPresent(Bool.self, forKey: .more) ??
             (try container.decodeIfPresent(Int.self, forKey: .more).map { $0 != 0 })
 
-        let metadataItems = try container.decodeIfPresent([PlexItem].self, forKey: .metadata) ?? []
-        let directoryItems = try container.decodeIfPresent([PlexItem].self, forKey: .directories) ?? []
+        let metadataItems = try container.decodeLossyPlexItemsIfPresent(forKey: .metadata)
+        let directoryItems = try container.decodeLossyPlexItemsIfPresent(forKey: .directories)
         items = metadataItems + directoryItems
+    }
+}
+
+private extension KeyedDecodingContainer where Key == PlexHub.CodingKeys {
+    func decodeLossyPlexItemsIfPresent(forKey key: Key) throws -> [PlexItem] {
+        guard contains(key), try !decodeNil(forKey: key) else { return [] }
+        return try decode(LossyPlexItemArray.self, forKey: key).items
+    }
+}
+
+private struct LossyPlexItemArray: Decodable {
+    let items: [PlexItem]
+
+    init(from decoder: Decoder) throws {
+        var container = try decoder.unkeyedContainer()
+        var items: [PlexItem] = []
+
+        while !container.isAtEnd {
+            do {
+                items.append(try container.decode(PlexItem.self))
+            } catch {
+                // Plex short-search responses can include suggestion directories that do not
+                // conform to the media item shape the UI expects.
+                _ = try container.decode(IgnoredJSONValue.self)
+            }
+        }
+
+        self.items = items
+    }
+}
+
+private struct IgnoredJSONValue: Decodable {
+    init(from decoder: Decoder) throws {
+        if var container = try? decoder.unkeyedContainer() {
+            while !container.isAtEnd {
+                _ = try container.decode(IgnoredJSONValue.self)
+            }
+            return
+        }
+
+        if let container = try? decoder.container(keyedBy: DynamicCodingKey.self) {
+            for key in container.allKeys {
+                _ = try container.decode(IgnoredJSONValue.self, forKey: key)
+            }
+            return
+        }
+
+        let container = try decoder.singleValueContainer()
+
+        if container.decodeNil() { return }
+        if (try? container.decode(Bool.self)) != nil { return }
+        if (try? container.decode(Int.self)) != nil { return }
+        if (try? container.decode(Double.self)) != nil { return }
+        if (try? container.decode(String.self)) != nil { return }
+
+        throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
+    }
+}
+
+private struct DynamicCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        intValue = nil
+    }
+
+    init?(intValue: Int) {
+        stringValue = String(intValue)
+        self.intValue = intValue
     }
 }
