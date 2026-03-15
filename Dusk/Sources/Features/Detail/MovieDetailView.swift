@@ -3,6 +3,7 @@ import SwiftUI
 struct MovieDetailView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: MovieDetailViewModel
 
     init(ratingKey: String, plexService: PlexService) {
@@ -41,13 +42,7 @@ struct MovieDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width)
-                    metadataSection(details)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
-                    actionButtons(details)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
+                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
                     if let summary = details.summary, !summary.isEmpty {
                         summarySection(summary)
                             .padding(.horizontal, 20)
@@ -66,7 +61,6 @@ struct MovieDetailView: View {
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea(edges: .top)
             .scrollIndicators(.hidden)
         }
     }
@@ -74,66 +68,27 @@ struct MovieDetailView: View {
     // MARK: - Hero
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat) -> some View {
-        let heroHeight = 380 + topInset
-        let posterWidth: CGFloat = 120
-        let backdropWidth = Int(containerWidth.rounded(.up))
-        let backdropHeight = Int(heroHeight.rounded(.up))
-
-        ZStack(alignment: .bottomLeading) {
-            DetailHeroBackdrop(
-                imageURL: viewModel.backdropURL(width: backdropWidth, height: backdropHeight),
-                height: heroHeight
-            )
-
-            // Gradient fade to background
-            LinearGradient(
-                colors: [.clear, Color.duskBackground.opacity(0.6), Color.duskBackground],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: heroHeight)
-            .frame(maxWidth: .infinity)
-
-            // Poster + Title overlay
-            HStack(alignment: .bottom, spacing: 16) {
-                if let posterURL = viewModel.posterURL(width: 120, height: 180) {
-                    DuskAsyncImage(url: posterURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(2/3, contentMode: .fit)
-                        default:
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.duskSurface)
-                                .aspectRatio(2/3, contentMode: .fit)
-                        }
-                    }
-                    .frame(width: posterWidth)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
-                }
-
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(details.title)
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-
-                    metadataTagline(details)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
+    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroHeight = heroBase + topInset
+        let posterWidth = sizeClass == .regular ? 180 : 120
+        let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
+        DetailHeroSection(
+            backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
+            posterURL: viewModel.posterURL(width: posterWidth, height: posterHeight),
+            title: details.title,
+            topInset: topInset,
+            containerWidth: containerWidth,
+            heroBaseHeight: heroBase,
+            posterWidth: CGFloat(posterWidth)
+        ) {
+            VStack(alignment: .leading, spacing: 6) {
+                metadataTagline(details)
+                heroMetadata(details)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
+        } actions: {
+            actionButtons(details)
         }
-        .frame(height: heroHeight)
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -146,54 +101,49 @@ struct MovieDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.subheadline)
-                .foregroundStyle(Color.duskTextSecondary)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.white.opacity(0.76))
         }
     }
 
-    // MARK: - Metadata
-
     @ViewBuilder
-    private func metadataSection(_ details: PlexMediaDetails) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let genres = viewModel.genreText {
-                Text(genres)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
+    private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+        if let genres = viewModel.genreText {
+            Text(genres)
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.76))
+        }
 
-            if let rating = details.rating {
-                HStack(spacing: 12) {
+        if let rating = details.rating {
+            HStack(spacing: 12) {
+                ratingBadge(
+                    icon: "star.fill",
+                    value: String(format: "%.1f", rating),
+                    color: .yellow
+                )
+                if let audience = details.audienceRating {
                     ratingBadge(
-                        icon: "star.fill",
-                        value: String(format: "%.1f", rating),
-                        color: .yellow
+                        icon: "person.fill",
+                        value: String(format: "%.0f%%", audience * 10),
+                        color: Color.duskAccent
                     )
-                    if let audience = details.audienceRating {
-                        ratingBadge(
-                            icon: "person.fill",
-                            value: String(format: "%.0f%%", audience * 10),
-                            color: Color.duskAccent
-                        )
-                    }
                 }
             }
+        }
 
-            if let director = viewModel.directorText {
-                Text("Directed by \(director)")
-                    .font(.caption)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
+        if let director = viewModel.directorText {
+            Text("Directed by \(director)")
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.76))
+        }
 
-            if let studio = details.studio {
-                Text(studio)
-                    .font(.caption)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
+        if let studio = details.studio {
+            Text(studio)
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.76))
         }
     }
 
-    @ViewBuilder
     private func ratingBadge(icon: String, value: String, color: Color) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
@@ -201,7 +151,7 @@ struct MovieDetailView: View {
                 .foregroundStyle(color)
             Text(value)
                 .font(.subheadline.monospacedDigit())
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.white)
         }
     }
 
@@ -209,8 +159,11 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
-        VStack(spacing: 12) {
-            // Play / Resume button
+        let layout = sizeClass == .regular
+            ? AnyLayout(HStackLayout(spacing: 12))
+            : AnyLayout(VStackLayout(spacing: 12))
+
+        layout {
             Button {
                 Task { await playback.play(ratingKey: details.ratingKey) }
             } label: {
@@ -223,15 +176,15 @@ struct MovieDetailView: View {
                     }
                 }
                 .font(.headline)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
                 .padding(.vertical, 14)
+                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
                 .background(Color.duskAccent)
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
             }
             .duskSuppressTVOSButtonChrome()
 
-            // Mark Watched / Unwatched
             Button {
                 Task { await viewModel.toggleWatched() }
             } label: {
@@ -240,8 +193,9 @@ struct MovieDetailView: View {
                     Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
                 }
                 .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
                 .padding(.vertical, 12)
+                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
                 .background(Color.duskSurface)
                 .foregroundStyle(Color.duskTextPrimary)
                 .clipShape(Capsule())
@@ -252,6 +206,10 @@ struct MovieDetailView: View {
             }
             .duskSuppressTVOSButtonChrome()
         }
+    }
+
+    private var usesFullWidthActionButtons: Bool {
+        sizeClass == .compact
     }
 
     // MARK: - Summary

@@ -92,6 +92,6 @@ final class MovieDetailViewModel {
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.art)
+        plexService.imageURL(for: details?.art, width: width, height: height)
     }
 }

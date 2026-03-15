@@ -49,7 +49,7 @@ final class SeasonDetailViewModel {
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.art)
+        plexService.imageURL(for: details?.art, width: width, height: height)
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
@@ -67,7 +67,7 @@ final class SeasonDetailViewModel {
     func episodeSubtitle(_ episode: PlexEpisode) -> String? {
         [
             MediaTextFormatter.shortDuration(milliseconds: episode.duration),
-            episode.originallyAvailableAt?.isEmpty == false ? episode.originallyAvailableAt : nil,
+            MediaTextFormatter.localizedAirDate(episode.originallyAvailableAt),
         ]
         .compactMap { $0 }
         .joined(separator: " · ")

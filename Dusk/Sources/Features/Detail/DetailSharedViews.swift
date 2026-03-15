@@ -1,5 +1,154 @@
 import SwiftUI
 
+// MARK: - Detail Hero Section
+
+struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+
+    let backdropURL: URL?
+    let posterURL: URL?
+    let title: String
+    let topInset: CGFloat
+    let containerWidth: CGFloat
+    var heroBaseHeight: CGFloat = 380
+    var posterWidth: CGFloat = 120
+    @ViewBuilder var supertitle: Supertitle
+    @ViewBuilder var subtitle: Subtitle
+    @ViewBuilder var actions: Actions
+
+    private var heroHeight: CGFloat { heroBaseHeight + topInset }
+    private var usesTextColumnActions: Bool {
+        sizeClass == .regular && posterURL != nil
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            DetailHeroBackdrop(
+                imageURL: backdropURL,
+                height: heroHeight
+            )
+
+            ZStack {
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.18),
+                        Color.black.opacity(0.86)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                LinearGradient(
+                    colors: [
+                        Color.black.opacity(0.86),
+                        Color.black.opacity(0.48),
+                        .clear
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+
+                LinearGradient(
+                    colors: [
+                        .clear,
+                        Color.duskBackground.opacity(0.26),
+                        Color.duskBackground
+                    ],
+                    startPoint: .center,
+                    endPoint: .bottom
+                )
+            }
+            .allowsHitTesting(false)
+
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .bottom, spacing: 16) {
+                    if let posterURL {
+                        posterView(url: posterURL)
+                    }
+
+                    VStack(alignment: .leading, spacing: usesTextColumnActions ? 16 : 10) {
+                        supertitle
+
+                        Text(title)
+                            .font(.title2.bold())
+                            .foregroundStyle(Color.white)
+                            .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+                            .multilineTextAlignment(.leading)
+                            .lineLimit(2)
+                            .truncationMode(.tail)
+                            .layoutPriority(1)
+
+                        subtitle
+
+                        if usesTextColumnActions {
+                            actions
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
+                if !usesTextColumnActions {
+                    actions
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 28)
+            .padding(.top, topInset + 64)
+        }
+        .frame(height: heroHeight)
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func posterView(url: URL) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+
+        DuskAsyncImage(url: url) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            default:
+                shape
+                    .fill(Color.duskSurface)
+                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
+            }
+        }
+        .frame(width: posterWidth)
+        .clipShape(shape)
+        .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+    }
+}
+
+extension DetailHeroSection where Supertitle == EmptyView {
+    init(
+        backdropURL: URL?,
+        posterURL: URL?,
+        title: String,
+        topInset: CGFloat,
+        containerWidth: CGFloat,
+        heroBaseHeight: CGFloat = 380,
+        posterWidth: CGFloat = 120,
+        @ViewBuilder subtitle: () -> Subtitle,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.backdropURL = backdropURL
+        self.posterURL = posterURL
+        self.title = title
+        self.topInset = topInset
+        self.containerWidth = containerWidth
+        self.heroBaseHeight = heroBaseHeight
+        self.posterWidth = posterWidth
+        self.supertitle = EmptyView()
+        self.subtitle = subtitle()
+        self.actions = actions()
+    }
+}
+
+// MARK: - Actor Credit Card
+
 struct ActorCreditCard: View {
     let person: PlexPersonReference
     let plexService: PlexService

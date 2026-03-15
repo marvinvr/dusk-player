@@ -3,6 +3,7 @@ import SwiftUI
 struct EpisodeDetailView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: EpisodeDetailViewModel
 
     init(ratingKey: String, plexService: PlexService) {
@@ -39,13 +40,7 @@ struct EpisodeDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width)
-                    metadataSection(details)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
-                    actionButtons(details)
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
+                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
 
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
@@ -63,74 +58,37 @@ struct EpisodeDetailView: View {
                 .padding(.bottom, 40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea(edges: .top)
             .scrollIndicators(.hidden)
         }
     }
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat) -> some View {
-        let heroHeight = 380 + topInset
-        let posterWidth: CGFloat = 120
-        let backdropWidth = Int(containerWidth.rounded(.up))
-        let backdropHeight = Int(heroHeight.rounded(.up))
-
-        ZStack(alignment: .bottomLeading) {
-            DetailHeroBackdrop(
-                imageURL: viewModel.backdropURL(width: backdropWidth, height: backdropHeight),
-                height: heroHeight
-            )
-
-            LinearGradient(
-                colors: [.clear, Color.duskBackground.opacity(0.6), Color.duskBackground],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: heroHeight)
-            .frame(maxWidth: .infinity)
-
-            HStack(alignment: .bottom, spacing: 16) {
-                if let posterURL = viewModel.posterURL(width: 120, height: 180) {
-                    DuskAsyncImage(url: posterURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                        default:
-                            RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.duskSurface)
-                                .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                        }
-                    }
-                    .frame(width: posterWidth)
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                    .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
+    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroHeight = heroBase + topInset
+        DetailHeroSection(
+            backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
+            posterURL: nil,
+            title: details.title,
+            topInset: topInset,
+            containerWidth: containerWidth,
+            heroBaseHeight: heroBase,
+            supertitle: {
+                if let showTitle = viewModel.showTitle {
+                    showTitleLink(showTitle)
                 }
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if let showTitle = viewModel.showTitle {
-                        showTitleLink(showTitle)
-                    }
-
-                    Text(details.title)
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-
+            },
+            subtitle: {
+                VStack(alignment: .leading, spacing: 6) {
                     episodeMarkerRow()
                     metadataTagline(details)
+                    heroMetadata(details)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            },
+            actions: {
+                actionButtons(details)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 16)
-        }
-        .frame(height: heroHeight)
+        )
     }
 
     @ViewBuilder
@@ -139,13 +97,17 @@ struct EpisodeDetailView: View {
         let episodeLabel = viewModel.episodeLabel
 
         if seasonLabel != nil || episodeLabel != nil {
-            HStack(spacing: 8) {
+            HStack(spacing: 0) {
                 if let seasonLabel {
-                    seasonChipLink(seasonLabel)
+                    seasonMetadataLink(seasonLabel)
+                }
+
+                if seasonLabel != nil, episodeLabel != nil {
+                    metadataSeparator
                 }
 
                 if let episodeLabel {
-                    markerChip(episodeLabel)
+                    metadataMarkerText(episodeLabel)
                 }
             }
         }
@@ -169,30 +131,28 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func seasonChipLink(_ title: String) -> some View {
+    private func seasonMetadataLink(_ title: String) -> some View {
         if let seasonRatingKey = viewModel.seasonRatingKey {
             NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
-                markerChip(title)
+                metadataMarkerText(title)
             }
             .buttonStyle(.plain)
             .duskSuppressTVOSButtonChrome()
         } else {
-            markerChip(title)
+            metadataMarkerText(title)
         }
     }
 
-    private func markerChip(_ title: String) -> some View {
+    private func metadataMarkerText(_ title: String) -> some View {
         Text(title)
-            .font(.caption.weight(.medium))
-            .foregroundStyle(Color.duskTextPrimary)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color.duskSurface.opacity(0.9))
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-            )
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.white.opacity(0.76))
+    }
+
+    private var metadataSeparator: some View {
+        Text(" · ")
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.white.opacity(0.76))
     }
 
     @ViewBuilder
@@ -204,36 +164,38 @@ struct EpisodeDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.caption)
-                .foregroundStyle(Color.duskTextSecondary)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.white.opacity(0.76))
         }
     }
 
     @ViewBuilder
-    private func metadataSection(_ details: PlexMediaDetails) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let originalDate = details.originallyAvailableAt {
-                Text(originalDate)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
+    private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+        if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
+            Text(originalDate)
+                .font(.caption)
+                .foregroundStyle(Color.white.opacity(0.76))
+        }
 
-            if let rating = details.rating {
-                HStack(spacing: 4) {
-                    Image(systemName: "star.fill")
-                        .font(.caption2)
-                        .foregroundStyle(.yellow)
-                    Text(String(format: "%.1f", rating))
-                        .font(.subheadline.monospacedDigit())
-                        .foregroundStyle(Color.duskTextPrimary)
-                }
+        if let rating = details.rating {
+            HStack(spacing: 4) {
+                Image(systemName: "star.fill")
+                    .font(.caption2)
+                    .foregroundStyle(.yellow)
+                Text(String(format: "%.1f", rating))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(Color.white)
             }
         }
     }
 
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
-        VStack(spacing: 12) {
+        let layout = sizeClass == .regular
+            ? AnyLayout(HStackLayout(spacing: 12))
+            : AnyLayout(VStackLayout(spacing: 12))
+
+        layout {
             Button {
                 Task { await playback.play(ratingKey: details.ratingKey) }
             } label: {
@@ -242,8 +204,9 @@ struct EpisodeDetailView: View {
                     Text("Play Episode")
                 }
                 .font(.headline)
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
                 .padding(.vertical, 14)
+                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
                 .background(Color.duskAccent)
                 .foregroundStyle(.white)
                 .clipShape(Capsule())
@@ -258,8 +221,9 @@ struct EpisodeDetailView: View {
                     Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
                 }
                 .font(.subheadline.weight(.medium))
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
                 .padding(.vertical, 12)
+                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
                 .background(Color.duskSurface)
                 .foregroundStyle(Color.duskTextPrimary)
                 .clipShape(Capsule())
@@ -270,6 +234,10 @@ struct EpisodeDetailView: View {
             }
             .duskSuppressTVOSButtonChrome()
         }
+    }
+
+    private var usesFullWidthActionButtons: Bool {
+        sizeClass == .compact
     }
 
     @ViewBuilder

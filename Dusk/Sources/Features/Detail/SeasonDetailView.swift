@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SeasonDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: SeasonDetailViewModel
 
     private let horizontalPadding: CGFloat = 20
@@ -40,13 +41,7 @@ struct SeasonDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width)
-
-                    if viewModel.nextEpisodeToPlay != nil {
-                        actionButtons()
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 20)
-                    }
+                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
 
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
@@ -63,69 +58,56 @@ struct SeasonDetailView: View {
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ignoresSafeArea(edges: .top)
             .scrollIndicators(.hidden)
         }
     }
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat) -> some View {
-        let heroHeight = 400 + topInset
-        let backdropWidth = Int(containerWidth.rounded(.up))
-        let backdropHeight = Int(heroHeight.rounded(.up))
-
-        ZStack(alignment: .bottomLeading) {
-            DetailHeroBackdrop(
-                imageURL: viewModel.backdropURL(width: backdropWidth, height: backdropHeight),
-                height: heroHeight
-            )
-
-            LinearGradient(
-                colors: [.clear, Color.duskBackground.opacity(0.6), Color.duskBackground],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: heroHeight)
-            .frame(maxWidth: .infinity)
-
-            HStack(alignment: .bottom, spacing: 16) {
-                seasonArtwork
-
-                VStack(alignment: .leading, spacing: 10) {
-                    if let showTitle = viewModel.showTitle {
-                        if let showRatingKey = viewModel.showRatingKey {
-                            NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
-                                Text(showTitle)
-                                    .font(.subheadline.weight(.medium))
-                                    .foregroundStyle(Color.duskAccent)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .buttonStyle(.plain)
-                            .duskSuppressTVOSButtonChrome()
-                        } else {
-                            Text(showTitle)
-                                .font(.subheadline.weight(.medium))
-                                .foregroundStyle(Color.duskAccent)
-                        }
-                    }
-
-                    Text(details.title)
-                        .font(.title2.bold())
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .multilineTextAlignment(.leading)
-                        .lineLimit(2)
-                        .truncationMode(.tail)
-                        .layoutPriority(1)
-
-                    metadataTagline(details)
+    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroHeight = heroBase + topInset
+        let posterWidth = sizeClass == .regular ? 186 : 124
+        let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
+        DetailHeroSection(
+            backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
+            posterURL: viewModel.posterURL(width: posterWidth, height: posterHeight),
+            title: details.title,
+            topInset: topInset,
+            containerWidth: containerWidth,
+            heroBaseHeight: heroBase,
+            posterWidth: CGFloat(posterWidth),
+            supertitle: {
+                if let showTitle = viewModel.showTitle {
+                    showTitleLink(showTitle)
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+            },
+            subtitle: {
+                metadataTagline(details)
+            },
+            actions: {
+                if viewModel.nextEpisodeToPlay != nil {
+                    actionButtons()
+                }
             }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 16)
+        )
+    }
+
+    @ViewBuilder
+    private func showTitleLink(_ title: String) -> some View {
+        if let showRatingKey = viewModel.showRatingKey {
+            NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
+                Text(title)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.duskAccent)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .duskSuppressTVOSButtonChrome()
+        } else {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.duskAccent)
         }
-        .frame(height: heroHeight)
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -138,8 +120,8 @@ struct SeasonDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.caption)
-                .foregroundStyle(Color.duskTextSecondary)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(Color.white.opacity(0.76))
         }
     }
 
@@ -155,13 +137,18 @@ struct SeasonDetailView: View {
                 Text(viewModel.playButtonLabel)
             }
             .font(.headline)
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
             .padding(.vertical, 14)
+            .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
             .background(Color.duskAccent)
             .foregroundStyle(.white)
             .clipShape(Capsule())
         }
         .duskSuppressTVOSButtonChrome()
+    }
+
+    private var usesFullWidthActionButtons: Bool {
+        sizeClass == .compact
     }
 
     @ViewBuilder
@@ -231,32 +218,6 @@ struct SeasonDetailView: View {
         }
     }
 
-    @ViewBuilder
-    private var seasonArtwork: some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-        let posterWidth: CGFloat = 124
-
-        if let posterURL = viewModel.posterURL(width: 124, height: 186) {
-            DuskAsyncImage(url: posterURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(2.0 / 3.0, contentMode: .fit)
-                default:
-                    shape.fill(Color.duskBackground)
-                }
-            }
-            .frame(width: posterWidth)
-            .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            .clipShape(shape)
-        } else {
-            shape
-                .fill(Color.duskBackground)
-                .frame(width: posterWidth)
-                .aspectRatio(2.0 / 3.0, contentMode: .fit)
-        }
-    }
 }
 
 private struct SeasonEpisodeRow: View {

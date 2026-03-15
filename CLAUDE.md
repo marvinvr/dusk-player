@@ -24,6 +24,16 @@ This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. See `S
 
 The Xcode project is generated via [xcodegen](https://github.com/yonaskolb/XcodeGen). `project.yml` remains the source of truth; regenerate `Dusk.xcodeproj` when project settings change.
 
+After making code changes, run a compile-only verification build before finishing. Use `xcodebuild` for the relevant app target or scheme, but do not run tests and do not launch the app or simulator. Treat this as a quick sanity check to catch Swift compile errors like invalid bindings, missing references, or bad signatures.
+
+For iOS app verification in this repo, prefer:
+
+```bash
+xcodebuild -project Dusk.xcodeproj -scheme Dusk -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
+```
+
+The vendored `VLCKit.xcframework` does not provide an `x86_64` simulator slice in this setup, so generic simulator builds without the arm64 override can fail at link time even when the Swift code is otherwise valid.
+
 Important: if you add, remove, or rename any source file under `Dusk/Sources`, run `xcodegen generate` before finishing. The checked-in `Dusk.xcodeproj` can otherwise be stale, which causes new Swift files to appear as "Cannot find in scope" even though they exist on disk.
 
 ```bash

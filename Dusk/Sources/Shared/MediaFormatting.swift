@@ -50,6 +50,19 @@ enum MediaTextFormatter {
         return "\(minutes)m"
     }
 
+    static func localizedAirDate(_ value: String?) -> String? {
+        guard let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedValue.isEmpty else {
+            return nil
+        }
+
+        guard let date = plexAirDateFormatter.date(from: trimmedValue) else {
+            return trimmedValue
+        }
+
+        return localizedAirDateFormatter.string(from: date)
+    }
+
     static func progress(durationMs: Int?, offsetMs: Int?) -> Double? {
         guard let durationMs,
               let offsetMs,
@@ -87,4 +100,19 @@ enum MediaTextFormatter {
         let label = count == 1 ? singular : plural
         return "\(count) \(label)"
     }
+
+    private static let plexAirDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }()
+
+    private static let localizedAirDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = .autoupdatingCurrent
+        formatter.setLocalizedDateFormatFromTemplate("d MMM y")
+        return formatter
+    }()
 }

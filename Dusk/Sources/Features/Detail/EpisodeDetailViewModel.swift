@@ -61,7 +61,7 @@ final class EpisodeDetailViewModel {
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.thumb ?? details?.art)
+        plexService.imageURL(for: details?.thumb ?? details?.art, width: width, height: height)
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
