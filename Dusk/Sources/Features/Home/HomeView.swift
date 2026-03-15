@@ -12,8 +12,9 @@ struct HomeView: View {
     @State private var viewModel: HomeViewModel?
     @State private var currentHeroIndex = 0
     @State private var heroRotationRevision = 0
-    @State private var heroRotationProgress = 0.0
-    @State private var heroMenuItem: PlexItem?
+    @State private var isHeroRotationPaused = false
+    @State private var heroRotationStartedAt = Date()
+    @State private var pausedHeroRotationProgress: Double?
 
     private let heroRotationInterval: UInt64 = 5_000_000_000
 
@@ -68,24 +69,11 @@ struct HomeView: View {
             if currentHeroIndex >= ids.count {
                 currentHeroIndex = 0
             }
-        }
-        .onChange(of: isHeroMenuPresented) { _, isPresented in
-            if isPresented {
-                pauseHeroRotation()
-            } else {
-                restartHeroRotation()
-            }
+
+            restartHeroRotation()
         }
         .task(id: heroRotationSeed) {
             await rotateHeroIfNeeded()
-        }
-        .confirmationDialog(
-            "",
-            isPresented: heroMenuPresentedBinding,
-            titleVisibility: .hidden,
-            presenting: heroMenuItem
-        ) { item in
-            heroActionDialog(for: item)
         }
     }
 
@@ -259,7 +247,6 @@ struct HomeView: View {
 
     @ViewBuilder
     private func heroActionButton(_ vm: HomeViewModel, item: PlexItem) -> some View {
-        #if os(tvOS)
         Button {
             restartHeroRotation()
             play(item)
@@ -269,53 +256,31 @@ struct HomeView: View {
                 systemImage: "play.fill"
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HeroPauseAwareButtonStyle(onPress: pauseHeroRotation))
         .duskSuppressTVOSButtonChrome()
         .contextMenu {
-            PlexItemContextMenuContent(
-                item: item,
-                onMarkWatched: {
-                    Task { await vm.setWatched(true, for: item) }
-                },
-                onMarkUnwatched: {
-                    Task { await vm.setWatched(false, for: item) }
-                },
-                detailsRoute: AppNavigationRoute.destination(for: item),
-                detailsLabel: heroDetailsLabel(for: item)
-            )
-        }
-        #else
-        HomeHeroActionButtonLabel(
-            title: vm.heroPrimaryActionTitle(for: item),
-            systemImage: "play.fill"
-        )
-        .contentShape(Capsule())
-        .onTapGesture {
-            restartHeroRotation()
-            play(item)
-        }
-        .onLongPressGesture(minimumDuration: 0.45) {
-            heroMenuItem = item
+            heroContextMenu(vm, item: item)
         }
         .accessibilityAddTraits(.isButton)
-        #endif
     }
 
     @ViewBuilder
     private func heroPager(items: [PlexItem], currentIndex: Int) -> some View {
-        HStack(spacing: 8) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                Button {
-                    selectHero(at: index)
-                } label: {
-                    HomeHeroPagerPill(
-                        isActive: index == currentIndex,
-                        progress: index == currentIndex ? heroRotationProgress : 0
-                    )
-                    .accessibilityLabel(Text(vmDisplayLabel(for: item)))
+        TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+            HStack(spacing: 8) {
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                    Button {
+                        selectHero(at: index)
+                    } label: {
+                        HomeHeroPagerPill(
+                            isActive: index == currentIndex,
+                            progress: index == currentIndex ? heroRotationProgress(at: timeline.date) : 0
+                        )
+                        .accessibilityLabel(Text(vmDisplayLabel(for: item)))
+                    }
+                    .buttonStyle(.plain)
+                    .duskSuppressTVOSButtonChrome()
                 }
-                .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
             }
         }
     }
@@ -426,70 +391,58 @@ struct HomeView: View {
         guard heroItemIDs.count > 1,
               !accessibilityReduceMotion,
               scenePhase == .active,
-              !isHeroMenuPresented else {
-            await MainActor.run {
-                setHeroRotationProgress(0)
-            }
+              !isHeroRotationPaused else {
             return
         }
 
-        while !Task.isCancelled {
-            await MainActor.run {
-                setHeroRotationProgress(0)
-                withAnimation(.linear(duration: Double(heroRotationInterval) / 1_000_000_000)) {
-                    heroRotationProgress = 1
-                }
+        do {
+            try await Task.sleep(nanoseconds: remainingHeroRotationNanoseconds(at: Date()))
+        } catch {
+            return
+        }
+
+        guard !Task.isCancelled else { return }
+
+        await MainActor.run {
+            guard heroItemIDs.count > 1,
+                  !isHeroRotationPaused else { return }
+
+            withAnimation(.easeInOut(duration: 0.7)) {
+                currentHeroIndex = (currentHeroIndex + 1) % heroItemIDs.count
             }
-
-            do {
-                try await Task.sleep(nanoseconds: heroRotationInterval)
-            } catch {
-                await MainActor.run {
-                    setHeroRotationProgress(0)
-                }
-                return
-            }
-
-            guard !Task.isCancelled else { return }
-
-            await MainActor.run {
-                let heroCount = heroItemIDs.count
-                guard heroCount > 1 else { return }
-
-                withAnimation(.easeInOut(duration: 0.7)) {
-                    currentHeroIndex = (currentHeroIndex + 1) % heroCount
-                }
-            }
+            restartHeroRotation()
         }
     }
 
     @ViewBuilder
-    private func heroActionDialog(for item: PlexItem) -> some View {
-        if item.canMarkWatchedFromContextMenu, let viewModel {
-            Button("Mark Watched") {
-                Task { await viewModel.setWatched(true, for: item) }
+    private func heroContextMenu(_ vm: HomeViewModel, item: PlexItem) -> some View {
+        Group {
+            if item.canMarkWatchedFromContextMenu {
+                Button("Mark Watched", systemImage: "eye") {
+                    Task { await vm.setWatched(true, for: item) }
+                }
             }
-        }
 
-        if item.canMarkUnwatchedFromContextMenu, let viewModel {
-            Button("Mark Unwatched") {
-                Task { await viewModel.setWatched(false, for: item) }
+            if item.canMarkUnwatchedFromContextMenu {
+                Button("Mark Unwatched", systemImage: "eye.slash") {
+                    Task { await vm.setWatched(false, for: item) }
+                }
             }
-        }
 
-        Button(heroDetailsLabel(for: item)) {
-            path.append(AppNavigationRoute.destination(for: item))
-        }
-
-        if let seasonRoute = item.contextMenuSeasonRoute {
-            Button("Go to Season") {
-                path.append(seasonRoute)
+            Button(heroDetailsLabel(for: item), systemImage: "info.circle") {
+                path.append(AppNavigationRoute.destination(for: item))
             }
-        }
 
-        if let showRoute = item.contextMenuShowRoute {
-            Button("Go to Show") {
-                path.append(showRoute)
+            if let seasonRoute = item.contextMenuSeasonRoute {
+                Button("Go to Season", systemImage: "rectangle.stack") {
+                    path.append(seasonRoute)
+                }
+            }
+
+            if let showRoute = item.contextMenuShowRoute {
+                Button("Go to Show", systemImage: "tv") {
+                    path.append(showRoute)
+                }
             }
         }
     }
@@ -507,12 +460,16 @@ struct HomeView: View {
     }
 
     private func restartHeroRotation() {
-        setHeroRotationProgress(0)
+        isHeroRotationPaused = false
+        pausedHeroRotationProgress = nil
+        heroRotationStartedAt = Date()
         heroRotationRevision += 1
     }
 
     private func pauseHeroRotation() {
-        setHeroRotationProgress(0)
+        guard !isHeroRotationPaused else { return }
+        isHeroRotationPaused = true
+        pausedHeroRotationProgress = heroRotationProgress(at: Date())
         heroRotationRevision += 1
     }
 
@@ -565,10 +522,6 @@ struct HomeView: View {
         !(viewModel?.heroItems().isEmpty ?? true)
     }
 
-    private var isHeroMenuPresented: Bool {
-        heroMenuItem != nil
-    }
-
     private var heroItemIDs: [String] {
         viewModel?.heroItems().map(\.ratingKey) ?? []
     }
@@ -579,19 +532,8 @@ struct HomeView: View {
             String(heroRotationRevision),
             String(accessibilityReduceMotion),
             String(scenePhase == .active),
-            String(isHeroMenuPresented)
+            String(isHeroRotationPaused)
         ].joined(separator: "::")
-    }
-
-    private var heroMenuPresentedBinding: Binding<Bool> {
-        Binding(
-            get: { heroMenuItem != nil },
-            set: { isPresented in
-                if !isPresented {
-                    heroMenuItem = nil
-                }
-            }
-        )
     }
 
     private var recentlyAddedInlineItemLimit: Int {
@@ -628,14 +570,25 @@ struct HomeView: View {
         }
     }
 
-    private func setHeroRotationProgress(_ progress: Double) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-        withTransaction(transaction) {
-            heroRotationProgress = progress
-        }
+    private var heroRotationDuration: TimeInterval {
+        Double(heroRotationInterval) / 1_000_000_000
     }
 
+    private func heroRotationProgress(at date: Date) -> Double {
+        if let pausedHeroRotationProgress {
+            return max(0, min(pausedHeroRotationProgress, 1))
+        }
+
+        let elapsed = date.timeIntervalSince(heroRotationStartedAt)
+        guard heroRotationDuration > 0 else { return 0 }
+        return max(0, min(elapsed / heroRotationDuration, 1))
+    }
+
+    private func remainingHeroRotationNanoseconds(at date: Date) -> UInt64 {
+        let progress = heroRotationProgress(at: date)
+        let remaining = max(0, 1 - progress) * heroRotationDuration
+        return UInt64((remaining * 1_000_000_000).rounded())
+    }
 }
 
 private struct HomeHeroActionButtonLabel: View {
@@ -685,5 +638,18 @@ private struct HomeHeroPagerPill: View {
                     .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
             }
         }
+    }
+}
+
+private struct HeroPauseAwareButtonStyle: ButtonStyle {
+    let onPress: () -> Void
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .onChange(of: configuration.isPressed) { _, isPressed in
+                if isPressed {
+                    onPress()
+                }
+            }
     }
 }
