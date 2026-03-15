@@ -21,15 +21,15 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] macOS App
 - [ ] Proper Recommendations Section in TV Show and Movies Views
 - [ ] More elaborate Continue Watching section on the Home Page
-- [ ] Select which version to play
 - [ ] App Store Release
 - [ ] tvOS App
+- [ ] Select which version to play
 - [ ] Chapter Markers
 - [ ] Transcoding Support
 - [ ] Offline playback (Downloads)
 - [ ] Plex Home Integration
 
-** Maybe? **
+### Later down the line
 - [ ] Jellyfin Support
 
 ## Setup
