@@ -105,11 +105,15 @@ extension PlaybackCoordinator {
     }
 
     func skipCreditsToUpNextIfPossible() async -> Bool {
+        guard upNextPresentation == nil else { return true }
+
         guard let activeItemDetails,
               activeItemDetails.type == .episode,
               let nextEpisode = try? await plexService.getNextEpisode(after: activeItemDetails) else {
             return false
         }
+
+        guard upNextPresentation == nil else { return true }
 
         finalizeCurrentPlaybackSession(markCompleted: true)
         presentUpNext(for: nextEpisode, source: .creditsSkipped)

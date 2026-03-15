@@ -76,6 +76,7 @@ extension PlaybackCoordinator {
 
     func handlePlaybackEnded() async {
         guard !isHandlingPlaybackEnded else { return }
+        guard upNextPresentation == nil else { return }
         isHandlingPlaybackEnded = true
         defer { isHandlingPlaybackEnded = false }
 
