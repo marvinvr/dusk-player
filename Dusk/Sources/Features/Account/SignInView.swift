@@ -26,7 +26,7 @@ struct SignInView: View {
                         Text("Dusk")
                             .font(.largeTitle.bold())
                             .foregroundStyle(Color.duskTextPrimary)
-                        Text("A beautiful, fast Plex client.")
+                        Text("The Plex App we Deserve.")
                             .font(.subheadline)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
