@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 
 extension PlayerViewModel {
+    private static let controlsVisibilityAnimation: Animation = .easeInOut(duration: 0.125)
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
     private static let markerSkipPadding: TimeInterval = 0.5
     private static let autoSkipCountdownDuration: TimeInterval = 5.0
@@ -73,8 +74,12 @@ extension PlayerViewModel {
     }
 
     func toggleControls() {
-        showControls.toggle()
-        if showControls {
+        let shouldShowControls = !showControls
+        withAnimation(Self.controlsVisibilityAnimation) {
+            showControls = shouldShowControls
+        }
+
+        if shouldShowControls {
             scheduleHide()
         } else {
             hideTimer?.invalidate()
@@ -82,7 +87,11 @@ extension PlayerViewModel {
     }
 
     func touchControls() {
-        showControls = true
+        if !showControls {
+            withAnimation(Self.controlsVisibilityAnimation) {
+                showControls = true
+            }
+        }
         scheduleHide()
     }
 
@@ -92,7 +101,9 @@ extension PlayerViewModel {
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 if self.state == .playing, !self.isScrubbing {
-                    self.showControls = false
+                    withAnimation(Self.controlsVisibilityAnimation) {
+                        self.showControls = false
+                    }
                 }
             }
         }

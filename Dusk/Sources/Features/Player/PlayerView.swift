@@ -151,17 +151,18 @@ private struct PlayerSessionView: View {
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
-                if viewModel.showControls, viewModel.playbackError == nil {
+                if viewModel.playbackError == nil {
                     PlayerControlsOverlay(
                         viewModel: viewModel,
                         mediaDetails: mediaDetails,
                         onDismiss: dismissPlayer
                     )
-                    .transition(.opacity)
+                    .opacity(viewModel.showControls ? 1 : 0)
+                    .allowsHitTesting(viewModel.showControls)
+                    .accessibilityHidden(!viewModel.showControls)
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.25), value: viewModel.showControls)
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
