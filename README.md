@@ -19,7 +19,7 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] Skip Intro & Credits
 - [x] Passout Protection (Are you still watching?)
 - [x] macOS App
-- [ ] Proper Recommendations Section in TV Show and Movies Views
+- [x] Proper Recommendations Section in TV Show and Movies Views
 - [ ] More elaborate Continue Watching section on the Home Page
 - [ ] App Store Release
 - [ ] tvOS App
