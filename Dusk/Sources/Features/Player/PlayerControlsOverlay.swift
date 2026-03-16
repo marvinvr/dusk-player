@@ -119,7 +119,7 @@ struct PlayerControlsOverlay: View {
                 Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 44))
                     .contentTransition(.symbolEffect(.replace))
-                    .animation(.snappy(duration: 0.22), value: isPlaying)
+                    .animation(.snappy(duration: 0.11), value: isPlaying)
                     .foregroundStyle(.white)
                     .frame(width: 72, height: 72)
                     .background(.ultraThinMaterial, in: Circle())
