@@ -111,11 +111,15 @@ struct PlayerControlsOverlay: View {
     }
 
     private var centerControls: some View {
-        HStack {
+        let isPlaying = viewModel.state == .playing
+
+        return HStack {
             Spacer()
             Button { viewModel.togglePlayPause() } label: {
-                Image(systemName: viewModel.state == .playing ? "pause.fill" : "play.fill")
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                     .font(.system(size: 44))
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(.snappy(duration: 0.22), value: isPlaying)
                     .foregroundStyle(.white)
                     .frame(width: 72, height: 72)
                     .background(.ultraThinMaterial, in: Circle())
