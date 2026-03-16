@@ -16,16 +16,16 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] Skip Intro & Credits
 - [x] Passout Protection (Are you still watching?)
 - [x] macOS App
-- [ ] App Store Release
-- [ ] tvOS App
 - [ ] Select which version to play
-- [ ] Chapter Markers
-- [ ] Transcoding Support
+- [ ] tvOS App
+- [ ] App Store Release
 - [ ] Offline playback (Downloads)
 - [ ] Plex Home Integration
 
 ### Later down the line
 - [ ] Jellyfin Support
+- [ ] Live TV Support
+- [ ] Transcoding Support
 
 ## Setup
 
