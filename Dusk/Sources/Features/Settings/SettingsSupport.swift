@@ -11,7 +11,11 @@ enum SettingsSupport {
 
     static let playbackAdvancedFooterText = "Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle. Player Debug Overlay shows stream stats during playback."
     static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app."
+    static let aboutFooterText = "Dusk is open source. Visit the repository, learn more about Marvin, or send feedback by email."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
+    static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
+    static let aboutMeURL = URL(string: "https://marvinvr.ch")!
+    static let feedbackURL = URL(string: "mailto:info@getdusk.app")!
 
     static var subtitleLanguageOptions: [String] {
         var options = [""] + CommonLanguage.allCases.map(\.code)

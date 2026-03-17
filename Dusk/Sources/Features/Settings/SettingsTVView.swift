@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
+    @Environment(\.openURL) private var openURL
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
@@ -156,7 +157,7 @@ struct SettingsTVView: View {
                     }
                 }
 
-                TVSettingsSection(title: "About") {
+                TVSettingsSection(title: "About", footer: SettingsSupport.aboutFooterText) {
                     HStack(spacing: 20) {
                         Text("Version")
                             .font(.headline)
@@ -168,6 +169,36 @@ struct SettingsTVView: View {
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                     .frame(minHeight: 72)
+
+                    tvRowDivider
+
+                    TVSettingsExternalLinkRow(
+                        title: "GitHub",
+                        subtitle: "github.com/marvinvr/dusk-player",
+                        systemImage: "chevron.left.forwardslash.chevron.right"
+                    ) {
+                        openURL(SettingsSupport.githubURL)
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsExternalLinkRow(
+                        title: "About Me",
+                        subtitle: "marvinvr.ch",
+                        systemImage: "person.crop.circle"
+                    ) {
+                        openURL(SettingsSupport.aboutMeURL)
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsExternalLinkRow(
+                        title: "Feedback",
+                        subtitle: "info@getdusk.app",
+                        systemImage: "envelope.badge"
+                    ) {
+                        openURL(SettingsSupport.feedbackURL)
+                    }
                 }
 
                 TVSettingsSection(title: "Account", footer: SettingsSupport.accountFooterText) {

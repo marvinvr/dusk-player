@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
+    @Environment(\.openURL) private var openURL
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
@@ -228,8 +229,43 @@ struct SettingsIOSView: View {
                     Text(viewModel.appVersion)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
+
+                Link(destination: SettingsSupport.githubURL) {
+                    SettingsAboutRow(
+                        title: "GitHub",
+                        subtitle: "github.com/marvinvr/dusk-player",
+                        systemImage: "chevron.left.forwardslash.chevron.right",
+                        trailingSystemImage: "arrow.up.right"
+                    )
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Link(destination: SettingsSupport.aboutMeURL) {
+                    SettingsAboutRow(
+                        title: "About Me",
+                        subtitle: "marvinvr.ch",
+                        systemImage: "person.crop.circle",
+                        trailingSystemImage: "arrow.up.right"
+                    )
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Button {
+                    openURL(SettingsSupport.feedbackURL)
+                } label: {
+                    SettingsAboutRow(
+                        title: "Feedback",
+                        subtitle: "info@getdusk.app",
+                        systemImage: "envelope.badge",
+                        trailingSystemImage: "paperplane.fill"
+                    )
+                }
+                .duskSuppressTVOSButtonChrome()
             } header: {
                 Text("About")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.aboutFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
@@ -246,5 +282,43 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
         }
         .duskScrollContentBackgroundHidden()
+    }
+}
+
+private struct SettingsAboutRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let trailingSystemImage: String
+    var titleColor: Color = Color.duskTextPrimary
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.duskAccent.opacity(0.14))
+                    .frame(width: 34, height: 34)
+
+                Image(systemName: systemImage)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(Color.duskAccent)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(titleColor)
+
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+
+            Spacer()
+
+            Image(systemName: trailingSystemImage)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .contentShape(Rectangle())
     }
 }

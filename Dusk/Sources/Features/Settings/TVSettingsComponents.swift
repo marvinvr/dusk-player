@@ -169,3 +169,61 @@ struct TVSettingsActionRow: View {
         .contentShape(Rectangle())
     }
 }
+
+struct TVSettingsExternalLinkRow: View {
+    let title: String
+    let subtitle: String
+    let systemImage: String
+    let tint: Color
+    let action: () -> Void
+
+    init(
+        title: String,
+        subtitle: String,
+        systemImage: String,
+        tint: Color = Color.duskTextPrimary,
+        action: @escaping () -> Void
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.tint = tint
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 18) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color.duskAccent.opacity(0.14))
+                        .frame(width: 42, height: 42)
+
+                    Image(systemName: systemImage)
+                        .font(.headline.weight(.semibold))
+                        .foregroundStyle(Color.duskAccent)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.headline)
+                        .foregroundStyle(tint)
+
+                    Text(subtitle)
+                        .font(.subheadline)
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                Image(systemName: "arrow.up.right")
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .frame(minHeight: 72)
+            .contentShape(Rectangle())
+        }
+        .duskSuppressTVOSButtonChrome()
+    }
+}
