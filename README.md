@@ -16,7 +16,7 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] Skip Intro & Credits
 - [x] Passout Protection (Are you still watching?)
 - [x] macOS App
-- [ ] Select which version to play
+- [x] Select which version to play
 - [ ] tvOS App
 - [ ] App Store Release
 - [ ] Offline playback (Downloads)
