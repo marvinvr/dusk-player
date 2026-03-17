@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 enum PlayerOverlayLayout {
     static let controlsHorizontalPadding: CGFloat = 16
@@ -225,41 +226,24 @@ private struct PlayerSessionView: View {
     }
 
     private var interactionOverlay: some View {
-        GeometryReader { _ in
-            HStack(spacing: 0) {
-                interactionZone(seekOffset: -preferences.playerDoubleTapBackwardInterval.timeInterval)
-                interactionZone(seekOffset: preferences.playerDoubleTapForwardInterval.timeInterval)
-            }
-        }
-        .ignoresSafeArea()
-    }
-
-    @ViewBuilder
-    private func interactionZone(seekOffset: TimeInterval) -> some View {
         #if os(tvOS)
-        Color.clear
-            .contentShape(Rectangle())
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .onTapGesture { viewModel.toggleControls() }
-        #else
-        if preferences.playerDoubleTapSeekEnabled {
-            Color.clear
-                .contentShape(Rectangle())
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .gesture(
-                    TapGesture(count: 2)
-                        .onEnded { viewModel.handleDoubleTapSeek(by: seekOffset) }
-                        .exclusively(
-                            before: TapGesture()
-                                .onEnded { viewModel.toggleControls() }
-                        )
-                )
-        } else {
+        GeometryReader { _ in
             Color.clear
                 .contentShape(Rectangle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .onTapGesture { viewModel.toggleControls() }
         }
+        .ignoresSafeArea()
+        #else
+        PlayerTapInteractionOverlay(
+            showsControls: viewModel.showControls,
+            doubleTapSeekEnabled: preferences.playerDoubleTapSeekEnabled,
+            backwardSeekInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+            forwardSeekInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
+            onToggleControls: { viewModel.toggleControls() },
+            onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) }
+        )
+        .ignoresSafeArea()
         #endif
     }
 
@@ -349,3 +333,182 @@ private struct PlayerSessionView: View {
         dismiss()
     }
 }
+
+#if !os(tvOS)
+private struct PlayerTapInteractionOverlay: UIViewRepresentable {
+    var showsControls: Bool
+    var doubleTapSeekEnabled: Bool
+    var backwardSeekInterval: TimeInterval
+    var forwardSeekInterval: TimeInterval
+    var onToggleControls: () -> Void
+    var onDoubleTapSeek: (TimeInterval) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> PlayerTapInteractionView {
+        let view = PlayerTapInteractionView()
+        view.backgroundColor = .clear
+        view.addGestureRecognizer(context.coordinator.tapRecognizer)
+        context.coordinator.sync(with: self)
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerTapInteractionView, context: Context) {
+        context.coordinator.sync(with: self)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private enum TapZone {
+            case left
+            case right
+        }
+
+        private struct PendingTap {
+            let timestamp: CFTimeInterval
+            let zone: TapZone
+            let flashControlsOnDoubleTap: Bool
+        }
+
+        private static let doubleTapWindow: CFTimeInterval = 0.35
+        private static let postDoubleTapSuppression: CFTimeInterval = 0.6
+
+        var parent: PlayerTapInteractionOverlay
+        let tapRecognizer = UITapGestureRecognizer()
+
+        private var pendingTap: PendingTap?
+        private var pendingSingleTapWorkItem: DispatchWorkItem?
+        private var suppressSingleTapUntil: CFTimeInterval = 0
+        private var controlsAreVisible: Bool
+
+        init(parent: PlayerTapInteractionOverlay) {
+            self.parent = parent
+            self.controlsAreVisible = parent.showsControls
+            super.init()
+            tapRecognizer.numberOfTapsRequired = 1
+            tapRecognizer.cancelsTouchesInView = false
+            tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
+        }
+
+        func sync(with parent: PlayerTapInteractionOverlay) {
+            self.parent = parent
+            controlsAreVisible = parent.showsControls
+
+            if !parent.doubleTapSeekEnabled {
+                pendingTap = nil
+                pendingSingleTapWorkItem?.cancel()
+                pendingSingleTapWorkItem = nil
+                suppressSingleTapUntil = 0
+            }
+        }
+
+        @objc
+        private func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended,
+                  let view = recognizer.view,
+                  view.bounds.width > 0 else {
+                return
+            }
+
+            let location = recognizer.location(in: view)
+            let zone: TapZone = location.x < (view.bounds.width / 2) ? .left : .right
+            let now = CACurrentMediaTime()
+
+            if let pendingTap,
+               now - pendingTap.timestamp <= Self.doubleTapWindow {
+                pendingSingleTapWorkItem?.cancel()
+                pendingSingleTapWorkItem = nil
+                self.pendingTap = nil
+
+                if parent.doubleTapSeekEnabled, pendingTap.zone == zone {
+                    if pendingTap.flashControlsOnDoubleTap {
+                        toggleControls()
+                    }
+
+                    let offset = zone == .left ? -parent.backwardSeekInterval : parent.forwardSeekInterval
+                    parent.onDoubleTapSeek(offset)
+                    suppressSingleTapUntil = now + Self.postDoubleTapSuppression
+                    return
+                }
+            }
+
+            if !parent.doubleTapSeekEnabled {
+                toggleControls()
+                return
+            }
+
+            if now < suppressSingleTapUntil {
+                scheduleDelayedSingleTap(at: now, zone: zone)
+                return
+            }
+
+            let flashControlsOnDoubleTap = !controlsAreVisible
+            toggleControls()
+            registerPendingTap(
+                at: now,
+                zone: zone,
+                flashControlsOnDoubleTap: flashControlsOnDoubleTap,
+                workItem: nil
+            )
+        }
+
+        private func toggleControls() {
+            parent.onToggleControls()
+            controlsAreVisible.toggle()
+        }
+
+        private func scheduleDelayedSingleTap(at now: CFTimeInterval, zone: TapZone) {
+            let workItem = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                self.toggleControls()
+                self.pendingTap = nil
+                self.pendingSingleTapWorkItem = nil
+            }
+
+            registerPendingTap(
+                at: now,
+                zone: zone,
+                flashControlsOnDoubleTap: false,
+                workItem: workItem
+            )
+
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + Self.doubleTapWindow,
+                execute: workItem
+            )
+        }
+
+        private func registerPendingTap(
+            at now: CFTimeInterval,
+            zone: TapZone,
+            flashControlsOnDoubleTap: Bool,
+            workItem: DispatchWorkItem?
+        ) {
+            pendingSingleTapWorkItem?.cancel()
+            pendingSingleTapWorkItem = workItem
+            pendingTap = PendingTap(
+                timestamp: now,
+                zone: zone,
+                flashControlsOnDoubleTap: flashControlsOnDoubleTap
+            )
+
+            guard workItem == nil else { return }
+
+            let clearPendingTapWorkItem = DispatchWorkItem { [weak self] in
+                self?.pendingTap = nil
+                self?.pendingSingleTapWorkItem = nil
+            }
+            pendingSingleTapWorkItem = clearPendingTapWorkItem
+
+            DispatchQueue.main.asyncAfter(
+                deadline: .now() + Self.doubleTapWindow,
+                execute: clearPendingTapWorkItem
+            )
+        }
+    }
+}
+
+private final class PlayerTapInteractionView: UIView {}
+#endif
