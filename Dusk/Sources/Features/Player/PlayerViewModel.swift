@@ -52,7 +52,7 @@ final class PlayerViewModel {
     var preferredAudioLanguage: String?
     var subtitleForcedOnly = false
     var autoSkipIntro = true
-    var autoSkipCredits = true
+    var autoSkipCredits = false
     var autoSkipCountdownMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
     var hasConfiguredAutomaticTrackSelection = false

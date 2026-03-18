@@ -153,7 +153,7 @@ final class UserPreferences {
             fallback: 3
         )
         let autoSkipIntro = defaults.object(forKey: Keys.autoSkipIntro) as? Bool ?? true
-        let autoSkipCredits = defaults.object(forKey: Keys.autoSkipCredits) as? Bool ?? true
+        let autoSkipCredits = defaults.object(forKey: Keys.autoSkipCredits) as? Bool ?? false
         let playerDoubleTapSeekEnabled = defaults.object(forKey: Keys.playerDoubleTapSeekEnabled) as? Bool ?? true
         let playerDoubleTapForwardInterval = Self.storedSeekInterval(
             forKey: Keys.playerDoubleTapForwardInterval,

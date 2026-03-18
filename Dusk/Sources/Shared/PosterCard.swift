@@ -9,25 +9,23 @@ struct PosterArtwork: View {
 
     private let playOverlaySymbolSize: CGFloat = 25
     private let playOverlayPadding: CGFloat = 14
+    private let artworkShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
     var body: some View {
-        ZStack {
-            DuskAsyncImage(url: imageURL) { phase in
-                switch phase {
-                case .success(let image):
-                    image
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                case .failure:
-                    placeholder
-                default:
-                    placeholder
-                }
+        DuskAsyncImage(url: imageURL) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            case .failure:
+                placeholder
+            default:
+                placeholder
             }
-            .frame(width: width, height: imageHeight)
-            .clipped()
-            .clipShape(RoundedRectangle(cornerRadius: 16))
-
+        }
+        .frame(width: width, height: imageHeight)
+        .overlay {
             if showsPlayOverlay {
                 Image(systemName: "play.fill")
                     .font(.system(size: playOverlaySymbolSize, weight: .semibold))
@@ -40,33 +38,20 @@ struct PosterArtwork: View {
                     )
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
             }
-
+        }
+        .overlay(alignment: .bottomLeading) {
             if let progress, progress > 0 {
-                GeometryReader { geo in
-                    VStack {
-                        Spacer()
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(.white.opacity(0.3))
-                                .frame(height: 3)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(Color.duskAccent)
-                                .frame(width: geo.size.width * min(progress, 1.0), height: 3)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.bottom, 8)
-                    }
-                }
-                .frame(width: width, height: imageHeight)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                progressBar(progress: progress)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
             }
         }
+        .clipShape(artworkShape)
     }
 
     private var placeholder: some View {
-        RoundedRectangle(cornerRadius: 16)
+        artworkShape
             .fill(Color.duskSurface)
-            .frame(width: width, height: imageHeight)
             .overlay {
                 Image(systemName: "film")
                     .font(.title2)
@@ -77,6 +62,22 @@ struct PosterArtwork: View {
     private var imageHeight: CGFloat {
         guard imageAspectRatio > 0 else { return width * 1.5 }
         return width / imageAspectRatio
+    }
+
+    private func progressBar(progress: Double) -> some View {
+        let clampedProgress = max(0, min(progress, 1.0))
+
+        return ZStack(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 2)
+                .fill(.white.opacity(0.3))
+                .frame(height: 3)
+            GeometryReader { geo in
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.duskAccent)
+                    .frame(width: geo.size.width * clampedProgress, height: 3, alignment: .leading)
+            }
+        }
+        .frame(height: 3)
     }
 }
 

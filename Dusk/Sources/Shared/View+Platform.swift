@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 extension View {
     @ViewBuilder
@@ -47,11 +50,23 @@ extension View {
     }
 
     @ViewBuilder
-    func duskStatusBarHidden() -> some View {
+    func duskStatusBarHidden(_ hidden: Bool = true) -> some View {
         #if os(tvOS)
         self
         #else
-        self.statusBarHidden()
+        self.statusBarHidden(hidden)
+        #endif
+    }
+
+    @ViewBuilder
+    func duskCaptureStatusBarAppearance() -> some View {
+        #if os(iOS)
+        self.background {
+            DuskStatusBarAppearanceCaptureView()
+                .frame(width: 0, height: 0)
+        }
+        #else
+        self
         #endif
     }
 
@@ -73,6 +88,39 @@ extension View {
         #endif
     }
 }
+
+#if os(iOS)
+private struct DuskStatusBarAppearanceCaptureView: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> DuskStatusBarAppearanceCaptureController {
+        DuskStatusBarAppearanceCaptureController()
+    }
+
+    func updateUIViewController(
+        _ uiViewController: DuskStatusBarAppearanceCaptureController,
+        context: Context
+    ) {
+        uiViewController.captureStatusBarAppearance()
+    }
+}
+
+private final class DuskStatusBarAppearanceCaptureController: UIViewController {
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        captureStatusBarAppearance()
+    }
+
+    override func didMove(toParent parent: UIViewController?) {
+        super.didMove(toParent: parent)
+        captureStatusBarAppearance()
+    }
+
+    func captureStatusBarAppearance() {
+        parent?.modalPresentationCapturesStatusBarAppearance = true
+        parent?.setNeedsStatusBarAppearanceUpdate()
+        parent?.presentingViewController?.setNeedsStatusBarAppearanceUpdate()
+    }
+}
+#endif
 
 private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
     @Environment(\.isFocused) private var isFocused

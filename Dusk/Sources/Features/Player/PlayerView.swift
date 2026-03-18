@@ -166,8 +166,9 @@ private struct PlayerSessionView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
-        .duskStatusBarHidden()
-        .persistentSystemOverlays(.hidden)
+        .duskCaptureStatusBarAppearance()
+        .duskStatusBarHidden(!viewModel.showControls)
+        .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
         #if os(tvOS)
         .onPlayPauseCommand {
             viewModel.togglePlayPause()

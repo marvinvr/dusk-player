@@ -178,7 +178,7 @@ struct SeasonDetailView: View {
                     .font(.headline)
                     .foregroundStyle(Color.duskTextPrimary)
 
-                LazyVStack(spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     ForEach(viewModel.episodes) { episode in
                         SeasonEpisodeRow(
                             episode: episode,
@@ -250,6 +250,7 @@ private struct SeasonEpisodeRow: View {
                 Button(action: onPlay) {
                     artwork
                 }
+                .frame(width: artworkWidth, height: artworkWidth / (16.0 / 9.0), alignment: .leading)
                 .buttonStyle(.plain)
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
@@ -303,6 +304,7 @@ private struct SeasonEpisodeRow: View {
                 .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func episodeLink<Content: View>(@ViewBuilder content: () -> Content) -> some View {
