@@ -13,7 +13,14 @@
           "fill" : "automatic",
           "hidden" : false,
           "image-name" : "dusk_icon_new_transparentcropped.png",
-          "name" : "dusk_icon_new_transparentcropped"
+          "name" : "dusk_icon_new_transparentcropped",
+          "position" : {
+            "scale" : 1,
+            "translation-in-points" : [
+              -5.53125,
+              -1
+            ]
+          }
         }
       ],
       "shadow" : {
