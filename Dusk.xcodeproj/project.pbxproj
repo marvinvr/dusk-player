@@ -683,6 +683,12 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					23B6BD169B5570FCE5D186ED = {
+						DevelopmentTeam = "";
+					};
+					9F2F34542FD6C75BD284834F = {
+						DevelopmentTeam = "";
+					};
 				};
 			};
 			buildConfigurationList = CB88F01D918C5D0C278A4C00 /* Build configuration list for PBXProject "Dusk" */;
@@ -955,6 +961,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited) $(PROJECT_DIR)/Frameworks",
 					"\"Frameworks\"",
@@ -1035,6 +1042,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited) $(PROJECT_DIR)/Frameworks",
 					"\"Frameworks\"",
@@ -1121,6 +1129,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconTV;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited) $(PROJECT_DIR)/Frameworks",
 					"\"Frameworks\"",
@@ -1145,6 +1154,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconTV;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
+				DEVELOPMENT_TEAM = "";
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited) $(PROJECT_DIR)/Frameworks",
 					"\"Frameworks\"",
