@@ -3,9 +3,21 @@ import SwiftUI
 struct ActorDetailView: View {
     @State private var viewModel: ActorDetailViewModel
 
-    private let horizontalPadding: CGFloat = 20
-    private let gridSpacing: CGFloat = 14
-    private let preferredPosterWidth: CGFloat = 120
+    private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
+    private let gridSpacing: CGFloat = {
+        #if os(tvOS)
+        DuskPosterMetrics.gridSpacing
+        #else
+        DuskPosterMetrics.detailGridSpacing
+        #endif
+    }()
+    private let preferredPosterWidth: CGFloat = {
+        #if os(tvOS)
+        DuskPosterMetrics.gridPreferredWidth
+        #else
+        DuskPosterMetrics.detailGridPreferredWidth
+        #endif
+    }()
     private let minimumColumnCount = 2
 
     init(person: PlexPersonReference, plexService: PlexService) {
@@ -43,7 +55,7 @@ struct ActorDetailView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     headerCard
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 20)
+                        .padding(.top, 36)
 
                     if !viewModel.movies.isEmpty {
                         filmographySection(
@@ -66,15 +78,33 @@ struct ActorDetailView: View {
                             .padding(.horizontal, horizontalPadding)
                     }
                 }
-                .padding(.bottom, 40)
+                .padding(.bottom, 56)
             }
             .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 
     private var headerCard: some View {
-        HStack(alignment: .center, spacing: 20) {
-            personArtwork
+        let artworkSize: CGFloat = {
+            #if os(tvOS)
+            160
+            #else
+            120
+            #endif
+        }()
+        let headerSpacing: CGFloat = {
+            #if os(tvOS)
+            40
+            #else
+            20
+            #endif
+        }()
+
+        return HStack(alignment: .center, spacing: headerSpacing) {
+            personArtwork(size: artworkSize)
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(viewModel.person.name)
@@ -100,8 +130,11 @@ struct ActorDetailView: View {
     }
 
     @ViewBuilder
-    private var personArtwork: some View {
-        if let imageURL = viewModel.personImageURL(size: 120) {
+    private func personArtwork(size: CGFloat) -> some View {
+        let imageSize = Int(size.rounded())
+        let artworkShape = RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+
+        if let imageURL = viewModel.personImageURL(size: imageSize) {
             DuskAsyncImage(url: imageURL) { phase in
                 switch phase {
                 case .success(let image):
@@ -109,25 +142,38 @@ struct ActorDetailView: View {
                         .resizable()
                         .aspectRatio(contentMode: .fill)
                 default:
-                    personPlaceholder
+                    personPlaceholder(size: size)
                 }
             }
-            .frame(width: 120, height: 120)
+            .frame(width: size, height: size)
+            #if os(tvOS)
+            .clipShape(artworkShape)
+            #else
             .clipShape(Circle())
+            #endif
         } else {
-            personPlaceholder
-                .frame(width: 120, height: 120)
+            personPlaceholder(size: size)
+                .frame(width: size, height: size)
+                #if os(tvOS)
+                .clipShape(artworkShape)
+                #else
                 .clipShape(Circle())
+                #endif
         }
     }
 
-    private var personPlaceholder: some View {
+    private func personPlaceholder(size: CGFloat) -> some View {
         ZStack {
+            #if os(tvOS)
+            RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+                .fill(Color.duskBackground)
+            #else
             Circle()
                 .fill(Color.duskBackground)
+            #endif
 
             Image(systemName: "person.fill")
-                .font(.title)
+                .font(.system(size: size * 0.30, weight: .regular))
                 .foregroundStyle(Color.duskTextSecondary)
         }
     }
@@ -143,29 +189,41 @@ struct ActorDetailView: View {
         )
         let imageWidth = Int(layout.posterWidth.rounded(.up))
         let imageHeight = Int((layout.posterWidth * 1.5).rounded(.up))
+        let sectionSpacing: CGFloat = {
+            #if os(tvOS)
+            30
+            #else
+            16
+            #endif
+        }()
 
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: sectionSpacing) {
             Text(title)
-                .font(.headline)
+                .font(sectionTitleFont)
                 .foregroundStyle(Color.duskTextPrimary)
                 .padding(.horizontal, horizontalPadding)
 
-            LazyVGrid(columns: layout.columns, alignment: .leading, spacing: 18) {
+            LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
                 ForEach(items) { item in
-                    NavigationLink(value: AppNavigationRoute.destination(for: item)) {
-                        PosterCard(
-                            imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-                            title: item.title,
-                            subtitle: viewModel.subtitle(for: item),
-                            width: layout.posterWidth
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .duskSuppressTVOSButtonChrome()
+                    PosterNavigationCard(
+                        route: AppNavigationRoute.destination(for: item),
+                        imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
+                        title: item.title,
+                        subtitle: viewModel.subtitle(for: item),
+                        width: layout.posterWidth
+                    )
                 }
             }
             .padding(.horizontal, horizontalPadding)
         }
+    }
+
+    private var sectionTitleFont: Font {
+        #if os(tvOS)
+        .title3.bold()
+        #else
+        .headline
+        #endif
     }
 
     private var emptyState: some View {

@@ -38,9 +38,30 @@ struct EpisodeDetailView: View {
     @ViewBuilder
     private func contentView(_ details: PlexMediaDetails) -> some View {
         GeometryReader { geometry in
+            let heroBackgroundWidth: CGFloat = {
+                #if os(tvOS)
+                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+                #else
+                geometry.size.width
+                #endif
+            }()
+            let heroBackgroundLeadingInset: CGFloat = {
+                #if os(tvOS)
+                geometry.safeAreaInsets.leading
+                #else
+                0
+                #endif
+            }()
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
+                    heroSection(
+                        details,
+                        topInset: geometry.safeAreaInsets.top,
+                        containerWidth: heroBackgroundWidth,
+                        containerHeight: geometry.size.height,
+                        backgroundLeadingInset: heroBackgroundLeadingInset
+                    )
 
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
@@ -63,7 +84,13 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+    private func heroSection(
+        _ details: PlexMediaDetails,
+        topInset: CGFloat,
+        containerWidth: CGFloat,
+        containerHeight: CGFloat,
+        backgroundLeadingInset: CGFloat = 0
+    ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
@@ -72,7 +99,9 @@ struct EpisodeDetailView: View {
             title: details.title,
             topInset: topInset,
             containerWidth: containerWidth,
+            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
+            posterWidth: DuskPosterMetrics.heroPosterWidth,
             supertitle: {
                 if let showTitle = viewModel.showTitle {
                     showTitleLink(showTitle)
@@ -115,6 +144,11 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func showTitleLink(_ title: String) -> some View {
+#if os(tvOS)
+        Text(title)
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(Color.duskAccent)
+#else
         if let showRatingKey = viewModel.showRatingKey {
             NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
                 Text(title)
@@ -128,10 +162,14 @@ struct EpisodeDetailView: View {
                 .font(.subheadline.weight(.medium))
                 .foregroundStyle(Color.duskAccent)
         }
+#endif
     }
 
     @ViewBuilder
     private func seasonMetadataLink(_ title: String) -> some View {
+#if os(tvOS)
+        metadataMarkerText(title)
+#else
         if let seasonRatingKey = viewModel.seasonRatingKey {
             NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
                 metadataMarkerText(title)
@@ -141,6 +179,7 @@ struct EpisodeDetailView: View {
         } else {
             metadataMarkerText(title)
         }
+#endif
     }
 
     private func metadataMarkerText(_ title: String) -> some View {
@@ -218,6 +257,19 @@ struct EpisodeDetailView: View {
                 }
             }
 
+            #if os(tvOS)
+            if let seasonRatingKey = viewModel.seasonRatingKey {
+                NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
+                    DetailHeroSecondaryActionButtonLabel(
+                        title: "Go to Season",
+                        systemImage: "rectangle.stack.fill"
+                    )
+                }
+                .duskSuppressTVOSButtonChrome()
+                .duskTVOSFocusEffectShape(Capsule())
+            }
+            #endif
+
             Button {
                 Task { await viewModel.toggleWatched() }
             } label: {
@@ -247,6 +299,14 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func castSection(_ roles: [PlexRole]) -> some View {
+        #if os(tvOS)
+        let castSpacing: CGFloat = 28
+        let castVerticalPadding: CGFloat = 12
+        #else
+        let castSpacing: CGFloat = 12
+        let castVerticalPadding: CGFloat = 0
+        #endif
+
         VStack(alignment: .leading, spacing: 12) {
             Text("Cast")
                 .font(.headline)
@@ -254,13 +314,17 @@ struct EpisodeDetailView: View {
                 .padding(.horizontal, 20)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(spacing: castSpacing) {
                     ForEach(Array(roles.prefix(20).enumerated()), id: \.offset) { _, role in
                         ActorCreditCard(person: PlexPersonReference(role: role), plexService: plexService)
                     }
                 }
                 .padding(.horizontal, 20)
+                .padding(.vertical, castVerticalPadding)
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 }

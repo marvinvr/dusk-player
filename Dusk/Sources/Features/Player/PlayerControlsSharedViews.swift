@@ -37,7 +37,12 @@ struct PlayerMediaHeaderView: View {
                 Text(secondaryTitle)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
+                    #if os(tvOS)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    #else
                     .lineLimit(2)
+                    #endif
             }
 
             if let subtitle = header.subtitle {

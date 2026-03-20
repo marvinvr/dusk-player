@@ -87,6 +87,7 @@ extension View {
         self
         #endif
     }
+
 }
 
 #if os(iOS)
@@ -131,6 +132,7 @@ private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
         content
             .contentShape(.interaction, shape)
             .contentShape(.hoverEffect, shape)
+            .focusEffectDisabled()
             .hoverEffect(.highlight)
             .scaleEffect(isFocused ? 1.05 : 1.0)
             .shadow(
@@ -139,6 +141,184 @@ private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
                 y: isFocused ? 10 : 0
             )
             .animation(.easeOut(duration: 0.18), value: isFocused)
+    }
+}
+
+enum DuskPosterMetrics {
+    static var carouselSectionSpacing: CGFloat {
+        #if os(tvOS)
+        30
+        #else
+        12
+        #endif
+    }
+
+    static var carouselHeaderSpacing: CGFloat {
+        #if os(tvOS)
+        24
+        #else
+        12
+        #endif
+    }
+
+    static var carouselItemSpacing: CGFloat {
+        #if os(tvOS)
+        40
+        #else
+        12
+        #endif
+    }
+
+    static var carouselHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        52
+        #else
+        16
+        #endif
+    }
+
+    static var carouselBottomPadding: CGFloat {
+        #if os(tvOS)
+        24
+        #else
+        2
+        #endif
+    }
+
+    static var pageSectionSpacing: CGFloat {
+        #if os(tvOS)
+        44
+        #else
+        18
+        #endif
+    }
+
+    static var pageBottomPadding: CGFloat {
+        #if os(tvOS)
+        88
+        #else
+        24
+        #endif
+    }
+
+    static var cardSpacing: CGFloat {
+        #if os(tvOS)
+        28
+        #else
+        6
+        #endif
+    }
+
+    static var cardTextSpacing: CGFloat {
+        #if os(tvOS)
+        6
+        #else
+        0
+        #endif
+    }
+
+    static var gridHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        48
+        #else
+        12
+        #endif
+    }
+
+    static var detailHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        48
+        #else
+        20
+        #endif
+    }
+
+    static var gridSpacing: CGFloat {
+        #if os(tvOS)
+        40
+        #else
+        12
+        #endif
+    }
+
+    static var gridRowSpacing: CGFloat {
+        #if os(tvOS)
+        44
+        #else
+        18
+        #endif
+    }
+
+    static var gridPreferredWidth: CGFloat {
+        #if os(tvOS)
+        196
+        #else
+        104
+        #endif
+    }
+
+    static var detailGridSpacing: CGFloat {
+        #if os(tvOS)
+        40
+        #else
+        14
+        #endif
+    }
+
+    static var detailGridRowSpacing: CGFloat {
+        #if os(tvOS)
+        44
+        #else
+        18
+        #endif
+    }
+
+    static var detailGridPreferredWidth: CGFloat {
+        #if os(tvOS)
+        204
+        #else
+        120
+        #endif
+    }
+
+    static var carouselPosterWidth: CGFloat {
+        #if os(tvOS)
+        232
+        #else
+        130
+        #endif
+    }
+
+    static var continueWatchingWidth: CGFloat {
+        #if os(tvOS)
+        420
+        #else
+        280
+        #endif
+    }
+
+    static var heroPosterWidth: CGFloat {
+        #if os(tvOS)
+        300
+        #else
+        180
+        #endif
+    }
+
+    static var titleFont: Font {
+        #if os(tvOS)
+        .subheadline.weight(.semibold)
+        #else
+        .caption
+        #endif
+    }
+
+    static var subtitleFont: Font {
+        #if os(tvOS)
+        .caption
+        #else
+        .caption2
+        #endif
     }
 }
 

@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayerControlsOverlay: View {
     let viewModel: PlayerViewModel
     let mediaDetails: PlexMediaDetails?
+    let hasActiveSkipMarker: Bool
     let onDismiss: () -> Void
 
     var body: some View {
@@ -10,6 +11,7 @@ struct PlayerControlsOverlay: View {
         PlayerControlsTVOverlay(
             viewModel: viewModel,
             context: context,
+            hasActiveSkipMarker: hasActiveSkipMarker,
             onDismiss: onDismiss
         )
         #else

@@ -9,7 +9,7 @@ struct LibraryRecommendationsView: View {
 
     private let navigationTitle: String
 
-    private let continueWatchingCardWidth: CGFloat = 280
+    private let continueWatchingCardWidth: CGFloat = DuskPosterMetrics.continueWatchingWidth
     private let continueWatchingAspectRatio: CGFloat = 16.0 / 9.0
 
     init(
@@ -42,16 +42,13 @@ struct LibraryRecommendationsView: View {
                 Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
             }
         }
+        #if os(iOS)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
-                    Label("Browse Library", systemImage: "square.grid.2x2")
-                        .font(.subheadline.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
+                browseLibraryButton(labelText: "Browse Library")
             }
         }
+        #endif
         .duskNavigationTitle(navigationTitle)
         .duskNavigationBarTitleDisplayModeLarge()
     }
@@ -59,16 +56,26 @@ struct LibraryRecommendationsView: View {
     private var contentView: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
+                #if os(tvOS)
+                HStack {
+                    Spacer()
+                    browseLibraryButton(labelText: "Browse")
+                }
+                .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+                .padding(.top, DuskPosterMetrics.carouselHeaderSpacing)
+                .padding(.bottom, DuskPosterMetrics.carouselHeaderSpacing)
+                #endif
+
                 if let error = viewModel.error, viewModel.hubs.isEmpty, viewModel.continueWatching.isEmpty {
                     FeatureErrorView(message: error) {
                         Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                     }
-                    .padding(.top, 24)
+                    .padding(.top, 40)
                 } else if viewModel.hubs.isEmpty, viewModel.continueWatching.isEmpty {
                     emptyView
-                        .padding(.top, 24)
+                        .padding(.top, 40)
                 } else {
-                    LazyVStack(alignment: .leading, spacing: 18) {
+                    LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
                         if !viewModel.continueWatching.isEmpty {
                             continueWatchingSection
                         }
@@ -81,7 +88,7 @@ struct LibraryRecommendationsView: View {
                             }
                         }
                     }
-                    .padding(.bottom, 24)
+                    .padding(.bottom, 48)
                 }
             }
         }
@@ -92,6 +99,24 @@ struct LibraryRecommendationsView: View {
         .refreshable {
             await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
         }
+        #if os(tvOS)
+        .scrollClipDisabled()
+        #endif
+    }
+
+    @ViewBuilder
+    private func browseLibraryButton(labelText: String) -> some View {
+        NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
+            #if os(tvOS)
+            TVBrowseLibraryButtonLabel(title: labelText)
+            #else
+            Label(labelText, systemImage: "square.grid.2x2")
+                .font(.subheadline.weight(.semibold))
+            #endif
+        }
+        .buttonStyle(.plain)
+        .duskSuppressTVOSButtonChrome()
+        .duskTVOSFocusEffectShape(Capsule())
     }
 
     private var continueWatchingSection: some View {
@@ -128,8 +153,8 @@ struct LibraryRecommendationsView: View {
 
     @ViewBuilder
     private func hubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
-        let imageWidth = 130
-        let imageHeight = 195
+        let imageWidth = Int(DuskPosterMetrics.carouselPosterWidth.rounded(.up))
+        let imageHeight = Int((DuskPosterMetrics.carouselPosterWidth * 1.5).rounded(.up))
         let showsShowAll = viewModel.shouldShowAll(for: hub)
 
         MediaCarousel(
@@ -151,7 +176,8 @@ struct LibraryRecommendationsView: View {
                     route: AppNavigationRoute.destination(for: item),
                     imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
                     title: item.title,
-                    subtitle: viewModel.subtitle(for: item)
+                    subtitle: viewModel.subtitle(for: item),
+                    width: DuskPosterMetrics.carouselPosterWidth
                 ) {
                     PlexItemContextMenuContent(
                         item: item,
@@ -199,3 +225,27 @@ struct LibraryRecommendationsView: View {
         }
     }
 }
+
+#if os(tvOS)
+private struct TVBrowseLibraryButtonLabel: View {
+    let title: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "square.grid.2x2")
+                .font(.subheadline.weight(.semibold))
+
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(Color.duskTextPrimary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 10)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.duskTextSecondary.opacity(0.16), lineWidth: 1)
+        )
+    }
+}
+#endif

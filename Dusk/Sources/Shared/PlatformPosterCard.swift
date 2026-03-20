@@ -10,10 +10,18 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
+    #if os(tvOS)
+    @FocusState private var isFocused: Bool
+    #endif
 
     var body: some View {
         #if os(tvOS)
-        VStack(alignment: .leading, spacing: 6) {
+        let artworkShape = RoundedRectangle(
+            cornerRadius: PosterArtwork.cornerRadius,
+            style: .continuous
+        )
+
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
             NavigationLink(value: route) {
                 PosterArtwork(
                     imageURL: imageURL,
@@ -22,9 +30,13 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                     imageAspectRatio: imageAspectRatio,
                     showsPlayOverlay: showsPlayOverlay
                 )
+                .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.plain)
-            .duskSuppressTVOSButtonChrome()
+            .buttonStyle(.card)
+            .focused($isFocused)
+            .contextMenu {
+                contextMenuContent()
+            }
 
             PosterCardText(
                 title: title,
@@ -33,9 +45,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             )
         }
         .frame(width: width, alignment: .topLeading)
-        .contextMenu {
-            contextMenuContent()
-        }
+        .zIndex(isFocused ? 1 : 0)
         #else
         NavigationLink(value: route) {
             PosterCard(
@@ -91,10 +101,18 @@ struct PosterActionCard<ContextMenuContent: View>: View {
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
+    #if os(tvOS)
+    @FocusState private var isFocused: Bool
+    #endif
 
     var body: some View {
         #if os(tvOS)
-        VStack(alignment: .leading, spacing: 6) {
+        let artworkShape = RoundedRectangle(
+            cornerRadius: PosterArtwork.cornerRadius,
+            style: .continuous
+        )
+
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
             Button(action: action) {
                 PosterArtwork(
                     imageURL: imageURL,
@@ -103,9 +121,13 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                     imageAspectRatio: imageAspectRatio,
                     showsPlayOverlay: showsPlayOverlay
                 )
+                .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.plain)
-            .duskSuppressTVOSButtonChrome()
+            .buttonStyle(.card)
+            .focused($isFocused)
+            .contextMenu {
+                contextMenuContent()
+            }
 
             PosterCardText(
                 title: title,
@@ -114,9 +136,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             )
         }
         .frame(width: width, alignment: .topLeading)
-        .contextMenu {
-            contextMenuContent()
-        }
+        .zIndex(isFocused ? 1 : 0)
         #else
         Button(action: action) {
             PosterCard(

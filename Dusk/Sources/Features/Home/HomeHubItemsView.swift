@@ -3,10 +3,10 @@ import SwiftUI
 struct HomeHubItemsView: View {
     @State private var viewModel: HomeHubItemsViewModel
 
-    private let horizontalPadding: CGFloat = 12
-    private let gridSpacing: CGFloat = 12
-    private let gridRowSpacing: CGFloat = 18
-    private let preferredPosterWidth: CGFloat = 104
+    private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
+    private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
+    private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
+    private let preferredPosterWidth: CGFloat = DuskPosterMetrics.gridPreferredWidth
     private let minimumColumnCount = 2
 
     init(hub: PlexHub, plexService: PlexService) {
@@ -75,9 +75,12 @@ struct HomeHubItemsView: View {
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, 8)
+                .padding(.vertical, 32)
             }
             .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 

@@ -3,10 +3,10 @@ import SwiftUI
 struct LibraryItemsView: View {
     @State private var viewModel: LibraryItemsViewModel
 
-    private let horizontalPadding: CGFloat = 12
-    private let gridSpacing: CGFloat = 12
-    private let gridRowSpacing: CGFloat = 18
-    private let preferredPosterWidth: CGFloat = 104
+    private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
+    private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
+    private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
+    private let preferredPosterWidth: CGFloat = DuskPosterMetrics.gridPreferredWidth
     private let minimumColumnCount = 2
     private let controlCornerRadius: CGFloat = 18
 
@@ -62,12 +62,12 @@ struct LibraryItemsView: View {
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.horizontal, 24)
-                        .padding(.top, 28)
+                        .padding(.top, 40)
                     } else if viewModel.items.isEmpty {
                         emptyView
                             .frame(maxWidth: .infinity)
                             .padding(.horizontal, 24)
-                            .padding(.top, 28)
+                            .padding(.top, 40)
                     } else {
                         LazyVGrid(columns: layout.columns, spacing: gridRowSpacing) {
                             ForEach(viewModel.items) { item in
@@ -80,8 +80,8 @@ struct LibraryItemsView: View {
                             }
                         }
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 12)
-                        .padding(.bottom, 8)
+                        .padding(.top, 32)
+                        .padding(.bottom, 32)
                     }
 
                     if viewModel.isLoadingMore {
@@ -93,6 +93,9 @@ struct LibraryItemsView: View {
                 }
             }
             .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 

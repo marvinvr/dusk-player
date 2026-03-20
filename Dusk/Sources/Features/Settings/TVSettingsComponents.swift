@@ -68,20 +68,15 @@ struct TVSettingsMenuRow<Option: Hashable>: View {
                 Text(optionTitle(option)).tag(option)
             }
         } label: {
-            HStack(spacing: 20) {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Spacer()
-
-                Text(selectedTitle)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .frame(minHeight: 72)
-            .contentShape(Rectangle())
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.duskTextPrimary)
+                .lineLimit(1)
         }
         .pickerStyle(.navigationLink)
+        .accessibilityLabel(title)
+        .accessibilityValue(selectedTitle)
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
     }
 }
 
@@ -173,57 +168,34 @@ struct TVSettingsActionRow: View {
 struct TVSettingsExternalLinkRow: View {
     let title: String
     let subtitle: String
-    let systemImage: String
     let tint: Color
-    let action: () -> Void
 
     init(
         title: String,
         subtitle: String,
-        systemImage: String,
-        tint: Color = Color.duskTextPrimary,
-        action: @escaping () -> Void
+        tint: Color = Color.duskTextSecondary
     ) {
         self.title = title
         self.subtitle = subtitle
-        self.systemImage = systemImage
         self.tint = tint
-        self.action = action
     }
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 18) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(Color.duskAccent.opacity(0.14))
-                        .frame(width: 42, height: 42)
+        HStack(spacing: 18) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.duskTextPrimary)
+                .lineLimit(1)
 
-                    Image(systemName: systemImage)
-                        .font(.headline.weight(.semibold))
-                        .foregroundStyle(Color.duskAccent)
-                }
+            Spacer(minLength: 24)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundStyle(tint)
-
-                    Text(subtitle)
-                        .font(.subheadline)
-                        .foregroundStyle(Color.duskTextSecondary)
-                        .lineLimit(1)
-                }
-
-                Spacer()
-
-                Image(systemName: "arrow.up.right")
-                    .font(.headline)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .frame(minHeight: 72)
-            .contentShape(Rectangle())
+            Text(subtitle)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(tint)
+                .lineLimit(1)
+                .truncationMode(.middle)
         }
-        .duskSuppressTVOSButtonChrome()
+        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .accessibilityElement(children: .combine)
     }
 }

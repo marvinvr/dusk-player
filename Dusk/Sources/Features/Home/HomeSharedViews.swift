@@ -78,7 +78,7 @@ struct HomeItemContextMenu: View {
         }
 
         if let showRoute = item.contextMenuShowRoute {
-            Button("Go to Show", systemImage: "tv") {
+            Button("Go to Show", systemImage: "tv.fill") {
                 onSelectRoute(showRoute)
             }
         }
@@ -107,6 +107,24 @@ struct HomeHeroActionButtonLabel: View {
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
+    }
+}
+
+struct HomeHeroSecondaryActionButtonLabel: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(Color.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 14)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                Capsule()
+                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
     }
 }
 

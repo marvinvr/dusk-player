@@ -79,6 +79,9 @@ private struct PlayerSessionView: View {
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: PlayerViewModel
+    #if os(tvOS)
+    @FocusState private var skipMarkerFocused: Bool
+    #endif
 
     private let playbackSource: PlaybackSource
     private let mediaDetails: PlexMediaDetails?
@@ -155,6 +158,7 @@ private struct PlayerSessionView: View {
                     PlayerControlsOverlay(
                         viewModel: viewModel,
                         mediaDetails: mediaDetails,
+                        hasActiveSkipMarker: viewModel.activeSkipMarker != nil,
                         onDismiss: dismissPlayer
                     )
                     .opacity(viewModel.showControls ? 1 : 0)
@@ -199,8 +203,25 @@ private struct PlayerSessionView: View {
                 }
             }
             viewModel.startPlaybackIfNeeded(source: playbackSource)
+            #if os(tvOS)
+            if viewModel.activeSkipMarker != nil {
+                skipMarkerFocused = true
+            }
+            #endif
         }
         .onDisappear { viewModel.cleanup() }
+        #if os(tvOS)
+        .onChange(of: viewModel.activeSkipMarker?.id) { _, _ in
+            if viewModel.activeSkipMarker != nil {
+                Task { @MainActor in
+                    skipMarkerFocused = true
+                }
+            } else {
+                skipMarkerFocused = false
+            }
+        }
+        #endif
+        #if !os(tvOS)
         .sheet(isPresented: $vm.showSubtitlePicker) {
             PlayerSelectionSheet(
                 title: "Subtitles",
@@ -235,6 +256,7 @@ private struct PlayerSessionView: View {
                 }
             )
         }
+        #endif
     }
 
     private var interactionOverlay: some View {
@@ -308,10 +330,24 @@ private struct PlayerSessionView: View {
                     .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
                     .opacity(0.92)
                 }
+                #if os(tvOS)
+                .focused($skipMarkerFocused)
+                #endif
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(Capsule())
             }
         }
+        .id(marker.id)
+        #if os(tvOS)
+        .onAppear {
+            Task { @MainActor in
+                skipMarkerFocused = true
+            }
+        }
+        .onDisappear {
+            skipMarkerFocused = false
+        }
+        #endif
         .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
         .padding(.bottom, max(PlayerOverlayLayout.skipMarkerBottomInset, 24))
         .ignoresSafeArea(edges: .bottom)

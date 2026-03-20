@@ -10,6 +10,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     let title: String
     let topInset: CGFloat
     let containerWidth: CGFloat
+    var backgroundLeadingInset: CGFloat = 0
     var heroBaseHeight: CGFloat = 380
     var posterWidth: CGFloat = 120
     @ViewBuilder var supertitle: Supertitle
@@ -22,13 +23,42 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     }
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            DetailHeroBackdrop(
-                imageURL: backdropURL,
-                height: heroHeight
-            )
+        let horizontalPadding: CGFloat = {
+            #if os(tvOS)
+            DuskPosterMetrics.detailHorizontalPadding
+            #else
+            20
+            #endif
+        }()
+        let posterTextSpacing: CGFloat = {
+            #if os(tvOS)
+            24
+            #else
+            16
+            #endif
+        }()
+        let contentTopPadding: CGFloat = {
+            #if os(tvOS)
+            topInset + 80
+            #else
+            topInset + 64
+            #endif
+        }()
+        let contentBottomPadding: CGFloat = {
+            #if os(tvOS)
+            40
+            #else
+            28
+            #endif
+        }()
 
+        ZStack(alignment: .bottomLeading) {
             ZStack {
+                DetailHeroBackdrop(
+                    imageURL: backdropURL,
+                    height: heroHeight
+                )
+
                 LinearGradient(
                     colors: [
                         Color.black.opacity(0.18),
@@ -58,10 +88,12 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                     endPoint: .bottom
                 )
             }
+            .frame(width: containerWidth, height: heroHeight, alignment: .leading)
+            .offset(x: -backgroundLeadingInset)
             .allowsHitTesting(false)
 
-            VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .bottom, spacing: 16) {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(alignment: .bottom, spacing: posterTextSpacing) {
                     if let posterURL {
                         posterView(url: posterURL)
                     }
@@ -92,9 +124,9 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.horizontal, 20)
-            .padding(.bottom, 28)
-            .padding(.top, topInset + 64)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, contentBottomPadding)
+            .padding(.top, contentTopPadding)
         }
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
@@ -129,6 +161,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         title: String,
         topInset: CGFloat,
         containerWidth: CGFloat,
+        backgroundLeadingInset: CGFloat = 0,
         heroBaseHeight: CGFloat = 380,
         posterWidth: CGFloat = 120,
         @ViewBuilder subtitle: () -> Subtitle,
@@ -139,6 +172,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         self.title = title
         self.topInset = topInset
         self.containerWidth = containerWidth
+        self.backgroundLeadingInset = backgroundLeadingInset
         self.heroBaseHeight = heroBaseHeight
         self.posterWidth = posterWidth
         self.supertitle = EmptyView()
@@ -172,60 +206,135 @@ struct PlayVersionContextMenu: View {
     }
 }
 
+struct DetailHeroSecondaryActionButtonLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.subheadline.weight(.semibold))
+
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.duskTextPrimary)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 12)
+        .background(Color.duskSurface)
+        .clipShape(Capsule())
+        .overlay(
+            Capsule()
+                .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
+        )
+    }
+}
+
 // MARK: - Actor Credit Card
 
 struct ActorCreditCard: View {
     let person: PlexPersonReference
     let plexService: PlexService
+    #if os(tvOS)
+    @FocusState private var isFocused: Bool
+    #endif
 
     var body: some View {
+        #if os(tvOS)
+        let avatarSize: CGFloat = 144
+        let cardWidth: CGFloat = 156
+        let avatarTextSpacing: CGFloat = 28
+
+        VStack(alignment: .leading, spacing: avatarTextSpacing) {
+            NavigationLink(value: AppNavigationRoute.person(person)) {
+                avatarImage(size: avatarSize)
+            }
+            .buttonStyle(.card)
+            .focused($isFocused)
+            .accessibilityLabel(accessibilityLabel)
+            .frame(width: avatarSize, height: avatarSize)
+
+            personDetails(width: avatarSize)
+        }
+        .frame(width: cardWidth, alignment: .topLeading)
+        .zIndex(isFocused ? 1 : 0)
+        #else
         NavigationLink(value: AppNavigationRoute.person(person)) {
             VStack(spacing: 8) {
-                if let thumbPath = person.thumb {
-                    DuskAsyncImage(url: plexService.imageURL(for: thumbPath, width: 72, height: 72)) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                        default:
-                            placeholder
-                        }
-                    }
-                    .frame(width: 72, height: 72)
-                    .clipShape(Circle())
-                } else {
-                    placeholder
-                        .frame(width: 72, height: 72)
-                        .clipShape(Circle())
-                }
-
-                VStack(spacing: 2) {
-                    Text(person.name)
-                        .font(.caption)
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .lineLimit(1)
-
-                    if let roleName = person.roleName, !roleName.isEmpty {
-                        Text(roleName)
-                            .font(.caption2)
-                            .foregroundStyle(Color.duskTextSecondary)
-                            .lineLimit(1)
-                    }
-                }
+                avatarImage(size: 72)
+                personDetails(width: 80)
             }
             .frame(width: 80)
         }
         .buttonStyle(.plain)
         .duskSuppressTVOSButtonChrome()
+        #endif
     }
 
-    private var placeholder: some View {
-        Image(systemName: "person.fill")
-            .font(.title2)
-            .foregroundStyle(Color.duskTextSecondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.duskSurface)
+    @ViewBuilder
+    private func avatarImage(size: CGFloat) -> some View {
+        let imageSize = Int(size.rounded())
+
+        Group {
+            if let thumbPath = person.thumb {
+                DuskAsyncImage(url: plexService.imageURL(for: thumbPath, width: imageSize, height: imageSize)) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                    default:
+                        placeholder(size: size)
+                    }
+                }
+            } else {
+                placeholder(size: size)
+            }
+        }
+        .frame(width: size, height: size)
+        #if os(tvOS)
+        .clipShape(RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous))
+        .contentShape(RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous))
+        #else
+        .clipShape(Circle())
+        .contentShape(Circle())
+        #endif
+    }
+
+    private func placeholder(size: CGFloat) -> some View {
+        ZStack {
+            Color.duskSurface
+
+            Image(systemName: "person.fill")
+                .font(.system(size: size * 0.30, weight: .regular))
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+    }
+
+    private func personDetails(width: CGFloat) -> some View {
+        VStack(spacing: 2) {
+            Text(person.name)
+                .font(.caption)
+                .foregroundStyle(Color.duskTextPrimary)
+                .lineLimit(1)
+
+            if let roleName = person.roleName, !roleName.isEmpty {
+                Text(roleName)
+                    .font(.caption2)
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .lineLimit(1)
+            }
+        }
+        .frame(width: width)
+    }
+
+    private var accessibilityLabel: String {
+        if let roleName = person.roleName, !roleName.isEmpty {
+            return "View \(person.name), \(roleName)"
+        }
+
+        return "View \(person.name)"
     }
 }
 

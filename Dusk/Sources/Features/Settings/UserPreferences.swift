@@ -163,7 +163,7 @@ final class UserPreferences {
         let playerDoubleTapBackwardInterval = Self.storedSeekInterval(
             forKey: Keys.playerDoubleTapBackwardInterval,
             defaults: defaults,
-            fallback: .fiveSeconds
+            fallback: .fifteenSeconds
         )
         let storedForceAVPlayer = defaults.bool(forKey: Keys.forceAVPlayer)
         let storedForceVLCKit = defaults.bool(forKey: Keys.forceVLCKit)

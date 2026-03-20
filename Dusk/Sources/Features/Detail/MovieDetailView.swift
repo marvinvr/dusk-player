@@ -6,6 +6,8 @@ struct MovieDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: MovieDetailViewModel
 
+    private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
+
     init(ratingKey: String, plexService: PlexService) {
         _viewModel = State(initialValue: MovieDetailViewModel(
             ratingKey: ratingKey,
@@ -40,45 +42,83 @@ struct MovieDetailView: View {
     @ViewBuilder
     private func contentView(_ details: PlexMediaDetails) -> some View {
         GeometryReader { geometry in
+            let heroBackgroundWidth: CGFloat = {
+                #if os(tvOS)
+                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+                #else
+                geometry.size.width
+                #endif
+            }()
+            let heroBackgroundLeadingInset: CGFloat = {
+                #if os(tvOS)
+                geometry.safeAreaInsets.leading
+                #else
+                0
+                #endif
+            }()
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
+                    heroSection(
+                        details,
+                        topInset: geometry.safeAreaInsets.top,
+                        containerWidth: heroBackgroundWidth,
+                        containerHeight: geometry.size.height,
+                        backgroundLeadingInset: heroBackgroundLeadingInset
+                    )
                     if let summary = details.summary, !summary.isEmpty {
                         summarySection(summary)
-                            .padding(.horizontal, 20)
-                            .padding(.top, 24)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 40)
                     }
                     if let roles = details.roles, !roles.isEmpty {
                         castSection(roles)
-                            .padding(.top, 24)
+                            .padding(.top, 40)
                     }
                     mediaInfoSection()
-                        .padding(.horizontal, 20)
-                        .padding(.top, 24)
-                        .padding(.bottom, 40)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, 40)
+                        .padding(.bottom, 56)
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 
     // MARK: - Hero
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+    private func heroSection(
+        _ details: PlexMediaDetails,
+        topInset: CGFloat,
+        containerWidth: CGFloat,
+        containerHeight: CGFloat,
+        backgroundLeadingInset: CGFloat = 0
+    ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
-        let posterWidth = sizeClass == .regular ? 180 : 120
+        let posterWidth: CGFloat = {
+            #if os(tvOS)
+            DuskPosterMetrics.heroPosterWidth
+            #else
+            sizeClass == .regular ? 180 : 120
+            #endif
+        }()
+        let posterImageWidth = Int(posterWidth.rounded())
         let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
-            posterURL: viewModel.posterURL(width: posterWidth, height: posterHeight),
+            posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             title: details.title,
             topInset: topInset,
             containerWidth: containerWidth,
+            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
             posterWidth: CGFloat(posterWidth)
         ) {
@@ -237,20 +277,32 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private func castSection(_ roles: [PlexRole]) -> some View {
+        #if os(tvOS)
+        let castSpacing: CGFloat = 28
+        let castVerticalPadding: CGFloat = 12
+        #else
+        let castSpacing: CGFloat = 12
+        let castVerticalPadding: CGFloat = 0
+        #endif
+
         VStack(alignment: .leading, spacing: 12) {
             Text("Cast")
                 .font(.headline)
                 .foregroundStyle(Color.duskTextPrimary)
-                .padding(.horizontal, 20)
+                .padding(.horizontal, horizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(spacing: castSpacing) {
                     ForEach(Array(roles.prefix(20).enumerated()), id: \.offset) { _, role in
                         castCard(role)
                     }
                 }
-                .padding(.horizontal, 20)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, castVerticalPadding)
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 

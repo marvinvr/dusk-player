@@ -26,8 +26,8 @@ struct MediaCarousel<Content: View, HeaderAccessory: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.carouselSectionSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: DuskPosterMetrics.carouselHeaderSpacing) {
                 Text(title)
                     .font(.title3.bold())
                     .foregroundStyle(Color.duskTextPrimary)
@@ -36,15 +36,18 @@ struct MediaCarousel<Content: View, HeaderAccessory: View>: View {
 
                 headerAccessory
             }
-            .padding(.horizontal)
+            .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: 12) {
+                LazyHStack(alignment: .top, spacing: DuskPosterMetrics.carouselItemSpacing) {
                     content()
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 2)
+                .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+                .padding(.bottom, DuskPosterMetrics.carouselBottomPadding)
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 }

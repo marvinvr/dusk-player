@@ -3,7 +3,6 @@ import SwiftUI
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
-    @Environment(\.openURL) private var openURL
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
@@ -173,32 +172,23 @@ struct SettingsTVView: View {
                     tvRowDivider
 
                     TVSettingsExternalLinkRow(
-                        title: "GitHub",
-                        subtitle: "github.com/marvinvr/dusk-player",
-                        systemImage: "chevron.left.forwardslash.chevron.right"
-                    ) {
-                        openURL(SettingsSupport.githubURL)
-                    }
+                        title: "About Me",
+                        subtitle: "marvinvr.ch"
+                    )
 
                     tvRowDivider
 
                     TVSettingsExternalLinkRow(
-                        title: "About Me",
-                        subtitle: "marvinvr.ch",
-                        systemImage: "person.crop.circle"
-                    ) {
-                        openURL(SettingsSupport.aboutMeURL)
-                    }
+                        title: "GitHub",
+                        subtitle: "github.com/marvinvr/dusk-player"
+                    )
 
                     tvRowDivider
 
                     TVSettingsExternalLinkRow(
                         title: "Feedback",
-                        subtitle: "info@getdusk.app",
-                        systemImage: "envelope.badge"
-                    ) {
-                        openURL(SettingsSupport.feedbackURL)
-                    }
+                        subtitle: "info@getdusk.app"
+                    )
                 }
 
                 TVSettingsSection(title: "Account", footer: SettingsSupport.accountFooterText) {

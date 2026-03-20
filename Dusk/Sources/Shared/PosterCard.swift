@@ -1,14 +1,14 @@
 import SwiftUI
 
 struct PosterArtwork: View {
+    static let cornerRadius: CGFloat = 16
+
     let imageURL: URL?
     var progress: Double?
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay: Bool = false
 
-    private let playOverlaySymbolSize: CGFloat = 25
-    private let playOverlayPadding: CGFloat = 14
     private let artworkShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
     var body: some View {
@@ -49,6 +49,26 @@ struct PosterArtwork: View {
         .clipShape(artworkShape)
     }
 
+    private var isHorizontalArtwork: Bool {
+        imageAspectRatio > 1
+    }
+
+    private var playOverlaySymbolSize: CGFloat {
+        #if os(tvOS)
+        isHorizontalArtwork ? 42 : 34
+        #else
+        25
+        #endif
+    }
+
+    private var playOverlayPadding: CGFloat {
+        #if os(tvOS)
+        isHorizontalArtwork ? 20 : 16
+        #else
+        14
+        #endif
+    }
+
     private var placeholder: some View {
         artworkShape
             .fill(Color.duskSurface)
@@ -87,9 +107,9 @@ struct PosterCardText: View {
     var width: CGFloat = 130
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardTextSpacing) {
             Text(title)
-                .font(.caption)
+                .font(DuskPosterMetrics.titleFont)
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(2)
                 .frame(width: width, alignment: .leading)
@@ -102,13 +122,13 @@ struct PosterCardText: View {
     private var subtitleRow: some View {
         if let subtitle, !subtitle.isEmpty {
             Text(subtitle)
-                .font(.caption2)
+                .font(DuskPosterMetrics.subtitleFont)
                 .foregroundStyle(Color.duskTextSecondary)
                 .lineLimit(1)
                 .frame(width: width, alignment: .leading)
         } else {
             Text(" ")
-                .font(.caption2)
+                .font(DuskPosterMetrics.subtitleFont)
                 .hidden()
                 .frame(width: width, alignment: .leading)
         }
@@ -180,7 +200,7 @@ struct PlexItemContextMenuContent: View {
 
         if let showRoute = item.contextMenuShowRoute {
             NavigationLink(value: showRoute) {
-                Label("Go to Show", systemImage: "tv")
+                Label("Go to Show", systemImage: "tv.fill")
             }
         }
     }

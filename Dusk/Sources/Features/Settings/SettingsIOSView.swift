@@ -230,21 +230,21 @@ struct SettingsIOSView: View {
                         .foregroundStyle(Color.duskTextSecondary)
                 }
 
-                Link(destination: SettingsSupport.githubURL) {
-                    SettingsAboutRow(
-                        title: "GitHub",
-                        subtitle: "github.com/marvinvr/dusk-player",
-                        systemImage: "chevron.left.forwardslash.chevron.right",
-                        trailingSystemImage: "arrow.up.right"
-                    )
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
                 Link(destination: SettingsSupport.aboutMeURL) {
                     SettingsAboutRow(
                         title: "About Me",
                         subtitle: "marvinvr.ch",
                         systemImage: "person.crop.circle",
+                        trailingSystemImage: "arrow.up.right"
+                    )
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Link(destination: SettingsSupport.githubURL) {
+                    SettingsAboutRow(
+                        title: "GitHub",
+                        subtitle: "github.com/marvinvr/dusk-player",
+                        systemImage: "chevron.left.forwardslash.chevron.right",
                         trailingSystemImage: "arrow.up.right"
                     )
                 }

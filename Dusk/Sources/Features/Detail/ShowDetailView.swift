@@ -6,9 +6,9 @@ struct ShowDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: ShowDetailViewModel
 
-    private let horizontalPadding: CGFloat = 20
-    private let gridSpacing: CGFloat = 14
-    private let preferredPosterWidth: CGFloat = 120
+    private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
+    private let gridSpacing: CGFloat = DuskPosterMetrics.detailGridSpacing
+    private let preferredPosterWidth: CGFloat = DuskPosterMetrics.detailGridPreferredWidth
     private let minimumColumnCount = 2
 
     init(ratingKey: String, plexService: PlexService) {
@@ -43,9 +43,30 @@ struct ShowDetailView: View {
     @ViewBuilder
     private func contentView(_ details: PlexMediaDetails) -> some View {
         GeometryReader { geometry in
+            let heroBackgroundWidth: CGFloat = {
+                #if os(tvOS)
+                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+                #else
+                geometry.size.width
+                #endif
+            }()
+            let heroBackgroundLeadingInset: CGFloat = {
+                #if os(tvOS)
+                geometry.safeAreaInsets.leading
+                #else
+                0
+                #endif
+            }()
+
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    heroSection(details, topInset: geometry.safeAreaInsets.top, containerWidth: geometry.size.width, containerHeight: geometry.size.height)
+                    heroSection(
+                        details,
+                        topInset: geometry.safeAreaInsets.top,
+                        containerWidth: heroBackgroundWidth,
+                        containerHeight: geometry.size.height,
+                        backgroundLeadingInset: heroBackgroundLeadingInset
+                    )
 
                     if let summary = details.summary, !summary.isEmpty {
                         Text(summary)
@@ -53,16 +74,16 @@ struct ShowDetailView: View {
                             .foregroundStyle(Color.duskTextSecondary)
                             .lineSpacing(4)
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 16)
+                            .padding(.top, 32)
                     }
 
                     seasonsSection(width: geometry.size.width)
-                        .padding(.top, 24)
+                        .padding(.top, 40)
 
                     if let roles = details.roles, !roles.isEmpty {
                         castSection(roles)
-                            .padding(.top, 24)
-                            .padding(.bottom, 40)
+                            .padding(.top, 40)
+                            .padding(.bottom, 56)
                     }
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
@@ -70,21 +91,38 @@ struct ShowDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 
     @ViewBuilder
-    private func heroSection(_ details: PlexMediaDetails, topInset: CGFloat, containerWidth: CGFloat, containerHeight: CGFloat) -> some View {
+    private func heroSection(
+        _ details: PlexMediaDetails,
+        topInset: CGFloat,
+        containerWidth: CGFloat,
+        containerHeight: CGFloat,
+        backgroundLeadingInset: CGFloat = 0
+    ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
-        let posterWidth = sizeClass == .regular ? 180 : 120
+        let posterWidth: CGFloat = {
+            #if os(tvOS)
+            DuskPosterMetrics.heroPosterWidth
+            #else
+            sizeClass == .regular ? 180 : 120
+            #endif
+        }()
+        let posterImageWidth = Int(posterWidth.rounded())
         let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
-            posterURL: viewModel.posterURL(width: posterWidth, height: posterHeight),
+            posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             title: details.title,
             topInset: topInset,
             containerWidth: containerWidth,
+            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
             posterWidth: CGFloat(posterWidth)
         ) {
@@ -207,6 +245,14 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func castSection(_ roles: [PlexRole]) -> some View {
+        #if os(tvOS)
+        let castSpacing: CGFloat = 28
+        let castVerticalPadding: CGFloat = 12
+        #else
+        let castSpacing: CGFloat = 12
+        let castVerticalPadding: CGFloat = 0
+        #endif
+
         VStack(alignment: .leading, spacing: 12) {
             Text("Cast")
                 .font(.headline)
@@ -214,13 +260,17 @@ struct ShowDetailView: View {
                 .padding(.horizontal, horizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 12) {
+                LazyHStack(spacing: castSpacing) {
                     ForEach(Array(roles.prefix(20).enumerated()), id: \.offset) { _, role in
                         ActorCreditCard(person: PlexPersonReference(role: role), plexService: plexService)
                     }
                 }
                 .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, castVerticalPadding)
             }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
         }
     }
 
@@ -243,7 +293,7 @@ struct ShowDetailView: View {
                     .foregroundStyle(Color.duskTextPrimary)
                     .padding(.horizontal, horizontalPadding)
 
-                LazyVGrid(columns: layout.columns, alignment: .leading, spacing: 18) {
+                LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
                     ForEach(viewModel.seasons) { season in
                         PosterNavigationCard(
                             route: AppNavigationRoute.media(type: .season, ratingKey: season.ratingKey),

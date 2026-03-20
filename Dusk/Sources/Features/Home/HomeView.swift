@@ -56,6 +56,7 @@ struct HomeView: View {
     private func platformContent(_ viewModel: HomeViewModel) -> some View {
         #if os(tvOS)
         HomeTVView(
+            path: $path,
             viewModel: viewModel,
             serverName: plexService.connectedServer?.name,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,

@@ -79,7 +79,7 @@ enum MediaTextFormatter {
         case .movie:
             return "film"
         case .show:
-            return "tv"
+            return "tv.fill"
         case .person:
             return "person.fill"
         case .episode:

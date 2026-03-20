@@ -18,7 +18,7 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
         case .movie:
             "film"
         case .show:
-            "tv"
+            "tv.fill"
         }
     }
 }
