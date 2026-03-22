@@ -69,30 +69,70 @@ struct PlayerControlsIOSOverlay: View {
 
                 Spacer()
 
-                Button { viewModel.showSubtitlePicker = true } label: {
-                    trackButtonLabel(
-                        icon: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill",
-                        title: context.subtitleControlTitle,
-                        showsTitle: showsTrackLabels,
-                        isEnabled: !viewModel.subtitleTracks.isEmpty
-                    )
-                }
-                .disabled(viewModel.subtitleTracks.isEmpty)
+                HStack(spacing: 6) {
+                    Button { viewModel.showSubtitlePicker = true } label: {
+                        trackButtonLabel(
+                            icon: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill",
+                            title: context.subtitleControlTitle,
+                            showsTitle: showsTrackLabels,
+                            isEnabled: !viewModel.subtitleTracks.isEmpty
+                        )
+                    }
+                    .disabled(viewModel.subtitleTracks.isEmpty)
 
-                Button { viewModel.showAudioPicker = true } label: {
-                    trackButtonLabel(
-                        icon: "speaker.wave.2",
-                        title: context.audioControlTitle,
-                        showsTitle: showsTrackLabels,
-                        isEnabled: !viewModel.audioTracks.isEmpty
-                    )
+                    Button { viewModel.showAudioPicker = true } label: {
+                        trackButtonLabel(
+                            icon: "speaker.wave.2",
+                            title: context.audioControlTitle,
+                            showsTitle: showsTrackLabels,
+                            isEnabled: !viewModel.audioTracks.isEmpty
+                        )
+                    }
+                    .disabled(viewModel.audioTracks.isEmpty)
                 }
-                .disabled(viewModel.audioTracks.isEmpty)
             }
         }
     }
 
+    @ViewBuilder
     private func trackButtonLabel(
+        icon: String,
+        title: String,
+        showsTitle: Bool,
+        isEnabled: Bool
+    ) -> some View {
+        if showsTitle {
+            ViewThatFits(in: .horizontal) {
+                trackButtonLabelContent(
+                    icon: icon,
+                    title: title,
+                    showsTitle: true,
+                    isEnabled: isEnabled
+                )
+                .fixedSize(horizontal: true, vertical: false)
+
+                trackButtonLabelContent(
+                    icon: icon,
+                    title: title,
+                    showsTitle: true,
+                    isEnabled: isEnabled
+                )
+                .frame(maxWidth: 132, alignment: .leading)
+            }
+            .frame(maxWidth: 132, alignment: .leading)
+            .frame(height: 36)
+        } else {
+            trackButtonLabelContent(
+                icon: icon,
+                title: title,
+                showsTitle: false,
+                isEnabled: isEnabled
+            )
+            .frame(width: 36, height: 36)
+        }
+    }
+
+    private func trackButtonLabelContent(
         icon: String,
         title: String,
         showsTitle: Bool,
@@ -107,16 +147,12 @@ struct PlayerControlsIOSOverlay: View {
                 Text(title)
                     .font(.caption.weight(.medium))
                     .lineLimit(1)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .truncationMode(.tail)
             }
         }
         .foregroundStyle(.white.opacity(isEnabled ? 1.0 : 0.72))
         .padding(.horizontal, showsTitle ? 10 : 0)
-        .frame(
-            width: showsTitle ? 132 : 36,
-            height: 36,
-            alignment: showsTitle ? .leading : .center
-        )
+        .padding(.vertical, showsTitle ? 6 : 0)
         .background(.white.opacity(0.12), in: Capsule())
     }
 }

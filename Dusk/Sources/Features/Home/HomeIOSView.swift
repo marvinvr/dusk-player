@@ -59,6 +59,9 @@ struct HomeIOSView: View {
                                     }
                                     .accessibilityAddTraits(.isButton)
                                 )
+                            },
+                            detailsAction: { item in
+                                path.append(AppNavigationRoute.destination(for: item))
                             }
                         )
                     } else if showsHomeServerSubtitle, let serverName {

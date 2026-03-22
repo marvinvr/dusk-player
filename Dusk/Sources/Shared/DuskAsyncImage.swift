@@ -10,6 +10,8 @@ enum DuskAsyncImagePhase {
 }
 
 struct DuskAsyncImage<Content: View>: View {
+    @Environment(PlexService.self) private var plexService
+
     let url: URL?
     @ViewBuilder let content: (DuskAsyncImagePhase) -> Content
 
@@ -32,7 +34,7 @@ struct DuskAsyncImage<Content: View>: View {
         phase = .empty
 
         do {
-            let image = try await DuskImageLoader.shared.image(for: url)
+            let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
             guard !Task.isCancelled else { return }
             phase = .success(Image(uiImage: image))
         } catch {
@@ -65,7 +67,7 @@ actor DuskImageLoader {
         #endif
     }
 
-    func image(for url: URL) async throws -> UIImage {
+    func image(for url: URL, using plexService: PlexService? = nil) async throws -> UIImage {
         #if canImport(UIKit)
         let cacheKey = url as NSURL
         if let cachedImage = memoryCache.object(forKey: cacheKey) {
@@ -89,19 +91,27 @@ actor DuskImageLoader {
                 return cachedImage
             }
 
-            let (data, response) = try await session.data(for: request)
+            let data: Data
+            if let plexService {
+                data = try await plexService.imageData(for: url)
+            } else {
+                let (fetchedData, response) = try await session.data(for: request)
 
-            if let httpResponse = response as? HTTPURLResponse,
-               !(200...299).contains(httpResponse.statusCode) {
-                throw URLError(.badServerResponse)
+                if let httpResponse = response as? HTTPURLResponse,
+                   !(200...299).contains(httpResponse.statusCode) {
+                    throw URLError(.badServerResponse)
+                }
+
+                data = fetchedData
             }
 
             guard let image = UIImage(data: data) else {
                 throw URLError(.cannotDecodeContentData)
             }
 
-            let cachedResponse = CachedURLResponse(response: response, data: data)
-            AppImageCache.shared.storeCachedResponse(cachedResponse, for: request)
+            if let cachedResponse = URLCache.shared.cachedResponse(for: request) {
+                AppImageCache.shared.storeCachedResponse(cachedResponse, for: request)
+            }
             return image
         }
 

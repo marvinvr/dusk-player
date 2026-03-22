@@ -58,6 +58,7 @@ struct HomeCinematicHero: View {
     var supportsDragNavigation = false
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
+    var detailsAction: ((PlexItem) -> Void)? = nil
 
     @State private var currentHeroIndex = 0
     @State private var heroRotationRevision = 0
@@ -255,6 +256,20 @@ struct HomeCinematicHero: View {
                 )
             }
             .allowsHitTesting(false)
+
+            #if os(iOS)
+            if let detailsAction {
+                Rectangle()
+                    .fill(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onTapGesture {
+                        restartHeroRotation()
+                        detailsAction(item)
+                    }
+                    .accessibilityHidden(true)
+            }
+            #endif
 
             VStack(alignment: .leading, spacing: 16) {
                 VStack(alignment: .leading, spacing: 8) {

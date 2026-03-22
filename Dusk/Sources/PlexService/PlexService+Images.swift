@@ -17,7 +17,7 @@ extension PlexService {
     }
 
     func directImageURL(for path: String) -> URL? {
-        guard let urlString = imageRequestURLString(for: path, includeToken: true) else {
+        guard let urlString = imageRequestURLString(for: path, includeToken: false) else {
             return nil
         }
         return URL(string: urlString)
@@ -47,12 +47,86 @@ extension PlexService {
             items.append(URLQueryItem(name: "height", value: String(height)))
         }
 
-        if let token = preferredServerToken {
-            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
-        }
-
         components.queryItems = items
         return components.url
+    }
+
+    func imageData(for url: URL) async throws -> Data {
+        if shouldAuthenticateImageRequest(for: url) {
+            return try await rawImageServerRequest(url: url)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.cachePolicy = .returnCacheDataElseLoad
+        return try await executeBinaryRequest(request)
+    }
+
+    func shouldAuthenticateImageRequest(for url: URL) -> Bool {
+        guard let serverBaseURL else { return false }
+
+        let normalizedURLPort = url.port ?? defaultPort(for: url.scheme)
+        let normalizedServerPort = serverBaseURL.port ?? defaultPort(for: serverBaseURL.scheme)
+
+        return url.scheme?.lowercased() == serverBaseURL.scheme?.lowercased()
+            && url.host?.lowercased() == serverBaseURL.host?.lowercased()
+            && normalizedURLPort == normalizedServerPort
+    }
+
+    private func rawImageServerRequest(url: URL) async throws -> Data {
+        if preferredServerToken == nil {
+            try await recoverServerAuthorizationIfPossible()
+        }
+
+        do {
+            return try await sendImageServerRequest(url: url)
+        } catch let error as PlexServiceError where error == .unauthorized {
+            plexAuthLogger.notice("Image request unauthorized for \(url.path, privacy: .public); attempting token refresh")
+            try await recoverServerAuthorizationIfPossible()
+            do {
+                return try await sendImageServerRequest(url: url)
+            } catch let retryError as PlexServiceError where retryError == .unauthorized {
+                clearServer()
+                throw retryError
+            }
+        }
+    }
+
+    private func sendImageServerRequest(url: URL) async throws -> Data {
+        guard let serverToken = preferredServerToken else {
+            throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.cachePolicy = .returnCacheDataElseLoad
+        applyHeaders(to: &request, token: serverToken)
+
+        return try await executeRequest(request)
+    }
+
+    private func executeBinaryRequest(_ request: URLRequest) async throws -> Data {
+        let data: Data
+        let response: URLResponse
+
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw PlexServiceError.networkError(error.localizedDescription)
+        }
+
+        guard let http = response as? HTTPURLResponse else {
+            throw PlexServiceError.networkError("Invalid response")
+        }
+
+        switch http.statusCode {
+        case 200...299:
+            return data
+        case 401:
+            throw PlexServiceError.unauthorized
+        default:
+            throw PlexServiceError.httpError(statusCode: http.statusCode)
+        }
     }
 
     func imageRequestURLString(for path: String, includeToken: Bool) -> String? {
@@ -93,6 +167,17 @@ extension PlexService {
         #else
         1
         #endif
+    }
+
+    private func defaultPort(for scheme: String?) -> Int? {
+        switch scheme?.lowercased() {
+        case "http":
+            return 80
+        case "https":
+            return 443
+        default:
+            return nil
+        }
     }
 }
 

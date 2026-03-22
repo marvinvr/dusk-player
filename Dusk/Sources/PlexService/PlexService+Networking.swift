@@ -84,7 +84,7 @@ extension PlexService {
         return try await executeRequest(request)
     }
 
-    private func recoverServerAuthorizationIfPossible() async throws {
+    func recoverServerAuthorizationIfPossible() async throws {
         guard authToken != nil else {
             throw PlexServiceError.unauthorized
         }
