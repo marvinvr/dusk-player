@@ -2,6 +2,7 @@ import SwiftUI
 
 enum AppNavigationRoute: Hashable {
     case library(PlexLibrary)
+    case libraryGenre(library: PlexLibrary, genre: LibraryGenreOption)
     case libraryRecommendations(PlexLibrary)
     case hub(PlexHub)
     case media(type: PlexMediaType, ratingKey: String)
@@ -26,6 +27,13 @@ struct AppNavigationDestinationView: View {
         switch route {
         case .library(let library):
             LibraryItemsView(library: library, plexService: plexService)
+        case .libraryGenre(let library, let genre):
+            LibraryItemsView(
+                library: library,
+                plexService: plexService,
+                initialGenre: genre,
+                preferLocalGenreFiltering: true
+            )
         case .libraryRecommendations(let library):
             LibraryRecommendationsView(
                 library: library,

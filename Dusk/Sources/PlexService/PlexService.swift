@@ -11,6 +11,7 @@ let plexAuthLogger = Logger(
 final class PlexService {
     var authToken: String?
     var authTokenUpdatedAt: Date?
+    var currentUser: PlexUser?
     private(set) var connectedServer: PlexServer?
     var serverBaseURL: URL?
     private(set) var serverAuthToken: String?

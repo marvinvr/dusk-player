@@ -6,14 +6,17 @@ final class HomeViewModel {
     private var maxRecentlyAddedItems = 10
 
     private(set) var hubs: [PlexHub] = []
+    private(set) var personalizedShelves: [HomePersonalizedShelf] = []
     private(set) var continueWatching: [PlexItem] = []
     private(set) var isLoading = false
     private(set) var error: String?
 
     private let plexService: PlexService
+    private let recommendationEngine: HomeRecommendationEngine
 
     init(plexService: PlexService) {
         self.plexService = plexService
+        self.recommendationEngine = HomeRecommendationEngine(plexService: plexService)
     }
 
     func load(maxRecentlyAddedItems: Int? = nil) async {
@@ -21,7 +24,7 @@ final class HomeViewModel {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
-        let isInitialLoad = hubs.isEmpty && continueWatching.isEmpty
+        let isInitialLoad = hubs.isEmpty && continueWatching.isEmpty && personalizedShelves.isEmpty
 
         if isInitialLoad {
             isLoading = true
@@ -31,17 +34,26 @@ final class HomeViewModel {
         do {
             async let fetchedHubs = plexService.getHubs()
             async let fetchedOnDeck = plexService.getContinueWatching()
+            async let fetchedPersonalizedShelves = recommendationEngine.loadShelves(
+                itemsPerShelf: self.maxRecentlyAddedItems
+            )
 
             let baseHubs = try await fetchedHubs.filter { !shouldHideHomeHub($0) }
             let newHubs = try await expandedRecentlyAddedHubs(from: baseHubs)
             let newContinueWatching = try await fetchedOnDeck.filter { !shouldHideHomeItem($0) }
+            let newPersonalizedShelves = filterPersonalizedShelves(
+                (try? await fetchedPersonalizedShelves) ?? [],
+                excluding: newContinueWatching
+            )
 
             if isInitialLoad {
                 hubs = newHubs
+                personalizedShelves = newPersonalizedShelves
                 continueWatching = newContinueWatching
             } else {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     hubs = newHubs
+                    personalizedShelves = newPersonalizedShelves
                     continueWatching = newContinueWatching
                 }
             }
@@ -95,6 +107,20 @@ final class HomeViewModel {
             return MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index) ?? item.title
         }
         return item.year.map(String.init)
+    }
+
+    func subtitle(for item: PlexItem) -> String? {
+        switch item.type {
+        case .movie:
+            return item.year.map(String.init)
+        case .show:
+            if let childCount = item.childCount {
+                return MediaTextFormatter.seasonCount(childCount)?.lowercased()
+            }
+            return item.year.map(String.init)
+        default:
+            return item.year.map(String.init)
+        }
     }
 
     func heroItems() -> [PlexItem] {
@@ -206,6 +232,11 @@ final class HomeViewModel {
         return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode])
     }
 
+    func showAllRoute(for shelf: HomePersonalizedShelf) -> AppNavigationRoute? {
+        guard let library = shelf.showAllLibrary else { return nil }
+        return .libraryGenre(library: library, genre: shelf.genre)
+    }
+
     private func expandedRecentlyAddedHubs(from hubs: [PlexHub]) async throws -> [PlexHub] {
         var expandedHubs: [PlexHub] = []
         expandedHubs.reserveCapacity(hubs.count)
@@ -259,6 +290,32 @@ final class HomeViewModel {
             return true
         default:
             return normalizedKey.contains("/playlists/")
+        }
+    }
+
+    private func filterPersonalizedShelves(
+        _ shelves: [HomePersonalizedShelf],
+        excluding continueWatchingItems: [PlexItem]
+    ) -> [HomePersonalizedShelf] {
+        let excludedRatingKeys = Set(
+            continueWatchingItems.flatMap { item in
+                [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
+                    .compactMap { $0 }
+            }
+        )
+
+        return shelves.compactMap { shelf in
+            let filteredItems = shelf.items.filter { !excludedRatingKeys.contains($0.ratingKey) }
+
+            guard filteredItems.count >= min(2, maxRecentlyAddedItems) else { return nil }
+
+            return HomePersonalizedShelf(
+                libraryType: shelf.libraryType,
+                genre: shelf.genre,
+                title: shelf.title,
+                items: filteredItems,
+                showAllLibrary: shelf.showAllLibrary
+            )
         }
     }
 

@@ -34,6 +34,29 @@ extension PlexService {
         return items
     }
 
+    func getLibraryItemCount(
+        sectionId: String,
+        filters: [String: String] = [:]
+    ) async throws -> Int {
+        var queryItems = [
+            URLQueryItem(name: "X-Plex-Container-Start", value: "0"),
+            URLQueryItem(name: "X-Plex-Container-Size", value: "1"),
+        ]
+
+        queryItems.append(
+            contentsOf: filters
+                .sorted { $0.key < $1.key }
+                .map { URLQueryItem(name: $0.key, value: $0.value) }
+        )
+
+        let data = try await rawServerRequest(
+            path: "/library/sections/\(sectionId)/all",
+            queryItems: queryItems
+        )
+        let response = try decodeJSON(MetadataResponse<PlexItem>.self, from: data)
+        return response.MediaContainer.totalSize ?? response.MediaContainer.size ?? 0
+    }
+
     func getLibraryFilters(sectionId: String) async throws -> [PlexLibraryFilter] {
         try await fetchDirectories(path: "/library/sections/\(sectionId)/filters")
     }

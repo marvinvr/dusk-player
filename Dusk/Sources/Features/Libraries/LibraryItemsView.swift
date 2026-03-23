@@ -10,10 +10,17 @@ struct LibraryItemsView: View {
     private let minimumColumnCount = 2
     private let controlCornerRadius: CGFloat = 18
 
-    init(library: PlexLibrary, plexService: PlexService) {
+    init(
+        library: PlexLibrary,
+        plexService: PlexService,
+        initialGenre: LibraryGenreOption? = nil,
+        preferLocalGenreFiltering: Bool = false
+    ) {
         _viewModel = State(initialValue: LibraryItemsViewModel(
             library: library,
-            plexService: plexService
+            plexService: plexService,
+            initialGenre: initialGenre,
+            preferLocalGenreFiltering: preferLocalGenreFiltering
         ))
     }
 
@@ -31,7 +38,7 @@ struct LibraryItemsView: View {
                 libraryContent
             }
         }
-        .duskNavigationTitle(viewModel.library.title)
+        .duskNavigationTitle(viewModel.navigationTitle)
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
             await viewModel.loadItems()

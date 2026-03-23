@@ -28,7 +28,11 @@ struct LibraryRecommendationsView: View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
 
-            if !viewModel.hasLoadedOnce, viewModel.error == nil, viewModel.hubs.isEmpty, viewModel.continueWatching.isEmpty {
+            if !viewModel.hasLoadedOnce,
+               viewModel.error == nil,
+               viewModel.hubs.isEmpty,
+               viewModel.personalizedShelves.isEmpty,
+               viewModel.continueWatching.isEmpty {
                 FeatureLoadingView()
             } else {
                 contentView
@@ -66,12 +70,17 @@ struct LibraryRecommendationsView: View {
                 .padding(.bottom, DuskPosterMetrics.carouselHeaderSpacing)
                 #endif
 
-                if let error = viewModel.error, viewModel.hubs.isEmpty, viewModel.continueWatching.isEmpty {
+                if let error = viewModel.error,
+                   viewModel.hubs.isEmpty,
+                   viewModel.personalizedShelves.isEmpty,
+                   viewModel.continueWatching.isEmpty {
                     FeatureErrorView(message: error) {
                         Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                     }
                     .padding(.top, 40)
-                } else if viewModel.hubs.isEmpty, viewModel.continueWatching.isEmpty {
+                } else if viewModel.hubs.isEmpty,
+                          viewModel.personalizedShelves.isEmpty,
+                          viewModel.continueWatching.isEmpty {
                     emptyView
                         .padding(.top, 40)
                 } else {
@@ -80,7 +89,26 @@ struct LibraryRecommendationsView: View {
                             continueWatchingSection
                         }
 
-                        ForEach(viewModel.hubs) { hub in
+                        ForEach(viewModel.prioritizedHubs) { hub in
+                            let items = viewModel.inlineItems(in: hub)
+
+                            if !items.isEmpty {
+                                hubSection(hub, items: items)
+                            }
+                        }
+
+                        ForEach(viewModel.personalizedShelves) { shelf in
+                            if !shelf.items.isEmpty {
+                                personalizedShelfSection(shelf)
+                            }
+                        }
+
+                        if viewModel.personalizedShelves.isEmpty,
+                           let diagnostics = viewModel.personalizedShelfDiagnostics {
+                            personalizedShelfDiagnosticsView(diagnostics)
+                        }
+
+                        ForEach(viewModel.secondaryHubs) { hub in
                             let items = viewModel.inlineItems(in: hub)
 
                             if !items.isEmpty {
@@ -145,6 +173,60 @@ struct LibraryRecommendationsView: View {
                         },
                         detailsRoute: AppNavigationRoute.destination(for: item),
                         detailsLabel: detailsLabel(for: item)
+                    )
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func personalizedShelfDiagnosticsView(_ diagnostics: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Personalized rows unavailable")
+                .font(.headline)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Text(diagnostics)
+                .font(.footnote)
+                .foregroundStyle(Color.duskTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+    }
+
+    @ViewBuilder
+    private func personalizedShelfSection(_ shelf: LibraryPersonalizedShelf) -> some View {
+        let imageWidth = Int(DuskPosterMetrics.carouselPosterWidth.rounded(.up))
+        let imageHeight = Int((DuskPosterMetrics.carouselPosterWidth * 1.5).rounded(.up))
+
+        MediaCarousel(
+            title: shelf.title,
+            headerAccessory: {
+                NavigationLink(value: AppNavigationRoute.libraryGenre(library: viewModel.library, genre: shelf.genre)) {
+                    Text("Show all")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color.duskAccent)
+                }
+                .buttonStyle(.plain)
+                .duskSuppressTVOSButtonChrome()
+            }
+        ) {
+            ForEach(shelf.items) { item in
+                PosterNavigationCard(
+                    route: AppNavigationRoute.destination(for: item),
+                    imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
+                    title: item.title,
+                    subtitle: viewModel.subtitle(for: item),
+                    width: DuskPosterMetrics.carouselPosterWidth
+                ) {
+                    PlexItemContextMenuContent(
+                        item: item,
+                        onMarkWatched: {
+                            Task { await viewModel.setWatched(true, for: item) }
+                        },
+                        onMarkUnwatched: {
+                            Task { await viewModel.setWatched(false, for: item) }
+                        }
                     )
                 }
             }

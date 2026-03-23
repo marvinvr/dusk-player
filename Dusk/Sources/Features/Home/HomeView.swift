@@ -15,7 +15,9 @@ struct HomeView: View {
                 Color.duskBackground.ignoresSafeArea()
 
                 if let viewModel {
-                    let hasHomeContent = !viewModel.hubs.isEmpty || !viewModel.continueWatching.isEmpty
+                    let hasHomeContent = !viewModel.hubs.isEmpty ||
+                        !viewModel.continueWatching.isEmpty ||
+                        !viewModel.personalizedShelves.isEmpty
 
                     if viewModel.isLoading, !hasHomeContent {
                         FeatureLoadingView()

@@ -113,6 +113,28 @@ struct HomeTVView: View {
                                 )
                             }
                         }
+
+                        ForEach(viewModel.personalizedShelves) { shelf in
+                            if !shelf.items.isEmpty {
+                                HomePersonalizedCarouselSection(
+                                    shelf: shelf,
+                                    posterWidth: DuskPosterMetrics.carouselPosterWidth,
+                                    showAllRoute: viewModel.showAllRoute(for: shelf),
+                                    subtitle: { item in
+                                        viewModel.subtitle(for: item)
+                                    },
+                                    posterURL: { item, width, height in
+                                        viewModel.posterURL(for: item, width: width, height: height)
+                                    },
+                                    onMarkWatched: { item in
+                                        Task { await viewModel.setWatched(true, for: item) }
+                                    },
+                                    onMarkUnwatched: { item in
+                                        Task { await viewModel.setWatched(false, for: item) }
+                                    }
+                                )
+                            }
+                        }
                     }
                     .padding(.top, heroItems.isEmpty ? 56 : 44)
                     .padding(.bottom, DuskPosterMetrics.pageBottomPadding)

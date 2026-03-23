@@ -44,7 +44,7 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
     }
 }
 
-private struct LibraryItemsQuery: Equatable {
+private struct LibraryItemsQuery: Hashable {
     let genreValue: String?
     let sort: LibrarySortOption
 }
@@ -54,6 +54,8 @@ private struct LibraryItemsQuery: Equatable {
 final class LibraryItemsViewModel {
     private let plexService: PlexService
     let library: PlexLibrary
+    private let preferredInitialGenre: LibraryGenreOption?
+    private let preferLocalGenreFiltering: Bool
 
     private(set) var items: [PlexItem] = []
     private(set) var isLoading = false
@@ -67,10 +69,23 @@ final class LibraryItemsViewModel {
     private let pageSize = 50
     private var hasLoadedBrowseOptions = false
     private var queryGeneration = 0
+    private var genreMatchCache: [String: Bool] = [:]
 
-    init(library: PlexLibrary, plexService: PlexService) {
+    init(
+        library: PlexLibrary,
+        plexService: PlexService,
+        initialGenre: LibraryGenreOption? = nil,
+        preferLocalGenreFiltering: Bool = false
+    ) {
         self.library = library
         self.plexService = plexService
+        self.preferredInitialGenre = initialGenre
+        self.preferLocalGenreFiltering = preferLocalGenreFiltering
+        self.selectedGenre = initialGenre ?? .all
+    }
+
+    var navigationTitle: String {
+        selectedGenre == .all ? library.title : selectedGenre.title
     }
 
     var showsBrowseControls: Bool {
@@ -196,6 +211,18 @@ final class LibraryItemsViewModel {
     }
 
     private func fetchItems(start: Int, query: LibraryItemsQuery) async throws -> [PlexItem] {
+        if query.genreValue != nil, preferLocalGenreFiltering {
+            return try await fetchLocallyFilteredItems(
+                start: start,
+                query: query,
+                genre: selectedGenre
+            )
+        }
+
+        return try await fetchServerFilteredItems(start: start, query: query)
+    }
+
+    private func fetchServerFilteredItems(start: Int, query: LibraryItemsQuery) async throws -> [PlexItem] {
         var filters: [String: String] = [:]
 
         if let genreValue = query.genreValue {
@@ -211,57 +238,98 @@ final class LibraryItemsViewModel {
         )
     }
 
+    private func fetchLocallyFilteredItems(
+        start: Int,
+        query: LibraryItemsQuery,
+        genre: LibraryGenreOption
+    ) async throws -> [PlexItem] {
+        let totalCount = try await plexService.getLibraryItemCount(sectionId: library.key)
+        guard totalCount > 0 else { return [] }
+
+        var matchedItems: [PlexItem] = []
+        let neededMatchCount = start + pageSize
+        let serverPageSize = pageSize
+        let pageCount = Int(ceil(Double(totalCount) / Double(serverPageSize)))
+
+        guard pageCount > 0 else { return [] }
+
+        for page in 0..<pageCount {
+            let fetchedItems = try await plexService.getLibraryItems(
+                sectionId: library.key,
+                start: page * serverPageSize,
+                size: serverPageSize,
+                sort: query.sort.plexValue
+            )
+
+            guard !fetchedItems.isEmpty else { break }
+
+            for item in fetchedItems {
+                guard await itemMatchesGenre(item, genre: genre) else { continue }
+                matchedItems.append(item)
+
+                if matchedItems.count >= neededMatchCount {
+                    return Array(matchedItems.dropFirst(start).prefix(pageSize))
+                }
+            }
+
+            if fetchedItems.count < serverPageSize {
+                break
+            }
+        }
+
+        guard matchedItems.count > start else { return [] }
+        return Array(matchedItems.dropFirst(start).prefix(pageSize))
+    }
+
     private func loadBrowseOptionsIfNeeded() async {
         guard !hasLoadedBrowseOptions else { return }
         hasLoadedBrowseOptions = true
 
         do {
-            let filters = try await plexService.getLibraryFilters(sectionId: library.key)
+            var loadedGenres = try await LibraryGenreSupport.loadGenreOptions(
+                sectionId: library.key,
+                plexService: plexService
+            )
 
-            guard let genreFilter = filters.first(where: {
-                $0.filter.localizedCaseInsensitiveCompare("genre") == .orderedSame
-            }) else {
-                return
+            if let preferredInitialGenre,
+               preferredInitialGenre != .all,
+               !loadedGenres.contains(preferredInitialGenre) {
+                loadedGenres.insert(preferredInitialGenre, at: min(1, loadedGenres.count))
             }
 
-            let values = try await plexService.getLibraryFilterValues(path: genreFilter.key)
-            let genres = values
-                .compactMap { Self.genreOption(from: $0, parameterName: genreFilter.filter) }
-                .sorted {
-                    $0.title.localizedStandardCompare($1.title) == .orderedAscending
-                }
-
-            if !genres.isEmpty {
-                availableGenres = [.all] + genres
-            }
+            availableGenres = loadedGenres
         } catch {
-            availableGenres = [.all]
+            if let preferredInitialGenre, preferredInitialGenre != .all {
+                availableGenres = [.all, preferredInitialGenre]
+            } else {
+                availableGenres = [.all]
+            }
         }
     }
 
-    private static func genreOption(
-        from filterValue: PlexLibraryFilterValue,
-        parameterName: String
-    ) -> LibraryGenreOption? {
-        guard let value = extractFilterValue(from: filterValue.key, parameterName: parameterName),
-              !value.isEmpty else {
-            return nil
+    private func itemMatchesGenre(
+        _ item: PlexItem,
+        genre: LibraryGenreOption
+    ) async -> Bool {
+        let cacheKey = "\(genre.id)|\(item.ratingKey)"
+
+        if let cached = genreMatchCache[cacheKey] {
+            return cached
         }
 
-        return LibraryGenreOption(title: filterValue.title, value: value)
-    }
+        let matches: Bool
 
-    private static func extractFilterValue(from key: String, parameterName: String) -> String? {
-        if let components = URLComponents(string: key),
-           let queryItems = components.queryItems,
-           let value = queryItems.first(where: { $0.name == parameterName })?.value {
-            return value
+        if let genres = item.genres,
+           LibraryGenreSupport.containsGenre(genres, matching: genre) {
+            matches = true
+        } else if let details = try? await plexService.getMediaDetails(ratingKey: item.ratingKey),
+                  let genres = details.genres {
+            matches = LibraryGenreSupport.containsGenre(genres, matching: genre)
+        } else {
+            matches = false
         }
 
-        if key.hasPrefix("/") {
-            return key.split(separator: "/").last.map(String.init)
-        }
-
-        return key.isEmpty ? nil : key
+        genreMatchCache[cacheKey] = matches
+        return matches
     }
 }

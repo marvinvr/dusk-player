@@ -113,6 +113,18 @@ private struct PlayerSessionView: View {
             viewModel.engineView
                 .ignoresSafeArea()
 
+            #if !os(tvOS)
+            PlayerKeyboardShortcutBridge(
+                isEnabled: playback.upNextPresentation == nil &&
+                    !viewModel.showSubtitlePicker &&
+                    !viewModel.showAudioPicker &&
+                    viewModel.playbackError == nil,
+                onTogglePlayPause: { viewModel.togglePlayPause() }
+            )
+            .allowsHitTesting(false)
+            .ignoresSafeArea()
+            #endif
+
             if let upNextPresentation = playback.upNextPresentation {
                 PlayerUpNextOverlayView(
                     presentation: upNextPresentation,
@@ -559,4 +571,104 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
 }
 
 private final class PlayerTapInteractionView: UIView {}
+
+private struct PlayerKeyboardShortcutBridge: UIViewRepresentable {
+    var isEnabled: Bool
+    var onTogglePlayPause: () -> Void
+
+    func makeUIView(context: Context) -> PlayerKeyboardShortcutView {
+        let view = PlayerKeyboardShortcutView()
+        view.backgroundColor = .clear
+        context.coordinator.sync(view, with: self)
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerKeyboardShortcutView, context: Context) {
+        context.coordinator.sync(uiView, with: self)
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    @MainActor
+    final class Coordinator {
+        private var parent: PlayerKeyboardShortcutBridge
+
+        init(parent: PlayerKeyboardShortcutBridge) {
+            self.parent = parent
+        }
+
+        func sync(_ view: PlayerKeyboardShortcutView, with parent: PlayerKeyboardShortcutBridge) {
+            self.parent = parent
+            view.isShortcutEnabled = parent.isEnabled
+            view.onTogglePlayPause = parent.onTogglePlayPause
+        }
+    }
+}
+
+private final class PlayerKeyboardShortcutView: UIView {
+    var isShortcutEnabled = false {
+        didSet {
+            refreshFirstResponderStatus()
+        }
+    }
+
+    var onTogglePlayPause: (() -> Void)?
+
+    override var canBecomeFirstResponder: Bool {
+        isShortcutEnabled && window != nil
+    }
+
+    override var keyCommands: [UIKeyCommand]? {
+        guard isShortcutEnabled else { return [] }
+
+        let playPauseCommand = UIKeyCommand(
+            input: " ",
+            modifierFlags: [],
+            action: #selector(handlePlayPauseCommand)
+        )
+        playPauseCommand.wantsPriorityOverSystemBehavior = true
+        playPauseCommand.discoverabilityTitle = "Play/Pause"
+        return [playPauseCommand]
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        refreshFirstResponderStatus()
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard isShortcutEnabled else {
+            super.pressesBegan(presses, with: event)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .playPause }) {
+            onTogglePlayPause?()
+            return
+        }
+
+        super.pressesBegan(presses, with: event)
+    }
+
+    @objc
+    private func handlePlayPauseCommand() {
+        onTogglePlayPause?()
+    }
+
+    private func refreshFirstResponderStatus() {
+        guard window != nil else { return }
+
+        if isShortcutEnabled {
+            guard !isFirstResponder else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isShortcutEnabled, self.window != nil else { return }
+                self.becomeFirstResponder()
+            }
+        } else if isFirstResponder {
+            resignFirstResponder()
+        }
+    }
+}
 #endif

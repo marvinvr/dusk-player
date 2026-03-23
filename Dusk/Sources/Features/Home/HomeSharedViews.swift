@@ -51,6 +51,56 @@ struct HomeHubCarouselSection: View {
     }
 }
 
+struct HomePersonalizedCarouselSection: View {
+    let shelf: HomePersonalizedShelf
+    let posterWidth: CGFloat
+    let showAllRoute: AppNavigationRoute?
+    let subtitle: (PlexItem) -> String?
+    let posterURL: (PlexItem, Int, Int) -> URL?
+    let onMarkWatched: (PlexItem) -> Void
+    let onMarkUnwatched: (PlexItem) -> Void
+
+    var body: some View {
+        let imageWidth = Int(posterWidth.rounded(.up))
+        let imageHeight = Int((posterWidth * 1.5).rounded(.up))
+
+        MediaCarousel(
+            title: shelf.title,
+            headerAccessory: {
+                if let showAllRoute {
+                    NavigationLink(value: showAllRoute) {
+                        Text("Show all")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(Color.duskAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .duskSuppressTVOSButtonChrome()
+                }
+            }
+        ) {
+            ForEach(shelf.items) { item in
+                PosterNavigationCard(
+                    route: AppNavigationRoute.destination(for: item),
+                    imageURL: posterURL(item, imageWidth, imageHeight),
+                    title: item.title,
+                    subtitle: subtitle(item),
+                    width: posterWidth
+                ) {
+                    PlexItemContextMenuContent(
+                        item: item,
+                        onMarkWatched: {
+                            onMarkWatched(item)
+                        },
+                        onMarkUnwatched: {
+                            onMarkUnwatched(item)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
 struct HomeItemContextMenu: View {
     let item: PlexItem
     let detailsLabel: String

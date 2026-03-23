@@ -9,6 +9,7 @@ extension PlexService {
     func setAuthToken(_ token: String) {
         if authToken != token {
             clearServer()
+            currentUser = nil
         }
         authToken = token.nilIfEmpty
         authTokenUpdatedAt = Date()
@@ -25,6 +26,7 @@ extension PlexService {
     func clearAuthToken() {
         authToken = nil
         authTokenUpdatedAt = nil
+        currentUser = nil
         KeychainHelper.delete(key: Self.keychainTokenKey)
         plexAuthLogger.notice("Cleared Plex auth token")
     }
