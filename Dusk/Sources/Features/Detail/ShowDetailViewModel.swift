@@ -135,9 +135,10 @@ final class ShowDetailViewModel {
     }
 
     private func reload() async throws {
-        async let detailsRequest = plexService.getMediaDetails(ratingKey: ratingKey)
-        async let seasonsRequest = plexService.getSeasons(showKey: ratingKey)
-        let (loadedDetails, loadedSeasons) = try await (detailsRequest, seasonsRequest)
+        // Context-menu navigation can create transient view/task lifetimes here.
+        // Keeping these requests sequential avoids the async-let runtime abort seen in TestFlight.
+        let loadedDetails = try await plexService.getMediaDetails(ratingKey: ratingKey)
+        let loadedSeasons = try await plexService.getSeasons(showKey: ratingKey)
         details = loadedDetails
         seasons = loadedSeasons.sorted { $0.index < $1.index }
         await resolveNextEpisode()
