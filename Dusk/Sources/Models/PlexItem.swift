@@ -3,7 +3,7 @@ import Foundation
 /// Core metadata type representing a Plex library item.
 /// Used for movies, shows, seasons, and episodes in lists, hubs, and search results.
 /// Fields are optional because different item types populate different subsets.
-struct PlexItem: Codable, Sendable, Identifiable {
+struct PlexItem: Decodable, Sendable, Identifiable {
     var id: String { ratingKey }
 
     let ratingKey: String
@@ -21,6 +21,7 @@ struct PlexItem: Codable, Sendable, Identifiable {
     let thumb: String?
     let art: String?
     let banner: String?
+    let clearLogo: String?
 
     // Ratings
     let rating: Double?
@@ -61,7 +62,7 @@ struct PlexItem: Codable, Sendable, Identifiable {
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, title
         case summary, studio, contentRating, year, originallyAvailableAt
-        case thumb, art, banner
+        case thumb, art, banner, clearLogo
         case rating, audienceRating
         case duration, viewCount, viewOffset, lastViewedAt
         case addedAt, updatedAt
@@ -73,6 +74,57 @@ struct PlexItem: Codable, Sendable, Identifiable {
         case directors = "Director"
         case writers = "Writer"
         case roles = "Role"
+        case images = "Image"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        key = try container.decode(String.self, forKey: .key)
+        type = try container.decode(PlexMediaType.self, forKey: .type)
+        title = try container.decode(String.self, forKey: .title)
+
+        summary = try container.decodeIfPresent(String.self, forKey: .summary)
+        studio = try container.decodeIfPresent(String.self, forKey: .studio)
+        contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
+        year = try container.decodeIfPresent(Int.self, forKey: .year)
+        originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
+
+        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        art = try container.decodeIfPresent(String.self, forKey: .art)
+        banner = try container.decodeIfPresent(String.self, forKey: .banner)
+        clearLogo = try container.decodePlexImageURLIfPresent(type: "clearLogo", explicitKey: .clearLogo, arrayKey: .images)
+
+        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
+        audienceRating = try container.decodeIfPresent(Double.self, forKey: .audienceRating)
+
+        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
+        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
+        viewOffset = try container.decodeIfPresent(Int.self, forKey: .viewOffset)
+        lastViewedAt = try container.decodeIfPresent(Int.self, forKey: .lastViewedAt)
+
+        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
+        updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
+
+        index = try container.decodeIfPresent(Int.self, forKey: .index)
+        parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
+        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
+        parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
+        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
+        grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
+        grandparentArt = try container.decodeIfPresent(String.self, forKey: .grandparentArt)
+
+        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
+        viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
+        childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
+
+        genres = try container.decodeIfPresent([PlexTag].self, forKey: .genres)
+        directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
+        writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
+        roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
     }
 }
 
@@ -86,6 +138,22 @@ extension PlexItem: Hashable {
 
     func hash(into hasher: inout Hasher) {
         hasher.combine(ratingKey)
+    }
+}
+
+struct PlexImageResource: Decodable, Sendable {
+    let type: String
+    let url: String?
+}
+
+private extension KeyedDecodingContainer where Key == PlexItem.CodingKeys {
+    func decodePlexImageURLIfPresent(type: String, explicitKey: Key, arrayKey: Key) throws -> String? {
+        if let explicitValue = try decodeIfPresent(String.self, forKey: explicitKey) {
+            return explicitValue
+        }
+
+        let images = try decodeIfPresent([PlexImageResource].self, forKey: arrayKey) ?? []
+        return images.first(where: { $0.type.caseInsensitiveCompare(type) == .orderedSame })?.url
     }
 }
 

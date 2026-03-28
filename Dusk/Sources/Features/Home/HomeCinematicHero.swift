@@ -14,6 +14,8 @@ struct HomeCinematicHeroLayout {
     var pagerHorizontalPadding: CGFloat = 20
     var pagerBottomPadding: CGFloat = 28
     var titleFontSize: CGFloat = 42
+    var titleLogoMaxWidth: CGFloat = 420
+    var titleLogoMaxHeight: CGFloat = 108
     var episodeTitleFont: Font = .title3.weight(.semibold)
     var metadataFont: Font = .subheadline.weight(.medium)
     var summaryFont: Font = .body
@@ -31,6 +33,8 @@ struct HomeCinematicHeroLayout {
         pagerHorizontalPadding: 48,
         pagerBottomPadding: 32,
         titleFontSize: 46,
+        titleLogoMaxWidth: 560,
+        titleLogoMaxHeight: 128,
         episodeTitleFont: .title2.weight(.semibold),
         metadataFont: .headline.weight(.medium),
         summaryFont: .body,
@@ -48,6 +52,7 @@ struct HomeCinematicHeroCallbacks {
 struct HomeCinematicHero: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(PlexService.self) private var plexService
 
     let items: [PlexItem]
     let viewModel: HomeViewModel
@@ -73,6 +78,8 @@ struct HomeCinematicHero: View {
     @State private var heroTransitionDirection: HeroTransitionDirection = .forward
     #if canImport(UIKit)
     @State private var preloadedHeroBackdropImages: [String: UIImage] = [:]
+    @State private var preloadedHeroTitleImages: [String: UIImage] = [:]
+    @State private var failedHeroTitleImageKeys: Set<String> = []
     #endif
 
     private let heroRotationInterval: UInt64 = 6_000_000_000
@@ -91,6 +98,8 @@ struct HomeCinematicHero: View {
             max(safeContentWidth - (layout.contentHorizontalPadding * 2), 0),
             layout.maxContentWidth
         )
+        let titleLogoWidth = Int(min(contentWidth, layout.titleLogoMaxWidth).rounded(.up))
+        let titleLogoHeight = Int(layout.titleLogoMaxHeight.rounded(.up))
 
         let baseHero = ZStack(alignment: .bottomLeading) {
             ZStack(alignment: .bottomLeading) {
@@ -157,6 +166,9 @@ struct HomeCinematicHero: View {
         }
         .task(id: heroBackdropPrefetchSeed(width: backdropWidth, height: backdropHeight)) {
             await preloadHeroBackdropImages(width: backdropWidth, height: backdropHeight)
+        }
+        .task(id: heroTitlePrefetchSeed(width: titleLogoWidth, height: titleLogoHeight)) {
+            await preloadHeroTitleImages(width: titleLogoWidth, height: titleLogoHeight)
         }
 
         #if os(tvOS)
@@ -276,14 +288,8 @@ struct HomeCinematicHero: View {
             #endif
 
             VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(viewModel.displayTitle(for: item))
-                        .font(.system(size: layout.titleFontSize, weight: .heavy, design: .rounded))
-                        .foregroundStyle(Color.white)
-                        .lineLimit(3)
-                        .minimumScaleFactor(0.7)
-                        .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-                        .frame(maxWidth: contentWidth, alignment: .leading)
+                VStack(alignment: .leading, spacing: heroTitleBlockSpacing(for: item)) {
+                    heroTitle(for: item, contentWidth: contentWidth)
 
                     if let episodeTitle = viewModel.heroEpisodeTitle(for: item) {
                         Text(episodeTitle)
@@ -320,6 +326,51 @@ struct HomeCinematicHero: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
+        item.type == .movie ? 12 : 8
+    }
+
+    @ViewBuilder
+    private func heroTitle(for item: PlexItem, contentWidth: CGFloat) -> some View {
+        let logoWidth = min(contentWidth, layout.titleLogoMaxWidth)
+        let logoHeight = layout.titleLogoMaxHeight
+        if item.clearLogo != nil {
+            heroTitleArtwork(for: item, width: logoWidth, height: logoHeight)
+        } else {
+            heroTitleFallback(for: item)
+        }
+    }
+
+    @ViewBuilder
+    private func heroTitleArtwork(for item: PlexItem, width: CGFloat, height: CGFloat) -> some View {
+        #if canImport(UIKit)
+        if let image = preloadedHeroTitleImages[item.ratingKey] {
+            Image(uiImage: image)
+                .resizable()
+                .scaledToFit()
+                .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+                .frame(width: width, height: height, alignment: .bottomLeading)
+        } else if failedHeroTitleImageKeys.contains(item.ratingKey) {
+            heroTitleFallback(for: item)
+        } else {
+            Color.clear
+                .frame(width: width, height: height, alignment: .bottomLeading)
+        }
+        #else
+        heroTitleFallback(for: item)
+        #endif
+    }
+
+    private func heroTitleFallback(for item: PlexItem) -> some View {
+        Text(viewModel.displayTitle(for: item))
+            .font(.system(size: layout.titleFontSize, weight: .heavy, design: .rounded))
+            .foregroundStyle(Color.white)
+            .lineLimit(3)
+            .minimumScaleFactor(0.7)
+            .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder
@@ -539,6 +590,13 @@ struct HomeCinematicHero: View {
         ].joined(separator: "::")
     }
 
+    private func heroTitlePrefetchSeed(width: Int, height: Int) -> String {
+        [
+            items.map { "\($0.ratingKey):\($0.clearLogo ?? "")" }.joined(separator: "|"),
+            "\(width)x\(height)"
+        ].joined(separator: "::")
+    }
+
     private func preloadHeroBackdropImages(width: Int, height: Int) async {
         #if canImport(UIKit)
         let backdropRequests = items.compactMap { item -> (String, URL)? in
@@ -583,6 +641,65 @@ struct HomeCinematicHero: View {
             for (ratingKey, image) in loadedImages {
                 guard validKeys.contains(ratingKey) else { continue }
                 preloadedHeroBackdropImages[ratingKey] = image
+            }
+        }
+        #endif
+    }
+
+    private func preloadHeroTitleImages(width: Int, height: Int) async {
+        #if canImport(UIKit)
+        let titleRequests = items.compactMap { item -> (String, URL)? in
+            guard let url = viewModel.heroTitleLogoURL(for: item, width: width, height: height) else {
+                return nil
+            }
+
+            return (item.ratingKey, url)
+        }
+
+        let validKeys = Set(items.map(\.ratingKey))
+        let requestedKeys = Set(titleRequests.map(\.0))
+
+        await MainActor.run {
+            preloadedHeroTitleImages = preloadedHeroTitleImages.filter { validKeys.contains($0.key) }
+            failedHeroTitleImageKeys = failedHeroTitleImageKeys
+                .filter { validKeys.contains($0) && requestedKeys.contains($0) }
+        }
+
+        guard !titleRequests.isEmpty else { return }
+
+        var loadedImages: [String: UIImage] = [:]
+        var failedKeys: Set<String> = []
+
+        await withTaskGroup(of: (String, UIImage?, Bool).self) { group in
+            for (ratingKey, url) in titleRequests {
+                group.addTask {
+                    do {
+                        let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
+                        return (ratingKey, image, false)
+                    } catch {
+                        return (ratingKey, nil, true)
+                    }
+                }
+            }
+
+            for await (ratingKey, image, didFail) in group {
+                if let image {
+                    loadedImages[ratingKey] = image
+                } else if didFail {
+                    failedKeys.insert(ratingKey)
+                }
+            }
+        }
+
+        await MainActor.run {
+            for (ratingKey, image) in loadedImages {
+                guard validKeys.contains(ratingKey) else { continue }
+                preloadedHeroTitleImages[ratingKey] = image
+                failedHeroTitleImageKeys.remove(ratingKey)
+            }
+
+            for ratingKey in failedKeys where validKeys.contains(ratingKey) {
+                failedHeroTitleImageKeys.insert(ratingKey)
             }
         }
         #endif

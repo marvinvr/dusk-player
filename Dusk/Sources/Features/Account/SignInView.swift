@@ -2,11 +2,11 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(PlexService.self) private var plexService
-    @Environment(\.openURL) private var openURL
     @State private var linkPinCode: String?
     @State private var isSigningIn = false
     @State private var error: String?
     @State private var pollingTask: Task<Void, Never>?
+    @State private var authURL: URL?
 
     var body: some View {
         ZStack {
@@ -14,6 +14,13 @@ struct SignInView: View {
 
             signInContent
         }
+        #if !os(tvOS)
+        .sheet(isPresented: authSheetPresented, onDismiss: handleAuthSheetDismissal) {
+            if let authURL {
+                DuskSafariView(url: authURL)
+            }
+        }
+        #endif
         .onDisappear {
             pollingTask?.cancel()
         }
@@ -41,7 +48,7 @@ struct SignInView: View {
 
                 if isSigningIn {
                     VStack(spacing: 12) {
-                        Text("Approve in the browser that opened, or go to")
+                        Text("Complete sign-in in the Plex page that opened, or go to")
                             .foregroundStyle(Color.duskTextSecondary)
                             .font(.callout)
 
@@ -214,10 +221,10 @@ struct SignInView: View {
             let linkPin = try? await plexService.generatePin()
             linkPinCode = linkPin?.code
 
-            // Open the Plex auth page in Safari
-            if let url = plexService.authURL(for: browserPin) {
-                openURL(url)
+            guard let url = plexService.authURL(for: browserPin) else {
+                throw PlexServiceError.invalidURL
             }
+            authURL = url
 
             startPolling(primaryPinID: browserPin.id, fallbackPinID: linkPin?.id)
             #endif
@@ -241,6 +248,7 @@ struct SignInView: View {
                     plexService.setAuthToken(token)
                     isSigningIn = false
                     linkPinCode = nil
+                    authURL = nil
                     return
                 }
 
@@ -250,12 +258,14 @@ struct SignInView: View {
                         plexService.setAuthToken(token)
                         isSigningIn = false
                         linkPinCode = nil
+                        authURL = nil
                         return
                 }
             }
 
             isSigningIn = false
             linkPinCode = nil
+            authURL = nil
             error = "Sign-in timed out. Please try again."
         }
     }
@@ -264,5 +274,23 @@ struct SignInView: View {
         pollingTask?.cancel()
         isSigningIn = false
         linkPinCode = nil
+        authURL = nil
     }
+
+    #if !os(tvOS)
+    private var authSheetPresented: Binding<Bool> {
+        Binding(
+            get: { authURL != nil },
+            set: {
+                guard !$0 else { return }
+                authURL = nil
+            }
+        )
+    }
+
+    private func handleAuthSheetDismissal() {
+        guard isSigningIn else { return }
+        cancelSignIn()
+    }
+    #endif
 }

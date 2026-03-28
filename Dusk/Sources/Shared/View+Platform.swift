@@ -1,5 +1,6 @@
 import SwiftUI
 #if os(iOS)
+import SafariServices
 import UIKit
 #endif
 
@@ -91,6 +92,22 @@ extension View {
 }
 
 #if os(iOS)
+struct DuskSafariView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeUIViewController(context: Context) -> SFSafariViewController {
+        let configuration = SFSafariViewController.Configuration()
+        configuration.entersReaderIfAvailable = false
+        configuration.barCollapsingEnabled = false
+
+        let controller = SFSafariViewController(url: url, configuration: configuration)
+        controller.dismissButtonStyle = .close
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
+}
+
 private struct DuskStatusBarAppearanceCaptureView: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> DuskStatusBarAppearanceCaptureController {
         DuskStatusBarAppearanceCaptureController()

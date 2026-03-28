@@ -136,6 +136,10 @@ final class HomeViewModel {
         plexService.imageURL(for: heroBackgroundPath(for: item), width: width, height: height)
     }
 
+    func heroTitleLogoURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+        plexService.imageURL(for: item.clearLogo, width: width, height: height)
+    }
+
     func heroMetadata(for item: PlexItem) -> [String] {
         var parts: [String] = []
 

@@ -1,15 +1,22 @@
 import SwiftUI
 
+#if !os(tvOS)
 struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.openURL) private var openURL
+    @State private var presentedAccountURL: URL?
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
     var body: some View {
         SettingsContainer(path: $path, viewModel: viewModel) {
             settingsContent
+        }
+        .sheet(isPresented: accountSheetPresented) {
+            if let presentedAccountURL {
+                DuskSafariView(url: presentedAccountURL)
+            }
         }
     }
 
@@ -271,17 +278,53 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
+                Button {
+                    presentedAccountURL = SettingsSupport.plexAccountURL
+                } label: {
+                    SettingsAboutRow(
+                        title: "Manage Plex Account",
+                        subtitle: "Open Plex account settings",
+                        systemImage: "person.crop.circle.badge.gearshape",
+                        trailingSystemImage: "safari"
+                    )
+                }
+                .foregroundStyle(Color.duskAccent)
+                .duskSuppressTVOSButtonChrome()
+
+                Button {
+                    presentedAccountURL = SettingsSupport.plexAccountURL
+                } label: {
+                    SettingsAboutRow(
+                        title: "Delete Plex Account",
+                        subtitle: "Open the Plex deletion controls",
+                        systemImage: "trash",
+                        trailingSystemImage: "safari",
+                        titleColor: .red
+                    )
+                }
+                .duskSuppressTVOSButtonChrome()
+
                 Button("Sign Out", role: .destructive) {
                     plexService.signOut()
                 }
                 .duskSuppressTVOSButtonChrome()
             } footer: {
-                Text(SettingsSupport.accountFooterText)
+                Text(SettingsSupport.accountManagementFooterText + " " + SettingsSupport.accountFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
         }
         .duskScrollContentBackgroundHidden()
+    }
+
+    private var accountSheetPresented: Binding<Bool> {
+        Binding(
+            get: { presentedAccountURL != nil },
+            set: {
+                guard !$0 else { return }
+                presentedAccountURL = nil
+            }
+        )
     }
 }
 
@@ -322,3 +365,4 @@ private struct SettingsAboutRow: View {
         .contentShape(Rectangle())
     }
 }
+#endif
