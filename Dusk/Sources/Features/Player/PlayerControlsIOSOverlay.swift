@@ -20,13 +20,14 @@ struct PlayerControlsIOSOverlay: View {
                     bottomBar(showsTrackLabels: showsTrackLabels)
                 }
                 .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-                .padding(.vertical, 16)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
             }
         }
     }
 
     private var topBar: some View {
-        HStack(alignment: .top, spacing: 12) {
+        HStack(alignment: .top, spacing: 20) {
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.title3.weight(.semibold))
@@ -61,7 +62,7 @@ struct PlayerControlsIOSOverlay: View {
     }
 
     private func bottomBar(showsTrackLabels: Bool) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             PlayerSeekBar(viewModel: viewModel, isInteractive: true)
 
             HStack {

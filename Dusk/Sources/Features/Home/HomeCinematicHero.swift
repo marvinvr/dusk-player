@@ -41,6 +41,8 @@ struct HomeCinematicHeroLayout {
 struct HomeCinematicHeroCallbacks {
     let pauseRotation: () -> Void
     let restartRotation: () -> Void
+    let showPrevious: () -> Void
+    let showNext: () -> Void
 }
 
 struct HomeCinematicHero: View {
@@ -179,7 +181,9 @@ struct HomeCinematicHero: View {
     private var actionCallbacks: HomeCinematicHeroCallbacks {
         HomeCinematicHeroCallbacks(
             pauseRotation: pauseHeroRotation,
-            restartRotation: restartHeroRotation
+            restartRotation: restartHeroRotation,
+            showPrevious: showPreviousHero,
+            showNext: showNextHero
         )
     }
 
@@ -471,28 +475,40 @@ struct HomeCinematicHero: View {
     private func handleHeroMoveCommand(_ direction: MoveCommandDirection) {
         guard heroItemIDs.count > 1 else { return }
 
-        let heroCount = heroItemIDs.count
-
         switch direction {
         case .left:
-            restartHeroRotation()
-            moveHero(
-                to: (currentHeroIndex - 1 + heroCount) % heroCount,
-                direction: .backward,
-                duration: 0.5
-            )
+            showPreviousHero()
         case .right:
-            restartHeroRotation()
-            moveHero(
-                to: (currentHeroIndex + 1) % heroCount,
-                direction: .forward,
-                duration: 0.5
-            )
+            showNextHero()
         default:
             break
         }
     }
     #endif
+
+    private func showPreviousHero() {
+        guard heroItemIDs.count > 1 else { return }
+
+        let heroCount = heroItemIDs.count
+        restartHeroRotation()
+        moveHero(
+            to: (currentHeroIndex - 1 + heroCount) % heroCount,
+            direction: .backward,
+            duration: 0.5
+        )
+    }
+
+    private func showNextHero() {
+        guard heroItemIDs.count > 1 else { return }
+
+        let heroCount = heroItemIDs.count
+        restartHeroRotation()
+        moveHero(
+            to: (currentHeroIndex + 1) % heroCount,
+            direction: .forward,
+            duration: 0.5
+        )
+    }
 
     private func heroRotationProgress(at date: Date) -> Double {
         if let pausedHeroRotationProgress {

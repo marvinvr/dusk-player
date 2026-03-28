@@ -31,14 +31,20 @@ struct PlayerMediaHeaderView: View {
             Text(header.title)
                 .font(.headline.weight(.semibold))
                 .foregroundStyle(.white)
+                #if os(tvOS)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+                #else
                 .lineLimit(1)
+                #endif
 
             if let secondaryTitle = header.secondaryTitle {
                 Text(secondaryTitle)
                     .font(.title3.weight(.bold))
                     .foregroundStyle(.white)
                     #if os(tvOS)
-                    .lineLimit(1)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
                     .truncationMode(.tail)
                     #else
                     .lineLimit(2)
@@ -52,7 +58,12 @@ struct PlayerMediaHeaderView: View {
                     .lineLimit(1)
             }
         }
+        #if os(tvOS)
+        .frame(maxWidth: 560, alignment: .leading)
+        #else
         .frame(maxWidth: 320, alignment: .leading)
+        #endif
+        .layoutPriority(1)
         .shadow(color: .black.opacity(0.35), radius: 10, y: 2)
     }
 }
@@ -63,15 +74,15 @@ struct PlayerTimeStatusView: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(viewModel.formattedTime)
-                .font(.caption.monospacedDigit())
+                .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
 
             Text("/")
-                .font(.caption)
+                .font(.subheadline.weight(.medium))
                 .foregroundStyle(.white.opacity(0.5))
 
             Text(viewModel.formattedDuration)
-                .font(.caption.monospacedDigit())
+                .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
@@ -81,27 +92,28 @@ struct PlayerSeekBar: View {
     let viewModel: PlayerViewModel
     let isInteractive: Bool
 
+    private let trackHeight: CGFloat = 8
+
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let progress = viewModel.duration > 0 ? viewModel.displayPosition / viewModel.duration : 0
+            let playedWidth = playedTrackWidth(for: progress, totalWidth: width)
             let seekTrack = ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(.white.opacity(0.3))
-                    .frame(height: 4)
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay {
+                        Capsule()
+                            .strokeBorder(.white.opacity(0.16), lineWidth: 0.8)
+                    }
+                    .frame(height: trackHeight)
 
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.duskAccent)
-                    .frame(width: max(0, width * progress), height: 4)
-
-                Circle()
-                    .fill(Color.duskAccent)
-                    .frame(
-                        width: viewModel.isScrubbing ? 16 : 12,
-                        height: viewModel.isScrubbing ? 16 : 12
-                    )
-                    .offset(x: thumbOffset(progress: progress, trackWidth: width))
-                    .animation(.easeOut(duration: 0.15), value: viewModel.isScrubbing)
+                if playedWidth > 0 {
+                    Capsule()
+                        .fill(.white.opacity(0.96))
+                        .frame(width: playedWidth, height: trackHeight)
+                        .shadow(color: .white.opacity(0.18), radius: 5)
+                }
             }
             .frame(height: 32)
             .contentShape(Rectangle())
@@ -131,8 +143,13 @@ struct PlayerSeekBar: View {
         .frame(height: 32)
     }
 
-    private func thumbOffset(progress: Double, trackWidth: Double) -> Double {
-        let thumbRadius: Double = viewModel.isScrubbing ? 8 : 6
-        return max(0, min(trackWidth * progress - thumbRadius, trackWidth - thumbRadius * 2))
+    private func playedTrackWidth(for progress: Double, totalWidth: CGFloat) -> CGFloat {
+        let clampedProgress = max(0, min(progress, 1))
+        guard clampedProgress > 0, totalWidth > 0 else { return 0 }
+
+        return min(
+            max(trackHeight, totalWidth * clampedProgress),
+            totalWidth
+        )
     }
 }

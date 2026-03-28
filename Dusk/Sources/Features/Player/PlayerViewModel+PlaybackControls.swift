@@ -71,9 +71,13 @@ extension PlayerViewModel {
         seek(to: displayPosition + offset, revealControls: revealControls)
     }
 
-    func handleDoubleTapSeek(by offset: TimeInterval) {
+    func handleSeekJump(by offset: TimeInterval) {
         showSeekFeedback(for: offset)
         seek(by: offset)
+    }
+
+    func handleDoubleTapSeek(by offset: TimeInterval) {
+        handleSeekJump(by: offset)
     }
 
     func skipActiveMarker() {

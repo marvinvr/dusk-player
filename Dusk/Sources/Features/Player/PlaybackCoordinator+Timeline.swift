@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 
 extension PlaybackCoordinator {
     func startTimelineReporting() {
@@ -10,7 +11,7 @@ extension PlaybackCoordinator {
         }
     }
 
-    func reportCurrentTimeline() {
+    func reportCurrentTimeline(stateOverride: PlaybackState? = nil) {
         guard let engine, let ratingKey else { return }
 
         let timeMs = Int(engine.currentTime * 1000)
@@ -20,10 +21,14 @@ extension PlaybackCoordinator {
         lastReportedDurationMs = durationMs
 
         let plexState: PlaybackState
-        switch engine.state {
-        case .playing: plexState = .playing
-        case .paused: plexState = .paused
-        default: return
+        if let stateOverride {
+            plexState = stateOverride
+        } else {
+            switch engine.state {
+            case .playing: plexState = .playing
+            case .paused: plexState = .paused
+            default: return
+            }
         }
 
         Task {
@@ -40,6 +45,26 @@ extension PlaybackCoordinator {
             Task {
                 try? await plexService.scrobble(ratingKey: ratingKey)
             }
+        }
+    }
+
+    func flushTimelineForScenePhase(_ phase: ScenePhase) {
+        guard engine != nil, ratingKey != nil else { return }
+
+        switch phase {
+        case .inactive:
+            reportCurrentTimeline(
+                stateOverride: engine?.state == .playing ? .paused : nil
+            )
+        case .background:
+            if engine?.state == .playing {
+                engine?.pause()
+            }
+            reportCurrentTimeline(stateOverride: .paused)
+        case .active:
+            break
+        @unknown default:
+            break
         }
     }
 }

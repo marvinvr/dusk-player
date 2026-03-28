@@ -9,13 +9,12 @@ struct PlayerControlsTVOverlay: View {
     let hasActiveSkipMarker: Bool
     let onDismiss: () -> Void
 
-    private let skipInterval: TimeInterval = 10
+    private let closeButtonDiameter: CGFloat = 38
+    private let playPauseButtonDiameter: CGFloat = 68
 
     private enum FocusTarget: Hashable {
         case close
-        case skipBackward
         case playPause
-        case skipForward
         case subtitles
         case audio
     }
@@ -33,7 +32,8 @@ struct PlayerControlsTVOverlay: View {
                     bottomBar
                 }
                 .padding(.horizontal, 44)
-                .padding(.vertical, 28)
+                .padding(.top, 28)
+                .padding(.bottom, 16)
                 .focusSection()
             }
         }
@@ -55,14 +55,13 @@ struct PlayerControlsTVOverlay: View {
     }
 
     private var topBar: some View {
-        HStack(alignment: .top, spacing: 18) {
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.body.weight(.semibold))
-            }
-            .buttonStyle(.glass)
-            .controlSize(.small)
-            .tint(.white)
+        HStack(alignment: .top, spacing: 26) {
+            circularButton(
+                systemImage: "xmark",
+                font: .body.weight(.semibold),
+                diameter: closeButtonDiameter,
+                action: onDismiss
+            )
             .focused($focusedControl, equals: .close)
 
             if let header = context.mediaHeader {
@@ -76,30 +75,21 @@ struct PlayerControlsTVOverlay: View {
     private var transportControls: some View {
         let isPlaying = viewModel.state == .playing
 
-        return HStack(spacing: 28) {
-            transportButton(systemImage: "gobackward.10") {
-                viewModel.handleDoubleTapSeek(by: -skipInterval)
-            }
-            .focused($focusedControl, equals: .skipBackward)
-
-            transportButton(
+        return HStack {
+            circularButton(
                 systemImage: isPlaying ? "pause.fill" : "play.fill",
                 font: .system(size: 30, weight: .semibold),
+                diameter: playPauseButtonDiameter,
                 isProminent: true
             ) {
                 viewModel.togglePlayPause()
             }
             .focused($focusedControl, equals: .playPause)
-
-            transportButton(systemImage: "goforward.10") {
-                viewModel.handleDoubleTapSeek(by: skipInterval)
-            }
-            .focused($focusedControl, equals: .skipForward)
         }
     }
 
     private var bottomBar: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 8) {
             PlayerSeekBar(viewModel: viewModel, isInteractive: false)
                 .frame(height: 36)
 
@@ -186,9 +176,10 @@ struct PlayerControlsTVOverlay: View {
         .focused($focusedControl, equals: .audio)
     }
 
-    private func transportButton(
+    private func circularButton(
         systemImage: String,
         font: Font = .system(size: 22, weight: .semibold),
+        diameter: CGFloat,
         isProminent: Bool = false,
         action: @escaping () -> Void
     ) -> some View {
@@ -197,16 +188,19 @@ struct PlayerControlsTVOverlay: View {
                 Button(action: action) {
                     Image(systemName: systemImage)
                         .font(font)
+                        .frame(width: diameter, height: diameter)
                 }
                 .buttonStyle(.glassProminent)
             } else {
                 Button(action: action) {
                     Image(systemName: systemImage)
                         .font(font)
+                        .frame(width: diameter, height: diameter)
                 }
                 .buttonStyle(.glass)
             }
         }
+        .buttonBorderShape(.circle)
         .tint(.white)
     }
 
@@ -277,7 +271,7 @@ struct PlayerControlsTVOverlay: View {
         switch current {
         case .close:
             return nil
-        case .skipBackward, .playPause, .skipForward:
+        case .playPause:
             return .close
         case .subtitles, .audio:
             return .playPause
@@ -288,10 +282,8 @@ struct PlayerControlsTVOverlay: View {
         switch current {
         case .close:
             return .playPause
-        case .skipBackward, .playPause:
+        case .playPause:
             return subtitlesOrAudioTarget(preferSubtitles: true)
-        case .skipForward:
-            return subtitlesOrAudioTarget(preferSubtitles: false)
         case .subtitles, .audio:
             return nil
         }
@@ -301,12 +293,8 @@ struct PlayerControlsTVOverlay: View {
         switch current {
         case .close:
             return nil
-        case .skipBackward:
-            return .close
         case .playPause:
-            return .skipBackward
-        case .skipForward:
-            return .playPause
+            return .close
         case .subtitles:
             return .playPause
         case .audio:
@@ -318,12 +306,8 @@ struct PlayerControlsTVOverlay: View {
         switch current {
         case .close:
             return .playPause
-        case .skipBackward:
-            return .playPause
         case .playPause:
-            return .skipForward
-        case .skipForward:
-            return viewModel.audioTracks.isEmpty ? nil : .audio
+            return nil
         case .subtitles:
             return viewModel.audioTracks.isEmpty ? nil : .audio
         case .audio:

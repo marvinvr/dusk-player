@@ -4,6 +4,8 @@ import UIKit
 #endif
 
 struct HomeTVView: View {
+    @FocusState private var isHeroPlayButtonFocused: Bool
+
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
@@ -50,6 +52,14 @@ struct HomeTVView: View {
                                     #if os(tvOS)
                                     .buttonStyle(.glassProminent)
                                     .tint(Color.duskAccent)
+                                    .focused($isHeroPlayButtonFocused)
+                                    .background(
+                                        TVRemoteSwipeCapture(
+                                            isEnabled: isHeroPlayButtonFocused,
+                                            onSwipeLeft: callbacks.showPrevious,
+                                            onSwipeRight: callbacks.showNext
+                                        )
+                                    )
                                     #endif
                                     .contextMenu {
                                         HomeItemContextMenu(
@@ -194,3 +204,116 @@ struct HomeTVView: View {
         }
     }
 }
+
+#if os(tvOS)
+private struct TVRemoteSwipeCapture: UIViewRepresentable {
+    let isEnabled: Bool
+    let onSwipeLeft: () -> Void
+    let onSwipeRight: () -> Void
+
+    func makeUIView(context: Context) -> SwipeCaptureView {
+        let view = SwipeCaptureView()
+        view.backgroundColor = .clear
+        view.update(
+            isEnabled: isEnabled,
+            onSwipeLeft: onSwipeLeft,
+            onSwipeRight: onSwipeRight
+        )
+        return view
+    }
+
+    func updateUIView(_ uiView: SwipeCaptureView, context: Context) {
+        uiView.update(
+            isEnabled: isEnabled,
+            onSwipeLeft: onSwipeLeft,
+            onSwipeRight: onSwipeRight
+        )
+    }
+}
+
+private final class SwipeCaptureView: UIView, UIGestureRecognizerDelegate {
+    private weak var attachedView: UIView?
+    private lazy var swipeLeftRecognizer: UISwipeGestureRecognizer = {
+        let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+        recognizer.direction = .left
+        recognizer.delegate = self
+        return recognizer
+    }()
+    private lazy var swipeRightRecognizer: UISwipeGestureRecognizer = {
+        let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+        recognizer.direction = .right
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    private var isSwipeCaptureEnabled = false
+    private var onSwipeLeft: () -> Void = {}
+    private var onSwipeRight: () -> Void = {}
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        attachRecognizersIfNeeded()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        attachRecognizersIfNeeded()
+    }
+
+    override func willMove(toSuperview newSuperview: UIView?) {
+        if newSuperview == nil {
+            detachRecognizers()
+        }
+
+        super.willMove(toSuperview: newSuperview)
+    }
+
+    func update(
+        isEnabled: Bool,
+        onSwipeLeft: @escaping () -> Void,
+        onSwipeRight: @escaping () -> Void
+    ) {
+        isSwipeCaptureEnabled = isEnabled
+        self.onSwipeLeft = onSwipeLeft
+        self.onSwipeRight = onSwipeRight
+        attachRecognizersIfNeeded()
+    }
+
+    func gestureRecognizer(
+        _ gestureRecognizer: UIGestureRecognizer,
+        shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+    ) -> Bool {
+        true
+    }
+
+    @objc
+    private func handleSwipe(_ recognizer: UISwipeGestureRecognizer) {
+        guard isSwipeCaptureEnabled else { return }
+
+        switch recognizer.direction {
+        case .left:
+            onSwipeLeft()
+        case .right:
+            onSwipeRight()
+        default:
+            break
+        }
+    }
+
+    private func attachRecognizersIfNeeded() {
+        guard let targetView = superview else { return }
+        guard attachedView !== targetView else { return }
+
+        detachRecognizers()
+        targetView.addGestureRecognizer(swipeLeftRecognizer)
+        targetView.addGestureRecognizer(swipeRightRecognizer)
+        attachedView = targetView
+    }
+
+    private func detachRecognizers() {
+        attachedView?.removeGestureRecognizer(swipeLeftRecognizer)
+        attachedView?.removeGestureRecognizer(swipeRightRecognizer)
+        attachedView = nil
+    }
+}
+#endif

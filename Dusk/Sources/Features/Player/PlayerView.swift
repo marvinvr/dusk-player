@@ -4,6 +4,9 @@ import UIKit
 enum PlayerOverlayLayout {
     static let controlsHorizontalPadding: CGFloat = 16
     static let skipMarkerBottomInset: CGFloat = 108
+    #if os(tvOS)
+    static let remoteSeekInterval: TimeInterval = 10
+    #endif
 }
 
 private struct PlayerSeekFeedbackOverlayView: View {
@@ -78,6 +81,7 @@ private struct PlayerSessionView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: PlayerViewModel
     #if os(tvOS)
     @FocusState private var skipMarkerFocused: Bool
@@ -112,6 +116,17 @@ private struct PlayerSessionView: View {
 
             viewModel.engineView
                 .ignoresSafeArea()
+
+            #if os(tvOS)
+            PlayerTVRemoteSeekBridge(
+                isEnabled: playback.upNextPresentation == nil && viewModel.playbackError == nil,
+                backwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
+                forwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
+                onSeek: { offset in viewModel.handleSeekJump(by: offset) }
+            )
+            .allowsHitTesting(false)
+            .ignoresSafeArea()
+            #endif
 
             #if !os(tvOS)
             PlayerKeyboardShortcutBridge(
@@ -222,6 +237,11 @@ private struct PlayerSessionView: View {
             #endif
         }
         .onDisappear { viewModel.cleanup() }
+        #if os(tvOS)
+        .onChange(of: scenePhase) { _, newPhase in
+            playback.flushTimelineForScenePhase(newPhase)
+        }
+        #endif
         #if os(tvOS)
         .onChange(of: viewModel.activeSkipMarker?.id) { _, _ in
             if viewModel.activeSkipMarker != nil {
@@ -394,6 +414,101 @@ private struct PlayerSessionView: View {
         dismiss()
     }
 }
+
+#if os(tvOS)
+private struct PlayerTVRemoteSeekBridge: UIViewRepresentable {
+    var isEnabled: Bool
+    var backwardSeekInterval: TimeInterval
+    var forwardSeekInterval: TimeInterval
+    var onSeek: (TimeInterval) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> PlayerTVRemoteSeekView {
+        let view = PlayerTVRemoteSeekView()
+        view.backgroundColor = .clear
+        context.coordinator.sync(view, with: self)
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerTVRemoteSeekView, context: Context) {
+        context.coordinator.sync(uiView, with: self)
+    }
+
+    @MainActor
+    final class Coordinator {
+        private var parent: PlayerTVRemoteSeekBridge
+
+        init(parent: PlayerTVRemoteSeekBridge) {
+            self.parent = parent
+        }
+
+        func sync(_ view: PlayerTVRemoteSeekView, with parent: PlayerTVRemoteSeekBridge) {
+            self.parent = parent
+            view.isRemoteSeekEnabled = parent.isEnabled
+            view.backwardSeekInterval = parent.backwardSeekInterval
+            view.forwardSeekInterval = parent.forwardSeekInterval
+            view.onSeek = parent.onSeek
+        }
+    }
+}
+
+private final class PlayerTVRemoteSeekView: UIView {
+    var isRemoteSeekEnabled = false {
+        didSet {
+            refreshFirstResponderStatus()
+        }
+    }
+
+    var backwardSeekInterval: TimeInterval = 0
+    var forwardSeekInterval: TimeInterval = 0
+    var onSeek: ((TimeInterval) -> Void)?
+
+    override var canBecomeFirstResponder: Bool {
+        isRemoteSeekEnabled && window != nil
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        refreshFirstResponderStatus()
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard isRemoteSeekEnabled else {
+            super.pressesBegan(presses, with: event)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .leftArrow }) {
+            onSeek?(-backwardSeekInterval)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .rightArrow }) {
+            onSeek?(forwardSeekInterval)
+            return
+        }
+
+        super.pressesBegan(presses, with: event)
+    }
+
+    private func refreshFirstResponderStatus() {
+        guard window != nil else { return }
+
+        if isRemoteSeekEnabled {
+            guard !isFirstResponder else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isRemoteSeekEnabled, self.window != nil else { return }
+                self.becomeFirstResponder()
+            }
+        } else if isFirstResponder {
+            resignFirstResponder()
+        }
+    }
+}
+#endif
 
 #if !os(tvOS)
 private struct PlayerTapInteractionOverlay: UIViewRepresentable {
