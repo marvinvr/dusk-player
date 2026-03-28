@@ -66,6 +66,10 @@ final class ShowDetailViewModel {
         plexService.imageURL(for: details?.thumb, width: width, height: height)
     }
 
+    func titleLogoURL(width: Int, height: Int) -> URL? {
+        plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+    }
+
     func seasonPosterURL(_ season: PlexSeason, width: Int, height: Int) -> URL? {
         plexService.imageURL(
             for: season.thumb ?? season.parentThumb ?? season.art,

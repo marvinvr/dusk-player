@@ -119,6 +119,7 @@ struct ShowDetailView: View {
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
             posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
+            titleArtworkURL: viewModel.titleLogoURL(width: Int((containerWidth * 0.45).rounded(.up)), height: 128),
             title: details.title,
             topInset: topInset,
             containerWidth: containerWidth,

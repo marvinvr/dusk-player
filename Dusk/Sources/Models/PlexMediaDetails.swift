@@ -3,7 +3,7 @@ import Foundation
 /// Full metadata for a Plex item including the media/part/stream hierarchy.
 /// Returned from `GET /library/metadata/{ratingKey}`. Used by StreamResolver
 /// to determine which playback engine to use and to construct the direct play URL.
-struct PlexMediaDetails: Codable, Sendable, Identifiable {
+struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     var id: String { ratingKey }
 
     let ratingKey: String
@@ -17,6 +17,7 @@ struct PlexMediaDetails: Codable, Sendable, Identifiable {
     let viewCount: Int?
     let thumb: String?
     let art: String?
+    let clearLogo: String?
     let contentRating: String?
 
     // Ratings
@@ -54,7 +55,7 @@ struct PlexMediaDetails: Codable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, title, summary, year
-        case duration, viewOffset, viewCount, thumb, art, contentRating
+        case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating
         case rating, audienceRating, studio, originallyAvailableAt
         case childCount, leafCount, viewedLeafCount
         case index, parentIndex, parentRatingKey, parentThumb, grandparentRatingKey, grandparentTitle, grandparentThumb
@@ -64,6 +65,7 @@ struct PlexMediaDetails: Codable, Sendable, Identifiable {
         case roles = "Role"
         case markers = "Marker"
         case media = "Media"
+        case images = "Image"
     }
 
     init(from decoder: Decoder) throws {
@@ -79,6 +81,7 @@ struct PlexMediaDetails: Codable, Sendable, Identifiable {
         viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
+        clearLogo = try container.decodePlexImageURLIfPresent(type: "clearLogo", explicitKey: .clearLogo, arrayKey: .images)
         contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
         rating = try container.decodeIfPresent(Double.self, forKey: .rating)
         audienceRating = try container.decodeIfPresent(Double.self, forKey: .audienceRating)
@@ -101,6 +104,17 @@ struct PlexMediaDetails: Codable, Sendable, Identifiable {
         markers = (try container.decodeIfPresent([PlexMarker].self, forKey: .markers) ?? [])
             .sorted { $0.startTimeOffset < $1.startTimeOffset }
         media = try container.decodeIfPresent([PlexMedia].self, forKey: .media) ?? []
+    }
+}
+
+private extension KeyedDecodingContainer where Key == PlexMediaDetails.CodingKeys {
+    func decodePlexImageURLIfPresent(type: String, explicitKey: Key, arrayKey: Key) throws -> String? {
+        if let explicitValue = try decodeIfPresent(String.self, forKey: explicitKey) {
+            return explicitValue
+        }
+
+        let images = try decodeIfPresent([PlexImageResource].self, forKey: arrayKey) ?? []
+        return images.first(where: { $0.type.caseInsensitiveCompare(type) == .orderedSame })?.url
     }
 }
 

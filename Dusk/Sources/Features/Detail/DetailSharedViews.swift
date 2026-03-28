@@ -7,6 +7,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 
     let backdropURL: URL?
     let posterURL: URL?
+    let titleArtworkURL: URL?
     let title: String
     let topInset: CGFloat
     let containerWidth: CGFloat
@@ -16,6 +17,34 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     @ViewBuilder var supertitle: Supertitle
     @ViewBuilder var subtitle: Subtitle
     @ViewBuilder var actions: Actions
+
+    init(
+        backdropURL: URL?,
+        posterURL: URL?,
+        titleArtworkURL: URL? = nil,
+        title: String,
+        topInset: CGFloat,
+        containerWidth: CGFloat,
+        backgroundLeadingInset: CGFloat = 0,
+        heroBaseHeight: CGFloat = 380,
+        posterWidth: CGFloat = 120,
+        @ViewBuilder supertitle: () -> Supertitle,
+        @ViewBuilder subtitle: () -> Subtitle,
+        @ViewBuilder actions: () -> Actions
+    ) {
+        self.backdropURL = backdropURL
+        self.posterURL = posterURL
+        self.titleArtworkURL = titleArtworkURL
+        self.title = title
+        self.topInset = topInset
+        self.containerWidth = containerWidth
+        self.backgroundLeadingInset = backgroundLeadingInset
+        self.heroBaseHeight = heroBaseHeight
+        self.posterWidth = posterWidth
+        self.supertitle = supertitle()
+        self.subtitle = subtitle()
+        self.actions = actions()
+    }
 
     private var heroHeight: CGFloat { heroBaseHeight + topInset }
     private var usesTextColumnActions: Bool {
@@ -49,6 +78,13 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             40
             #else
             28
+            #endif
+        }()
+        let titleArtworkHeight: CGFloat = {
+            #if os(tvOS)
+            78
+            #else
+            sizeClass == .regular ? 68 : 60
             #endif
         }()
 
@@ -101,14 +137,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                     VStack(alignment: .leading, spacing: usesTextColumnActions ? 16 : 10) {
                         supertitle
 
-                        Text(title)
-                            .font(.title2.bold())
-                            .foregroundStyle(Color.white)
-                            .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-                            .multilineTextAlignment(.leading)
-                            .lineLimit(2)
-                            .truncationMode(.tail)
-                            .layoutPriority(1)
+                        titleView(height: titleArtworkHeight)
 
                         subtitle
 
@@ -130,6 +159,40 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         }
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private func titleView(height: CGFloat) -> some View {
+        if let titleArtworkURL {
+            DuskAsyncImage(url: titleArtworkURL) { phase in
+                switch phase {
+                case let .success(image):
+                    image
+                        .resizable()
+                        .scaledToFit()
+                        .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+                        .frame(maxWidth: .infinity, maxHeight: height, alignment: .leading)
+                case .empty:
+                    Color.clear
+                        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
+                case .failure:
+                    titleFallback
+                }
+            }
+        } else {
+            titleFallback
+        }
+    }
+
+    private var titleFallback: some View {
+        Text(title)
+            .font(.title2.bold())
+            .foregroundStyle(Color.white)
+            .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
+            .multilineTextAlignment(.leading)
+            .lineLimit(2)
+            .truncationMode(.tail)
+            .layoutPriority(1)
     }
 
     @ViewBuilder
@@ -158,6 +221,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
     init(
         backdropURL: URL?,
         posterURL: URL?,
+        titleArtworkURL: URL? = nil,
         title: String,
         topInset: CGFloat,
         containerWidth: CGFloat,
@@ -169,6 +233,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
     ) {
         self.backdropURL = backdropURL
         self.posterURL = posterURL
+        self.titleArtworkURL = titleArtworkURL
         self.title = title
         self.topInset = topInset
         self.containerWidth = containerWidth
