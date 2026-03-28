@@ -284,7 +284,7 @@ struct SettingsIOSView: View {
                     SettingsAboutRow(
                         title: "Manage Plex Account",
                         subtitle: "Open Plex account settings",
-                        systemImage: "person.crop.circle.badge.gearshape",
+                        systemImage: "person.circle",
                         trailingSystemImage: "safari"
                     )
                 }
