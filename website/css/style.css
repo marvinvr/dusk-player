@@ -331,27 +331,6 @@ img {
   flex-shrink: 0;
 }
 
-.btn-disabled {
-  opacity: 0.45;
-  cursor: default;
-  pointer-events: none;
-}
-
-.app-store-wrapper {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-}
-
-.coming-soon-label {
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-secondary);
-}
-
 /* --- Hero Devices --- */
 .hero-devices {
   position: relative;
@@ -756,10 +735,6 @@ img {
   .hero-ctas .btn {
     width: 100%;
     justify-content: center;
-  }
-
-  .app-store-wrapper {
-    width: 100%;
   }
 
   .hero-devices {
