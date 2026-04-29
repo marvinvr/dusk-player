@@ -233,6 +233,13 @@ private struct PlayerSessionView: View {
                     viewModel.skipActiveMarker()
                 }
             }
+            viewModel.playbackSnapshotHandler = { state, currentTime, duration in
+                playback.nowPlayingController.updatePlaybackState(
+                    state: state,
+                    currentTime: currentTime,
+                    duration: duration
+                )
+            }
             viewModel.startPlaybackIfNeeded(source: playbackSource)
             #if os(tvOS)
             if viewModel.activeSkipMarker != nil {
@@ -240,7 +247,10 @@ private struct PlayerSessionView: View {
             }
             #endif
         }
-        .onDisappear { viewModel.cleanup() }
+        .onDisappear {
+            viewModel.playbackSnapshotHandler = nil
+            viewModel.cleanup()
+        }
         .onChange(of: scenePhase) { _, newPhase in
             playback.flushTimelineForScenePhase(newPhase)
         }

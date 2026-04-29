@@ -45,6 +45,7 @@ extension PlayerViewModel {
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
         updateAutoSkipState()
+        playbackSnapshotHandler?(state, currentTime, duration)
     }
 
     func togglePlayPause() {

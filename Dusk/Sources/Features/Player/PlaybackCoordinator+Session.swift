@@ -99,6 +99,13 @@ extension PlaybackCoordinator {
                 sanitizedDirectPlayURL: sanitizedURL
             )
             playerPresentationID = UUID()
+            nowPlayingController.beginSession(
+                details: details,
+                engine: newEngine,
+                plexService: plexService,
+                skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+                skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+            )
             startTimelineReporting()
 
             if presentPlayer {
@@ -165,7 +172,16 @@ extension PlaybackCoordinator {
         }
 
         engine?.onPlaybackEnded = nil
-        engine?.stop()
+        if let engine {
+            nowPlayingController.updatePlaybackState(
+                state: .stopped,
+                currentTime: snapshot.timeMs > 0 ? TimeInterval(snapshot.timeMs) / 1000.0 : engine.currentTime,
+                duration: snapshot.durationMs > 0 ? TimeInterval(snapshot.durationMs) / 1000.0 : engine.duration,
+                force: true
+            )
+            engine.stop()
+        }
+        nowPlayingController.endSession()
     }
 
     func timelineSnapshot(markCompleted: Bool) -> (timeMs: Int, durationMs: Int) {
@@ -190,6 +206,7 @@ extension PlaybackCoordinator {
         cancelUpNextCountdown()
         upNextPresentation = nil
         engine?.onPlaybackEnded = nil
+        nowPlayingController.endSession()
         engine = nil
         activeItemDetails = nil
         debugInfo = nil

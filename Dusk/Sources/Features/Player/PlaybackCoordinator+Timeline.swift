@@ -19,6 +19,11 @@ extension PlaybackCoordinator {
 
         lastReportedTimeMs = timeMs
         lastReportedDurationMs = durationMs
+        nowPlayingController.updatePlaybackState(
+            state: engine.state,
+            currentTime: engine.currentTime,
+            duration: engine.duration
+        )
 
         let plexState: PlaybackState
         if let stateOverride {
@@ -53,14 +58,9 @@ extension PlaybackCoordinator {
 
         switch phase {
         case .inactive:
-            reportCurrentTimeline(
-                stateOverride: engine?.state == .playing ? .paused : nil
-            )
+            reportCurrentTimeline()
         case .background:
-            if engine?.state == .playing {
-                engine?.pause()
-            }
-            reportCurrentTimeline(stateOverride: .paused)
+            reportCurrentTimeline()
         case .active:
             engine?.handleReturnToForeground()
         @unknown default:

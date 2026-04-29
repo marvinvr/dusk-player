@@ -20,6 +20,7 @@ final class PlaybackCoordinator {
 
     let plexService: PlexService
     let preferences: UserPreferences
+    @ObservationIgnored let nowPlayingController = PlaybackNowPlayingController()
     var ratingKey: String?
     var activeItemDetails: PlexMediaDetails?
     var hasScrobbled = false

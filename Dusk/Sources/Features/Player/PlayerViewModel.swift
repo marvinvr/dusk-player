@@ -60,6 +60,7 @@ final class PlayerViewModel {
     var hasAppliedAutomaticSubtitleSelection = false
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
+    var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
     @ObservationIgnored nonisolated(unsafe) var syncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var hideTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
