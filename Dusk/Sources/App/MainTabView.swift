@@ -9,6 +9,7 @@ struct MainTabView: View {
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
     @State private var showsPath = NavigationPath()
+    @State private var librariesPath = NavigationPath()
     @State private var downloadsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var settingsPath = NavigationPath()
@@ -58,12 +59,24 @@ struct MainTabView: View {
     }
 
     private var availableTabs: [MainTabItem] {
-        var tabs: [MainTabItem] = [.home]
-        tabs += PlexLibraryType.allCases.map(MainTabItem.library)
-        if !downloadManager.records.isEmpty {
+        let libraryTypes = librariesViewModel?.availableLibraryTypes ?? PlexLibraryType.allCases
+        let hasDownloads = !downloadManager.records.isEmpty
+
+        var tabs: [MainTabItem] = [.home, .search]
+
+        if libraryTypes.count == 1, let only = libraryTypes.first {
+            tabs.append(.library(only))
+        } else if libraryTypes.count == 2, !hasDownloads {
+            tabs += libraryTypes.map(MainTabItem.library)
+        } else if !libraryTypes.isEmpty {
+            tabs.append(.libraries)
+        }
+
+        if hasDownloads {
             tabs.append(.downloads)
         }
-        tabs += [.search, .settings]
+
+        tabs.append(.settings)
         return tabs
     }
 
@@ -87,6 +100,11 @@ struct MainTabView: View {
                     }
                 }
             }
+        case .libraries:
+            LibrariesHubView(
+                viewModel: librariesViewModel,
+                path: $librariesPath
+            )
         case .downloads:
             DownloadsView(path: $downloadsPath)
         case .search:
@@ -121,6 +139,8 @@ struct MainTabView: View {
             moviesPath
         case .library(.show):
             showsPath
+        case .libraries:
+            librariesPath
         case .downloads:
             downloadsPath
         case .search:
@@ -138,6 +158,8 @@ struct MainTabView: View {
             moviesPath = path
         case .library(.show):
             showsPath = path
+        case .libraries:
+            librariesPath = path
         case .downloads:
             downloadsPath = path
         case .search:

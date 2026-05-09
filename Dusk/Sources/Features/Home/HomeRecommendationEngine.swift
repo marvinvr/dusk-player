@@ -14,8 +14,8 @@ struct HomeRecommendationEngine {
 
     func loadShelves(
         itemsPerShelf: Int,
-        movieShelfLimit: Int = 3,
-        showShelfLimit: Int = 2
+        movieShelfLimit: Int = 4,
+        showShelfLimit: Int = 4
     ) async throws -> [HomePersonalizedShelf] {
         guard itemsPerShelf > 0 else { return [] }
 
@@ -549,14 +549,20 @@ struct HomeRecommendationEngine {
         movieShelves: [HomePersonalizedShelf],
         showShelves: [HomePersonalizedShelf]
     ) -> [HomePersonalizedShelf] {
-        [
-            movieShelves[safe: 0],
-            showShelves[safe: 0],
-            movieShelves[safe: 1],
-            showShelves[safe: 1],
-            movieShelves[safe: 2],
-        ]
-        .compactMap { $0 }
+        var combined = movieShelves + showShelves
+        guard combined.count > 1 else { return combined }
+
+        let seed = dailySeed(for: "shelf-order")
+        var generator = HomeSplitMix64(state: seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed)
+
+        for index in stride(from: combined.count - 1, through: 1, by: -1) {
+            let randomIndex = Int(generator.next() % UInt64(index + 1))
+            if randomIndex != index {
+                combined.swapAt(index, randomIndex)
+            }
+        }
+
+        return combined
     }
 
     private func collapsedIdentity(
