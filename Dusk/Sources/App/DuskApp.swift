@@ -91,6 +91,9 @@ struct DuskApp: App {
                         await offlinePlaybackSyncManager.syncPendingActions()
                     }
                 }
+                .onChange(of: userPreferences.downloadsWifiOnly) {
+                    downloadManager.evaluateNetworkConstraints()
+                }
         }
     }
 }

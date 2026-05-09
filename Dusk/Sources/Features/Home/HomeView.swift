@@ -6,6 +6,7 @@ import UIKit
 struct HomeView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.scenePhase) private var scenePhase
     @Binding var path: NavigationPath
     @State private var viewModel: HomeViewModel?
 
@@ -46,6 +47,10 @@ struct HomeView: View {
                 if !isShowing {
                     Task { await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                 }
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                guard newPhase == .active, viewModel != nil else { return }
+                Task { await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
             }
             .refreshable {
                 await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)

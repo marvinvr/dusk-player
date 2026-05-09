@@ -1,4 +1,5 @@
 import Foundation
+import Network
 import Observation
 
 private enum DownloadManagerError: LocalizedError {
@@ -29,6 +30,11 @@ final class DownloadManager {
     private(set) var isProcessingQueue = false
     private(set) var isQueuePaused = false
 
+    private(set) var isNetworkConstrained = false
+
+    @ObservationIgnored private var isNetworkPaused = false
+    @ObservationIgnored private var networkMonitor: NWPathMonitor?
+    @ObservationIgnored private var networkMonitorQueue = DispatchQueue(label: "com.dusk.networkMonitor")
     @ObservationIgnored private var queueTask: Task<Void, Never>?
     @ObservationIgnored private var lastProgressPersistDates: [String: Date] = [:]
     @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
@@ -50,6 +56,7 @@ final class DownloadManager {
         records = fileStore.loadSnapshot().records
         pruneMissingCompletedFiles()
         _ = transferController
+        startNetworkMonitoring()
         Task { [weak self] in
             await self?.reconcileExistingTransfers()
         }
@@ -326,6 +333,22 @@ final class DownloadManager {
             persist()
         }
         processQueueIfNeeded()
+    }
+
+    /// Re-evaluates whether downloads should be paused or resumed based on
+    /// the current network state and the Wi-Fi Only preference.
+    /// Called automatically when the network path changes and should also be
+    /// called externally when `preferences.downloadsWifiOnly` is toggled.
+    func evaluateNetworkConstraints() {
+        if preferences.downloadsWifiOnly && isNetworkConstrained {
+            if !isQueuePaused {
+                isNetworkPaused = true
+                pauseAllDownloads()
+            }
+        } else if isNetworkPaused {
+            isNetworkPaused = false
+            resumeAllDownloads()
+        }
     }
 
     func deleteDownload(ratingKey: String) {
@@ -1043,6 +1066,24 @@ final class DownloadManager {
             updatedAt: .now
         )
         upsert(placeholder)
+    }
+
+    private func startNetworkMonitoring() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                self?.handleNetworkPathUpdate(path)
+            }
+        }
+        monitor.start(queue: networkMonitorQueue)
+        networkMonitor = monitor
+    }
+
+    private func handleNetworkPathUpdate(_ path: NWPath) {
+        let constrained = path.isExpensive || path.isConstrained
+        guard constrained != isNetworkConstrained else { return }
+        isNetworkConstrained = constrained
+        evaluateNetworkConstraints()
     }
 
     private func persist() {

@@ -20,13 +20,18 @@ extension PlaybackCoordinator {
 
         do {
             let details: PlexMediaDetails
-            do {
-                details = try await plexService.getMediaDetails(ratingKey: ratingKey)
-            } catch {
-                if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
-                    details = cachedDetails
-                } else {
-                    throw error
+            if downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true,
+               let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+                details = cachedDetails
+            } else {
+                do {
+                    details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+                } catch {
+                    if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+                        details = cachedDetails
+                    } else {
+                        throw error
+                    }
                 }
             }
             let attemptID = UUID()

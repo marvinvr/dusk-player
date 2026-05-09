@@ -298,17 +298,20 @@ private struct DownloadQueueToolbarButton: View {
     var body: some View {
         ZStack(alignment: .topTrailing) {
             ZStack {
-                if let progress {
-                    CircularProgressView(progress: progress)
-                        .frame(width: 32, height: 32)
-                } else {
+                if let progress, isActive {
                     Circle()
-                        .stroke(Color.duskTextSecondary.opacity(0.35), lineWidth: 2)
-                        .frame(width: 32, height: 32)
+                        .stroke(Color.duskTextSecondary.opacity(0.15), lineWidth: 2.5)
+                        .frame(width: 30, height: 30)
+
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(Color.duskAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 30, height: 30)
                 }
 
-                Image(systemName: isActive ? "arrow.down.circle.fill" : "arrow.down.circle")
-                    .font(.system(size: 18, weight: .semibold))
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 14, weight: .bold))
                     .foregroundStyle(isActive ? Color.duskAccent : Color.duskTextPrimary)
             }
 
