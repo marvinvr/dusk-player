@@ -2,14 +2,22 @@ import SwiftUI
 
 struct EpisodeDetailView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: EpisodeDetailViewModel
 
-    init(ratingKey: String, plexService: PlexService) {
+    init(
+        ratingKey: String,
+        plexService: PlexService,
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
+    ) {
         _viewModel = State(initialValue: EpisodeDetailViewModel(
             ratingKey: ratingKey,
-            plexService: plexService
+            plexService: plexService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager
         ))
     }
 
@@ -65,6 +73,12 @@ struct EpisodeDetailView: View {
 
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
+                            .padding(.horizontal, 20)
+                            .padding(.top, 24)
+                    }
+
+                    if let offlineBannerText = viewModel.offlineBannerText {
+                        OfflineMetadataBanner(message: offlineBannerText)
                             .padding(.horizontal, 20)
                             .padding(.top, 24)
                     }
@@ -236,6 +250,7 @@ struct EpisodeDetailView: View {
 
         layout {
             Button {
+                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
                 Task { await playback.play(ratingKey: details.ratingKey) }
             } label: {
                 DetailHeroPrimaryActionButtonLabel(
@@ -250,11 +265,20 @@ struct EpisodeDetailView: View {
             #else
             .duskSuppressTVOSButtonChrome()
             #endif
+            .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
             .contextMenu {
-                PlayVersionContextMenu(versions: details.media) { version in
-                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
+                    PlayVersionContextMenu(versions: details.media) { version in
+                        Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                    }
                 }
             }
+
+            DownloadActionButton(
+                ratingKey: details.ratingKey,
+                type: .episode,
+                fillsWidth: usesFullWidthActionButtons
+            )
 
             #if os(tvOS)
             if let seasonRatingKey = viewModel.seasonRatingKey {

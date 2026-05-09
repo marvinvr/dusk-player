@@ -6,6 +6,7 @@ enum AppNavigationRoute: Hashable {
     case libraryRecommendations(PlexLibrary)
     case hub(PlexHub)
     case media(type: PlexMediaType, ratingKey: String)
+    case downloadedMedia(type: PlexMediaType, ratingKey: String)
     case person(PlexPersonReference)
 
     static func destination(for item: PlexItem) -> Self {
@@ -19,6 +20,8 @@ enum AppNavigationRoute: Hashable {
 
 struct AppNavigationDestinationView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
 
     let route: AppNavigationRoute
 
@@ -46,7 +49,18 @@ struct AppNavigationDestinationView: View {
             MediaDetailDestinationView(
                 type: type,
                 ratingKey: ratingKey,
-                plexService: plexService
+                plexService: plexService,
+                downloadManager: downloadManager,
+                offlinePlaybackSyncManager: offlinePlaybackSyncManager
+            )
+        case let .downloadedMedia(type, ratingKey):
+            MediaDetailDestinationView(
+                type: type,
+                ratingKey: ratingKey,
+                plexService: plexService,
+                downloadManager: downloadManager,
+                offlinePlaybackSyncManager: offlinePlaybackSyncManager,
+                prefersOfflineAvailability: true
             )
         case .person(let person):
             ActorDetailView(person: person, plexService: plexService)

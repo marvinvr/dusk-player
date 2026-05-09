@@ -20,8 +20,12 @@ final class PlaybackCoordinator {
 
     let plexService: PlexService
     let preferences: UserPreferences
+    let downloadManager: DownloadManager?
+    let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     @ObservationIgnored let nowPlayingController = PlaybackNowPlayingController()
     var ratingKey: String?
+    var activePlaybackServerID: String?
+    var activePlaybackUsesLocalDownload = false
     var activeItemDetails: PlexMediaDetails?
     var hasScrobbled = false
     var didFinalizeCurrentSession = false
@@ -33,9 +37,16 @@ final class PlaybackCoordinator {
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
 
-    init(plexService: PlexService, preferences: UserPreferences = UserPreferences()) {
+    init(
+        plexService: PlexService,
+        preferences: UserPreferences = UserPreferences(),
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
+    ) {
         self.plexService = plexService
         self.preferences = preferences
+        self.downloadManager = downloadManager
+        self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
     }
 
     deinit {

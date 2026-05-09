@@ -75,6 +75,10 @@ extension PlaybackError {
     ]
 
     static func validateDirectPlayURL(_ url: URL) async -> PlaybackError? {
+        if url.isFileURL {
+            return FileManager.default.fileExists(atPath: url.path) ? nil : .sourceUnavailable
+        }
+
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.cachePolicy = .reloadIgnoringLocalCacheData

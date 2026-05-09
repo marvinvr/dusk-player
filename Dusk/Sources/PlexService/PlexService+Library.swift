@@ -167,17 +167,27 @@ extension PlexService {
     }
 
     func getMediaDetails(ratingKey: String) async throws -> PlexMediaDetails {
-        let items: [PlexMediaDetails] = try await fetchMetadata(
-            path: "/library/metadata/\(ratingKey)",
-            queryItems: [
-                URLQueryItem(name: "includeMarkers", value: "1"),
-            ]
-        )
+        let data = try await getMediaDetailsPayload(ratingKey: ratingKey)
+        let response = try decodeJSON(MetadataResponse<PlexMediaDetails>.self, from: data)
+        let items = response.MediaContainer.Metadata ?? []
 
         guard let details = items.first else {
             throw PlexServiceError.decodingError("No metadata found for ratingKey \(ratingKey)")
         }
 
         return details
+    }
+
+    func getMediaDetailsPayload(ratingKey: String) async throws -> Data {
+        try await rawServerRequest(
+            path: PlexMetadataCache.metadataEndpoint(ratingKey),
+            queryItems: [
+                URLQueryItem(name: "includeMarkers", value: "1"),
+            ]
+        )
+    }
+
+    func getChildrenPayload(ratingKey: String) async throws -> Data {
+        try await rawServerRequest(path: PlexMetadataCache.childrenEndpoint(ratingKey))
     }
 }

@@ -24,18 +24,46 @@ enum AppImageCache {
     }
 }
 
+#if os(iOS)
+final class DuskAppDelegate: NSObject, UIApplicationDelegate {
+    func application(
+        _ application: UIApplication,
+        handleEventsForBackgroundURLSession identifier: String,
+        completionHandler: @escaping () -> Void
+    ) {
+        DownloadBackgroundSessionRegistry.setCompletionHandler(completionHandler, for: identifier)
+    }
+}
+#endif
+
 @main
 struct DuskApp: App {
+    #if os(iOS)
+    @UIApplicationDelegateAdaptor(DuskAppDelegate.self) private var appDelegate
+    #endif
+    @Environment(\.scenePhase) private var scenePhase
+
     @State private var plexService: PlexService
     @State private var playbackCoordinator: PlaybackCoordinator
+    @State private var downloadManager: DownloadManager
+    @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
     @State private var userPreferences = UserPreferences()
 
     init() {
         AppImageCache.configureSharedCache()
         let service = PlexService()
         let prefs = UserPreferences()
+        let downloads = DownloadManager(plexService: service, preferences: prefs)
+        let playbackSync = OfflinePlaybackSyncManager(plexService: service)
         _plexService = State(initialValue: service)
-        _playbackCoordinator = State(initialValue: PlaybackCoordinator(plexService: service, preferences: prefs))
+        _downloadManager = State(initialValue: downloads)
+        _offlinePlaybackSyncManager = State(initialValue: playbackSync)
+        _playbackCoordinator = State(initialValue: PlaybackCoordinator(
+            plexService: service,
+            preferences: prefs,
+            downloadManager: downloads,
+            offlinePlaybackSyncManager: playbackSync
+        ))
         _userPreferences = State(initialValue: prefs)
         #if os(iOS)
         Self.configurePlaybackAudioSession()
@@ -48,11 +76,20 @@ struct DuskApp: App {
             ContentView()
                 .environment(plexService)
                 .environment(playbackCoordinator)
+                .environment(downloadManager)
+                .environment(offlinePlaybackSyncManager)
                 .environment(userPreferences)
                 .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
                 .tint(Color.duskAccent)
                 .task {
                     PlaybackEngineFactory.prewarmIfNeeded()
+                    await offlinePlaybackSyncManager.syncPendingActions()
+                }
+                .onChange(of: scenePhase) { _, newPhase in
+                    guard newPhase == .active else { return }
+                    Task {
+                        await offlinePlaybackSyncManager.syncPendingActions()
+                    }
                 }
         }
     }

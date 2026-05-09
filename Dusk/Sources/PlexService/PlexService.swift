@@ -86,6 +86,13 @@ final class PlexService {
         connectedServer?.usableAccessToken ?? serverAuthToken?.nilIfEmpty
     }
 
+    var currentServerIdentifier: String? {
+        if let identifier = connectedServer?.clientIdentifier.nilIfEmpty {
+            return identifier
+        }
+        return serverBaseURL?.absoluteString.nilIfEmpty
+    }
+
     func setServer(_ server: PlexServer, baseURL: URL, accessToken: String?) {
         connectedServer = server
         serverBaseURL = baseURL

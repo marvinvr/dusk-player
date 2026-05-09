@@ -4,15 +4,26 @@ import Foundation
 @Observable
 final class MovieDetailViewModel {
     private let plexService: PlexService
+    private let downloadManager: DownloadManager?
+    private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     let ratingKey: String
 
     private(set) var details: PlexMediaDetails?
     private(set) var isLoading = false
     private(set) var error: String?
+    private(set) var isUsingCachedData = false
+    private(set) var offlineStateVersion = 0
 
-    init(ratingKey: String, plexService: PlexService) {
+    init(
+        ratingKey: String,
+        plexService: PlexService,
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
+    ) {
         self.ratingKey = ratingKey
         self.plexService = plexService
+        self.downloadManager = downloadManager
+        self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
     }
 
     func loadDetails() async {
@@ -20,33 +31,84 @@ final class MovieDetailViewModel {
         isLoading = true
         error = nil
 
+        if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+            details = cachedDetails
+            isUsingCachedData = true
+        }
+
         do {
             details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            isUsingCachedData = false
         } catch {
-            self.error = error.localizedDescription
+            if details == nil {
+                self.error = error.localizedDescription
+            }
         }
         isLoading = false
     }
 
     func toggleWatched() async {
         guard details != nil else { return }
+        let targetWatched = !isWatched
+
+        if isUsingCachedData || isPlayableOffline {
+            offlinePlaybackSyncManager?.recordWatchState(
+                serverID: serverID,
+                ratingKey: ratingKey,
+                watched: targetWatched
+            )
+            offlineStateVersion += 1
+            await offlinePlaybackSyncManager?.syncPendingActions()
+            return
+        }
+
         do {
-            try await plexService.setWatched(!isWatched, ratingKey: ratingKey)
+            try await plexService.setWatched(targetWatched, ratingKey: ratingKey)
             self.details = try await plexService.getMediaDetails(ratingKey: ratingKey)
         } catch {
-            self.error = error.localizedDescription
+            if isPlayableOffline {
+                offlinePlaybackSyncManager?.recordWatchState(
+                    serverID: serverID,
+                    ratingKey: ratingKey,
+                    watched: targetWatched
+                )
+                offlineStateVersion += 1
+            } else {
+                self.error = error.localizedDescription
+            }
         }
     }
 
     // MARK: - Computed Helpers
 
     var isWatched: Bool {
-        guard let count = details?.viewCount else { return false }
-        return count > 0
+        _ = offlineStateVersion
+        let fallback = (details?.viewCount ?? 0) > 0
+        return offlinePlaybackSyncManager?.effectiveWatched(
+            serverID: serverID,
+            ratingKey: ratingKey,
+            fallback: fallback
+        ) ?? fallback
+    }
+
+    var isPlayableOffline: Bool {
+        downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true
+    }
+
+    var offlineBannerText: String? {
+        guard isUsingCachedData else { return nil }
+        return isPlayableOffline
+            ? "Showing saved movie metadata. This movie is available offline."
+            : "Showing saved movie metadata. This movie is not downloaded on this device."
     }
 
     var resumePositionSeconds: TimeInterval? {
-        guard let offset = details?.viewOffset, offset > 0 else { return nil }
+        _ = offlineStateVersion
+        guard let offset = offlinePlaybackSyncManager?.effectiveViewOffsetMs(
+            serverID: serverID,
+            ratingKey: ratingKey,
+            fallback: details?.viewOffset
+        ) ?? details?.viewOffset, offset > 0 else { return nil }
         return TimeInterval(offset) / 1000.0
     }
 
@@ -88,14 +150,21 @@ final class MovieDetailViewModel {
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.thumb, width: width, height: height)
+        downloadManager?.localArtworkURL(for: details?.thumb)
+            ?? plexService.imageURL(for: details?.thumb, width: width, height: height)
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.art, width: width, height: height)
+        downloadManager?.localArtworkURL(for: details?.art)
+            ?? plexService.imageURL(for: details?.art, width: width, height: height)
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+        downloadManager?.localArtworkURL(for: details?.clearLogo)
+            ?? plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+    }
+
+    private var serverID: String? {
+        downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
     }
 }

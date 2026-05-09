@@ -9,6 +9,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay = false
+    var availabilityBadge: String? = nil
+    var isDimmed = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -28,7 +30,9 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                     progress: progress,
                     width: width,
                     imageAspectRatio: imageAspectRatio,
-                    showsPlayOverlay: showsPlayOverlay
+                    showsPlayOverlay: showsPlayOverlay,
+                    availabilityBadge: availabilityBadge,
+                    isDimmed: isDimmed
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -55,7 +59,9 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 progress: progress,
                 width: width,
                 imageAspectRatio: imageAspectRatio,
-                showsPlayOverlay: showsPlayOverlay
+                showsPlayOverlay: showsPlayOverlay,
+                availabilityBadge: availabilityBadge,
+                isDimmed: isDimmed
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -77,7 +83,9 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
         progress: Double? = nil,
         width: CGFloat = 130,
         imageAspectRatio: CGFloat = 2.0 / 3.0,
-        showsPlayOverlay: Bool = false
+        showsPlayOverlay: Bool = false,
+        availabilityBadge: String? = nil,
+        isDimmed: Bool = false
     ) {
         self.route = route
         self.imageURL = imageURL
@@ -87,6 +95,8 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
         self.width = width
         self.imageAspectRatio = imageAspectRatio
         self.showsPlayOverlay = showsPlayOverlay
+        self.availabilityBadge = availabilityBadge
+        self.isDimmed = isDimmed
         self.contextMenuContent = { EmptyView() }
     }
 }
@@ -100,6 +110,8 @@ struct PosterActionCard<ContextMenuContent: View>: View {
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay = false
+    var availabilityBadge: String? = nil
+    var isDimmed = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -119,7 +131,9 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                     progress: progress,
                     width: width,
                     imageAspectRatio: imageAspectRatio,
-                    showsPlayOverlay: showsPlayOverlay
+                    showsPlayOverlay: showsPlayOverlay,
+                    availabilityBadge: availabilityBadge,
+                    isDimmed: isDimmed
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -146,7 +160,9 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                 progress: progress,
                 width: width,
                 imageAspectRatio: imageAspectRatio,
-                showsPlayOverlay: showsPlayOverlay
+                showsPlayOverlay: showsPlayOverlay,
+                availabilityBadge: availabilityBadge,
+                isDimmed: isDimmed
             )
         }
         .buttonStyle(.plain)
@@ -167,7 +183,9 @@ extension PosterActionCard where ContextMenuContent == EmptyView {
         progress: Double? = nil,
         width: CGFloat = 130,
         imageAspectRatio: CGFloat = 2.0 / 3.0,
-        showsPlayOverlay: Bool = false
+        showsPlayOverlay: Bool = false,
+        availabilityBadge: String? = nil,
+        isDimmed: Bool = false
     ) {
         self.action = action
         self.imageURL = imageURL
@@ -177,6 +195,8 @@ extension PosterActionCard where ContextMenuContent == EmptyView {
         self.width = width
         self.imageAspectRatio = imageAspectRatio
         self.showsPlayOverlay = showsPlayOverlay
+        self.availabilityBadge = availabilityBadge
+        self.isDimmed = isDimmed
         self.contextMenuContent = { EmptyView() }
     }
 }

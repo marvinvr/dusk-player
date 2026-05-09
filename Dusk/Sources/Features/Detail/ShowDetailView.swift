@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ShowDetailView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: ShowDetailViewModel
@@ -11,10 +12,19 @@ struct ShowDetailView: View {
     private let preferredPosterWidth: CGFloat = DuskPosterMetrics.detailGridPreferredWidth
     private let minimumColumnCount = 2
 
-    init(ratingKey: String, plexService: PlexService) {
+    init(
+        ratingKey: String,
+        plexService: PlexService,
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
+        prefersOfflineAvailability: Bool = false
+    ) {
         _viewModel = State(initialValue: ShowDetailViewModel(
             ratingKey: ratingKey,
-            plexService: plexService
+            plexService: plexService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager,
+            prefersOfflineAvailability: prefersOfflineAvailability
         ))
     }
 
@@ -77,6 +87,12 @@ struct ShowDetailView: View {
                             .padding(.top, 32)
                     }
 
+                    if let offlineBannerText = viewModel.offlineBannerText {
+                        OfflineMetadataBanner(message: offlineBannerText)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 24)
+                    }
+
                     seasonsSection(width: geometry.size.width)
                         .padding(.top, 40)
 
@@ -132,9 +148,7 @@ struct ShowDetailView: View {
                 heroMetadata(details)
             }
         } actions: {
-            if viewModel.nextEpisode != nil {
-                actionButtons()
-            }
+            actionButtons()
         }
     }
 
@@ -201,41 +215,55 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        Button {
-            if let ep = viewModel.nextEpisode {
-                Task { await playback.play(ratingKey: ep.ratingKey) }
+        let layout = usesFullWidthActionButtons
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+
+        layout {
+            if viewModel.nextEpisode != nil {
+                Button {
+                    if let ep = viewModel.nextEpisode {
+                        Task { await playback.play(ratingKey: ep.ratingKey) }
+                    }
+                } label: {
+                    DetailHeroPrimaryActionButtonLabel(
+                        title: viewModel.playButtonLabel,
+                        systemImage: "play.fill",
+                        fillsWidth: usesFullWidthActionButtons
+                    )
+                }
+                #if os(tvOS)
+                .buttonStyle(.glassProminent)
+                .tint(Color.duskAccent)
+                #else
+                .duskSuppressTVOSButtonChrome()
+                #endif
+                .contextMenu {
+                    if let episode = viewModel.nextEpisode {
+                        PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
+                            Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
+                        }
+                    }
+
+                    if let nextEpisodeRoute = viewModel.nextEpisodeRoute {
+                        NavigationLink(value: nextEpisodeRoute) {
+                            Label(viewModel.nextEpisodeMenuLabel, systemImage: "play.rectangle")
+                        }
+                    }
+
+                    if let nextSeasonRoute = viewModel.nextSeasonRoute {
+                        NavigationLink(value: nextSeasonRoute) {
+                            Label(viewModel.nextSeasonMenuLabel, systemImage: "rectangle.stack")
+                        }
+                    }
+                }
             }
-        } label: {
-            DetailHeroPrimaryActionButtonLabel(
-                title: viewModel.playButtonLabel,
-                systemImage: "play.fill",
+
+            DownloadActionButton(
+                ratingKey: viewModel.ratingKey,
+                type: .show,
                 fillsWidth: usesFullWidthActionButtons
             )
-        }
-        #if os(tvOS)
-        .buttonStyle(.glassProminent)
-        .tint(Color.duskAccent)
-        #else
-        .duskSuppressTVOSButtonChrome()
-        #endif
-        .contextMenu {
-            if let episode = viewModel.nextEpisode {
-                PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
-                    Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
-                }
-            }
-
-            if let nextEpisodeRoute = viewModel.nextEpisodeRoute {
-                NavigationLink(value: nextEpisodeRoute) {
-                    Label(viewModel.nextEpisodeMenuLabel, systemImage: "play.rectangle")
-                }
-            }
-
-            if let nextSeasonRoute = viewModel.nextSeasonRoute {
-                NavigationLink(value: nextSeasonRoute) {
-                    Label(viewModel.nextSeasonMenuLabel, systemImage: "rectangle.stack")
-                }
-            }
         }
     }
 
@@ -276,7 +304,7 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func seasonsSection(width: CGFloat) -> some View {
-        if !viewModel.seasons.isEmpty {
+        if !viewModel.visibleSeasons.isEmpty {
             let layout = AdaptivePosterGridLayout.make(
                 containerWidth: width,
                 horizontalPadding: horizontalPadding,
@@ -294,14 +322,16 @@ struct ShowDetailView: View {
                     .padding(.horizontal, horizontalPadding)
 
                 LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
-                    ForEach(viewModel.seasons) { season in
+                    ForEach(viewModel.visibleSeasons) { season in
                         PosterNavigationCard(
-                            route: AppNavigationRoute.media(type: .season, ratingKey: season.ratingKey),
+                            route: viewModel.detailRoute(type: .season, ratingKey: season.ratingKey),
                             imageURL: viewModel.seasonPosterURL(season, width: imageWidth, height: imageHeight),
                             title: season.title,
                             subtitle: viewModel.seasonSubtitle(season),
                             progress: viewModel.seasonProgress(season),
-                            width: layout.posterWidth
+                            width: layout.posterWidth,
+                            availabilityBadge: viewModel.seasonAvailabilityBadge(season),
+                            isDimmed: viewModel.isSeasonUnavailableOffline(season)
                         ) {
                             seasonContextMenu(season)
                         }

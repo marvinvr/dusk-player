@@ -19,7 +19,16 @@ extension PlaybackCoordinator {
         upNextPresentation = nil
 
         do {
-            let details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            let details: PlexMediaDetails
+            do {
+                details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            } catch {
+                if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+                    details = cachedDetails
+                } else {
+                    throw error
+                }
+            }
             let attemptID = UUID()
 
             guard let media = resolveMediaVersion(
@@ -34,12 +43,30 @@ extension PlaybackCoordinator {
                 return false
             }
 
-            guard let url = plexService.directPlayURL(for: part) else {
-                playbackSessionLogger.error(
-                    "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
-                )
-                loadError = "Could not construct playback URL."
-                return false
+            let playbackURL: URL
+            let sanitizedURL: String
+            let playbackDecision: PlaybackDecision
+            let usesLocalDownload: Bool
+            if let localURL = downloadManager?.localPlaybackURL(
+                for: ratingKey,
+                selectedMediaID: selectedMediaID
+            ) {
+                playbackURL = localURL
+                sanitizedURL = localURL.path
+                playbackDecision = .localDownload
+                usesLocalDownload = true
+            } else {
+                guard let directPlayURL = plexService.directPlayURL(for: part) else {
+                    playbackSessionLogger.error(
+                        "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
+                    )
+                    loadError = "Could not construct playback URL."
+                    return false
+                }
+                playbackURL = directPlayURL
+                sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
+                playbackDecision = .directPlay
+                usesLocalDownload = false
             }
 
             let resolverDecision = StreamResolver.evaluate(
@@ -48,8 +75,15 @@ extension PlaybackCoordinator {
                 forceVLCKit: preferences.forceVLCKit
             )
             let engineType = resolverDecision.engine
-            let sanitizedURL = plexService.sanitizedPlaybackURLString(for: url)
-            let startPosition = startPositionOverride ?? details.viewOffset.map { TimeInterval($0) / 1000.0 }
+            let serverID = downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+            let effectiveViewOffset = usesLocalDownload
+                ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
+                    serverID: serverID,
+                    ratingKey: ratingKey,
+                    fallback: details.viewOffset
+                  )
+                : details.viewOffset
+            let startPosition = startPositionOverride ?? effectiveViewOffset.map { TimeInterval($0) / 1000.0 }
             let attemptContext = PlaybackAttemptContext(
                 attemptID: attemptID,
                 title: details.title,
@@ -81,17 +115,19 @@ extension PlaybackCoordinator {
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
             self.ratingKey = ratingKey
+            activePlaybackServerID = serverID
+            activePlaybackUsesLocalDownload = usesLocalDownload
             activeItemDetails = details
             engine = newEngine
             playbackSource = PlaybackSource(
-                url: url,
+                url: playbackURL,
                 startPosition: startPosition,
                 context: attemptContext
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
                 engine: engineType,
-                decision: .directPlay,
+                decision: playbackDecision,
                 media: media,
                 part: part,
                 attemptID: attemptID,
@@ -152,21 +188,32 @@ extension PlaybackCoordinator {
         lastReportedDurationMs = snapshot.durationMs
 
         if let ratingKey {
-            Task {
-                await plexService.reportTimeline(
-                    ratingKey: ratingKey,
-                    state: .stopped,
-                    timeMs: snapshot.timeMs,
-                    durationMs: snapshot.durationMs
-                )
-            }
+            reportTimelineOrQueueOfflineSync(
+                ratingKey: ratingKey,
+                state: .stopped,
+                timeMs: snapshot.timeMs,
+                durationMs: snapshot.durationMs
+            )
 
             if !hasScrobbled,
                snapshot.durationMs > 0,
                snapshot.timeMs > Int(Double(snapshot.durationMs) * 0.9) {
                 hasScrobbled = true
-                Task {
-                    try? await plexService.scrobble(ratingKey: ratingKey)
+                if activePlaybackUsesLocalDownload {
+                    offlinePlaybackSyncManager?.recordProgress(
+                        serverID: activePlaybackServerID,
+                        ratingKey: ratingKey,
+                        viewOffsetMs: snapshot.timeMs,
+                        durationMs: snapshot.durationMs,
+                        state: .stopped
+                    )
+                    Task {
+                        await offlinePlaybackSyncManager?.syncPendingActions()
+                    }
+                } else {
+                    Task {
+                        try? await plexService.scrobble(ratingKey: ratingKey)
+                    }
                 }
             }
         }
@@ -209,6 +256,8 @@ extension PlaybackCoordinator {
         nowPlayingController.endSession()
         engine = nil
         activeItemDetails = nil
+        activePlaybackServerID = nil
+        activePlaybackUsesLocalDownload = false
         debugInfo = nil
         playbackSource = nil
         ratingKey = nil

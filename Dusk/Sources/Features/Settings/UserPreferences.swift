@@ -28,6 +28,10 @@ final class UserPreferences {
         static let forceVLCKit = "forceVLCKit"
         static let appearanceMode = "appearanceMode"
         static let playerDebugOverlayEnabled = "playerDebugOverlayEnabled"
+        static let downloadMaxResolution = "downloadMaxResolution"
+        static let downloadsWifiOnly = "downloadsWifiOnly"
+        static let maximumActiveDownloads = "maximumActiveDownloads"
+        static let downloadFreeSpaceReserve = "downloadFreeSpaceReserve"
     }
 
     // MARK: - Properties
@@ -125,6 +129,26 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(playerDebugOverlayEnabled, forKey: Keys.playerDebugOverlayEnabled) }
     }
 
+    /// Maximum version quality selected for downloads.
+    var downloadMaxResolution: MaxResolution {
+        didSet { UserDefaults.standard.set(downloadMaxResolution.rawValue, forKey: Keys.downloadMaxResolution) }
+    }
+
+    /// Prevent new download tasks from using expensive networks such as cellular.
+    var downloadsWifiOnly: Bool {
+        didSet { UserDefaults.standard.set(downloadsWifiOnly, forKey: Keys.downloadsWifiOnly) }
+    }
+
+    /// Number of download tasks the queue may run at the same time.
+    var maximumActiveDownloads: DownloadConcurrency {
+        didSet { UserDefaults.standard.set(maximumActiveDownloads.rawValue, forKey: Keys.maximumActiveDownloads) }
+    }
+
+    /// Amount of free storage Dusk should leave available.
+    var downloadFreeSpaceReserve: DownloadFreeSpaceReserve {
+        didSet { UserDefaults.standard.set(downloadFreeSpaceReserve.rawValue, forKey: Keys.downloadFreeSpaceReserve) }
+    }
+
     // MARK: - Init
 
     init() {
@@ -170,6 +194,24 @@ final class UserPreferences {
         let forceAVPlayer = storedForceAVPlayer
         let forceVLCKit = storedForceAVPlayer ? false : storedForceVLCKit
         let playerDebugOverlayEnabled = defaults.bool(forKey: Keys.playerDebugOverlayEnabled)
+        let downloadMaxResolution: MaxResolution
+        if let raw = defaults.string(forKey: Keys.downloadMaxResolution),
+           let value = MaxResolution(rawValue: raw) {
+            downloadMaxResolution = value
+        } else {
+            downloadMaxResolution = maxResolution
+        }
+        let downloadsWifiOnly = defaults.object(forKey: Keys.downloadsWifiOnly) as? Bool ?? true
+        let maximumActiveDownloads = Self.storedDownloadConcurrency(
+            forKey: Keys.maximumActiveDownloads,
+            defaults: defaults,
+            fallback: .one
+        )
+        let downloadFreeSpaceReserve = Self.storedDownloadFreeSpaceReserve(
+            forKey: Keys.downloadFreeSpaceReserve,
+            defaults: defaults,
+            fallback: .fiveGB
+        )
 
         let appearanceMode: AppearanceMode
         if let raw = defaults.string(forKey: Keys.appearanceMode),
@@ -195,6 +237,10 @@ final class UserPreferences {
         self.forceVLCKit = forceVLCKit
         self.appearanceMode = appearanceMode
         self.playerDebugOverlayEnabled = playerDebugOverlayEnabled
+        self.downloadMaxResolution = downloadMaxResolution
+        self.downloadsWifiOnly = downloadsWifiOnly
+        self.maximumActiveDownloads = maximumActiveDownloads
+        self.downloadFreeSpaceReserve = downloadFreeSpaceReserve
     }
 
     private static func storedSeekInterval(
@@ -213,6 +259,24 @@ final class UserPreferences {
     ) -> ContinuousPlayCountdown {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return ContinuousPlayCountdown(rawValue: defaults.integer(forKey: key)) ?? fallback
+    }
+
+    private static func storedDownloadConcurrency(
+        forKey key: String,
+        defaults: UserDefaults,
+        fallback: DownloadConcurrency
+    ) -> DownloadConcurrency {
+        guard defaults.object(forKey: key) != nil else { return fallback }
+        return DownloadConcurrency(rawValue: defaults.integer(forKey: key)) ?? fallback
+    }
+
+    private static func storedDownloadFreeSpaceReserve(
+        forKey key: String,
+        defaults: UserDefaults,
+        fallback: DownloadFreeSpaceReserve
+    ) -> DownloadFreeSpaceReserve {
+        guard defaults.object(forKey: key) != nil else { return fallback }
+        return DownloadFreeSpaceReserve(rawValue: defaults.integer(forKey: key)) ?? fallback
     }
 
     private static func storedOptionalPositiveInt(
@@ -319,6 +383,35 @@ enum ContinuousPlayCountdown: Int, CaseIterable, Identifiable {
 
     var timeInterval: TimeInterval {
         TimeInterval(rawValue)
+    }
+}
+
+enum DownloadConcurrency: Int, CaseIterable, Identifiable {
+    case one = 1
+    case two = 2
+    case three = 3
+
+    var id: Int { rawValue }
+
+    var displayName: String {
+        rawValue == 1 ? "1 Download" : "\(rawValue) Downloads"
+    }
+}
+
+enum DownloadFreeSpaceReserve: Int, CaseIterable, Identifiable {
+    case oneGB = 1_000_000_000
+    case fiveGB = 5_000_000_000
+    case tenGB = 10_000_000_000
+    case twentyGB = 20_000_000_000
+
+    var id: Int { rawValue }
+
+    var bytes: Int64 {
+        Int64(rawValue)
+    }
+
+    var displayName: String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 

@@ -2,16 +2,24 @@ import SwiftUI
 
 struct MovieDetailView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: MovieDetailViewModel
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
-    init(ratingKey: String, plexService: PlexService) {
+    init(
+        ratingKey: String,
+        plexService: PlexService,
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
+    ) {
         _viewModel = State(initialValue: MovieDetailViewModel(
             ratingKey: ratingKey,
-            plexService: plexService
+            plexService: plexService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager
         ))
     }
 
@@ -70,6 +78,11 @@ struct MovieDetailView: View {
                         summarySection(summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 40)
+                    }
+                    if let offlineBannerText = viewModel.offlineBannerText {
+                        OfflineMetadataBanner(message: offlineBannerText)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 24)
                     }
                     if let roles = details.roles, !roles.isEmpty {
                         castSection(roles)
@@ -206,6 +219,7 @@ struct MovieDetailView: View {
 
         layout {
             Button {
+                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
                 Task { await playback.play(ratingKey: details.ratingKey) }
             } label: {
                 DetailHeroPrimaryActionButtonLabel(
@@ -220,11 +234,20 @@ struct MovieDetailView: View {
             #else
             .duskSuppressTVOSButtonChrome()
             #endif
+            .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
             .contextMenu {
-                PlayVersionContextMenu(versions: details.media) { version in
-                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
+                    PlayVersionContextMenu(versions: details.media) { version in
+                        Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                    }
                 }
             }
+
+            DownloadActionButton(
+                ratingKey: details.ratingKey,
+                type: .movie,
+                fillsWidth: usesFullWidthActionButtons
+            )
 
             Button {
                 Task { await viewModel.toggleWatched() }

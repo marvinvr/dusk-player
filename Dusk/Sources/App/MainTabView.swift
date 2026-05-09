@@ -4,10 +4,12 @@ import SwiftUI
 struct MainTabView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(DownloadManager.self) private var downloadManager
     @State private var selectedTab: MainTabItem = .home
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
     @State private var showsPath = NavigationPath()
+    @State private var downloadsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var settingsPath = NavigationPath()
     @State private var librariesViewModel: LibrariesViewModel?
@@ -58,6 +60,9 @@ struct MainTabView: View {
     private var availableTabs: [MainTabItem] {
         var tabs: [MainTabItem] = [.home]
         tabs += PlexLibraryType.allCases.map(MainTabItem.library)
+        if !downloadManager.records.isEmpty {
+            tabs.append(.downloads)
+        }
         tabs += [.search, .settings]
         return tabs
     }
@@ -82,6 +87,8 @@ struct MainTabView: View {
                     }
                 }
             }
+        case .downloads:
+            DownloadsView(path: $downloadsPath)
         case .search:
             SearchView(path: $searchPath)
         case .settings:
@@ -114,6 +121,8 @@ struct MainTabView: View {
             moviesPath
         case .library(.show):
             showsPath
+        case .downloads:
+            downloadsPath
         case .search:
             searchPath
         case .settings:
@@ -129,6 +138,8 @@ struct MainTabView: View {
             moviesPath = path
         case .library(.show):
             showsPath = path
+        case .downloads:
+            downloadsPath = path
         case .search:
             searchPath = path
         case .settings:

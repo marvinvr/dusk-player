@@ -36,19 +36,59 @@ extension PlaybackCoordinator {
             }
         }
 
-        Task {
-            await plexService.reportTimeline(
-                ratingKey: ratingKey,
-                state: plexState,
-                timeMs: timeMs,
-                durationMs: durationMs
-            )
-        }
+        reportTimelineOrQueueOfflineSync(
+            ratingKey: ratingKey,
+            state: plexState,
+            timeMs: timeMs,
+            durationMs: durationMs
+        )
 
         if !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
             hasScrobbled = true
+            if activePlaybackUsesLocalDownload {
+                offlinePlaybackSyncManager?.recordProgress(
+                    serverID: activePlaybackServerID,
+                    ratingKey: ratingKey,
+                    viewOffsetMs: timeMs,
+                    durationMs: durationMs,
+                    state: plexState
+                )
+                Task {
+                    await offlinePlaybackSyncManager?.syncPendingActions()
+                }
+            } else {
+                Task {
+                    try? await plexService.scrobble(ratingKey: ratingKey)
+                }
+            }
+        }
+    }
+
+    func reportTimelineOrQueueOfflineSync(
+        ratingKey: String,
+        state: PlaybackState,
+        timeMs: Int,
+        durationMs: Int
+    ) {
+        if activePlaybackUsesLocalDownload {
+            offlinePlaybackSyncManager?.recordProgress(
+                serverID: activePlaybackServerID,
+                ratingKey: ratingKey,
+                viewOffsetMs: timeMs,
+                durationMs: durationMs,
+                state: state
+            )
             Task {
-                try? await plexService.scrobble(ratingKey: ratingKey)
+                await offlinePlaybackSyncManager?.syncPendingActions()
+            }
+        } else {
+            Task {
+                await plexService.reportTimeline(
+                    ratingKey: ratingKey,
+                    state: state,
+                    timeMs: timeMs,
+                    durationMs: durationMs
+                )
             }
         }
     }

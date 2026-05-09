@@ -8,6 +8,15 @@ private let plexPlaybackLogger = Logger(
 
 extension PlexService {
     func reportTimeline(ratingKey: String, state: PlaybackState, timeMs: Int, durationMs: Int) async {
+        try? await submitTimeline(
+            ratingKey: ratingKey,
+            state: state,
+            timeMs: timeMs,
+            durationMs: durationMs
+        )
+    }
+
+    func submitTimeline(ratingKey: String, state: PlaybackState, timeMs: Int, durationMs: Int) async throws {
         let stateString: String
         switch state {
         case .playing:
@@ -18,7 +27,7 @@ extension PlexService {
             stateString = "stopped"
         }
 
-        _ = try? await rawServerRequest(
+        _ = try await rawServerRequest(
             path: "/:/timeline",
             queryItems: [
                 URLQueryItem(name: "ratingKey", value: ratingKey),

@@ -11,6 +11,32 @@ func usesFullWidthDetailActionButtons(for sizeClass: UserInterfaceSizeClass?) ->
     #endif
 }
 
+struct OfflineMetadataBanner: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "wifi.slash")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color.duskAccent)
+
+            Text(message)
+                .font(.caption.weight(.medium))
+                .foregroundStyle(Color.duskTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(Color.duskAccent.opacity(0.22), lineWidth: 1)
+        )
+    }
+}
+
 struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 

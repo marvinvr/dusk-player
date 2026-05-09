@@ -4,8 +4,11 @@ import SwiftUI
 struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
+    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
     @Environment(\.openURL) private var openURL
     @State private var presentedAccountURL: URL?
+    @State private var confirmsDeletingDownloads = false
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
@@ -17,6 +20,19 @@ struct SettingsIOSView: View {
             if let presentedAccountURL {
                 DuskSafariView(url: presentedAccountURL)
             }
+        }
+        .confirmationDialog(
+            "Delete all downloads?",
+            isPresented: $confirmsDeletingDownloads,
+            titleVisibility: .visible
+        ) {
+            Button("Delete All Downloads", role: .destructive) {
+                downloadManager.deleteAllDownloads()
+                offlinePlaybackSyncManager.deleteAllLocalState()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
         }
     }
 
@@ -138,6 +154,88 @@ struct SettingsIOSView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
                 Text(SettingsSupport.playbackAdvancedFooterText)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
+                Picker("Download Quality", selection: $preferences.downloadMaxResolution) {
+                    ForEach(MaxResolution.allCases) { resolution in
+                        Text(resolution.displayName).tag(resolution)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Toggle("Wi-Fi Only", isOn: $preferences.downloadsWifiOnly)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .tint(Color.duskAccent)
+
+                Picker("Simultaneous Downloads", selection: $preferences.maximumActiveDownloads) {
+                    ForEach(DownloadConcurrency.allCases) { concurrency in
+                        Text(concurrency.displayName).tag(concurrency)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Picker("Keep Free", selection: $preferences.downloadFreeSpaceReserve) {
+                    ForEach(DownloadFreeSpaceReserve.allCases) { reserve in
+                        Text(reserve.displayName).tag(reserve)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                HStack {
+                    Text("Storage Used")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text(formattedBytes(downloadManager.storageUsageBytes))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+
+                if let availableStorageBytes = downloadManager.availableStorageBytes {
+                    HStack {
+                        Text("Available")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Spacer()
+                        Text(formattedBytes(availableStorageBytes))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+
+                if offlinePlaybackSyncManager.pendingSyncCount > 0 {
+                    HStack {
+                        Text("Pending Watch Sync")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Spacer()
+                        Text("\(offlinePlaybackSyncManager.pendingSyncCount)")
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+
+                    Button {
+                        Task {
+                            await offlinePlaybackSyncManager.syncPendingActions()
+                        }
+                    } label: {
+                        if offlinePlaybackSyncManager.isSyncing {
+                            Label("Syncing Watch Progress", systemImage: "arrow.triangle.2.circlepath")
+                        } else {
+                            Label("Sync Watch Progress Now", systemImage: "arrow.triangle.2.circlepath")
+                        }
+                    }
+                    .disabled(offlinePlaybackSyncManager.isSyncing)
+                    .duskSuppressTVOSButtonChrome()
+                }
+
+                Button("Delete All Downloads", role: .destructive) {
+                    confirmsDeletingDownloads = true
+                }
+                .disabled(downloadManager.records.isEmpty)
+                .duskSuppressTVOSButtonChrome()
+            } header: {
+                Text("Downloads")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.downloadsFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
@@ -325,6 +423,10 @@ struct SettingsIOSView: View {
                 presentedAccountURL = nil
             }
         )
+    }
+
+    private func formattedBytes(_ value: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 }
 

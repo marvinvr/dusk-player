@@ -2,15 +2,25 @@ import SwiftUI
 
 struct SeasonDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var viewModel: SeasonDetailViewModel
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
-    init(ratingKey: String, plexService: PlexService) {
+    init(
+        ratingKey: String,
+        plexService: PlexService,
+        downloadManager: DownloadManager? = nil,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
+        prefersOfflineAvailability: Bool = false
+    ) {
         _viewModel = State(initialValue: SeasonDetailViewModel(
             ratingKey: ratingKey,
-            plexService: plexService
+            plexService: plexService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager,
+            prefersOfflineAvailability: prefersOfflineAvailability
         ))
     }
 
@@ -71,6 +81,12 @@ struct SeasonDetailView: View {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 36)
+                    }
+
+                    if let offlineBannerText = viewModel.offlineBannerText {
+                        OfflineMetadataBanner(message: offlineBannerText)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 24)
                     }
 
                     episodesSection(width: geometry.size.width)
@@ -144,7 +160,7 @@ struct SeasonDetailView: View {
             .foregroundStyle(Color.duskAccent)
         #else
         if let showRatingKey = viewModel.showRatingKey {
-            NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
+            NavigationLink(value: viewModel.detailRoute(type: .show, ratingKey: showRatingKey)) {
                 Text(title)
                     .font(.subheadline.weight(.medium))
                     .foregroundStyle(Color.duskAccent)
@@ -177,21 +193,33 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        SeasonHeroActions(
-            nextEpisode: viewModel.nextEpisodeToPlay,
-            playButtonLabel: viewModel.playButtonLabel,
-            nextEpisodePlayableVersions: viewModel.nextEpisodePlayableVersions,
-            nextEpisodeRoute: viewModel.nextEpisodeRoute,
-            nextEpisodeMenuLabel: viewModel.nextEpisodeMenuLabel,
-            showRatingKey: viewModel.showRatingKey,
-            usesFullWidthActionButtons: usesFullWidthActionButtons,
-            onPlay: { episode in
-                Task { await playback.play(ratingKey: episode.ratingKey) }
-            },
-            onPlayVersion: { episode, version in
-                Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
-            }
-        )
+        let layout = usesFullWidthActionButtons
+            ? AnyLayout(VStackLayout(spacing: 12))
+            : AnyLayout(HStackLayout(spacing: 12))
+
+        layout {
+            SeasonHeroActions(
+                nextEpisode: viewModel.nextEpisodeToPlay,
+                playButtonLabel: viewModel.playButtonLabel,
+                nextEpisodePlayableVersions: viewModel.nextEpisodePlayableVersions,
+                nextEpisodeRoute: viewModel.nextEpisodeRoute,
+                nextEpisodeMenuLabel: viewModel.nextEpisodeMenuLabel,
+                showRoute: viewModel.showRatingKey.map { viewModel.detailRoute(type: .show, ratingKey: $0) },
+                usesFullWidthActionButtons: usesFullWidthActionButtons,
+                onPlay: { episode in
+                    Task { await playback.play(ratingKey: episode.ratingKey) }
+                },
+                onPlayVersion: { episode, version in
+                    Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
+                }
+            )
+
+            DownloadActionButton(
+                ratingKey: viewModel.ratingKey,
+                type: .season,
+                fillsWidth: usesFullWidthActionButtons
+            )
+        }
     }
 
     private var usesFullWidthActionButtons: Bool {
@@ -200,7 +228,7 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func episodesSection(width: CGFloat) -> some View {
-        if !viewModel.episodes.isEmpty {
+        if !viewModel.displayEpisodes.isEmpty {
             let contentWidth = max(width - (horizontalPadding * 2), 280)
             let artworkWidth: CGFloat = {
                 #if os(tvOS)
@@ -219,17 +247,24 @@ struct SeasonDetailView: View {
                     .foregroundStyle(Color.duskTextPrimary)
 
                 LazyVStack(alignment: .leading, spacing: 20) {
-                    ForEach(viewModel.episodes) { episode in
+                    ForEach(viewModel.displayEpisodes) { episode in
                         SeasonEpisodeRow(
                             episode: episode,
-                            destination: AppNavigationRoute.media(type: .episode, ratingKey: episode.ratingKey),
+                            destination: viewModel.detailRoute(type: .episode, ratingKey: episode.ratingKey),
                             imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
                             label: viewModel.episodeLabel(episode),
                             subtitle: viewModel.episodeSubtitle(episode),
                             progress: viewModel.progress(for: episode),
+                            downloadStatus: viewModel.downloadStatus(for: episode),
+                            isPlayableOffline: viewModel.isPlayableOffline(episode),
+                            isUnavailableOffline: viewModel.isUnavailableOffline(episode),
+                            isWatched: viewModel.isWatched(episode),
+                            isUsingCachedData: viewModel.isUsingCachedData,
+                            showsOfflineAvailability: viewModel.showsOfflineAvailability,
                             artworkWidth: artworkWidth,
                             showsInlineSummary: showsInlineSummary,
                             onPlay: {
+                                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline(episode) else { return }
                                 Task { await playback.play(ratingKey: episode.ratingKey) }
                             }
                         )
@@ -253,7 +288,7 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func episodeContextMenu(_ episode: PlexEpisode) -> some View {
-        if episode.isPartiallyWatched {
+        if viewModel.isPartiallyWatched(episode) {
             Button {
                 Task { await playback.playFromStart(ratingKey: episode.ratingKey) }
             } label: {
@@ -262,11 +297,11 @@ struct SeasonDetailView: View {
         }
 
         Button {
-            Task { await viewModel.toggleWatched(for: episode) }
-        } label: {
+                Task { await viewModel.toggleWatched(for: episode) }
+            } label: {
             Label(
-                episode.isWatched ? "Mark Unwatched" : "Mark Watched",
-                systemImage: episode.isWatched ? "eye.slash" : "eye"
+                viewModel.isWatched(episode) ? "Mark Unwatched" : "Mark Watched",
+                systemImage: viewModel.isWatched(episode) ? "eye.slash" : "eye"
             )
         }
     }
@@ -280,6 +315,12 @@ private struct SeasonEpisodeRow: View {
     let label: String?
     let subtitle: String?
     let progress: Double?
+    let downloadStatus: DownloadStatus?
+    let isPlayableOffline: Bool
+    let isUnavailableOffline: Bool
+    let isWatched: Bool
+    let isUsingCachedData: Bool
+    let showsOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
     let onPlay: () -> Void
@@ -293,6 +334,12 @@ private struct SeasonEpisodeRow: View {
             label: label,
             subtitle: subtitle,
             progress: progress,
+            downloadStatus: downloadStatus,
+            isPlayableOffline: isPlayableOffline,
+            isUnavailableOffline: isUnavailableOffline,
+            isWatched: isWatched,
+            isUsingCachedData: isUsingCachedData,
+            showsOfflineAvailability: showsOfflineAvailability,
             artworkWidth: artworkWidth,
             showsInlineSummary: showsInlineSummary
         )
@@ -304,6 +351,12 @@ private struct SeasonEpisodeRow: View {
             label: label,
             subtitle: subtitle,
             progress: progress,
+            downloadStatus: downloadStatus,
+            isPlayableOffline: isPlayableOffline,
+            isUnavailableOffline: isUnavailableOffline,
+            isWatched: isWatched,
+            isUsingCachedData: isUsingCachedData,
+            showsOfflineAvailability: showsOfflineAvailability,
             artworkWidth: artworkWidth,
             showsInlineSummary: showsInlineSummary,
             onPlay: onPlay
@@ -318,7 +371,7 @@ private struct SeasonHeroActions: View {
     let nextEpisodePlayableVersions: [PlexMedia]
     let nextEpisodeRoute: AppNavigationRoute?
     let nextEpisodeMenuLabel: String
-    let showRatingKey: String?
+    let showRoute: AppNavigationRoute?
     let usesFullWidthActionButtons: Bool
     let onPlay: (PlexEpisode) -> Void
     let onPlayVersion: (PlexEpisode, PlexMedia) -> Void
@@ -360,8 +413,8 @@ private struct SeasonHeroActions: View {
             }
 
             #if os(tvOS)
-            if let showRatingKey {
-                NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
+            if let showRoute {
+                NavigationLink(value: showRoute) {
                     DetailHeroSecondaryActionButtonLabel(
                         title: "Go to Show",
                         systemImage: "tv.fill"
@@ -383,6 +436,12 @@ private struct TVSeasonEpisodeRow: View {
     let label: String?
     let subtitle: String?
     let progress: Double?
+    let downloadStatus: DownloadStatus?
+    let isPlayableOffline: Bool
+    let isUnavailableOffline: Bool
+    let isWatched: Bool
+    let isUsingCachedData: Bool
+    let showsOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
 
@@ -404,7 +463,8 @@ private struct TVSeasonEpisodeRow: View {
                         imageURL: imageURL,
                         progress: progress,
                         artworkWidth: artworkWidth,
-                        showsPlayOverlay: false
+                        showsPlayOverlay: false,
+                        isUnavailableOffline: isUnavailableOffline
                     )
                     .contentShape(.contextMenuPreview, artworkShape)
                 }
@@ -416,6 +476,12 @@ private struct TVSeasonEpisodeRow: View {
                     episode: episode,
                     label: label,
                     subtitle: subtitle,
+                    downloadStatus: downloadStatus,
+                    isPlayableOffline: isPlayableOffline,
+                    isUnavailableOffline: isUnavailableOffline,
+                    isWatched: isWatched,
+                    isUsingCachedData: isUsingCachedData,
+                    showsOfflineAvailability: showsOfflineAvailability,
                     showsInlineSummary: true,
                     inlineSummaryLineLimit: 5
                 )
@@ -436,6 +502,12 @@ private struct IOSSeasonEpisodeRow: View {
     let label: String?
     let subtitle: String?
     let progress: Double?
+    let downloadStatus: DownloadStatus?
+    let isPlayableOffline: Bool
+    let isUnavailableOffline: Bool
+    let isWatched: Bool
+    let isUsingCachedData: Bool
+    let showsOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
     let onPlay: () -> Void
@@ -458,10 +530,12 @@ private struct IOSSeasonEpisodeRow: View {
                         imageURL: imageURL,
                         progress: progress,
                         artworkWidth: artworkWidth,
-                        showsPlayOverlay: true
+                        showsPlayOverlay: !isUsingCachedData || isPlayableOffline,
+                        isUnavailableOffline: isUnavailableOffline
                     )
                 }
                 .buttonStyle(.plain)
+                .disabled(isUsingCachedData && !isPlayableOffline)
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(artworkShape)
                 .accessibilityLabel("Play \(episode.title)")
@@ -472,6 +546,12 @@ private struct IOSSeasonEpisodeRow: View {
                         episode: episode,
                         label: label,
                         subtitle: subtitle,
+                        downloadStatus: downloadStatus,
+                        isPlayableOffline: isPlayableOffline,
+                        isUnavailableOffline: isUnavailableOffline,
+                        isWatched: isWatched,
+                        isUsingCachedData: isUsingCachedData,
+                        showsOfflineAvailability: showsOfflineAvailability,
                         showsInlineSummary: showsInlineSummary
                     )
                     .contentShape(Rectangle())
@@ -504,6 +584,7 @@ private struct SeasonEpisodePosterArtwork: View {
     let progress: Double?
     let artworkWidth: CGFloat
     let showsPlayOverlay: Bool
+    let isUnavailableOffline: Bool
 
     var body: some View {
         PosterArtwork(
@@ -513,6 +594,7 @@ private struct SeasonEpisodePosterArtwork: View {
             imageAspectRatio: 16.0 / 9.0,
             showsPlayOverlay: showsPlayOverlay
         )
+        .opacity(isUnavailableOffline ? 0.46 : 1)
     }
 }
 
@@ -520,6 +602,12 @@ private struct SeasonEpisodeTextContent: View {
     let episode: PlexEpisode
     let label: String?
     let subtitle: String?
+    let downloadStatus: DownloadStatus?
+    let isPlayableOffline: Bool
+    let isUnavailableOffline: Bool
+    let isWatched: Bool
+    let isUsingCachedData: Bool
+    let showsOfflineAvailability: Bool
     let showsInlineSummary: Bool
     var inlineSummaryLineLimit: Int = 3
 
@@ -532,16 +620,18 @@ private struct SeasonEpisodeTextContent: View {
                         .foregroundStyle(Color.duskTextSecondary)
                 }
 
-                if episode.isWatched {
+                if isWatched {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption)
                         .foregroundStyle(Color.duskAccent)
                 }
+
+                downloadStatusBadge
             }
 
             Text(episode.title)
                 .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(isUnavailableOffline ? Color.duskTextSecondary : Color.duskTextPrimary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -554,6 +644,43 @@ private struct SeasonEpisodeTextContent: View {
             if showsInlineSummary {
                 SeasonEpisodeSummaryText(episode: episode, lineLimit: inlineSummaryLineLimit)
             }
+        }
+    }
+
+    @ViewBuilder
+    private var downloadStatusBadge: some View {
+        if isPlayableOffline {
+            Label("Downloaded", systemImage: "arrow.down.circle.fill")
+                .labelStyle(.iconOnly)
+                .font(.caption)
+                .foregroundStyle(Color.duskAccent)
+        } else if showsOfflineAvailability {
+            Text(isUsingCachedData ? "Unavailable Offline" : "Not Downloaded")
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(Color.duskTextSecondary)
+        } else if let downloadStatus, downloadStatus != .completed {
+            Text(downloadStatusLabel(downloadStatus))
+                .font(.caption2.weight(.semibold))
+                .foregroundStyle(downloadStatus == .failed ? .red : Color.duskTextSecondary)
+        }
+    }
+
+    private func downloadStatusLabel(_ status: DownloadStatus) -> String {
+        switch status {
+        case .queued:
+            return "Queued"
+        case .preparing:
+            return "Preparing"
+        case .downloading:
+            return "Downloading"
+        case .paused:
+            return "Paused"
+        case .failed:
+            return "Failed"
+        case .cancelled:
+            return "Cancelled"
+        case .completed:
+            return "Downloaded"
         }
     }
 }

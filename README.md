@@ -22,7 +22,7 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] Select which version to play
 - [x] tvOS App
 - [x] App Store Release
-- [ ] Offline playback (Downloads)
+- [x] Offline playback (Downloads)
 - [ ] Plex Home Integration
 
 ### Later down the line

@@ -75,6 +75,17 @@ actor DuskImageLoader {
         }
         #endif
 
+        if url.isFileURL {
+            let data = try Data(contentsOf: url)
+            guard let image = UIImage(data: data) else {
+                throw URLError(.cannotDecodeContentData)
+            }
+            #if canImport(UIKit)
+            memoryCache.setObject(image, forKey: cacheKey)
+            #endif
+            return image
+        }
+
         if let task = inFlightTasks[url] {
             return try await task.value
         }

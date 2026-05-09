@@ -8,6 +8,8 @@ struct PosterArtwork: View {
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay: Bool = false
+    var availabilityBadge: String? = nil
+    var isDimmed: Bool = false
 
     private let artworkShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
 
@@ -26,6 +28,11 @@ struct PosterArtwork: View {
         }
         .frame(width: width, height: imageHeight)
         .overlay {
+            if isDimmed {
+                Color.black.opacity(0.42)
+            }
+        }
+        .overlay {
             if showsPlayOverlay {
                 Image(systemName: "play.fill")
                     .font(.system(size: playOverlaySymbolSize, weight: .semibold))
@@ -37,6 +44,22 @@ struct PosterArtwork: View {
                             .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if let availabilityBadge, !availabilityBadge.isEmpty {
+                Text(availabilityBadge)
+                    .font(.caption2.weight(.bold))
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .lineLimit(1)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 5)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(
+                        Capsule()
+                            .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+                    .padding(8)
             }
         }
         .overlay(alignment: .bottomLeading) {
@@ -145,6 +168,8 @@ struct PosterCard: View {
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showsPlayOverlay: Bool = false
+    var availabilityBadge: String? = nil
+    var isDimmed: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -153,7 +178,9 @@ struct PosterCard: View {
                 progress: progress,
                 width: width,
                 imageAspectRatio: imageAspectRatio,
-                showsPlayOverlay: showsPlayOverlay
+                showsPlayOverlay: showsPlayOverlay,
+                availabilityBadge: availabilityBadge,
+                isDimmed: isDimmed
             )
 
             PosterCardText(

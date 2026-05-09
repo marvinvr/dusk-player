@@ -43,12 +43,18 @@ struct PlaybackDebugInfo: Sendable {
     }
 
     var directPlayLabel: String {
-        "Yes"
+        switch decision {
+        case .directPlay:
+            "Yes"
+        case .localDownload:
+            "Local"
+        }
     }
 
     var decisionLabel: String {
         switch decision {
         case .directPlay: "Direct Play"
+        case .localDownload: "Local Download"
         }
     }
 
@@ -141,6 +147,7 @@ struct PlaybackDebugInfo: Sendable {
 
 enum PlaybackDecision: Sendable {
     case directPlay
+    case localDownload
 }
 
 struct UpNextPresentation: Sendable {
