@@ -94,6 +94,7 @@
 		63851BA575916EDAEBDB819F /* OfflinePlaybackSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55733DDE10DDD70B9E80AFD /* OfflinePlaybackSyncStore.swift */; };
 		63F44021789B944936E3C438 /* PlaybackState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E247046B56BBFDBF4FF7FC91 /* PlaybackState.swift */; };
 		642A1E7EAC8350D56BA15243 /* LibrariesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1465A76C131A58D985D6EF8B /* LibrariesView.swift */; };
+		F0E1D2C3B4A596870123ABCD /* LibrariesHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D2 /* LibrariesHubView.swift */; };
 		64A39E2E1CADED5FC223363A /* PlayerViewModel+TrackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3EAF2638D0F06CB02215DF /* PlayerViewModel+TrackSelection.swift */; };
 		679D21365EA68E287D6C737B /* PlexMediaDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573F74A2D1ECED28B04F69D2 /* PlexMediaDetails.swift */; };
 		67F2F2052B2A10C70FF3BA6D /* PlexServiceError.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC07DAEED42C6DF6C3F87FA7 /* PlexServiceError.swift */; };
@@ -153,6 +154,7 @@
 		9D4237E5AE1EB9B6C6731103 /* PlexService+Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6751E9DB256A843A177F1492 /* PlexService+Images.swift */; };
 		9E116995C31AF13B4F4AF4F5 /* PlexService+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EA6CCEA23C3304F38B78D7 /* PlexService+Library.swift */; };
 		9E8D4CC4A8E04B9652317D2B /* LibrariesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1465A76C131A58D985D6EF8B /* LibrariesView.swift */; };
+		D4C3B2A1908F7E6D5C4B3A21 /* LibrariesHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1B2C3D4E5F60718A9B0C1D2 /* LibrariesHubView.swift */; };
 		9F1EAB5B8FDFBCF7F8525D9F /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36407804ED44963931F20BA /* DownloadTransfer.swift */; };
 		A044A3A01A60CFCEF89BEEB6 /* PlayerViewModel+PlaybackControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFCE74BFF7FA1D80CC5FD1D0 /* PlayerViewModel+PlaybackControls.swift */; };
 		A0739BC0AECBAEAA4493CA29 /* MediaCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E84406C8C1C0E18B6BD4D32 /* MediaCarousel.swift */; };
@@ -297,6 +299,7 @@
 		124D4F0CD015D34571A61801 /* ServerPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerPickerView.swift; sourceTree = "<group>"; };
 		1381933827E832D2448FF0DB /* LibraryItemsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryItemsViewModel.swift; sourceTree = "<group>"; };
 		1465A76C131A58D985D6EF8B /* LibrariesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrariesView.swift; sourceTree = "<group>"; };
+		A1B2C3D4E5F60718A9B0C1D2 /* LibrariesHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrariesHubView.swift; sourceTree = "<group>"; };
 		19083B25FF28C5688D1C762D /* HomeSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSharedViews.swift; sourceTree = "<group>"; };
 		191C2E24B88A2F60782E9E21 /* PlatformPosterCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformPosterCard.swift; sourceTree = "<group>"; };
 		1CBED87D1B9D75585F4DD189 /* PlexService+People.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+People.swift"; sourceTree = "<group>"; };
@@ -503,6 +506,7 @@
 		3704401D9C7DFA5FDF5C891A /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
+				A1B2C3D4E5F60718A9B0C1D2 /* LibrariesHubView.swift */,
 				1465A76C131A58D985D6EF8B /* LibrariesView.swift */,
 				B4EC987E87318E2BFA93ADA0 /* LibrariesViewModel.swift */,
 				D1E38D5DFEC2C3D4DEA908C7 /* LibraryGenreSupport.swift */,
@@ -861,6 +865,7 @@
 				C45AD8910DC0A123DC0E5F2E /* HomeView.swift in Sources */,
 				EAEB3E862EE90F8C106EB566 /* HomeViewModel.swift in Sources */,
 				789BEDF7C3E478F9C988362A /* KeychainHelper.swift in Sources */,
+				F0E1D2C3B4A596870123ABCD /* LibrariesHubView.swift in Sources */,
 				642A1E7EAC8350D56BA15243 /* LibrariesView.swift in Sources */,
 				8127F4D4447EBB68AFBE68B3 /* LibrariesViewModel.swift in Sources */,
 				51067C4AE0230027EAA8E6FE /* LibraryGenreSupport.swift in Sources */,
@@ -989,6 +994,7 @@
 				5716AC625828ACE9A4E2E226 /* HomeView.swift in Sources */,
 				51CDA7EF644BA8EBD3495EA3 /* HomeViewModel.swift in Sources */,
 				3F7BABC078A82BFFEAE1E85D /* KeychainHelper.swift in Sources */,
+				D4C3B2A1908F7E6D5C4B3A21 /* LibrariesHubView.swift in Sources */,
 				9E8D4CC4A8E04B9652317D2B /* LibrariesView.swift in Sources */,
 				69F356B54ED9EB3D3882F12B /* LibrariesViewModel.swift in Sources */,
 				BAF9EB7802BBCC880D1F4635 /* LibraryGenreSupport.swift in Sources */,
