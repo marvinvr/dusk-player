@@ -112,10 +112,17 @@ struct DownloadFileStore: Sendable {
     }
 
     func availableStorageBytes() -> Int64? {
+        #if os(tvOS)
+        guard let values = try? rootDirectory.resourceValues(forKeys: [.volumeAvailableCapacityKey]) else {
+            return nil
+        }
+        return values.volumeAvailableCapacity.map(Int64.init)
+        #else
         guard let values = try? rootDirectory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey]) else {
             return nil
         }
         return values.volumeAvailableCapacityForImportantUsage
+        #endif
     }
 
     func saveResumeData(_ data: Data, globalKey: String) throws -> String {
