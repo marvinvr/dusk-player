@@ -29,6 +29,7 @@ final class DownloadManager {
     private(set) var records: [DownloadedMediaRecord] = []
     private(set) var isProcessingQueue = false
     private(set) var isQueuePaused = false
+    private(set) var deletingDownloadIDs: Set<String> = []
 
     private(set) var isNetworkConstrained = false
 
@@ -156,6 +157,22 @@ final class DownloadManager {
 
     func isDownloaded(ratingKey: String) -> Bool {
         record(for: ratingKey)?.status == .completed
+    }
+
+    func isDeletingDownload(ratingKey: String) -> Bool {
+        guard let record = record(for: ratingKey) else { return false }
+        return deletingDownloadIDs.contains(record.globalKey)
+    }
+
+    func isDeletingDownload(ratingKey: String, type: PlexMediaType) -> Bool {
+        relatedRecords(ratingKey: ratingKey, type: type)
+            .contains { deletingDownloadIDs.contains($0.globalKey) }
+    }
+
+    func isDeletingDownloads(showKey: String) -> Bool {
+        records
+            .filter { $0.grandparentRatingKey == showKey || $0.parentRatingKey == showKey }
+            .contains { deletingDownloadIDs.contains($0.globalKey) }
     }
 
     func isPlayableOffline(ratingKey: String) -> Bool {
@@ -353,15 +370,18 @@ final class DownloadManager {
 
     func deleteDownload(ratingKey: String) {
         guard let record = record(for: ratingKey) else { return }
+        guard !deletingDownloadIDs.contains(record.globalKey) else { return }
+
+        deletingDownloadIDs.insert(record.globalKey)
         if let taskIdentifier = record.downloadTaskIdentifier {
             transferController.cancel(taskIdentifier: taskIdentifier)
         }
-        fileStore.deleteVideo(relativePath: record.relativeVideoPath)
-        fileStore.deleteResumeData(relativePath: record.resumeDataPath)
-        records.removeAll { $0.ratingKey == ratingKey }
-        lastProgressPersistDates.removeValue(forKey: record.globalKey)
-        persist()
-        processQueueIfNeeded()
+
+        Task.detached(priority: .utility) { [fileStore, record, weak self] in
+            fileStore.deleteVideo(relativePath: record.relativeVideoPath)
+            fileStore.deleteResumeData(relativePath: record.resumeDataPath)
+            await self?.finishDeleting(record: record)
+        }
     }
 
     func deleteDownloads(showKey: String) {
@@ -382,6 +402,7 @@ final class DownloadManager {
 
         records.removeAll()
         lastProgressPersistDates.removeAll()
+        deletingDownloadIDs.removeAll()
         isQueuePaused = false
         fileStore.deleteAllStoredData()
         persist()
@@ -1084,6 +1105,14 @@ final class DownloadManager {
         guard constrained != isNetworkConstrained else { return }
         isNetworkConstrained = constrained
         evaluateNetworkConstraints()
+    }
+
+    private func finishDeleting(record: DownloadedMediaRecord) {
+        records.removeAll { $0.ratingKey == record.ratingKey }
+        lastProgressPersistDates.removeValue(forKey: record.globalKey)
+        deletingDownloadIDs.remove(record.globalKey)
+        persist()
+        processQueueIfNeeded()
     }
 
     private func persist() {

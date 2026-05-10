@@ -171,7 +171,7 @@ extension PlaybackCoordinator {
 
         if let activeItemDetails,
            activeItemDetails.type == .episode,
-           let nextEpisode = try? await plexService.getNextEpisode(after: activeItemDetails) {
+           let nextEpisode = await nextEpisode(after: activeItemDetails) {
             finalizeCurrentPlaybackSession(markCompleted: true)
             presentUpNext(for: nextEpisode)
             return

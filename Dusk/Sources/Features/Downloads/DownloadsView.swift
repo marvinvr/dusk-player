@@ -56,24 +56,26 @@ struct DownloadsView: View {
 
     private var downloadsGrid: some View {
         DownloadsPosterGrid(items: downloadedItems) { width, item in
+            let deleting = isDeleting(item)
+
             PosterNavigationCard(
                 route: item.route,
                 imageURL: downloadManager.localArtworkURL(for: item.imagePath),
                 title: item.title,
                 subtitle: item.subtitle,
-                width: width
+                width: width,
+                availabilityBadge: deleting ? "Deleting" : nil,
+                isDimmed: deleting
             ) {
-                Button(role: .destructive) {
-                    switch item {
-                    case .movie(let record):
-                        downloadManager.deleteDownload(ratingKey: record.ratingKey)
-                    case .show(let show):
-                        downloadManager.deleteDownloads(showKey: show.ratingKey)
+                if !deleting {
+                    Button(role: .destructive) {
+                        delete(item)
+                    } label: {
+                        Label("Delete Download", systemImage: "trash")
                     }
-                } label: {
-                    Label("Delete Download", systemImage: "trash")
                 }
-            }   
+            }
+            .disabled(deleting)
         }
     }
 
@@ -196,15 +198,33 @@ struct DownloadsView: View {
     }
 
     private var emptyQueueState: some View {
-        Spacer()
-            .overlay {
-                FeatureEmptyStateView(
-                    systemImage: "arrow.down.circle",
-                    title: "Nothing Downloading",
-                    message: "Active, paused, failed, and queued downloads will appear here."
+        VStack(spacing: 14) {
+            Image(systemName: "tray")
+                .font(.system(size: 38, weight: .semibold))
+                .foregroundStyle(Color.duskTextSecondary)
+                .frame(width: 72, height: 72)
+                .background(Color.duskSurface, in: Circle())
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
                 )
-                .padding(.horizontal, 32)
+
+            VStack(spacing: 6) {
+                Text("No Downloads Queued")
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Text("Start downloading a movie or episode and it will show up here with progress, pause, and retry controls.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .lineLimit(3)
             }
+        }
+        .padding(.horizontal, 36)
+        .frame(maxWidth: 380)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(.top, 96)
     }
 
     private var queueSummaryText: String {
@@ -233,6 +253,24 @@ struct DownloadsView: View {
 
     private func formattedBytes(_ value: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+
+    private func isDeleting(_ item: DownloadedLibraryItem) -> Bool {
+        switch item {
+        case .movie(let record):
+            downloadManager.isDeletingDownload(ratingKey: record.ratingKey)
+        case .show(let show):
+            downloadManager.isDeletingDownloads(showKey: show.ratingKey)
+        }
+    }
+
+    private func delete(_ item: DownloadedLibraryItem) {
+        switch item {
+        case .movie(let record):
+            downloadManager.deleteDownload(ratingKey: record.ratingKey)
+        case .show(let show):
+            downloadManager.deleteDownloads(showKey: show.ratingKey)
+        }
     }
 }
 
@@ -368,6 +406,10 @@ private struct DownloadQueueRow: View {
 
     let record: DownloadedMediaRecord
 
+    private var isDeleting: Bool {
+        downloadManager.isDeletingDownload(ratingKey: record.ratingKey)
+    }
+
     var body: some View {
         NavigationLink(value: AppNavigationRoute.media(type: record.type, ratingKey: record.ratingKey)) {
             HStack(spacing: 12) {
@@ -402,51 +444,59 @@ private struct DownloadQueueRow: View {
             }
             .padding(12)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .opacity(isDeleting ? 0.65 : 1)
         }
         .buttonStyle(.plain)
+        .disabled(isDeleting)
         .contextMenu {
-            if record.status.canPause {
-                Button {
-                    downloadManager.pauseDownload(ratingKey: record.ratingKey)
-                } label: {
-                    Label("Pause Download", systemImage: "pause")
+            if !isDeleting {
+                if record.status.canPause {
+                    Button {
+                        downloadManager.pauseDownload(ratingKey: record.ratingKey)
+                    } label: {
+                        Label("Pause Download", systemImage: "pause")
+                    }
                 }
-            }
 
-            if record.status == .paused {
-                Button {
-                    downloadManager.resumeDownload(ratingKey: record.ratingKey)
-                } label: {
-                    Label("Resume Download", systemImage: "play")
+                if record.status == .paused {
+                    Button {
+                        downloadManager.resumeDownload(ratingKey: record.ratingKey)
+                    } label: {
+                        Label("Resume Download", systemImage: "play")
+                    }
                 }
-            }
 
-            if record.status == .failed {
-                Button {
-                    downloadManager.retryDownload(ratingKey: record.ratingKey)
-                } label: {
-                    Label("Retry Download", systemImage: "arrow.clockwise")
+                if record.status == .failed {
+                    Button {
+                        downloadManager.retryDownload(ratingKey: record.ratingKey)
+                    } label: {
+                        Label("Retry Download", systemImage: "arrow.clockwise")
+                    }
                 }
-            }
 
-            if record.status == .queued || record.status == .preparing || record.status == .downloading || record.status == .paused {
+                if record.status == .queued || record.status == .preparing || record.status == .downloading || record.status == .paused {
+                    Button(role: .destructive) {
+                        downloadManager.cancelDownload(ratingKey: record.ratingKey)
+                    } label: {
+                        Label("Cancel Download", systemImage: "xmark.circle")
+                    }
+                }
+
                 Button(role: .destructive) {
-                    downloadManager.cancelDownload(ratingKey: record.ratingKey)
+                    downloadManager.deleteDownload(ratingKey: record.ratingKey)
                 } label: {
-                    Label("Cancel Download", systemImage: "xmark.circle")
+                    Label("Delete Download", systemImage: "trash")
                 }
-            }
-
-            Button(role: .destructive) {
-                downloadManager.deleteDownload(ratingKey: record.ratingKey)
-            } label: {
-                Label("Delete Download", systemImage: "trash")
             }
         }
     }
 
     private var statusText: String {
-        switch record.status {
+        if isDeleting {
+            return "Deleting"
+        }
+
+        return switch record.status {
         case .queued:
             record.totalBytes.map { "Queued · \(formattedBytes($0))" } ?? "Queued"
         case .preparing:
@@ -465,22 +515,29 @@ private struct DownloadQueueRow: View {
     }
 
     private var statusColor: Color {
-        record.status == .failed ? .red : Color.duskTextSecondary
+        if isDeleting {
+            return Color.duskTextSecondary
+        }
+
+        return record.status == .failed ? .red : Color.duskTextSecondary
     }
 
     @ViewBuilder
     private var statusIcon: some View {
-        switch record.status {
-        case .downloading:
+        if isDeleting {
+            ProgressView()
+                .controlSize(.small)
+                .tint(Color.duskAccent)
+        } else if record.status == .downloading {
             CircularProgressView(progress: record.progress)
                 .frame(width: 24, height: 24)
-        case .paused:
+        } else if record.status == .paused {
             Image(systemName: "pause.circle.fill")
                 .foregroundStyle(Color.duskAccent)
-        case .failed:
+        } else if record.status == .failed {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(.red)
-        default:
+        } else {
             Image(systemName: record.status == .queued ? "clock" : "arrow.down.circle")
                 .foregroundStyle(Color.duskTextSecondary)
         }

@@ -62,7 +62,7 @@ struct MainTabView: View {
         let libraryTypes = librariesViewModel?.availableLibraryTypes ?? PlexLibraryType.allCases
         let hasDownloads = !downloadManager.records.isEmpty
 
-        var tabs: [MainTabItem] = [.home, .search]
+        var tabs: [MainTabItem] = [.home]
 
         if libraryTypes.count == 1, let only = libraryTypes.first {
             tabs.append(.library(only))
@@ -71,6 +71,8 @@ struct MainTabView: View {
         } else if !libraryTypes.isEmpty {
             tabs.append(.libraries)
         }
+
+        tabs.append(.search)
 
         if hasDownloads {
             tabs.append(.downloads)

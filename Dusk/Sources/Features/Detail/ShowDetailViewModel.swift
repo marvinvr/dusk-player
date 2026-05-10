@@ -146,7 +146,7 @@ final class ShowDetailViewModel {
         guard showsOfflineAvailability, let downloadManager else { return nil }
         let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
         guard downloadedCount > 0 else { return "Not Downloaded" }
-        guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Offline" }
+        guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Available Offline" }
         return "Partial"
     }
 
@@ -213,14 +213,13 @@ final class ShowDetailViewModel {
     var offlineBannerText: String? {
         guard showsOfflineAvailability else { return nil }
         let downloadedCount = downloadManager?.downloadedEpisodeCount(showKey: ratingKey) ?? 0
-        let total = details?.leafCount
-        if downloadedCount == 0 {
-            return "Showing saved show metadata. No downloaded episodes are available for this show."
+        guard let total = details?.leafCount, total > 0, downloadedCount > 0 else {
+            return nil
         }
-        if let total, total > 0 {
-            return "\(downloadedCount) of \(total) episodes are saved on this device. Items marked Not Downloaded require Plex."
-        }
-        return "Showing downloaded episodes from saved metadata. Items marked Not Downloaded require Plex."
+
+        let baseText = "\(downloadedCount) of \(total) episodes are saved on this device."
+        guard downloadedCount < total else { return baseText }
+        return "\(baseText) Items marked Not Downloaded require an Internet connection."
     }
 
     private func reload() async throws {

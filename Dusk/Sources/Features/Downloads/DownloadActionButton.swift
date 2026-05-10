@@ -30,50 +30,52 @@ struct DownloadActionButton: View {
         }
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Capsule())
-        .disabled(isStartingDownload && status == nil)
+        .disabled(isDeleting || (isStartingDownload && status == nil))
         .onChange(of: status) { _, newStatus in
             if newStatus != nil {
                 isStartingDownload = false
             }
         }
         .contextMenu {
-            if status == .queued || status == .preparing || status == .downloading {
-                Button {
-                    downloadManager.pauseDownload(ratingKey: ratingKey, type: type)
-                } label: {
-                    Label("Pause Download", systemImage: "pause")
+            if !isDeleting {
+                if status == .queued || status == .preparing || status == .downloading {
+                    Button {
+                        downloadManager.pauseDownload(ratingKey: ratingKey, type: type)
+                    } label: {
+                        Label("Pause Download", systemImage: "pause")
+                    }
                 }
-            }
 
-            if status == .paused {
-                Button {
-                    downloadManager.resumeDownload(ratingKey: ratingKey, type: type)
-                } label: {
-                    Label("Resume Download", systemImage: "play")
+                if status == .paused {
+                    Button {
+                        downloadManager.resumeDownload(ratingKey: ratingKey, type: type)
+                    } label: {
+                        Label("Resume Download", systemImage: "play")
+                    }
                 }
-            }
 
-            if status == .queued || status == .preparing || status == .downloading || status == .paused {
-                Button(role: .destructive) {
-                    downloadManager.cancelDownload(ratingKey: ratingKey, type: type)
-                } label: {
-                    Label("Cancel Download", systemImage: "xmark.circle")
+                if status == .queued || status == .preparing || status == .downloading || status == .paused {
+                    Button(role: .destructive) {
+                        downloadManager.cancelDownload(ratingKey: ratingKey, type: type)
+                    } label: {
+                        Label("Cancel Download", systemImage: "xmark.circle")
+                    }
                 }
-            }
 
-            if status == .completed || status == .failed || status == .cancelled || status == .paused {
-                Button(role: .destructive) {
-                    downloadManager.deleteDownload(ratingKey: ratingKey)
-                } label: {
-                    Label("Delete Download", systemImage: "trash")
+                if status == .completed || status == .failed || status == .cancelled || status == .paused {
+                    Button(role: .destructive) {
+                        downloadManager.deleteDownload(ratingKey: ratingKey)
+                    } label: {
+                        Label("Delete Download", systemImage: "trash")
+                    }
                 }
-            }
 
-            if status == .failed {
-                Button {
-                    downloadManager.retryDownload(ratingKey: ratingKey)
-                } label: {
-                    Label("Retry Download", systemImage: "arrow.clockwise")
+                if status == .failed {
+                    Button {
+                        downloadManager.retryDownload(ratingKey: ratingKey)
+                    } label: {
+                        Label("Retry Download", systemImage: "arrow.clockwise")
+                    }
                 }
             }
         }
@@ -87,9 +89,13 @@ struct DownloadActionButton: View {
         downloadManager.progress(for: ratingKey, type: type) ?? 0
     }
 
+    private var isDeleting: Bool {
+        downloadManager.isDeletingDownload(ratingKey: ratingKey, type: type)
+    }
+
     @ViewBuilder
     private var icon: some View {
-        if isStartingDownload && status == nil {
+        if isDeleting || (isStartingDownload && status == nil) {
             ProgressView()
                 .controlSize(.small)
                 .tint(Color.duskTextPrimary)
@@ -115,6 +121,10 @@ struct DownloadActionButton: View {
     }
 
     private var title: String {
+        if isDeleting {
+            return "Deleting Download"
+        }
+
         if isStartingDownload && status == nil {
             return "Starting Download"
         }
@@ -155,7 +165,11 @@ struct DownloadActionButton: View {
     }
 
     private var foreground: Color {
-        switch status {
+        if isDeleting {
+            return Color.duskTextSecondary
+        }
+
+        return switch status {
         case .completed:
             Color.duskAccent
         case .paused:
@@ -168,7 +182,7 @@ struct DownloadActionButton: View {
     }
 
     private func handleTap() {
-        if isStartingDownload && status == nil {
+        if isDeleting || (isStartingDownload && status == nil) {
             return
         } else if status == .queued || status == .preparing || status == .downloading {
             downloadManager.pauseDownload(ratingKey: ratingKey, type: type)

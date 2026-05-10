@@ -148,11 +148,9 @@ final class SeasonDetailViewModel {
     var offlineBannerText: String? {
         guard showsOfflineAvailability else { return nil }
         let downloadedCount = downloadManager?.downloadedEpisodeCount(seasonKey: ratingKey) ?? 0
-        if downloadedCount == 0 {
-            return "Showing saved season metadata. No episodes from this season are downloaded."
-        }
-        let total = details?.leafCount ?? episodes.count
-        return "\(downloadedCount) of \(total) episodes are saved on this device. Episodes marked Not Downloaded require Plex."
+        let total = max(details?.leafCount ?? episodes.count, downloadedCount)
+        let episodeLabel = total == 1 ? "episode" : "episodes"
+        return "\(downloadedCount) of \(total) \(episodeLabel) downloaded and available offline."
     }
 
     func isPlayableOffline(_ episode: PlexEpisode) -> Bool {
