@@ -42,7 +42,7 @@ final class EpisodeDetailViewModel {
                 watched: targetWatched
             )
             offlineStateVersion += 1
-            await offlinePlaybackSyncManager?.syncPendingActions()
+            await offlinePlaybackSyncManager?.syncPendingActions(force: true)
             return
         }
 

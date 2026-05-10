@@ -199,7 +199,7 @@ struct SettingsTVView: View {
                         ) {
                             guard !offlinePlaybackSyncManager.isSyncing else { return }
                             Task {
-                                await offlinePlaybackSyncManager.syncPendingActions()
+                                await offlinePlaybackSyncManager.syncPendingActions(force: true)
                             }
                         }
                     }

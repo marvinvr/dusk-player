@@ -213,7 +213,7 @@ struct SettingsIOSView: View {
 
                     Button {
                         Task {
-                            await offlinePlaybackSyncManager.syncPendingActions()
+                            await offlinePlaybackSyncManager.syncPendingActions(force: true)
                         }
                     } label: {
                         if offlinePlaybackSyncManager.isSyncing {

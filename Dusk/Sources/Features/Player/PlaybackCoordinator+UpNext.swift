@@ -130,46 +130,7 @@ extension PlaybackCoordinator {
     }
 
     private func cachedNextEpisode(after episode: PlexMediaDetails) -> PlexEpisode? {
-        guard episode.type == .episode,
-              let downloadManager,
-              let seasonKey = episode.parentRatingKey,
-              let showKey = episode.grandparentRatingKey else {
-            return nil
-        }
-
-        let currentSeasonEpisodes = (downloadManager.cachedEpisodes(seasonKey: seasonKey) ?? [])
-            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
-
-        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
-            let remainingEpisodes = currentSeasonEpisodes[currentSeasonEpisodes.index(after: currentEpisodeIndex)...]
-            if let nextDownloadedEpisode = remainingEpisodes.first(where: { downloadManager.isPlayableOffline(ratingKey: $0.ratingKey) }) {
-                return nextDownloadedEpisode
-            }
-        } else if let currentEpisodeNumber = episode.index,
-                  let nextDownloadedEpisode = currentSeasonEpisodes.first(where: {
-                      ($0.index ?? 0) > currentEpisodeNumber
-                      && downloadManager.isPlayableOffline(ratingKey: $0.ratingKey)
-                  }) {
-            return nextDownloadedEpisode
-        }
-
-        let seasons = (downloadManager.cachedSeasons(showKey: showKey) ?? [])
-            .sorted { $0.index < $1.index }
-        let currentSeasonIndex = episode.parentIndex
-            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
-
-        guard let currentSeasonIndex else { return nil }
-
-        for season in seasons where season.index > currentSeasonIndex {
-            let episodes = (downloadManager.cachedEpisodes(seasonKey: season.ratingKey) ?? [])
-                .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
-
-            if let firstDownloadedEpisode = episodes.first(where: { downloadManager.isPlayableOffline(ratingKey: $0.ratingKey) }) {
-                return firstDownloadedEpisode
-            }
-        }
-
-        return nil
+        downloadManager?.cachedNextDownloadedEpisode(after: episode)
     }
 
     private func startUpNextPlayback(trigger: UpNextStartTrigger) async {

@@ -144,7 +144,7 @@ final class DownloadManager {
     }
 
     func status(for ratingKey: String, type: PlexMediaType) -> DownloadStatus? {
-        aggregateStatus(for: relatedRecords(ratingKey: ratingKey, type: type))
+        downloadState(for: DownloadScope(ratingKey: ratingKey, type: type)).status
     }
 
     func progress(for ratingKey: String) -> Double? {
@@ -152,7 +152,8 @@ final class DownloadManager {
     }
 
     func progress(for ratingKey: String, type: PlexMediaType) -> Double? {
-        aggregateProgress(for: relatedRecords(ratingKey: ratingKey, type: type))
+        let state = downloadState(for: DownloadScope(ratingKey: ratingKey, type: type))
+        return state.hasRecords ? state.progress : nil
     }
 
     func isDownloaded(ratingKey: String) -> Bool {
@@ -165,14 +166,24 @@ final class DownloadManager {
     }
 
     func isDeletingDownload(ratingKey: String, type: PlexMediaType) -> Bool {
-        relatedRecords(ratingKey: ratingKey, type: type)
-            .contains { deletingDownloadIDs.contains($0.globalKey) }
+        downloadState(for: DownloadScope(ratingKey: ratingKey, type: type)).isDeleting
     }
 
     func isDeletingDownloads(showKey: String) -> Bool {
         records
             .filter { $0.grandparentRatingKey == showKey || $0.parentRatingKey == showKey }
             .contains { deletingDownloadIDs.contains($0.globalKey) }
+    }
+
+    func downloadState(for scope: DownloadScope) -> DownloadControlState {
+        let records = relatedRecords(for: scope)
+        return DownloadControlState(
+            scope: scope,
+            status: aggregateStatus(for: records),
+            progress: aggregateProgress(for: records) ?? 0,
+            isDeleting: records.contains { deletingDownloadIDs.contains($0.globalKey) },
+            records: records
+        )
     }
 
     func isPlayableOffline(ratingKey: String) -> Bool {
@@ -211,6 +222,7 @@ final class DownloadManager {
             default:
                 break
             }
+            removeAggregatePlaceholder(for: DownloadScope(ratingKey: ratingKey, type: type))
             processQueueIfNeeded()
         } catch {
             upsertFailedPlaceholder(ratingKey: ratingKey, type: type, error: error)
@@ -252,17 +264,13 @@ final class DownloadManager {
     }
 
     func pauseDownload(ratingKey: String, type: PlexMediaType) {
-        let ratingKeys = relatedRecords(ratingKey: ratingKey, type: type)
-            .filter { $0.status.canPause }
-            .map(\.ratingKey)
+        pauseDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    }
 
-        guard !ratingKeys.isEmpty else {
-            pauseDownload(ratingKey: ratingKey)
-            return
-        }
-
-        for childRatingKey in ratingKeys {
-            pauseDownload(ratingKey: childRatingKey)
+    func pauseDownload(scope: DownloadScope) {
+        performOnRelatedRecords(scope) { record in
+            guard record.status.canPause else { return }
+            pauseDownload(ratingKey: record.ratingKey)
         }
     }
 
@@ -280,17 +288,13 @@ final class DownloadManager {
     }
 
     func resumeDownload(ratingKey: String, type: PlexMediaType) {
-        let ratingKeys = relatedRecords(ratingKey: ratingKey, type: type)
-            .filter { $0.status.canResume }
-            .map(\.ratingKey)
+        resumeDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    }
 
-        guard !ratingKeys.isEmpty else {
-            resumeDownload(ratingKey: ratingKey)
-            return
-        }
-
-        for childRatingKey in ratingKeys {
-            resumeDownload(ratingKey: childRatingKey)
+    func resumeDownload(scope: DownloadScope) {
+        performOnRelatedRecords(scope) { record in
+            guard record.status.canResume else { return }
+            resumeDownload(ratingKey: record.ratingKey)
         }
     }
 
@@ -313,23 +317,19 @@ final class DownloadManager {
     }
 
     func cancelDownload(ratingKey: String, type: PlexMediaType) {
-        let ratingKeys = relatedRecords(ratingKey: ratingKey, type: type)
-            .map(\.ratingKey)
+        cancelDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    }
 
-        guard !ratingKeys.isEmpty else {
-            cancelDownload(ratingKey: ratingKey)
-            return
-        }
-
-        for childRatingKey in ratingKeys {
-            cancelDownload(ratingKey: childRatingKey)
+    func cancelDownload(scope: DownloadScope) {
+        performOnRelatedRecords(scope) { record in
+            cancelDownload(ratingKey: record.ratingKey)
         }
     }
 
     func pauseAllDownloads() {
         isQueuePaused = true
         let pausableRatingKeys = records
-            .filter { $0.status.canPause }
+            .filter { $0.status.canPause && !deletingDownloadIDs.contains($0.globalKey) }
             .map(\.ratingKey)
         for ratingKey in pausableRatingKeys {
             pauseDownload(ratingKey: ratingKey)
@@ -339,7 +339,7 @@ final class DownloadManager {
     func resumeAllDownloads() {
         isQueuePaused = false
         var changed = false
-        for index in records.indices where records[index].status == .paused {
+        for index in records.indices where records[index].status == .paused && !deletingDownloadIDs.contains(records[index].globalKey) {
             records[index].status = .queued
             records[index].downloadTaskIdentifier = nil
             records[index].errorMessage = nil
@@ -370,28 +370,19 @@ final class DownloadManager {
 
     func deleteDownload(ratingKey: String) {
         guard let record = record(for: ratingKey) else { return }
-        guard !deletingDownloadIDs.contains(record.globalKey) else { return }
+        deleteRecords([record])
+    }
 
-        deletingDownloadIDs.insert(record.globalKey)
-        if let taskIdentifier = record.downloadTaskIdentifier {
-            transferController.cancel(taskIdentifier: taskIdentifier)
-        }
+    func deleteDownload(ratingKey: String, type: PlexMediaType) {
+        deleteDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    }
 
-        Task.detached(priority: .utility) { [fileStore, record, weak self] in
-            fileStore.deleteVideo(relativePath: record.relativeVideoPath)
-            fileStore.deleteResumeData(relativePath: record.resumeDataPath)
-            await self?.finishDeleting(record: record)
-        }
+    func deleteDownload(scope: DownloadScope) {
+        deleteRecords(relatedRecords(for: scope))
     }
 
     func deleteDownloads(showKey: String) {
-        let episodeKeys = records
-            .filter { $0.grandparentRatingKey == showKey || $0.parentRatingKey == showKey }
-            .map(\.ratingKey)
-
-        for ratingKey in episodeKeys {
-            deleteDownload(ratingKey: ratingKey)
-        }
+        deleteDownload(scope: DownloadScope(ratingKey: showKey, type: .show))
     }
 
     func deleteAllDownloads() {
@@ -427,6 +418,48 @@ final class DownloadManager {
 
     func cachedEpisodes(seasonKey: String) -> [PlexEpisode]? {
         metadataCache.firstCachedEpisodes(seasonKey: seasonKey, serverIDs: preferredServerIDs)
+    }
+
+    func cachedNextDownloadedEpisode(after episode: PlexMediaDetails) -> PlexEpisode? {
+        guard episode.type == .episode,
+              let seasonKey = episode.parentRatingKey,
+              let showKey = episode.grandparentRatingKey else {
+            return nil
+        }
+
+        let currentSeasonEpisodes = (cachedEpisodes(seasonKey: seasonKey) ?? [])
+            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+
+        if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
+            let remainingEpisodes = currentSeasonEpisodes[currentSeasonEpisodes.index(after: currentEpisodeIndex)...]
+            if let nextDownloadedEpisode = remainingEpisodes.first(where: { isPlayableOffline(ratingKey: $0.ratingKey) }) {
+                return nextDownloadedEpisode
+            }
+        } else if let currentEpisodeNumber = episode.index,
+                  let nextDownloadedEpisode = currentSeasonEpisodes.first(where: {
+                      ($0.index ?? 0) > currentEpisodeNumber
+                      && isPlayableOffline(ratingKey: $0.ratingKey)
+                  }) {
+            return nextDownloadedEpisode
+        }
+
+        let seasons = (cachedSeasons(showKey: showKey) ?? [])
+            .sorted { $0.index < $1.index }
+        let currentSeasonIndex = episode.parentIndex
+            ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
+
+        guard let currentSeasonIndex else { return nil }
+
+        for season in seasons where season.index > currentSeasonIndex {
+            let episodes = (cachedEpisodes(seasonKey: season.ratingKey) ?? [])
+                .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+
+            if let firstDownloadedEpisode = episodes.first(where: { isPlayableOffline(ratingKey: $0.ratingKey) }) {
+                return firstDownloadedEpisode
+            }
+        }
+
+        return nil
     }
 
     func localArtworkURL(for path: String?) -> URL? {
@@ -564,7 +597,7 @@ final class DownloadManager {
 
         while !isQueuePaused,
               activeDownloadCount < preferences.maximumActiveDownloads.rawValue,
-              let next = records.first(where: { $0.status == .queued }) {
+              let next = records.first(where: { $0.status == .queued && !deletingDownloadIDs.contains($0.globalKey) }) {
             await startDownload(record: next)
         }
     }
@@ -823,20 +856,27 @@ final class DownloadManager {
         }
     }
 
-    private func relatedRecords(ratingKey: String, type: PlexMediaType) -> [DownloadedMediaRecord] {
-        switch type {
+    private func relatedRecords(for scope: DownloadScope) -> [DownloadedMediaRecord] {
+        switch scope.type {
         case .season:
             let episodeRecords = records.filter {
-                $0.type == .episode && $0.parentRatingKey == ratingKey
+                $0.type == .episode && $0.parentRatingKey == scope.ratingKey
             }
-            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == ratingKey } : episodeRecords
+            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == scope.ratingKey } : episodeRecords
         case .show:
             let episodeRecords = records.filter {
-                $0.type == .episode && ($0.grandparentRatingKey == ratingKey || $0.parentRatingKey == ratingKey)
+                $0.type == .episode && ($0.grandparentRatingKey == scope.ratingKey || $0.parentRatingKey == scope.ratingKey)
             }
-            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == ratingKey } : episodeRecords
+            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == scope.ratingKey } : episodeRecords
         default:
-            return records.filter { $0.ratingKey == ratingKey }
+            return records.filter { $0.ratingKey == scope.ratingKey }
+        }
+    }
+
+    private func performOnRelatedRecords(_ scope: DownloadScope, action: (DownloadedMediaRecord) -> Void) {
+        let related = relatedRecords(for: scope)
+        for record in related {
+            action(record)
         }
     }
 
@@ -898,6 +938,7 @@ final class DownloadManager {
         switch event {
         case let .progress(taskIdentifier, globalKey, progress, downloadedBytes, totalBytes):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
+            guard !deletingDownloadIDs.contains(globalKey) else { return }
             update(globalKey: globalKey, persist: shouldPersistProgress(globalKey: globalKey, progress: progress)) { item in
                 guard item.status != .paused && item.status != .cancelled else { return }
                 item.status = .downloading
@@ -909,6 +950,7 @@ final class DownloadManager {
             }
         case let .paused(taskIdentifier, globalKey, resumeData):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
+            guard !deletingDownloadIDs.contains(globalKey) else { return }
             let resumeDataPath = resumeData.flatMap { try? fileStore.saveResumeData($0, globalKey: globalKey) }
             update(globalKey: globalKey) { item in
                 item.status = .paused
@@ -923,6 +965,7 @@ final class DownloadManager {
             processQueueIfNeeded()
         case let .cancelled(taskIdentifier, globalKey):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
+            guard !deletingDownloadIDs.contains(globalKey) else { return }
             update(globalKey: globalKey) { item in
                 item.status = .cancelled
                 item.resumeDataPath = nil
@@ -937,9 +980,14 @@ final class DownloadManager {
                 try? FileManager.default.removeItem(at: temporaryURL)
                 return
             }
+            guard !deletingDownloadIDs.contains(globalKey) else {
+                try? FileManager.default.removeItem(at: temporaryURL)
+                return
+            }
             Task { await completeDownload(globalKey: globalKey, taskIdentifier: taskIdentifier, temporaryURL: temporaryURL) }
         case let .failed(taskIdentifier, globalKey, error):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
+            guard !deletingDownloadIDs.contains(globalKey) else { return }
             if record(globalKey: globalKey)?.status == .paused {
                 return
             }
@@ -1107,10 +1155,47 @@ final class DownloadManager {
         evaluateNetworkConstraints()
     }
 
-    private func finishDeleting(record: DownloadedMediaRecord) {
-        records.removeAll { $0.ratingKey == record.ratingKey }
-        lastProgressPersistDates.removeValue(forKey: record.globalKey)
-        deletingDownloadIDs.remove(record.globalKey)
+    private func removeAggregatePlaceholder(for scope: DownloadScope) {
+        guard scope.type == .season || scope.type == .show else { return }
+        let originalCount = records.count
+        records.removeAll {
+            $0.ratingKey == scope.ratingKey
+                && $0.type == scope.type
+                && $0.mediaID == nil
+                && $0.partID == nil
+        }
+        if records.count != originalCount {
+            persist()
+        }
+    }
+
+    private func deleteRecords(_ targetRecords: [DownloadedMediaRecord]) {
+        let recordsToDelete = targetRecords.filter { !deletingDownloadIDs.contains($0.globalKey) }
+        guard !recordsToDelete.isEmpty else { return }
+
+        for record in recordsToDelete {
+            deletingDownloadIDs.insert(record.globalKey)
+            if let taskIdentifier = record.downloadTaskIdentifier {
+                transferController.cancel(taskIdentifier: taskIdentifier)
+            }
+        }
+
+        Task.detached(priority: .utility) { [fileStore, recordsToDelete, weak self] in
+            for record in recordsToDelete {
+                fileStore.deleteVideo(relativePath: record.relativeVideoPath)
+                fileStore.deleteResumeData(relativePath: record.resumeDataPath)
+            }
+            let globalKeys = Set(recordsToDelete.map(\.globalKey))
+            await self?.finishDeleting(globalKeys: globalKeys)
+        }
+    }
+
+    private func finishDeleting(globalKeys: Set<String>) {
+        records.removeAll { globalKeys.contains($0.globalKey) }
+        for globalKey in globalKeys {
+            lastProgressPersistDates.removeValue(forKey: globalKey)
+            deletingDownloadIDs.remove(globalKey)
+        }
         persist()
         processQueueIfNeeded()
     }

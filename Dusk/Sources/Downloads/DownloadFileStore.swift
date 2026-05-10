@@ -81,7 +81,9 @@ struct DownloadFileStore: Sendable {
     func relativePath(for absoluteURL: URL) -> String {
         let rootPath = rootDirectory.standardizedFileURL.path
         let filePath = absoluteURL.standardizedFileURL.path
-        guard filePath.hasPrefix(rootPath) else { return absoluteURL.lastPathComponent }
+        guard filePath == rootPath || filePath.hasPrefix(rootPath + "/") else {
+            return absoluteURL.lastPathComponent
+        }
         var relative = String(filePath.dropFirst(rootPath.count))
         if relative.hasPrefix("/") {
             relative.removeFirst()
@@ -91,7 +93,12 @@ struct DownloadFileStore: Sendable {
 
     func absoluteURL(for relativePath: String?) -> URL? {
         guard let relativePath, !relativePath.isEmpty else { return nil }
-        return rootDirectory.appendingPathComponent(relativePath)
+        let rootURL = rootDirectory.standardizedFileURL
+        let url = rootURL.appendingPathComponent(relativePath).standardizedFileURL
+        guard url.path == rootURL.path || url.path.hasPrefix(rootURL.path + "/") else {
+            return nil
+        }
+        return url
     }
 
     func existingFileURL(for relativePath: String?) -> URL? {

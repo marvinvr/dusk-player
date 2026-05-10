@@ -56,7 +56,7 @@ struct DownloadsView: View {
 
     private var downloadsGrid: some View {
         DownloadsPosterGrid(items: downloadedItems) { width, item in
-            let deleting = isDeleting(item)
+            let state = downloadManager.downloadState(for: item.scope)
 
             PosterNavigationCard(
                 route: item.route,
@@ -64,18 +64,18 @@ struct DownloadsView: View {
                 title: item.title,
                 subtitle: item.subtitle,
                 width: width,
-                availabilityBadge: deleting ? "Deleting" : nil,
-                isDimmed: deleting
+                availabilityBadge: state.isDeleting ? "Deleting" : nil,
+                isDimmed: state.isDeleting
             ) {
-                if !deleting {
+                if !state.isDeleting {
                     Button(role: .destructive) {
-                        delete(item)
+                        downloadManager.deleteDownload(scope: item.scope)
                     } label: {
                         Label("Delete Download", systemImage: "trash")
                     }
                 }
             }
-            .disabled(deleting)
+            .disabled(state.isDeleting)
         }
     }
 
@@ -133,7 +133,7 @@ struct DownloadsView: View {
 
             Button {
                 Task {
-                    await offlinePlaybackSyncManager.syncPendingActions()
+                    await offlinePlaybackSyncManager.syncPendingActions(force: true)
                 }
             } label: {
                 Text(offlinePlaybackSyncManager.isSyncing ? "Syncing" : "Sync")
@@ -255,23 +255,6 @@ struct DownloadsView: View {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 
-    private func isDeleting(_ item: DownloadedLibraryItem) -> Bool {
-        switch item {
-        case .movie(let record):
-            downloadManager.isDeletingDownload(ratingKey: record.ratingKey)
-        case .show(let show):
-            downloadManager.isDeletingDownloads(showKey: show.ratingKey)
-        }
-    }
-
-    private func delete(_ item: DownloadedLibraryItem) {
-        switch item {
-        case .movie(let record):
-            downloadManager.deleteDownload(ratingKey: record.ratingKey)
-        case .show(let show):
-            downloadManager.deleteDownloads(showKey: show.ratingKey)
-        }
-    }
 }
 
 private enum DownloadedLibraryItem: Identifiable {
@@ -320,6 +303,15 @@ private enum DownloadedLibraryItem: Identifiable {
             return .downloadedMedia(type: .movie, ratingKey: record.ratingKey)
         case .show(let show):
             return .downloadedMedia(type: .show, ratingKey: show.ratingKey)
+        }
+    }
+
+    var scope: DownloadScope {
+        switch self {
+        case .movie(let record):
+            return DownloadScope(ratingKey: record.ratingKey, type: .movie)
+        case .show(let show):
+            return DownloadScope(ratingKey: show.ratingKey, type: .show)
         }
     }
 
@@ -406,8 +398,12 @@ private struct DownloadQueueRow: View {
 
     let record: DownloadedMediaRecord
 
-    private var isDeleting: Bool {
-        downloadManager.isDeletingDownload(ratingKey: record.ratingKey)
+    private var scope: DownloadScope {
+        DownloadScope(ratingKey: record.ratingKey, type: record.type)
+    }
+
+    private var state: DownloadControlState {
+        downloadManager.downloadState(for: scope)
     }
 
     var body: some View {
@@ -444,55 +440,25 @@ private struct DownloadQueueRow: View {
             }
             .padding(12)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .opacity(isDeleting ? 0.65 : 1)
+            .opacity(state.isDeleting ? 0.65 : 1)
         }
         .buttonStyle(.plain)
-        .disabled(isDeleting)
+        .disabled(state.isDeleting)
         .contextMenu {
-            if !isDeleting {
-                if record.status.canPause {
-                    Button {
-                        downloadManager.pauseDownload(ratingKey: record.ratingKey)
-                    } label: {
-                        Label("Pause Download", systemImage: "pause")
-                    }
-                }
-
-                if record.status == .paused {
-                    Button {
-                        downloadManager.resumeDownload(ratingKey: record.ratingKey)
-                    } label: {
-                        Label("Resume Download", systemImage: "play")
-                    }
-                }
-
-                if record.status == .failed {
-                    Button {
-                        downloadManager.retryDownload(ratingKey: record.ratingKey)
-                    } label: {
-                        Label("Retry Download", systemImage: "arrow.clockwise")
-                    }
-                }
-
-                if record.status == .queued || record.status == .preparing || record.status == .downloading || record.status == .paused {
-                    Button(role: .destructive) {
-                        downloadManager.cancelDownload(ratingKey: record.ratingKey)
-                    } label: {
-                        Label("Cancel Download", systemImage: "xmark.circle")
-                    }
-                }
-
-                Button(role: .destructive) {
-                    downloadManager.deleteDownload(ratingKey: record.ratingKey)
-                } label: {
-                    Label("Delete Download", systemImage: "trash")
-                }
-            }
+            DownloadContextMenuContent(
+                state: state,
+                showsDelete: true,
+                onPause: { downloadManager.pauseDownload(scope: scope) },
+                onResume: { downloadManager.resumeDownload(scope: scope) },
+                onCancel: { downloadManager.cancelDownload(scope: scope) },
+                onDelete: { downloadManager.deleteDownload(scope: scope) },
+                onRetry: { downloadManager.retryDownload(ratingKey: record.ratingKey) }
+            )
         }
     }
 
     private var statusText: String {
-        if isDeleting {
+        if state.isDeleting {
             return "Deleting"
         }
 
@@ -515,7 +481,7 @@ private struct DownloadQueueRow: View {
     }
 
     private var statusColor: Color {
-        if isDeleting {
+        if state.isDeleting {
             return Color.duskTextSecondary
         }
 
@@ -524,7 +490,7 @@ private struct DownloadQueueRow: View {
 
     @ViewBuilder
     private var statusIcon: some View {
-        if isDeleting {
+        if state.isDeleting {
             ProgressView()
                 .controlSize(.small)
                 .tint(Color.duskAccent)

@@ -4,11 +4,14 @@ import Observation
 @MainActor
 @Observable
 final class OfflinePlaybackSyncManager {
+    private static let syncAttemptInterval: TimeInterval = 60
+
     private let plexService: PlexService
     private let store: OfflinePlaybackSyncStore
 
     private(set) var actions: [OfflinePlaybackSyncAction] = []
     private(set) var isSyncing = false
+    @ObservationIgnored private var lastSyncAttemptAt: Date?
 
     init(
         plexService: PlexService,
@@ -86,7 +89,7 @@ final class OfflinePlaybackSyncManager {
         }
     }
 
-    func syncPendingActions() async {
+    func syncPendingActions(force: Bool = false) async {
         guard !isSyncing else { return }
         guard let currentServerID = plexService.currentServerIdentifier else { return }
 
@@ -94,6 +97,14 @@ final class OfflinePlaybackSyncManager {
             .filter { $0.needsSync && $0.serverID == currentServerID }
             .sorted { $0.updatedAt < $1.updatedAt }
         guard !pendingActions.isEmpty else { return }
+
+        let now = Date()
+        if !force,
+           let lastSyncAttemptAt,
+           now.timeIntervalSince(lastSyncAttemptAt) < Self.syncAttemptInterval {
+            return
+        }
+        lastSyncAttemptAt = now
 
         isSyncing = true
         defer { isSyncing = false }

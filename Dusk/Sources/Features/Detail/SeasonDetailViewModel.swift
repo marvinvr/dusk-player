@@ -46,7 +46,7 @@ final class SeasonDetailViewModel {
                 watched: targetWatched
             )
             offlineStateVersion += 1
-            await offlinePlaybackSyncManager?.syncPendingActions()
+            await offlinePlaybackSyncManager?.syncPendingActions(force: true)
             await loadNextEpisodeDetails()
             return
         }
@@ -202,7 +202,7 @@ final class SeasonDetailViewModel {
     var playButtonLabel: String {
         guard let ep = nextEpisodeToPlay else { return "Play" }
         let label = ep.index.map { "Episode \($0)" } ?? ep.title
-        if ep.isPartiallyWatched {
+        if isPartiallyWatched(ep) {
             return "Resume · \(label)"
         }
         return "Play · \(label)"

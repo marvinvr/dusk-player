@@ -35,6 +35,81 @@ enum DownloadStatus: String, Codable, Sendable {
             return false
         }
     }
+
+    var canCancel: Bool {
+        switch self {
+        case .queued, .preparing, .downloading, .paused:
+            return true
+        case .completed, .failed, .cancelled:
+            return false
+        }
+    }
+
+    var canDelete: Bool {
+        switch self {
+        case .completed, .failed, .cancelled, .paused:
+            return true
+        case .queued, .preparing, .downloading:
+            return false
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .queued:
+            return "Queued"
+        case .preparing:
+            return "Preparing"
+        case .downloading:
+            return "Downloading"
+        case .paused:
+            return "Paused"
+        case .completed:
+            return "Downloaded"
+        case .failed:
+            return "Failed"
+        case .cancelled:
+            return "Cancelled"
+        }
+    }
+}
+
+struct DownloadScope: Hashable, Sendable {
+    let ratingKey: String
+    let type: PlexMediaType
+
+    init(ratingKey: String, type: PlexMediaType) {
+        self.ratingKey = ratingKey
+        self.type = type
+    }
+}
+
+struct DownloadControlState: Hashable, Sendable {
+    let scope: DownloadScope
+    let status: DownloadStatus?
+    let progress: Double
+    let isDeleting: Bool
+    let records: [DownloadedMediaRecord]
+
+    var hasRecords: Bool {
+        !records.isEmpty
+    }
+
+    var canPause: Bool {
+        status?.canPause == true
+    }
+
+    var canResume: Bool {
+        status?.canResume == true
+    }
+
+    var canCancel: Bool {
+        status?.canCancel == true
+    }
+
+    var canDelete: Bool {
+        status?.canDelete == true
+    }
 }
 
 struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {

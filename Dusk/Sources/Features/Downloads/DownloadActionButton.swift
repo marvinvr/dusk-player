@@ -30,81 +30,45 @@ struct DownloadActionButton: View {
         }
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Capsule())
-        .disabled(isDeleting || (isStartingDownload && status == nil))
-        .onChange(of: status) { _, newStatus in
+        .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
+        .onChange(of: state.status) { _, newStatus in
             if newStatus != nil {
                 isStartingDownload = false
             }
         }
         .contextMenu {
-            if !isDeleting {
-                if status == .queued || status == .preparing || status == .downloading {
-                    Button {
-                        downloadManager.pauseDownload(ratingKey: ratingKey, type: type)
-                    } label: {
-                        Label("Pause Download", systemImage: "pause")
-                    }
-                }
-
-                if status == .paused {
-                    Button {
-                        downloadManager.resumeDownload(ratingKey: ratingKey, type: type)
-                    } label: {
-                        Label("Resume Download", systemImage: "play")
-                    }
-                }
-
-                if status == .queued || status == .preparing || status == .downloading || status == .paused {
-                    Button(role: .destructive) {
-                        downloadManager.cancelDownload(ratingKey: ratingKey, type: type)
-                    } label: {
-                        Label("Cancel Download", systemImage: "xmark.circle")
-                    }
-                }
-
-                if status == .completed || status == .failed || status == .cancelled || status == .paused {
-                    Button(role: .destructive) {
-                        downloadManager.deleteDownload(ratingKey: ratingKey)
-                    } label: {
-                        Label("Delete Download", systemImage: "trash")
-                    }
-                }
-
-                if status == .failed {
-                    Button {
-                        downloadManager.retryDownload(ratingKey: ratingKey)
-                    } label: {
-                        Label("Retry Download", systemImage: "arrow.clockwise")
-                    }
-                }
-            }
+            DownloadContextMenuContent(
+                state: state,
+                showsDelete: state.canDelete,
+                onPause: { downloadManager.pauseDownload(scope: scope) },
+                onResume: { downloadManager.resumeDownload(scope: scope) },
+                onCancel: { downloadManager.cancelDownload(scope: scope) },
+                onDelete: { downloadManager.deleteDownload(scope: scope) },
+                onRetry: retry
+            )
         }
     }
 
-    private var status: DownloadStatus? {
-        downloadManager.status(for: ratingKey, type: type)
+    private var scope: DownloadScope {
+        DownloadScope(ratingKey: ratingKey, type: type)
     }
 
-    private var progress: Double {
-        downloadManager.progress(for: ratingKey, type: type) ?? 0
-    }
-
-    private var isDeleting: Bool {
-        downloadManager.isDeletingDownload(ratingKey: ratingKey, type: type)
+    private var state: DownloadControlState {
+        downloadManager.downloadState(for: scope)
     }
 
     @ViewBuilder
     private var icon: some View {
-        if isDeleting || (isStartingDownload && status == nil) {
+        if state.isDeleting || (isStartingDownload && state.status == nil) {
             ProgressView()
                 .controlSize(.small)
                 .tint(Color.duskTextPrimary)
         } else {
-            switch status {
+            switch state.status {
             case .queued, .preparing:
                 Image(systemName: "clock")
             case .downloading:
-                CircularProgressView(progress: progress)
+                CircularProgressView(progress: state.progress)
                     .frame(width: 16, height: 16)
             case .paused:
                 Image(systemName: "pause.circle")
@@ -121,21 +85,21 @@ struct DownloadActionButton: View {
     }
 
     private var title: String {
-        if isDeleting {
+        if state.isDeleting {
             return "Deleting Download"
         }
 
-        if isStartingDownload && status == nil {
+        if isStartingDownload && state.status == nil {
             return "Starting Download"
         }
 
-        return switch status {
+        return switch state.status {
         case .queued:
             "Queued"
         case .preparing:
             "Preparing"
         case .downloading:
-            "\(Int((progress * 100).rounded()))%"
+            "\(Int((state.progress * 100).rounded()))%"
         case .paused:
             "Resume Download"
         case .completed:
@@ -165,11 +129,11 @@ struct DownloadActionButton: View {
     }
 
     private var foreground: Color {
-        if isDeleting {
+        if state.isDeleting {
             return Color.duskTextSecondary
         }
 
-        return switch status {
+        return switch state.status {
         case .completed:
             Color.duskAccent
         case .paused:
@@ -182,19 +146,15 @@ struct DownloadActionButton: View {
     }
 
     private func handleTap() {
-        if isDeleting || (isStartingDownload && status == nil) {
+        if state.isDeleting || (isStartingDownload && state.status == nil) {
             return
-        } else if status == .queued || status == .preparing || status == .downloading {
-            downloadManager.pauseDownload(ratingKey: ratingKey, type: type)
-        } else if status == .paused {
-            downloadManager.resumeDownload(ratingKey: ratingKey, type: type)
-        } else if status == .failed {
-            if type == .season || type == .show {
-                startDownload()
-            } else {
-                downloadManager.retryDownload(ratingKey: ratingKey)
-            }
-        } else if status == .completed {
+        } else if state.canPause {
+            downloadManager.pauseDownload(scope: scope)
+        } else if state.status == .paused {
+            downloadManager.resumeDownload(scope: scope)
+        } else if state.status == .failed {
+            retry()
+        } else if state.status == .completed {
             return
         } else {
             startDownload()
@@ -206,6 +166,58 @@ struct DownloadActionButton: View {
         Task {
             await downloadManager.queueDownload(ratingKey: ratingKey, type: type)
             isStartingDownload = false
+        }
+    }
+
+    private func retry() {
+        if type == .season || type == .show {
+            startDownload()
+        } else {
+            downloadManager.retryDownload(ratingKey: ratingKey)
+        }
+    }
+}
+
+struct DownloadContextMenuContent: View {
+    let state: DownloadControlState
+    var showsDelete: Bool
+    let onPause: () -> Void
+    let onResume: () -> Void
+    let onCancel: () -> Void
+    let onDelete: () -> Void
+    let onRetry: () -> Void
+
+    var body: some View {
+        if !state.isDeleting {
+            if state.canPause {
+                Button(action: onPause) {
+                    Label("Pause Download", systemImage: "pause")
+                }
+            }
+
+            if state.status == .paused {
+                Button(action: onResume) {
+                    Label("Resume Download", systemImage: "play")
+                }
+            }
+
+            if state.status == .failed {
+                Button(action: onRetry) {
+                    Label("Retry Download", systemImage: "arrow.clockwise")
+                }
+            }
+
+            if state.canCancel {
+                Button(role: .destructive, action: onCancel) {
+                    Label("Cancel Download", systemImage: "xmark.circle")
+                }
+            }
+
+            if showsDelete {
+                Button(role: .destructive, action: onDelete) {
+                    Label("Delete Download", systemImage: "trash")
+                }
+            }
         }
     }
 }

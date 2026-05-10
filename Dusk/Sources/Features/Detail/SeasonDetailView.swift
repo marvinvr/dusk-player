@@ -659,28 +659,9 @@ private struct SeasonEpisodeTextContent: View {
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(Color.duskTextSecondary)
         } else if let downloadStatus, downloadStatus != .completed {
-            Text(downloadStatusLabel(downloadStatus))
+            Text(downloadStatus.displayName)
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(downloadStatus == .failed ? .red : Color.duskTextSecondary)
-        }
-    }
-
-    private func downloadStatusLabel(_ status: DownloadStatus) -> String {
-        switch status {
-        case .queued:
-            return "Queued"
-        case .preparing:
-            return "Preparing"
-        case .downloading:
-            return "Downloading"
-        case .paused:
-            return "Paused"
-        case .failed:
-            return "Failed"
-        case .cancelled:
-            return "Cancelled"
-        case .completed:
-            return "Downloaded"
         }
     }
 }
