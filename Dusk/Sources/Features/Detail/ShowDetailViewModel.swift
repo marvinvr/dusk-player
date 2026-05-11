@@ -34,6 +34,10 @@ final class ShowDetailViewModel {
 
     func load() async {
         guard details == nil else { return }
+        await refresh()
+    }
+
+    func refresh() async {
         isLoading = true
         error = nil
 

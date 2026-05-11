@@ -28,6 +28,10 @@ final class MovieDetailViewModel {
 
     func loadDetails() async {
         guard details == nil else { return }
+        await refreshDetails()
+    }
+
+    func refreshDetails() async {
         isLoading = true
         error = nil
 

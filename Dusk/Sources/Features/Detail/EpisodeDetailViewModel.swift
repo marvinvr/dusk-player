@@ -28,6 +28,10 @@ final class EpisodeDetailViewModel {
 
     func load() async {
         guard details == nil else { return }
+        await refresh()
+    }
+
+    func refresh() async {
         await reload()
     }
 

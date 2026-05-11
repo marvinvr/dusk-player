@@ -5,6 +5,7 @@ struct EpisodeDetailView: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: EpisodeDetailViewModel
 
     init(
@@ -40,6 +41,15 @@ struct EpisodeDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await viewModel.load()
+        }
+        .onChange(of: playback.showPlayer) { _, isShowing in
+            if !isShowing {
+                Task { await viewModel.refresh() }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, viewModel.details != nil else { return }
+            Task { await viewModel.refresh() }
         }
     }
 

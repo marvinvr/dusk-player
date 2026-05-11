@@ -4,6 +4,7 @@ struct SeasonDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
@@ -43,6 +44,15 @@ struct SeasonDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await viewModel.load()
+        }
+        .onChange(of: playback.showPlayer) { _, isShowing in
+            if !isShowing {
+                Task { await viewModel.refresh() }
+            }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, viewModel.details != nil else { return }
+            Task { await viewModel.refresh() }
         }
     }
 

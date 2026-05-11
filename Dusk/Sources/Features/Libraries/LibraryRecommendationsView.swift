@@ -5,6 +5,7 @@ import UIKit
 
 struct LibraryRecommendationsView: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: LibraryRecommendationsViewModel
 
     private let navigationTitle: String
@@ -45,6 +46,10 @@ struct LibraryRecommendationsView: View {
             if !isShowing {
                 Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
             }
+        }
+        .onChange(of: scenePhase) { _, newPhase in
+            guard newPhase == .active, viewModel.hasLoadedOnce else { return }
+            Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
         }
         #if os(iOS)
         .toolbar {
