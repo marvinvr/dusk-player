@@ -142,7 +142,7 @@ final class SeasonDetailViewModel {
     }
 
     var showsOfflineAvailability: Bool {
-        isUsingCachedData || prefersOfflineAvailability
+        DownloadsFeature.isVisible && (isUsingCachedData || prefersOfflineAvailability)
     }
 
     var offlineBannerText: String? {
@@ -158,7 +158,8 @@ final class SeasonDetailViewModel {
     }
 
     func downloadStatus(for episode: PlexEpisode) -> DownloadStatus? {
-        downloadManager?.status(for: episode.ratingKey)
+        guard DownloadsFeature.isVisible else { return nil }
+        return downloadManager?.status(for: episode.ratingKey)
     }
 
     func isUnavailableOffline(_ episode: PlexEpisode) -> Bool {
@@ -166,7 +167,7 @@ final class SeasonDetailViewModel {
     }
 
     func detailRoute(type: PlexMediaType, ratingKey: String) -> AppNavigationRoute {
-        prefersOfflineAvailability
+        prefersOfflineAvailability && DownloadsFeature.isVisible
             ? .downloadedMedia(type: type, ratingKey: ratingKey)
             : .media(type: type, ratingKey: ratingKey)
     }

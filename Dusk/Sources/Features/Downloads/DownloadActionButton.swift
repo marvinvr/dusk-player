@@ -1,5 +1,15 @@
 import SwiftUI
 
+enum DownloadsFeature {
+    static var isVisible: Bool {
+        #if os(tvOS)
+        false
+        #else
+        true
+        #endif
+    }
+}
+
 struct DownloadActionButton: View {
     @Environment(DownloadManager.self) private var downloadManager
     @State private var isStartingDownload = false
@@ -8,44 +18,47 @@ struct DownloadActionButton: View {
     let type: PlexMediaType
     var fillsWidth = false
 
+    @ViewBuilder
     var body: some View {
-        Button {
-            handleTap()
-        } label: {
-            HStack(spacing: 8) {
-                icon
-                Text(title)
+        if DownloadsFeature.isVisible {
+            Button {
+                handleTap()
+            } label: {
+                HStack(spacing: 8) {
+                    icon
+                    Text(title)
+                }
+                .font(.subheadline.weight(.medium))
+                .frame(maxWidth: fillsWidth ? .infinity : nil)
+                .padding(.vertical, 12)
+                .padding(.horizontal, fillsWidth ? 0 : 18)
+                .background(Color.duskSurface)
+                .foregroundStyle(foreground)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule()
+                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
+                )
             }
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: fillsWidth ? .infinity : nil)
-            .padding(.vertical, 12)
-            .padding(.horizontal, fillsWidth ? 0 : 18)
-            .background(Color.duskSurface)
-            .foregroundStyle(foreground)
-            .clipShape(Capsule())
-            .overlay(
-                Capsule()
-                    .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-            )
-        }
-        .duskSuppressTVOSButtonChrome()
-        .duskTVOSFocusEffectShape(Capsule())
-        .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
-        .onChange(of: state.status) { _, newStatus in
-            if newStatus != nil {
-                isStartingDownload = false
+            .duskSuppressTVOSButtonChrome()
+            .duskTVOSFocusEffectShape(Capsule())
+            .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
+            .onChange(of: state.status) { _, newStatus in
+                if newStatus != nil {
+                    isStartingDownload = false
+                }
             }
-        }
-        .contextMenu {
-            DownloadContextMenuContent(
-                state: state,
-                showsDelete: state.canDelete,
-                onPause: { downloadManager.pauseDownload(scope: scope) },
-                onResume: { downloadManager.resumeDownload(scope: scope) },
-                onCancel: { downloadManager.cancelDownload(scope: scope) },
-                onDelete: { downloadManager.deleteDownload(scope: scope) },
-                onRetry: retry
-            )
+            .contextMenu {
+                DownloadContextMenuContent(
+                    state: state,
+                    showsDelete: state.canDelete,
+                    onPause: { downloadManager.pauseDownload(scope: scope) },
+                    onResume: { downloadManager.resumeDownload(scope: scope) },
+                    onCancel: { downloadManager.cancelDownload(scope: scope) },
+                    onDelete: { downloadManager.deleteDownload(scope: scope) },
+                    onRetry: retry
+                )
+            }
         }
     }
 

@@ -3,28 +3,12 @@ import SwiftUI
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
-    @Environment(DownloadManager.self) private var downloadManager
-    @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
-    @State private var confirmsDeletingDownloads = false
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
     var body: some View {
         SettingsContainer(path: $path, viewModel: viewModel) {
             settingsContent
-        }
-        .confirmationDialog(
-            "Delete all downloads?",
-            isPresented: $confirmsDeletingDownloads,
-            titleVisibility: .visible
-        ) {
-            Button("Delete All Downloads", role: .destructive) {
-                downloadManager.deleteAllDownloads()
-                offlinePlaybackSyncManager.deleteAllLocalState()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
         }
     }
 
@@ -111,109 +95,6 @@ struct SettingsTVView: View {
                     tvRowDivider
 
                     TVSettingsToggleRow(title: "Player Debug Overlay", isOn: $preferences.playerDebugOverlayEnabled)
-                }
-
-                TVSettingsSection(title: "Downloads", footer: SettingsSupport.downloadsFooterText) {
-                    TVSettingsMenuRow(
-                        title: "Download Quality",
-                        options: MaxResolution.allCases,
-                        selection: $preferences.downloadMaxResolution,
-                        selectedTitle: preferences.downloadMaxResolution.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Wi-Fi Only", isOn: $preferences.downloadsWifiOnly)
-
-                    tvRowDivider
-
-                    TVSettingsMenuRow(
-                        title: "Simultaneous Downloads",
-                        options: DownloadConcurrency.allCases,
-                        selection: $preferences.maximumActiveDownloads,
-                        selectedTitle: preferences.maximumActiveDownloads.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsMenuRow(
-                        title: "Keep Free",
-                        options: DownloadFreeSpaceReserve.allCases,
-                        selection: $preferences.downloadFreeSpaceReserve,
-                        selectedTitle: preferences.downloadFreeSpaceReserve.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    HStack(spacing: 20) {
-                        Text("Storage Used")
-                            .font(.headline)
-                            .foregroundStyle(Color.duskTextPrimary)
-
-                        Spacer()
-
-                        Text(formattedBytes(downloadManager.storageUsageBytes))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                    .frame(minHeight: 72)
-
-                    if let availableStorageBytes = downloadManager.availableStorageBytes {
-                        tvRowDivider
-
-                        HStack(spacing: 20) {
-                            Text("Available")
-                                .font(.headline)
-                                .foregroundStyle(Color.duskTextPrimary)
-
-                            Spacer()
-
-                            Text(formattedBytes(availableStorageBytes))
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-                        .frame(minHeight: 72)
-                    }
-
-                    if offlinePlaybackSyncManager.pendingSyncCount > 0 {
-                        tvRowDivider
-
-                        HStack(spacing: 20) {
-                            Text("Pending Watch Sync")
-                                .font(.headline)
-                                .foregroundStyle(Color.duskTextPrimary)
-
-                            Spacer()
-
-                            Text("\(offlinePlaybackSyncManager.pendingSyncCount)")
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-                        .frame(minHeight: 72)
-
-                        tvRowDivider
-
-                        TVSettingsActionRow(
-                            title: offlinePlaybackSyncManager.isSyncing
-                                ? "Syncing Watch Progress"
-                                : "Sync Watch Progress Now",
-                            tint: Color.duskAccent,
-                            isLoading: offlinePlaybackSyncManager.isSyncing
-                        ) {
-                            guard !offlinePlaybackSyncManager.isSyncing else { return }
-                            Task {
-                                await offlinePlaybackSyncManager.syncPendingActions(force: true)
-                            }
-                        }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsActionRow(
-                        title: "Delete All Downloads",
-                        tint: downloadManager.records.isEmpty ? Color.duskTextSecondary : .red,
-                        role: .destructive
-                    ) {
-                        guard !downloadManager.records.isEmpty else { return }
-                        confirmsDeletingDownloads = true
-                    }
                 }
 
                 TVSettingsSection(title: "Server", footer: viewModel.serverError, footerColor: .red) {
@@ -330,9 +211,5 @@ struct SettingsTVView: View {
         Rectangle()
             .fill(Color.duskTextSecondary.opacity(0.16))
             .frame(height: 1)
-    }
-
-    private func formattedBytes(_ value: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 }

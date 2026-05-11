@@ -60,7 +60,7 @@ struct AppNavigationDestinationView: View {
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
-                prefersOfflineAvailability: true
+                prefersOfflineAvailability: DownloadsFeature.isVisible
             )
         case .person(let person):
             ActorDetailView(person: person, plexService: plexService)

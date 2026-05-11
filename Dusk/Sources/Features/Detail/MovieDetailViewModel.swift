@@ -96,7 +96,7 @@ final class MovieDetailViewModel {
     }
 
     var offlineBannerText: String? {
-        guard isUsingCachedData else { return nil }
+        guard DownloadsFeature.isVisible, isUsingCachedData else { return nil }
         return isPlayableOffline
             ? "Showing saved movie metadata. This movie is available offline."
             : "Showing saved movie metadata. This movie is not downloaded on this device."

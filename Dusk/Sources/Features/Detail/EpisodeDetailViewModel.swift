@@ -103,7 +103,7 @@ final class EpisodeDetailViewModel {
     }
 
     var offlineBannerText: String? {
-        guard isUsingCachedData else { return nil }
+        guard DownloadsFeature.isVisible, isUsingCachedData else { return nil }
         return isPlayableOffline
             ? "Showing saved episode metadata. This episode is available offline."
             : "Showing saved episode metadata. This episode is not downloaded on this device."

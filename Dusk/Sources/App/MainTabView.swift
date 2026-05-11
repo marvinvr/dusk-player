@@ -60,7 +60,7 @@ struct MainTabView: View {
 
     private var availableTabs: [MainTabItem] {
         let libraryTypes = librariesViewModel?.availableLibraryTypes ?? PlexLibraryType.allCases
-        let hasDownloads = !downloadManager.records.isEmpty
+        let hasDownloads = DownloadsFeature.isVisible && !downloadManager.records.isEmpty
 
         var tabs: [MainTabItem] = [.home]
 

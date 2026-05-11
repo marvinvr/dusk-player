@@ -69,19 +69,19 @@ final class ShowDetailViewModel {
     }
 
     var episodeCountText: String? {
-        if isUsingCachedData {
+        if DownloadsFeature.isVisible && isUsingCachedData {
             return MediaTextFormatter.episodeCount(downloadManager?.downloadedEpisodeCount(showKey: ratingKey))
         }
         return MediaTextFormatter.episodeCount(details?.leafCount)
     }
 
     var visibleSeasons: [PlexSeason] {
-        guard isUsingCachedData, let downloadManager else { return seasons }
+        guard DownloadsFeature.isVisible, isUsingCachedData, let downloadManager else { return seasons }
         return seasons.filter { downloadManager.hasDownloadedEpisodes(seasonKey: $0.ratingKey) }
     }
 
     var showsOfflineAvailability: Bool {
-        isUsingCachedData || prefersOfflineAvailability
+        DownloadsFeature.isVisible && (isUsingCachedData || prefersOfflineAvailability)
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
@@ -106,6 +106,10 @@ final class ShowDetailViewModel {
     }
 
     func seasonSubtitle(_ season: PlexSeason) -> String? {
+        guard DownloadsFeature.isVisible else {
+            return MediaTextFormatter.episodeCount(season.leafCount)
+        }
+
         if let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
             if showsOfflineAvailability {
@@ -128,7 +132,7 @@ final class ShowDetailViewModel {
     }
 
     func seasonProgress(_ season: PlexSeason) -> Double? {
-        if let downloadManager {
+        if DownloadsFeature.isVisible, let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
             if let total = season.leafCount, total > 0, downloadedCount > 0 {
                 return Double(downloadedCount) / Double(total)
@@ -156,7 +160,7 @@ final class ShowDetailViewModel {
     }
 
     func detailRoute(type: PlexMediaType, ratingKey: String) -> AppNavigationRoute {
-        prefersOfflineAvailability
+        prefersOfflineAvailability && DownloadsFeature.isVisible
             ? .downloadedMedia(type: type, ratingKey: ratingKey)
             : .media(type: type, ratingKey: ratingKey)
     }

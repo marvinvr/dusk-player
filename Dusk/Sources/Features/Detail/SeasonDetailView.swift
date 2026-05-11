@@ -649,7 +649,9 @@ private struct SeasonEpisodeTextContent: View {
 
     @ViewBuilder
     private var downloadStatusBadge: some View {
-        if isPlayableOffline {
+        if !DownloadsFeature.isVisible {
+            EmptyView()
+        } else if isPlayableOffline {
             Label("Downloaded", systemImage: "arrow.down.circle.fill")
                 .labelStyle(.iconOnly)
                 .font(.caption)
