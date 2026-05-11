@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import UIKit
 import VLCKit
-#if os(iOS)
+#if os(iOS) || os(tvOS)
 import AVFoundation
 #endif
 #endif
@@ -560,7 +560,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func configureAudioOutputPolicy(reason: String = "initial") {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
         let session = AVAudioSession.sharedInstance()
         let route = session.currentRoute
         let outputs = route.outputs
@@ -570,9 +570,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         )
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
 
-        let routeSupportsSpatialAudio: Bool
-        if #available(iOS 15.0, *) {
-            routeSupportsSpatialAudio = outputs.contains { $0.isSpatialAudioEnabled }
+        if #available(iOS 15.0, tvOS 15.0, *) {
             do {
                 try session.setSupportsMultichannelContent(true)
             } catch {
@@ -580,36 +578,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                     "Failed to opt in to multichannel audio session content support: \(error.localizedDescription, privacy: .public)"
                 )
             }
-        } else {
-            routeSupportsSpatialAudio = false
         }
 
-        let routeSupportsMultichannelLayout: Bool
-        if #available(iOS 17.2, *) {
-            routeSupportsMultichannelLayout =
-                maximumOutputChannelCount > 2 ||
-                !session.supportedOutputChannelLayouts.isEmpty
-        } else {
-            routeSupportsMultichannelLayout = maximumOutputChannelCount > 2
-        }
-
-        let targetMixMode: VLCMediaPlayer.AudioMixMode
-        if routeSupportsMultichannelLayout {
-            targetMixMode = .modeUnset
-        } else if routeSupportsSpatialAudio {
-            targetMixMode = .modeBinaural
-        } else {
-            targetMixMode = .modeStereo
-        }
-
+        let targetMixMode = VLCMediaPlayer.AudioMixMode.modeUnset
         mediaPlayer.audio?.passthrough = false
+        mediaPlayer.equalizer = nil
         if mediaPlayer.audioMixMode != targetMixMode {
             mediaPlayer.audioMixMode = targetMixMode
         }
 
         let routeSummary = outputs.map { output in
             let channelCount = output.channels?.count ?? 0
-            if #available(iOS 15.0, *) {
+            if #available(iOS 15.0, tvOS 15.0, *) {
                 return "\(output.portType.rawValue){channels=\(channelCount), spatial=\(output.isSpatialAudioEnabled)}"
             } else {
                 return "\(output.portType.rawValue){channels=\(channelCount)}"
@@ -623,15 +603,15 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func registerAudioSessionObserversIfNeeded() {
-        #if os(iOS)
+        #if os(iOS) || os(tvOS)
         let notifications: [Notification.Name] = {
             var names: [Notification.Name] = [
                 AVAudioSession.routeChangeNotification,
             ]
-            if #available(iOS 15.0, *) {
+            if #available(iOS 15.0, tvOS 15.0, *) {
                 names.append(AVAudioSession.spatialPlaybackCapabilitiesChangedNotification)
             }
-            if #available(iOS 17.2, *) {
+            if #available(iOS 17.2, tvOS 17.2, *) {
                 names.append(AVAudioSession.renderingCapabilitiesChangeNotification)
                 names.append(AVAudioSession.renderingModeChangeNotification)
             }
