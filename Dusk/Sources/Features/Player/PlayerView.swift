@@ -156,7 +156,8 @@ private struct PlayerSessionView: View {
             } else {
                 interactionOverlay
 
-                if let seekFeedback = viewModel.seekFeedback {
+                if let seekFeedback = viewModel.seekFeedback,
+                   shouldShowGlobalSeekFeedback {
                     PlayerSeekFeedbackOverlayView(presentation: seekFeedback)
                         .transition(.opacity)
                 }
@@ -297,8 +298,8 @@ private struct PlayerSessionView: View {
                 title: "Audio",
                 items: viewModel.audioTracks,
                 selectedID: viewModel.selectedAudioTrackID,
-                itemTitle: \.displayTitle,
-                itemSubtitle: \.language,
+                itemTitle: \.compactDisplayTitle,
+                itemSubtitle: \.detailDisplayTitle,
                 onSelect: { item in
                     if let item {
                         viewModel.selectAudio(item)
@@ -338,6 +339,14 @@ private struct PlayerSessionView: View {
             onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) }
         )
         .ignoresSafeArea()
+        #endif
+    }
+
+    private var shouldShowGlobalSeekFeedback: Bool {
+        #if os(tvOS)
+        !viewModel.showControls
+        #else
+        true
         #endif
     }
 

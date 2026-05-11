@@ -2,19 +2,20 @@
 import SwiftUI
 
 struct PlayerControlsTVOverlay: View {
+    @Environment(UserPreferences.self) private var preferences
     @FocusState private var focusedControl: FocusTarget?
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
     let hasActiveSkipMarker: Bool
-    let onDismiss: () -> Void
 
-    private let closeButtonDiameter: CGFloat = 38
-    private let playPauseButtonDiameter: CGFloat = 68
+    private let horizontalPadding: CGFloat = 12
+    private let topPadding: CGFloat = 8
+    private let bottomPadding: CGFloat = 2
+    private let seekTooltipY: CGFloat = -6
 
     private enum FocusTarget: Hashable {
-        case close
-        case playPause
+        case seekPoint
         case subtitles
         case audio
     }
@@ -24,46 +25,36 @@ struct PlayerControlsTVOverlay: View {
             ZStack {
                 PlayerControlsGradientBackdrop()
 
-                VStack(spacing: 26) {
+                VStack(spacing: 12) {
                     topBar
-                    Spacer()
-                    transportControls
                     Spacer()
                     bottomBar
                 }
-                .padding(.horizontal, 44)
-                .padding(.top, 28)
-                .padding(.bottom, 16)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.top, topPadding)
+                .padding(.bottom, bottomPadding)
                 .focusSection()
             }
         }
-        .defaultFocus($focusedControl, .playPause)
+        .defaultFocus($focusedControl, .seekPoint)
         .onAppear {
             if viewModel.showControls && !hasActiveSkipMarker {
-                focusedControl = .playPause
+                focusedControl = .seekPoint
             }
         }
         .onChange(of: viewModel.showControls) { _, isShowing in
-            focusedControl = isShowing && !hasActiveSkipMarker ? .playPause : nil
+            focusedControl = isShowing && !hasActiveSkipMarker ? .seekPoint : nil
         }
         .onChange(of: hasActiveSkipMarker) { _, isVisible in
             if !isVisible, viewModel.showControls {
-                focusedControl = .playPause
+                focusedControl = .seekPoint
             }
         }
         .onMoveCommand(perform: handleMoveCommand)
     }
 
     private var topBar: some View {
-        HStack(alignment: .top, spacing: 26) {
-            circularButton(
-                systemImage: "xmark",
-                font: .body.weight(.semibold),
-                diameter: closeButtonDiameter,
-                action: onDismiss
-            )
-            .focused($focusedControl, equals: .close)
-
+        HStack(alignment: .top) {
             if let header = context.mediaHeader {
                 PlayerMediaHeaderView(header: header)
             }
@@ -72,26 +63,9 @@ struct PlayerControlsTVOverlay: View {
         }
     }
 
-    private var transportControls: some View {
-        let isPlaying = viewModel.state == .playing
-
-        return HStack {
-            circularButton(
-                systemImage: isPlaying ? "pause.fill" : "play.fill",
-                font: .system(size: 30, weight: .semibold),
-                diameter: playPauseButtonDiameter,
-                isProminent: true
-            ) {
-                viewModel.togglePlayPause()
-            }
-            .focused($focusedControl, equals: .playPause)
-        }
-    }
-
     private var bottomBar: some View {
         VStack(spacing: 8) {
-            PlayerSeekBar(viewModel: viewModel, isInteractive: false)
-                .frame(height: 36)
+            seekPointControl
 
             HStack(alignment: .center, spacing: 18) {
                 PlayerTimeStatusView(viewModel: viewModel)
@@ -102,6 +76,100 @@ struct PlayerControlsTVOverlay: View {
                 audioMenu
             }
         }
+    }
+
+    private var seekPointControl: some View {
+        GeometryReader { geometry in
+            let width = geometry.size.width
+            let progress = viewModel.duration > 0 ? viewModel.displayPosition / viewModel.duration : 0
+            let clampedProgress = max(0, min(progress, 1))
+            let thumbX = max(15, min(width - 15, width * clampedProgress))
+            let isFocused = focusedControl == .seekPoint
+            let isPaused = viewModel.state == .paused
+
+            ZStack(alignment: .topLeading) {
+                PlayerSeekBar(viewModel: viewModel, isInteractive: false)
+                    .frame(height: 36)
+                    .padding(.top, 20)
+
+                if let seekFeedback = viewModel.seekFeedback {
+                    seekTooltip(seekFeedback)
+                        .position(x: thumbX, y: seekTooltipY)
+                        .transition(seekTooltipTransition)
+                } else if isPaused {
+                    pauseTooltip
+                        .position(x: thumbX, y: seekTooltipY)
+                        .transition(seekTooltipTransition)
+                }
+
+                ZStack {
+                    Circle()
+                        .fill(.white.opacity(isFocused ? 0.98 : 0.88))
+                        .frame(width: isFocused ? 24 : 18, height: isFocused ? 24 : 18)
+                        .shadow(
+                            color: .white.opacity(isFocused ? 0.36 : 0.18),
+                            radius: isFocused ? 14 : 7
+                        )
+                }
+                .position(x: thumbX, y: 38)
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusable()
+                    .focused($focusedControl, equals: .seekPoint)
+                    .focusEffectDisabled()
+                    .onTapGesture {
+                        viewModel.togglePlayPause()
+                    }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .scaleEffect(isFocused ? 1.01 : 1.0)
+            .animation(.easeInOut(duration: 0.12), value: isFocused)
+        }
+        .frame(height: 64)
+    }
+
+    private var pauseTooltip: some View {
+        Image(systemName: "pause.fill")
+            .font(.caption2.weight(.bold))
+            .foregroundStyle(.white.opacity(0.92))
+            .frame(width: 46, height: 46)
+            .background {
+                Circle()
+                    .fill(.white.opacity(0.07))
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .overlay {
+                Circle()
+                    .strokeBorder(.white.opacity(0.42), lineWidth: 1.2)
+            }
+            .shadow(color: .white.opacity(0.12), radius: 10)
+            .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
+    }
+
+    private var seekTooltipTransition: AnyTransition {
+        .move(edge: .bottom).combined(with: .opacity)
+    }
+
+    private func seekTooltip(_ presentation: PlayerSeekFeedbackPresentation) -> some View {
+        Image(systemName: presentation.direction.symbolName)
+            .font(.caption.weight(.bold))
+            .foregroundStyle(.white.opacity(0.92))
+            .offset(y: -1.5)
+            .frame(width: 46, height: 46)
+            .background {
+                Circle()
+                    .fill(.white.opacity(0.07))
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .overlay {
+                Circle()
+                    .strokeBorder(.white.opacity(0.42), lineWidth: 1.2)
+            }
+            .shadow(color: .white.opacity(0.12), radius: 10)
+            .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
     }
 
     private var subtitleMenu: some View {
@@ -155,8 +223,8 @@ struct PlayerControlsTVOverlay: View {
                         viewModel.selectAudio(track)
                     } label: {
                         trackMenuItem(
-                            title: track.displayTitle,
-                            subtitle: track.language,
+                            title: track.compactDisplayTitle,
+                            subtitle: track.detailDisplayTitle,
                             isSelected: viewModel.selectedAudioTrackID == track.id
                         )
                     }
@@ -174,34 +242,6 @@ struct PlayerControlsTVOverlay: View {
         .controlSize(.small)
         .tint(.white)
         .focused($focusedControl, equals: .audio)
-    }
-
-    private func circularButton(
-        systemImage: String,
-        font: Font = .system(size: 22, weight: .semibold),
-        diameter: CGFloat,
-        isProminent: Bool = false,
-        action: @escaping () -> Void
-    ) -> some View {
-        Group {
-            if isProminent {
-                Button(action: action) {
-                    Image(systemName: systemImage)
-                        .font(font)
-                        .frame(width: diameter, height: diameter)
-                }
-                .buttonStyle(.glassProminent)
-            } else {
-                Button(action: action) {
-                    Image(systemName: systemImage)
-                        .font(font)
-                        .frame(width: diameter, height: diameter)
-                }
-                .buttonStyle(.glass)
-            }
-        }
-        .buttonBorderShape(.circle)
-        .tint(.white)
     }
 
     private func trackMenuLabel(
@@ -249,9 +289,9 @@ struct PlayerControlsTVOverlay: View {
         }
     }
 
-    // Explicit routing keeps the custom tvOS layout from trapping focus on the dismiss button.
+    // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
     private func handleMoveCommand(_ direction: MoveCommandDirection) {
-        let currentFocus = focusedControl ?? .playPause
+        let currentFocus = focusedControl ?? .seekPoint
 
         switch direction {
         case .up:
@@ -259,9 +299,19 @@ struct PlayerControlsTVOverlay: View {
         case .down:
             focusedControl = focusTargetBelow(currentFocus)
         case .left:
-            focusedControl = focusTargetLeft(currentFocus)
+            if currentFocus == .seekPoint {
+                viewModel.handleSeekJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
+                focusedControl = .seekPoint
+            } else {
+                focusedControl = focusTargetLeft(currentFocus)
+            }
         case .right:
-            focusedControl = focusTargetRight(currentFocus)
+            if currentFocus == .seekPoint {
+                viewModel.handleSeekJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
+                focusedControl = .seekPoint
+            } else {
+                focusedControl = focusTargetRight(currentFocus)
+            }
         default:
             break
         }
@@ -269,20 +319,16 @@ struct PlayerControlsTVOverlay: View {
 
     private func focusTargetAbove(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .close:
+        case .seekPoint:
             return nil
-        case .playPause:
-            return .close
         case .subtitles, .audio:
-            return .playPause
+            return .seekPoint
         }
     }
 
     private func focusTargetBelow(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .close:
-            return .playPause
-        case .playPause:
+        case .seekPoint:
             return subtitlesOrAudioTarget(preferSubtitles: true)
         case .subtitles, .audio:
             return nil
@@ -291,22 +337,18 @@ struct PlayerControlsTVOverlay: View {
 
     private func focusTargetLeft(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .close:
+        case .seekPoint:
             return nil
-        case .playPause:
-            return .close
         case .subtitles:
-            return .playPause
+            return .seekPoint
         case .audio:
-            return viewModel.subtitleTracks.isEmpty ? .playPause : .subtitles
+            return viewModel.subtitleTracks.isEmpty ? .seekPoint : .subtitles
         }
     }
 
     private func focusTargetRight(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .close:
-            return .playPause
-        case .playPause:
+        case .seekPoint:
             return nil
         case .subtitles:
             return viewModel.audioTracks.isEmpty ? nil : .audio

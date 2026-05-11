@@ -11,8 +11,7 @@ struct PlayerControlsOverlay: View {
         PlayerControlsTVOverlay(
             viewModel: viewModel,
             context: context,
-            hasActiveSkipMarker: hasActiveSkipMarker,
-            onDismiss: onDismiss
+            hasActiveSkipMarker: hasActiveSkipMarker
         )
         #else
         PlayerControlsIOSOverlay(
@@ -66,7 +65,7 @@ struct PlayerControlsOverlay: View {
 
     private var audioControlTitle: String {
         if let selectedAudioTrack = viewModel.selectedAudioTrack {
-            return selectedAudioTrack.displayTitle
+            return selectedAudioTrack.compactDisplayTitle
         }
 
         return viewModel.state == .loading ? "..." : "-"

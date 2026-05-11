@@ -10,6 +10,33 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
     let codec: String?
     let channels: Int?
     let channelLayout: String?
+
+    var compactDisplayTitle: String {
+        let title = Self.trimmed(displayTitle)
+        guard let bitrateSeparatorRange = title.range(of: " @ ") else {
+            return title
+        }
+
+        let compactTitle = Self.trimmed(String(title[..<bitrateSeparatorRange.lowerBound]))
+        return compactTitle.isEmpty ? title : compactTitle
+    }
+
+    var detailDisplayTitle: String? {
+        let title = Self.trimmed(displayTitle)
+        let compactTitle = compactDisplayTitle
+
+        if title != compactTitle {
+            return title
+        }
+
+        guard let language = language.map(Self.trimmed),
+              !language.isEmpty,
+              !compactTitle.localizedCaseInsensitiveContains(language) else {
+            return nil
+        }
+
+        return language
+    }
 }
 
 extension AudioTrack {
@@ -22,5 +49,9 @@ extension AudioTrack {
         self.codec = stream.codec
         self.channels = stream.channels
         self.channelLayout = stream.channelLayout
+    }
+
+    private static func trimmed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
