@@ -23,8 +23,9 @@ struct HomeCinematicHeroLayout {
     var metadataFont: Font = .subheadline.weight(.medium)
     var summaryFont: Font = .body
     var summaryLineSpacing: CGFloat = 4
+    var bottomFadeHeightFactor: CGFloat = 1
     var bottomFadeStops: [Gradient.Stop] = [
-        .init(color: .clear, location: 0),
+        .init(color: Color.duskBackground.opacity(0), location: 0),
         .init(color: Color.duskBackground.opacity(0.26), location: 0.7),
         .init(color: Color.duskBackground, location: 1)
     ]
@@ -52,15 +53,16 @@ struct HomeCinematicHeroLayout {
         metadataFont: .headline.weight(.medium),
         summaryFont: .body,
         summaryLineSpacing: 4,
+        bottomFadeHeightFactor: 0.68,
         bottomFadeStops: [
-            .init(color: .clear, location: 0),
-            .init(color: Color.duskBackground.opacity(0.08), location: 0.5),
-            .init(color: Color.duskBackground.opacity(0.22), location: 0.68),
-            .init(color: Color.duskBackground.opacity(0.52), location: 0.84),
-            .init(color: Color.duskBackground.opacity(0.82), location: 0.95),
+            .init(color: Color.duskBackground.opacity(0), location: 0),
+            .init(color: Color.duskBackground.opacity(0.10), location: 0.24),
+            .init(color: Color.duskBackground.opacity(0.34), location: 0.54),
+            .init(color: Color.duskBackground.opacity(0.72), location: 0.80),
+            .init(color: Color.duskBackground, location: 0.94),
             .init(color: Color.duskBackground, location: 1)
         ],
-        bottomFadeStartPoint: UnitPoint(x: 0.5, y: 0.22),
+        bottomFadeStartPoint: .top,
         bottomFadeEndPoint: .bottom
     )
 }
@@ -310,11 +312,7 @@ struct HomeCinematicHero: View {
                     endPoint: .trailing
                 )
 
-                LinearGradient(
-                    stops: layout.bottomFadeStops,
-                    startPoint: layout.bottomFadeStartPoint,
-                    endPoint: layout.bottomFadeEndPoint
-                )
+                bottomFade(heroHeight: heroHeight)
             }
             .allowsHitTesting(false)
 
@@ -373,6 +371,19 @@ struct HomeCinematicHero: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func bottomFade(heroHeight: CGFloat) -> some View {
+        let fadeHeight = min(heroHeight, max(1, heroHeight * layout.bottomFadeHeightFactor))
+
+        return LinearGradient(
+            stops: layout.bottomFadeStops,
+            startPoint: layout.bottomFadeStartPoint,
+            endPoint: layout.bottomFadeEndPoint
+        )
+        .frame(maxWidth: .infinity)
+        .frame(height: fadeHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
     private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
