@@ -912,14 +912,14 @@ struct HomeCinematicHero: View {
     private func adjacentHeroIndex(forDragOffset offset: CGFloat) -> Int? {
         guard heroItemIDs.count > 1 else { return nil }
 
+        let heroCount = heroItemIDs.count
+
         if offset < 0 {
-            let nextIndex = currentHeroIndex + 1
-            return heroItemIDs.indices.contains(nextIndex) ? nextIndex : nil
+            return (currentHeroIndex + 1) % heroCount
         }
 
         if offset > 0 {
-            let previousIndex = currentHeroIndex - 1
-            return heroItemIDs.indices.contains(previousIndex) ? previousIndex : nil
+            return (currentHeroIndex - 1 + heroCount) % heroCount
         }
 
         return nil
