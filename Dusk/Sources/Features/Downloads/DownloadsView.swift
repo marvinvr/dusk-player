@@ -326,35 +326,47 @@ private struct DownloadQueueToolbarButton: View {
     let isActive: Bool
 
     var body: some View {
-        ZStack {
-            if let progress, isActive {
-                Circle()
-                    .stroke(Color.duskTextSecondary.opacity(0.15), lineWidth: 2.5)
-                    .frame(width: 30, height: 30)
+        ZStack(alignment: .topTrailing) {
+            ZStack {
+                if let progress, isActive {
+                    Circle()
+                        .stroke(Color.duskTextSecondary.opacity(0.15), lineWidth: 2.5)
+                        .frame(width: 30, height: 30)
 
-                Circle()
-                    .trim(from: 0, to: progress)
-                    .stroke(Color.duskAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .frame(width: 30, height: 30)
+                    Circle()
+                        .trim(from: 0, to: progress)
+                        .stroke(Color.duskAccent, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .frame(width: 30, height: 30)
+                }
+
+                Image(systemName: "arrow.down")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(isActive ? Color.duskAccent : Color.duskTextPrimary)
             }
+            .frame(width: 34, height: 34)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
 
-            Image(systemName: "arrow.down")
-                .font(.system(size: 14, weight: .bold))
-                .foregroundStyle(isActive ? Color.duskAccent : Color.duskTextPrimary)
-        }
-        .frame(width: 40, height: 40)
-        .overlay(alignment: .topTrailing) {
             if queuedCount > 0 {
-                Text("\(min(queuedCount, 99))")
+                Text(badgeText)
                     .font(.caption2.weight(.bold))
+                    .monospacedDigit()
                     .foregroundStyle(Color.duskBackground)
-                    .frame(minWidth: 16, minHeight: 16)
-                    .padding(.horizontal, queuedCount > 9 ? 3 : 0)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(width: badgeWidth, height: 18)
                     .background(Color.duskAccent, in: Capsule())
-                    .offset(x: 4, y: -4)
             }
         }
+        .frame(width: 44, height: 44)
+    }
+
+    private var badgeText: String {
+        "\(min(queuedCount, 99))"
+    }
+
+    private var badgeWidth: CGFloat {
+        min(queuedCount, 99) > 9 ? 22 : 18
     }
 }
 
