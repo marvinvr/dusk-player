@@ -397,7 +397,11 @@ final class AVPlayerEngine: PlaybackEngine {
                 ))
                 audioOptionsByID[i] = option
             }
-            if let selectedOption = item.currentMediaSelection.selectedMediaOption(in: group) {
+            let selectedOption = item.currentMediaSelection.selectedMediaOption(in: group)
+                ?? group.defaultOption
+                ?? group.options.first
+            if let selectedOption {
+                item.select(selectedOption, in: group)
                 selectedAudioTrackID = audioOptionsByID.first { $0.value === selectedOption }?.key
             }
         }
