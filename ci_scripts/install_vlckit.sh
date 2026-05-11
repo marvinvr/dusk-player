@@ -6,9 +6,10 @@ BUILD_DIR="${ROOT_DIR}/.build"
 IOS_FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/VLCKit.xcframework"
 TVOS_FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/VLCKit-tvOS.xcframework"
 LICENSE_PATH="${ROOT_DIR}/Frameworks/VLCKit-LICENSE.txt"
+VERSION_PATH="${ROOT_DIR}/Frameworks/VLCKit-VERSION.txt"
 SOURCE_DIR="${BUILD_DIR}/vlckit-src"
 VLCKIT_REPO_URL="https://code.videolan.org/videolan/VLCKit.git"
-VLCKIT_REF="4.0.0a18"
+VLCKIT_REF="4.0.0a19"
 TEMP_FILES=()
 
 # Manual maintenance script for refreshing the vendored VLCKit binary.
@@ -40,6 +41,8 @@ make_temp_file() {
 has_expected_vlckit() {
     [ -d "${IOS_FRAMEWORK_DIR}" ] &&
     [ -d "${TVOS_FRAMEWORK_DIR}" ] &&
+    [ -f "${VERSION_PATH}" ] &&
+    [ "$(cat "${VERSION_PATH}")" = "${VLCKIT_REF}" ] &&
     [ -d "${IOS_FRAMEWORK_DIR}/ios-arm64-simulator" ] &&
     [ -d "${TVOS_FRAMEWORK_DIR}/tvos-arm64-simulator" ] &&
     find "${IOS_FRAMEWORK_DIR}" -path "*Headers/VLCDrawable.h" -print -quit | grep -q .
@@ -117,7 +120,7 @@ fi
 
 echo "Building VLCKit ${VLCKIT_REF} for iOS and tvOS from source..."
 
-rm -rf "${IOS_FRAMEWORK_DIR}" "${TVOS_FRAMEWORK_DIR}" "${SOURCE_DIR}"
+rm -rf "${SOURCE_DIR}"
 mkdir -p "${ROOT_DIR}/Frameworks" "${BUILD_DIR}"
 
 git clone --depth 1 --branch "${VLCKIT_REF}" "${VLCKIT_REPO_URL}" "${SOURCE_DIR}"
@@ -138,6 +141,7 @@ thin_ios_simulator_slice
 install_framework "${SOURCE_DIR}/build/tvOS/VLCKit.xcframework" "${TVOS_FRAMEWORK_DIR}"
 thin_tvos_simulator_slice
 cp "${SOURCE_DIR}/COPYING" "${LICENSE_PATH}"
+printf '%s\n' "${VLCKIT_REF}" > "${VERSION_PATH}"
 
 echo "Pinned iOS VLCKit installed at ${IOS_FRAMEWORK_DIR}."
 echo "Pinned tvOS VLCKit installed at ${TVOS_FRAMEWORK_DIR}."
