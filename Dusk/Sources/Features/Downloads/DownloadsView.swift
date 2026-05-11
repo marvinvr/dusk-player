@@ -356,6 +356,8 @@ private struct DownloadQueueToolbarButton: View {
                     .minimumScaleFactor(0.8)
                     .frame(width: badgeWidth, height: 18)
                     .background(Color.duskAccent, in: Capsule())
+                    .padding(.top, 5)
+                    .padding(.trailing, 3)
             }
         }
         .frame(width: 44, height: 44)
