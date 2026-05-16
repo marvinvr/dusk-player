@@ -72,6 +72,7 @@ final class PlayerViewModel {
     @ObservationIgnored nonisolated(unsafe) var hideTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) var markerSkipTask: Task<Void, Never>?
 
     init(engine: any PlaybackEngine, markers: [PlexMarker] = []) {
         self.engine = engine
@@ -86,6 +87,7 @@ final class PlayerViewModel {
         hideTimer?.invalidate()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
+        markerSkipTask?.cancel()
     }
 
     func cleanup() {
@@ -93,10 +95,12 @@ final class PlayerViewModel {
         hideTimer?.invalidate()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
+        markerSkipTask?.cancel()
         syncTimer = nil
         hideTimer = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
+        markerSkipTask = nil
         showBufferingIndicator = false
         bufferingStartedAt = nil
         stalledPlaybackStartedAt = nil

@@ -97,6 +97,30 @@ extension PlayerViewModel {
         seek(to: targetTime, revealControls: true)
     }
 
+    func handleSkipMarker(
+        _ marker: PlexMarker,
+        skipCreditsToUpNext: @escaping @MainActor () async -> Bool
+    ) {
+        cancelAutoSkipCountdown()
+
+        guard marker.isCredits else {
+            skipActiveMarker()
+            return
+        }
+
+        markerSkipTask?.cancel()
+        markerSkipTask = Task { @MainActor [weak self] in
+            let didPresentUpNext = await skipCreditsToUpNext()
+            guard !Task.isCancelled else { return }
+
+            if !didPresentUpNext {
+                self?.skipActiveMarker()
+            }
+
+            self?.markerSkipTask = nil
+        }
+    }
+
     func beginScrub() {
         isScrubbing = true
         scrubPosition = currentTime

@@ -223,16 +223,7 @@ private struct PlayerSessionView: View {
                 part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first
             )
             viewModel.autoSkipHandler = { marker in
-                if marker.isCredits {
-                    Task { @MainActor in
-                        let didPresentUpNext = await playback.skipCreditsToUpNextIfPossible()
-                        if !didPresentUpNext {
-                            viewModel.skipActiveMarker()
-                        }
-                    }
-                } else {
-                    viewModel.skipActiveMarker()
-                }
+                handleSkipMarker(marker)
             }
             viewModel.playbackSnapshotHandler = { state, currentTime, duration in
                 playback.nowPlayingController.updatePlaybackState(
@@ -357,17 +348,7 @@ private struct PlayerSessionView: View {
             HStack {
                 Spacer()
                 Button {
-                    viewModel.cancelAutoSkipCountdown()
-                    if marker.isCredits {
-                        Task { @MainActor in
-                            let didPresentUpNext = await playback.skipCreditsToUpNextIfPossible()
-                            if !didPresentUpNext {
-                                viewModel.skipActiveMarker()
-                            }
-                        }
-                    } else {
-                        viewModel.skipActiveMarker()
-                    }
+                    handleSkipMarker(marker)
                 } label: {
                     #if os(tvOS)
                     HStack(spacing: 8) {
@@ -474,6 +455,19 @@ private struct PlayerSessionView: View {
     private func dismissPlayer() {
         viewModel.cleanup()
         dismiss()
+    }
+
+    @MainActor
+    private func handleSkipMarker(_ marker: PlexMarker) {
+        let presentationID = playback.playerPresentationID
+        let ratingKey = playback.ratingKey
+
+        viewModel.handleSkipMarker(marker) {
+            await playback.skipCreditsToUpNextIfPossible(
+                presentationID: presentationID,
+                ratingKey: ratingKey
+            )
+        }
     }
 }
 

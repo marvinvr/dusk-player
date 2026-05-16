@@ -105,15 +105,32 @@ extension PlaybackCoordinator {
         upNextCountdownTask = nil
     }
 
-    func skipCreditsToUpNextIfPossible() async -> Bool {
+    func skipCreditsToUpNextIfPossible(
+        presentationID expectedPresentationID: UUID,
+        ratingKey expectedRatingKey: String?
+    ) async -> Bool {
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else {
+            return true
+        }
+
         guard upNextPresentation == nil else { return true }
 
         guard let activeItemDetails,
-              activeItemDetails.type == .episode,
-              let nextEpisode = await nextEpisode(after: activeItemDetails) else {
+              activeItemDetails.type == .episode else {
             return false
         }
 
+        let nextEpisode: PlexEpisode?
+        if activePlaybackUsesLocalDownload {
+            nextEpisode = cachedNextEpisode(after: activeItemDetails)
+        } else {
+            nextEpisode = await nextEpisode(after: activeItemDetails)
+        }
+
+        guard let nextEpisode else { return false }
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else {
+            return true
+        }
         guard upNextPresentation == nil else { return true }
 
         finalizeCurrentPlaybackSession(markCompleted: true)
@@ -131,6 +148,10 @@ extension PlaybackCoordinator {
 
     private func cachedNextEpisode(after episode: PlexMediaDetails) -> PlexEpisode? {
         downloadManager?.cachedNextDownloadedEpisode(after: episode)
+    }
+
+    private func isActiveSession(presentationID expectedPresentationID: UUID, ratingKey expectedRatingKey: String?) -> Bool {
+        playerPresentationID == expectedPresentationID && ratingKey == expectedRatingKey
     }
 
     private func startUpNextPlayback(trigger: UpNextStartTrigger) async {
