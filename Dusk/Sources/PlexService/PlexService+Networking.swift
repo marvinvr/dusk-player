@@ -45,6 +45,33 @@ extension PlexService {
         path: String,
         queryItems: [URLQueryItem]? = nil
     ) async throws -> Data {
+        if preferredServerToken == nil {
+            try await recoverServerAuthorizationIfPossible()
+        }
+
+        do {
+            return try await sendRawServerRequest(method: method, path: path, queryItems: queryItems)
+        } catch let error as PlexServiceError where error == .unauthorized {
+            plexAuthLogger.notice("Server request unauthorized for \(path, privacy: .public); attempting token refresh")
+            try await recoverServerAuthorizationIfPossible()
+            do {
+                return try await sendRawServerRequest(method: method, path: path, queryItems: queryItems)
+            } catch let retryError as PlexServiceError where retryError == .unauthorized {
+                clearServer()
+                throw retryError
+            }
+        } catch let error as PlexServiceError where shouldRefreshServerEndpoint(after: error) {
+            plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
+            try await refreshConnectedServerConnection()
+            return try await sendRawServerRequest(method: method, path: path, queryItems: queryItems)
+        }
+    }
+
+    private func sendRawServerRequest(
+        method: String,
+        path: String,
+        queryItems: [URLQueryItem]?
+    ) async throws -> Data {
         guard let baseURL = serverBaseURL else {
             throw PlexServiceError.noServerConnected
         }
@@ -53,25 +80,6 @@ extension PlexService {
             throw PlexServiceError.invalidURL
         }
 
-        if preferredServerToken == nil {
-            try await recoverServerAuthorizationIfPossible()
-        }
-
-        do {
-            return try await sendRawServerRequest(method: method, url: url)
-        } catch let error as PlexServiceError where error == .unauthorized {
-            plexAuthLogger.notice("Server request unauthorized for \(url.path, privacy: .public); attempting token refresh")
-            try await recoverServerAuthorizationIfPossible()
-            do {
-                return try await sendRawServerRequest(method: method, url: url)
-            } catch let retryError as PlexServiceError where retryError == .unauthorized {
-                clearServer()
-                throw retryError
-            }
-        }
-    }
-
-    private func sendRawServerRequest(method: String, url: URL) async throws -> Data {
         guard let serverToken = preferredServerToken else {
             throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
         }
@@ -82,6 +90,19 @@ extension PlexService {
         applyHeaders(to: &request, token: serverToken)
 
         return try await executeRequest(request)
+    }
+
+    private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
+        switch error {
+        case .networkError(_):
+            return authToken != nil && currentServerIdentifier != nil
+        case .httpError(let statusCode):
+            return authToken != nil
+                && currentServerIdentifier != nil
+                && [404, 408, 421, 502, 503, 504].contains(statusCode)
+        default:
+            return false
+        }
     }
 
     func recoverServerAuthorizationIfPossible() async throws {

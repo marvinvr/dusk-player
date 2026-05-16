@@ -6,11 +6,15 @@ struct ContentView: View {
     @Environment(PlexService.self) private var plexService
     @State private var discoveredServers: [PlexServer]?
     @State private var connectError: String?
+    @State private var refreshedConnectionIdentifier: String?
+    @State private var isRefreshingConnection = false
 
     var body: some View {
         Group {
             if !plexService.isAuthenticated {
                 SignInView()
+            } else if plexService.isConnected, isRefreshingConnection {
+                connectionRefreshView
             } else if plexService.isConnected {
                 MainTabView()
             } else if let servers = discoveredServers, servers.count > 1 {
@@ -27,6 +31,22 @@ struct ContentView: View {
         .animation(.default, value: plexService.isConnected)
         .background(Color.duskBackground.ignoresSafeArea())
         .duskSuppressTVOSButtonChrome()
+        .task(id: plexService.currentServerIdentifier) {
+            await refreshConnectedServerIfNeeded()
+        }
+    }
+
+    private var connectionRefreshView: some View {
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                ProgressView()
+                    .tint(Color.duskAccent)
+                Text("Checking your server connection…")
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+        }
     }
 
     @ViewBuilder
@@ -68,6 +88,35 @@ struct ContentView: View {
         }
     }
 
+    private func refreshConnectedServerIfNeeded() async {
+        guard plexService.isAuthenticated else {
+            refreshedConnectionIdentifier = nil
+            isRefreshingConnection = false
+            return
+        }
+
+        guard plexService.isConnected,
+              let connectionIdentifier = plexService.currentServerIdentifier,
+              refreshedConnectionIdentifier != connectionIdentifier else {
+            return
+        }
+
+        isRefreshingConnection = true
+        connectError = nil
+
+        do {
+            try await plexService.refreshConnectedServerConnection()
+            refreshedConnectionIdentifier = plexService.currentServerIdentifier ?? connectionIdentifier
+        } catch {
+            refreshedConnectionIdentifier = connectionIdentifier
+            if !plexService.isConnected {
+                connectError = error.localizedDescription
+            }
+        }
+
+        isRefreshingConnection = false
+    }
+
     private func discoverAndConnect() async {
         do {
             let servers = try await plexService.discoverServers()
@@ -90,6 +139,8 @@ struct ContentView: View {
 
     private func signOut() {
         resetDiscoveryState()
+        refreshedConnectionIdentifier = nil
+        isRefreshingConnection = false
         plexService.signOut()
     }
 }
