@@ -23,6 +23,8 @@ extension PlayerViewModel {
     }
 
     func sync() {
+        let previousState = state
+        let previousIsBuffering = isBuffering
         let engineState = engine.state
         let now = Date()
 
@@ -44,12 +46,21 @@ extension PlayerViewModel {
         duration = engine.duration
         isBuffering = engine.isBuffering
         playbackError = engine.error
-        updateBufferingPresentation(now: now)
-        updatePlaybackProgressTracking(now: now)
-        recoverStalledPlaybackIfNeeded(now: now)
-        if !hasStartedPlayback, (state == .playing || currentTime > 0) {
+
+        let didStartPlayback = !hasStartedPlayback && (state == .playing || currentTime > 0)
+        if didStartPlayback {
             hasStartedPlayback = true
         }
+
+        updatePlaybackProgressTracking(now: now)
+        updateBufferingPresentation(now: now)
+        recoverStalledPlaybackIfNeeded(now: now)
+        scheduleControlsHideIfPlaybackBecameReady(
+            previousState: previousState,
+            previousIsBuffering: previousIsBuffering,
+            didStartPlayback: didStartPlayback,
+            now: now
+        )
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
         updateAutoSkipState()
@@ -164,7 +175,9 @@ extension PlayerViewModel {
         hideTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.state == .playing, !self.isScrubbing, !self.isBuffering {
+                if self.state == .playing,
+                   !self.isScrubbing,
+                   !self.shouldHoldControlsForBuffering(now: Date()) {
                     withAnimation(Self.controlsVisibilityAnimation) {
                         self.showControls = false
                     }
@@ -218,7 +231,9 @@ extension PlayerViewModel {
     }
 
     private func updateBufferingPresentation(now: Date) {
-        guard isBuffering, playbackError == nil else {
+        guard isBuffering,
+              playbackError == nil,
+              !isPlaybackMakingProgress(now: now) else {
             bufferingStartedAt = nil
             if showBufferingIndicator {
                 withAnimation(.easeInOut(duration: 0.18)) {
@@ -237,6 +252,35 @@ extension PlayerViewModel {
         withAnimation(.easeInOut(duration: 0.18)) {
             showBufferingIndicator = true
         }
+    }
+
+    private func scheduleControlsHideIfPlaybackBecameReady(
+        previousState: PlaybackState,
+        previousIsBuffering: Bool,
+        didStartPlayback: Bool,
+        now: Date
+    ) {
+        guard showControls,
+              state == .playing,
+              !isScrubbing,
+              playbackError == nil,
+              !shouldHoldControlsForBuffering(now: now) else {
+            return
+        }
+
+        if didStartPlayback || previousState != .playing || previousIsBuffering {
+            scheduleHide()
+        }
+    }
+
+    private func shouldHoldControlsForBuffering(now: Date) -> Bool {
+        isBuffering && !isPlaybackMakingProgress(now: now)
+    }
+
+    private func isPlaybackMakingProgress(now: Date) -> Bool {
+        hasStartedPlayback &&
+            state == .playing &&
+            now.timeIntervalSince(lastProgressAt) < Self.bufferingIndicatorDelay
     }
 
     private func updatePlaybackProgressTracking(now: Date) {
