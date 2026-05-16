@@ -354,6 +354,8 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func seasonContextMenu(_ season: PlexSeason) -> some View {
+        let downloadState = downloadManager.downloadState(for: DownloadScope(ratingKey: season.ratingKey, type: .season))
+
         if season.isPartiallyWatched {
             Button {
                 Task { await viewModel.markSeason(season, watched: true) }
@@ -377,6 +379,14 @@ struct ShowDetailView: View {
                 Task { await viewModel.markSeason(season, watched: true) }
             } label: {
                 Label("Mark Watched", systemImage: "eye")
+            }
+        }
+
+        if !downloadState.isDeleting && downloadState.canDelete {
+            Button(role: .destructive) {
+                downloadManager.deleteDownload(scope: downloadState.scope)
+            } label: {
+                Label("Delete Season Download", systemImage: "trash")
             }
         }
     }

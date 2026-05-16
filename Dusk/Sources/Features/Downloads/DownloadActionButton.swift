@@ -13,6 +13,7 @@ enum DownloadsFeature {
 struct DownloadActionButton: View {
     @Environment(DownloadManager.self) private var downloadManager
     @State private var isStartingDownload = false
+    @State private var isShowingDeleteConfirmation = false
 
     let ratingKey: String
     let type: PlexMediaType
@@ -43,6 +44,14 @@ struct DownloadActionButton: View {
             .duskSuppressTVOSButtonChrome()
             .duskTVOSFocusEffectShape(Capsule())
             .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
+            .alert(deleteConfirmationTitle, isPresented: $isShowingDeleteConfirmation) {
+                Button("No", role: .cancel) {}
+                Button("Yes, Delete", role: .destructive) {
+                    downloadManager.deleteDownload(scope: scope)
+                }
+            } message: {
+                Text(deleteConfirmationMessage)
+            }
             .onChange(of: state.status) { _, newStatus in
                 if newStatus != nil {
                     isStartingDownload = false
@@ -168,9 +177,39 @@ struct DownloadActionButton: View {
         } else if state.status == .failed {
             retry()
         } else if state.status == .completed {
-            return
+            isShowingDeleteConfirmation = true
         } else {
             startDownload()
+        }
+    }
+
+    private var deleteConfirmationTitle: String {
+        switch type {
+        case .episode:
+            "Delete Episode Download?"
+        case .movie:
+            "Delete Movie Download?"
+        case .season:
+            "Delete Season Downloads?"
+        case .show:
+            "Delete Show Downloads?"
+        default:
+            "Delete Download?"
+        }
+    }
+
+    private var deleteConfirmationMessage: String {
+        switch type {
+        case .episode:
+            "Remove this episode from this device?"
+        case .movie:
+            "Remove this movie from this device?"
+        case .season:
+            "Remove the downloaded episodes in this season from this device?"
+        case .show:
+            "Remove the downloaded episodes in this show from this device?"
+        default:
+            "Remove this download from this device?"
         }
     }
 
