@@ -11,6 +11,7 @@ private let avPlayerEngineLogger = Logger(
 /// Native AVPlayer-based playback engine for MP4/MOV with standard codecs.
 @MainActor @Observable
 final class AVPlayerEngine: PlaybackEngine {
+    private static let preferredForwardBufferDuration: TimeInterval = 15
 
     // MARK: - PlaybackEngine State
 
@@ -36,6 +37,7 @@ final class AVPlayerEngine: PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var statusObserver: NSKeyValueObservation?
     @ObservationIgnored nonisolated(unsafe) private var timeControlStatusObserver: NSKeyValueObservation?
     @ObservationIgnored nonisolated(unsafe) private var playbackEndedObserver: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var playbackStalledObserver: NSObjectProtocol?
 
     // MARK: - Track Mapping
 
@@ -48,6 +50,7 @@ final class AVPlayerEngine: PlaybackEngine {
     private var pendingStartPosition: TimeInterval?
     private var hasReportedPlaybackEnded = false
     private var currentAttemptContext: PlaybackAttemptContext?
+    private var currentSource: PlaybackSource?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
 
     // MARK: - Init
@@ -56,6 +59,7 @@ final class AVPlayerEngine: PlaybackEngine {
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspect
         player.appliesMediaSelectionCriteriaAutomatically = false
+        player.automaticallyWaitsToMinimizeStalling = true
         setupKVOObservers()
     }
 
@@ -69,6 +73,10 @@ final class AVPlayerEngine: PlaybackEngine {
             NotificationCenter.default.removeObserver(playbackEndedObserver)
             self.playbackEndedObserver = nil
         }
+        if let playbackStalledObserver {
+            NotificationCenter.default.removeObserver(playbackStalledObserver)
+            self.playbackStalledObserver = nil
+        }
     }
 
     // MARK: - Lifecycle
@@ -77,8 +85,10 @@ final class AVPlayerEngine: PlaybackEngine {
         loadValidationTask?.cancel()
         removeTimeObserver()
         removePlaybackEndedObserver()
+        removePlaybackStalledObserver()
 
         currentAttemptContext = source.context
+        currentSource = source
         state = .loading
         error = nil
         isBuffering = true
@@ -133,6 +143,7 @@ final class AVPlayerEngine: PlaybackEngine {
         player.pause()
         removeTimeObserver()
         removePlaybackEndedObserver()
+        removePlaybackStalledObserver()
         player.replaceCurrentItem(with: nil)
 
         state = .stopped
@@ -149,11 +160,48 @@ final class AVPlayerEngine: PlaybackEngine {
         selectedSubtitleTrackID = nil
         hasReportedPlaybackEnded = false
         currentAttemptContext = nil
+        currentSource = nil
     }
 
     func seek(to position: TimeInterval) {
         let time = CMTime(seconds: position, preferredTimescale: 1000)
         player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    func recoverFromStall() {
+        guard let source = currentSource else {
+            player.play()
+            return
+        }
+
+        let recoveryPosition = recoveryStartPosition(for: source)
+        if let currentAttemptContext {
+            avPlayerEngineLogger.notice(
+                "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer recovering stalled playback at \(recoveryPosition, privacy: .public)s"
+            )
+        }
+
+        loadValidationTask?.cancel()
+        removeTimeObserver()
+        removePlaybackEndedObserver()
+        removePlaybackStalledObserver()
+        player.pause()
+
+        error = nil
+        state = .loading
+        isBuffering = true
+        pendingStartPosition = recoveryPosition
+        hasReportedPlaybackEnded = false
+        availableAudioTracks = []
+        availableSubtitleTracks = []
+        audioOptionsByID = [:]
+        subtitleOptionsByID = [:]
+        audioGroup = nil
+        subtitleGroup = nil
+        selectedAudioTrackID = nil
+        selectedSubtitleTrackID = nil
+
+        finishValidatedLoad(source: source, attemptID: source.context.attemptID)
     }
 
     func handleReturnToForeground() {
@@ -257,9 +305,11 @@ final class AVPlayerEngine: PlaybackEngine {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
         let item = AVPlayerItem(url: source.url)
+        item.preferredForwardBufferDuration = Self.preferredForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules
         player.replaceCurrentItem(with: item)
         observePlaybackEnd(for: item)
+        observePlaybackStall(for: item)
         addTimeObserver()
         loadValidationTask = nil
     }
@@ -292,6 +342,9 @@ final class AVPlayerEngine: PlaybackEngine {
             }
         case .waitingToPlayAtSpecifiedRate:
             isBuffering = true
+            if state != .paused {
+                state = hasReportedPlaybackEnded ? .stopped : state
+            }
         @unknown default:
             break
         }
@@ -332,10 +385,29 @@ final class AVPlayerEngine: PlaybackEngine {
         }
     }
 
+    private func observePlaybackStall(for item: AVPlayerItem) {
+        playbackStalledObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemPlaybackStalled,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.isBuffering = true
+            }
+        }
+    }
+
     private func removePlaybackEndedObserver() {
         if let playbackEndedObserver {
             NotificationCenter.default.removeObserver(playbackEndedObserver)
             self.playbackEndedObserver = nil
+        }
+    }
+
+    private func removePlaybackStalledObserver() {
+        if let playbackStalledObserver {
+            NotificationCenter.default.removeObserver(playbackStalledObserver)
+            self.playbackStalledObserver = nil
         }
     }
 
@@ -351,6 +423,13 @@ final class AVPlayerEngine: PlaybackEngine {
         state = .stopped
         isBuffering = false
         onPlaybackEnded?()
+    }
+
+    private func recoveryStartPosition(for source: PlaybackSource) -> TimeInterval {
+        let observedTime = CMTimeGetSeconds(player.currentTime())
+        let engineTime = observedTime.isFinite ? observedTime : currentTime
+        let fallback = source.startPosition ?? 0
+        return max(0, engineTime.isFinite ? engineTime : fallback)
     }
 
     private var subtitleTextStyleRules: [AVTextStyleRule] {

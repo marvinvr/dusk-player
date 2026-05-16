@@ -25,6 +25,7 @@ protocol PlaybackEngine: AnyObject {
     func pause()
     func stop()
     func seek(to position: TimeInterval)
+    func recoverFromStall()
 
     /// Called when the app returns to foreground after being backgrounded.
     /// Engines should restore their video rendering pipeline here.

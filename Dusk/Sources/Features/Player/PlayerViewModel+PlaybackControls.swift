@@ -8,6 +8,11 @@ extension PlayerViewModel {
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
     private static let markerSkipPadding: TimeInterval = 0.5
     private static let autoSkipCountdownDuration: TimeInterval = 5.0
+    private static let bufferingIndicatorDelay: TimeInterval = 2.0
+    private static let stallRecoveryDelay: TimeInterval = 12.0
+    private static let stallRecoveryCooldown: TimeInterval = 8.0
+    private static let stallProgressTolerance: TimeInterval = 0.75
+    private static let maxStallRecoveryAttempts = 2
 
     func startSync() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -38,10 +43,13 @@ extension PlayerViewModel {
         }
         duration = engine.duration
         isBuffering = engine.isBuffering
+        playbackError = engine.error
+        updateBufferingPresentation(now: now)
+        updatePlaybackProgressTracking(now: now)
+        recoverStalledPlaybackIfNeeded(now: now)
         if !hasStartedPlayback, (state == .playing || currentTime > 0) {
             hasStartedPlayback = true
         }
-        playbackError = engine.error
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
         updateAutoSkipState()
@@ -132,7 +140,7 @@ extension PlayerViewModel {
         hideTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.state == .playing, !self.isScrubbing {
+                if self.state == .playing, !self.isScrubbing, !self.isBuffering {
                     withAnimation(Self.controlsVisibilityAnimation) {
                         self.showControls = false
                     }
@@ -183,6 +191,75 @@ extension PlayerViewModel {
         if autoSkipCountdownMarkerID == marker.id { return }
 
         startAutoSkipCountdown(for: marker)
+    }
+
+    private func updateBufferingPresentation(now: Date) {
+        guard isBuffering, playbackError == nil else {
+            bufferingStartedAt = nil
+            if showBufferingIndicator {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    showBufferingIndicator = false
+                }
+            }
+            return
+        }
+
+        let startedAt = bufferingStartedAt ?? now
+        bufferingStartedAt = startedAt
+
+        guard now.timeIntervalSince(startedAt) >= Self.bufferingIndicatorDelay,
+              !showBufferingIndicator else { return }
+
+        withAnimation(.easeInOut(duration: 0.18)) {
+            showBufferingIndicator = true
+        }
+    }
+
+    private func updatePlaybackProgressTracking(now: Date) {
+        guard state == .playing || hasStartedPlayback else {
+            lastProgressAt = now
+            lastProgressPosition = currentTime
+            stalledPlaybackStartedAt = nil
+            stallRecoveryAttempts = 0
+            lastStallRecoveryAt = nil
+            return
+        }
+
+        if abs(currentTime - lastProgressPosition) > Self.stallProgressTolerance {
+            lastProgressAt = now
+            lastProgressPosition = currentTime
+            stalledPlaybackStartedAt = nil
+            stallRecoveryAttempts = 0
+            return
+        }
+
+        if isBuffering, stalledPlaybackStartedAt == nil {
+            stalledPlaybackStartedAt = now
+        } else if !isBuffering {
+            stalledPlaybackStartedAt = nil
+        }
+    }
+
+    private func recoverStalledPlaybackIfNeeded(now: Date) {
+        guard hasStartedPlayback,
+              isBuffering,
+              playbackError == nil,
+              stallRecoveryAttempts < Self.maxStallRecoveryAttempts else {
+            return
+        }
+
+        let stalledAt = stalledPlaybackStartedAt ?? lastProgressAt
+        guard now.timeIntervalSince(stalledAt) >= Self.stallRecoveryDelay else { return }
+
+        if let lastStallRecoveryAt,
+           now.timeIntervalSince(lastStallRecoveryAt) < Self.stallRecoveryCooldown {
+            return
+        }
+
+        stallRecoveryAttempts += 1
+        lastStallRecoveryAt = now
+        stalledPlaybackStartedAt = now
+        engine.recoverFromStall()
     }
 
     private func startAutoSkipCountdown(for marker: PlexMarker) {

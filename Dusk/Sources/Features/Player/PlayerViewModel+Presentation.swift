@@ -14,7 +14,7 @@ extension PlayerViewModel {
     }
 
     var shouldShowBufferingIndicator: Bool {
-        isBuffering && !hasStartedPlayback && playbackError == nil
+        showBufferingIndicator && playbackError == nil
     }
 
     var selectedAudioTrack: AudioTrack? {

@@ -165,7 +165,7 @@ private struct PlayerSessionView: View {
                 if viewModel.shouldShowBufferingIndicator {
                     ProgressView()
                         .scaleEffect(1.5)
-                        .tint(.white)
+                        .tint(Color.duskAccent)
                 }
 
                 if let error = viewModel.playbackError {

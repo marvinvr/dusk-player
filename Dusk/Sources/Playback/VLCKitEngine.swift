@@ -51,6 +51,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private static let seekRetryDelay: Duration = .milliseconds(450)
     private static let pendingSeekTolerance: TimeInterval = 1.0
     private static let pendingSeekStaleUpdateWindow: TimeInterval = 1.5
+    private static let networkCachingMilliseconds = 5_000
 
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
@@ -70,9 +71,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var hasAppliedStartPosition = false
     private var hasReportedPlaybackEnded = false
     private var suppressPlaybackEndedEvent = false
+    private var ignoreNextStoppedEvent = false
     private var pendingSeekTarget: TimeInterval?
     private var pendingSeekStartedAt: Date?
     private var currentAttemptContext: PlaybackAttemptContext?
+    private var currentSource: PlaybackSource?
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var seekVerificationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
@@ -111,6 +114,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
         currentAttemptContext = source.context
+        currentSource = source
         state = .loading
         isBuffering = true
         error = nil
@@ -119,6 +123,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         hasAppliedStartPosition = false
         hasReportedPlaybackEnded = false
         suppressPlaybackEndedEvent = false
+        ignoreNextStoppedEvent = false
         clearPendingSeek()
         pendingStartPosition = source.startPosition
         availableSubtitleTracks = []
@@ -181,10 +186,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         videoRefreshTask = nil
         clearPendingSeek()
         suppressPlaybackEndedEvent = true
+        ignoreNextStoppedEvent = false
         mediaPlayer.stop()
         state = .stopped
         hasReportedPlaybackEnded = false
         currentAttemptContext = nil
+        currentSource = nil
         syncRendererPlaybackState()
     }
 
@@ -214,6 +221,43 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         applySeek(to: clampedPosition)
         scheduleSeekVerification(target: clampedPosition)
         syncRendererPlaybackState()
+    }
+
+    func recoverFromStall() {
+        guard let source = currentSource else {
+            mediaPlayer.play()
+            return
+        }
+
+        let recoveryPosition = recoveryStartPosition(for: source)
+        if let currentAttemptContext {
+            vlcKitEngineLogger.notice(
+                "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) VLCKit recovering stalled playback at \(recoveryPosition, privacy: .public)s"
+            )
+        }
+
+        loadValidationTask?.cancel()
+        videoRefreshTask?.cancel()
+        videoRefreshTask = nil
+        clearPendingSeek()
+        suppressPlaybackEndedEvent = true
+        ignoreNextStoppedEvent = true
+        mediaPlayer.stop()
+        suppressPlaybackEndedEvent = false
+
+        error = nil
+        state = .loading
+        isBuffering = true
+        pendingStartPosition = recoveryPosition
+        hasAppliedStartPosition = recoveryPosition <= 0
+        hasReportedPlaybackEnded = false
+        availableSubtitleTracks = []
+        availableAudioTracks = []
+        selectedSubtitleTrackID = nil
+        selectedAudioTrackID = nil
+        syncRendererPlaybackState()
+
+        finishValidatedLoad(source: source, attemptID: source.context.attemptID)
     }
 
     func selectSubtitleTrack(_ track: SubtitleTrack?) {
@@ -270,6 +314,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             isBuffering = false
 
         case .stopped:
+            if ignoreNextStoppedEvent {
+                ignoreNextStoppedEvent = false
+                break
+            }
+
             isBuffering = false
             state = .stopped
             clearPendingSeek()
@@ -349,6 +398,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         media.addOption(":freetype-shadow-color=#000000")
         media.addOption(":freetype-shadow-opacity=80")
         media.addOption(":freetype-shadow-distance=1")
+    }
+
+    private func applyNetworkBufferingOptions(to media: VLCMedia) {
+        let cacheMilliseconds = Self.networkCachingMilliseconds
+        media.addOption(":network-caching=\(cacheMilliseconds)")
+        media.addOption(":file-caching=\(cacheMilliseconds)")
+        media.addOption(":http-reconnect")
     }
 
     private func applySeek(to position: TimeInterval) {
@@ -465,6 +521,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
+    private func recoveryStartPosition(for source: PlaybackSource) -> TimeInterval {
+        let observed = observedPlayerTime
+        let fallback = source.startPosition ?? 0
+        return max(0, observed.isFinite && observed > 0 ? observed : max(currentTime, fallback))
+    }
+
     private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
@@ -478,6 +540,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
 
         applySubtitleStyling(to: media)
+        applyNetworkBufferingOptions(to: media)
         configureAudioOutputPolicy(reason: "before-play")
         mediaPlayer.media = media
         mediaPlayer.currentSubTitleFontScale = PlaybackSubtitleStyle.vlcSubtitleFontScale

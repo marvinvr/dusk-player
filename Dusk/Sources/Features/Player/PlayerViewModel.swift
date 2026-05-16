@@ -29,6 +29,7 @@ final class PlayerViewModel {
     var currentTime: TimeInterval = 0
     var duration: TimeInterval = 0
     var isBuffering = false
+    var showBufferingIndicator = false
     var hasStartedPlayback = false
     var playbackError: PlaybackError?
     var subtitleTracks: [SubtitleTrack] = []
@@ -61,6 +62,12 @@ final class PlayerViewModel {
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
+    var bufferingStartedAt: Date?
+    var stalledPlaybackStartedAt: Date?
+    var lastProgressAt = Date()
+    var lastProgressPosition: TimeInterval = 0
+    var stallRecoveryAttempts = 0
+    var lastStallRecoveryAt: Date?
     @ObservationIgnored nonisolated(unsafe) var syncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var hideTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
@@ -90,6 +97,9 @@ final class PlayerViewModel {
         hideTimer = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
+        showBufferingIndicator = false
+        bufferingStartedAt = nil
+        stalledPlaybackStartedAt = nil
         // Pause (not stop) so the coordinator can read final position
         // for timeline reporting before tearing down the engine.
         engine.pause()
