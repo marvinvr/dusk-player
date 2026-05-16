@@ -120,14 +120,14 @@ extension PlaybackCoordinator {
             return false
         }
 
-        let nextEpisode: PlexEpisode?
+        let resolvedNextEpisode: PlexEpisode?
         if activePlaybackUsesLocalDownload {
-            nextEpisode = cachedNextEpisode(after: activeItemDetails)
+            resolvedNextEpisode = cachedNextEpisode(after: activeItemDetails)
         } else {
-            nextEpisode = await nextEpisode(after: activeItemDetails)
+            resolvedNextEpisode = await nextEpisode(after: activeItemDetails)
         }
 
-        guard let nextEpisode else { return false }
+        guard let nextEpisode = resolvedNextEpisode else { return false }
         guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else {
             return true
         }
