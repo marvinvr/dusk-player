@@ -208,15 +208,35 @@ struct HomeCinematicHero: View {
         #else
         if supportsDragNavigation {
             return AnyView(
-                baseHero.simultaneousGesture(
-                    DragGesture(minimumDistance: 20)
-                        .onChanged { value in
-                            handleHeroDragChanged(value)
-                        }
-                        .onEnded { value in
-                            handleHeroDragEnded(value, heroWidth: heroWidth)
-                        }
-                )
+                baseHero
+                    .simultaneousGesture(
+                        DragGesture(minimumDistance: 20)
+                            .onChanged { value in
+                                handleHeroDragChanged(value)
+                            }
+                            .onEnded { value in
+                                handleHeroDragEnded(value, heroWidth: heroWidth)
+                            }
+                    )
+                    #if os(iOS)
+                    .background(
+                        HeroIndirectScrollNavigation(
+                            isEnabled: supportsDragNavigation && heroItemIDs.count > 1,
+                            onChanged: { horizontalOffset in
+                                handleHeroHorizontalNavigationChanged(
+                                    horizontalOffset: horizontalOffset
+                                )
+                            },
+                            onEnded: { horizontalOffset, predictedHorizontalOffset in
+                                handleHeroHorizontalNavigationEnded(
+                                    horizontalOffset: horizontalOffset,
+                                    predictedHorizontalOffset: predictedHorizontalOffset,
+                                    heroWidth: heroWidth
+                                )
+                            }
+                        )
+                    )
+                    #endif
             )
         } else {
             return AnyView(baseHero)
@@ -557,6 +577,25 @@ struct HomeCinematicHero: View {
 
     #if !os(tvOS)
     private func handleHeroDragChanged(_ value: DragGesture.Value) {
+        handleHeroHorizontalNavigationChanged(
+            horizontalOffset: value.translation.width,
+            verticalOffset: value.translation.height
+        )
+    }
+
+    private func handleHeroDragEnded(_ value: DragGesture.Value, heroWidth: CGFloat) {
+        handleHeroHorizontalNavigationEnded(
+            horizontalOffset: value.translation.width,
+            verticalOffset: value.translation.height,
+            predictedHorizontalOffset: value.predictedEndTranslation.width,
+            heroWidth: heroWidth
+        )
+    }
+
+    private func handleHeroHorizontalNavigationChanged(
+        horizontalOffset: CGFloat,
+        verticalOffset: CGFloat = 0
+    ) {
         guard supportsDragNavigation,
               heroItemIDs.count > 1,
               transitioningHeroIndex == nil,
@@ -564,9 +603,8 @@ struct HomeCinematicHero: View {
             return
         }
 
-        let translation = value.translation
-        guard abs(translation.width) > abs(translation.height),
-              abs(translation.width) > 8 else {
+        guard abs(horizontalOffset) > abs(verticalOffset),
+              abs(horizontalOffset) > 8 else {
             return
         }
 
@@ -575,16 +613,20 @@ struct HomeCinematicHero: View {
             isHeroDragging = true
         }
 
-        heroDragTargetIndex = adjacentHeroIndex(forDragOffset: translation.width)
-        heroDragOffset = resolvedHeroDragOffset(for: translation.width)
+        heroDragTargetIndex = adjacentHeroIndex(forDragOffset: horizontalOffset)
+        heroDragOffset = resolvedHeroDragOffset(for: horizontalOffset)
     }
 
-    private func handleHeroDragEnded(_ value: DragGesture.Value, heroWidth: CGFloat) {
+    private func handleHeroHorizontalNavigationEnded(
+        horizontalOffset: CGFloat,
+        verticalOffset: CGFloat = 0,
+        predictedHorizontalOffset: CGFloat,
+        heroWidth: CGFloat
+    ) {
         guard supportsDragNavigation, isHeroDragActive else { return }
 
-        let translation = value.translation
-        let horizontalDrag = abs(translation.width) > abs(translation.height)
-        let projectedOffset = resolvedHeroDragOffset(for: value.predictedEndTranslation.width)
+        let horizontalDrag = abs(horizontalOffset) > abs(verticalOffset)
+        let projectedOffset = resolvedHeroDragOffset(for: predictedHorizontalOffset)
         let commitThreshold = max(heroWidth * 0.18, 56)
         let targetIndex = heroDragTargetIndex
 
@@ -1026,3 +1068,144 @@ private enum HeroSlideRole {
     case outgoing
     case incoming
 }
+
+#if os(iOS)
+private struct HeroIndirectScrollNavigation: UIViewRepresentable {
+    var isEnabled: Bool
+    var onChanged: (CGFloat) -> Void
+    var onEnded: (CGFloat, CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            isEnabled: isEnabled,
+            onChanged: onChanged,
+            onEnded: onEnded
+        )
+    }
+
+    func makeUIView(context: Context) -> CaptureView {
+        let view = CaptureView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.coordinator = context.coordinator
+        return view
+    }
+
+    func updateUIView(_ uiView: CaptureView, context: Context) {
+        context.coordinator.isEnabled = isEnabled
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+        uiView.coordinator = context.coordinator
+        context.coordinator.installIfPossible(from: uiView)
+    }
+
+    static func dismantleUIView(_ uiView: CaptureView, coordinator: Coordinator) {
+        coordinator.uninstall()
+        uiView.coordinator = nil
+    }
+
+    final class CaptureView: UIView {
+        weak var coordinator: Coordinator?
+
+        override func didMoveToSuperview() {
+            super.didMoveToSuperview()
+            coordinator?.installIfPossible(from: self)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var isEnabled: Bool
+        var onChanged: (CGFloat) -> Void
+        var onEnded: (CGFloat, CGFloat) -> Void
+
+        private weak var hostView: UIView?
+        private var panGesture: UIPanGestureRecognizer?
+        private let projectedVelocityDuration: CGFloat = 0.18
+
+        init(
+            isEnabled: Bool,
+            onChanged: @escaping (CGFloat) -> Void,
+            onEnded: @escaping (CGFloat, CGFloat) -> Void
+        ) {
+            self.isEnabled = isEnabled
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+        }
+
+        func installIfPossible(from view: UIView) {
+            guard let superview = view.superview else { return }
+            install(on: superview)
+        }
+
+        func uninstall() {
+            if let panGesture {
+                hostView?.removeGestureRecognizer(panGesture)
+            }
+
+            hostView = nil
+            panGesture = nil
+        }
+
+        private func install(on view: UIView) {
+            guard hostView !== view else { return }
+
+            uninstall()
+
+            let panGesture = UIPanGestureRecognizer(
+                target: self,
+                action: #selector(handlePanGesture(_:))
+            )
+            panGesture.allowedScrollTypesMask = .continuous
+            panGesture.cancelsTouchesInView = false
+            panGesture.delaysTouchesBegan = false
+            panGesture.delaysTouchesEnded = false
+            panGesture.requiresExclusiveTouchType = false
+            panGesture.delegate = self
+
+            view.addGestureRecognizer(panGesture)
+            hostView = view
+            self.panGesture = panGesture
+        }
+
+        @objc private func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
+            guard isEnabled, let hostView else { return }
+
+            let translation = gesture.translation(in: hostView)
+            let velocity = gesture.velocity(in: hostView)
+            let predictedHorizontalOffset = translation.x + (velocity.x * projectedVelocityDuration)
+
+            switch gesture.state {
+            case .began, .changed:
+                onChanged(translation.x)
+            case .ended:
+                onEnded(translation.x, predictedHorizontalOffset)
+            case .cancelled, .failed:
+                onEnded(translation.x, translation.x)
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard isEnabled,
+                  let panGesture = gestureRecognizer as? UIPanGestureRecognizer,
+                  let hostView else {
+                return false
+            }
+
+            let velocity = panGesture.velocity(in: hostView)
+            let horizontalVelocity = abs(velocity.x)
+            let verticalVelocity = abs(velocity.y)
+
+            return horizontalVelocity > max(verticalVelocity * 1.2, 24)
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+}
+#endif
