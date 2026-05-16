@@ -1,17 +1,23 @@
 import Foundation
+import Network
 import Observation
 
 @MainActor
 @Observable
 final class OfflinePlaybackSyncManager {
     private static let syncAttemptInterval: TimeInterval = 60
+    private static let retryLoopInterval: Duration = .seconds(60)
 
     private let plexService: PlexService
     private let store: OfflinePlaybackSyncStore
 
     private(set) var actions: [OfflinePlaybackSyncAction] = []
     private(set) var isSyncing = false
+    private(set) var isNetworkAvailable = false
     @ObservationIgnored private var lastSyncAttemptAt: Date?
+    @ObservationIgnored private var networkMonitor: NWPathMonitor?
+    @ObservationIgnored private let networkMonitorQueue = DispatchQueue(label: "com.dusk.offlinePlaybackSync.networkMonitor")
+    @ObservationIgnored private var retryLoopTask: Task<Void, Never>?
 
     init(
         plexService: PlexService,
@@ -20,6 +26,12 @@ final class OfflinePlaybackSyncManager {
         self.plexService = plexService
         self.store = store
         actions = store.loadSnapshot().actions
+        startNetworkMonitoring()
+    }
+
+    deinit {
+        networkMonitor?.cancel()
+        retryLoopTask?.cancel()
     }
 
     var pendingSyncCount: Int {
@@ -91,14 +103,19 @@ final class OfflinePlaybackSyncManager {
 
     func syncPendingActions(force: Bool = false) async {
         guard !isSyncing else { return }
+        guard force || isNetworkAvailable else { return }
         guard let currentServerID = plexService.currentServerIdentifier else { return }
 
+        let now = Date()
         let pendingActions = actions
-            .filter { $0.needsSync && $0.serverID == currentServerID }
+            .filter { action in
+                action.needsSync &&
+                    action.serverID == currentServerID &&
+                    (force || shouldAttemptSync(action, now: now))
+            }
             .sorted { $0.updatedAt < $1.updatedAt }
         guard !pendingActions.isEmpty else { return }
 
-        let now = Date()
         if !force,
            let lastSyncAttemptAt,
            now.timeIntervalSince(lastSyncAttemptAt) < Self.syncAttemptInterval {
@@ -117,6 +134,31 @@ final class OfflinePlaybackSyncManager {
                 markAttemptFailed(pendingAction)
             }
         }
+    }
+
+    func startAutomaticSync() {
+        retryLoopTask?.cancel()
+        retryLoopTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            await self.syncPendingActions()
+
+            while !Task.isCancelled {
+                do {
+                    try await Task.sleep(for: Self.retryLoopInterval)
+                } catch {
+                    return
+                }
+
+                guard !Task.isCancelled else { return }
+                await self.syncPendingActions()
+            }
+        }
+    }
+
+    func stopAutomaticSync() {
+        retryLoopTask?.cancel()
+        retryLoopTask = nil
     }
 
     private func sync(_ action: OfflinePlaybackSyncAction) async throws {
@@ -207,6 +249,48 @@ final class OfflinePlaybackSyncManager {
 
     private func persist() {
         try? store.saveSnapshot(OfflinePlaybackSyncSnapshot(actions: actions))
+    }
+
+    private func shouldAttemptSync(_ action: OfflinePlaybackSyncAction, now: Date) -> Bool {
+        guard let lastAttemptAt = action.lastAttemptAt else { return true }
+        return now.timeIntervalSince(lastAttemptAt) >= retryDelay(for: action.attemptCount)
+    }
+
+    private func retryDelay(for attemptCount: Int) -> TimeInterval {
+        switch attemptCount {
+        case ...0:
+            return 0
+        case 1:
+            return 60
+        case 2:
+            return 120
+        case 3:
+            return 300
+        default:
+            return 900
+        }
+    }
+
+    private func startNetworkMonitoring() {
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor [weak self] in
+                self?.handleNetworkPathUpdate(path)
+            }
+        }
+        monitor.start(queue: networkMonitorQueue)
+        networkMonitor = monitor
+    }
+
+    private func handleNetworkPathUpdate(_ path: NWPath) {
+        let wasAvailable = isNetworkAvailable
+        isNetworkAvailable = path.status == .satisfied
+
+        if !wasAvailable && isNetworkAvailable {
+            Task { @MainActor [weak self] in
+                await self?.syncPendingActions()
+            }
+        }
     }
 
     private func playbackState(for value: String?) -> PlaybackState {

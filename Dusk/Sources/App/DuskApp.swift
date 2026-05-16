@@ -83,12 +83,17 @@ struct DuskApp: App {
                 .tint(Color.duskAccent)
                 .task {
                     PlaybackEngineFactory.prewarmIfNeeded()
+                    offlinePlaybackSyncManager.startAutomaticSync()
                     await offlinePlaybackSyncManager.syncPendingActions(force: true)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    guard newPhase == .active else { return }
-                    Task {
-                        await offlinePlaybackSyncManager.syncPendingActions(force: true)
+                    if newPhase == .active {
+                        offlinePlaybackSyncManager.startAutomaticSync()
+                        Task {
+                            await offlinePlaybackSyncManager.syncPendingActions(force: true)
+                        }
+                    } else {
+                        offlinePlaybackSyncManager.stopAutomaticSync()
                     }
                 }
                 .onChange(of: userPreferences.downloadsWifiOnly) {
