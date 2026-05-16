@@ -12,11 +12,11 @@ struct DownloadsView: View {
                 Color.duskBackground.ignoresSafeArea()
 
                 VStack(spacing: 16) {
-                    if offlinePlaybackSyncManager.pendingSyncCount > 0 {
-                        pendingSyncBanner
-                    }
-
                     if downloadedItems.isEmpty {
+                        if offlinePlaybackSyncManager.pendingSyncCount > 0 {
+                            pendingSyncBanner
+                        }
+
                         emptyDownloadsState
                     } else {
                         downloadsGrid
@@ -55,7 +55,10 @@ struct DownloadsView: View {
     }
 
     private var downloadsGrid: some View {
-        DownloadsPosterGrid(items: downloadedItems) { width, item in
+        DownloadsPosterGrid(
+            items: downloadedItems,
+            header: offlinePlaybackSyncManager.pendingSyncCount > 0 ? AnyView(pendingSyncBanner) : nil
+        ) { width, item in
             let state = downloadManager.downloadState(for: item.scope)
 
             PosterNavigationCard(
@@ -374,13 +377,16 @@ private struct DownloadQueueToolbarButton: View {
 
 private struct DownloadsPosterGrid<Item: Identifiable, Content: View>: View {
     let items: [Item]
+    let header: AnyView?
     @ViewBuilder let content: (CGFloat, Item) -> Content
 
     init(
         items: [Item],
+        header: AnyView? = nil,
         @ViewBuilder content: @escaping (CGFloat, Item) -> Content
     ) {
         self.items = items
+        self.header = header
         self.content = content
     }
 
@@ -395,6 +401,12 @@ private struct DownloadsPosterGrid<Item: Identifiable, Content: View>: View {
             )
 
             ScrollView {
+                if let header {
+                    header
+                        .padding(.top, 12)
+                        .padding(.bottom, 4)
+                }
+
                 LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
                     ForEach(items) { item in
                         content(layout.posterWidth, item)
