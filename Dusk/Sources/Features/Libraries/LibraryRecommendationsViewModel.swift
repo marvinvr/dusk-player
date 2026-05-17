@@ -1,5 +1,11 @@
 import Foundation
+import OSLog
 import SwiftUI
+
+private let libraryRecommendationsLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+    category: "LibraryRecommendations"
+)
 
 @MainActor
 @Observable
@@ -10,7 +16,6 @@ final class LibraryRecommendationsViewModel {
 
     private(set) var hubs: [PlexHub] = []
     private(set) var personalizedShelves: [LibraryPersonalizedShelf] = []
-    private(set) var personalizedShelfDiagnostics: String?
     private(set) var continueWatching: [PlexItem] = []
     private(set) var continueWatchingTitle = "Continue Watching"
     private(set) var isLoading = false
@@ -76,21 +81,20 @@ final class LibraryRecommendationsViewModel {
                 recommendationResult.shelves,
                 excluding: continueWatchingItems
             )
-            let personalizedShelfDiagnostics = filteredPersonalizedShelves.isEmpty
-                ? recommendationResult.diagnostics.summary
-                : nil
+
+            if filteredPersonalizedShelves.isEmpty {
+                libraryRecommendationsLogger.debug("\(recommendationResult.diagnostics.summary, privacy: .public)")
+            }
 
             if isInitialLoad {
                 self.hubs = recommendationHubs
                 self.personalizedShelves = filteredPersonalizedShelves
-                self.personalizedShelfDiagnostics = personalizedShelfDiagnostics
                 self.continueWatching = continueWatchingItems
                 self.continueWatchingTitle = continueWatchingTitle
             } else {
                 withAnimation(.easeInOut(duration: 0.3)) {
                     self.hubs = recommendationHubs
                     self.personalizedShelves = filteredPersonalizedShelves
-                    self.personalizedShelfDiagnostics = personalizedShelfDiagnostics
                     self.continueWatching = continueWatchingItems
                     self.continueWatchingTitle = continueWatchingTitle
                 }

@@ -108,11 +108,6 @@ struct LibraryRecommendationsView: View {
                             }
                         }
 
-                        if viewModel.personalizedShelves.isEmpty,
-                           let diagnostics = viewModel.personalizedShelfDiagnostics {
-                            personalizedShelfDiagnosticsView(diagnostics)
-                        }
-
                         ForEach(viewModel.secondaryHubs) { hub in
                             let items = viewModel.inlineItems(in: hub)
 
@@ -182,21 +177,6 @@ struct LibraryRecommendationsView: View {
                 }
             }
         }
-    }
-
-    @ViewBuilder
-    private func personalizedShelfDiagnosticsView(_ diagnostics: String) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Personalized rows unavailable")
-                .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
-
-            Text(diagnostics)
-                .font(.footnote)
-                .foregroundStyle(Color.duskTextSecondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
     }
 
     @ViewBuilder
