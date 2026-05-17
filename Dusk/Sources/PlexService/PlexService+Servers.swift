@@ -101,6 +101,34 @@ extension PlexService {
         }
     }
 
+    func refreshConnectedServerConnection() async throws {
+        guard authToken != nil else { throw PlexServiceError.notAuthenticated }
+        guard isConnected || connectedServer != nil else { throw PlexServiceError.noServerConnected }
+
+        let currentServerID = connectedServer?.clientIdentifier.nilIfEmpty
+            ?? UserDefaults.standard.string(forKey: Self.defaultsServerIDKey)?.nilIfEmpty
+        let refreshedServers = try await discoverServers()
+
+        let refreshedServer: PlexServer?
+        if let currentServerID {
+            refreshedServer = refreshedServers.first { $0.clientIdentifier == currentServerID }
+        } else if refreshedServers.count == 1 {
+            refreshedServer = refreshedServers[0]
+        } else {
+            refreshedServer = nil
+        }
+
+        guard let refreshedServer else {
+            if currentServerID != nil {
+                clearServer()
+            }
+            throw PlexServiceError.noServerConnected
+        }
+
+        plexAuthLogger.notice("Refreshing Plex server endpoint for \(refreshedServer.name, privacy: .public)")
+        try await connect(to: refreshedServer)
+    }
+
     func connectionCandidates(for server: PlexServer) -> [ConnectionCandidate] {
         var candidates: [ConnectionCandidate] = []
         var seen = Set<String>()
@@ -183,12 +211,7 @@ extension PlexService {
 
         plexAuthLogger.notice("Refreshing server authorization for \(connectedServer.name, privacy: .public)")
 
-        let refreshedServers = try await discoverServers()
-        guard let refreshedServer = refreshedServers.first(where: { $0.clientIdentifier == connectedServer.clientIdentifier }) else {
-            throw PlexServiceError.noServerConnected
-        }
-
-        try await connect(to: refreshedServer)
+        try await refreshConnectedServerConnection()
         plexAuthLogger.notice("Refreshed server authorization for \(connectedServer.name, privacy: .public)")
     }
 
