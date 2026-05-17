@@ -8,6 +8,7 @@ struct ContentView: View {
     @State private var connectError: String?
     @State private var refreshedConnectionIdentifier: String?
     @State private var isRefreshingConnection = false
+    @State private var showConnectionRefreshMessage = false
 
     var body: some View {
         Group {
@@ -43,9 +44,17 @@ struct ContentView: View {
             VStack(spacing: 16) {
                 ProgressView()
                     .tint(Color.duskAccent)
-                Text("Checking your server connection…")
-                    .foregroundStyle(Color.duskTextSecondary)
+                if showConnectionRefreshMessage {
+                    Text("Checking your server connection…")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
             }
+        }
+        .task {
+            showConnectionRefreshMessage = false
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            showConnectionRefreshMessage = true
         }
     }
 
@@ -92,6 +101,7 @@ struct ContentView: View {
         guard plexService.isAuthenticated else {
             refreshedConnectionIdentifier = nil
             isRefreshingConnection = false
+            showConnectionRefreshMessage = false
             return
         }
 
@@ -102,6 +112,7 @@ struct ContentView: View {
         }
 
         isRefreshingConnection = true
+        showConnectionRefreshMessage = false
         connectError = nil
 
         do {
@@ -115,6 +126,7 @@ struct ContentView: View {
         }
 
         isRefreshingConnection = false
+        showConnectionRefreshMessage = false
     }
 
     private func discoverAndConnect() async {
@@ -141,6 +153,7 @@ struct ContentView: View {
         resetDiscoveryState()
         refreshedConnectionIdentifier = nil
         isRefreshingConnection = false
+        showConnectionRefreshMessage = false
         plexService.signOut()
     }
 }
