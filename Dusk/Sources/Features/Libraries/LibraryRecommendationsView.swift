@@ -148,115 +148,77 @@ struct LibraryRecommendationsView: View {
     }
 
     private var continueWatchingSection: some View {
-        let imageWidth = Int(continueWatchingCardWidth.rounded(.up))
-        let imageHeight = Int((continueWatchingCardWidth / continueWatchingAspectRatio).rounded(.up))
-
-        return MediaCarousel(title: viewModel.continueWatchingTitle) {
-            ForEach(viewModel.continueWatching) { item in
-                PosterActionCard(
-                    action: { play(item) },
-                    imageURL: viewModel.landscapeImageURL(for: item, width: imageWidth, height: imageHeight),
-                    title: viewModel.displayTitle(for: item),
-                    subtitle: viewModel.displaySubtitle(for: item),
-                    progress: viewModel.progress(for: item),
-                    width: continueWatchingCardWidth,
-                    imageAspectRatio: continueWatchingAspectRatio,
-                    showsPlayOverlay: true
-                ) {
-                    PlexItemContextMenuContent(
-                        item: item,
-                        onMarkWatched: {
-                            Task { await viewModel.setWatched(true, for: item) }
-                        },
-                        onMarkUnwatched: {
-                            Task { await viewModel.setWatched(false, for: item) }
-                        },
-                        detailsRoute: AppNavigationRoute.destination(for: item),
-                        detailsLabel: detailsLabel(for: item)
-                    )
-                }
-            }
+        PlexItemActionCarouselSection(
+            title: viewModel.continueWatchingTitle,
+            items: viewModel.continueWatching,
+            action: { play($0) },
+            posterWidth: continueWatchingCardWidth,
+            imageAspectRatio: continueWatchingAspectRatio,
+            subtitle: { viewModel.displaySubtitle(for: $0) },
+            posterURL: { item, width, height in
+                viewModel.landscapeImageURL(for: item, width: width, height: height)
+            },
+            progress: { viewModel.progress(for: $0) }
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
+                },
+                detailsRoute: AppNavigationRoute.destination(for: item),
+                detailsLabel: detailsLabel(for: item)
+            )
         }
     }
 
     @ViewBuilder
     private func personalizedShelfSection(_ shelf: LibraryPersonalizedShelf) -> some View {
-        let imageWidth = Int(DuskPosterMetrics.carouselPosterWidth.rounded(.up))
-        let imageHeight = Int((DuskPosterMetrics.carouselPosterWidth * 1.5).rounded(.up))
-
-        MediaCarousel(
+        PlexItemPosterCarouselSection(
             title: shelf.title,
-            headerAccessory: {
-                NavigationLink(value: AppNavigationRoute.libraryGenre(library: viewModel.library, genre: shelf.genre)) {
-                    Text("Show all")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(Color.duskAccent)
-                }
-                .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
+            items: shelf.items,
+            showAllRoute: AppNavigationRoute.libraryGenre(library: viewModel.library, genre: shelf.genre),
+            subtitle: { viewModel.subtitle(for: $0) },
+            posterURL: { item, width, height in
+                viewModel.posterURL(for: item, width: width, height: height)
             }
-        ) {
-            ForEach(shelf.items) { item in
-                PosterNavigationCard(
-                    route: AppNavigationRoute.destination(for: item),
-                    imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-                    title: item.title,
-                    subtitle: viewModel.subtitle(for: item),
-                    width: DuskPosterMetrics.carouselPosterWidth
-                ) {
-                    PlexItemContextMenuContent(
-                        item: item,
-                        onMarkWatched: {
-                            Task { await viewModel.setWatched(true, for: item) }
-                        },
-                        onMarkUnwatched: {
-                            Task { await viewModel.setWatched(false, for: item) }
-                        }
-                    )
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
                 }
-            }
+            )
         }
     }
 
     @ViewBuilder
     private func hubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
-        let imageWidth = Int(DuskPosterMetrics.carouselPosterWidth.rounded(.up))
-        let imageHeight = Int((DuskPosterMetrics.carouselPosterWidth * 1.5).rounded(.up))
         let showsShowAll = viewModel.shouldShowAll(for: hub)
 
-        MediaCarousel(
+        PlexItemPosterCarouselSection(
             title: viewModel.normalizedTitle(for: hub),
-            headerAccessory: {
-                if showsShowAll {
-                    NavigationLink(value: AppNavigationRoute.hub(hub)) {
-                        Text("Show all")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(Color.duskAccent)
-                    }
-                    .buttonStyle(.plain)
-                    .duskSuppressTVOSButtonChrome()
-                }
+            items: items,
+            showAllRoute: showsShowAll ? AppNavigationRoute.hub(hub) : nil,
+            subtitle: { viewModel.subtitle(for: $0) },
+            posterURL: { item, width, height in
+                viewModel.posterURL(for: item, width: width, height: height)
             }
-        ) {
-            ForEach(items) { item in
-                PosterNavigationCard(
-                    route: AppNavigationRoute.destination(for: item),
-                    imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-                    title: item.title,
-                    subtitle: viewModel.subtitle(for: item),
-                    width: DuskPosterMetrics.carouselPosterWidth
-                ) {
-                    PlexItemContextMenuContent(
-                        item: item,
-                        onMarkWatched: {
-                            Task { await viewModel.setWatched(true, for: item) }
-                        },
-                        onMarkUnwatched: {
-                            Task { await viewModel.setWatched(false, for: item) }
-                        }
-                    )
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
                 }
-            }
+            )
         }
     }
 

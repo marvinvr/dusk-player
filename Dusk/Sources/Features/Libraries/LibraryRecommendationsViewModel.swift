@@ -121,47 +121,27 @@ final class LibraryRecommendationsViewModel {
     }
 
     func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: item.preferredPosterPath, width: width, height: height)
+        item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
     func landscapeImageURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: item.preferredLandscapePath, width: width, height: height)
+        item.landscapeImageURL(plexService: plexService, width: width, height: height)
     }
 
     func progress(for item: PlexItem) -> Double? {
-        MediaTextFormatter.progress(durationMs: item.duration, offsetMs: item.viewOffset)
+        item.posterProgress
     }
 
     func displayTitle(for item: PlexItem) -> String {
-        if item.type == .episode, let show = item.grandparentTitle {
-            return show
-        }
-
-        return item.title
+        item.continueWatchingDisplayTitle
     }
 
     func displaySubtitle(for item: PlexItem) -> String? {
-        if item.type == .episode {
-            return MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index) ?? item.title
-        }
-
-        return item.year.map(String.init)
+        item.continueWatchingDisplaySubtitle
     }
 
     func subtitle(for item: PlexItem) -> String? {
-        switch item.type {
-        case .movie:
-            return item.year.map(String.init)
-        case .show:
-            if let childCount = item.childCount {
-                return MediaTextFormatter.seasonCount(childCount)?.lowercased()
-            }
-            return item.year.map(String.init)
-        case .episode:
-            return MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index) ?? item.grandparentTitle
-        default:
-            return item.year.map(String.init)
-        }
+        item.standardPosterSubtitle
     }
 
     func visibleItems(in hub: PlexHub) -> [PlexItem] {

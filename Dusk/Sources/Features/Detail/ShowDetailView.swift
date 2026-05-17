@@ -107,7 +107,7 @@ struct ShowDetailView: View {
                         .padding(.top, 40)
 
                     if let roles = details.roles, !roles.isEmpty {
-                        castSection(roles)
+                        DetailCastSection(roles: roles, plexService: plexService)
                             .padding(.top, 40)
                             .padding(.bottom, 56)
                     }
@@ -279,37 +279,6 @@ struct ShowDetailView: View {
 
     private var usesFullWidthActionButtons: Bool {
         usesFullWidthDetailActionButtons(for: sizeClass)
-    }
-
-    @ViewBuilder
-    private func castSection(_ roles: [PlexRole]) -> some View {
-        #if os(tvOS)
-        let castSpacing: CGFloat = 28
-        let castVerticalPadding: CGFloat = 12
-        #else
-        let castSpacing: CGFloat = 12
-        let castVerticalPadding: CGFloat = 0
-        #endif
-
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Cast")
-                .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
-                .padding(.horizontal, horizontalPadding)
-
-            ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: castSpacing) {
-                    ForEach(Array(roles.prefix(20).enumerated()), id: \.offset) { _, role in
-                        ActorCreditCard(person: PlexPersonReference(role: role), plexService: plexService)
-                    }
-                }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.vertical, castVerticalPadding)
-            }
-            #if os(tvOS)
-            .scrollClipDisabled()
-            #endif
-        }
     }
 
     @ViewBuilder

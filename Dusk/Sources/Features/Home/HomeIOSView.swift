@@ -77,32 +77,37 @@ struct HomeIOSView: View {
                             )
 
                             if !items.isEmpty {
-                                HomeHubCarouselSection(
-                                    hub: hub,
+                                PlexItemPosterCarouselSection(
+                                    title: hub.title,
                                     items: items,
                                     posterWidth: 130,
-                                    showsShowAll: viewModel.shouldShowAll(
+                                    showAllRoute: viewModel.shouldShowAll(
                                         for: hub,
                                         maxRecentlyAddedItems: recentlyAddedInlineItemLimit
-                                    ),
+                                    ) ? AppNavigationRoute.hub(hub) : nil,
                                     subtitle: { $0.year.map(String.init) },
                                     posterURL: { item, width, height in
                                         viewModel.posterURL(for: item, width: width, height: height)
-                                    },
-                                    onMarkWatched: { item in
-                                        Task { await viewModel.setWatched(true, for: item) }
-                                    },
-                                    onMarkUnwatched: { item in
-                                        Task { await viewModel.setWatched(false, for: item) }
                                     }
-                                )
+                                ) { item in
+                                    PlexItemContextMenuContent(
+                                        item: item,
+                                        onMarkWatched: {
+                                            Task { await viewModel.setWatched(true, for: item) }
+                                        },
+                                        onMarkUnwatched: {
+                                            Task { await viewModel.setWatched(false, for: item) }
+                                        }
+                                    )
+                                }
                             }
                         }
 
                         ForEach(viewModel.personalizedShelves) { shelf in
                             if !shelf.items.isEmpty {
-                                HomePersonalizedCarouselSection(
-                                    shelf: shelf,
+                                PlexItemPosterCarouselSection(
+                                    title: shelf.title,
+                                    items: shelf.items,
                                     posterWidth: 130,
                                     showAllRoute: viewModel.showAllRoute(for: shelf),
                                     subtitle: { item in
@@ -110,14 +115,18 @@ struct HomeIOSView: View {
                                     },
                                     posterURL: { item, width, height in
                                         viewModel.posterURL(for: item, width: width, height: height)
-                                    },
-                                    onMarkWatched: { item in
-                                        Task { await viewModel.setWatched(true, for: item) }
-                                    },
-                                    onMarkUnwatched: { item in
-                                        Task { await viewModel.setWatched(false, for: item) }
                                     }
-                                )
+                                ) { item in
+                                    PlexItemContextMenuContent(
+                                        item: item,
+                                        onMarkWatched: {
+                                            Task { await viewModel.setWatched(true, for: item) }
+                                        },
+                                        onMarkUnwatched: {
+                                            Task { await viewModel.setWatched(false, for: item) }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }

@@ -187,8 +187,6 @@ struct ActorDetailView: View {
             preferredPosterWidth: preferredPosterWidth,
             minimumColumnCount: minimumColumnCount
         )
-        let imageWidth = Int(layout.posterWidth.rounded(.up))
-        let imageHeight = Int((layout.posterWidth * 1.5).rounded(.up))
         let sectionSpacing: CGFloat = {
             #if os(tvOS)
             30
@@ -203,17 +201,14 @@ struct ActorDetailView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .padding(.horizontal, horizontalPadding)
 
-            LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
-                ForEach(items) { item in
-                    PosterNavigationCard(
-                        route: AppNavigationRoute.destination(for: item),
-                        imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-                        title: item.title,
-                        subtitle: viewModel.subtitle(for: item),
-                        width: layout.posterWidth
-                    )
-                }
-            }
+            PlexItemPosterGrid(
+                items: items,
+                layout: layout,
+                posterURL: { item, width, height in
+                    viewModel.posterURL(for: item, width: width, height: height)
+                },
+                subtitle: { viewModel.subtitle(for: $0) }
+            )
             .padding(.horizontal, horizontalPadding)
         }
     }

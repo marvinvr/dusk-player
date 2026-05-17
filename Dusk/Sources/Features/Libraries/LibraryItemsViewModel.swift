@@ -178,25 +178,15 @@ final class LibraryItemsViewModel {
     }
 
     func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: item.preferredPosterPath, width: width, height: height)
+        item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
     func progress(for item: PlexItem) -> Double? {
-        MediaTextFormatter.progress(durationMs: item.duration, offsetMs: item.viewOffset)
+        item.posterProgress
     }
 
     func subtitle(for item: PlexItem) -> String? {
-        switch item.type {
-        case .movie:
-            return item.year.map(String.init)
-        case .show:
-            if let childCount = item.childCount {
-                return MediaTextFormatter.seasonCount(childCount)?.lowercased()
-            }
-            return item.year.map(String.init)
-        default:
-            return item.year.map(String.init)
-        }
+        item.standardPosterSubtitle
     }
 
     private var currentQuery: LibraryItemsQuery {

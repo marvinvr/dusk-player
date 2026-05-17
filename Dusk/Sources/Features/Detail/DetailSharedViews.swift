@@ -459,6 +459,44 @@ struct ActorCreditCard: View {
     }
 }
 
+struct DetailCastSection: View {
+    let roles: [PlexRole]
+    let plexService: PlexService
+    var title = "Cast"
+    var horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
+    var maxVisibleRoles = 20
+
+    var body: some View {
+        #if os(tvOS)
+        let castSpacing: CGFloat = 28
+        let castVerticalPadding: CGFloat = 12
+        #else
+        let castSpacing: CGFloat = 12
+        let castVerticalPadding: CGFloat = 0
+        #endif
+
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title)
+                .font(.headline)
+                .foregroundStyle(Color.duskTextPrimary)
+                .padding(.horizontal, horizontalPadding)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: castSpacing) {
+                    ForEach(Array(roles.prefix(maxVisibleRoles).enumerated()), id: \.offset) { _, role in
+                        ActorCreditCard(person: PlexPersonReference(role: role), plexService: plexService)
+                    }
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.vertical, castVerticalPadding)
+            }
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
+        }
+    }
+}
+
 struct ExpandableSummaryText: View {
     let text: String
 

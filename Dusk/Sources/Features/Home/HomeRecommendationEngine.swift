@@ -74,7 +74,7 @@ struct HomeRecommendationEngine {
             viewedSince: viewedSince
         )
 
-        var scoredGenres = try await scoreGenres(from: history)
+        var scoredGenres = await scoreGenres(from: history)
 
         if scoredGenres.isEmpty {
             let fallbackItems = try await loadRecentlyViewedItems(
@@ -168,88 +168,31 @@ struct HomeRecommendationEngine {
 
     private func scoreGenres(
         from history: [PlexPlaybackHistoryEntry]
-    ) async throws -> [HomeScoredGenre] {
+    ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
-        guard !signals.isEmpty else { return [] }
-
-        var genreScores: [String: HomeScoredGenre] = [:]
-
-        for signal in signals.prefix(18) {
+        return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
             guard let details = try? await plexService.getMediaDetails(ratingKey: signal.ratingKey) else {
                 homeRecommendationLogger.debug(
                     "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
                 )
-                continue
+                return []
             }
 
-            let genres = LibraryGenreSupport.inferredGenres(from: details.genres ?? [])
-            guard !genres.isEmpty else { continue }
-
-            let perGenreWeight = signal.weight / Double(genres.count)
-
-            for genre in genres {
-                guard let value = genre.value else { continue }
-
-                if var existing = genreScores[value] {
-                    existing.score += perGenreWeight
-                    genreScores[value] = existing
-                } else {
-                    genreScores[value] = HomeScoredGenre(genre: genre, score: perGenreWeight)
-                }
-            }
+            return LibraryGenreSupport.inferredGenres(from: details.genres ?? [])
         }
-
-        return genreScores.values
-            .filter { $0.score >= 0.35 }
-            .sorted {
-                if $0.score != $1.score {
-                    return $0.score > $1.score
-                }
-
-                return $0.genre.title.localizedStandardCompare($1.genre.title) == .orderedAscending
-            }
     }
 
     private func scoreGenres(
         fromRecentlyViewedItems items: [PlexItem]
-    ) -> [HomeScoredGenre] {
-        guard !items.isEmpty else { return [] }
-
-        var genreScores: [String: HomeScoredGenre] = [:]
-
-        for (index, item) in items.enumerated() {
-            let genres = LibraryGenreSupport.inferredGenres(from: item.genres ?? [])
-            guard !genres.isEmpty else { continue }
-
-            let rankWeight = max(0.2, 1.0 - (Double(index) * 0.08))
-            let perGenreWeight = rankWeight / Double(genres.count)
-
-            for genre in genres {
-                guard let value = genre.value else { continue }
-
-                if var existing = genreScores[value] {
-                    existing.score += perGenreWeight
-                    genreScores[value] = existing
-                } else {
-                    genreScores[value] = HomeScoredGenre(genre: genre, score: perGenreWeight)
-                }
-            }
+    ) -> [RecommendationScoredGenre] {
+        RecommendationGenreScoring.scoreGenres(fromRecentlyViewedItems: items) { item in
+            LibraryGenreSupport.inferredGenres(from: item.genres ?? [])
         }
-
-        return genreScores.values
-            .filter { $0.score >= 0.25 }
-            .sorted {
-                if $0.score != $1.score {
-                    return $0.score > $1.score
-                }
-
-                return $0.genre.title.localizedStandardCompare($1.genre.title) == .orderedAscending
-            }
     }
 
-    private func collapsedSignals(from history: [PlexPlaybackHistoryEntry]) -> [HomeTasteSignal] {
+    private func collapsedSignals(from history: [PlexPlaybackHistoryEntry]) -> [RecommendationTasteSignal] {
         let now = nowProvider()
-        var signalByIdentity: [String: HomeTasteSignal] = [:]
+        var signalByIdentity: [String: RecommendationTasteSignal] = [:]
 
         for entry in history {
             guard let viewedAt = entry.viewedAt else { continue }
@@ -264,9 +207,10 @@ struct HomeRecommendationEngine {
                 existing.lastViewedAt = max(existing.lastViewedAt, viewedAt)
                 signalByIdentity[identity.identity] = existing
             } else {
-                signalByIdentity[identity.identity] = HomeTasteSignal(
+                signalByIdentity[identity.identity] = RecommendationTasteSignal(
                     identity: identity.identity,
                     ratingKey: identity.ratingKey,
+                    type: nil,
                     weight: recencyWeight,
                     lastViewedAt: viewedAt
                 )
@@ -549,20 +493,14 @@ struct HomeRecommendationEngine {
         movieShelves: [HomePersonalizedShelf],
         showShelves: [HomePersonalizedShelf]
     ) -> [HomePersonalizedShelf] {
-        var combined = movieShelves + showShelves
+        let combined = movieShelves + showShelves
         guard combined.count > 1 else { return combined }
 
         let seed = dailySeed(for: "shelf-order")
-        var generator = HomeSplitMix64(state: seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed)
-
-        for index in stride(from: combined.count - 1, through: 1, by: -1) {
-            let randomIndex = Int(generator.next() % UInt64(index + 1))
-            if randomIndex != index {
-                combined.swapAt(index, randomIndex)
-            }
-        }
-
-        return combined
+        return RecommendationSeededRandomizer(
+            calendar: calendar,
+            nowProvider: nowProvider
+        ).seededShuffle(combined, seed: seed)
     }
 
     private func collapsedIdentity(
@@ -584,8 +522,7 @@ struct HomeRecommendationEngine {
     }
 
     private func extractRatingKey(from metadataKey: String?) -> String? {
-        guard let metadataKey else { return nil }
-        return metadataKey.split(separator: "/").last.map(String.init)
+        RecommendationCandidateSupport.extractRatingKey(from: metadataKey)
     }
 
     private func shouldIncludeCandidate(
@@ -593,7 +530,7 @@ struct HomeRecommendationEngine {
         seenRatingKeys: Set<String>
     ) -> Bool {
         guard !seenRatingKeys.contains(item.ratingKey) else { return false }
-        return !isCompleted(item)
+        return !RecommendationCandidateSupport.isCompleted(item)
     }
 
     private func isRecommendationSignalItem(
@@ -632,85 +569,19 @@ struct HomeRecommendationEngine {
         return LibraryGenreSupport.containsGenre(genres, matching: genre)
     }
 
-    private func isCompleted(_ item: PlexItem) -> Bool {
-        switch item.type {
-        case .show, .season:
-            if let leafCount = item.leafCount,
-               leafCount > 0,
-               let viewedLeafCount = item.viewedLeafCount {
-                return viewedLeafCount >= leafCount
-            }
-
-            return item.isWatched
-        default:
-            return item.isWatched
-        }
-    }
-
     private func dailySeed(for value: String) -> UInt64 {
-        let formatter = DateFormatter()
-        formatter.calendar = calendar
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
-
-        let seedSource = "\(value)|\(formatter.string(from: nowProvider()))"
-        return stableHash(seedSource)
+        RecommendationSeededRandomizer(calendar: calendar, nowProvider: nowProvider)
+            .dailySeed(for: value)
     }
 
     private func rotatedPageOrder(pageCount: Int, seed: UInt64) -> [Int] {
-        guard pageCount > 0 else { return [] }
-        let startIndex = Int(seed % UInt64(pageCount))
-        return (0..<pageCount).map { (startIndex + $0) % pageCount }
+        RecommendationSeededRandomizer(calendar: calendar, nowProvider: nowProvider)
+            .rotatedPageOrder(pageCount: pageCount, seed: seed)
     }
 
     private func seededShuffle(_ items: [PlexItem], seed: UInt64) -> [PlexItem] {
-        guard items.count > 1 else { return items }
-
-        var shuffled = items
-        var generator = HomeSplitMix64(state: seed == 0 ? 0x9E37_79B9_7F4A_7C15 : seed)
-
-        for index in stride(from: shuffled.count - 1, through: 1, by: -1) {
-            let randomIndex = Int(generator.next() % UInt64(index + 1))
-            if randomIndex != index {
-                shuffled.swapAt(index, randomIndex)
-            }
-        }
-
-        return shuffled
-    }
-
-    private func stableHash(_ string: String) -> UInt64 {
-        let offsetBasis: UInt64 = 0xcbf2_9ce4_8422_2325
-        let prime: UInt64 = 0x0000_0100_0000_01b3
-
-        return string.utf8.reduce(offsetBasis) { hash, byte in
-            (hash ^ UInt64(byte)) &* prime
-        }
-    }
-}
-
-private struct HomeTasteSignal {
-    let identity: String
-    let ratingKey: String
-    var weight: Double
-    var lastViewedAt: Int
-}
-
-private struct HomeScoredGenre {
-    let genre: LibraryGenreOption
-    var score: Double
-}
-
-private struct HomeSplitMix64 {
-    var state: UInt64
-
-    mutating func next() -> UInt64 {
-        state &+= 0x9E37_79B9_7F4A_7C15
-        var value = state
-        value = (value ^ (value >> 30)) &* 0xBF58_476D_1CE4_E5B9
-        value = (value ^ (value >> 27)) &* 0x94D0_49BB_1331_11EB
-        return value ^ (value >> 31)
+        RecommendationSeededRandomizer(calendar: calendar, nowProvider: nowProvider)
+            .seededShuffle(items, seed: seed)
     }
 }
 

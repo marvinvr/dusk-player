@@ -48,31 +48,26 @@ struct HomeHubItemsView: View {
                 preferredPosterWidth: preferredPosterWidth,
                 minimumColumnCount: minimumColumnCount
             )
-            let imageWidth = Int(layout.posterWidth.rounded(.up))
-            let imageHeight = Int((layout.posterWidth * 1.5).rounded(.up))
-
             ScrollView {
-                LazyVGrid(columns: layout.columns, spacing: gridRowSpacing) {
-                    ForEach(viewModel.items) { item in
-                        PosterNavigationCard(
-                            route: AppNavigationRoute.destination(for: item),
-                            imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-                            title: item.title,
-                            subtitle: viewModel.subtitle(for: item),
-                            progress: viewModel.progress(for: item),
-                            width: layout.posterWidth
-                        ) {
-                            PlexItemContextMenuContent(
-                                item: item,
-                                onMarkWatched: {
-                                    Task { await viewModel.setWatched(true, for: item) }
-                                },
-                                onMarkUnwatched: {
-                                    Task { await viewModel.setWatched(false, for: item) }
-                                }
-                            )
+                PlexItemPosterGrid(
+                    items: viewModel.items,
+                    layout: layout,
+                    rowSpacing: gridRowSpacing,
+                    posterURL: { item, width, height in
+                        viewModel.posterURL(for: item, width: width, height: height)
+                    },
+                    subtitle: { viewModel.subtitle(for: $0) },
+                    progress: { viewModel.progress(for: $0) }
+                ) { item in
+                    PlexItemContextMenuContent(
+                        item: item,
+                        onMarkWatched: {
+                            Task { await viewModel.setWatched(true, for: item) }
+                        },
+                        onMarkUnwatched: {
+                            Task { await viewModel.setWatched(false, for: item) }
                         }
-                    }
+                    )
                 }
                 .padding(.horizontal, horizontalPadding)
                 .padding(.vertical, 32)

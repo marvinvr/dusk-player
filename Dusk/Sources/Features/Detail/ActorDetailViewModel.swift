@@ -62,25 +62,11 @@ final class ActorDetailViewModel {
     }
 
     func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: item.preferredPosterPath, width: width, height: height)
+        item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
     func subtitle(for item: PlexItem) -> String? {
-        switch item.type {
-        case .movie:
-            return item.year.map(String.init)
-        case .show:
-            var parts: [String] = []
-            if let year = item.year {
-                parts.append(String(year))
-            }
-            if let seasons = item.childCount, let seasonCount = MediaTextFormatter.seasonCount(seasons) {
-                parts.append(seasonCount)
-            }
-            return parts.joined(separator: " · ").nilIfEmpty
-        default:
-            return nil
-        }
+        item.filmographyPosterSubtitle
     }
 
     private func mergePersonDetails(_ loadedPerson: PlexPerson) {

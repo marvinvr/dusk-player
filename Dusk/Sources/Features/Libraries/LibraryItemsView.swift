@@ -54,9 +54,6 @@ struct LibraryItemsView: View {
                 preferredPosterWidth: preferredPosterWidth,
                 minimumColumnCount: minimumColumnCount
             )
-            let imageWidth = Int(layout.posterWidth.rounded(.up))
-            let imageHeight = Int((layout.posterWidth * 1.5).rounded(.up))
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if viewModel.showsBrowseControls {
@@ -76,16 +73,7 @@ struct LibraryItemsView: View {
                             .padding(.horizontal, 24)
                             .padding(.top, 40)
                     } else {
-                        LazyVGrid(columns: layout.columns, spacing: gridRowSpacing) {
-                            ForEach(viewModel.items) { item in
-                                gridItem(
-                                    item,
-                                    posterWidth: layout.posterWidth,
-                                    imageWidth: imageWidth,
-                                    imageHeight: imageHeight
-                                )
-                            }
-                        }
+                        posterGrid(layout)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 32)
                         .padding(.bottom, 32)
@@ -215,21 +203,20 @@ struct LibraryItemsView: View {
         .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous))
     }
 
-    @ViewBuilder
-    private func gridItem(
-        _ item: PlexItem,
-        posterWidth: CGFloat,
-        imageWidth: Int,
-        imageHeight: Int
-    ) -> some View {
-        PosterNavigationCard(
-            route: AppNavigationRoute.destination(for: item),
-            imageURL: viewModel.posterURL(for: item, width: imageWidth, height: imageHeight),
-            title: item.title,
-            subtitle: viewModel.subtitle(for: item),
-            progress: viewModel.progress(for: item),
-            width: posterWidth
-        ) {
+    private func posterGrid(_ layout: AdaptivePosterGridLayout) -> some View {
+        PlexItemPosterGrid(
+            items: viewModel.items,
+            layout: layout,
+            rowSpacing: gridRowSpacing,
+            posterURL: { item, width, height in
+                viewModel.posterURL(for: item, width: width, height: height)
+            },
+            subtitle: { viewModel.subtitle(for: $0) },
+            progress: { viewModel.progress(for: $0) },
+            onItemAppear: { item in
+                Task { await viewModel.loadMoreIfNeeded(currentItem: item) }
+            }
+        ) { item in
             PlexItemContextMenuContent(
                 item: item,
                 onMarkWatched: {
@@ -239,9 +226,6 @@ struct LibraryItemsView: View {
                     Task { await viewModel.setWatched(false, for: item) }
                 }
             )
-        }
-        .onAppear {
-            Task { await viewModel.loadMoreIfNeeded(currentItem: item) }
         }
     }
 
