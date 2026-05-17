@@ -4,6 +4,8 @@ This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. See `S
 
 `STYLE.md` is the visual source of truth and must be followed at all times for colors, materials, spacing, and overall UI styling.
 
+`docs/` is the agent-facing implementation guide. Read `docs/README.md` and the relevant topic doc before deep changes, especially when touching Plex data flow, playback, downloads/offline behavior, reusable UI, or project setup.
+
 ## Essential Context
 
 - **Hybrid playback engine**: AVPlayer for MP4/MOV with standard codecs, VLCKit for everything else (MKV, DTS, PGS subs, etc.). Both conform to `PlaybackEngine` protocol. `StreamResolver` picks which engine to use based on stream metadata.
@@ -19,6 +21,14 @@ This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. See `S
 - ViewModels call `PlexService`, views never touch the network directly
 - Async/await throughout, no Combine unless wrapping VLCKit callbacks
 - Minimal dependencies: VLCKit is the only third-party dependency
+
+## Documentation Maintenance
+
+- Keep `docs/` concise but operational. Document responsibilities, data/control flow, extension points, invariants, traps, and verification steps; do not mirror every method or produce giant files.
+- Preserve the structure described in `docs/README.md`: an index, a codebase map, and focused topic docs so no single file becomes the whole architecture manual.
+- Update the matching doc in the same change when modifying a meaningful flow, boundary, reusable component, setting, setup step, or verification expectation.
+- Prefer linking new behavior to the existing topic file over creating a new doc. Add a new doc only when a component has a distinct owner and the existing files would become noisy.
+- If a doc and source disagree, treat the source as truth, fix the stale doc, and mention that in your final summary.
 
 ## Project Setup
 
