@@ -13,6 +13,7 @@ extension PlayerViewModel {
     private static let stallRecoveryCooldown: TimeInterval = 8.0
     private static let stallProgressTolerance: TimeInterval = 0.75
     private static let maxStallRecoveryAttempts = 2
+    private static let controlsAutoHideDelay: TimeInterval = 4.0
 
     func startSync() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -172,15 +173,18 @@ extension PlayerViewModel {
 
     func scheduleHide() {
         hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: 4.0, repeats: false) { [weak self] _ in
+        hideTimer = Timer.scheduledTimer(withTimeInterval: Self.controlsAutoHideDelay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                if self.state == .playing,
-                   !self.isScrubbing,
-                   !self.shouldHoldControlsForBuffering(now: Date()) {
+                if self.canAutoHideControls {
                     withAnimation(Self.controlsVisibilityAnimation) {
                         self.showControls = false
                     }
+                } else if self.showControls,
+                          self.state == .playing,
+                          self.playbackError == nil,
+                          self.showBufferingIndicator {
+                    self.scheduleHide()
                 }
             }
         }
@@ -261,10 +265,7 @@ extension PlayerViewModel {
         now: Date
     ) {
         guard showControls,
-              state == .playing,
-              !isScrubbing,
-              playbackError == nil,
-              !shouldHoldControlsForBuffering(now: now) else {
+              canAutoHideControls else {
             return
         }
 
@@ -273,14 +274,17 @@ extension PlayerViewModel {
         }
     }
 
-    private func shouldHoldControlsForBuffering(now: Date) -> Bool {
-        isBuffering && !isPlaybackMakingProgress(now: now)
-    }
-
     private func isPlaybackMakingProgress(now: Date) -> Bool {
         hasStartedPlayback &&
             state == .playing &&
             now.timeIntervalSince(lastProgressAt) < Self.bufferingIndicatorDelay
+    }
+
+    private var canAutoHideControls: Bool {
+        state == .playing &&
+            !isScrubbing &&
+            playbackError == nil &&
+            !showBufferingIndicator
     }
 
     private func updatePlaybackProgressTracking(now: Date) {
