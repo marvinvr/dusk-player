@@ -79,7 +79,6 @@ final class PlayerViewModel {
         self.engineView = engine.makePlayerView()
         self.markers = markers.sorted { $0.startTimeOffset < $1.startTimeOffset }
         startSync()
-        scheduleHide()
     }
 
     deinit {

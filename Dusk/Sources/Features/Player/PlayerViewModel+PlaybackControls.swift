@@ -56,11 +56,10 @@ extension PlayerViewModel {
         updatePlaybackProgressTracking(now: now)
         updateBufferingPresentation(now: now)
         recoverStalledPlaybackIfNeeded(now: now)
-        scheduleControlsHideIfPlaybackBecameReady(
+        scheduleControlsHideIfNeeded(
             previousState: previousState,
             previousIsBuffering: previousIsBuffering,
-            didStartPlayback: didStartPlayback,
-            now: now
+            didStartPlayback: didStartPlayback
         )
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
@@ -136,7 +135,7 @@ extension PlayerViewModel {
     func beginScrub() {
         isScrubbing = true
         scrubPosition = currentTime
-        hideTimer?.invalidate()
+        cancelScheduledHide()
     }
 
     func updateScrub(to position: TimeInterval) {
@@ -158,7 +157,7 @@ extension PlayerViewModel {
         if shouldShowControls {
             scheduleHide()
         } else {
-            hideTimer?.invalidate()
+            cancelScheduledHide()
         }
     }
 
@@ -176,14 +175,13 @@ extension PlayerViewModel {
         hideTimer = Timer.scheduledTimer(withTimeInterval: Self.controlsAutoHideDelay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self else { return }
+                self.hideTimer = nil
+
                 if self.canAutoHideControls {
                     withAnimation(Self.controlsVisibilityAnimation) {
                         self.showControls = false
                     }
-                } else if self.showControls,
-                          self.state == .playing,
-                          self.playbackError == nil,
-                          self.showBufferingIndicator {
+                } else if self.shouldRetryControlsAutoHide {
                     self.scheduleHide()
                 }
             }
@@ -258,18 +256,20 @@ extension PlayerViewModel {
         }
     }
 
-    private func scheduleControlsHideIfPlaybackBecameReady(
+    private func scheduleControlsHideIfNeeded(
         previousState: PlaybackState,
         previousIsBuffering: Bool,
-        didStartPlayback: Bool,
-        now: Date
+        didStartPlayback: Bool
     ) {
-        guard showControls,
-              canAutoHideControls else {
+        guard showControls else {
             return
         }
 
-        if didStartPlayback || previousState != .playing || previousIsBuffering {
+        if canAutoHideControls,
+           didStartPlayback || previousState != .playing || previousIsBuffering || hideTimer == nil {
+            scheduleHide()
+        } else if shouldRetryControlsAutoHide,
+                  hideTimer == nil {
             scheduleHide()
         }
     }
@@ -285,6 +285,20 @@ extension PlayerViewModel {
             !isScrubbing &&
             playbackError == nil &&
             !showBufferingIndicator
+    }
+
+    private var shouldRetryControlsAutoHide: Bool {
+        showControls &&
+            !isScrubbing &&
+            playbackError == nil &&
+            state != .paused &&
+            state != .stopped &&
+            state != .error
+    }
+
+    private func cancelScheduledHide() {
+        hideTimer?.invalidate()
+        hideTimer = nil
     }
 
     private func updatePlaybackProgressTracking(now: Date) {

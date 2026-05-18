@@ -87,6 +87,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `PlayerViewModel` is UI state only: syncs from engine every 0.25s, drives
   controls visibility, scrubbing, seek feedback, buffering presentation,
   auto-skip markers, stall recovery, and track selection.
+- Playback controls start visible for orientation, then `PlayerViewModel`
+  arms auto-hide once playback is ready and keeps retrying while startup or
+  buffering temporarily prevents hiding.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, sheets for audio/subtitle selection, and double-tap
