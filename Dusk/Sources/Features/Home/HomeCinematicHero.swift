@@ -223,12 +223,12 @@ struct HomeCinematicHero: View {
                         HeroIndirectScrollNavigation(
                             isEnabled: supportsDragNavigation && heroItemIDs.count > 1,
                             onChanged: { horizontalOffset in
-                                handleHeroHorizontalNavigationChanged(
+                                handleHeroIndirectScrollChanged(
                                     horizontalOffset: horizontalOffset
                                 )
                             },
                             onEnded: { horizontalOffset, predictedHorizontalOffset in
-                                handleHeroHorizontalNavigationEnded(
+                                handleHeroIndirectScrollEnded(
                                     horizontalOffset: horizontalOffset,
                                     predictedHorizontalOffset: predictedHorizontalOffset,
                                     heroWidth: heroWidth
@@ -617,17 +617,37 @@ struct HomeCinematicHero: View {
         heroDragOffset = resolvedHeroDragOffset(for: horizontalOffset)
     }
 
+    private func handleHeroIndirectScrollChanged(horizontalOffset: CGFloat) {
+        handleHeroHorizontalNavigationChanged(horizontalOffset: horizontalOffset)
+    }
+
+    private func handleHeroIndirectScrollEnded(
+        horizontalOffset: CGFloat,
+        predictedHorizontalOffset: CGFloat,
+        heroWidth: CGFloat
+    ) {
+        let commitThreshold = max(min(heroWidth * 0.08, 96), 32)
+
+        handleHeroHorizontalNavigationEnded(
+            horizontalOffset: horizontalOffset,
+            predictedHorizontalOffset: predictedHorizontalOffset,
+            heroWidth: heroWidth,
+            commitThreshold: commitThreshold
+        )
+    }
+
     private func handleHeroHorizontalNavigationEnded(
         horizontalOffset: CGFloat,
         verticalOffset: CGFloat = 0,
         predictedHorizontalOffset: CGFloat,
-        heroWidth: CGFloat
+        heroWidth: CGFloat,
+        commitThreshold: CGFloat? = nil
     ) {
         guard supportsDragNavigation, isHeroDragActive else { return }
 
         let horizontalDrag = abs(horizontalOffset) > abs(verticalOffset)
         let projectedOffset = resolvedHeroDragOffset(for: predictedHorizontalOffset)
-        let commitThreshold = max(heroWidth * 0.18, 56)
+        let commitThreshold = commitThreshold ?? max(heroWidth * 0.18, 56)
         let targetIndex = heroDragTargetIndex
 
         if horizontalDrag,
@@ -1155,7 +1175,7 @@ private struct HeroIndirectScrollNavigation: UIViewRepresentable {
                 target: self,
                 action: #selector(handlePanGesture(_:))
             )
-            panGesture.allowedScrollTypesMask = .continuous
+            panGesture.allowedScrollTypesMask = .all
             panGesture.cancelsTouchesInView = false
             panGesture.delaysTouchesBegan = false
             panGesture.delaysTouchesEnded = false
@@ -1187,17 +1207,7 @@ private struct HeroIndirectScrollNavigation: UIViewRepresentable {
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard isEnabled,
-                  let panGesture = gestureRecognizer as? UIPanGestureRecognizer,
-                  let hostView else {
-                return false
-            }
-
-            let velocity = panGesture.velocity(in: hostView)
-            let horizontalVelocity = abs(velocity.x)
-            let verticalVelocity = abs(velocity.y)
-
-            return horizontalVelocity > max(verticalVelocity * 1.2, 24)
+            isEnabled
         }
 
         func gestureRecognizer(
