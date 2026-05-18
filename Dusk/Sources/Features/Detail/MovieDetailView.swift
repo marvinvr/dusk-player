@@ -38,9 +38,7 @@ struct MovieDetailView: View {
                 contentView(details)
             }
         }
-        .duskNavigationBarTitleDisplayModeInline()
-        .toolbarColorScheme(.dark, for: .navigationBar)
-        .toolbarBackground(.hidden, for: .navigationBar)
+        .duskImmersiveNavigationChrome()
         .task {
             await viewModel.loadDetails()
         }
