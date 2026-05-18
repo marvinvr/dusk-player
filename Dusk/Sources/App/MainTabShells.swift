@@ -60,6 +60,7 @@ struct MainTabIOSShell<Content: View>: View {
                     }
             }
         }
+        .duskStatusBarHidden()
     }
 }
 

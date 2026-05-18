@@ -17,6 +17,8 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
   feature screens.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
+- The iOS tab shell hides the system status bar so tab-level navigation buttons,
+  toolbars, and artwork-led screens never compete with the clock/date strip.
 - Available tabs are data-driven: one library type can become a direct Movies/Shows
   tab, mixed setups use the Libraries hub, and Downloads appears only when visible
   and populated.
