@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(iOS)
+import UIKit
+#endif
 
 struct DownloadsView: View {
     @Environment(DownloadManager.self) private var downloadManager
@@ -112,6 +115,7 @@ struct DownloadsView: View {
             }
             .navigationTitle("Download Queue")
             .duskNavigationBarTitleDisplayModeInline()
+            .downloadQueueIdleTimerDisabled(downloadManager.activeDownloadCount > 0)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") {
@@ -439,7 +443,8 @@ private struct DownloadQueueRow: View {
                     imageURL: downloadManager.localArtworkURL(for: record.thumbPath),
                     progress: record.status == .downloading ? record.progress : nil,
                     width: 72,
-                    imageAspectRatio: record.type == .episode ? 16.0 / 9.0 : 2.0 / 3.0
+                    imageAspectRatio: record.type == .episode ? 16.0 / 9.0 : 2.0 / 3.0,
+                    cornerRadius: 8
                 )
 
                 VStack(alignment: .leading, spacing: 5) {
@@ -473,7 +478,8 @@ private struct DownloadQueueRow: View {
         .contextMenu {
             DownloadContextMenuContent(
                 state: state,
-                showsDelete: true,
+                showsDelete: false,
+                showsCancel: state.canCancel,
                 onPause: { downloadManager.pauseDownload(scope: scope) },
                 onResume: { downloadManager.resumeDownload(scope: scope) },
                 onCancel: { downloadManager.cancelDownload(scope: scope) },
@@ -546,3 +552,47 @@ private struct DownloadQueueRow: View {
         return "\(formattedBytes(record.downloadedBytes)) of \(formattedBytes(totalBytes))"
     }
 }
+
+private extension View {
+    @ViewBuilder
+    func downloadQueueIdleTimerDisabled(_ isDisabled: Bool) -> some View {
+        #if os(iOS)
+        modifier(DownloadQueueIdleTimerModifier(isDisabled: isDisabled))
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(iOS)
+private struct DownloadQueueIdleTimerModifier: ViewModifier {
+    let isDisabled: Bool
+    @State private var previousIdleTimerDisabled: Bool?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: updateIdleTimer)
+            .onChange(of: isDisabled) { _, _ in
+                updateIdleTimer()
+            }
+            .onDisappear(perform: restoreIdleTimer)
+    }
+
+    private func updateIdleTimer() {
+        if isDisabled {
+            if previousIdleTimerDisabled == nil {
+                previousIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+            }
+            UIApplication.shared.isIdleTimerDisabled = true
+        } else {
+            restoreIdleTimer()
+        }
+    }
+
+    private func restoreIdleTimer() {
+        guard let previousIdleTimerDisabled else { return }
+        UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
+        self.previousIdleTimerDisabled = nil
+    }
+}
+#endif

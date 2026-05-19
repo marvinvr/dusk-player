@@ -7,11 +7,14 @@ struct PosterArtwork: View {
     var progress: Double?
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
+    var cornerRadius: CGFloat = Self.cornerRadius
     var showsPlayOverlay: Bool = false
     var availabilityBadge: String? = nil
     var isDimmed: Bool = false
 
-    private let artworkShape = RoundedRectangle(cornerRadius: 16, style: .continuous)
+    private var artworkShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
 
     var body: some View {
         DuskAsyncImage(url: imageURL) { phase in

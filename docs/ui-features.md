@@ -137,8 +137,8 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
 - Use `DownloadActionButton` from the downloads feature for download actions. Do not
   duplicate download state UI in detail screens.
 - Offline-capable detail models may show cached metadata before network refresh. Preserve
-  `isUsingCachedData`, `offlineStateVersion`, and `OfflinePlaybackSyncManager` checks
-  when changing watched/progress behavior.
+  `isUsingCachedData`, offline-fallback state, `offlineStateVersion`, and
+  `OfflinePlaybackSyncManager` checks when changing watched/progress behavior.
 - Some show/season loading is intentionally sequential to avoid async-let runtime aborts
   during transient context-menu navigation lifetimes. Do not "optimize" it back to
   `async let` without reproducing that scenario.

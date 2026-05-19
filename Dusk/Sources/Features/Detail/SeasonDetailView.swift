@@ -269,10 +269,11 @@ struct SeasonDetailView: View {
                             isWatched: viewModel.isWatched(episode),
                             isUsingCachedData: viewModel.isUsingCachedData,
                             showsOfflineAvailability: viewModel.showsOfflineAvailability,
+                            constrainsPlaybackToOfflineAvailability: viewModel.constrainsPlaybackToOfflineAvailability,
                             artworkWidth: artworkWidth,
                             showsInlineSummary: showsInlineSummary,
                             onPlay: {
-                                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline(episode) else { return }
+                                guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
                                 Task { await playback.play(ratingKey: episode.ratingKey) }
                             }
                         )
@@ -339,6 +340,7 @@ private struct SeasonEpisodeRow: View {
     let isWatched: Bool
     let isUsingCachedData: Bool
     let showsOfflineAvailability: Bool
+    let constrainsPlaybackToOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
     let onPlay: () -> Void
@@ -358,6 +360,7 @@ private struct SeasonEpisodeRow: View {
             isWatched: isWatched,
             isUsingCachedData: isUsingCachedData,
             showsOfflineAvailability: showsOfflineAvailability,
+            constrainsPlaybackToOfflineAvailability: constrainsPlaybackToOfflineAvailability,
             artworkWidth: artworkWidth,
             showsInlineSummary: showsInlineSummary
         )
@@ -375,6 +378,7 @@ private struct SeasonEpisodeRow: View {
             isWatched: isWatched,
             isUsingCachedData: isUsingCachedData,
             showsOfflineAvailability: showsOfflineAvailability,
+            constrainsPlaybackToOfflineAvailability: constrainsPlaybackToOfflineAvailability,
             artworkWidth: artworkWidth,
             showsInlineSummary: showsInlineSummary,
             onPlay: onPlay
@@ -460,6 +464,7 @@ private struct TVSeasonEpisodeRow: View {
     let isWatched: Bool
     let isUsingCachedData: Bool
     let showsOfflineAvailability: Bool
+    let constrainsPlaybackToOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
 
@@ -526,6 +531,7 @@ private struct IOSSeasonEpisodeRow: View {
     let isWatched: Bool
     let isUsingCachedData: Bool
     let showsOfflineAvailability: Bool
+    let constrainsPlaybackToOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let showsInlineSummary: Bool
     let onPlay: () -> Void
@@ -548,12 +554,12 @@ private struct IOSSeasonEpisodeRow: View {
                         imageURL: imageURL,
                         progress: progress,
                         artworkWidth: artworkWidth,
-                        showsPlayOverlay: !isUsingCachedData || isPlayableOffline,
+                        showsPlayOverlay: !constrainsPlaybackToOfflineAvailability || isPlayableOffline,
                         isUnavailableOffline: isUnavailableOffline
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isUsingCachedData && !isPlayableOffline)
+                .disabled(constrainsPlaybackToOfflineAvailability && !isPlayableOffline)
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(artworkShape)
                 .accessibilityLabel("Play \(episode.title)")

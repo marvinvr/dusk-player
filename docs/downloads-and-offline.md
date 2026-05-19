@@ -63,11 +63,12 @@ single-item path for each episode. Aggregate controls use `DownloadScope` and
 `relatedRecords(for:)`; do not add separate season/show transfer records unless
 the product model changes.
 
-Status rules: `queued`/`preparing`/`downloading` are active;
-`paused`/`failed`/`cancelled` are resumable;
-`completed`/`failed`/`cancelled`/`paused` are deletable. Completed is playable
-only when the local file exists; launch-time `pruneMissingCompletedFiles()`
-removes stale completed records.
+Status rules: `queued`/`preparing`/`downloading` are active. `paused` and
+`failed` are resumable. User-facing cancel removes a non-completed queue record
+and its partial/resume data; pause is the non-destructive stop. Delete is
+reserved for completed local files. Completed is playable only when the local
+file exists; launch-time `pruneMissingCompletedFiles()` removes stale completed
+records.
 
 ## Background Transfers
 
@@ -137,11 +138,12 @@ sync attempt completes late.
 ## UI Hooks
 
 `DownloadActionButton` is the inline download/delete/pause/resume/retry control.
-`DownloadsView` owns the downloaded movie/show grid, queue sheet, and pending
-sync banner. `MainTabView` shows the Downloads tab only when visible and records
-exist. `SettingsIOSView` owns quality, Wi-Fi Only, concurrency, storage reserve,
-usage, manual sync, and delete-all. `MediaDetailDestinationView` passes managers
-into detail view models and marks routes from Downloads with
+`DownloadsView` owns the downloaded movie/show grid, queue sheet, pending sync
+banner, and the queue-sheet-only idle timer hold while active downloads exist.
+`MainTabView` shows the Downloads tab only when visible and records exist.
+`SettingsIOSView` owns quality, Wi-Fi Only, concurrency, storage reserve, usage,
+manual sync, and delete-all. `MediaDetailDestinationView` passes managers into
+detail view models and marks routes from Downloads with
 `prefersOfflineAvailability`.
 
 Detail view models load cached data before live Plex where useful, disable play

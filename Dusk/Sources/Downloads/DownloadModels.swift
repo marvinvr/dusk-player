@@ -29,27 +29,27 @@ enum DownloadStatus: String, Codable, Sendable {
 
     var canResume: Bool {
         switch self {
-        case .paused, .failed, .cancelled:
+        case .paused, .failed:
             return true
-        case .queued, .preparing, .downloading, .completed:
+        case .queued, .preparing, .downloading, .completed, .cancelled:
             return false
         }
     }
 
     var canCancel: Bool {
         switch self {
-        case .queued, .preparing, .downloading, .paused:
+        case .queued, .preparing, .downloading, .paused, .failed, .cancelled:
             return true
-        case .completed, .failed, .cancelled:
+        case .completed:
             return false
         }
     }
 
     var canDelete: Bool {
         switch self {
-        case .completed, .failed, .cancelled, .paused:
+        case .completed:
             return true
-        case .queued, .preparing, .downloading:
+        case .queued, .preparing, .downloading, .paused, .failed, .cancelled:
             return false
         }
     }

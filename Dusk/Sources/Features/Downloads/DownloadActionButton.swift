@@ -61,6 +61,7 @@ struct DownloadActionButton: View {
                 DownloadContextMenuContent(
                     state: state,
                     showsDelete: state.canDelete,
+                    showsCancel: state.canCancel,
                     onPause: { downloadManager.pauseDownload(scope: scope) },
                     onResume: { downloadManager.resumeDownload(scope: scope) },
                     onCancel: { downloadManager.cancelDownload(scope: scope) },
@@ -233,6 +234,7 @@ struct DownloadActionButton: View {
 struct DownloadContextMenuContent: View {
     let state: DownloadControlState
     var showsDelete: Bool
+    var showsCancel: Bool
     let onPause: () -> Void
     let onResume: () -> Void
     let onCancel: () -> Void
@@ -259,7 +261,7 @@ struct DownloadContextMenuContent: View {
                 }
             }
 
-            if state.canCancel {
+            if showsCancel {
                 Button(role: .destructive, action: onCancel) {
                     Label("Cancel Download", systemImage: "xmark.circle")
                 }

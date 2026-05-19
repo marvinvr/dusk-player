@@ -299,21 +299,11 @@ final class DownloadManager {
     }
 
     func cancelDownload(ratingKey: String) {
-        guard let index = records.firstIndex(where: { $0.ratingKey == ratingKey }) else { return }
-        let taskIdentifier = records[index].downloadTaskIdentifier
-        fileStore.deleteResumeData(relativePath: records[index].resumeDataPath)
-        records[index].status = .cancelled
-        records[index].resumeDataPath = nil
-        records[index].downloadTaskIdentifier = nil
-        records[index].errorMessage = nil
-        records[index].updatedAt = .now
-        persist()
-
-        if let taskIdentifier {
-            transferController.cancel(taskIdentifier: taskIdentifier)
-        } else {
-            processQueueIfNeeded()
+        guard let record = record(for: ratingKey),
+              record.status != .completed else {
+            return
         }
+        deleteRecords([record])
     }
 
     func cancelDownload(ratingKey: String, type: PlexMediaType) {

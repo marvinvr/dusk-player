@@ -15,6 +15,7 @@ final class SeasonDetailViewModel {
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
+    private(set) var isUsingOfflineFallback = false
     private(set) var offlineStateVersion = 0
 
     init(
@@ -43,7 +44,7 @@ final class SeasonDetailViewModel {
     func toggleWatched(for episode: PlexEpisode) async {
         let targetWatched = !isWatched(episode)
 
-        if isUsingCachedData || isPlayableOffline(episode) {
+        if constrainsPlaybackToOfflineAvailability || isPlayableOffline(episode) {
             offlinePlaybackSyncManager?.recordWatchState(
                 serverID: serverID(for: episode),
                 ratingKey: episode.ratingKey,
@@ -146,7 +147,11 @@ final class SeasonDetailViewModel {
     }
 
     var showsOfflineAvailability: Bool {
-        DownloadsFeature.isVisible && (isUsingCachedData || prefersOfflineAvailability)
+        DownloadsFeature.isVisible && (isUsingOfflineFallback || prefersOfflineAvailability)
+    }
+
+    var constrainsPlaybackToOfflineAvailability: Bool {
+        showsOfflineAvailability
     }
 
     var offlineBannerText: String? {
@@ -196,7 +201,7 @@ final class SeasonDetailViewModel {
     /// first partially watched, then first unwatched, then first overall.
     var nextEpisodeToPlay: PlexEpisode? {
         _ = offlineStateVersion
-        let candidates = isUsingCachedData
+        let candidates = constrainsPlaybackToOfflineAvailability
             ? displayEpisodes.filter { isPlayableOffline($0) }
             : episodes
         return candidates.first(where: { isPartiallyWatched($0) })
@@ -234,6 +239,7 @@ final class SeasonDetailViewModel {
     private func reload() async {
         isLoading = true
         error = nil
+        isUsingOfflineFallback = false
 
         do {
             if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
@@ -257,6 +263,7 @@ final class SeasonDetailViewModel {
                 if details == nil && episodes.isEmpty {
                     throw error
                 }
+                isUsingOfflineFallback = isUsingCachedData
             }
             await loadNextEpisodeDetails()
         } catch {
