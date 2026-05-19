@@ -199,6 +199,14 @@ struct DownloadsView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(Color.duskTextPrimary)
+
+            Label("Pause keeps progress. Cancel removes an item from the queue.", systemImage: "info.circle")
+                .font(.caption2)
+                .foregroundStyle(Color.duskTextSecondary)
+                .labelStyle(.titleAndIcon)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 2)
         }
         .padding(.horizontal, 20)
         .padding(.top, 12)
