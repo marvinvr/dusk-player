@@ -1,6 +1,6 @@
 import Foundation
 
-struct LibraryGenreOption: Hashable, Identifiable {
+struct LibraryGenreOption: Hashable, Identifiable, Sendable {
     static let all = LibraryGenreOption(title: "All Genres", value: nil)
 
     var id: String { value ?? "__all__" }

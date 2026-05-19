@@ -1,6 +1,6 @@
 import Foundation
 
-struct RecommendationTasteSignal {
+struct RecommendationTasteSignal: Sendable {
     let identity: String
     let ratingKey: String
     let type: PlexMediaType?
@@ -8,11 +8,12 @@ struct RecommendationTasteSignal {
     var lastViewedAt: Int
 }
 
-struct RecommendationScoredGenre {
+struct RecommendationScoredGenre: Sendable {
     let genre: LibraryGenreOption
     var score: Double
 }
 
+@MainActor
 enum RecommendationGenreScoring {
     static func scoreGenres(
         from signals: [RecommendationTasteSignal],
