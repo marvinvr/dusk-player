@@ -50,18 +50,21 @@ Normal single-item flow:
 ```text
 DownloadActionButton
   -> DownloadManager.queueDownload(ratingKey:type:)
-  -> fetch/cache Plex metadata
   -> create DownloadedMediaRecord(.queued)
   -> processQueue()
+  -> fetch/cache Plex metadata
   -> startDownload(.preparing)
   -> URLSessionDownloadTask(.downloading)
   -> completeDownload(.completed + relativeVideoPath)
 ```
 
 Season and show downloads fetch hierarchy metadata, then call the same
-single-item path for each episode. Aggregate controls use `DownloadScope` and
-`relatedRecords(for:)`; do not add separate season/show transfer records unless
-the product model changes.
+single-item queue path for each episode. Single movie/episode requests should
+return after writing the queued record; expensive metadata fetch, media version
+selection, episode context caching, and storage validation belong in queue
+processing. Aggregate controls use `DownloadScope` and `relatedRecords(for:)`;
+do not add separate season/show transfer records unless the product model
+changes.
 
 Status rules: `queued`/`preparing`/`downloading` are active. `paused` and
 `failed` are resumable. User-facing cancel removes a non-completed queue record

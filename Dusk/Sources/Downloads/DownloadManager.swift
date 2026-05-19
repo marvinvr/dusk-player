@@ -214,7 +214,7 @@ final class DownloadManager {
         do {
             switch type {
             case .movie, .episode:
-                try await queueSingleDownload(ratingKey: ratingKey)
+                try await queueSingleDownload(ratingKey: ratingKey, type: type)
             case .season:
                 try await queueSeasonDownload(seasonKey: ratingKey)
             case .show:
@@ -226,6 +226,15 @@ final class DownloadManager {
             processQueueIfNeeded()
         } catch {
             upsertFailedPlaceholder(ratingKey: ratingKey, type: type, error: error)
+        }
+    }
+
+    func queueDownload(episode: PlexEpisode) async {
+        do {
+            try await queueEpisodeDownload(episode)
+            processQueueIfNeeded()
+        } catch {
+            upsertFailedPlaceholder(ratingKey: episode.ratingKey, type: .episode, error: error)
         }
     }
 
@@ -482,52 +491,86 @@ final class DownloadManager {
         plexService.connectedServer?.name
     }
 
-    private func queueSingleDownload(ratingKey: String) async throws {
-        let details = try await fetchAndCacheDetails(ratingKey: ratingKey)
-        guard details.type == .movie || details.type == .episode else { return }
+    private func queueSingleDownload(ratingKey: String, type: PlexMediaType) async throws {
+        guard type == .movie || type == .episode else { return }
+        guard let serverID = currentServerID else {
+            throw PlexServiceError.noServerConnected
+        }
 
         if let existing = record(for: ratingKey),
            existing.status == .completed || existing.status.isActive {
             return
         }
 
-        if details.type == .episode {
-            try await cacheEpisodeContext(details)
-        }
-
-        guard let serverID = currentServerID else {
-            throw PlexServiceError.noServerConnected
-        }
-
-        guard let media = StreamResolver.selectMediaVersion(
-            from: details.media,
-            preferredMaxResolution: preferences.downloadMaxResolution
-        ), let part = media.parts.first else {
-            throw PlexServiceError.decodingError("No downloadable media found for \(details.title)")
-        }
-
+        let cachedDetails = metadataCache.mediaDetails(serverID: serverID, ratingKey: ratingKey)
         let record = DownloadedMediaRecord(
             serverID: serverID,
             serverName: currentServerName,
-            ratingKey: details.ratingKey,
-            type: details.type,
-            title: details.title,
-            subtitle: subtitle(for: details),
-            parentRatingKey: details.parentRatingKey,
+            ratingKey: ratingKey,
+            type: cachedDetails?.type ?? type,
+            title: cachedDetails?.title ?? "Download",
+            subtitle: cachedDetails.map(subtitle),
+            parentRatingKey: cachedDetails?.parentRatingKey,
             parentTitle: nil,
-            grandparentRatingKey: details.grandparentRatingKey,
-            grandparentTitle: details.grandparentTitle,
-            thumbPath: details.thumb ?? details.parentThumb ?? details.grandparentThumb,
-            artPath: details.art,
-            mediaID: media.id,
-            partID: part.id,
+            grandparentRatingKey: cachedDetails?.grandparentRatingKey,
+            grandparentTitle: cachedDetails?.grandparentTitle,
+            thumbPath: cachedDetails.flatMap { $0.thumb ?? $0.parentThumb ?? $0.grandparentThumb },
+            artPath: cachedDetails?.art,
+            mediaID: nil,
+            partID: nil,
             relativeVideoPath: nil,
             resumeDataPath: nil,
             downloadTaskIdentifier: nil,
             status: .queued,
             progress: 0,
             downloadedBytes: 0,
-            totalBytes: part.size.map(Int64.init),
+            totalBytes: nil,
+            errorMessage: nil,
+            addedAt: .now,
+            updatedAt: .now
+        )
+
+        upsert(record)
+    }
+
+    private func queueEpisodeDownload(_ episode: PlexEpisode) async throws {
+        guard let serverID = currentServerID else {
+            throw PlexServiceError.noServerConnected
+        }
+
+        if let existing = record(for: episode.ratingKey),
+           existing.status == .completed || existing.status.isActive {
+            return
+        }
+
+        let cachedDetails = metadataCache.mediaDetails(serverID: serverID, ratingKey: episode.ratingKey)
+        let record = DownloadedMediaRecord(
+            serverID: serverID,
+            serverName: currentServerName,
+            ratingKey: episode.ratingKey,
+            type: .episode,
+            title: cachedDetails?.title ?? episode.title,
+            subtitle: cachedDetails.map(subtitle) ?? MediaTextFormatter.seasonEpisodeLabel(
+                season: episode.parentIndex,
+                episode: episode.index
+            ),
+            parentRatingKey: cachedDetails?.parentRatingKey ?? episode.parentRatingKey,
+            parentTitle: episode.parentTitle,
+            grandparentRatingKey: cachedDetails?.grandparentRatingKey ?? episode.grandparentRatingKey,
+            grandparentTitle: cachedDetails?.grandparentTitle ?? episode.grandparentTitle,
+            thumbPath: cachedDetails.flatMap { $0.thumb ?? $0.parentThumb ?? $0.grandparentThumb }
+                ?? episode.thumb
+                ?? episode.grandparentThumb,
+            artPath: cachedDetails?.art ?? episode.art,
+            mediaID: nil,
+            partID: nil,
+            relativeVideoPath: nil,
+            resumeDataPath: nil,
+            downloadTaskIdentifier: nil,
+            status: .queued,
+            progress: 0,
+            downloadedBytes: 0,
+            totalBytes: nil,
             errorMessage: nil,
             addedAt: .now,
             updatedAt: .now
@@ -550,7 +593,7 @@ final class DownloadManager {
         await cacheArtwork(for: episodes)
 
         for episode in episodes {
-            try await queueSingleDownload(ratingKey: episode.ratingKey)
+            try await queueSingleDownload(ratingKey: episode.ratingKey, type: .episode)
         }
     }
 
@@ -600,8 +643,19 @@ final class DownloadManager {
         }
 
         do {
-            guard let details = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) else {
-                throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
+            let details: PlexMediaDetails
+            if let cachedDetails = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) {
+                details = cachedDetails
+            } else {
+                details = try await fetchAndCacheDetails(ratingKey: record.ratingKey)
+            }
+
+            guard details.type == .movie || details.type == .episode else {
+                throw PlexServiceError.decodingError("Downloads are only supported for movies and episodes.")
+            }
+
+            if details.type == .episode {
+                try await cacheEpisodeContext(details)
             }
 
             let media = details.media.first(where: { $0.id == record.mediaID })
@@ -615,6 +669,26 @@ final class DownloadManager {
                 throw PlexServiceError.invalidURL
             }
 
+            guard let latestRecord = self.record(globalKey: record.globalKey),
+                  latestRecord.status == .preparing,
+                  !deletingDownloadIDs.contains(record.globalKey) else {
+                return
+            }
+
+            update(globalKey: record.globalKey) { item in
+                item.title = details.title
+                item.subtitle = subtitle(for: details)
+                item.parentRatingKey = details.parentRatingKey
+                item.grandparentRatingKey = details.grandparentRatingKey
+                item.grandparentTitle = details.grandparentTitle
+                item.thumbPath = details.thumb ?? details.parentThumb ?? details.grandparentThumb
+                item.artPath = details.art
+                item.mediaID = media.id
+                item.partID = part.id
+                item.totalBytes = part.size.map(Int64.init) ?? item.totalBytes
+                item.updatedAt = .now
+            }
+
             _ = try fileStore.targetVideoURL(for: details, part: part)
             var request = URLRequest(url: sourceURL)
             request.cachePolicy = .reloadIgnoringLocalCacheData
@@ -623,7 +697,7 @@ final class DownloadManager {
             plexService.applyHeaders(to: &request, token: plexService.preferredServerToken)
             try validateAvailableStorage(for: part)
 
-            let resumeData = fileStore.resumeData(relativePath: record.resumeDataPath)
+            let resumeData = fileStore.resumeData(relativePath: latestRecord.resumeDataPath)
             let taskIdentifier = transferController.start(
                 request: request,
                 resumeData: resumeData,
@@ -631,7 +705,7 @@ final class DownloadManager {
             )
 
             if resumeData != nil {
-                fileStore.deleteResumeData(relativePath: record.resumeDataPath)
+                fileStore.deleteResumeData(relativePath: latestRecord.resumeDataPath)
             }
 
             update(globalKey: record.globalKey) { item in

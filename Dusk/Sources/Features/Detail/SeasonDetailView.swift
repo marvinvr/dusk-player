@@ -316,11 +316,26 @@ struct SeasonDetailView: View {
             )
         }
 
-        if !downloadState.isDeleting && downloadState.canDelete {
-            Button(role: .destructive) {
-                downloadManager.deleteDownload(scope: downloadState.scope)
-            } label: {
-                Label("Delete Episode Download", systemImage: "trash")
+        if DownloadsFeature.isVisible {
+            if downloadState.hasRecords {
+                DownloadContextMenuContent(
+                    state: downloadState,
+                    showsDelete: downloadState.canDelete,
+                    showsCancel: downloadState.canCancel,
+                    onPause: { downloadManager.pauseDownload(scope: downloadState.scope) },
+                    onResume: { downloadManager.resumeDownload(scope: downloadState.scope) },
+                    onCancel: { downloadManager.cancelDownload(scope: downloadState.scope) },
+                    onDelete: { downloadManager.deleteDownload(scope: downloadState.scope) },
+                    onRetry: { downloadManager.retryDownload(ratingKey: episode.ratingKey) }
+                )
+            } else {
+                Button {
+                    Task {
+                        await downloadManager.queueDownload(episode: episode)
+                    }
+                } label: {
+                    Label("Download Episode", systemImage: "arrow.down.circle")
+                }
             }
         }
     }

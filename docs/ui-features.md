@@ -134,8 +134,8 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
   people endpoint.
 - Use `PlayVersionContextMenu` for alternate media versions; it filters out unplayable
   versions with no parts.
-- Use `DownloadActionButton` from the downloads feature for download actions. Do not
-  duplicate download state UI in detail screens.
+- Use `DownloadActionButton` and `DownloadContextMenuContent` from the downloads
+  feature for download actions. Do not duplicate download state UI in detail screens.
 - Offline-capable detail models may show cached metadata before network refresh. Preserve
   `isUsingCachedData`, offline-fallback state, `offlineStateVersion`, and
   `OfflinePlaybackSyncManager` checks when changing watched/progress behavior.
