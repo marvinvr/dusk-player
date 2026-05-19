@@ -200,7 +200,7 @@ struct DownloadsView: View {
             .buttonStyle(.plain)
             .foregroundStyle(Color.duskTextPrimary)
 
-            Label("Pause keeps progress. Cancel removes an item from the queue.", systemImage: "info.circle")
+            Label("Your device will stay awake while this queue is open and downloads are active.", systemImage: "info.circle")
                 .font(.caption2)
                 .foregroundStyle(Color.duskTextSecondary)
                 .labelStyle(.titleAndIcon)

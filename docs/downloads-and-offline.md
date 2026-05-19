@@ -138,7 +138,7 @@ sync attempt completes late.
 ## UI Hooks
 
 `DownloadActionButton` is the inline download/delete/pause/resume/retry control.
-`DownloadsView` owns the downloaded movie/show grid, queue sheet, queue action
+`DownloadsView` owns the downloaded movie/show grid, queue sheet, queue awake
 hint, pending sync banner, and the queue-sheet-only idle timer hold while active
 downloads exist.
 `MainTabView` shows the Downloads tab only when visible and records exist.
