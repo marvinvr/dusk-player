@@ -14,6 +14,7 @@ extension PlayerViewModel {
     private static let stallProgressTolerance: TimeInterval = 0.75
     private static let maxStallRecoveryAttempts = 2
     private static let controlsAutoHideDelay: TimeInterval = 4.0
+    private static let controlsAutoHideRetryDelay: TimeInterval = 0.25
 
     func startSync() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -24,8 +25,6 @@ extension PlayerViewModel {
     }
 
     func sync() {
-        let previousState = state
-        let previousIsBuffering = isBuffering
         let engineState = engine.state
         let now = Date()
 
@@ -56,11 +55,7 @@ extension PlayerViewModel {
         updatePlaybackProgressTracking(now: now)
         updateBufferingPresentation(now: now)
         recoverStalledPlaybackIfNeeded(now: now)
-        scheduleControlsHideIfNeeded(
-            previousState: previousState,
-            previousIsBuffering: previousIsBuffering,
-            didStartPlayback: didStartPlayback
-        )
+        updateControlsAutoHide(didStartPlayback: didStartPlayback)
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
         updateAutoSkipState()
@@ -171,21 +166,7 @@ extension PlayerViewModel {
     }
 
     func scheduleHide() {
-        hideTimer?.invalidate()
-        hideTimer = Timer.scheduledTimer(withTimeInterval: Self.controlsAutoHideDelay, repeats: false) { [weak self] _ in
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.hideTimer = nil
-
-                if self.canAutoHideControls {
-                    withAnimation(Self.controlsVisibilityAnimation) {
-                        self.showControls = false
-                    }
-                } else if self.shouldRetryControlsAutoHide {
-                    self.scheduleHide()
-                }
-            }
-        }
+        scheduleControlsAutoHide(resetDeadline: true)
     }
 
     func seek(to position: TimeInterval, revealControls: Bool) {
@@ -256,22 +237,18 @@ extension PlayerViewModel {
         }
     }
 
-    private func scheduleControlsHideIfNeeded(
-        previousState: PlaybackState,
-        previousIsBuffering: Bool,
-        didStartPlayback: Bool
-    ) {
+    private func updateControlsAutoHide(didStartPlayback: Bool) {
         guard showControls else {
+            cancelScheduledHide()
             return
         }
 
-        if canAutoHideControls,
-           didStartPlayback || previousState != .playing || previousIsBuffering || hideTimer == nil {
-            scheduleHide()
-        } else if shouldRetryControlsAutoHide,
-                  hideTimer == nil {
-            scheduleHide()
+        guard shouldKeepControlsAutoHidePending else {
+            cancelScheduledHide()
+            return
         }
+
+        scheduleControlsAutoHide(resetDeadline: didStartPlayback)
     }
 
     private func isPlaybackMakingProgress(now: Date) -> Bool {
@@ -281,24 +258,86 @@ extension PlayerViewModel {
     }
 
     private var canAutoHideControls: Bool {
-        state == .playing &&
+        showControls &&
+            controlsAutoHideIsArmed &&
             !isScrubbing &&
             playbackError == nil &&
-            !showBufferingIndicator
+            !showSubtitlePicker &&
+            !showAudioPicker &&
+            state != .stopped &&
+            state != .error
     }
 
-    private var shouldRetryControlsAutoHide: Bool {
+    private var shouldKeepControlsAutoHidePending: Bool {
         showControls &&
-            !isScrubbing &&
+            controlsAutoHideIsArmed &&
             playbackError == nil &&
-            state != .paused &&
             state != .stopped &&
             state != .error
     }
 
     private func cancelScheduledHide() {
-        hideTimer?.invalidate()
-        hideTimer = nil
+        controlsAutoHideTask?.cancel()
+        controlsAutoHideTask = nil
+        controlsAutoHideDeadline = nil
+    }
+
+    private var controlsAutoHideIsArmed: Bool {
+        hasStartedPlayback || state == .playing || currentTime > 0
+    }
+
+    private func scheduleControlsAutoHide(resetDeadline: Bool) {
+        guard shouldKeepControlsAutoHidePending else {
+            cancelScheduledHide()
+            return
+        }
+
+        if resetDeadline || controlsAutoHideDeadline == nil {
+            controlsAutoHideDeadline = Date().addingTimeInterval(Self.controlsAutoHideDelay)
+        }
+
+        guard controlsAutoHideTask == nil else { return }
+
+        controlsAutoHideTask = Task { @MainActor [weak self] in
+            while true {
+                guard let self else { return }
+                guard let deadline = self.controlsAutoHideDeadline else {
+                    self.controlsAutoHideTask = nil
+                    return
+                }
+
+                let remaining = deadline.timeIntervalSinceNow
+                if remaining > 0 {
+                    do {
+                        try await Task.sleep(for: .milliseconds(Self.milliseconds(remaining)))
+                    } catch {
+                        return
+                    }
+                    continue
+                }
+
+                if self.canAutoHideControls {
+                    self.controlsAutoHideTask = nil
+                    self.controlsAutoHideDeadline = nil
+                    withAnimation(Self.controlsVisibilityAnimation) {
+                        self.showControls = false
+                    }
+                    return
+                }
+
+                guard self.shouldKeepControlsAutoHidePending else {
+                    self.controlsAutoHideTask = nil
+                    self.controlsAutoHideDeadline = nil
+                    return
+                }
+
+                self.controlsAutoHideDeadline = Date().addingTimeInterval(Self.controlsAutoHideRetryDelay)
+            }
+        }
+    }
+
+    private static func milliseconds(_ interval: TimeInterval) -> Int {
+        max(1, Int((interval * 1000).rounded(.up)))
     }
 
     private func updatePlaybackProgressTracking(now: Date) {

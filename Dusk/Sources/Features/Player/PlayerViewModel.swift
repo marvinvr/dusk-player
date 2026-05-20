@@ -69,7 +69,8 @@ final class PlayerViewModel {
     var stallRecoveryAttempts = 0
     var lastStallRecoveryAt: Date?
     @ObservationIgnored nonisolated(unsafe) var syncTimer: Timer?
-    @ObservationIgnored nonisolated(unsafe) var hideTimer: Timer?
+    @ObservationIgnored nonisolated(unsafe) var controlsAutoHideTask: Task<Void, Never>?
+    @ObservationIgnored var controlsAutoHideDeadline: Date?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var markerSkipTask: Task<Void, Never>?
@@ -83,7 +84,7 @@ final class PlayerViewModel {
 
     deinit {
         syncTimer?.invalidate()
-        hideTimer?.invalidate()
+        controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
         markerSkipTask?.cancel()
@@ -91,12 +92,13 @@ final class PlayerViewModel {
 
     func cleanup() {
         syncTimer?.invalidate()
-        hideTimer?.invalidate()
+        controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
         markerSkipTask?.cancel()
         syncTimer = nil
-        hideTimer = nil
+        controlsAutoHideTask = nil
+        controlsAutoHideDeadline = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
         markerSkipTask = nil

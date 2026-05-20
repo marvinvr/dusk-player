@@ -88,8 +88,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   controls visibility, scrubbing, seek feedback, buffering presentation,
   auto-skip markers, stall recovery, and track selection.
 - Playback controls start visible for orientation, then `PlayerViewModel`
-  arms auto-hide once playback is ready and keeps retrying while startup or
-  buffering temporarily prevents hiding.
+  owns one auto-hide deadline/task for the whole session. Sync arms it once
+  playback has started, every user reveal resets it, and it keeps retrying
+  while temporary blockers such as scrubbing or selection sheets are active.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, sheets for audio/subtitle selection, and double-tap
