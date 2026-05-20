@@ -1,7 +1,7 @@
 # Dusk UI Feature Layer
 
 Operational notes for agents changing SwiftUI screens, feature view models, and shared UI
-in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.md`.
+in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-plex.md`.
 
 ## App And Navigation Shell
 

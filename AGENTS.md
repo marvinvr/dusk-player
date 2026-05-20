@@ -1,8 +1,10 @@
-This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. See `SPEC.md` for the full technical spec.
+This is **Dusk**, a native Swift/SwiftUI Plex client for Apple platforms. Read `docs/product-and-scope.md` for product intent and long-lived constraints.
 
 Mandatory for agents: read this local `AGENTS.md` before planning, editing, committing, or pushing in this repository. Treat it as the repo-local source of truth for workflow expectations, especially verification and multi-agent git hygiene.
 
-`ARCHITECTURE.md` is the quick map of the current code structure after the refactor. Read it before doing discovery-heavy work.
+If `AGENTS.local.md` exists, read it immediately after this file. It contains checkout-specific verification and publishing constraints.
+
+`docs/codebase-map.md` is the quick map of the current source structure. Read it before doing discovery-heavy work.
 
 `STYLE.md` is the visual source of truth and must be followed at all times for colors, materials, spacing, and overall UI styling.
 
@@ -13,7 +15,7 @@ Mandatory for agents: read this local `AGENTS.md` before planning, editing, comm
 - **Hybrid playback engine**: AVPlayer for MP4/MOV with standard codecs, VLCKit for everything else (MKV, DTS, PGS subs, etc.). Both conform to `PlaybackEngine` protocol. `StreamResolver` picks which engine to use based on stream metadata.
 - **Plex is the source of truth**: App is stateless beyond auth token (Keychain) and user preferences (UserDefaults). All metadata, watch state, and library data is fetched from Plex.
 - **No premature abstraction**: No `MediaProvider` protocol. Plex-specific code is fine. Keep it in `PlexService` but don't abstract until a second backend exists.
-- **SwiftUI, multi-platform**: iOS/iPadOS now, tvOS soon. Share as much UI as possible, use `#if os(tvOS)` for platform differences. macOS later via Catalyst.
+- **SwiftUI, multi-platform**: iOS/iPadOS and tvOS are project targets. Share as much UI as possible, use `#if os(tvOS)` for platform differences.
 - **VLCKit is vendored**: No CocoaPods. Pinned `VLCKit.xcframework` and `VLCKit-tvOS.xcframework` binaries are checked into `Frameworks/` and linked dynamically for LGPL compliance.
 - **Direct play first**: Playback must start with direct play unless using a local download. Manual transcoding is only a per-session player Quality action and must never become an automatic startup default.
 

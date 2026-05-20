@@ -59,9 +59,15 @@ File: `PlexService+Networking.swift`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
 - `applyHeaders(to:token:)` centralizes Plex headers, platform/device metadata,
   and optional `X-Plex-Token`.
+- Plex requests should identify Dusk consistently with the stable client
+  identifier, product/version, platform, and device name headers expected by
+  Plex. Keep header changes centralized in `applyHeaders`.
 
 Pitfalls:
 - `rawServerRequest` requires `serverBaseURL` plus a usable server token.
+- Keep account-token and server-token usage distinct. `plex.tv` resources use
+  the account token; selected server APIs should use the server token when
+  available.
 - Plex is inconsistent: optional fields, int-or-bool flags, unknown media types,
   and multiple person id shapes are normal.
 - Do not log token-bearing URLs. Use sanitized playback URL logging where it
@@ -179,6 +185,9 @@ Pitfalls:
 - Preserve first-login auth propagation retries.
 - Keep decoding tolerant and optional.
 - Avoid logging tokens or token-bearing playback/image URLs.
+- Hardware transcoding, HDR tone mapping, or other Plex Pass-gated server
+  features may fail with authorization/server errors. Surface a clear failure
+  and keep direct playback and browsing usable.
 - Check downloads/offline users before changing raw payload helpers.
 - If Swift source files are added, removed, or renamed, run `xcodegen generate`.
 - For Swift changes, run the compile-only `xcodebuild` from `AGENTS.md`; for
