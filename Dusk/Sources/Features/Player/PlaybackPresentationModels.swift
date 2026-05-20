@@ -8,7 +8,7 @@ struct PlaybackAttemptContext: Sendable {
     let resolverReason: String
     let mediaID: Int
     let partID: Int
-    let sanitizedDirectPlayURL: String
+    let sanitizedPlaybackURL: String
 
     var attemptLabel: String {
         attemptID.uuidString
@@ -29,7 +29,7 @@ struct PlaybackDebugInfo: Sendable {
     let part: PlexMediaPart
     let attemptID: UUID
     let resolverReason: String
-    let sanitizedDirectPlayURL: String
+    let sanitizedPlaybackURL: String
 
     var engineLabel: String {
         switch engine {
@@ -39,7 +39,12 @@ struct PlaybackDebugInfo: Sendable {
     }
 
     var transcodeLabel: String {
-        "No"
+        switch decision {
+        case .directPlay, .localDownload:
+            "No"
+        case let .transcode(preset):
+            preset.displayName
+        }
     }
 
     var directPlayLabel: String {
@@ -48,6 +53,8 @@ struct PlaybackDebugInfo: Sendable {
             "Yes"
         case .localDownload:
             "Local"
+        case .transcode:
+            "No"
         }
     }
 
@@ -55,6 +62,25 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .directPlay: "Direct Play"
         case .localDownload: "Local Download"
+        case let .transcode(preset): "Transcode \(preset.displayName)"
+        }
+    }
+
+    var qualityPreset: PlaybackQualityPreset {
+        switch decision {
+        case .directPlay, .localDownload:
+            .original
+        case let .transcode(preset):
+            preset
+        }
+    }
+
+    var canSelectPlaybackQuality: Bool {
+        switch decision {
+        case .localDownload:
+            false
+        case .directPlay, .transcode:
+            true
         }
     }
 
@@ -121,7 +147,7 @@ struct PlaybackDebugInfo: Sendable {
     }
 
     var urlLabel: String {
-        sanitizedDirectPlayURL
+        sanitizedPlaybackURL
     }
 
     private var selectedVideoStream: PlexStream? {
@@ -148,6 +174,114 @@ struct PlaybackDebugInfo: Sendable {
 enum PlaybackDecision: Sendable {
     case directPlay
     case localDownload
+    case transcode(PlaybackQualityPreset)
+}
+
+enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
+    case original
+    case p1080_20Mbps
+    case p1080_12Mbps
+    case p1080_10Mbps
+    case p1080_8Mbps
+    case p720_4Mbps
+    case p720_3Mbps
+    case p720_2Mbps
+    case p480_1_5Mbps
+    case p320_720Kbps
+    case p240_320Kbps
+
+    var id: String { rawValue }
+
+    var isOriginal: Bool {
+        self == .original
+    }
+
+    var displayName: String {
+        switch self {
+        case .original: "Original"
+        case .p1080_20Mbps: "1080p 20 Mbps"
+        case .p1080_12Mbps: "1080p 12 Mbps"
+        case .p1080_10Mbps: "1080p 10 Mbps"
+        case .p1080_8Mbps: "1080p 8 Mbps"
+        case .p720_4Mbps: "720p 4 Mbps"
+        case .p720_3Mbps: "720p 3 Mbps"
+        case .p720_2Mbps: "720p 2 Mbps"
+        case .p480_1_5Mbps: "480p 1.5 Mbps"
+        case .p320_720Kbps: "320p 720 kbps"
+        case .p240_320Kbps: "240p 320 kbps"
+        }
+    }
+
+    var detailTitle: String? {
+        switch self {
+        case .original:
+            "Direct Play"
+        default:
+            "Plex transcode"
+        }
+    }
+
+    var videoBitrateKbps: Int? {
+        switch self {
+        case .original: nil
+        case .p1080_20Mbps: 20_000
+        case .p1080_12Mbps: 12_000
+        case .p1080_10Mbps: 10_000
+        case .p1080_8Mbps: 8_000
+        case .p720_4Mbps: 4_000
+        case .p720_3Mbps: 3_000
+        case .p720_2Mbps: 2_000
+        case .p480_1_5Mbps: 1_500
+        case .p320_720Kbps: 720
+        case .p240_320Kbps: 320
+        }
+    }
+
+    var videoResolution: String? {
+        switch self {
+        case .original: nil
+        case .p1080_20Mbps, .p1080_12Mbps, .p1080_10Mbps, .p1080_8Mbps:
+            "1920x1080"
+        case .p720_4Mbps, .p720_3Mbps, .p720_2Mbps:
+            "1280x720"
+        case .p480_1_5Mbps:
+            "720x480"
+        case .p320_720Kbps:
+            "576x320"
+        case .p240_320Kbps:
+            "420x240"
+        }
+    }
+
+    var videoQuality: Int? {
+        switch self {
+        case .original: nil
+        case .p1080_20Mbps: 100
+        case .p1080_12Mbps: 90
+        case .p1080_10Mbps: 75
+        case .p1080_8Mbps: 60
+        case .p720_4Mbps: 100
+        case .p720_3Mbps: 75
+        case .p720_2Mbps: 60
+        case .p480_1_5Mbps: 60
+        case .p320_720Kbps: 40
+        case .p240_320Kbps: 30
+        }
+    }
+
+    static let displayOrder: [PlaybackQualityPreset] = [
+        .original,
+        .p1080_20Mbps,
+        .p1080_12Mbps,
+        .p1080_10Mbps,
+        .p1080_8Mbps,
+        .p720_4Mbps,
+        .p720_3Mbps,
+        .p720_2Mbps,
+        .p480_1_5Mbps,
+        .p320_720Kbps,
+        .p240_320Kbps,
+    ]
 }
 
 struct UpNextPresentation: Sendable {

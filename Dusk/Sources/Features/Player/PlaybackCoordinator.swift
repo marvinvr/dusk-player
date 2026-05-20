@@ -17,6 +17,8 @@ final class PlaybackCoordinator {
     var playbackSource: PlaybackSource?
     var playerPresentationID = UUID()
     var upNextPresentation: UpNextPresentation?
+    var isSwitchingQuality = false
+    var qualitySwitchError: String?
 
     let plexService: PlexService
     let preferences: UserPreferences
@@ -33,6 +35,8 @@ final class PlaybackCoordinator {
     var lastReportedTimeMs = 0
     var lastReportedDurationMs = 0
     var continuousPlayEpisodeRunCount = 0
+    var activePlaybackSessionIdentifier: String?
+    var activeTranscodeSessionID: String?
 
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?

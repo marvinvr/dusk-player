@@ -138,6 +138,8 @@ private struct PlayerSessionView: View {
                 isEnabled: playback.upNextPresentation == nil &&
                     !viewModel.showSubtitlePicker &&
                     !viewModel.showAudioPicker &&
+                    !viewModel.showQualityPicker &&
+                    !viewModel.showPlaybackInfo &&
                     viewModel.playbackError == nil,
                 onTogglePlayPause: { viewModel.togglePlayPause() }
             )
@@ -172,13 +174,9 @@ private struct PlayerSessionView: View {
                     errorOverlay(error)
                 }
 
-                if preferences.playerDebugOverlayEnabled,
-                   let debugInfo {
-                    PlayerDebugOverlayView(
-                        debugInfo: debugInfo,
-                        state: viewModel.state,
-                        isBuffering: viewModel.isBuffering
-                    )
+                if let qualitySwitchError = playback.qualitySwitchError {
+                    playerToast(qualitySwitchError)
+                        .transition(.move(edge: .top).combined(with: .opacity))
                 }
 
                 if let marker = viewModel.activeSkipMarker,
@@ -192,6 +190,7 @@ private struct PlayerSessionView: View {
                     PlayerControlsOverlay(
                         viewModel: viewModel,
                         mediaDetails: mediaDetails,
+                        debugInfo: debugInfo,
                         hasActiveSkipMarker: viewModel.activeSkipMarker != nil,
                         onDismiss: dismissPlayer
                     )
@@ -202,6 +201,7 @@ private struct PlayerSessionView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
+        .animation(.easeInOut(duration: 0.2), value: playback.qualitySwitchError)
         .duskCaptureStatusBarAppearance()
         .duskStatusBarHidden(!viewModel.showControls)
         .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
@@ -267,6 +267,25 @@ private struct PlayerSessionView: View {
         }
         #endif
         #if !os(tvOS)
+        .sheet(isPresented: $vm.showQualityPicker) {
+            PlayerSelectionSheet(
+                title: "Quality",
+                items: PlaybackQualityPreset.displayOrder,
+                selectedID: debugInfo?.qualityPreset.id,
+                itemTitle: \.displayName,
+                itemSubtitle: \.detailTitle,
+                onSelect: { item in
+                    guard let item else { return }
+                    viewModel.showQualityPicker = false
+                    Task {
+                        await playback.switchQuality(to: item)
+                    }
+                },
+                onDismiss: {
+                    viewModel.showQualityPicker = false
+                }
+            )
+        }
         .sheet(isPresented: $vm.showSubtitlePicker) {
             PlayerSelectionSheet(
                 title: "Subtitles",
@@ -302,6 +321,38 @@ private struct PlayerSessionView: View {
             )
         }
         #endif
+        .sheet(isPresented: $vm.showPlaybackInfo) {
+            if let debugInfo {
+                PlayerPlaybackInfoView(
+                    debugInfo: debugInfo,
+                    state: viewModel.state,
+                    isBuffering: viewModel.isBuffering
+                )
+            } else {
+                PlayerPlaybackInfoUnavailableView()
+            }
+        }
+    }
+
+    private func playerToast(_ message: String) -> some View {
+        VStack {
+            Text(message)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 12)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .strokeBorder(.white.opacity(0.16), lineWidth: 1)
+                }
+                .shadow(color: .black.opacity(0.35), radius: 18, y: 8)
+                .padding(.top, 28)
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
     }
 
     private var interactionOverlay: some View {

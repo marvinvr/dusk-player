@@ -159,6 +159,9 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in `UserPreferences`; do not
   bypass those setters.
 - `SettingsSupport` owns shared settings copy, URLs, language options, and bindings.
+- Player Quality lives in the in-player gear menu, not global Settings. It is a
+  per-session manual action and must not create a persisted default that starts
+  future sessions transcoded.
 - iOS settings use `List`, `Section`, `Picker`, `Toggle`, `Link`, Safari sheet, and
   confirmation dialogs.
 - tvOS settings use `ScrollView` plus `TVSettingsSection`, `TVSettingsMenuRow`,

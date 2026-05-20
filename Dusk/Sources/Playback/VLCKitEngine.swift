@@ -133,7 +133,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
-            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in VLCKit for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedDirectPlayURL, privacy: .public)"
+            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in VLCKit for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedPlaybackURL, privacy: .public)"
         )
 
         let attemptID = source.context.attemptID
@@ -343,7 +343,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             state = .error
             let parsedStatus = String(describing: mediaPlayer.media?.parsedStatus)
             let attemptLabel = currentAttemptContext?.attemptLabel ?? "unknown"
-            let urlLabel = currentAttemptContext?.sanitizedDirectPlayURL ?? "<unknown>"
+            let urlLabel = currentAttemptContext?.sanitizedPlaybackURL ?? "<unknown>"
             let libraryError = VLCLibrary.currentErrorMessage
             vlcKitEngineLogger.error(
                 "Playback attempt \(attemptLabel, privacy: .public) VLCKit entered error state. parsedStatus=\(parsedStatus, privacy: .public) currentTime=\(self.currentTime, privacy: .public) duration=\(self.duration, privacy: .public) URL=\(urlLabel, privacy: .public) libraryError=\(libraryError ?? "<none>", privacy: .public)"

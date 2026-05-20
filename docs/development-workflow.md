@@ -67,7 +67,9 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 - Keep engine-agnostic player UI in `Features/Player/`.
 - Use platform-specific shells for meaningful iOS/tvOS layout differences.
 - Use `#if os(tvOS)` close to platform-specific behavior.
-- Direct play is the baseline; fail clearly when media cannot be played.
+- Direct play is the startup baseline. Manual quality changes may request Plex
+  transcoding, but stored preferences must not start video transcoding
+  automatically.
 
 ## Style Guardrails
 

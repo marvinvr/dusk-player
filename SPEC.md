@@ -14,7 +14,7 @@ This is a personal/small-audience project, not a commercial product. Architectur
 ### 1.1 Design Principles
 
 - **Plex is the source of truth.** The app is stateless beyond auth credentials and user preferences. All metadata, watch state, and library data lives on the Plex server.
-- **Direct play first.** No transcoding in v1. The player must handle whatever the server has, or fail gracefully with a clear message.
+- **Direct play first.** Playback starts with direct play whenever a local download is not used. Manual transcoding is available from the in-player Quality menu, but no stored quality preference may start video transcoding automatically.
 - **Shared UI, platform-aware.** Maximize SwiftUI code sharing across platforms. Use `#if os(tvOS)` conditionals for platform-specific behavior, not separate view hierarchies.
 - **No premature abstraction.** Plex-specific code is fine. Isolate it cleanly in a service layer, but do not build provider protocols until a second backend exists to validate the abstraction.
 
@@ -165,14 +165,14 @@ Plex direct play URLs follow this pattern:
 {server_url}/library/parts/{part_id}/file.mkv?X-Plex-Token={token}
 ```
 
-The `part_id` and file info come from the Plex API's media metadata response. No transcoding session setup is needed for direct play.
+The `part_id` and file info come from the Plex API's media metadata response. No transcoding session setup is needed for direct play. Manual quality changes use Plex's universal transcoder decision/start flow and play the resulting HLS manifest.
 
 ### 4.5 Error Handling
 
 If direct play fails (engine can't handle the format, network error, etc.):
 
 1. Display a clear error: "This file couldn't be played directly. [Container] [VideoCodec] [AudioCodec]"
-2. In future: offer to start a transcode session on the server. Not in v1.
+2. Allow the user to manually choose a transcode quality from the player gear menu when the server supports it.
 3. Never silently fail or hang on a loading spinner.
 
 ---
@@ -504,7 +504,7 @@ SwiftData chosen because: native SwiftUI integration, `@Query` for reactive view
 | macOS support | P2 | Mac Catalyst, minimal work expected |
 | Picture in Picture | P1-P2 | AVPlayer: native. VLCKit 4.x: native drawable-based PiP APIs on iOS. Automatic background entry still needs validation |
 | AirPlay | P2 | AVPlayer: native. VLCKit: needs investigation |
-| Transcoding fallback | P1 | Plex transcode session API, resolution/bitrate selection UI |
+| Manual transcoding | P1 | Plex transcode session API, resolution/bitrate selection UI in the player gear menu |
 | Offline / Downloads | P2 | Local storage, download manager, DRM considerations |
 | Metadata cache | P1 | SwiftData integration |
 | Provider abstraction | P3 | Only when adding Emby/Jellyfin |
@@ -530,6 +530,6 @@ SwiftData chosen because: native SwiftUI integration, `@Query` for reactive view
 ### 9.2 Resolved Decisions
 
 1. **App name: Dusk.** Repository: `dusk-player`. Plex client identifier: `com.dusk-player.app`. Product header: `Dusk`.
-2. **Plex Pass not required.** The app relies on direct play, library browsing, and timeline reporting, none of which require Plex Pass. If a Plex Pass-only feature becomes relevant later (e.g., hardware-accelerated transcoding on the server when we add transcoding fallback), handle it gracefully: detect the 401/403 response, show a clear message explaining the feature requires Plex Pass, and continue operating without it.
+2. **Plex Pass not required.** The app relies on direct play, library browsing, timeline reporting, and software transcoding paths that do not require Plex Pass. Plex Pass-only server features such as hardware-accelerated transcoding or HDR tone mapping must fail gracefully: detect the 401/403 response, show a clear message explaining the server feature requires Plex Pass, and continue operating without it.
 3. **Image loading: AsyncImage + URLCache.** Configure a shared URLSession with a generous URLCache (200MB disk). Use AsyncImage throughout. No third-party image loading dependency (Kingfisher, Nuke, etc.). If performance becomes an issue with large grids, revisit with a lightweight prefetch layer before adding a dependency.
 4. **VLCKit integration: vendor the xcframeworks manually.** VLCKit still has no official SPM path that fits the app's needs, and CocoaPods adds project complexity. The current approach is to keep pinned `Frameworks/VLCKit.xcframework` and `Frameworks/VLCKit-tvOS.xcframework` binaries in the repository, link them dynamically for LGPL compliance, and refresh them manually with `./ci_scripts/install_vlckit.sh` when upstream needs to change. This keeps the project dependency model simple while preserving control over the exact VLCKit build and PiP-capable API surface on iOS and the matching tvOS build.

@@ -153,3 +153,243 @@ struct PlayerSeekBar: View {
         )
     }
 }
+
+struct PlayerTrackSettingsMenu: View {
+    @Environment(PlaybackCoordinator.self) private var playback
+
+    let viewModel: PlayerViewModel
+    let context: PlayerControlsContext
+
+    private var hasAvailableSettings: Bool {
+        context.hasPlaybackInfo ||
+            context.hasQualityControl ||
+            !viewModel.audioTracks.isEmpty ||
+            !viewModel.subtitleTracks.isEmpty
+    }
+
+    var body: some View {
+        #if os(tvOS)
+        tvOSMenu
+        #else
+        iOSMenu
+        #endif
+    }
+
+    #if os(tvOS)
+    private var tvOSMenu: some View {
+        Menu {
+            playbackInfoButton
+            qualityMenu
+            subtitleTracksMenu
+            audioTracksMenu
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.footnote.weight(.semibold))
+                .accessibilityLabel("Playback Settings")
+        }
+        .disabled(!hasAvailableSettings)
+        .buttonStyle(.glass)
+        .controlSize(.small)
+        .tint(.white)
+    }
+
+    private var qualityMenu: some View {
+        Menu {
+            if !context.canSelectQuality {
+                Button("Unavailable Offline") {}
+                    .disabled(true)
+            } else {
+                ForEach(PlaybackQualityPreset.displayOrder) { preset in
+                    Button {
+                        Task {
+                            await playback.switchQuality(to: preset)
+                        }
+                    } label: {
+                        trackMenuItem(
+                            title: preset.displayName,
+                            subtitle: preset.detailTitle,
+                            isSelected: context.selectedQualityPreset == preset
+                        )
+                    }
+                    .disabled(context.isChangingQuality || context.selectedQualityPreset == preset)
+                }
+            }
+        } label: {
+            Label("Quality", systemImage: "rectangle.compress.vertical")
+        }
+        .disabled(!context.canSelectQuality || context.isChangingQuality)
+    }
+
+    private var subtitleTracksMenu: some View {
+        Menu {
+            if viewModel.subtitleTracks.isEmpty {
+                Button("No Subtitles") {}
+                    .disabled(true)
+            } else {
+                Button {
+                    viewModel.selectSubtitle(nil)
+                } label: {
+                    trackMenuItem(
+                        title: "Off",
+                        subtitle: nil,
+                        isSelected: viewModel.selectedSubtitleTrack == nil
+                    )
+                }
+
+                ForEach(viewModel.subtitleTracks) { track in
+                    Button {
+                        viewModel.selectSubtitle(track)
+                    } label: {
+                        trackMenuItem(
+                            title: track.displayTitle,
+                            subtitle: track.language,
+                            isSelected: viewModel.selectedSubtitleTrackID == track.id
+                        )
+                    }
+                }
+            }
+        } label: {
+            Label {
+                Text("Subtitles")
+            } icon: {
+                Image(systemName: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill")
+            }
+        }
+        .disabled(viewModel.subtitleTracks.isEmpty)
+    }
+
+    private var audioTracksMenu: some View {
+        Menu {
+            if viewModel.audioTracks.isEmpty {
+                Button("No Audio Tracks") {}
+                    .disabled(true)
+            } else {
+                ForEach(viewModel.audioTracks) { track in
+                    Button {
+                        viewModel.selectAudio(track)
+                    } label: {
+                        trackMenuItem(
+                            title: track.compactDisplayTitle,
+                            subtitle: track.detailDisplayTitle,
+                            isSelected: viewModel.selectedAudioTrackID == track.id
+                        )
+                    }
+                }
+            }
+        } label: {
+            Label("Audio", systemImage: "speaker.wave.2")
+        }
+        .disabled(viewModel.audioTracks.isEmpty)
+    }
+
+    @ViewBuilder
+    private var playbackInfoButton: some View {
+        if context.hasPlaybackInfo {
+            Button {
+                viewModel.showPlaybackInfo = true
+            } label: {
+                Label("Get Info", systemImage: "info.circle")
+            }
+        }
+    }
+    #else
+    private var iOSMenu: some View {
+        Menu {
+            if context.hasPlaybackInfo {
+                Button {
+                    viewModel.showPlaybackInfo = true
+                } label: {
+                    Label("Get Info", systemImage: "info.circle")
+                }
+            }
+
+            Button {
+                viewModel.showQualityPicker = true
+            } label: {
+                settingsMenuItem(
+                    title: "Quality",
+                    subtitle: context.qualityControlTitle,
+                    icon: "rectangle.compress.vertical"
+                )
+            }
+            .disabled(!context.canSelectQuality || context.isChangingQuality)
+
+            Button {
+                viewModel.showAudioPicker = true
+            } label: {
+                settingsMenuItem(
+                    title: "Audio",
+                    subtitle: context.audioControlTitle,
+                    icon: "speaker.wave.2"
+                )
+            }
+            .disabled(viewModel.audioTracks.isEmpty)
+
+            Button {
+                viewModel.showSubtitlePicker = true
+            } label: {
+                settingsMenuItem(
+                    title: "Subtitles",
+                    subtitle: context.subtitleControlTitle,
+                    icon: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill"
+                )
+            }
+            .disabled(viewModel.subtitleTracks.isEmpty)
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.body.weight(.semibold))
+                .foregroundStyle(.white.opacity(hasAvailableSettings ? 1.0 : 0.72))
+                .frame(width: 36, height: 36)
+                .background(.white.opacity(0.12), in: Circle())
+                .accessibilityLabel("Playback Settings")
+        }
+        .disabled(!hasAvailableSettings)
+    }
+
+    private func settingsMenuItem(
+        title: String,
+        subtitle: String,
+        icon: String
+    ) -> some View {
+        Label {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+
+                Text(subtitle)
+                    .font(.caption)
+            }
+        } icon: {
+            Image(systemName: icon)
+        }
+    }
+    #endif
+
+    private func trackMenuItem(
+        title: String,
+        subtitle: String?,
+        isSelected: Bool
+    ) -> some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .lineLimit(1)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Spacer(minLength: 20)
+
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(Color.duskAccent)
+            }
+        }
+    }
+}

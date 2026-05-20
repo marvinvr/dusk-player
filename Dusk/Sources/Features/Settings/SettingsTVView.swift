@@ -91,10 +91,6 @@ struct SettingsTVView: View {
                     tvRowDivider
 
                     TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Player Debug Overlay", isOn: $preferences.playerDebugOverlayEnabled)
                 }
 
                 TVSettingsSection(title: "Server", footer: viewModel.serverError, footerColor: .red) {

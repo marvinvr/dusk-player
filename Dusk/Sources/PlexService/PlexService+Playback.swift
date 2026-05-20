@@ -7,6 +7,12 @@ private let plexPlaybackLogger = Logger(
 )
 
 extension PlexService {
+    enum TranscodeDecisionOutcome: Sendable {
+        case transcodeAvailable
+        case directPlayOnly
+        case failed(String?)
+    }
+
     func reportTimeline(ratingKey: String, state: PlaybackState, timeMs: Int, durationMs: Int) async {
         try? await submitTimeline(
             ratingKey: ratingKey,
@@ -101,12 +107,154 @@ extension PlexService {
         return url
     }
 
+    func transcodeURL(
+        ratingKey: String,
+        mediaIndex: Int,
+        preset: PlaybackQualityPreset,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: Int? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        guard !preset.isOriginal else {
+            throw PlexServiceError.invalidURL
+        }
+        guard let baseURL = serverBaseURL else {
+            throw PlexServiceError.noServerConnected
+        }
+
+        let queryItems = transcodeQueryItems(
+            ratingKey: ratingKey,
+            mediaIndex: mediaIndex,
+            preset: preset,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            includeToken: true
+        )
+
+        let decisionData = try await rawServerRequest(
+            path: "/video/:/transcode/universal/decision",
+            queryItems: queryItems
+        )
+        let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: decisionData)
+        let outcome = decision.outcome
+
+        guard case .transcodeAvailable = outcome else {
+            return (baseURL, outcome)
+        }
+
+        let startQueryItems = transcodeQueryItems(
+            ratingKey: ratingKey,
+            mediaIndex: mediaIndex,
+            preset: preset,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            includeToken: true
+        )
+
+        guard let url = buildURL(
+            base: baseURL.absoluteString,
+            path: "/video/:/transcode/universal/start.m3u8",
+            queryItems: startQueryItems
+        ) else {
+            throw PlexServiceError.invalidURL
+        }
+
+        plexPlaybackLogger.notice(
+            "Constructed transcode URL for ratingKey \(ratingKey, privacy: .public), mediaIndex \(mediaIndex, privacy: .public), preset \(preset.displayName, privacy: .public): \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+        )
+
+        return (url, outcome)
+    }
+
     func sanitizedPlaybackURLString(for url: URL) -> String {
         Self.sanitizedPlaybackURLString(for: url)
     }
 }
 
 private extension PlexService {
+    func transcodeQueryItems(
+        ratingKey: String,
+        mediaIndex: Int,
+        preset: PlaybackQualityPreset,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: Int?,
+        includeToken: Bool
+    ) -> [URLQueryItem] {
+        let clientProfileExtra = transcodeClientProfileExtra(for: preset)
+
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "hasMDE", value: "1"),
+            URLQueryItem(name: "path", value: "/library/metadata/\(ratingKey)"),
+            URLQueryItem(name: "mediaIndex", value: String(mediaIndex)),
+            URLQueryItem(name: "partIndex", value: "0"),
+            URLQueryItem(name: "protocol", value: "hls"),
+            URLQueryItem(name: "fastSeek", value: "1"),
+            URLQueryItem(name: "directPlay", value: "0"),
+            URLQueryItem(name: "directStream", value: "0"),
+            URLQueryItem(name: "directStreamAudio", value: "0"),
+            URLQueryItem(name: "subtitleSize", value: "100"),
+            URLQueryItem(name: "audioBoost", value: "100"),
+            URLQueryItem(name: "location", value: "lan"),
+            URLQueryItem(name: "addDebugOverlay", value: "0"),
+            URLQueryItem(name: "autoAdjustQuality", value: "0"),
+            URLQueryItem(name: "mediaBufferSize", value: "102400"),
+            URLQueryItem(name: "session", value: transcodeSessionID),
+            URLQueryItem(name: "transcodeSessionId", value: transcodeSessionID),
+            URLQueryItem(name: "subtitles", value: "none"),
+            URLQueryItem(name: "copyts", value: "1"),
+            URLQueryItem(name: "Accept-Language", value: "en"),
+            URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier),
+            URLQueryItem(name: "X-Plex-Client-Profile-Extra", value: clientProfileExtra),
+            URLQueryItem(name: "X-Plex-Client-Profile-Name", value: "Generic"),
+            URLQueryItem(name: "X-Plex-Incomplete-Segments", value: "1"),
+            URLQueryItem(name: "X-Plex-Features", value: "external-media,indirect-media"),
+            URLQueryItem(name: "X-Plex-Model", value: "standalone"),
+            URLQueryItem(name: "X-Plex-Language", value: "en"),
+            URLQueryItem(name: "X-Plex-Product", value: "Dusk"),
+            URLQueryItem(
+                name: "X-Plex-Version",
+                value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+            ),
+            URLQueryItem(name: "X-Plex-Client-Identifier", value: clientIdentifier),
+            URLQueryItem(name: "X-Plex-Platform", value: "Generic"),
+        ]
+
+        if let bitrate = preset.videoBitrateKbps {
+            items.append(URLQueryItem(name: "maxVideoBitrate", value: String(bitrate)))
+            items.append(URLQueryItem(name: "videoBitrate", value: String(bitrate)))
+        }
+        if let resolution = preset.videoResolution {
+            items.append(URLQueryItem(name: "videoResolution", value: resolution))
+        }
+        if let quality = preset.videoQuality {
+            items.append(URLQueryItem(name: "videoQuality", value: String(quality)))
+        }
+        if let audioStreamID {
+            items.append(URLQueryItem(name: "audioStreamID", value: String(audioStreamID)))
+        }
+        if includeToken, let token = preferredServerToken {
+            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+
+        return items
+    }
+
+    func transcodeClientProfileExtra(for preset: PlaybackQualityPreset) -> String {
+        var clauses: [String] = []
+        if let bitrate = preset.videoBitrateKbps {
+            clauses.append(
+                "add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=\(bitrate)&replace=true)"
+            )
+        }
+        clauses.append(
+            "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac)"
+        )
+        return clauses.joined(separator: "+")
+    }
+
     static func sanitizedPlaybackURLString(for url: URL) -> String {
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             return url.absoluteString
@@ -123,5 +271,68 @@ private extension PlexService {
         }
 
         return components.string ?? url.absoluteString
+    }
+}
+
+private struct PlexTranscodeDecisionResponse: Decodable {
+    let MediaContainer: Container
+
+    struct Container: Decodable {
+        let generalDecisionCode: Int?
+        let generalDecisionText: String?
+        let transcodeDecisionCode: Int?
+        let transcodeDecisionText: String?
+        let mdeDecisionCode: Int?
+        let mdeDecisionText: String?
+
+        enum CodingKeys: String, CodingKey {
+            case generalDecisionCode
+            case generalDecisionText
+            case transcodeDecisionCode
+            case transcodeDecisionText
+            case mdeDecisionCode
+            case mdeDecisionText
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            generalDecisionCode = Self.decodeFlexibleInt(container, key: .generalDecisionCode)
+            generalDecisionText = try container.decodeIfPresent(String.self, forKey: .generalDecisionText)
+            transcodeDecisionCode = Self.decodeFlexibleInt(container, key: .transcodeDecisionCode)
+            transcodeDecisionText = try container.decodeIfPresent(String.self, forKey: .transcodeDecisionText)
+            mdeDecisionCode = Self.decodeFlexibleInt(container, key: .mdeDecisionCode)
+            mdeDecisionText = try container.decodeIfPresent(String.self, forKey: .mdeDecisionText)
+        }
+
+        private static func decodeFlexibleInt(
+            _ container: KeyedDecodingContainer<CodingKeys>,
+            key: CodingKeys
+        ) -> Int? {
+            if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+                return value
+            }
+            if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+                return Int(value)
+            }
+            return nil
+        }
+    }
+
+    var outcome: PlexService.TranscodeDecisionOutcome {
+        let general = MediaContainer.generalDecisionCode
+        let transcode = MediaContainer.transcodeDecisionCode
+        let mde = MediaContainer.mdeDecisionCode
+
+        if [general, transcode, mde].contains(where: { ($0 ?? 0) >= 2000 }) {
+            return .failed(MediaContainer.transcodeDecisionText ?? MediaContainer.generalDecisionText)
+        }
+        if transcode == 1000 || general == 1000 {
+            return .directPlayOnly
+        }
+        if transcode == 1001 || general == 1001 {
+            return .transcodeAvailable
+        }
+
+        return .transcodeAvailable
     }
 }

@@ -12,6 +12,7 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 ## Features
 
 - [x] Direct Play
+- [x] Manual Transcoding
 - [x] Library browsing & Search
 - [x] Subtitle & audio track selection
 - [x] Continuous Playback
@@ -28,7 +29,6 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 ### Later down the line
 - [ ] Jellyfin Support
 - [ ] Live TV Support
-- [ ] Transcoding Support
 
 ## Setup
 

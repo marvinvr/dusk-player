@@ -27,7 +27,6 @@ final class UserPreferences {
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
         static let appearanceMode = "appearanceMode"
-        static let playerDebugOverlayEnabled = "playerDebugOverlayEnabled"
         static let downloadMaxResolution = "downloadMaxResolution"
         static let downloadsWifiOnly = "downloadsWifiOnly"
         static let maximumActiveDownloads = "maximumActiveDownloads"
@@ -124,11 +123,6 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(appearanceMode.rawValue, forKey: Keys.appearanceMode) }
     }
 
-    /// Show playback debug stats over the active player.
-    var playerDebugOverlayEnabled: Bool {
-        didSet { UserDefaults.standard.set(playerDebugOverlayEnabled, forKey: Keys.playerDebugOverlayEnabled) }
-    }
-
     /// Maximum version quality selected for downloads.
     var downloadMaxResolution: MaxResolution {
         didSet { UserDefaults.standard.set(downloadMaxResolution.rawValue, forKey: Keys.downloadMaxResolution) }
@@ -193,7 +187,6 @@ final class UserPreferences {
         let storedForceVLCKit = defaults.bool(forKey: Keys.forceVLCKit)
         let forceAVPlayer = storedForceAVPlayer
         let forceVLCKit = storedForceAVPlayer ? false : storedForceVLCKit
-        let playerDebugOverlayEnabled = defaults.bool(forKey: Keys.playerDebugOverlayEnabled)
         let downloadMaxResolution: MaxResolution
         if let raw = defaults.string(forKey: Keys.downloadMaxResolution),
            let value = MaxResolution(rawValue: raw) {
@@ -236,7 +229,6 @@ final class UserPreferences {
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit
         self.appearanceMode = appearanceMode
-        self.playerDebugOverlayEnabled = playerDebugOverlayEnabled
         self.downloadMaxResolution = downloadMaxResolution
         self.downloadsWifiOnly = downloadsWifiOnly
         self.maximumActiveDownloads = maximumActiveDownloads

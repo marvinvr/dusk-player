@@ -106,7 +106,7 @@ final class AVPlayerEngine: PlaybackEngine {
         hasReportedPlaybackEnded = false
 
         avPlayerEngineLogger.notice(
-            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in AVPlayer for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedDirectPlayURL, privacy: .public)"
+            "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in AVPlayer for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedPlaybackURL, privacy: .public)"
         )
 
         let attemptID = source.context.attemptID

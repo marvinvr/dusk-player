@@ -6,7 +6,7 @@ network boundary.
 
 ## Responsibilities
 - `PlexService/` owns auth, discovery, request helpers, endpoints, playback
-  reporting, direct-play URLs, and image helpers.
+  reporting, direct-play/transcode URLs, and image helpers.
 - `Models/` owns Plex response shapes plus app-level playback models.
 - `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
@@ -103,8 +103,24 @@ Where to edit:
 - Browse/library/detail endpoints: `PlexService+Library.swift`.
 - Cast/person endpoints: `PlexService+People.swift`; account/history endpoints:
   `PlexService+History.swift`.
-- Playback progress/watch state/direct play: `PlexService+Playback.swift`.
+- Playback progress/watch state/direct play/transcode URLs:
+  `PlexService+Playback.swift`.
 - New response shapes: `Dusk/Sources/Models/`, near the closest model.
+
+## Playback URL Handling
+File: `PlexService+Playback.swift`.
+- Direct play uses `{serverBaseURL}{part.key}` plus `X-Plex-Token` in the URL
+  query because AVPlayer/VLCKit load the URL directly.
+- Manual video transcoding uses Plex's universal transcoder flow:
+  `/video/:/transcode/universal/decision` first, then
+  `/video/:/transcode/universal/start.m3u8` when the decision allows it.
+- Non-original quality presets force `directPlay=0`, `directStream=0`,
+  `protocol=hls`, a Generic client profile, and an HLS transcode target.
+- Decision code `1001` means transcode available, `1000` means direct-play only,
+  and codes `>= 2000` are treated as failures.
+- Transcode start URLs also carry `X-Plex-Token` in the query because playback
+  engines do not use `PlexService` request headers.
+- Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
 ## Image URL And Data Handling
 File: `PlexService+Images.swift`.
@@ -122,8 +138,8 @@ File: `PlexService+Images.swift`.
 - `AppImageCache.shared` is the shared URL cache and can be cleared in settings.
 
 Pitfalls:
-- Transcoded image URLs can contain a token-bearing original URL as a query
-  parameter. Avoid logging them.
+- Transcoded image and playback URLs can contain token-bearing query
+  parameters. Avoid logging them raw.
 - Cache keys include the full URL, including requested dimensions.
 - Keep width and height optional; callers rely on poster/art/banner/logo
   fallbacks.

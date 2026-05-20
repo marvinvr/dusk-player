@@ -39,6 +39,8 @@ final class PlayerViewModel {
     var showControls = true
     var showSubtitlePicker = false
     var showAudioPicker = false
+    var showQualityPicker = false
+    var showPlaybackInfo = false
     var isScrubbing = false
     var scrubPosition: TimeInterval = 0
     var seekFeedback: PlayerSeekFeedbackPresentation?
@@ -103,6 +105,7 @@ final class PlayerViewModel {
         autoSkipCountdownTask = nil
         markerSkipTask = nil
         showBufferingIndicator = false
+        showQualityPicker = false
         bufferingStartedAt = nil
         stalledPlaybackStartedAt = nil
         // Pause (not stop) so the coordinator can read final position

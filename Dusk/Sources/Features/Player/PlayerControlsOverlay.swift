@@ -1,8 +1,11 @@
 import SwiftUI
 
 struct PlayerControlsOverlay: View {
+    @Environment(PlaybackCoordinator.self) private var playback
+
     let viewModel: PlayerViewModel
     let mediaDetails: PlexMediaDetails?
+    let debugInfo: PlaybackDebugInfo?
     let hasActiveSkipMarker: Bool
     let onDismiss: () -> Void
 
@@ -26,7 +29,13 @@ struct PlayerControlsOverlay: View {
         PlayerControlsContext(
             mediaHeader: mediaHeader,
             subtitleControlTitle: subtitleControlTitle,
-            audioControlTitle: audioControlTitle
+            audioControlTitle: audioControlTitle,
+            qualityControlTitle: qualityControlTitle,
+            selectedQualityPreset: debugInfo?.qualityPreset ?? .original,
+            hasPlaybackInfo: debugInfo != nil,
+            hasQualityControl: debugInfo != nil,
+            canSelectQuality: debugInfo?.canSelectPlaybackQuality == true,
+            isChangingQuality: playback.isSwitchingQuality
         )
     }
 
@@ -70,12 +79,26 @@ struct PlayerControlsOverlay: View {
 
         return viewModel.state == .loading ? "..." : "-"
     }
+
+    private var qualityControlTitle: String {
+        guard let debugInfo else { return "Unavailable" }
+        if !debugInfo.canSelectPlaybackQuality {
+            return "Unavailable Offline"
+        }
+        return debugInfo.qualityPreset.displayName
+    }
 }
 
 struct PlayerControlsContext {
     let mediaHeader: PlayerMediaHeader?
     let subtitleControlTitle: String
     let audioControlTitle: String
+    let qualityControlTitle: String
+    let selectedQualityPreset: PlaybackQualityPreset
+    let hasPlaybackInfo: Bool
+    let hasQualityControl: Bool
+    let canSelectQuality: Bool
+    let isChangingQuality: Bool
 }
 
 struct PlayerMediaHeader {

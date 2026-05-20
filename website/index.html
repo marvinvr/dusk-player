@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dusk — The Plex App we Deserve for iPhone, iPad, Mac &amp; Apple TV</title>
   <meta name="description" content="Dusk is the Plex app we deserve, for iPhone, iPad, Mac, and Apple TV. Plays MKV, HEVC, DTS, and every subtitle format, with downloads for offline playback. Native SwiftUI, open source, no tracking.">
-  <meta name="keywords" content="Plex, Plex client, iOS, iPad, Mac, Apple TV, media player, MKV, HEVC, DTS, SwiftUI, open source, streaming, direct play, downloads, offline playback">
+  <meta name="keywords" content="Plex, Plex client, iOS, iPad, Mac, Apple TV, media player, MKV, HEVC, DTS, SwiftUI, open source, streaming, direct play, transcoding, downloads, offline playback">
   <meta name="author" content="Marvin von Rappard">
   <meta name="theme-color" content="#090A0F" media="(prefers-color-scheme: dark)">
   <meta name="theme-color" content="#F5F7FA" media="(prefers-color-scheme: light)">
@@ -169,6 +169,7 @@
   <section class="specs fade-in">
     <div class="specs-row">
       <span class="spec-badge">Direct Play</span>
+      <span class="spec-badge">Manual Transcoding</span>
       <span class="spec-badge">Offline Downloads</span>
       <span class="spec-badge">4K HEVC</span>
       <span class="spec-badge">Resume Anywhere</span>
@@ -226,7 +227,7 @@
       <details class="faq-item fade-in">
         <summary class="faq-question">Does Dusk require a powerful server?</summary>
         <div class="faq-answer">
-          <p>Nope. Dusk uses direct play exclusively, so your server just serves the file as-is without any transcoding. Even a low-power NAS will work great.</p>
+          <p>Usually no. Dusk starts with direct play, so your server normally just serves the file as-is. Manual quality changes can use Plex transcoding, which requires a server capable of handling the selected quality.</p>
         </div>
       </details>
       <details class="faq-item fade-in">

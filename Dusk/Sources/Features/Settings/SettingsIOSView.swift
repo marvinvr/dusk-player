@@ -145,10 +145,6 @@ struct SettingsIOSView: View {
                 Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
                     .foregroundStyle(Color.duskTextPrimary)
                     .tint(Color.duskAccent)
-
-                Toggle("Player Debug Overlay", isOn: $preferences.playerDebugOverlayEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .tint(Color.duskAccent)
             } header: {
                 Text("Playback Advanced")
                     .foregroundStyle(Color.duskTextSecondary)

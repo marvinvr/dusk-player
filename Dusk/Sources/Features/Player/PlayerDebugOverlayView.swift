@@ -1,59 +1,56 @@
 import SwiftUI
 
-struct PlayerDebugOverlayView: View {
+struct PlayerPlaybackInfoView: View {
+    @Environment(\.dismiss) private var dismiss
+
     let debugInfo: PlaybackDebugInfo
     let state: PlaybackState
     let isBuffering: Bool
 
     var body: some View {
-        GeometryReader { geometry in
-            VStack {
-                HStack {
-                    Spacer()
-                    LazyVGrid(
-                        columns: [
-                            GridItem(.flexible(minimum: 110), spacing: 12, alignment: .top),
-                            GridItem(.flexible(minimum: 110), spacing: 12, alignment: .top),
-                        ],
-                        alignment: .leading,
-                        spacing: 8
-                    ) {
-                        ForEach(debugEntries) { entry in
-                            debugRow(entry.label, entry.value)
-                        }
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(infoEntries) { entry in
+                        playbackInfoRow(entry)
                     }
-                    .padding(12)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 16)
-                            .strokeBorder(.white.opacity(0.08), lineWidth: 1)
-                    }
-                    .frame(width: 288, alignment: .leading)
+                } header: {
+                    Text(debugInfo.title)
+                        .foregroundStyle(Color.duskTextSecondary)
                 }
-                Spacer()
             }
-            .padding(.top, max(16, geometry.safeAreaInsets.top + 8))
-            .padding(.horizontal, 16)
+            .duskScrollContentBackgroundHidden()
+            .background(Color.duskBackground)
+            .duskNavigationTitle("Playback Info")
+            .duskNavigationBarTitleDisplayModeInline()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .duskSuppressTVOSButtonChrome()
+                }
+            }
         }
-        .allowsHitTesting(false)
+        .presentationBackground(Color.duskBackground)
     }
 
-    private var debugEntries: [DebugOverlayEntry] {
+    private var infoEntries: [PlaybackInfoEntry] {
         [
-            DebugOverlayEntry(label: "Engine", value: debugInfo.engineLabel),
-            DebugOverlayEntry(label: "Mode", value: debugInfo.decisionLabel),
-            DebugOverlayEntry(label: "Attempt", value: debugInfo.attemptLabel),
-            DebugOverlayEntry(label: "Resolver", value: debugInfo.resolverLabel),
-            DebugOverlayEntry(label: "Transcode", value: debugInfo.transcodeLabel),
-            DebugOverlayEntry(label: "Container", value: debugInfo.containerLabel),
-            DebugOverlayEntry(label: "Bitrate", value: debugInfo.bitrateLabel),
-            DebugOverlayEntry(label: "Video", value: debugInfo.videoLabel),
-            DebugOverlayEntry(label: "Audio", value: debugInfo.audioLabel),
-            DebugOverlayEntry(label: "Resolution", value: debugInfo.resolutionLabel),
-            DebugOverlayEntry(label: "File", value: debugInfo.fileSizeLabel),
-            DebugOverlayEntry(label: "Subtitles", value: debugInfo.subtitleLabel),
-            DebugOverlayEntry(label: "State", value: stateLabel),
-            DebugOverlayEntry(label: "URL", value: debugInfo.urlLabel),
+            PlaybackInfoEntry(label: "Engine", value: debugInfo.engineLabel),
+            PlaybackInfoEntry(label: "Mode", value: debugInfo.decisionLabel),
+            PlaybackInfoEntry(label: "Attempt", value: debugInfo.attemptLabel),
+            PlaybackInfoEntry(label: "Resolver", value: debugInfo.resolverLabel),
+            PlaybackInfoEntry(label: "Transcode", value: debugInfo.transcodeLabel),
+            PlaybackInfoEntry(label: "Container", value: debugInfo.containerLabel),
+            PlaybackInfoEntry(label: "Bitrate", value: debugInfo.bitrateLabel),
+            PlaybackInfoEntry(label: "Video", value: debugInfo.videoLabel),
+            PlaybackInfoEntry(label: "Audio", value: debugInfo.audioLabel),
+            PlaybackInfoEntry(label: "Resolution", value: debugInfo.resolutionLabel),
+            PlaybackInfoEntry(label: "File", value: debugInfo.fileSizeLabel),
+            PlaybackInfoEntry(label: "Subtitles", value: debugInfo.subtitleLabel),
+            PlaybackInfoEntry(label: "State", value: stateLabel),
+            PlaybackInfoEntry(label: "URL", value: debugInfo.urlLabel),
         ]
     }
 
@@ -77,22 +74,50 @@ struct PlayerDebugOverlayView: View {
         return isBuffering ? "\(stateText) / Buffering" : stateText
     }
 
-    private func debugRow(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            Text(label.uppercased())
+    private func playbackInfoRow(_ entry: PlaybackInfoEntry) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(entry.label.uppercased())
                 .font(.caption2.weight(.semibold))
-                .foregroundStyle(.white.opacity(0.65))
+                .foregroundStyle(Color.duskTextSecondary)
 
-            Text(value)
+            Text(entry.value)
                 .font(.caption.monospaced())
-                .foregroundStyle(.white)
-                .lineLimit(3)
+                .foregroundStyle(Color.duskTextPrimary)
+                .lineLimit(entry.label == "URL" || entry.label == "Resolver" ? 4 : 2)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 4)
+        .listRowBackground(Color.duskSurface)
     }
 }
 
-private struct DebugOverlayEntry: Identifiable {
+struct PlayerPlaybackInfoUnavailableView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView(
+                "Playback Info Unavailable",
+                systemImage: "info.circle",
+                description: Text("No playback statistics are available for this session.")
+            )
+            .foregroundStyle(Color.duskTextSecondary)
+            .background(Color.duskBackground)
+            .duskNavigationTitle("Playback Info")
+            .duskNavigationBarTitleDisplayModeInline()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                    .duskSuppressTVOSButtonChrome()
+                }
+            }
+        }
+        .presentationBackground(Color.duskBackground)
+    }
+}
+
+private struct PlaybackInfoEntry: Identifiable {
     let label: String
     let value: String
 

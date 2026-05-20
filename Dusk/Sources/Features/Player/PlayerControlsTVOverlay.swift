@@ -16,8 +16,7 @@ struct PlayerControlsTVOverlay: View {
 
     private enum FocusTarget: Hashable {
         case seekPoint
-        case subtitles
-        case audio
+        case settings
     }
 
     var body: some View {
@@ -72,8 +71,11 @@ struct PlayerControlsTVOverlay: View {
 
                 Spacer()
 
-                subtitleMenu
-                audioMenu
+                PlayerTrackSettingsMenu(
+                    viewModel: viewModel,
+                    context: context
+                )
+                .focused($focusedControl, equals: .settings)
             }
         }
     }
@@ -172,123 +174,6 @@ struct PlayerControlsTVOverlay: View {
             .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
     }
 
-    private var subtitleMenu: some View {
-        Menu {
-            if viewModel.subtitleTracks.isEmpty {
-                Button("No Subtitles") {}
-            } else {
-                Button {
-                    viewModel.selectSubtitle(nil)
-                } label: {
-                    trackMenuItem(
-                        title: "Off",
-                        subtitle: nil,
-                        isSelected: viewModel.selectedSubtitleTrack == nil
-                    )
-                }
-
-                ForEach(viewModel.subtitleTracks) { track in
-                    Button {
-                        viewModel.selectSubtitle(track)
-                    } label: {
-                        trackMenuItem(
-                            title: track.displayTitle,
-                            subtitle: track.language,
-                            isSelected: viewModel.selectedSubtitleTrackID == track.id
-                        )
-                    }
-                }
-            }
-        } label: {
-            trackMenuLabel(
-                icon: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill",
-                title: context.subtitleControlTitle,
-                isEnabled: !viewModel.subtitleTracks.isEmpty
-            )
-        }
-        .disabled(viewModel.subtitleTracks.isEmpty)
-        .buttonStyle(.glass)
-        .controlSize(.small)
-        .tint(.white)
-        .focused($focusedControl, equals: .subtitles)
-    }
-
-    private var audioMenu: some View {
-        Menu {
-            if viewModel.audioTracks.isEmpty {
-                Button("No Audio Tracks") {}
-            } else {
-                ForEach(viewModel.audioTracks) { track in
-                    Button {
-                        viewModel.selectAudio(track)
-                    } label: {
-                        trackMenuItem(
-                            title: track.compactDisplayTitle,
-                            subtitle: track.detailDisplayTitle,
-                            isSelected: viewModel.selectedAudioTrackID == track.id
-                        )
-                    }
-                }
-            }
-        } label: {
-            trackMenuLabel(
-                icon: "speaker.wave.2",
-                title: context.audioControlTitle,
-                isEnabled: !viewModel.audioTracks.isEmpty
-            )
-        }
-        .disabled(viewModel.audioTracks.isEmpty)
-        .buttonStyle(.glass)
-        .controlSize(.small)
-        .tint(.white)
-        .focused($focusedControl, equals: .audio)
-    }
-
-    private func trackMenuLabel(
-        icon: String,
-        title: String,
-        isEnabled: Bool
-    ) -> some View {
-        Label {
-            Text(title)
-                .font(.footnote.weight(.medium))
-                .lineLimit(1)
-        } icon: {
-            Image(systemName: icon)
-                .font(.footnote)
-        }
-        .foregroundStyle(isEnabled ? .primary : .secondary)
-    }
-
-    private func trackMenuItem(
-        title: String,
-        subtitle: String?,
-        isSelected: Bool
-    ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .lineLimit(1)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Color.duskTextSecondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 20)
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
-                    .foregroundStyle(Color.duskAccent)
-            }
-        }
-    }
-
     // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
     private func handleMoveCommand(_ direction: MoveCommandDirection) {
         let currentFocus = focusedControl ?? .seekPoint
@@ -321,7 +206,7 @@ struct PlayerControlsTVOverlay: View {
         switch current {
         case .seekPoint:
             return nil
-        case .subtitles, .audio:
+        case .settings:
             return .seekPoint
         }
     }
@@ -329,52 +214,31 @@ struct PlayerControlsTVOverlay: View {
     private func focusTargetBelow(_ current: FocusTarget) -> FocusTarget? {
         switch current {
         case .seekPoint:
-            return subtitlesOrAudioTarget(preferSubtitles: true)
-        case .subtitles, .audio:
+            return hasAvailableTrackSettings ? .settings : nil
+        case .settings:
             return nil
         }
     }
 
     private func focusTargetLeft(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .seekPoint:
+        case .seekPoint, .settings:
             return nil
-        case .subtitles:
-            return .seekPoint
-        case .audio:
-            return viewModel.subtitleTracks.isEmpty ? .seekPoint : .subtitles
         }
     }
 
     private func focusTargetRight(_ current: FocusTarget) -> FocusTarget? {
         switch current {
-        case .seekPoint:
-            return nil
-        case .subtitles:
-            return viewModel.audioTracks.isEmpty ? nil : .audio
-        case .audio:
+        case .seekPoint, .settings:
             return nil
         }
     }
 
-    private func subtitlesOrAudioTarget(preferSubtitles: Bool) -> FocusTarget? {
-        if preferSubtitles {
-            if !viewModel.subtitleTracks.isEmpty {
-                return .subtitles
-            }
-            if !viewModel.audioTracks.isEmpty {
-                return .audio
-            }
-        } else {
-            if !viewModel.audioTracks.isEmpty {
-                return .audio
-            }
-            if !viewModel.subtitleTracks.isEmpty {
-                return .subtitles
-            }
-        }
-
-        return nil
+    private var hasAvailableTrackSettings: Bool {
+        context.hasPlaybackInfo ||
+            context.hasQualityControl ||
+            !viewModel.audioTracks.isEmpty ||
+            !viewModel.subtitleTracks.isEmpty
     }
 }
 #endif

@@ -147,8 +147,9 @@ piece has a clear name and owner.
   protocols without a real second backend.
 - The app is stateless beyond Keychain auth, UserDefaults preferences, and
   download/offline files.
-- Direct play is the playback model. Do not add transcoding assumptions unless
-  the product scope changes.
+- Direct play is the startup playback model. Manual transcoding is only a
+  per-session player quality action and must not become a persisted default
+  that starts future sessions transcoded.
 - iOS and tvOS can have different shells, but shared state and reusable UI should
   stay common where practical.
 - Keep docs in this directory aligned with meaningful changes.

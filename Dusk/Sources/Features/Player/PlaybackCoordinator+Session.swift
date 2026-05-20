@@ -15,6 +15,7 @@ extension PlaybackCoordinator {
         presentPlayer: Bool
     ) async -> Bool {
         loadError = nil
+        qualitySwitchError = nil
         cancelUpNextCountdown()
         upNextPresentation = nil
 
@@ -97,7 +98,7 @@ extension PlaybackCoordinator {
                 resolverReason: resolverDecision.reason,
                 mediaID: media.id,
                 partID: part.id,
-                sanitizedDirectPlayURL: sanitizedURL
+                sanitizedPlaybackURL: sanitizedURL
             )
 
             playbackSessionLogger.notice(
@@ -122,6 +123,8 @@ extension PlaybackCoordinator {
             self.ratingKey = ratingKey
             activePlaybackServerID = serverID
             activePlaybackUsesLocalDownload = usesLocalDownload
+            activePlaybackSessionIdentifier = UUID().uuidString
+            activeTranscodeSessionID = nil
             activeItemDetails = details
             engine = newEngine
             playbackSource = PlaybackSource(
@@ -137,7 +140,7 @@ extension PlaybackCoordinator {
                 part: part,
                 attemptID: attemptID,
                 resolverReason: resolverDecision.reason,
-                sanitizedDirectPlayURL: sanitizedURL
+                sanitizedPlaybackURL: sanitizedURL
             )
             playerPresentationID = UUID()
             nowPlayingController.beginSession(
@@ -160,6 +163,144 @@ extension PlaybackCoordinator {
             )
             loadError = error.localizedDescription
             return false
+        }
+    }
+
+    func switchQuality(to preset: PlaybackQualityPreset) async {
+        guard !isSwitchingQuality else { return }
+        guard let details = activeItemDetails,
+              let ratingKey,
+              let debugInfo,
+              debugInfo.canSelectPlaybackQuality else {
+            presentQualitySwitchError("Quality changes are unavailable for this playback.")
+            return
+        }
+        guard preset != debugInfo.qualityPreset else { return }
+
+        isSwitchingQuality = true
+        qualitySwitchError = nil
+        defer { isSwitchingQuality = false }
+
+        guard let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
+              mediaIndex < details.media.count,
+              let part = details.media[mediaIndex].parts.first else {
+            presentQualitySwitchError("Could not resolve the current media version.")
+            return
+        }
+
+        let media = details.media[mediaIndex]
+        let currentTime = engine?.currentTime ?? playbackSource?.startPosition ?? 0
+        let attemptID = UUID()
+
+        do {
+            let playbackURL: URL
+            let sanitizedURL: String
+            let playbackDecision: PlaybackDecision
+            let engineType: PlaybackEngineType
+            let resolverReason: String
+
+            if preset.isOriginal {
+                guard let directPlayURL = plexService.directPlayURL(for: part) else {
+                    presentQualitySwitchError("Could not construct direct-play URL.")
+                    return
+                }
+
+                let resolverDecision = StreamResolver.evaluate(
+                    media: media,
+                    forceAVPlayer: preferences.forceAVPlayer,
+                    forceVLCKit: preferences.forceVLCKit
+                )
+                playbackURL = directPlayURL
+                sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
+                playbackDecision = .directPlay
+                engineType = resolverDecision.engine
+                resolverReason = resolverDecision.reason
+                activeTranscodeSessionID = nil
+            } else {
+                let playbackSessionID = activePlaybackSessionIdentifier ?? UUID().uuidString
+                activePlaybackSessionIdentifier = playbackSessionID
+                let transcodeSessionID = activeTranscodeSessionID ?? UUID().uuidString
+                activeTranscodeSessionID = transcodeSessionID
+
+                let result = try await plexService.transcodeURL(
+                    ratingKey: ratingKey,
+                    mediaIndex: mediaIndex,
+                    preset: preset,
+                    sessionIdentifier: playbackSessionID,
+                    transcodeSessionID: transcodeSessionID
+                )
+
+                switch result.outcome {
+                case .transcodeAvailable:
+                    playbackURL = result.url
+                case .directPlayOnly:
+                    presentQualitySwitchError("Plex reported that this item can only direct play.")
+                    return
+                case let .failed(message):
+                    presentQualitySwitchError(message ?? "Plex could not start a transcode session.")
+                    return
+                }
+
+                sanitizedURL = plexService.sanitizedPlaybackURLString(for: playbackURL)
+                playbackDecision = .transcode(preset)
+                engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
+                resolverReason = "User selected Plex HLS transcode quality \(preset.displayName)"
+            }
+
+            let attemptContext = PlaybackAttemptContext(
+                attemptID: attemptID,
+                title: details.title,
+                ratingKey: ratingKey,
+                engine: engineType,
+                resolverReason: resolverReason,
+                mediaID: media.id,
+                partID: part.id,
+                sanitizedPlaybackURL: sanitizedURL
+            )
+
+            playbackSessionLogger.notice(
+                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) switching quality for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(currentTime, privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
+            )
+
+            let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
+            newEngine.onPlaybackEnded = { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.handlePlaybackEnded()
+                }
+            }
+
+            engine?.onPlaybackEnded = nil
+            engine?.stop()
+            engine = newEngine
+            playbackSource = PlaybackSource(
+                url: playbackURL,
+                startPosition: currentTime,
+                context: attemptContext
+            )
+            self.debugInfo = PlaybackDebugInfo(
+                title: details.title,
+                engine: engineType,
+                decision: playbackDecision,
+                media: media,
+                part: part,
+                attemptID: attemptID,
+                resolverReason: resolverReason,
+                sanitizedPlaybackURL: sanitizedURL
+            )
+            activePlaybackUsesLocalDownload = false
+            playerPresentationID = UUID()
+            nowPlayingController.beginSession(
+                details: details,
+                engine: newEngine,
+                plexService: plexService,
+                skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+                skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+            )
+        } catch {
+            playbackSessionLogger.error(
+                "Quality switch failed for ratingKey \(ratingKey, privacy: .public), preset \(preset.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            presentQualitySwitchError(error.localizedDescription)
         }
     }
 
@@ -266,12 +407,25 @@ extension PlaybackCoordinator {
         debugInfo = nil
         playbackSource = nil
         ratingKey = nil
+        qualitySwitchError = nil
+        activePlaybackSessionIdentifier = nil
+        activeTranscodeSessionID = nil
         hasScrobbled = false
         didFinalizeCurrentSession = false
         isHandlingPlaybackEnded = false
         lastReportedTimeMs = 0
         lastReportedDurationMs = 0
         continuousPlayEpisodeRunCount = 0
+    }
+
+    private func presentQualitySwitchError(_ message: String) {
+        qualitySwitchError = message
+        let expectedMessage = message
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(4))
+            guard self?.qualitySwitchError == expectedMessage else { return }
+            self?.qualitySwitchError = nil
+        }
     }
 
     private func resolveMediaVersion(

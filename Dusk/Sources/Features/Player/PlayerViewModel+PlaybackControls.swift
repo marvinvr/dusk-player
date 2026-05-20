@@ -264,6 +264,8 @@ extension PlayerViewModel {
             playbackError == nil &&
             !showSubtitlePicker &&
             !showAudioPicker &&
+            !showQualityPicker &&
+            !showPlaybackInfo &&
             state != .stopped &&
             state != .error
     }

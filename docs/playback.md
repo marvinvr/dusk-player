@@ -2,8 +2,8 @@
 Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## Boundaries
-- `PlexService/` owns Plex endpoints, direct-play URL construction, timeline,
-  scrobble, and watch-state calls.
+- `PlexService/` owns Plex endpoints, direct-play/transcode URL construction,
+  timeline, scrobble, and watch-state calls.
 - `Playback/` owns engine selection and concrete AVPlayer/VLCKit engines.
 - `Features/Player/` owns session orchestration and UI. It should depend on
   `PlaybackEngine`, not on AVPlayer or VLCKit types.
@@ -30,6 +30,23 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 8. The engine validates the URL, loads media, auto-plays, and publishes
    state/time/tracks through the `PlaybackEngine` contract.
 
+## Manual Transcoding
+- Playback never starts with video transcoding because of a stored quality
+  preference. `maxResolution` only chooses among existing Plex media versions.
+- The player gear menu exposes Quality on iOS and tvOS. `Original` means the
+  current media version direct-plays; non-original presets manually request
+  Plex HLS transcoding.
+- `PlaybackCoordinator.switchQuality(to:)` snapshots the current engine time,
+  asks `PlexService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
+  and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and
+  resumes from the same position without finalizing or scrobbling the session.
+- Transcoded playback uses AVPlayer by default because the server emits HLS.
+  `forceVLCKit` still forces VLCKit for debugging.
+- Completed downloads do not expose quality switching because offline playback
+  must stay local and cannot ask Plex to transcode.
+- Transcode failures keep the existing stream running and show an in-player
+  message; they must not silently change to another quality.
+
 ## StreamResolver and Media Version Choice
 - `StreamResolver.selectMediaVersion` filters out media versions with no
   parts. With multiple candidates it targets `preferences.maxResolution`.
@@ -55,7 +72,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   natural end; the coordinator clears it before teardown.
 - `makePlayerView()` returns the rendering view. Player UI must not reach into
   engine internals.
-- `load(source:)` should reset per-attempt state, validate direct play, honor
+- `load(source:)` should reset per-attempt state, validate playback URLs, honor
   `source.startPosition`, and begin playback when ready.
 - `stop()` should release observers/media and leave a reusable stopped state.
 - Track IDs are engine-local. `PlayerViewModel` maps engine tracks to Plex
@@ -93,16 +110,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   while temporary blockers such as scrubbing or selection sheets are active.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
-- iOS uses touch overlays, sheets for audio/subtitle selection, and double-tap
-  seek zones when enabled.
-- tvOS uses focus-aware overlays, menus, remote seek handling, and explicit
-  move-command routing.
+- iOS uses touch overlays, a gear menu for playback info, quality, and track
+  selection, sheets for quality/audio/subtitle choices, and double-tap seek
+  zones when enabled.
+- tvOS uses focus-aware overlays, a gear menu for playback info and track
+  selection, quality menus, remote seek handling, and explicit move-command
+  routing.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in
   `PlayerControlsSharedViews.swift`.
-- `PlayerDebugOverlayView` is gated by `playerDebugOverlayEnabled` and reads
-  `PlaybackDebugInfo`; expose resolver/stream diagnostics there first.
+- `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear
+  menu; expose resolver/stream diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
-  menus in `PlayerControlsTVOverlay`.
+  menus under the shared gear menu.
 - Marker skip buttons come from `PlexMarker.skipButtonTitle`; only intro and
   credits markers are actionable.
 
@@ -132,8 +151,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Playback preferences live in `UserPreferences` and persist to UserDefaults.
 - Session-start defaults: `maxResolution`, forced engines, subtitle defaults,
   and default audio language.
-- Active UI defaults: auto-skip, double-tap seek, continuous play, and debug
-  overlay.
+- Active UI defaults: auto-skip, double-tap seek, and continuous play.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.
 - Settings UI is split by platform; shared labels/options live in
   `SettingsSupport`.

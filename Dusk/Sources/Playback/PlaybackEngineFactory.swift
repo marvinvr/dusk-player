@@ -53,6 +53,13 @@ enum PlaybackEngineFactory {
         )
 
         switch engineType {
+        case .avPlayer, .vlcKit:
+            return makeEngine(type: engineType)
+        }
+    }
+
+    static func makeEngine(type engineType: PlaybackEngineType) -> any PlaybackEngine {
+        switch engineType {
         case .avPlayer:
             #if canImport(AVFoundation)
             if let warmedAVPlayerEngine {
