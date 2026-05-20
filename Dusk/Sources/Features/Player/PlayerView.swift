@@ -203,7 +203,7 @@ private struct PlayerSessionView: View {
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
         .duskCaptureStatusBarAppearance()
-        .duskStatusBarHidden()
+        .duskStatusBarHidden(!viewModel.showControls)
         .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
         #if os(tvOS)
         .onPlayPauseCommand {

@@ -8,8 +8,6 @@ struct PlayerControlsIOSOverlay: View {
     var body: some View {
         GeometryReader { geometry in
             let showsTrackLabels = geometry.size.width > geometry.size.height
-            let topPadding = max(geometry.safeAreaInsets.top + 12, 16)
-            let bottomPadding = max(geometry.safeAreaInsets.bottom + 8, 8)
 
             ZStack {
                 PlayerControlsGradientBackdrop()
@@ -22,8 +20,8 @@ struct PlayerControlsIOSOverlay: View {
                     bottomBar(showsTrackLabels: showsTrackLabels)
                 }
                 .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-                .padding(.top, topPadding)
-                .padding(.bottom, bottomPadding)
+                .padding(.top, 16)
+                .padding(.bottom, 8)
             }
         }
     }

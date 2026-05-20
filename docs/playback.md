@@ -93,8 +93,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, sheets for audio/subtitle selection, and double-tap
-  seek zones when enabled. The player hides the status bar and still accounts
-  for safe-area insets when positioning visible controls.
+  seek zones when enabled.
 - tvOS uses focus-aware overlays, menus, remote seek handling, and explicit
   move-command routing.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in

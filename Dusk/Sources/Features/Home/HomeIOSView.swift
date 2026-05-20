@@ -148,7 +148,9 @@ struct HomeIOSView: View {
         if showsHero {
             content
                 .duskNavigationTitle("")
-                .duskImmersiveNavigationChrome()
+                .duskNavigationBarTitleDisplayModeInline()
+                .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarBackground(.hidden, for: .navigationBar)
         } else {
             content
                 .duskNavigationTitle("Home")

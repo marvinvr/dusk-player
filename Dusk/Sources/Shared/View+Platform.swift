@@ -35,15 +35,6 @@ extension View {
     }
 
     @ViewBuilder
-    func duskImmersiveNavigationChrome() -> some View {
-        self
-            .duskNavigationBarTitleDisplayModeInline()
-            .toolbarColorScheme(.dark, for: .navigationBar)
-            .toolbarBackground(.hidden, for: .navigationBar)
-            .duskStatusBarHidden()
-    }
-
-    @ViewBuilder
     func duskScrollContentBackgroundHidden() -> some View {
         #if os(tvOS)
         self

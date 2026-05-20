@@ -41,7 +41,9 @@ struct ActorDetailView: View {
                 contentView
             }
         }
-        .duskImmersiveNavigationChrome()
+        .duskNavigationBarTitleDisplayModeInline()
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await viewModel.load()
         }

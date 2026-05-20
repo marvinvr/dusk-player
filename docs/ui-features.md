@@ -17,8 +17,6 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
   feature screens.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
-- The iOS tab shell hides the system status bar so tab-level navigation buttons,
-  toolbars, and artwork-led screens never compete with the clock/date strip.
 - Available tabs are data-driven: one library type can become a direct Movies/Shows
   tab, mixed setups use the Libraries hub, and Downloads appears only when visible
   and populated.
@@ -55,9 +53,8 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
 - Use `DuskAsyncImage` for Plex artwork. It integrates app image caching and can route
   Plex image requests through `PlexService` when needed.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
-  `duskNavigationTitle`, title display modes, immersive navigation chrome,
-  list background/separator suppression, status-bar helpers, tvOS button chrome
-  suppression, and tvOS focus effect shape.
+  `duskNavigationTitle`, title display modes, list background/separator suppression,
+  status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.
 
 ## Home
 
@@ -115,9 +112,9 @@ in Dusk. Read this with `ARCHITECTURE.md`, `STYLE.md`, and `docs/data-and-plex.m
 - Use `DetailHeroSection` for cinematic detail headers. It handles backdrop gradients,
   poster/title artwork, supertitle/subtitle/action slots, safe-area offset, and compact
   action placement.
-- Detail screens use `duskImmersiveNavigationChrome()` for hidden inline navigation bars
-  over hero artwork. This keeps system status text from overlapping back buttons and
-  top hero chrome.
+- Detail screens use hidden inline navigation bars over hero artwork. Keep
+  `.toolbarColorScheme(.dark, for: .navigationBar)` and hidden toolbar backgrounds unless
+  the screen is no longer hero-led.
 - Detail screens refresh after player dismissal and scene activation to pick up watch
   progress.
 - `MovieDetailViewModel` handles movie metadata, media info, resume position, watched
