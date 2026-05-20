@@ -11,6 +11,10 @@ root-level overview files and the source itself:
 
 ## Reading Order
 
+Agents must read the repo-local `AGENTS.md` before planning, editing,
+committing, or pushing. It is the source of truth for workflow expectations,
+verification, and multi-agent git hygiene.
+
 1. `AGENTS.md`
 2. `ARCHITECTURE.md`
 3. `STYLE.md` when touching UI

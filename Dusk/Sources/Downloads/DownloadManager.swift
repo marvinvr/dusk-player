@@ -509,7 +509,7 @@ final class DownloadManager {
             ratingKey: ratingKey,
             type: cachedDetails?.type ?? type,
             title: cachedDetails?.title ?? "Download",
-            subtitle: cachedDetails.map(subtitle),
+            subtitle: cachedDetails.flatMap(subtitle),
             parentRatingKey: cachedDetails?.parentRatingKey,
             parentTitle: nil,
             grandparentRatingKey: cachedDetails?.grandparentRatingKey,

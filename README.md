@@ -4,6 +4,8 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 
 ![Dusk website](screenshots/dusk_website_screenshot.png)
 
+> **Agents:** read the repo-local [`AGENTS.md`](AGENTS.md) before planning, editing, committing, or pushing. It contains the required workflow and verification rules for this project.
+
 > **Warning:** This project is under very active development. Expect bugs and unexpected behavior. If you run into issues, please [submit an issue](https://github.com/marvinvr/dusk-player/issues).
 
 > **Download:**
