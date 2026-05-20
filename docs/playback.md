@@ -35,7 +35,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   preference. `maxResolution` only chooses among existing Plex media versions.
 - The player gear menu exposes Quality on iOS and tvOS. `Original` means the
   current media version direct-plays; non-original presets manually request
-  Plex HLS transcoding.
+  Plex HLS transcoding. Transcode choices are filtered against the active
+  original media version so the menu only offers presets below its resolution
+  and bitrate.
 - `PlaybackCoordinator.switchQuality(to:)` snapshots the current engine time,
   asks `PlexService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
   and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and

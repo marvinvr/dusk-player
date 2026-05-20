@@ -270,7 +270,7 @@ private struct PlayerSessionView: View {
         .sheet(isPresented: $vm.showQualityPicker) {
             PlayerSelectionSheet(
                 title: "Quality",
-                items: PlaybackQualityPreset.displayOrder,
+                items: debugInfo?.availableQualityPresets ?? [.original],
                 selectedID: debugInfo?.qualityPreset.id,
                 itemTitle: \.displayName,
                 itemSubtitle: \.detailTitle,

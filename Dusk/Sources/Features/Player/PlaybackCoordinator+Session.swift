@@ -176,6 +176,10 @@ extension PlaybackCoordinator {
             return
         }
         guard preset != debugInfo.qualityPreset else { return }
+        guard debugInfo.availableQualityPresets.contains(preset) else {
+            presentQualitySwitchError("Choose a quality below the original stream.")
+            return
+        }
 
         isSwitchingQuality = true
         qualitySwitchError = nil

@@ -32,6 +32,7 @@ struct PlayerControlsOverlay: View {
             audioControlTitle: audioControlTitle,
             qualityControlTitle: qualityControlTitle,
             selectedQualityPreset: debugInfo?.qualityPreset ?? .original,
+            availableQualityPresets: debugInfo?.availableQualityPresets ?? [.original],
             hasPlaybackInfo: debugInfo != nil,
             hasQualityControl: debugInfo != nil,
             canSelectQuality: debugInfo?.canSelectPlaybackQuality == true,
@@ -95,6 +96,7 @@ struct PlayerControlsContext {
     let audioControlTitle: String
     let qualityControlTitle: String
     let selectedQualityPreset: PlaybackQualityPreset
+    let availableQualityPresets: [PlaybackQualityPreset]
     let hasPlaybackInfo: Bool
     let hasQualityControl: Bool
     let canSelectQuality: Bool

@@ -75,6 +75,10 @@ struct PlaybackDebugInfo: Sendable {
         }
     }
 
+    var availableQualityPresets: [PlaybackQualityPreset] {
+        PlaybackQualityPreset.displayOrder(forOriginalMedia: media)
+    }
+
     var canSelectPlaybackQuality: Bool {
         switch decision {
         case .localDownload:
@@ -199,16 +203,16 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
     var displayName: String {
         switch self {
         case .original: "Original"
-        case .p1080_20Mbps: "1080p 20 Mbps"
-        case .p1080_12Mbps: "1080p 12 Mbps"
-        case .p1080_10Mbps: "1080p 10 Mbps"
-        case .p1080_8Mbps: "1080p 8 Mbps"
-        case .p720_4Mbps: "720p 4 Mbps"
-        case .p720_3Mbps: "720p 3 Mbps"
-        case .p720_2Mbps: "720p 2 Mbps"
-        case .p480_1_5Mbps: "480p 1.5 Mbps"
-        case .p320_720Kbps: "320p 720 kbps"
-        case .p240_320Kbps: "240p 320 kbps"
+        case .p1080_20Mbps: "1080p • 20 Mbps"
+        case .p1080_12Mbps: "1080p • 12 Mbps"
+        case .p1080_10Mbps: "1080p • 10 Mbps"
+        case .p1080_8Mbps: "1080p • 8 Mbps"
+        case .p720_4Mbps: "720p • 4 Mbps"
+        case .p720_3Mbps: "720p • 3 Mbps"
+        case .p720_2Mbps: "720p • 2 Mbps"
+        case .p480_1_5Mbps: "480p • 1.5 Mbps"
+        case .p320_720Kbps: "320p • 720 kbps"
+        case .p240_320Kbps: "240p • 320 kbps"
         }
     }
 
@@ -217,7 +221,23 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
         case .original:
             "Direct Play"
         default:
-            "Plex transcode"
+            "Transcoded"
+        }
+    }
+
+    var videoHeight: Int? {
+        switch self {
+        case .original: nil
+        case .p1080_20Mbps, .p1080_12Mbps, .p1080_10Mbps, .p1080_8Mbps:
+            1080
+        case .p720_4Mbps, .p720_3Mbps, .p720_2Mbps:
+            720
+        case .p480_1_5Mbps:
+            480
+        case .p320_720Kbps:
+            320
+        case .p240_320Kbps:
+            240
         }
     }
 
@@ -282,6 +302,64 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
         .p320_720Kbps,
         .p240_320Kbps,
     ]
+
+    static func displayOrder(forOriginalMedia media: PlexMedia) -> [PlaybackQualityPreset] {
+        let videoStreams = media.parts.flatMap { $0.streams }.filter { $0.streamType == .video }
+        let originalHeight = media.height
+            ?? videoStreams.compactMap(\.height).first
+            ?? height(fromVideoResolution: media.videoResolution)
+        let originalBitrate = media.bitrate ?? videoStreams.compactMap(\.bitrate).first
+
+        return displayOrder.filter { preset in
+            preset.isOriginal || preset.isBelowOriginal(height: originalHeight, bitrate: originalBitrate)
+        }
+    }
+
+    private func isBelowOriginal(height originalHeight: Int?, bitrate originalBitrate: Int?) -> Bool {
+        guard let presetHeight = videoHeight else { return true }
+
+        if let originalHeight {
+            if presetHeight < originalHeight {
+                return true
+            }
+
+            if presetHeight > originalHeight {
+                return false
+            }
+
+            guard let presetBitrate = videoBitrateKbps,
+                  let originalBitrate else {
+                return false
+            }
+
+            return presetBitrate < originalBitrate
+        }
+
+        guard let presetBitrate = videoBitrateKbps,
+              let originalBitrate else {
+            return true
+        }
+
+        return presetBitrate < originalBitrate
+    }
+
+    private static func height(fromVideoResolution videoResolution: String?) -> Int? {
+        guard let videoResolution else { return nil }
+
+        let normalized = videoResolution.lowercased()
+        if normalized.contains("4k") || normalized.contains("uhd") {
+            return 2160
+        }
+
+        if normalized.contains("1080") { return 1080 }
+        if normalized.contains("720") { return 720 }
+        if normalized.contains("576") { return 576 }
+        if normalized.contains("480") || normalized.contains("sd") { return 480 }
+        if normalized.contains("320") { return 320 }
+        if normalized.contains("240") { return 240 }
+
+        return nil
+    }
 }
 
 struct UpNextPresentation: Sendable {

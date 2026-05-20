@@ -199,7 +199,7 @@ struct PlayerTrackSettingsMenu: View {
                 Button("Unavailable Offline") {}
                     .disabled(true)
             } else {
-                ForEach(PlaybackQualityPreset.displayOrder) { preset in
+                ForEach(context.availableQualityPresets) { preset in
                     Button {
                         Task {
                             await playback.switchQuality(to: preset)
