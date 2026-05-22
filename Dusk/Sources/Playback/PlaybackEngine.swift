@@ -9,6 +9,12 @@ enum PlaybackEngineType: Sendable {
     case vlcKit
 }
 
+enum PlaybackBufferPolicy {
+    static let avPlayerForwardBufferDuration: TimeInterval = 20
+    static let vlcNetworkCachingMilliseconds = 8_000
+    static let vlcFileCachingMilliseconds = 8_000
+}
+
 /// Unified interface for media playback. Concrete implementations wrap
 /// AVPlayer (`AVPlayerEngine`) or VLCKit (`VLCKitEngine`).
 ///

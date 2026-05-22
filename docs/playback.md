@@ -93,6 +93,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   options, and renderer hosts split by platform.
 - Both engines perform preflight direct-play validation via
   `PlaybackError.validateDirectPlayURL`.
+- Buffering defaults are centralized in `PlaybackBufferPolicy`: AVPlayer targets
+  20 seconds of forward buffer, while VLCKit uses 8,000 ms for network and file
+  caching. Dusk does not configure an explicit back-buffer size.
 - Both engines implement stall recovery by reloading/restarting near the
   observed position. Keep recovery behavior engine-specific.
 - iOS VLCKit has extra PiP/drawable and video-output refresh behavior; tvOS

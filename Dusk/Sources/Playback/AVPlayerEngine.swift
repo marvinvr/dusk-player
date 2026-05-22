@@ -11,8 +11,6 @@ private let avPlayerEngineLogger = Logger(
 /// Native AVPlayer-based playback engine for MP4/MOV with standard codecs.
 @MainActor @Observable
 final class AVPlayerEngine: PlaybackEngine {
-    private static let preferredForwardBufferDuration: TimeInterval = 15
-
     // MARK: - PlaybackEngine State
 
     private(set) var state: PlaybackState = .idle
@@ -305,7 +303,7 @@ final class AVPlayerEngine: PlaybackEngine {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
         let item = AVPlayerItem(url: source.url)
-        item.preferredForwardBufferDuration = Self.preferredForwardBufferDuration
+        item.preferredForwardBufferDuration = PlaybackBufferPolicy.avPlayerForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules
         player.replaceCurrentItem(with: item)
         observePlaybackEnd(for: item)

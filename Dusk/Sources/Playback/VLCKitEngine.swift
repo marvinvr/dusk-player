@@ -51,7 +51,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private static let seekRetryDelay: Duration = .milliseconds(450)
     private static let pendingSeekTolerance: TimeInterval = 1.0
     private static let pendingSeekStaleUpdateWindow: TimeInterval = 1.5
-    private static let networkCachingMilliseconds = 5_000
 
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
@@ -401,9 +400,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func applyNetworkBufferingOptions(to media: VLCMedia) {
-        let cacheMilliseconds = Self.networkCachingMilliseconds
-        media.addOption(":network-caching=\(cacheMilliseconds)")
-        media.addOption(":file-caching=\(cacheMilliseconds)")
+        media.addOption(":network-caching=\(PlaybackBufferPolicy.vlcNetworkCachingMilliseconds)")
+        media.addOption(":file-caching=\(PlaybackBufferPolicy.vlcFileCachingMilliseconds)")
         media.addOption(":http-reconnect")
     }
 
