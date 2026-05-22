@@ -11,6 +11,11 @@ final class HomeViewModel {
     private(set) var isLoading = false
     private(set) var error: String?
 
+    private var isLoadInFlight = false
+    private var loadGeneration = 0
+    private var recentlyAddedExpansionTask: Task<Void, Never>?
+    private var personalizedShelvesTask: Task<Void, Never>?
+
     private let plexService: PlexService
     private let recommendationEngine: HomeRecommendationEngine
 
@@ -24,6 +29,15 @@ final class HomeViewModel {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
+        guard !isLoadInFlight else { return }
+
+        isLoadInFlight = true
+        loadGeneration += 1
+        let generation = loadGeneration
+        let currentMaxRecentlyAddedItems = self.maxRecentlyAddedItems
+        recentlyAddedExpansionTask?.cancel()
+        personalizedShelvesTask?.cancel()
+
         let isInitialLoad = hubs.isEmpty && continueWatching.isEmpty && personalizedShelves.isEmpty
 
         if isInitialLoad {
@@ -31,41 +45,52 @@ final class HomeViewModel {
             error = nil
         }
 
+        defer {
+            isLoadInFlight = false
+            isLoading = false
+        }
+
         do {
             async let fetchedHubs = plexService.getHubs()
             async let fetchedOnDeck = plexService.getContinueWatching()
-            async let fetchedPersonalizedShelves = recommendationEngine.loadShelves(
-                itemsPerShelf: self.maxRecentlyAddedItems
-            )
 
             let baseHubs = try await fetchedHubs.filter { !shouldHideHomeHub($0) }
-            let newHubs = try await expandedRecentlyAddedHubs(from: baseHubs)
             let newContinueWatching = try await fetchedOnDeck.filter { !shouldHideHomeItem($0) }
-            let newPersonalizedShelves = filterPersonalizedShelves(
-                (try? await fetchedPersonalizedShelves) ?? [],
-                excluding: newContinueWatching
+            let adjustedPersonalizedShelves = filterPersonalizedShelves(
+                personalizedShelves,
+                excluding: newContinueWatching,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
             )
 
             if isInitialLoad {
-                hubs = newHubs
-                personalizedShelves = newPersonalizedShelves
+                hubs = baseHubs
                 continueWatching = newContinueWatching
+                personalizedShelves = adjustedPersonalizedShelves
             } else {
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    hubs = newHubs
-                    personalizedShelves = newPersonalizedShelves
+                    hubs = baseHubs
                     continueWatching = newContinueWatching
+                    personalizedShelves = adjustedPersonalizedShelves
                 }
             }
+
             error = nil
+            startRecentlyAddedExpansion(
+                from: baseHubs,
+                generation: generation,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+            )
+            startPersonalizedShelvesLoad(
+                excluding: newContinueWatching,
+                generation: generation,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+            )
         } catch {
             // On refresh, only show error if we have no existing data
             if isInitialLoad {
                 self.error = error.localizedDescription
             }
         }
-
-        isLoading = false
     }
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
@@ -219,7 +244,68 @@ final class HomeViewModel {
         return .libraryGenre(library: library, genre: shelf.genre)
     }
 
-    private func expandedRecentlyAddedHubs(from hubs: [PlexHub]) async throws -> [PlexHub] {
+    private func startRecentlyAddedExpansion(
+        from baseHubs: [PlexHub],
+        generation: Int,
+        maxRecentlyAddedItems: Int
+    ) {
+        guard baseHubs.contains(where: { isRecentlyAddedHub($0) && $0.key != nil }) else {
+            return
+        }
+
+        recentlyAddedExpansionTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            do {
+                let expandedHubs = try await expandedRecentlyAddedHubs(
+                    from: baseHubs,
+                    maxRecentlyAddedItems: maxRecentlyAddedItems
+                )
+
+                guard !Task.isCancelled, generation == loadGeneration else { return }
+
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    hubs = expandedHubs
+                }
+            } catch {
+                guard !Task.isCancelled, generation == loadGeneration else { return }
+                // Keep the base hub payload visible if a follow-up expansion request fails.
+            }
+        }
+    }
+
+    private func startPersonalizedShelvesLoad(
+        excluding continueWatchingItems: [PlexItem],
+        generation: Int,
+        maxRecentlyAddedItems: Int
+    ) {
+        personalizedShelvesTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+
+            guard let loadedShelves = try? await recommendationEngine.loadShelves(
+                itemsPerShelf: maxRecentlyAddedItems
+            ) else {
+                return
+            }
+
+            let newPersonalizedShelves = filterPersonalizedShelves(
+                loadedShelves,
+                excluding: continueWatchingItems,
+                maxRecentlyAddedItems: maxRecentlyAddedItems
+            )
+
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+
+            withAnimation(.easeInOut(duration: 0.3)) {
+                personalizedShelves = newPersonalizedShelves
+            }
+        }
+    }
+
+    private func expandedRecentlyAddedHubs(
+        from hubs: [PlexHub],
+        maxRecentlyAddedItems: Int
+    ) async throws -> [PlexHub] {
         var expandedHubs: [PlexHub] = []
         expandedHubs.reserveCapacity(hubs.count)
 
@@ -277,7 +363,8 @@ final class HomeViewModel {
 
     private func filterPersonalizedShelves(
         _ shelves: [HomePersonalizedShelf],
-        excluding continueWatchingItems: [PlexItem]
+        excluding continueWatchingItems: [PlexItem],
+        maxRecentlyAddedItems: Int
     ) -> [HomePersonalizedShelf] {
         let excludedRatingKeys = Set(
             continueWatchingItems.flatMap { item in

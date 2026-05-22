@@ -64,6 +64,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeViewModel` is the only home object that calls `PlexService`.
 - Home data combines global hubs from `getHubs()`, continue watching from
   `getContinueWatching()`, and personalized shelves from `HomeRecommendationEngine`.
+- Home publishes the base hub and continue-watching payload first, then expands
+  Recently Added hubs and loads personalized shelves through cancellable follow-up
+  tasks. Keep this two-phase behavior so expensive recommendation work does not block
+  the first visible home content.
 - Continue-watching items drive `HomeCinematicHero`.
 - Home filters playlist/music/unknown content and hides Plex "continue watching/on deck"
   hubs so the custom continue-watching flow is not duplicated.
