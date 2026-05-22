@@ -102,10 +102,22 @@ extension PlexService {
         request.cachePolicy = .returnCacheDataElseLoad
         applyHeaders(to: &request, token: serverToken)
 
-        return try await executeRequest(request)
+        if let cachedResponse = AppImageCache.cachedResponse(for: request) {
+            return cachedResponse.data
+        }
+
+        let data = try await executeRequest(request)
+        if let cachedResponse = URLCache.shared.cachedResponse(for: request) {
+            AppImageCache.storeCachedResponse(cachedResponse, for: request)
+        }
+        return data
     }
 
     private func executeBinaryRequest(_ request: URLRequest) async throws -> Data {
+        if let cachedResponse = AppImageCache.cachedResponse(for: request) {
+            return cachedResponse.data
+        }
+
         let data: Data
         let response: URLResponse
 
@@ -121,6 +133,9 @@ extension PlexService {
 
         switch http.statusCode {
         case 200...299:
+            if let cachedResponse = URLCache.shared.cachedResponse(for: request) {
+                AppImageCache.storeCachedResponse(cachedResponse, for: request)
+            }
             return data
         case 401:
             throw PlexServiceError.unauthorized

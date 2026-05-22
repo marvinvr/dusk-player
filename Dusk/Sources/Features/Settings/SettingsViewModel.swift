@@ -25,7 +25,7 @@ final class SettingsViewModel {
     }
 
     var storageFooterText: String {
-        let base = "Clear Image Cache removes locally cached posters and artwork so they re-download on demand."
+        let base = "Clear Image Cache removes locally cached posters and artwork so they re-download on demand. Cached images also refresh automatically after 3 days."
 
         guard imageCacheClearedAt != nil else { return base }
         return "\(base) Image cache cleared."

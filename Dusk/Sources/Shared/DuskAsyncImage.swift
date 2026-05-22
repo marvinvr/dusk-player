@@ -49,9 +49,9 @@ actor DuskImageLoader {
 
     private let session: URLSession
     #if canImport(UIKit)
-    private let memoryCache = NSCache<NSURL, UIImage>()
+    private let memoryCache = NSCache<NSURL, CachedMemoryImage>()
     #endif
-    private var inFlightTasks: [URL: Task<UIImage, Error>] = [:]
+    private var inFlightTasks: [URL: Task<LoadedImage, Error>] = [:]
 
     init() {
         let configuration = URLSessionConfiguration.default
@@ -71,7 +71,10 @@ actor DuskImageLoader {
         #if canImport(UIKit)
         let cacheKey = url as NSURL
         if let cachedImage = memoryCache.object(forKey: cacheKey) {
-            return cachedImage
+            if cachedImage.isFresh {
+                return cachedImage.image
+            }
+            memoryCache.removeObject(forKey: cacheKey)
         }
         #endif
 
@@ -81,25 +84,28 @@ actor DuskImageLoader {
                 throw URLError(.cannotDecodeContentData)
             }
             #if canImport(UIKit)
-            memoryCache.setObject(image, forKey: cacheKey)
+            memoryCache.setObject(CachedMemoryImage(image: image), forKey: cacheKey)
             #endif
             return image
         }
 
         if let task = inFlightTasks[url] {
-            return try await task.value
+            return try await task.value.image
         }
 
-        let task = Task<UIImage, Error> { [session] in
+        let task = Task<LoadedImage, Error> { [session] in
             let request = URLRequest(
                 url: url,
                 cachePolicy: .returnCacheDataElseLoad,
                 timeoutInterval: 30
             )
 
-            if let cachedResponse = AppImageCache.shared.cachedResponse(for: request),
+            if let cachedResponse = AppImageCache.cachedResponse(for: request),
                let cachedImage = UIImage(data: cachedResponse.data) {
-                return cachedImage
+                return LoadedImage(
+                    image: cachedImage,
+                    cachedAt: AppImageCache.cachedAt(for: cachedResponse) ?? .now
+                )
             }
 
             let data: Data
@@ -121,23 +127,52 @@ actor DuskImageLoader {
             }
 
             if let cachedResponse = URLCache.shared.cachedResponse(for: request) {
-                AppImageCache.shared.storeCachedResponse(cachedResponse, for: request)
+                AppImageCache.storeCachedResponse(cachedResponse, for: request)
             }
-            return image
+            return LoadedImage(image: image)
         }
 
         inFlightTasks[url] = task
 
         do {
-            let image = try await task.value
+            let loadedImage = try await task.value
             #if canImport(UIKit)
-            memoryCache.setObject(image, forKey: cacheKey)
+            memoryCache.setObject(
+                CachedMemoryImage(image: loadedImage.image, cachedAt: loadedImage.cachedAt),
+                forKey: cacheKey
+            )
             #endif
             inFlightTasks[url] = nil
-            return image
+            return loadedImage.image
         } catch {
             inFlightTasks[url] = nil
             throw error
         }
     }
 }
+
+#if canImport(UIKit)
+private struct LoadedImage: @unchecked Sendable {
+    let image: UIImage
+    let cachedAt: Date
+
+    init(image: UIImage, cachedAt: Date = .now) {
+        self.image = image
+        self.cachedAt = cachedAt
+    }
+}
+
+private final class CachedMemoryImage: @unchecked Sendable {
+    let image: UIImage
+    let cachedAt: Date
+
+    init(image: UIImage, cachedAt: Date = .now) {
+        self.image = image
+        self.cachedAt = cachedAt
+    }
+
+    var isFresh: Bool {
+        Date().timeIntervalSince(cachedAt) <= AppImageCache.maxAge
+    }
+}
+#endif

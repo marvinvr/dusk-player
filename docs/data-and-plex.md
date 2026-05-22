@@ -142,6 +142,8 @@ File: `PlexService+Images.swift`.
 - `DuskAsyncImage` uses `DuskImageLoader`, delegating to
   `plexService.imageData(for:)`.
 - `AppImageCache.shared` is the shared URL cache and can be cleared in settings.
+- Image cache entries have a max TTL of 3 days. Older URL cache responses are
+  discarded on read and reloaded on demand.
 
 Pitfalls:
 - Transcoded image and playback URLs can contain token-bearing query
