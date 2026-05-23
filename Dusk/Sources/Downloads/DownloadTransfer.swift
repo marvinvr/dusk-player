@@ -4,8 +4,14 @@ enum DownloadTransferEvent: Sendable {
     case progress(taskIdentifier: Int, globalKey: String?, progress: Double, downloadedBytes: Int64, totalBytes: Int64)
     case paused(taskIdentifier: Int, globalKey: String?, resumeData: Data?)
     case cancelled(taskIdentifier: Int, globalKey: String?)
-    case finished(taskIdentifier: Int, globalKey: String?, temporaryURL: URL)
+    case finished(taskIdentifier: Int, globalKey: String?, temporaryURL: URL, response: DownloadTransferResponse?)
     case failed(taskIdentifier: Int, globalKey: String?, error: Error)
+}
+
+struct DownloadTransferResponse: Sendable {
+    let statusCode: Int?
+    let mimeType: String?
+    let expectedContentLength: Int64
 }
 
 struct DownloadTransferTask: Sendable {
@@ -183,10 +189,16 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
             let stableLocation = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
             try FileManager.default.moveItem(at: location, to: stableLocation)
+            let httpResponse = downloadTask.response as? HTTPURLResponse
             eventHandler(.finished(
                 taskIdentifier: downloadTask.taskIdentifier,
                 globalKey: downloadTask.taskDescription,
-                temporaryURL: stableLocation
+                temporaryURL: stableLocation,
+                response: DownloadTransferResponse(
+                    statusCode: httpResponse?.statusCode,
+                    mimeType: downloadTask.response?.mimeType,
+                    expectedContentLength: downloadTask.response?.expectedContentLength ?? -1
+                )
             ))
         } catch {
             eventHandler(.failed(

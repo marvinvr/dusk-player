@@ -4,6 +4,11 @@ import Observation
 
 private enum DownloadManagerError: LocalizedError {
     case insufficientStorage(requiredBytes: Int64, availableBytes: Int64, reserveBytes: Int64)
+    case invalidDownloadStatus(statusCode: Int)
+    case invalidDownloadContentType(String)
+    case emptyDownloadedFile
+    case incompleteDownloadedFile(expectedBytes: Int64, actualBytes: Int64)
+    case unexpectedDownloadedPayload
 
     var errorDescription: String? {
         switch self {
@@ -12,6 +17,18 @@ private enum DownloadManagerError: LocalizedError {
             let available = ByteCountFormatter.string(fromByteCount: availableBytes, countStyle: .file)
             let reserve = ByteCountFormatter.string(fromByteCount: reserveBytes, countStyle: .file)
             return "Not enough free storage. This download needs \(required), with \(available) available and \(reserve) reserved."
+        case let .invalidDownloadStatus(statusCode):
+            return "The server returned HTTP \(statusCode) instead of a video file."
+        case let .invalidDownloadContentType(contentType):
+            return "The server returned \(contentType) instead of a video file."
+        case .emptyDownloadedFile:
+            return "The downloaded file is empty."
+        case let .incompleteDownloadedFile(expectedBytes, actualBytes):
+            let expected = ByteCountFormatter.string(fromByteCount: expectedBytes, countStyle: .file)
+            let actual = ByteCountFormatter.string(fromByteCount: actualBytes, countStyle: .file)
+            return "The downloaded file is incomplete. Expected \(expected), got \(actual)."
+        case .unexpectedDownloadedPayload:
+            return "The downloaded file looks like a server error response instead of a video file."
         }
     }
 }
@@ -55,7 +72,7 @@ final class DownloadManager {
         self.metadataCache = PlexMetadataCache(fileStore: fileStore)
         try? fileStore.prepareRootDirectory()
         records = fileStore.loadSnapshot().records
-        pruneMissingCompletedFiles()
+        reconcileCompletedFiles()
         _ = transferController
         startNetworkMonitoring()
         Task { [weak self] in
@@ -407,6 +424,23 @@ final class DownloadManager {
         return fileStore.existingFileURL(for: record.relativeVideoPath)
     }
 
+    func downloadedMediaVersion(
+        for ratingKey: String,
+        in details: PlexMediaDetails,
+        selectedMediaID: Int? = nil
+    ) -> (media: PlexMedia, part: PlexMediaPart)? {
+        guard let record = record(for: ratingKey),
+              record.status == .completed,
+              selectedMediaID == nil || selectedMediaID == record.mediaID,
+              let mediaID = record.mediaID,
+              let partID = record.partID,
+              let media = details.media.first(where: { $0.id == mediaID }),
+              let part = media.parts.first(where: { $0.id == partID }) else {
+            return nil
+        }
+        return (media, part)
+    }
+
     func cachedMediaDetails(ratingKey: String) -> PlexMediaDetails? {
         metadataCache.firstCachedMediaDetails(ratingKey: ratingKey, serverIDs: preferredServerIDs)
     }
@@ -726,7 +760,12 @@ final class DownloadManager {
         }
     }
 
-    private func completeDownload(globalKey: String, taskIdentifier: Int, temporaryURL: URL) async {
+    private func completeDownload(
+        globalKey: String,
+        taskIdentifier: Int,
+        temporaryURL: URL,
+        response: DownloadTransferResponse?
+    ) async {
         guard let record = record(globalKey: globalKey) else {
             try? FileManager.default.removeItem(at: temporaryURL)
             return
@@ -745,6 +784,11 @@ final class DownloadManager {
             }
 
             let targetURL = try fileStore.targetVideoURL(for: details, part: part)
+            try validateDownloadedFile(
+                at: temporaryURL,
+                response: response,
+                expectedSize: part.size.map(Int64.init)
+            )
             try? FileManager.default.removeItem(at: targetURL)
             try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
             fileStore.deleteResumeData(relativePath: record.resumeDataPath)
@@ -906,6 +950,88 @@ final class DownloadManager {
         }
     }
 
+    private func validateDownloadedFile(
+        at url: URL,
+        response: DownloadTransferResponse?,
+        expectedSize: Int64?
+    ) throws {
+        if let statusCode = response?.statusCode,
+           !(200...299).contains(statusCode) {
+            throw DownloadManagerError.invalidDownloadStatus(statusCode: statusCode)
+        }
+
+        if let mimeType = response?.mimeType?.lowercased(),
+           isRejectedDownloadContentType(mimeType) {
+            throw DownloadManagerError.invalidDownloadContentType(mimeType)
+        }
+
+        let responseExpectedSize = response?.expectedContentLength ?? -1
+        let effectiveExpectedSize = expectedSize ?? (responseExpectedSize > 0 ? responseExpectedSize : nil)
+        try validateDownloadedFileContents(at: url, expectedSize: effectiveExpectedSize)
+    }
+
+    private func validateDownloadedFileContents(at url: URL, expectedSize: Int64?) throws {
+        let actualSize = try downloadedFileSize(at: url)
+        guard actualSize > 0 else {
+            throw DownloadManagerError.emptyDownloadedFile
+        }
+
+        if let expectedSize,
+           expectedSize > 0,
+           actualSize < expectedSize {
+            throw DownloadManagerError.incompleteDownloadedFile(
+                expectedBytes: expectedSize,
+                actualBytes: actualSize
+            )
+        }
+
+        if looksLikeServerErrorPayload(at: url, size: actualSize) {
+            throw DownloadManagerError.unexpectedDownloadedPayload
+        }
+    }
+
+    private func isRejectedDownloadContentType(_ mimeType: String) -> Bool {
+        if mimeType.hasPrefix("text/") {
+            return true
+        }
+
+        return [
+            "application/json",
+            "application/problem+json",
+            "application/xml",
+            "application/xhtml+xml",
+        ].contains(mimeType)
+    }
+
+    private func downloadedFileSize(at url: URL) throws -> Int64 {
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        return Int64(values.fileSize ?? 0)
+    }
+
+    private func looksLikeServerErrorPayload(at url: URL, size: Int64) -> Bool {
+        guard size <= 1_048_576,
+              let handle = try? FileHandle(forReadingFrom: url) else {
+            return false
+        }
+        defer {
+            try? handle.close()
+        }
+
+        guard let data = try? handle.read(upToCount: 512),
+              let prefix = String(data: data, encoding: .utf8)?
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .lowercased(),
+              !prefix.isEmpty else {
+            return false
+        }
+
+        return prefix.hasPrefix("<!doctype html")
+            || prefix.hasPrefix("<html")
+            || prefix.hasPrefix("<?xml")
+            || prefix.hasPrefix("{")
+            || prefix.hasPrefix("[")
+    }
+
     private func subtitle(for details: PlexMediaDetails) -> String? {
         switch details.type {
         case .episode:
@@ -1039,7 +1165,7 @@ final class DownloadManager {
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
             processQueueIfNeeded()
-        case let .finished(taskIdentifier, globalKey, temporaryURL):
+        case let .finished(taskIdentifier, globalKey, temporaryURL, response):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
                 try? FileManager.default.removeItem(at: temporaryURL)
                 return
@@ -1048,7 +1174,14 @@ final class DownloadManager {
                 try? FileManager.default.removeItem(at: temporaryURL)
                 return
             }
-            Task { await completeDownload(globalKey: globalKey, taskIdentifier: taskIdentifier, temporaryURL: temporaryURL) }
+            Task {
+                await completeDownload(
+                    globalKey: globalKey,
+                    taskIdentifier: taskIdentifier,
+                    temporaryURL: temporaryURL,
+                    response: response
+                )
+            }
         case let .failed(taskIdentifier, globalKey, error):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
             guard !deletingDownloadIDs.contains(globalKey) else { return }
@@ -1118,15 +1251,53 @@ final class DownloadManager {
         processQueueIfNeeded()
     }
 
-    private func pruneMissingCompletedFiles() {
-        let originalCount = records.count
-        records.removeAll { record in
-            record.status == .completed && fileStore.existingFileURL(for: record.relativeVideoPath) == nil
+    private func reconcileCompletedFiles() {
+        var changed = false
+        var reconciledRecords: [DownloadedMediaRecord] = []
+
+        for var record in records {
+            guard record.status == .completed else {
+                reconciledRecords.append(record)
+                continue
+            }
+
+            guard let fileURL = fileStore.existingFileURL(for: record.relativeVideoPath) else {
+                changed = true
+                continue
+            }
+
+            do {
+                try validateDownloadedFileContents(
+                    at: fileURL,
+                    expectedSize: expectedVideoSize(for: record)
+                )
+                reconciledRecords.append(record)
+            } catch {
+                record.status = .failed
+                record.errorMessage = downloadErrorMessage(for: error)
+                record.downloadTaskIdentifier = nil
+                record.resumeDataPath = nil
+                record.updatedAt = .now
+                reconciledRecords.append(record)
+                changed = true
+            }
         }
 
-        if records.count != originalCount {
+        if changed {
+            records = reconciledRecords
             persist()
         }
+    }
+
+    private func expectedVideoSize(for record: DownloadedMediaRecord) -> Int64? {
+        guard let details = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) else {
+            return record.totalBytes
+        }
+
+        let media = details.media.first(where: { $0.id == record.mediaID })
+            ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution)
+        let part = media?.parts.first(where: { $0.id == record.partID }) ?? media?.parts.first
+        return part?.size.map(Int64.init) ?? record.totalBytes
     }
 
     private func downloadErrorMessage(for error: Error) -> String {

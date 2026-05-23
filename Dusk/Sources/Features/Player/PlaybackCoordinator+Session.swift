@@ -37,11 +37,32 @@ extension PlaybackCoordinator {
             }
             let attemptID = UUID()
 
-            guard let media = resolveMediaVersion(
+            let localURL = downloadManager?.localPlaybackURL(
+                for: ratingKey,
+                selectedMediaID: selectedMediaID
+            )
+            let localMediaVersion = localURL.flatMap { _ in
+                downloadManager?.downloadedMediaVersion(
+                    for: ratingKey,
                     in: details,
                     selectedMediaID: selectedMediaID
-                  ),
-                  let part = media.parts.first else {
+                )
+            }
+            if localURL != nil && localMediaVersion == nil {
+                playbackSessionLogger.error(
+                    "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): local download metadata did not match the downloaded media version"
+                )
+                loadError = "Downloaded file metadata is incomplete. Retry the download."
+                return false
+            }
+            let media = localMediaVersion?.media ?? resolveMediaVersion(
+                in: details,
+                selectedMediaID: selectedMediaID
+            )
+            let part = localMediaVersion?.part ?? media?.parts.first
+
+            guard let media,
+                  let part else {
                 playbackSessionLogger.error(
                     "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): no playable media version was available"
                 )
@@ -53,10 +74,7 @@ extension PlaybackCoordinator {
             let sanitizedURL: String
             let playbackDecision: PlaybackDecision
             let usesLocalDownload: Bool
-            if let localURL = downloadManager?.localPlaybackURL(
-                for: ratingKey,
-                selectedMediaID: selectedMediaID
-            ) {
+            if let localURL {
                 playbackURL = localURL
                 sanitizedURL = localURL.path
                 playbackDecision = .localDownload

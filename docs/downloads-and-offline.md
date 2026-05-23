@@ -70,8 +70,15 @@ Status rules: `queued`/`preparing`/`downloading` are active. `paused` and
 `failed` are resumable. User-facing cancel removes a non-completed queue record
 and its partial/resume data; pause is the non-destructive stop. Delete is
 reserved for completed local files. Completed is playable only when the local
-file exists; launch-time `pruneMissingCompletedFiles()` removes stale completed
-records.
+file exists; launch-time `reconcileCompletedFiles()` removes stale completed
+records and marks invalid completed files failed.
+
+Completion must validate the transfer before a record becomes playable. Reject
+non-2xx HTTP responses, text/JSON/XML error payloads, zero-byte files, and
+files smaller than Plex's selected part size when that size is known. Keep the
+URLSession temporary file separate from the final video path until validation
+passes, then replace the final file and mark the record `completed`. A failed
+validation must leave the record `failed`, not `completed`.
 
 ## Background Transfers
 
@@ -120,6 +127,11 @@ Plex direct-play URL otherwise. Engine selection still goes through
 
 Keep engines and player views source-agnostic; offline-specific playback logic
 belongs in the coordinator or presentation/debug models.
+
+For local playback, resolve the engine from the downloaded record's stored
+`mediaID` and `partID`. Do not reselect a media version from normal playback
+quality preferences after choosing a local file, because that can pair the
+downloaded container with the wrong engine.
 
 ## Offline Watch-State Sync
 
@@ -176,11 +188,12 @@ or add a generic provider abstraction unless product scope changes.
 ## Safe-Change Checklist
 
 Locate the layer: storage, queue, delegate, metadata cache, playback route, sync
-queue, or UI. Preserve root containment, relative paths, server-scoped keys, and
-current-server sync filtering. Keep views on managers/view models, not files or
-network calls. Exercise movie, episode, season, and show scopes; check pause,
-resume, cancel, retry, delete, delete-all, Wi-Fi Only, and relaunch behavior.
-For offline-route changes, check cached detail loading, local artwork, local
-playback, and pending sync banners. For Swift source changes, run the
+queue, or UI. Preserve root containment, relative paths, server-scoped keys,
+completion validation, and current-server sync filtering. Keep views on
+managers/view models, not files or network calls. Exercise movie, episode,
+season, and show scopes; check pause, resume, cancel, retry, delete, delete-all,
+Wi-Fi Only, and relaunch behavior. For offline-route changes, check cached
+detail loading, local artwork, local playback, downloaded-version engine
+selection, and pending sync banners. For Swift source changes, run the
 compile-only `xcodebuild` command from `AGENTS.md`; docs-only changes do not
 need a build.
