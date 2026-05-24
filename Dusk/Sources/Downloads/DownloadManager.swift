@@ -208,22 +208,30 @@ final class DownloadManager {
         estimatedTimeRemaining(globalKey: record.globalKey, remainingBytes: remainingBytes(for: record))
     }
 
+    func downloadSpeedBytesPerSecond(for record: DownloadedMediaRecord) -> Double? {
+        speedEstimates[record.globalKey]?.bytesPerSecond
+    }
+
+    var queueDownloadSpeedBytesPerSecond: Double? {
+        let bytesPerSecond = records.reduce(0) { total, record in
+            guard record.status == .downloading else { return total }
+            return total + (speedEstimates[record.globalKey]?.bytesPerSecond ?? 0)
+        }
+        return bytesPerSecond > 0 ? bytesPerSecond : nil
+    }
+
     var estimatedQueueTimeRemaining: TimeInterval? {
-        let activeRecords = queuedRecords.filter { $0.status.isActive }
-        guard !activeRecords.isEmpty,
-              activeRecords.allSatisfy({ $0.totalBytes != nil }) else {
+        let records = queuedRecords
+        guard !records.isEmpty,
+              records.allSatisfy({ $0.totalBytes != nil }),
+              let bytesPerSecond = queueDownloadSpeedBytesPerSecond else {
             return nil
         }
 
-        let remainingBytes = activeRecords
+        let remainingBytes = records
             .map(remainingBytes(for:))
             .reduce(Int64(0), +)
         guard remainingBytes > 0 else { return nil }
-
-        let bytesPerSecond = activeRecords.reduce(0) { total, record in
-            total + (speedEstimates[record.globalKey]?.bytesPerSecond ?? 0)
-        }
-        guard bytesPerSecond > 0 else { return nil }
 
         return TimeInterval(Double(remainingBytes) / bytesPerSecond)
     }

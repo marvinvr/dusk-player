@@ -154,10 +154,11 @@ sync attempt completes late.
 
 `DownloadActionButton` is the inline download/delete/pause/resume/retry control.
 `DownloadsView` owns the downloaded movie/show grid, queue sheet, queue awake
-hint, pending sync banner, ETA display, and the queue-sheet-only idle timer hold
-while active downloads exist. Queue rows dismiss the sheet before appending the
-media destination to the Downloads tab navigation path, so detail screens are
-shown in the full tab stack rather than inside the sheet.
+hint, pending sync banner, transfer-rate and ETA display, and the
+queue-sheet-only idle timer hold while active downloads exist. Queue rows
+dismiss the sheet before appending the media destination to the Downloads tab
+navigation path, so detail screens are shown in the full tab stack rather than
+inside the sheet.
 `MainTabView` shows the Downloads tab only when visible and records exist.
 `SettingsIOSView` owns quality, Wi-Fi Only, concurrency, storage reserve, usage,
 manual sync, and delete-all. `MediaDetailDestinationView` passes managers into

@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 #if os(iOS)
 import UIKit
@@ -253,15 +254,17 @@ struct DownloadsView: View {
             : "\(downloadManager.activeDownloadCount) active"
         let totalBytes = records.compactMap(\.totalBytes).reduce(Int64(0), +)
         let downloadedBytes = records.reduce(Int64(0)) { $0 + $1.downloadedBytes }
-        guard totalBytes > 0 else {
-            return "\(itemText) · \(activeText)"
-        }
-        let remainingBytes = max(totalBytes - downloadedBytes, 0)
         var parts = [
             itemText,
-            activeText,
-            "\(formattedBytes(remainingBytes)) remaining"
+            activeText
         ]
+        if totalBytes > 0 {
+            let remainingBytes = max(totalBytes - downloadedBytes, 0)
+            parts.append("\(formattedBytes(remainingBytes)) remaining")
+        }
+        if let bytesPerSecond = downloadManager.queueDownloadSpeedBytesPerSecond {
+            parts.append(formattedTransferRate(bytesPerSecond))
+        }
         if let timeRemaining = downloadManager.estimatedQueueTimeRemaining {
             parts.append("\(formattedRemainingTime(timeRemaining)) left")
         }
@@ -283,6 +286,10 @@ struct DownloadsView: View {
 
     private func formattedRemainingTime(_ value: TimeInterval) -> String {
         DownloadTimeRemainingFormatter.string(from: value)
+    }
+
+    private func formattedTransferRate(_ value: Double) -> String {
+        DownloadTransferRateFormatter.string(from: value)
     }
 }
 
@@ -525,11 +532,7 @@ private struct DownloadQueueRow: View {
         case .preparing:
             "Preparing"
         case .downloading:
-            if let timeRemaining = downloadManager.estimatedTimeRemaining(for: record) {
-                "\(Int((record.progress * 100).rounded()))% · \(downloadedSizeText) · \(DownloadTimeRemainingFormatter.string(from: timeRemaining)) left"
-            } else {
-                "\(Int((record.progress * 100).rounded()))% · \(downloadedSizeText)"
-            }
+            downloadingStatusText
         case .paused:
             "Paused · \(downloadedSizeText)"
         case .completed:
@@ -579,6 +582,43 @@ private struct DownloadQueueRow: View {
             return formattedBytes(record.downloadedBytes)
         }
         return "\(formattedBytes(record.downloadedBytes)) of \(formattedBytes(totalBytes))"
+    }
+
+    private var downloadingStatusText: String {
+        var parts = [
+            "\(Int((record.progress * 100).rounded()))%",
+            downloadedSizeText
+        ]
+        if let bytesPerSecond = downloadManager.downloadSpeedBytesPerSecond(for: record) {
+            parts.append(DownloadTransferRateFormatter.string(from: bytesPerSecond))
+        }
+        if let timeRemaining = downloadManager.estimatedTimeRemaining(for: record) {
+            parts.append("\(DownloadTimeRemainingFormatter.string(from: timeRemaining)) left")
+        }
+        return parts.joined(separator: " · ")
+    }
+}
+
+private enum DownloadTransferRateFormatter {
+    static func string(from bytesPerSecond: Double) -> String {
+        let value = max(bytesPerSecond, 0)
+        guard value > 0 else { return "0 KB/s" }
+
+        if value < 1_000_000 {
+            let kilobytes = value / 1_000
+            return "\(formatted(kilobytes, maximumFractionDigits: kilobytes < 10 ? 1 : 0)) KB/s"
+        }
+
+        let megabytes = value / 1_000_000
+        return "\(formatted(megabytes, maximumFractionDigits: megabytes < 10 ? 1 : 0)) MB/s"
+    }
+
+    private static func formatted(_ value: Double, maximumFractionDigits: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        formatter.minimumFractionDigits = 0
+        formatter.maximumFractionDigits = maximumFractionDigits
+        return formatter.string(from: NSNumber(value: value)) ?? "\(Int(value.rounded()))"
     }
 }
 
