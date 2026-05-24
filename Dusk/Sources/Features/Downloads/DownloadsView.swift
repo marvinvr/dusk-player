@@ -160,7 +160,10 @@ struct DownloadsView: View {
         ScrollView {
             LazyVStack(spacing: 12) {
                 ForEach(downloadManager.queuedRecords) { record in
-                    DownloadQueueRow(record: record)
+                    DownloadQueueRow(record: record) { route in
+                        isShowingQueue = false
+                        path.append(route)
+                    }
                         .padding(.horizontal, 20)
                 }
             }
@@ -254,7 +257,15 @@ struct DownloadsView: View {
             return "\(itemText) · \(activeText)"
         }
         let remainingBytes = max(totalBytes - downloadedBytes, 0)
-        return "\(itemText) · \(activeText) · \(formattedBytes(remainingBytes)) remaining"
+        var parts = [
+            itemText,
+            activeText,
+            "\(formattedBytes(remainingBytes)) remaining"
+        ]
+        if let timeRemaining = downloadManager.estimatedQueueTimeRemaining {
+            parts.append("\(formattedRemainingTime(timeRemaining)) left")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private var aggregateQueueProgress: Double? {
@@ -270,6 +281,9 @@ struct DownloadsView: View {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
     }
 
+    private func formattedRemainingTime(_ value: TimeInterval) -> String {
+        DownloadTimeRemainingFormatter.string(from: value)
+    }
 }
 
 private enum DownloadedLibraryItem: Identifiable {
@@ -435,6 +449,7 @@ private struct DownloadQueueRow: View {
     @Environment(DownloadManager.self) private var downloadManager
 
     let record: DownloadedMediaRecord
+    let onOpen: (AppNavigationRoute) -> Void
 
     private var scope: DownloadScope {
         DownloadScope(ratingKey: record.ratingKey, type: record.type)
@@ -445,7 +460,9 @@ private struct DownloadQueueRow: View {
     }
 
     var body: some View {
-        NavigationLink(value: AppNavigationRoute.media(type: record.type, ratingKey: record.ratingKey)) {
+        Button {
+            onOpen(.downloadedMedia(type: record.type, ratingKey: record.ratingKey))
+        } label: {
             HStack(spacing: 12) {
                 PosterArtwork(
                     imageURL: downloadManager.localArtworkURL(for: record.thumbPath),
@@ -508,7 +525,11 @@ private struct DownloadQueueRow: View {
         case .preparing:
             "Preparing"
         case .downloading:
-            "\(Int((record.progress * 100).rounded()))% · \(downloadedSizeText)"
+            if let timeRemaining = downloadManager.estimatedTimeRemaining(for: record) {
+                "\(Int((record.progress * 100).rounded()))% · \(downloadedSizeText) · \(DownloadTimeRemainingFormatter.string(from: timeRemaining)) left"
+            } else {
+                "\(Int((record.progress * 100).rounded()))% · \(downloadedSizeText)"
+            }
         case .paused:
             "Paused · \(downloadedSizeText)"
         case .completed:
@@ -558,6 +579,33 @@ private struct DownloadQueueRow: View {
             return formattedBytes(record.downloadedBytes)
         }
         return "\(formattedBytes(record.downloadedBytes)) of \(formattedBytes(totalBytes))"
+    }
+}
+
+private enum DownloadTimeRemainingFormatter {
+    static func string(from value: TimeInterval) -> String {
+        let roundedSeconds = roundedDisplaySeconds(for: max(value, 0))
+        guard roundedSeconds >= 60 else {
+            return "Under 1 min"
+        }
+
+        let formatter = DateComponentsFormatter()
+        formatter.allowedUnits = roundedSeconds >= 3600 ? [.hour, .minute] : [.minute]
+        formatter.maximumUnitCount = 2
+        formatter.unitsStyle = .abbreviated
+
+        return formatter.string(from: TimeInterval(roundedSeconds)) ?? "Calculating"
+    }
+
+    private static func roundedDisplaySeconds(for value: TimeInterval) -> Int {
+        let seconds = Int(value.rounded(.up))
+        if seconds < 60 {
+            return seconds
+        }
+        if seconds < 3600 {
+            return Int(ceil(Double(seconds) / 60.0) * 60)
+        }
+        return Int(ceil(Double(seconds) / 300.0) * 300)
     }
 }
 

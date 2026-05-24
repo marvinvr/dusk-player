@@ -33,6 +33,36 @@ private enum DownloadManagerError: LocalizedError {
     }
 }
 
+private struct SmoothedDownloadSpeed {
+    private static let smoothingFactor = 0.18
+
+    private(set) var bytesPerSecond: Double?
+    private var lastSampleDate: Date?
+    private var lastDownloadedBytes: Int64?
+
+    mutating func update(downloadedBytes: Int64, at date: Date = .now) {
+        defer {
+            lastSampleDate = date
+            lastDownloadedBytes = downloadedBytes
+        }
+
+        guard let lastSampleDate, let lastDownloadedBytes else { return }
+        let elapsed = date.timeIntervalSince(lastSampleDate)
+        let bytesDelta = downloadedBytes - lastDownloadedBytes
+        guard elapsed >= 0.25, bytesDelta > 0 else { return }
+
+        let measuredBytesPerSecond = Double(bytesDelta) / elapsed
+        guard measuredBytesPerSecond.isFinite, measuredBytesPerSecond > 0 else { return }
+
+        if let current = bytesPerSecond {
+            bytesPerSecond = current
+                + (measuredBytesPerSecond - current) * Self.smoothingFactor
+        } else {
+            bytesPerSecond = measuredBytesPerSecond
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class DownloadManager {
@@ -55,6 +85,7 @@ final class DownloadManager {
     @ObservationIgnored private var networkMonitorQueue = DispatchQueue(label: "com.dusk.networkMonitor")
     @ObservationIgnored private var queueTask: Task<Void, Never>?
     @ObservationIgnored private var lastProgressPersistDates: [String: Date] = [:]
+    @ObservationIgnored private var speedEstimates: [String: SmoothedDownloadSpeed] = [:]
     @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
         Task { @MainActor [weak self] in
             self?.handleTransferEvent(event)
@@ -173,6 +204,30 @@ final class DownloadManager {
         return state.hasRecords ? state.progress : nil
     }
 
+    func estimatedTimeRemaining(for record: DownloadedMediaRecord) -> TimeInterval? {
+        estimatedTimeRemaining(globalKey: record.globalKey, remainingBytes: remainingBytes(for: record))
+    }
+
+    var estimatedQueueTimeRemaining: TimeInterval? {
+        let activeRecords = queuedRecords.filter { $0.status.isActive }
+        guard !activeRecords.isEmpty,
+              activeRecords.allSatisfy({ $0.totalBytes != nil }) else {
+            return nil
+        }
+
+        let remainingBytes = activeRecords
+            .map(remainingBytes(for:))
+            .reduce(Int64(0), +)
+        guard remainingBytes > 0 else { return nil }
+
+        let bytesPerSecond = activeRecords.reduce(0) { total, record in
+            total + (speedEstimates[record.globalKey]?.bytesPerSecond ?? 0)
+        }
+        guard bytesPerSecond > 0 else { return nil }
+
+        return TimeInterval(Double(remainingBytes) / bytesPerSecond)
+    }
+
     func isDownloaded(ratingKey: String) -> Bool {
         record(for: ratingKey)?.status == .completed
     }
@@ -265,6 +320,7 @@ final class DownloadManager {
         records[index].downloadTaskIdentifier = nil
         records[index].errorMessage = nil
         records[index].updatedAt = .now
+        speedEstimates.removeValue(forKey: records[index].globalKey)
         persist()
         processQueueIfNeeded()
     }
@@ -409,6 +465,7 @@ final class DownloadManager {
 
         records.removeAll()
         lastProgressPersistDates.removeAll()
+        speedEstimates.removeAll()
         deletingDownloadIDs.removeAll()
         isQueuePaused = false
         fileStore.deleteAllStoredData()
@@ -1129,6 +1186,7 @@ final class DownloadManager {
         case let .progress(taskIdentifier, globalKey, progress, downloadedBytes, totalBytes):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
             guard !deletingDownloadIDs.contains(globalKey) else { return }
+            updateSpeedEstimate(globalKey: globalKey, downloadedBytes: downloadedBytes)
             update(globalKey: globalKey, persist: shouldPersistProgress(globalKey: globalKey, progress: progress)) { item in
                 guard item.status != .paused && item.status != .cancelled else { return }
                 item.status = .downloading
@@ -1152,6 +1210,7 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
+            speedEstimates.removeValue(forKey: globalKey)
             processQueueIfNeeded()
         case let .cancelled(taskIdentifier, globalKey):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
@@ -1164,6 +1223,7 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
+            speedEstimates.removeValue(forKey: globalKey)
             processQueueIfNeeded()
         case let .finished(taskIdentifier, globalKey, temporaryURL, response):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
@@ -1196,8 +1256,28 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
+            speedEstimates.removeValue(forKey: globalKey)
             processQueueIfNeeded()
         }
+    }
+
+    private func remainingBytes(for record: DownloadedMediaRecord) -> Int64 {
+        guard let totalBytes = record.totalBytes, totalBytes > 0 else { return 0 }
+        return max(totalBytes - record.downloadedBytes, 0)
+    }
+
+    private func estimatedTimeRemaining(globalKey: String, remainingBytes: Int64) -> TimeInterval? {
+        guard remainingBytes > 0,
+              let bytesPerSecond = speedEstimates[globalKey]?.bytesPerSecond,
+              bytesPerSecond > 0 else {
+            return nil
+        }
+        return TimeInterval(Double(remainingBytes) / bytesPerSecond)
+    }
+
+    private func updateSpeedEstimate(globalKey: String, downloadedBytes: Int64) {
+        speedEstimates[globalKey, default: SmoothedDownloadSpeed()]
+            .update(downloadedBytes: downloadedBytes)
     }
 
     private func shouldPersistProgress(globalKey: String, progress: Double) -> Bool {
@@ -1429,6 +1509,7 @@ final class DownloadManager {
         records.removeAll { globalKeys.contains($0.globalKey) }
         for globalKey in globalKeys {
             lastProgressPersistDates.removeValue(forKey: globalKey)
+            speedEstimates.removeValue(forKey: globalKey)
             deletingDownloadIDs.remove(globalKey)
         }
         persist()
