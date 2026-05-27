@@ -1,5 +1,6 @@
 #if os(tvOS)
 import SwiftUI
+import UIKit
 
 struct PlayerControlsTVOverlay: View {
     @Environment(UserPreferences.self) private var preferences
@@ -143,18 +144,21 @@ struct PlayerControlsTVOverlay: View {
                     .focusable()
                     .focused($focusedControl, equals: .seekPoint)
                     .focusEffectDisabled()
-                    .onTapGesture {
-                        viewModel.togglePlayPause()
-                    }
-                    .gesture(
-                        DragGesture(minimumDistance: minimumScrubDistance)
-                            .onChanged { value in
-                                updateTVScrub(value, trackWidth: width)
-                            }
-                            .onEnded { _ in
+                    .overlay {
+                        PlayerTVScrubGestureBridge(
+                            minimumScrubDistance: minimumScrubDistance,
+                            onTap: {
+                                guard focusedControl == .seekPoint else { return }
+                                viewModel.togglePlayPause()
+                            },
+                            onScrubChanged: { translationWidth in
+                                updateTVScrub(translationWidth: translationWidth, trackWidth: width)
+                            },
+                            onScrubEnded: {
                                 endTVScrub()
                             }
-                    )
+                        )
+                    }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -214,7 +218,7 @@ struct PlayerControlsTVOverlay: View {
         return min(max(proposedX, halfWidth), totalWidth - halfWidth)
     }
 
-    private func updateTVScrub(_ value: DragGesture.Value, trackWidth: CGFloat) {
+    private func updateTVScrub(translationWidth: CGFloat, trackWidth: CGFloat) {
         guard focusedControl == .seekPoint,
               viewModel.duration > 0,
               trackWidth > 0 else {
@@ -227,7 +231,7 @@ struct PlayerControlsTVOverlay: View {
         }
         tvScrubStartPosition = startPosition
 
-        let delta = TimeInterval(value.translation.width / trackWidth) * viewModel.duration
+        let delta = TimeInterval(translationWidth / trackWidth) * viewModel.duration
         viewModel.updateScrub(to: startPosition + delta)
     }
 
@@ -320,6 +324,94 @@ struct PlayerControlsTVOverlay: View {
             context.hasQualityControl ||
             !viewModel.audioTracks.isEmpty ||
             !viewModel.subtitleTracks.isEmpty
+    }
+}
+
+private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
+    let minimumScrubDistance: CGFloat
+    let onTap: () -> Void
+    let onScrubChanged: (CGFloat) -> Void
+    let onScrubEnded: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> PlayerTVScrubGestureView {
+        let view = PlayerTVScrubGestureView()
+        view.backgroundColor = .clear
+
+        context.coordinator.tapRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
+        context.coordinator.panRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        context.coordinator.panRecognizer.delegate = context.coordinator
+
+        view.addGestureRecognizer(context.coordinator.tapRecognizer)
+        view.addGestureRecognizer(context.coordinator.panRecognizer)
+        context.coordinator.sync(with: self)
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerTVScrubGestureView, context: Context) {
+        context.coordinator.sync(with: self)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        private var parent: PlayerTVScrubGestureBridge
+        let tapRecognizer = UITapGestureRecognizer()
+        let panRecognizer = UIPanGestureRecognizer()
+        private var hasStartedScrubbing = false
+
+        init(parent: PlayerTVScrubGestureBridge) {
+            self.parent = parent
+            super.init()
+            tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
+            panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+        }
+
+        func sync(with parent: PlayerTVScrubGestureBridge) {
+            self.parent = parent
+        }
+
+        @objc
+        private func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended else { return }
+            parent.onTap()
+        }
+
+        @objc
+        private func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            let translationWidth = recognizer.translation(in: recognizer.view).x
+
+            switch recognizer.state {
+            case .began, .changed:
+                guard hasStartedScrubbing || abs(translationWidth) >= parent.minimumScrubDistance else {
+                    return
+                }
+                hasStartedScrubbing = true
+                parent.onScrubChanged(translationWidth)
+            case .ended, .cancelled, .failed:
+                if hasStartedScrubbing {
+                    parent.onScrubEnded()
+                }
+                hasStartedScrubbing = false
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            false
+        }
+    }
+}
+
+private final class PlayerTVScrubGestureView: UIView {
+    override var canBecomeFocused: Bool {
+        false
     }
 }
 #endif
