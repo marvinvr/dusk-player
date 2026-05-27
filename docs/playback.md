@@ -109,6 +109,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `PlayerViewModel` is UI state only: syncs from engine every 0.25s, drives
   controls visibility, scrubbing, seek feedback, buffering presentation,
   auto-skip markers, stall recovery, and track selection.
+- `PlayerSessionView` loads Plex scrub-preview BIF data for online playback
+  parts when available. iOS shows a thumbnail popup while dragging the seek
+  bar; tvOS shows it above the focused seek point. If BIF loading or parsing
+  fails, the controls keep their existing no-preview behavior.
 - Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
   episode 1 of a season. The episode check comes from the active
   `PlexMediaDetails.index`, so missing episode numbers are treated as not the

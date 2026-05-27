@@ -6,6 +6,7 @@ struct PlayerControlsOverlay: View {
     let viewModel: PlayerViewModel
     let mediaDetails: PlexMediaDetails?
     let debugInfo: PlaybackDebugInfo?
+    let scrubPreviewSource: PlexScrubPreviewSource?
     let hasActiveSkipMarker: Bool
     let onDismiss: () -> Void
 
@@ -14,12 +15,14 @@ struct PlayerControlsOverlay: View {
         PlayerControlsTVOverlay(
             viewModel: viewModel,
             context: context,
+            scrubPreviewSource: scrubPreviewSource,
             hasActiveSkipMarker: hasActiveSkipMarker
         )
         #else
         PlayerControlsIOSOverlay(
             viewModel: viewModel,
             context: context,
+            scrubPreviewSource: scrubPreviewSource,
             onDismiss: onDismiss
         )
         #endif

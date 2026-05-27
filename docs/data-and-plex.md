@@ -144,6 +144,10 @@ File: `PlexService+Images.swift`.
 - `AppImageCache.shared` is the shared URL cache and can be cleared in settings.
 - Image cache entries have a max TTL of 3 days. Older URL cache responses are
   discarded on read and reloaded on demand.
+- Player scrub previews use Plex's BIF index endpoint
+  `/library/parts/{partID}/indexes/sd`. The service downloads and parses the
+  BIF file opportunistically for online playback only; failures return no
+  preview source and should not affect normal image or playback behavior.
 
 Pitfalls:
 - Transcoded image and playback URLs can contain token-bearing query

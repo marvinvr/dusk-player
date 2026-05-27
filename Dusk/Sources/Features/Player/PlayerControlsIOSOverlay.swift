@@ -3,6 +3,7 @@ import SwiftUI
 struct PlayerControlsIOSOverlay: View {
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
+    let scrubPreviewSource: PlexScrubPreviewSource?
     let onDismiss: () -> Void
 
     var body: some View {
@@ -61,7 +62,11 @@ struct PlayerControlsIOSOverlay: View {
 
     private var bottomBar: some View {
         VStack(spacing: 4) {
-            PlayerSeekBar(viewModel: viewModel, isInteractive: true)
+            PlayerSeekBar(
+                viewModel: viewModel,
+                isInteractive: true,
+                scrubPreviewSource: scrubPreviewSource
+            )
 
             HStack {
                 PlayerTimeStatusView(viewModel: viewModel)

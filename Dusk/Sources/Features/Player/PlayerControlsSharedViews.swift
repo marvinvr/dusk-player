@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct PlayerControlsGradientBackdrop: View {
     var body: some View {
@@ -91,14 +92,27 @@ struct PlayerTimeStatusView: View {
 struct PlayerSeekBar: View {
     let viewModel: PlayerViewModel
     let isInteractive: Bool
+    let scrubPreviewSource: PlexScrubPreviewSource?
 
     private let trackHeight: CGFloat = 8
+
+    init(
+        viewModel: PlayerViewModel,
+        isInteractive: Bool,
+        scrubPreviewSource: PlexScrubPreviewSource? = nil
+    ) {
+        self.viewModel = viewModel
+        self.isInteractive = isInteractive
+        self.scrubPreviewSource = scrubPreviewSource
+    }
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let progress = viewModel.duration > 0 ? viewModel.displayPosition / viewModel.duration : 0
             let playedWidth = playedTrackWidth(for: progress, totalWidth: width)
+            let clampedProgress = max(0, min(progress, 1))
+            let scrubX = width * clampedProgress
             let seekTrack = ZStack(alignment: .leading) {
                 Capsule()
                     .fill(.ultraThinMaterial)
@@ -118,27 +132,45 @@ struct PlayerSeekBar: View {
             .frame(height: 32)
             .contentShape(Rectangle())
 
-            #if os(tvOS)
-            seekTrack
-            #else
-            if isInteractive {
-                seekTrack.gesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { value in
-                            if !viewModel.isScrubbing {
-                                viewModel.beginScrub()
-                            }
-                            let fraction = max(0, min(1, value.location.x / width))
-                            viewModel.updateScrub(to: fraction * viewModel.duration)
-                        }
-                        .onEnded { _ in
-                            viewModel.endScrub()
-                        }
-                )
-            } else {
+            ZStack(alignment: .topLeading) {
+                #if os(tvOS)
                 seekTrack
+                #else
+                if isInteractive {
+                    seekTrack.gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                guard width > 0 else { return }
+                                if !viewModel.isScrubbing {
+                                    viewModel.beginScrub()
+                                }
+                                let fraction = max(0, min(1, value.location.x / width))
+                                viewModel.updateScrub(to: fraction * viewModel.duration)
+                            }
+                            .onEnded { _ in
+                                viewModel.endScrub()
+                            }
+                    )
+                } else {
+                    seekTrack
+                }
+
+                if viewModel.isScrubbing,
+                   let scrubPreviewSource,
+                   scrubPreviewSource.isAvailable {
+                    PlayerScrubPreviewPopup(
+                        source: scrubPreviewSource,
+                        position: viewModel.displayPosition
+                    )
+                    .position(
+                        x: scrubPreviewX(scrubX, totalWidth: width),
+                        y: PlayerScrubPreviewPopup.verticalPosition
+                    )
+                    .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
+                    .zIndex(2)
+                }
+                #endif
             }
-            #endif
         }
         .frame(height: 32)
     }
@@ -151,6 +183,75 @@ struct PlayerSeekBar: View {
             max(trackHeight, totalWidth * clampedProgress),
             totalWidth
         )
+    }
+
+    private func scrubPreviewX(_ proposedX: CGFloat, totalWidth: CGFloat) -> CGFloat {
+        let halfWidth = PlayerScrubPreviewPopup.width / 2
+        guard totalWidth > halfWidth * 2 else {
+            return max(totalWidth / 2, halfWidth)
+        }
+
+        return min(max(proposedX, halfWidth), totalWidth - halfWidth)
+    }
+}
+
+struct PlayerScrubPreviewPopup: View {
+    let source: PlexScrubPreviewSource
+    let position: TimeInterval
+
+    #if os(tvOS)
+    static let width: CGFloat = 240
+    #else
+    static let width: CGFloat = 156
+    #endif
+    static let aspectRatio: CGFloat = 16.0 / 9.0
+    static let height: CGFloat = width / aspectRatio
+    static let verticalPosition: CGFloat = -(height / 2 + 12)
+
+    private var frame: PlexScrubPreviewFrame? {
+        source.frame(at: position)
+    }
+
+    var body: some View {
+        if let frame,
+           let image = UIImage(data: frame.imageData) {
+            ZStack(alignment: .bottom) {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: Self.width, height: Self.height)
+                    .clipped()
+
+                Text(formattedTime(position))
+                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.94))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 4)
+                    .background(.black.opacity(0.58), in: Capsule())
+                    .padding(.bottom, 6)
+            }
+            .frame(width: Self.width, height: Self.height)
+            .background(.black, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.42), radius: 18, y: 8)
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func formattedTime(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let total = Int(seconds)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
     }
 }
 

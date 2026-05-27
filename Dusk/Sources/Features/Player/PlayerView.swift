@@ -83,6 +83,7 @@ private struct PlayerSessionView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: PlayerViewModel
+    @State private var scrubPreviewSource: PlexScrubPreviewSource?
     #if os(tvOS)
     @FocusState private var skipMarkerFocused: Bool
     @FocusState private var backgroundFocused: Bool
@@ -191,6 +192,7 @@ private struct PlayerSessionView: View {
                         viewModel: viewModel,
                         mediaDetails: mediaDetails,
                         debugInfo: debugInfo,
+                        scrubPreviewSource: scrubPreviewSource,
                         hasActiveSkipMarker: viewModel.activeSkipMarker != nil,
                         onDismiss: dismissPlayer
                     )
@@ -246,6 +248,9 @@ private struct PlayerSessionView: View {
         }
         .onChange(of: scenePhase) { _, newPhase in
             playback.flushTimelineForScenePhase(newPhase)
+        }
+        .task(id: scrubPreviewPartID) {
+            await loadScrubPreviewSource(partID: scrubPreviewPartID)
         }
         #if os(tvOS)
         .onChange(of: viewModel.activeSkipMarker?.id) { _, _ in
@@ -393,6 +398,15 @@ private struct PlayerSessionView: View {
         #endif
     }
 
+    private var scrubPreviewPartID: Int? {
+        guard let debugInfo,
+              debugInfo.canLoadScrubPreviews else {
+            return nil
+        }
+
+        return debugInfo.part.id
+    }
+
     private func skipMarkerOverlay(_ marker: PlexMarker) -> some View {
         VStack {
             Spacer()
@@ -497,6 +511,16 @@ private struct PlayerSessionView: View {
     private func dismissPlayer() {
         viewModel.cleanup()
         dismiss()
+    }
+
+    @MainActor
+    private func loadScrubPreviewSource(partID: Int?) async {
+        scrubPreviewSource = nil
+        guard let partID else { return }
+
+        let source = await plexService.scrubPreviewSource(forPartID: partID)
+        guard !Task.isCancelled else { return }
+        scrubPreviewSource = source
     }
 
     @MainActor

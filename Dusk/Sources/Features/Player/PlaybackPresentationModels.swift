@@ -88,6 +88,15 @@ struct PlaybackDebugInfo: Sendable {
         }
     }
 
+    var canLoadScrubPreviews: Bool {
+        switch decision {
+        case .localDownload:
+            false
+        case .directPlay, .transcode:
+            true
+        }
+    }
+
     var containerLabel: String {
         (part.container ?? media.container ?? "Unknown").uppercased()
     }

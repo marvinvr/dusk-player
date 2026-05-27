@@ -147,6 +147,38 @@ struct PlexMarker: Codable, Sendable, Identifiable, Equatable {
     }
 }
 
+struct PlexScrubPreviewFrame: Sendable {
+    let timestampMs: Int64
+    let imageData: Data
+}
+
+struct PlexScrubPreviewSource: Sendable {
+    let frames: [PlexScrubPreviewFrame]
+
+    var isAvailable: Bool {
+        !frames.isEmpty
+    }
+
+    func frame(at position: TimeInterval) -> PlexScrubPreviewFrame? {
+        guard !frames.isEmpty else { return nil }
+
+        let positionMs = Int64(max(0, position) * 1000)
+        var lowerBound = 0
+        var upperBound = frames.count - 1
+
+        while lowerBound < upperBound {
+            let midpoint = (lowerBound + upperBound + 1) / 2
+            if frames[midpoint].timestampMs <= positionMs {
+                lowerBound = midpoint
+            } else {
+                upperBound = midpoint - 1
+            }
+        }
+
+        return frames[lowerBound]
+    }
+}
+
 // MARK: - Media (file-level metadata)
 
 /// A single media version of a Plex item.

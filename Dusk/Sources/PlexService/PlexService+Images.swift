@@ -62,6 +62,24 @@ extension PlexService {
         return try await executeBinaryRequest(request)
     }
 
+    func scrubPreviewSource(forPartID partID: Int) async -> PlexScrubPreviewSource? {
+        guard partID > 0 else { return nil }
+
+        do {
+            let data = try await rawScrubPreviewRequest(partID: partID)
+            guard !data.isEmpty, data.count <= PlexBIFParser.maxFileSize else { return nil }
+
+            let frames = await Task.detached(priority: .utility) {
+                PlexBIFParser.parse(data)
+            }.value
+
+            guard !frames.isEmpty else { return nil }
+            return PlexScrubPreviewSource(frames: frames)
+        } catch {
+            return nil
+        }
+    }
+
     func shouldAuthenticateImageRequest(for url: URL) -> Bool {
         guard let serverBaseURL else { return false }
 
@@ -92,6 +110,19 @@ extension PlexService {
         }
     }
 
+    private func rawScrubPreviewRequest(partID: Int) async throws -> Data {
+        if preferredServerToken == nil {
+            try await recoverServerAuthorizationIfPossible()
+        }
+
+        do {
+            return try await sendScrubPreviewRequest(partID: partID)
+        } catch let error as PlexServiceError where error == .unauthorized {
+            try await recoverServerAuthorizationIfPossible()
+            return try await sendScrubPreviewRequest(partID: partID)
+        }
+    }
+
     private func sendImageServerRequest(url: URL) async throws -> Data {
         guard let serverToken = preferredServerToken else {
             throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
@@ -111,6 +142,28 @@ extension PlexService {
             AppImageCache.storeCachedResponse(cachedResponse, for: request)
         }
         return data
+    }
+
+    private func sendScrubPreviewRequest(partID: Int) async throws -> Data {
+        guard let baseURL = serverBaseURL else {
+            throw PlexServiceError.noServerConnected
+        }
+
+        guard let serverToken = preferredServerToken else {
+            throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+        }
+
+        guard let url = buildURL(base: baseURL.absoluteString, path: "/library/parts/\(partID)/indexes/sd") else {
+            throw PlexServiceError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.cachePolicy = .returnCacheDataElseLoad
+        applyHeaders(to: &request, token: serverToken)
+        request.setValue("application/octet-stream,image/*,*/*", forHTTPHeaderField: "Accept")
+
+        return try await executeRequest(request)
     }
 
     private func executeBinaryRequest(_ request: URLRequest) async throws -> Data {
@@ -202,5 +255,66 @@ struct ImageRequestSize {
 
     var hasDimensions: Bool {
         width != nil || height != nil
+    }
+}
+
+private enum PlexBIFParser {
+    static let maxFileSize = 50 * 1024 * 1024
+
+    private static let magic: [UInt8] = [0x89, 0x42, 0x49, 0x46, 0x0D, 0x0A, 0x1A, 0x0A]
+
+    static func parse(_ data: Data) -> [PlexScrubPreviewFrame] {
+        guard data.count >= 72, data.count <= maxFileSize else { return [] }
+
+        let bytes = [UInt8](data)
+        guard Array(bytes.prefix(magic.count)) == magic else { return [] }
+
+        let imageCountValue = uint32(at: 12, in: bytes)
+        guard imageCountValue > 0 else {
+            return []
+        }
+
+        let imageCount = Int(imageCountValue)
+        let tableEntryCount = imageCount + 1
+        guard tableEntryCount > imageCount,
+              tableEntryCount <= (bytes.count - 64) / 8 else {
+            return []
+        }
+
+        let rawMultiplier = uint32(at: 16, in: bytes)
+        let timestampMultiplier = Int64(rawMultiplier == 0 ? 1000 : rawMultiplier)
+
+        var frames: [PlexScrubPreviewFrame] = []
+        frames.reserveCapacity(imageCount)
+
+        for index in 0..<imageCount {
+            let entryOffset = 64 + (index * 8)
+            let timestamp = uint32(at: entryOffset, in: bytes)
+            let imageOffset = Int(uint32(at: entryOffset + 4, in: bytes))
+            let nextImageOffset = Int(uint32(at: entryOffset + 12, in: bytes))
+
+            guard nextImageOffset > imageOffset,
+                  nextImageOffset <= data.count else {
+                continue
+            }
+
+            frames.append(
+                PlexScrubPreviewFrame(
+                    timestampMs: Int64(timestamp) * timestampMultiplier,
+                    imageData: data.subdata(in: imageOffset..<nextImageOffset)
+                )
+            )
+        }
+
+        return frames
+    }
+
+    private static func uint32(at offset: Int, in bytes: [UInt8]) -> UInt32 {
+        guard offset >= 0, offset + 3 < bytes.count else { return 0 }
+
+        return UInt32(bytes[offset])
+            | (UInt32(bytes[offset + 1]) << 8)
+            | (UInt32(bytes[offset + 2]) << 16)
+            | (UInt32(bytes[offset + 3]) << 24)
     }
 }

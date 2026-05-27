@@ -7,6 +7,7 @@ struct PlayerControlsTVOverlay: View {
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
+    let scrubPreviewSource: PlexScrubPreviewSource?
     let hasActiveSkipMarker: Bool
 
     private let horizontalPadding: CGFloat = 12
@@ -88,13 +89,26 @@ struct PlayerControlsTVOverlay: View {
             let thumbX = max(15, min(width - 15, width * clampedProgress))
             let isFocused = focusedControl == .seekPoint
             let isPaused = viewModel.state == .paused
+            let shouldShowScrubPreview = scrubPreviewSource?.isAvailable == true &&
+                (isFocused || isPaused || viewModel.seekFeedback != nil)
 
             ZStack(alignment: .topLeading) {
                 PlayerSeekBar(viewModel: viewModel, isInteractive: false)
                     .frame(height: 36)
                     .padding(.top, 20)
 
-                if let seekFeedback = viewModel.seekFeedback {
+                if shouldShowScrubPreview,
+                   let scrubPreviewSource {
+                    PlayerScrubPreviewPopup(
+                        source: scrubPreviewSource,
+                        position: viewModel.displayPosition
+                    )
+                    .position(
+                        x: scrubPreviewX(thumbX, totalWidth: width),
+                        y: PlayerScrubPreviewPopup.verticalPosition
+                    )
+                    .transition(seekTooltipTransition)
+                } else if let seekFeedback = viewModel.seekFeedback {
                     seekTooltip(seekFeedback)
                         .position(x: thumbX, y: seekTooltipY)
                         .transition(seekTooltipTransition)
@@ -172,6 +186,15 @@ struct PlayerControlsTVOverlay: View {
             }
             .shadow(color: .white.opacity(0.12), radius: 10)
             .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
+    }
+
+    private func scrubPreviewX(_ proposedX: CGFloat, totalWidth: CGFloat) -> CGFloat {
+        let halfWidth = PlayerScrubPreviewPopup.width / 2
+        guard totalWidth > halfWidth * 2 else {
+            return max(totalWidth / 2, halfWidth)
+        }
+
+        return min(max(proposedX, halfWidth), totalWidth - halfWidth)
     }
 
     // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
