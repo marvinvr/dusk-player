@@ -4,6 +4,7 @@ import SwiftUI
 struct PlayerControlsTVOverlay: View {
     @Environment(UserPreferences.self) private var preferences
     @FocusState private var focusedControl: FocusTarget?
+    @State private var tvScrubStartPosition: TimeInterval?
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
@@ -14,6 +15,7 @@ struct PlayerControlsTVOverlay: View {
     private let topPadding: CGFloat = 8
     private let bottomPadding: CGFloat = 2
     private let seekTooltipY: CGFloat = -6
+    private let minimumScrubDistance: CGFloat = 4
 
     private enum FocusTarget: Hashable {
         case seekPoint
@@ -90,7 +92,7 @@ struct PlayerControlsTVOverlay: View {
             let isFocused = focusedControl == .seekPoint
             let isPaused = viewModel.state == .paused
             let shouldShowScrubPreview = scrubPreviewSource?.isAvailable == true &&
-                (isFocused || isPaused || viewModel.seekFeedback != nil)
+                (viewModel.isScrubbing || isPaused || viewModel.seekFeedback != nil)
 
             ZStack(alignment: .topLeading) {
                 PlayerSeekBar(viewModel: viewModel, isInteractive: false)
@@ -138,6 +140,15 @@ struct PlayerControlsTVOverlay: View {
                     .onTapGesture {
                         viewModel.togglePlayPause()
                     }
+                    .gesture(
+                        DragGesture(minimumDistance: minimumScrubDistance)
+                            .onChanged { value in
+                                updateTVScrub(value, trackWidth: width)
+                            }
+                            .onEnded { _ in
+                                endTVScrub()
+                            }
+                    )
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -195,6 +206,34 @@ struct PlayerControlsTVOverlay: View {
         }
 
         return min(max(proposedX, halfWidth), totalWidth - halfWidth)
+    }
+
+    private func updateTVScrub(_ value: DragGesture.Value, trackWidth: CGFloat) {
+        guard focusedControl == .seekPoint,
+              viewModel.duration > 0,
+              trackWidth > 0 else {
+            return
+        }
+
+        let startPosition = tvScrubStartPosition ?? viewModel.displayPosition
+        if !viewModel.isScrubbing {
+            viewModel.beginScrub()
+        }
+        tvScrubStartPosition = startPosition
+
+        let delta = TimeInterval(value.translation.width / trackWidth) * viewModel.duration
+        viewModel.updateScrub(to: startPosition + delta)
+    }
+
+    private func endTVScrub() {
+        guard viewModel.isScrubbing else {
+            tvScrubStartPosition = nil
+            return
+        }
+
+        viewModel.endScrub()
+        tvScrubStartPosition = nil
+        focusedControl = .seekPoint
     }
 
     // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
