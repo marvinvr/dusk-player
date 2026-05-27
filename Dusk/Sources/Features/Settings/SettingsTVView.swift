@@ -50,7 +50,12 @@ struct SettingsTVView: View {
                 }
 
                 TVSettingsSection(title: "Playback Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
-                    TVSettingsToggleRow(title: "Auto-Skip Intros", isOn: $preferences.autoSkipIntro)
+                    TVSettingsMenuRow(
+                        title: "Auto-Skip Intros",
+                        options: AutoSkipIntroMode.allCases,
+                        selection: $preferences.autoSkipIntroMode,
+                        selectedTitle: preferences.autoSkipIntroMode.displayName
+                    ) { $0.displayName }
 
                     tvRowDivider
 

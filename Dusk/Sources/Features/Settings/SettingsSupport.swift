@@ -4,9 +4,9 @@ enum SettingsSupport {
     static let playbackDefaultsFooterText = "Choose preferred stream quality and default audio or subtitle languages. Forced Only limits automatic subtitle selection to forced tracks."
 
     #if os(tvOS)
-    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm."
+    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Intro skipping can skip every intro or skip every intro except episode 1 of each season. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm."
     #else
-    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Double-Tap to Seek adds left and right double-tap seek zones in the player."
+    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Intro skipping can skip every intro or skip every intro except episode 1 of each season. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Double-Tap to Seek adds left and right double-tap seek zones in the player."
     #endif
 
     static let playbackAdvancedFooterText = "Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."

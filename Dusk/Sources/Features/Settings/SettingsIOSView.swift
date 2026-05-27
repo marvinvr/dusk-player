@@ -77,9 +77,12 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
-                Toggle("Auto-Skip Intros", isOn: $preferences.autoSkipIntro)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .tint(Color.duskAccent)
+                Picker("Auto-Skip Intros", selection: $preferences.autoSkipIntroMode) {
+                    ForEach(AutoSkipIntroMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
 
                 Toggle("Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
                     .foregroundStyle(Color.duskTextPrimary)

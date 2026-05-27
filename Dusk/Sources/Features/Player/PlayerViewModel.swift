@@ -54,8 +54,9 @@ final class PlayerViewModel {
     var preferredSubtitleLanguage: String?
     var preferredAudioLanguage: String?
     var subtitleForcedOnly = false
-    var autoSkipIntro = true
+    var autoSkipIntroMode: AutoSkipIntroMode = .always
     var autoSkipCredits = false
+    var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
     var hasConfiguredAutomaticTrackSelection = false
@@ -115,14 +116,16 @@ final class PlayerViewModel {
 
     func configureAutomaticTrackSelection(
         preferences: UserPreferences,
-        part: PlexMediaPart?
+        part: PlexMediaPart?,
+        mediaDetails: PlexMediaDetails? = nil
     ) {
         sourcePart = part
         preferredSubtitleLanguage = Self.normalizedLanguageCode(preferences.defaultSubtitleLanguage)
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)
         subtitleForcedOnly = preferences.subtitleForcedOnly
-        autoSkipIntro = preferences.autoSkipIntro
+        autoSkipIntroMode = preferences.autoSkipIntroMode
         autoSkipCredits = preferences.autoSkipCredits
+        isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
         hasConfiguredAutomaticTrackSelection = true
         hasAppliedAutomaticAudioSelection = false
         hasAppliedAutomaticSubtitleSelection = false

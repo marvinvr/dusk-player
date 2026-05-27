@@ -220,7 +220,8 @@ private struct PlayerSessionView: View {
         .onAppear {
             viewModel.configureAutomaticTrackSelection(
                 preferences: preferences,
-                part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first
+                part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first,
+                mediaDetails: mediaDetails
             )
             viewModel.autoSkipHandler = { marker in
                 handleSkipMarker(marker)

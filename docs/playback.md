@@ -109,6 +109,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `PlayerViewModel` is UI state only: syncs from engine every 0.25s, drives
   controls visibility, scrubbing, seek feedback, buffering presentation,
   auto-skip markers, stall recovery, and track selection.
+- Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
+  episode 1 of a season. The episode check comes from the active
+  `PlexMediaDetails.index`, so missing episode numbers are treated as not the
+  first episode.
 - Playback controls start visible for orientation, then `PlayerViewModel`
   owns one auto-hide deadline/task for the whole session. Sync arms it once
   playback has started, every user reveal resets it, and it keeps retrying
@@ -156,7 +160,8 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Playback preferences live in `UserPreferences` and persist to UserDefaults.
 - Session-start defaults: `maxResolution`, forced engines, subtitle defaults,
   and default audio language.
-- Active UI defaults: auto-skip, double-tap seek, and continuous play.
+- Active UI defaults: intro auto-skip mode, credits auto-skip, double-tap seek,
+  and continuous play.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.
 - Settings UI is split by platform; shared labels/options live in
   `SettingsSupport`.

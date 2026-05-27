@@ -198,7 +198,7 @@ extension PlayerViewModel {
             return
         }
 
-        let shouldAutoSkip = (marker.isIntro && autoSkipIntro) || (marker.isCredits && autoSkipCredits)
+        let shouldAutoSkip = (marker.isIntro && shouldAutoSkipIntroMarkers) || (marker.isCredits && autoSkipCredits)
 
         guard shouldAutoSkip else {
             if autoSkipCountdownMarkerID != nil {
@@ -444,6 +444,10 @@ extension PlayerViewModel {
                 self.skipActiveMarker()
             }
         }
+    }
+
+    private var shouldAutoSkipIntroMarkers: Bool {
+        autoSkipIntroMode.shouldAutoSkipIntro(isFirstEpisodeInSeason: isFirstEpisodeInSeason)
     }
 
     func cancelAutoSkipCountdown() {

@@ -22,6 +22,7 @@ final class UserPreferences {
         static let playerDoubleTapSeekEnabled = "playerDoubleTapSeekEnabled"
         static let playerDoubleTapForwardInterval = "playerDoubleTapForwardInterval"
         static let playerDoubleTapBackwardInterval = "playerDoubleTapBackwardInterval"
+        static let autoSkipIntroMode = "autoSkipIntroMode"
         static let autoSkipIntro = "autoSkipIntro"
         static let autoSkipCredits = "autoSkipCredits"
         static let forceAVPlayer = "forceAVPlayer"
@@ -73,9 +74,9 @@ final class UserPreferences {
         }
     }
 
-    /// Automatically skip intro markers after a brief countdown.
-    var autoSkipIntro: Bool {
-        didSet { UserDefaults.standard.set(autoSkipIntro, forKey: Keys.autoSkipIntro) }
+    /// Controls automatic skipping of intro markers after a brief countdown.
+    var autoSkipIntroMode: AutoSkipIntroMode {
+        didSet { UserDefaults.standard.set(autoSkipIntroMode.rawValue, forKey: Keys.autoSkipIntroMode) }
     }
 
     /// Automatically skip credits markers after a brief countdown.
@@ -170,7 +171,7 @@ final class UserPreferences {
             defaults: defaults,
             fallback: 3
         )
-        let autoSkipIntro = defaults.object(forKey: Keys.autoSkipIntro) as? Bool ?? true
+        let autoSkipIntroMode = Self.storedAutoSkipIntroMode(defaults: defaults)
         let autoSkipCredits = defaults.object(forKey: Keys.autoSkipCredits) as? Bool ?? false
         let playerDoubleTapSeekEnabled = defaults.object(forKey: Keys.playerDoubleTapSeekEnabled) as? Bool ?? true
         let playerDoubleTapForwardInterval = Self.storedSeekInterval(
@@ -221,7 +222,7 @@ final class UserPreferences {
         self.continuousPlayEnabled = continuousPlayEnabled
         self.continuousPlayCountdown = continuousPlayCountdown
         self.continuousPlayPassoutProtectionEpisodeLimit = continuousPlayPassoutProtectionEpisodeLimit
-        self.autoSkipIntro = autoSkipIntro
+        self.autoSkipIntroMode = autoSkipIntroMode
         self.autoSkipCredits = autoSkipCredits
         self.playerDoubleTapSeekEnabled = playerDoubleTapSeekEnabled
         self.playerDoubleTapForwardInterval = playerDoubleTapForwardInterval
@@ -251,6 +252,19 @@ final class UserPreferences {
     ) -> ContinuousPlayCountdown {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return ContinuousPlayCountdown(rawValue: defaults.integer(forKey: key)) ?? fallback
+    }
+
+    private static func storedAutoSkipIntroMode(defaults: UserDefaults) -> AutoSkipIntroMode {
+        if let raw = defaults.string(forKey: Keys.autoSkipIntroMode),
+           let mode = AutoSkipIntroMode(rawValue: raw) {
+            return mode
+        }
+
+        if let legacyValue = defaults.object(forKey: Keys.autoSkipIntro) as? Bool {
+            return legacyValue ? .always : .off
+        }
+
+        return .always
     }
 
     private static func storedDownloadConcurrency(
@@ -338,6 +352,33 @@ enum AppearanceMode: String, CaseIterable, Identifiable {
         case .system: nil
         case .light: .light
         case .dark: .dark
+        }
+    }
+}
+
+enum AutoSkipIntroMode: String, CaseIterable, Identifiable {
+    case off
+    case always
+    case alwaysExceptFirstEpisode
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .off: "Off"
+        case .always: "Always"
+        case .alwaysExceptFirstEpisode: "Always Except First Episode"
+        }
+    }
+
+    func shouldAutoSkipIntro(isFirstEpisodeInSeason: Bool) -> Bool {
+        switch self {
+        case .off:
+            false
+        case .always:
+            true
+        case .alwaysExceptFirstEpisode:
+            !isFirstEpisodeInSeason
         }
     }
 }
