@@ -402,67 +402,16 @@ private struct PlayerSessionView: View {
                 Button {
                     handleSkipMarker(marker)
                 } label: {
-                    #if os(tvOS)
-                    HStack(spacing: 8) {
-                        Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
-                            .font(.footnote.weight(.semibold))
-
-                        Text(marker.skipButtonTitle ?? "Skip")
-                            .font(.footnote.weight(.semibold))
-                    }
-                    #else
-                    HStack(spacing: 10) {
-                        Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
-                            .font(.callout.weight(.semibold))
-
-                        Text(marker.skipButtonTitle ?? "Skip")
-                            .font(.subheadline.weight(.semibold))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 13)
-                    .background {
-                        Capsule().fill(.ultraThinMaterial)
-                    }
-                    .overlay(alignment: .leading) {
-                        if let progress = viewModel.autoSkipCountdownProgress {
-                            GeometryReader { buttonGeometry in
-                                Rectangle()
-                                    .fill(.white.opacity(0.18))
-                                    .frame(width: buttonGeometry.size.width * progress)
-                            }
-                            .clipShape(Capsule())
-                        }
-                    }
-                    .overlay {
-                        Capsule()
-                            .strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                    }
-                    .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
-                    .opacity(0.92)
-                    #endif
+                    skipMarkerButtonLabel(marker)
                 }
                 #if os(tvOS)
                 .focused($skipMarkerFocused)
-                .buttonStyle(.glass)
-                .controlSize(.small)
-                .tint(.white)
-                #else
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(Capsule())
+                #else
+                .buttonStyle(.plain)
                 #endif
             }
-            #if os(tvOS)
-            if let progress = viewModel.autoSkipCountdownProgress {
-                ProgressView(value: progress)
-                    .progressViewStyle(.linear)
-                    .tint(.white.opacity(0.85))
-                    .frame(width: 180)
-                    .padding(.top, 10)
-                    .padding(.trailing, 4)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            #endif
         }
         .id(marker.id)
         #if os(tvOS)
@@ -478,6 +427,47 @@ private struct PlayerSessionView: View {
         .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
         .padding(.bottom, max(PlayerOverlayLayout.skipMarkerBottomInset, 24))
         .ignoresSafeArea(edges: .bottom)
+    }
+
+    private func skipMarkerButtonLabel(_ marker: PlexMarker) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
+                .font(.callout.weight(.semibold))
+
+            Text(marker.skipButtonTitle ?? "Skip")
+                .font(.subheadline.weight(.semibold))
+        }
+        .foregroundStyle(.white)
+        #if os(tvOS)
+        .padding(.horizontal, 22)
+        .padding(.vertical, 15)
+        #else
+        .padding(.horizontal, 18)
+        .padding(.vertical, 13)
+        #endif
+        .background {
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.white.opacity(0.08))
+                    .background(.ultraThinMaterial, in: Capsule())
+
+                if let progress = viewModel.autoSkipCountdownProgress {
+                    GeometryReader { buttonGeometry in
+                        Rectangle()
+                            .fill(.white.opacity(0.18))
+                            .frame(width: buttonGeometry.size.width * max(0, min(progress, 1)))
+                    }
+                    .clipShape(Capsule())
+                    .allowsHitTesting(false)
+                }
+            }
+        }
+        .overlay {
+            Capsule()
+                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+        .opacity(0.92)
     }
 
     private func errorOverlay(_ error: PlaybackError) -> some View {
