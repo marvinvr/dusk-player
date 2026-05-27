@@ -130,6 +130,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - tvOS uses focus-aware overlays, a gear menu for playback info and track
   selection, quality menus, remote seek handling, and explicit move-command
   routing.
+- The tvOS full-screen interaction layer is focusable only while controls are
+  hidden. When controls reappear, focus is restored to the seek point so remote
+  input does not get stranded on the background reveal layer.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in
   `PlayerControlsSharedViews.swift`.
 - `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear

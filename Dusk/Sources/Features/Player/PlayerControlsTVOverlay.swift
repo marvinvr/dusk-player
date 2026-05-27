@@ -41,15 +41,21 @@ struct PlayerControlsTVOverlay: View {
         .defaultFocus($focusedControl, .seekPoint)
         .onAppear {
             if viewModel.showControls && !hasActiveSkipMarker {
-                focusedControl = .seekPoint
+                restoreSeekFocus()
             }
         }
         .onChange(of: viewModel.showControls) { _, isShowing in
-            focusedControl = isShowing && !hasActiveSkipMarker ? .seekPoint : nil
+            if isShowing && !hasActiveSkipMarker {
+                restoreSeekFocus()
+            } else {
+                focusedControl = nil
+            }
         }
         .onChange(of: hasActiveSkipMarker) { _, isVisible in
             if !isVisible, viewModel.showControls {
-                focusedControl = .seekPoint
+                restoreSeekFocus()
+            } else if isVisible {
+                focusedControl = nil
             }
         }
         .onMoveCommand(perform: handleMoveCommand)
@@ -233,7 +239,20 @@ struct PlayerControlsTVOverlay: View {
 
         viewModel.endScrub()
         tvScrubStartPosition = nil
-        focusedControl = .seekPoint
+        restoreSeekFocus()
+    }
+
+    private func restoreSeekFocus(reset: Bool = true) {
+        if reset {
+            focusedControl = nil
+        }
+
+        Task { @MainActor in
+            await Task.yield()
+
+            guard viewModel.showControls, !hasActiveSkipMarker else { return }
+            focusedControl = .seekPoint
+        }
     }
 
     // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
@@ -248,14 +267,14 @@ struct PlayerControlsTVOverlay: View {
         case .left:
             if currentFocus == .seekPoint {
                 viewModel.handleSeekJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
-                focusedControl = .seekPoint
+                restoreSeekFocus(reset: false)
             } else {
                 focusedControl = focusTargetLeft(currentFocus)
             }
         case .right:
             if currentFocus == .seekPoint {
                 viewModel.handleSeekJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
-                focusedControl = .seekPoint
+                restoreSeekFocus(reset: false)
             } else {
                 focusedControl = focusTargetRight(currentFocus)
             }

@@ -367,7 +367,7 @@ private struct PlayerSessionView: View {
             Color.clear
                 .contentShape(Rectangle())
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .focusable()
+                .focusable(!viewModel.showControls)
                 .focused($backgroundFocused)
                 .onMoveCommand { _ in
                     if !viewModel.showControls {
