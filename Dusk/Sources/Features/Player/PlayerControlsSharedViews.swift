@@ -71,10 +71,16 @@ struct PlayerMediaHeaderView: View {
 
 struct PlayerTimeStatusView: View {
     let viewModel: PlayerViewModel
+    let position: TimeInterval?
+
+    init(viewModel: PlayerViewModel, position: TimeInterval? = nil) {
+        self.viewModel = viewModel
+        self.position = position
+    }
 
     var body: some View {
         HStack(spacing: 6) {
-            Text(viewModel.formattedTime)
+            Text(formattedPosition)
                 .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
 
@@ -87,29 +93,53 @@ struct PlayerTimeStatusView: View {
                 .foregroundStyle(.white.opacity(0.8))
         }
     }
+
+    private var formattedPosition: String {
+        guard let position else {
+            return viewModel.formattedTime
+        }
+
+        return formatTime(position)
+    }
+
+    private func formatTime(_ seconds: TimeInterval) -> String {
+        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
+        let total = Int(seconds)
+        let h = total / 3600
+        let m = (total % 3600) / 60
+        let s = total % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
+    }
 }
 
 struct PlayerSeekBar: View {
     let viewModel: PlayerViewModel
     let isInteractive: Bool
     let scrubPreviewSource: PlexScrubPreviewSource?
+    let progressPosition: TimeInterval?
 
     private let trackHeight: CGFloat = 8
 
     init(
         viewModel: PlayerViewModel,
         isInteractive: Bool,
-        scrubPreviewSource: PlexScrubPreviewSource? = nil
+        scrubPreviewSource: PlexScrubPreviewSource? = nil,
+        progressPosition: TimeInterval? = nil
     ) {
         self.viewModel = viewModel
         self.isInteractive = isInteractive
         self.scrubPreviewSource = scrubPreviewSource
+        self.progressPosition = progressPosition
     }
 
     var body: some View {
         GeometryReader { geometry in
             let width = geometry.size.width
-            let progress = viewModel.duration > 0 ? viewModel.displayPosition / viewModel.duration : 0
+            let progressBase = progressPosition ?? viewModel.displayPosition
+            let progress = viewModel.duration > 0 ? progressBase / viewModel.duration : 0
             let playedWidth = playedTrackWidth(for: progress, totalWidth: width)
             let clampedProgress = max(0, min(progress, 1))
             let scrubX = width * clampedProgress
