@@ -44,9 +44,24 @@ extension PlayerViewModel {
     func preferredAudioTrack() -> AudioTrack? {
         guard let preferredAudioLanguage else { return nil }
 
-        return audioTracks.first {
-            Self.normalizedLanguageCode($0.languageCode) == preferredAudioLanguage
+        let languageMatches = audioTracks.enumerated().filter { _, track in
+            Self.normalizedLanguageCode(track.languageCode) == preferredAudioLanguage
         }
+        guard !languageMatches.isEmpty else { return nil }
+
+        return languageMatches
+            .sorted { lhs, rhs in
+                let lhsScore = audioSelectionScore(for: lhs.element, originalIndex: lhs.offset)
+                let rhsScore = audioSelectionScore(for: rhs.element, originalIndex: rhs.offset)
+
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+
+                return lhs.offset < rhs.offset
+            }
+            .first?
+            .element
     }
 
     func preferredSubtitleTrack() -> SubtitleTrack? {
@@ -249,6 +264,44 @@ extension PlayerViewModel {
         return score
     }
 
+    func audioSelectionScore(for track: AudioTrack, originalIndex: Int) -> Int {
+        var score = 0
+
+        if sourcePart?.streams.contains(where: {
+            $0.streamType == .audio &&
+                ($0.isSelected ?? false) &&
+                scoreAudioMatch(track: track, stream: $0) >= 5
+        }) == true {
+            score += 1_000
+        }
+
+        if sourcePart?.streams.contains(where: {
+            $0.streamType == .audio &&
+                ($0.isDefault ?? false) &&
+                scoreAudioMatch(track: track, stream: $0) >= 5
+        }) == true {
+            score += 500
+        }
+
+        score += (track.channels ?? Self.inferredChannelCount(from: track) ?? 0) * 40
+        score += Self.audioCodecPreferenceScore(for: track)
+
+        if Self.containsCommentaryMarker(track.displayTitle) {
+            score -= 2_000
+        }
+
+        if Self.containsDescriptiveAudioMarker(track.displayTitle) {
+            score -= 1_500
+        }
+
+        if (track.channels ?? Self.inferredChannelCount(from: track)) == 2 ||
+            Self.containsStereoDownmixMarker(track.displayTitle) {
+            score -= 40
+        }
+
+        return score - originalIndex
+    }
+
     func scoreSubtitleMatch(track: SubtitleTrack, stream: PlexStream) -> Int {
         var score = 0
 
@@ -352,5 +405,112 @@ extension PlayerViewModel {
         return normalized.contains("sdh")
             || normalized.contains("cc")
             || normalized.contains("hearing impaired")
+    }
+
+    static func containsCommentaryMarker(_ value: String) -> Bool {
+        let normalized = normalizedTitle(value) ?? ""
+        return normalized.contains("commentary")
+            || normalized.contains("director commentary")
+            || normalized.contains("commentary with")
+            || normalized.contains("cast commentary")
+            || normalized.contains("crew commentary")
+            || normalized.contains("producer commentary")
+    }
+
+    static func containsDescriptiveAudioMarker(_ value: String) -> Bool {
+        let normalized = normalizedTitle(value) ?? ""
+        return normalized.contains("audio description")
+            || normalized.contains("descriptive audio")
+            || normalized.contains("descriptive video")
+            || normalized.contains("visually impaired")
+            || normalized.contains("narration")
+    }
+
+    static func containsStereoDownmixMarker(_ value: String) -> Bool {
+        let normalized = normalizedTitle(value) ?? ""
+        return normalized.contains("stereo")
+            || normalized.contains("downmix")
+            || normalized.contains("2 0")
+    }
+
+    static func audioCodecPreferenceScore(for track: AudioTrack) -> Int {
+        let normalized = [
+            track.codec,
+            track.displayTitle,
+            track.channelLayout,
+        ]
+        .compactMap { normalizedTitle($0) }
+        .joined(separator: " ")
+
+        let hasAtmos = normalized.contains("atmos") || normalized.contains("joc")
+        if hasAtmos && (normalized.contains("eac3") || normalized.contains("e ac3") ||
+            normalized.contains("ec 3") ||
+            normalized.contains("ddp") || normalized.contains("dolby digital plus")) {
+            return 520
+        }
+        if hasAtmos && (normalized.contains("truehd") || normalized.contains("mlp")) {
+            return 500
+        }
+        if normalized.contains("truehd") || normalized.contains("mlp") {
+            return 460
+        }
+        if normalized.contains("dts hd ma") || normalized.contains("dts hd") ||
+            normalized.contains("dtshd") {
+            return 430
+        }
+        if normalized.contains("eac3") || normalized.contains("e ac3") ||
+            normalized.contains("ec 3") ||
+            normalized.contains("ddp") || normalized.contains("dolby digital plus") {
+            return 400
+        }
+        if normalized.contains("ac3") || normalized.contains("a52") ||
+            normalized.contains("dolby digital") {
+            return 340
+        }
+        if normalized.contains("dts") || normalized.contains("dca") {
+            return 320
+        }
+        if normalized.contains("flac") {
+            return 260
+        }
+        if normalized.contains("alac") {
+            return 240
+        }
+        if normalized.contains("aac") {
+            return 160
+        }
+        if normalized.contains("mp3") {
+            return 80
+        }
+
+        return 0
+    }
+
+    static func inferredChannelCount(from track: AudioTrack) -> Int? {
+        let normalized = [
+            track.displayTitle,
+            track.channelLayout,
+        ]
+        .compactMap { normalizedTitle($0) }
+        .joined(separator: " ")
+
+        if normalized.contains("7 1") || normalized.contains("8ch") || normalized.contains("8 ch") {
+            return 8
+        }
+        if normalized.contains("6 1") || normalized.contains("7ch") || normalized.contains("7 ch") {
+            return 7
+        }
+        if normalized.contains("5 1") || normalized.contains("6ch") || normalized.contains("6 ch") {
+            return 6
+        }
+        if normalized.contains("4 0") || normalized.contains("4ch") || normalized.contains("4 ch") {
+            return 4
+        }
+        if normalized.contains("2 0") || normalized.contains("2ch") || normalized.contains("2 ch") ||
+            normalized.contains("stereo") {
+            return 2
+        }
+
+        return nil
     }
 }

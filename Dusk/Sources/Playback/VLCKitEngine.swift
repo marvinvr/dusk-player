@@ -61,6 +61,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var availableAudioTracks: [AudioTrack] = []
     private(set) var selectedSubtitleTrackID: Int?
     private(set) var selectedAudioTrackID: Int?
+    private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = []
     var onPlaybackEnded: (@MainActor () -> Void)?
 
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
@@ -75,6 +76,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var pendingSeekStartedAt: Date?
     private var currentAttemptContext: PlaybackAttemptContext?
     private var currentSource: PlaybackSource?
+    private var lastAppliedAudioMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var seekVerificationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
@@ -129,6 +131,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         availableAudioTracks = []
         selectedSubtitleTrackID = nil
         selectedAudioTrackID = nil
+        playbackDiagnostics = []
+        lastAppliedAudioMixMode = .modeUnset
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
@@ -189,6 +193,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         mediaPlayer.stop()
         state = .stopped
         hasReportedPlaybackEnded = false
+        playbackDiagnostics = []
         currentAttemptContext = nil
         currentSource = nil
         syncRendererPlaybackState()
@@ -254,6 +259,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         availableAudioTracks = []
         selectedSubtitleTrackID = nil
         selectedAudioTrackID = nil
+        playbackDiagnostics = []
         syncRendererPlaybackState()
 
         finishValidatedLoad(source: source, attemptID: source.context.attemptID)
@@ -277,6 +283,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             .first { Int($0.identifier) == track.id }?
             .isSelectedExclusively = true
         selectedAudioTrackID = track.id
+        configureAudioOutputPolicy(reason: "audio-track-selected")
     }
 
     func makePlayerView() -> AnyView {
@@ -582,6 +589,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             )
         }
         selectedAudioTrackID = mediaPlayer.audioTracks.first(where: \.isSelected).map { Int($0.identifier) }
+        configureAudioOutputPolicy(reason: "tracks-refreshed")
 
         availableSubtitleTracks = mediaPlayer.textTracks.map { track in
             SubtitleTrack(
@@ -625,11 +633,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let session = AVAudioSession.sharedInstance()
         let route = session.currentRoute
         let outputs = route.outputs
+        let selectedTrack = selectedVLCTrack()
+        let selectedTrackLabel = selectedTrack.map { trackDisplayTitle(for: $0) } ?? "Unknown"
+        let selectedChannels = selectedTrack.flatMap { Int($0.audio?.channelsNumber ?? 0).nonZeroValue }
         let outputChannelCount = max(
             Int(session.outputNumberOfChannels),
             outputs.compactMap { $0.channels?.count }.max() ?? 0
         )
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
+        let targetMixMode = desiredAudioMixMode(forChannelCount: selectedChannels)
+        let preferredOutputChannels = preferredOutputChannelCount(for: targetMixMode)
 
         if #available(iOS 15.0, tvOS 15.0, *) {
             do {
@@ -641,12 +654,24 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             }
         }
 
-        let targetMixMode = VLCMediaPlayer.AudioMixMode.modeUnset
+        if let preferredOutputChannels,
+           maximumOutputChannelCount >= preferredOutputChannels,
+           session.preferredOutputNumberOfChannels != preferredOutputChannels {
+            do {
+                try session.setPreferredOutputNumberOfChannels(preferredOutputChannels)
+            } catch {
+                vlcKitEngineLogger.debug(
+                    "Failed to set preferred output channel count \(preferredOutputChannels, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+
         mediaPlayer.audio?.passthrough = false
         mediaPlayer.equalizer = nil
         if mediaPlayer.audioMixMode != targetMixMode {
             mediaPlayer.audioMixMode = targetMixMode
         }
+        lastAppliedAudioMixMode = mediaPlayer.audioMixMode
 
         let routeSummary = outputs.map { output in
             let channelCount = output.channels?.count ?? 0
@@ -657,10 +682,87 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             }
         }.joined(separator: ", ")
 
+        playbackDiagnostics = [
+            PlaybackEngineDiagnostic(
+                label: "VLC Audio Track",
+                value: "\(selectedTrackLabel) / \(selectedChannels.map { "\($0)ch" } ?? "unknown channels")"
+            ),
+            PlaybackEngineDiagnostic(
+                label: "VLC Audio Output",
+                value: "mix=\(audioMixModeLabel(lastAppliedAudioMixMode)), passthrough=\(mediaPlayer.audio?.passthrough == true ? "On" : "Off")"
+            ),
+            PlaybackEngineDiagnostic(
+                label: "Audio Route",
+                value: routeSummary.isEmpty ? "Unknown" : routeSummary
+            ),
+            PlaybackEngineDiagnostic(
+                label: "Output Channels",
+                value: "current=\(outputChannelCount), preferred=\(session.preferredOutputNumberOfChannels), max=\(maximumOutputChannelCount)"
+            ),
+        ]
+
         vlcKitEngineLogger.notice(
-            "Applied VLC audio policy reason=\(reason, privacy: .public) mixMode=\(String(describing: targetMixMode), privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
+            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) mixMode=\(audioMixModeLabel(lastAppliedAudioMixMode), privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
         )
         #endif
+    }
+
+    private func selectedVLCTrack() -> VLCMediaPlayer.Track? {
+        if let selectedAudioTrackID,
+           let track = mediaPlayer.audioTracks.first(where: { Int($0.identifier) == selectedAudioTrackID }) {
+            return track
+        }
+
+        return mediaPlayer.audioTracks.first(where: \.isSelected)
+            ?? mediaPlayer.audioTracks.first
+    }
+
+    private func desiredAudioMixMode(forChannelCount channels: Int?) -> VLCMediaPlayer.AudioMixMode {
+        guard let channels else { return .modeUnset }
+
+        if channels >= 8 {
+            return .mode7_1
+        }
+        if channels >= 6 {
+            return .mode5_1
+        }
+        if channels >= 4 {
+            return .mode4_0
+        }
+
+        return .modeUnset
+    }
+
+    private func preferredOutputChannelCount(for mode: VLCMediaPlayer.AudioMixMode) -> Int? {
+        switch mode {
+        case .mode7_1:
+            8
+        case .mode5_1:
+            6
+        case .mode4_0:
+            4
+        default:
+            nil
+        }
+    }
+
+    private func audioMixModeLabel(_ mode: VLCMediaPlayer.AudioMixMode) -> String {
+        switch mode {
+        case .modeUnset:
+            "Unset"
+        case .modeStereo:
+            "Stereo"
+        case .modeBinaural:
+            "Binaural"
+        case .mode4_0:
+            "4.0"
+        case .mode5_1:
+            "5.1"
+        case .mode7_1:
+            "7.1"
+        @unknown default:
+            String(describing: mode)
+        }
     }
 
     private func registerAudioSessionObserversIfNeeded() {

@@ -91,6 +91,15 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - AVPlayer uses `AVPlayerLayer`, KVO, media-selection groups, and text style
   rules. VLCKit uses `VLCMediaPlayer`, delegate callbacks, track APIs, media
   options, and renderer hosts split by platform.
+- Automatic audio selection keeps the user's preferred language, then ranks
+  tracks by Plex selected/default metadata, channel count, codec desirability,
+  and non-commentary/non-descriptive titles. This prevents a matching-language
+  commentary or stereo downmix from beating a theatrical 5.1/7.1/Atmos-style
+  track.
+- VLCKit keeps encoded passthrough off, but automatically nudges the output mix
+  mode to 5.1 or 7.1 for matching selected audio tracks when the OS route can
+  accept it. Playback Info exposes the selected VLC audio track, mix mode,
+  passthrough state, route, and channel counts for debugging route differences.
 - Both engines perform preflight direct-play validation via
   `PlaybackError.validateDirectPlayURL`.
 - Buffering defaults are centralized in `PlaybackBufferPolicy`: AVPlayer targets

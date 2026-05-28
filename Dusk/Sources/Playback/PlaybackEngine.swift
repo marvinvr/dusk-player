@@ -15,6 +15,13 @@ enum PlaybackBufferPolicy {
     static let vlcFileCachingMilliseconds = 8_000
 }
 
+struct PlaybackEngineDiagnostic: Sendable, Identifiable {
+    let label: String
+    let value: String
+
+    var id: String { label }
+}
+
 /// Unified interface for media playback. Concrete implementations wrap
 /// AVPlayer (`AVPlayerEngine`) or VLCKit (`VLCKitEngine`).
 ///
@@ -45,6 +52,7 @@ protocol PlaybackEngine: AnyObject {
     var isBuffering: Bool { get }
     var error: PlaybackError? { get }
     var onPlaybackEnded: (@MainActor () -> Void)? { get set }
+    var playbackDiagnostics: [PlaybackEngineDiagnostic] { get }
 
     // MARK: - Track Selection
 
@@ -60,6 +68,10 @@ protocol PlaybackEngine: AnyObject {
     /// Returns a platform-specific view that renders the video content.
     func makePlayerView() -> AnyView
 
+}
+
+extension PlaybackEngine {
+    var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
 }
 
 @MainActor

@@ -336,7 +336,9 @@ private struct PlayerSessionView: View {
                 PlayerPlaybackInfoView(
                     debugInfo: debugInfo,
                     state: viewModel.state,
-                    isBuffering: viewModel.isBuffering
+                    isBuffering: viewModel.isBuffering,
+                    selectedAudioTrack: viewModel.selectedAudioTrack,
+                    engineDiagnostics: viewModel.engine.playbackDiagnostics
                 )
             } else {
                 PlayerPlaybackInfoUnavailableView()
