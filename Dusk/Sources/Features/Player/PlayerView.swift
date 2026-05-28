@@ -3,7 +3,11 @@ import UIKit
 
 enum PlayerOverlayLayout {
     static let controlsHorizontalPadding: CGFloat = 16
+    #if os(tvOS)
+    static let skipMarkerBottomInset: CGFloat = 184
+    #else
     static let skipMarkerBottomInset: CGFloat = 108
+    #endif
     #if os(tvOS)
     static let remoteSeekInterval: TimeInterval = 10
     #endif
