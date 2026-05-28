@@ -30,7 +30,7 @@ struct PlayerMediaHeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(header.title)
-                .font(.headline.weight(.semibold))
+                .font(titleFont)
                 .foregroundStyle(.white)
                 #if os(tvOS)
                 .lineLimit(2)
@@ -66,6 +66,14 @@ struct PlayerMediaHeaderView: View {
         #endif
         .layoutPriority(1)
         .shadow(color: .black.opacity(0.35), radius: 10, y: 2)
+    }
+
+    private var titleFont: Font {
+        #if os(tvOS)
+        header.usesCompactTitleOnTV ? .subheadline.weight(.semibold) : .headline.weight(.semibold)
+        #else
+        .headline.weight(.semibold)
+        #endif
     }
 }
 

@@ -57,14 +57,16 @@ struct PlayerControlsOverlay: View {
             return PlayerMediaHeader(
                 title: title,
                 secondaryTitle: secondaryTitle,
-                subtitle: subtitle
+                subtitle: subtitle,
+                usesCompactTitleOnTV: true
             )
         }
 
         return PlayerMediaHeader(
             title: mediaDetails.title,
             secondaryTitle: nil,
-            subtitle: mediaDetails.year.map(String.init)
+            subtitle: mediaDetails.year.map(String.init),
+            usesCompactTitleOnTV: false
         )
     }
 
@@ -110,4 +112,5 @@ struct PlayerMediaHeader {
     let title: String
     let secondaryTitle: String?
     let subtitle: String?
+    let usesCompactTitleOnTV: Bool
 }
