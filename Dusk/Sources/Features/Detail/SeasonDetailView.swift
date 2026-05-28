@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct SeasonDetailView: View {
+    @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -46,6 +47,11 @@ struct SeasonDetailView: View {
         .task {
             await viewModel.load()
         }
+#if os(tvOS)
+        .task(id: viewModel.nextEpisodeToPlay?.ratingKey) {
+            await loadInitialTVEpisodeDetailsIfNeeded()
+        }
+#endif
         .onChange(of: playback.showPlayer) { _, isShowing in
             if !isShowing {
                 Task { await viewModel.refresh() }
@@ -106,9 +112,15 @@ struct SeasonDetailView: View {
                     episodesSection(width: geometry.size.width)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 40)
-                        .padding(.bottom, 56)
+                        .padding(.bottom, episodesBottomPadding)
 #if os(tvOS)
                         .focusSection()
+#endif
+
+#if os(tvOS)
+                    tvEpisodeCastSection()
+                        .padding(.top, 8)
+                        .padding(.bottom, 56)
 #endif
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
@@ -144,7 +156,7 @@ struct SeasonDetailView: View {
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
             posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
-            title: details.title,
+            title: heroTitle(fallback: details.title),
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
@@ -168,6 +180,24 @@ struct SeasonDetailView: View {
                 }
             }
         )
+    }
+
+    private var episodesBottomPadding: CGFloat {
+        #if os(tvOS)
+        selectedTVEpisodeRoles.isEmpty ? 56 : 24
+        #else
+        56
+        #endif
+    }
+
+    private func heroTitle(fallback: String) -> String {
+        #if os(tvOS)
+        if let episode = focusedTVEpisode {
+            return viewModel.episodeLabel(episode) ?? episode.title
+        }
+        #endif
+
+        return fallback
     }
 
     @ViewBuilder
@@ -201,16 +231,26 @@ struct SeasonDetailView: View {
             ?? viewModel.displayEpisodes.first
     }
 
+    private var selectedTVEpisodeDetails: PlexMediaDetails? {
+        if viewModel.focusedEpisodeDetails?.ratingKey == focusedTVEpisode?.ratingKey {
+            return viewModel.focusedEpisodeDetails
+        }
+
+        if viewModel.nextEpisodeDetails?.ratingKey == focusedTVEpisode?.ratingKey {
+            return viewModel.nextEpisodeDetails
+        }
+
+        return nil
+    }
+
+    private var selectedTVEpisodeRoles: [PlexRole] {
+        selectedTVEpisodeDetails?.roles ?? []
+    }
+
     @ViewBuilder
     private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
         if let episode = focusedTVEpisode {
             VStack(alignment: .leading, spacing: 6) {
-                if let label = viewModel.episodeLabel(episode) {
-                    Text(label)
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(Color.white.opacity(0.76))
-                }
-
                 Text(episode.title)
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(Color.white)
@@ -233,6 +273,17 @@ struct SeasonDetailView: View {
             }
         } else {
             metadataTagline(details)
+        }
+    }
+
+    @ViewBuilder
+    private func tvEpisodeCastSection() -> some View {
+        if !selectedTVEpisodeRoles.isEmpty {
+            DetailCastSection(
+                roles: selectedTVEpisodeRoles,
+                plexService: plexService,
+                title: "Episode Cast"
+            )
         }
     }
     #endif
@@ -314,18 +365,13 @@ struct SeasonDetailView: View {
                             TVSeasonEpisodeCard(
                                 episode: episode,
                                 imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
-                                label: viewModel.episodeLabel(episode),
-                                subtitle: viewModel.episodeSubtitle(episode),
                                 progress: viewModel.progress(for: episode),
-                                downloadStatus: viewModel.downloadStatus(for: episode),
-                                isPlayableOffline: viewModel.isPlayableOffline(episode),
                                 isUnavailableOffline: viewModel.isUnavailableOffline(episode),
                                 isWatched: viewModel.isWatched(episode),
-                                isUsingCachedData: viewModel.isUsingCachedData,
-                                showsOfflineAvailability: viewModel.showsOfflineAvailability,
                                 artworkWidth: artworkWidth,
                                 onFocus: {
                                     focusedTVEpisodeKey = episode.ratingKey
+                                    Task { await viewModel.focusEpisode(episode) }
                                 },
                                 onPlay: {
                                     guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
@@ -381,6 +427,15 @@ struct SeasonDetailView: View {
             #endif
         }
     }
+
+    #if os(tvOS)
+    @MainActor
+    private func loadInitialTVEpisodeDetailsIfNeeded() async {
+        guard focusedTVEpisodeKey == nil, let episode = focusedTVEpisode else { return }
+        focusedTVEpisodeKey = episode.ratingKey
+        await viewModel.focusEpisode(episode)
+    }
+    #endif
 
     private var usesInlineEpisodeSummaryLayout: Bool {
         #if os(iOS)
@@ -564,15 +619,9 @@ private struct SeasonHeroActions: View {
 private struct TVSeasonEpisodeCard: View {
     let episode: PlexEpisode
     let imageURL: URL?
-    let label: String?
-    let subtitle: String?
     let progress: Double?
-    let downloadStatus: DownloadStatus?
-    let isPlayableOffline: Bool
     let isUnavailableOffline: Bool
     let isWatched: Bool
-    let isUsingCachedData: Bool
-    let showsOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let onFocus: () -> Void
     let onPlay: () -> Void
@@ -594,8 +643,9 @@ private struct TVSeasonEpisodeCard: View {
                     imageURL: imageURL,
                     progress: progress,
                     artworkWidth: artworkWidth,
-                    showsPlayOverlay: true,
-                    isUnavailableOffline: isUnavailableOffline
+                    showsPlayOverlay: false,
+                    isUnavailableOffline: isUnavailableOffline,
+                    isWatched: isWatched
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -603,20 +653,6 @@ private struct TVSeasonEpisodeCard: View {
             .focused($isFocused)
             .accessibilityLabel("Play \(episode.title)")
             .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
-
-            SeasonEpisodeTextContent(
-                episode: episode,
-                label: label,
-                subtitle: subtitle,
-                downloadStatus: downloadStatus,
-                isPlayableOffline: isPlayableOffline,
-                isUnavailableOffline: isUnavailableOffline,
-                isWatched: isWatched,
-                isUsingCachedData: isUsingCachedData,
-                showsOfflineAvailability: showsOfflineAvailability,
-                showsInlineSummary: false
-            )
-            .frame(width: artworkWidth, alignment: .topLeading)
         }
         .frame(width: artworkWidth, alignment: .topLeading)
         .zIndex(isFocused ? 1 : 0)
@@ -786,6 +822,7 @@ private struct SeasonEpisodePosterArtwork: View {
     let artworkWidth: CGFloat
     let showsPlayOverlay: Bool
     let isUnavailableOffline: Bool
+    var isWatched = false
 
     var body: some View {
         PosterArtwork(
@@ -795,6 +832,16 @@ private struct SeasonEpisodePosterArtwork: View {
             imageAspectRatio: 16.0 / 9.0,
             showsPlayOverlay: showsPlayOverlay
         )
+        .overlay(alignment: .topTrailing) {
+            if isWatched {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(Color.duskAccent)
+                    .padding(10)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .padding(12)
+            }
+        }
         .opacity(isUnavailableOffline ? 0.46 : 1)
     }
 }

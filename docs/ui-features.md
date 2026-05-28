@@ -138,9 +138,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SeasonDetailViewModel` loads season details and episodes, computes the next episode,
   sorts offline-available episodes first when appropriate, and records offline watch
   mutations.
-- `SeasonDetailView` uses a tvOS-only horizontal episode shelf. Focused episode cards
-  update the hero subtitle area with episode title, metadata, and summary. Selecting a
-  tvOS episode card starts playback directly while iOS keeps the vertical episode list
+- `SeasonDetailView` uses a tvOS-only horizontal, poster-only episode shelf. Focused
+  episode cards update the hero title/subtitle area and the episode cast row; selecting
+  a tvOS episode card starts playback directly while iOS keeps the vertical episode list
   and detail-navigation behavior.
 - `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
   watch toggles, and offline availability.

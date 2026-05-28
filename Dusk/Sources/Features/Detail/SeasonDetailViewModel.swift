@@ -12,11 +12,14 @@ final class SeasonDetailViewModel {
     private(set) var details: PlexMediaDetails?
     private(set) var episodes: [PlexEpisode] = []
     private(set) var nextEpisodeDetails: PlexMediaDetails?
+    private(set) var focusedEpisodeDetails: PlexMediaDetails?
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
     private(set) var isUsingOfflineFallback = false
     private(set) var offlineStateVersion = 0
+    private var focusedEpisodeRatingKey: String?
+    private var episodeDetailsCache: [String: PlexMediaDetails] = [:]
 
     init(
         ratingKey: String,
@@ -69,6 +72,33 @@ final class SeasonDetailViewModel {
                 offlineStateVersion += 1
             } else {
                 self.error = error.localizedDescription
+            }
+        }
+    }
+
+    func focusEpisode(_ episode: PlexEpisode) async {
+        let ratingKey = episode.ratingKey
+        focusedEpisodeRatingKey = ratingKey
+
+        if let cached = episodeDetailsCache[ratingKey] {
+            focusedEpisodeDetails = cached
+            return
+        }
+
+        if let cached = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+            episodeDetailsCache[ratingKey] = cached
+            focusedEpisodeDetails = cached
+        }
+
+        do {
+            let details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            episodeDetailsCache[ratingKey] = details
+            if focusedEpisodeRatingKey == ratingKey {
+                focusedEpisodeDetails = details
+            }
+        } catch {
+            if focusedEpisodeRatingKey == ratingKey {
+                focusedEpisodeDetails = episodeDetailsCache[ratingKey]
             }
         }
     }
@@ -282,8 +312,14 @@ final class SeasonDetailViewModel {
 
         do {
             nextEpisodeDetails = try await plexService.getMediaDetails(ratingKey: nextEpisodeToPlay.ratingKey)
+            if let nextEpisodeDetails {
+                episodeDetailsCache[nextEpisodeToPlay.ratingKey] = nextEpisodeDetails
+            }
         } catch {
             nextEpisodeDetails = downloadManager?.cachedMediaDetails(ratingKey: nextEpisodeToPlay.ratingKey)
+            if let nextEpisodeDetails {
+                episodeDetailsCache[nextEpisodeToPlay.ratingKey] = nextEpisodeDetails
+            }
         }
     }
 
