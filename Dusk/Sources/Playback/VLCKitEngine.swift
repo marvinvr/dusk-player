@@ -634,7 +634,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let route = session.currentRoute
         let outputs = route.outputs
         let selectedTrack = selectedVLCTrack()
-        let selectedTrackLabel = selectedTrack.map { trackDisplayTitle(for: $0) } ?? "Unknown"
+        let selectedTrackLabel = selectedTrack.map { self.trackDisplayTitle(for: $0) } ?? "Unknown"
         let selectedChannels = selectedTrack.flatMap { Int($0.audio?.channelsNumber ?? 0).nonZeroValue }
         let outputChannelCount = max(
             Int(session.outputNumberOfChannels),
@@ -689,7 +689,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             ),
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Output",
-                value: "mix=\(audioMixModeLabel(lastAppliedAudioMixMode)), passthrough=\(mediaPlayer.audio?.passthrough == true ? "On" : "Off")"
+                value: "mix=\(self.audioMixModeLabel(self.lastAppliedAudioMixMode)), passthrough=\(self.mediaPlayer.audio?.passthrough == true ? "On" : "Off")"
             ),
             PlaybackEngineDiagnostic(
                 label: "Audio Route",
@@ -702,7 +702,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         ]
 
         vlcKitEngineLogger.notice(
-            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) mixMode=\(audioMixModeLabel(lastAppliedAudioMixMode), privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
+            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) mixMode=\(self.audioMixModeLabel(self.lastAppliedAudioMixMode), privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
         )
         #endif
     }
