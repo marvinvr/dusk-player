@@ -439,13 +439,6 @@ private struct PlayerSessionView: View {
                 .contentShape(.interaction, skipMarkerButtonShape)
                 .contentShape(.hoverEffect, skipMarkerButtonShape)
                 .focusEffectDisabled()
-                .scaleEffect(skipMarkerFocused ? 1.05 : 1.0)
-                .shadow(
-                    color: skipMarkerFocused ? Color.duskAccent.opacity(0.30) : .clear,
-                    radius: skipMarkerFocused ? 20 : 0,
-                    y: skipMarkerFocused ? 10 : 0
-                )
-                .animation(.easeOut(duration: 0.18), value: skipMarkerFocused)
                 #else
                 .buttonStyle(.plain)
                 #endif
