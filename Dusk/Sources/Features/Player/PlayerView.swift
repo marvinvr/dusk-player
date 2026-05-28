@@ -364,17 +364,26 @@ private struct PlayerSessionView: View {
     private var interactionOverlay: some View {
         #if os(tvOS)
         GeometryReader { _ in
-            Color.clear
-                .contentShape(Rectangle())
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .focusable(!viewModel.showControls)
-                .focused($backgroundFocused)
-                .onMoveCommand { _ in
-                    if !viewModel.showControls {
-                        viewModel.toggleControls()
+            ZStack {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .focusable(!viewModel.showControls)
+                    .focused($backgroundFocused)
+                    .onMoveCommand { _ in
+                        if !viewModel.showControls {
+                            viewModel.toggleControls()
+                        }
                     }
-                }
-                .onTapGesture { viewModel.toggleControls() }
+                    .onTapGesture { viewModel.toggleControls() }
+
+                PlayerTVTouchSurfaceTapBridge(
+                    isEnabled: !viewModel.showControls,
+                    onTap: { viewModel.toggleControls() }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .allowsHitTesting(!viewModel.showControls)
+            }
         }
         .ignoresSafeArea()
         #else
@@ -538,6 +547,70 @@ private struct PlayerSessionView: View {
 }
 
 #if os(tvOS)
+private struct PlayerTVTouchSurfaceTapBridge: UIViewRepresentable {
+    var isEnabled: Bool
+    var onTap: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(parent: self)
+    }
+
+    func makeUIView(context: Context) -> PlayerTVTouchSurfaceTapView {
+        let view = PlayerTVTouchSurfaceTapView()
+        view.backgroundColor = .clear
+        context.coordinator.tapRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
+        context.coordinator.tapRecognizer.allowedPressTypes = []
+        context.coordinator.tapRecognizer.cancelsTouchesInView = false
+        view.addGestureRecognizer(context.coordinator.tapRecognizer)
+        context.coordinator.sync(view, with: self)
+        return view
+    }
+
+    func updateUIView(_ uiView: PlayerTVTouchSurfaceTapView, context: Context) {
+        context.coordinator.sync(uiView, with: self)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject {
+        private var parent: PlayerTVTouchSurfaceTapBridge
+        let tapRecognizer = UITapGestureRecognizer()
+
+        init(parent: PlayerTVTouchSurfaceTapBridge) {
+            self.parent = parent
+            super.init()
+            tapRecognizer.numberOfTapsRequired = 1
+            tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
+        }
+
+        func sync(_ view: PlayerTVTouchSurfaceTapView, with parent: PlayerTVTouchSurfaceTapBridge) {
+            self.parent = parent
+            view.isTapEnabled = parent.isEnabled
+        }
+
+        @objc
+        private func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard parent.isEnabled,
+                  recognizer.state == .ended else {
+                return
+            }
+
+            parent.onTap()
+        }
+    }
+}
+
+private final class PlayerTVTouchSurfaceTapView: UIView {
+    var isTapEnabled = false {
+        didSet {
+            isUserInteractionEnabled = isTapEnabled
+        }
+    }
+
+    override var canBecomeFocused: Bool {
+        false
+    }
+}
+
 private struct PlayerTVRemoteSeekBridge: UIViewRepresentable {
     var isEnabled: Bool
     var showsControls: Bool

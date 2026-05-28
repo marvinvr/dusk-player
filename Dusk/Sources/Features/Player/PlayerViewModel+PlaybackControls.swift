@@ -281,6 +281,7 @@ extension PlayerViewModel {
             !showAudioPicker &&
             !showQualityPicker &&
             !showPlaybackInfo &&
+            state == .playing &&
             state != .stopped &&
             state != .error
     }
@@ -289,6 +290,7 @@ extension PlayerViewModel {
         showControls &&
             controlsAutoHideIsArmed &&
             playbackError == nil &&
+            state == .playing &&
             state != .stopped &&
             state != .error
     }
