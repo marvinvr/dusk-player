@@ -73,9 +73,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   hubs so the custom continue-watching flow is not duplicated.
 - Recently Added hubs are expanded through `getHubItems(...)` so shelf limits are
   intentional and "Show all" can point to `.hub`.
-- `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS remote swipe
-  capture, image preloading, title-logo fallback, pager state, and motion reduction.
-  Extend it carefully; it is stateful and timing-sensitive.
+- `HomeCinematicHero` owns optional hero rotation, drag navigation on iOS, tvOS remote
+  swipe capture, image preloading, title-logo fallback, pager state, and motion
+  reduction. The home shells keep automatic rotation disabled so returning from
+  playback preserves the selected hero instead of advancing in the background. Extend
+  it carefully; it is stateful and timing-sensitive.
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,

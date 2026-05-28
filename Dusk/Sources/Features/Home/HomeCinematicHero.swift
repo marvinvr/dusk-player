@@ -176,7 +176,7 @@ struct HomeCinematicHero: View {
         .frame(maxWidth: .infinity)
         .clipped()
         .contentShape(Rectangle())
-        .onChange(of: heroItemIDs) { _, ids in
+        .onChange(of: heroItemIDs) { previousIDs, ids in
             guard !ids.isEmpty else {
                 resetHeroSlideState()
                 resetHeroDragState()
@@ -184,8 +184,11 @@ struct HomeCinematicHero: View {
                 return
             }
 
-            if currentHeroIndex >= ids.count {
-                currentHeroIndex = 0
+            if previousIDs.indices.contains(currentHeroIndex),
+               let updatedIndex = ids.firstIndex(of: previousIDs[currentHeroIndex]) {
+                currentHeroIndex = updatedIndex
+            } else if currentHeroIndex >= ids.count {
+                currentHeroIndex = max(ids.count - 1, 0)
             }
 
             resetHeroSlideState()

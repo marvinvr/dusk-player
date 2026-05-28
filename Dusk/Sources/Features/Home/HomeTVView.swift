@@ -45,7 +45,7 @@ struct HomeTVView: View {
                             contentLeadingInset: leadingContentInset,
                             contentTrailingInset: trailingContentInset,
                             layout: .tv,
-                            autoRotates: true,
+                            autoRotates: false,
                             supportsDragNavigation: false,
                             primaryAction: { item, callbacks in
                                 AnyView(

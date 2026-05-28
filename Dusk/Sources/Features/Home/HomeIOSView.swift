@@ -27,7 +27,7 @@ struct HomeIOSView: View {
                             containerSize: geometry.size,
                             topInset: geometry.safeAreaInsets.top,
                             layout: .ios,
-                            autoRotates: true,
+                            autoRotates: false,
                             supportsDragNavigation: true,
                             primaryAction: { item, callbacks in
                                 AnyView(
