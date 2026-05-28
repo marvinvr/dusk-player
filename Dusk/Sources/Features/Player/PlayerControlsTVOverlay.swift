@@ -156,6 +156,7 @@ struct PlayerControlsTVOverlay: View {
                     .overlay {
                         PlayerTVScrubGestureBridge(
                             minimumScrubDistance: minimumScrubDistance,
+                            isPressCaptureEnabled: focusedControl == .seekPoint,
                             onTap: {
                                 guard focusedControl == .seekPoint else { return }
                                 if tvScrubCursorPosition != nil {
@@ -373,6 +374,7 @@ struct PlayerControlsTVOverlay: View {
 
 private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     let minimumScrubDistance: CGFloat
+    let isPressCaptureEnabled: Bool
     let onTap: () -> Void
     let onTouchSurfaceTap: () -> Void
     let onScrubChanged: (CGFloat) -> Void
@@ -392,22 +394,21 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         context.coordinator.touchSurfaceTapRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         context.coordinator.touchSurfaceTapRecognizer.allowedPressTypes = []
         context.coordinator.touchSurfaceTapRecognizer.cancelsTouchesInView = false
+        context.coordinator.touchSurfaceTapRecognizer.require(toFail: context.coordinator.tapRecognizer)
         context.coordinator.panRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         context.coordinator.panRecognizer.delegate = context.coordinator
-        context.coordinator.leftLongPressRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.leftArrow.rawValue)]
-        context.coordinator.rightLongPressRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.rightArrow.rawValue)]
 
         view.addGestureRecognizer(context.coordinator.tapRecognizer)
         view.addGestureRecognizer(context.coordinator.touchSurfaceTapRecognizer)
         view.addGestureRecognizer(context.coordinator.panRecognizer)
-        view.addGestureRecognizer(context.coordinator.leftLongPressRecognizer)
-        view.addGestureRecognizer(context.coordinator.rightLongPressRecognizer)
         context.coordinator.sync(with: self)
+        context.coordinator.sync(view, with: self)
         return view
     }
 
     func updateUIView(_ uiView: PlayerTVScrubGestureView, context: Context) {
         context.coordinator.sync(with: self)
+        context.coordinator.sync(uiView, with: self)
     }
 
     @MainActor
@@ -416,30 +417,25 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         let tapRecognizer = UITapGestureRecognizer()
         let touchSurfaceTapRecognizer = UITapGestureRecognizer()
         let panRecognizer = UIPanGestureRecognizer()
-        let leftLongPressRecognizer = UILongPressGestureRecognizer()
-        let rightLongPressRecognizer = UILongPressGestureRecognizer()
         private var hasStartedScrubbing = false
         private var lastPanTranslationWidth: CGFloat = 0
-        private var repeatTask: Task<Void, Never>?
 
         init(parent: PlayerTVScrubGestureBridge) {
             self.parent = parent
             super.init()
-            leftLongPressRecognizer.minimumPressDuration = 0.45
-            rightLongPressRecognizer.minimumPressDuration = 0.45
             tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
             touchSurfaceTapRecognizer.addTarget(self, action: #selector(handleTouchSurfaceTap(_:)))
             panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
-            leftLongPressRecognizer.addTarget(self, action: #selector(handleLeftLongPress(_:)))
-            rightLongPressRecognizer.addTarget(self, action: #selector(handleRightLongPress(_:)))
-        }
-
-        deinit {
-            repeatTask?.cancel()
         }
 
         func sync(with parent: PlayerTVScrubGestureBridge) {
             self.parent = parent
+        }
+
+        func sync(_ view: PlayerTVScrubGestureView, with parent: PlayerTVScrubGestureBridge) {
+            view.isPressCaptureEnabled = parent.isPressCaptureEnabled
+            view.onLeftPress = parent.onRepeatLeft
+            view.onRightPress = parent.onRepeatRight
         }
 
         @objc
@@ -481,43 +477,6 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
             }
         }
 
-        @objc
-        private func handleLeftLongPress(_ recognizer: UILongPressGestureRecognizer) {
-            handleLongPress(recognizer, action: parent.onRepeatLeft)
-        }
-
-        @objc
-        private func handleRightLongPress(_ recognizer: UILongPressGestureRecognizer) {
-            handleLongPress(recognizer, action: parent.onRepeatRight)
-        }
-
-        private func handleLongPress(
-            _ recognizer: UILongPressGestureRecognizer,
-            action: @escaping () -> Void
-        ) {
-            switch recognizer.state {
-            case .began:
-                repeatTask?.cancel()
-                action()
-                repeatTask = Task { @MainActor in
-                    while !Task.isCancelled {
-                        do {
-                            try await Task.sleep(for: .milliseconds(120))
-                        } catch {
-                            return
-                        }
-                        guard !Task.isCancelled else { return }
-                        action()
-                    }
-                }
-            case .ended, .cancelled, .failed:
-                repeatTask?.cancel()
-                repeatTask = nil
-            default:
-                break
-            }
-        }
-
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
@@ -528,8 +487,107 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
 }
 
 private final class PlayerTVScrubGestureView: UIView {
+    var isPressCaptureEnabled = false {
+        didSet {
+            refreshFirstResponderStatus()
+        }
+    }
+
+    var onLeftPress: (() -> Void)?
+    var onRightPress: (() -> Void)?
+
+    private var repeatTask: Task<Void, Never>?
+
     override var canBecomeFocused: Bool {
         false
+    }
+
+    override var canBecomeFirstResponder: Bool {
+        isPressCaptureEnabled && window != nil
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        refreshFirstResponderStatus()
+    }
+
+    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard isPressCaptureEnabled else {
+            super.pressesBegan(presses, with: event)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .leftArrow }) {
+            startRepeating(action: onLeftPress)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .rightArrow }) {
+            startRepeating(action: onRightPress)
+            return
+        }
+
+        super.pressesBegan(presses, with: event)
+    }
+
+    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        guard isPressCaptureEnabled else {
+            super.pressesEnded(presses, with: event)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .leftArrow || $0.type == .rightArrow }) {
+            stopRepeating()
+            return
+        }
+
+        super.pressesEnded(presses, with: event)
+    }
+
+    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        stopRepeating()
+        super.pressesCancelled(presses, with: event)
+    }
+
+    private func startRepeating(action: (() -> Void)?) {
+        repeatTask?.cancel()
+        action?()
+        repeatTask = Task { @MainActor in
+            do {
+                try await Task.sleep(for: .milliseconds(420))
+            } catch {
+                return
+            }
+
+            while !Task.isCancelled {
+                action?()
+                do {
+                    try await Task.sleep(for: .milliseconds(120))
+                } catch {
+                    return
+                }
+            }
+        }
+    }
+
+    private func stopRepeating() {
+        repeatTask?.cancel()
+        repeatTask = nil
+    }
+
+    private func refreshFirstResponderStatus() {
+        guard window != nil else { return }
+
+        if isPressCaptureEnabled {
+            guard !isFirstResponder else { return }
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.isPressCaptureEnabled, self.window != nil else { return }
+                self.becomeFirstResponder()
+            }
+        } else if isFirstResponder {
+            resignFirstResponder()
+            stopRepeating()
+        }
     }
 }
 #endif
