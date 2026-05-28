@@ -475,13 +475,13 @@ private struct PlayerSessionView: View {
         .background {
             ZStack(alignment: .leading) {
                 Capsule()
-                    .fill(.white.opacity(0.08))
+                    .fill(skipMarkerButtonBackgroundColor)
                     .background(.ultraThinMaterial, in: Capsule())
 
                 if let progress = viewModel.autoSkipCountdownProgress {
                     GeometryReader { buttonGeometry in
                         Rectangle()
-                            .fill(.white.opacity(0.18))
+                            .fill(skipMarkerProgressColor)
                             .frame(width: buttonGeometry.size.width * max(0, min(progress, 1)))
                     }
                     .clipShape(Capsule())
@@ -491,10 +491,58 @@ private struct PlayerSessionView: View {
         }
         .overlay {
             Capsule()
-                .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                .strokeBorder(skipMarkerBorderColor, lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+        .shadow(color: skipMarkerShadowColor, radius: skipMarkerShadowRadius, y: skipMarkerShadowYOffset)
         .opacity(0.92)
+    }
+
+    private var skipMarkerButtonBackgroundColor: Color {
+        #if os(tvOS)
+        .black.opacity(skipMarkerFocused ? 0.42 : 0.28)
+        #else
+        .white.opacity(0.08)
+        #endif
+    }
+
+    private var skipMarkerProgressColor: Color {
+        #if os(tvOS)
+        Color.duskAccent.opacity(skipMarkerFocused ? 0.78 : 0.62)
+        #else
+        .white.opacity(0.18)
+        #endif
+    }
+
+    private var skipMarkerBorderColor: Color {
+        #if os(tvOS)
+        .white.opacity(skipMarkerFocused ? 0.32 : 0.18)
+        #else
+        .white.opacity(0.14)
+        #endif
+    }
+
+    private var skipMarkerShadowColor: Color {
+        #if os(tvOS)
+        .black.opacity(0.42)
+        #else
+        .black.opacity(0.28)
+        #endif
+    }
+
+    private var skipMarkerShadowRadius: CGFloat {
+        #if os(tvOS)
+        20
+        #else
+        18
+        #endif
+    }
+
+    private var skipMarkerShadowYOffset: CGFloat {
+        #if os(tvOS)
+        10
+        #else
+        8
+        #endif
     }
 
     private func errorOverlay(_ error: PlaybackError) -> some View {
