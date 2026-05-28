@@ -17,6 +17,8 @@ struct PlayerControlsTVOverlay: View {
     private let bottomPadding: CGFloat = 2
     private let seekTooltipY: CGFloat = -6
     private let minimumScrubDistance: CGFloat = 4
+    private let scrubSensitivity: CGFloat = 1.65
+    private let scrubVelocityProjection: CGFloat = 0.18
 
     private enum FocusTarget: Hashable {
         case seekPoint
@@ -149,13 +151,21 @@ struct PlayerControlsTVOverlay: View {
                             minimumScrubDistance: minimumScrubDistance,
                             onTap: {
                                 guard focusedControl == .seekPoint else { return }
-                                viewModel.togglePlayPause()
+                                if viewModel.isScrubbing {
+                                    commitTVScrub()
+                                } else {
+                                    viewModel.togglePlayPause()
+                                }
                             },
-                            onScrubChanged: { translationWidth in
-                                updateTVScrub(translationWidth: translationWidth, trackWidth: width)
+                            onScrubChanged: { translationWidth, velocityWidth in
+                                updateTVScrub(
+                                    translationWidth: translationWidth,
+                                    velocityWidth: velocityWidth,
+                                    trackWidth: width
+                                )
                             },
                             onScrubEnded: {
-                                endTVScrub()
+                                finishTVScrubPreview()
                             }
                         )
                     }
@@ -218,7 +228,11 @@ struct PlayerControlsTVOverlay: View {
         return min(max(proposedX, halfWidth), totalWidth - halfWidth)
     }
 
-    private func updateTVScrub(translationWidth: CGFloat, trackWidth: CGFloat) {
+    private func updateTVScrub(
+        translationWidth: CGFloat,
+        velocityWidth: CGFloat,
+        trackWidth: CGFloat
+    ) {
         guard focusedControl == .seekPoint,
               viewModel.duration > 0,
               trackWidth > 0 else {
@@ -231,17 +245,28 @@ struct PlayerControlsTVOverlay: View {
         }
         tvScrubStartPosition = startPosition
 
-        let delta = TimeInterval(translationWidth / trackWidth) * viewModel.duration
+        let projectedTranslation = translationWidth + (velocityWidth * scrubVelocityProjection)
+        let delta = TimeInterval((projectedTranslation / trackWidth) * scrubSensitivity) * viewModel.duration
         viewModel.updateScrub(to: startPosition + delta)
     }
 
-    private func endTVScrub() {
+    private func finishTVScrubPreview() {
         guard viewModel.isScrubbing else {
             tvScrubStartPosition = nil
             return
         }
 
-        viewModel.endScrub()
+        tvScrubStartPosition = viewModel.scrubPosition
+        restoreSeekFocus()
+    }
+
+    private func commitTVScrub() {
+        guard viewModel.isScrubbing else {
+            tvScrubStartPosition = nil
+            return
+        }
+
+        viewModel.commitScrub(shouldPlay: true)
         tvScrubStartPosition = nil
         restoreSeekFocus()
     }
@@ -270,20 +295,29 @@ struct PlayerControlsTVOverlay: View {
             focusedControl = focusTargetBelow(currentFocus)
         case .left:
             if currentFocus == .seekPoint {
-                viewModel.handleSeekJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
+                handleSeekPointJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
                 restoreSeekFocus(reset: false)
             } else {
                 focusedControl = focusTargetLeft(currentFocus)
             }
         case .right:
             if currentFocus == .seekPoint {
-                viewModel.handleSeekJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
+                handleSeekPointJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
                 restoreSeekFocus(reset: false)
             } else {
                 focusedControl = focusTargetRight(currentFocus)
             }
         default:
             break
+        }
+    }
+
+    private func handleSeekPointJump(by offset: TimeInterval) {
+        if viewModel.isScrubbing {
+            viewModel.updateScrub(to: viewModel.scrubPosition + offset)
+            tvScrubStartPosition = viewModel.scrubPosition
+        } else {
+            viewModel.handleSeekJump(by: offset)
         }
     }
 
@@ -330,7 +364,7 @@ struct PlayerControlsTVOverlay: View {
 private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     let minimumScrubDistance: CGFloat
     let onTap: () -> Void
-    let onScrubChanged: (CGFloat) -> Void
+    let onScrubChanged: (CGFloat, CGFloat) -> Void
     let onScrubEnded: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -382,6 +416,7 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         @objc
         private func handlePan(_ recognizer: UIPanGestureRecognizer) {
             let translationWidth = recognizer.translation(in: recognizer.view).x
+            let velocityWidth = recognizer.velocity(in: recognizer.view).x
 
             switch recognizer.state {
             case .began, .changed:
@@ -389,7 +424,7 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
                     return
                 }
                 hasStartedScrubbing = true
-                parent.onScrubChanged(translationWidth)
+                parent.onScrubChanged(translationWidth, velocityWidth)
             case .ended, .cancelled, .failed:
                 if hasStartedScrubbing {
                     parent.onScrubEnded()

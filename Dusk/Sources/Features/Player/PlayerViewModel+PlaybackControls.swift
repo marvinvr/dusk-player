@@ -138,8 +138,23 @@ extension PlayerViewModel {
     }
 
     func endScrub() {
-        engine.seek(to: scrubPosition)
+        commitScrub(shouldPlay: false)
+    }
+
+    func commitScrub(shouldPlay: Bool) {
+        let targetPosition = scrubPosition
+        engine.seek(to: targetPosition)
         isScrubbing = false
+
+        if shouldPlay {
+            pendingPlaybackState = .playing
+            pendingPlaybackStateExpiration = Date().addingTimeInterval(Self.pendingPlaybackStateGracePeriod)
+            withAnimation(Self.playPauseAnimation) {
+                state = .playing
+            }
+            engine.play()
+        }
+
         touchControls()
     }
 
