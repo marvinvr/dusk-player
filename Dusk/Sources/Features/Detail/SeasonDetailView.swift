@@ -313,7 +313,6 @@ struct SeasonDetailView: View {
                         ForEach(viewModel.displayEpisodes) { episode in
                             TVSeasonEpisodeCard(
                                 episode: episode,
-                                destination: viewModel.detailRoute(type: .episode, ratingKey: episode.ratingKey),
                                 imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
                                 label: viewModel.episodeLabel(episode),
                                 subtitle: viewModel.episodeSubtitle(episode),
@@ -327,6 +326,10 @@ struct SeasonDetailView: View {
                                 artworkWidth: artworkWidth,
                                 onFocus: {
                                     focusedTVEpisodeKey = episode.ratingKey
+                                },
+                                onPlay: {
+                                    guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
+                                    Task { await playback.play(ratingKey: episode.ratingKey) }
                                 }
                             )
                             .id(episode.ratingKey)
@@ -560,7 +563,6 @@ private struct SeasonHeroActions: View {
 #if os(tvOS)
 private struct TVSeasonEpisodeCard: View {
     let episode: PlexEpisode
-    let destination: AppNavigationRoute
     let imageURL: URL?
     let label: String?
     let subtitle: String?
@@ -573,6 +575,7 @@ private struct TVSeasonEpisodeCard: View {
     let showsOfflineAvailability: Bool
     let artworkWidth: CGFloat
     let onFocus: () -> Void
+    let onPlay: () -> Void
 
     @FocusState private var isFocused: Bool
 
@@ -586,19 +589,19 @@ private struct TVSeasonEpisodeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
-            NavigationLink(value: destination) {
+            Button(action: onPlay) {
                 SeasonEpisodePosterArtwork(
                     imageURL: imageURL,
                     progress: progress,
                     artworkWidth: artworkWidth,
-                    showsPlayOverlay: false,
+                    showsPlayOverlay: true,
                     isUnavailableOffline: isUnavailableOffline
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
             .buttonStyle(.card)
             .focused($isFocused)
-            .accessibilityLabel("View \(episode.title)")
+            .accessibilityLabel("Play \(episode.title)")
             .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
 
             SeasonEpisodeTextContent(

@@ -135,8 +135,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   sorts offline-available episodes first when appropriate, and records offline watch
   mutations.
 - `SeasonDetailView` uses a tvOS-only horizontal episode shelf. Focused episode cards
-  update the hero subtitle area with episode title, metadata, and summary while iOS keeps
-  the vertical episode list.
+  update the hero subtitle area with episode title, metadata, and summary. Selecting a
+  tvOS episode card starts playback directly while iOS keeps the vertical episode list
+  and detail-navigation behavior.
 - `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
   watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role
