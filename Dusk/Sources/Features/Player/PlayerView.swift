@@ -434,7 +434,16 @@ private struct PlayerSessionView: View {
                 #if os(tvOS)
                 .focused($skipMarkerFocused)
                 .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
+                .contentShape(.interaction, skipMarkerButtonShape)
+                .contentShape(.hoverEffect, skipMarkerButtonShape)
+                .focusEffectDisabled()
+                .scaleEffect(skipMarkerFocused ? 1.05 : 1.0)
+                .shadow(
+                    color: skipMarkerFocused ? Color.duskAccent.opacity(0.30) : .clear,
+                    radius: skipMarkerFocused ? 20 : 0,
+                    y: skipMarkerFocused ? 10 : 0
+                )
+                .animation(.easeOut(duration: 0.18), value: skipMarkerFocused)
                 #else
                 .buttonStyle(.plain)
                 #endif
@@ -474,9 +483,9 @@ private struct PlayerSessionView: View {
         #endif
         .background {
             ZStack(alignment: .leading) {
-                Capsule()
+                skipMarkerButtonShape
                     .fill(skipMarkerButtonBackgroundColor)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background(.ultraThinMaterial, in: skipMarkerButtonShape)
 
                 if let progress = viewModel.autoSkipCountdownProgress {
                     GeometryReader { buttonGeometry in
@@ -484,17 +493,21 @@ private struct PlayerSessionView: View {
                             .fill(skipMarkerProgressColor)
                             .frame(width: buttonGeometry.size.width * max(0, min(progress, 1)))
                     }
-                    .clipShape(Capsule())
+                    .clipShape(skipMarkerButtonShape)
                     .allowsHitTesting(false)
                 }
             }
         }
         .overlay {
-            Capsule()
+            skipMarkerButtonShape
                 .strokeBorder(skipMarkerBorderColor, lineWidth: 1)
         }
         .shadow(color: skipMarkerShadowColor, radius: skipMarkerShadowRadius, y: skipMarkerShadowYOffset)
         .opacity(0.92)
+    }
+
+    private var skipMarkerButtonShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 100, style: .continuous)
     }
 
     private var skipMarkerButtonBackgroundColor: Color {
