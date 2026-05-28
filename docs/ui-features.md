@@ -54,6 +54,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Plex image requests through `PlexService` when needed.
 - Use `DetailHeroBackdrop` with `DuskHeroBackdropOverlay` for full-bleed hero artwork.
   The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
+  Its bottom fade must resolve to `Color.duskBackground` before the hero's lower edge
+  so shelves, summaries, and episode sections do not create a visible cutoff line.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
   `duskNavigationTitle`, title display modes, list background/separator suppression,
   status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.

@@ -410,11 +410,12 @@ struct DuskHeroBackdropOverlay: View {
             LinearGradient(
                 stops: [
                     .init(color: Color.duskBackground.opacity(0), location: 0),
-                    .init(color: Color.duskBackground.opacity(0), location: 0.28),
-                    .init(color: Color.duskBackground.opacity(0.08), location: 0.48),
-                    .init(color: Color.duskBackground.opacity(0.28), location: 0.66),
-                    .init(color: Color.duskBackground.opacity(0.58), location: 0.82),
-                    .init(color: Color.duskBackground.opacity(0.86), location: 0.94),
+                    .init(color: Color.duskBackground.opacity(0), location: 0.20),
+                    .init(color: Color.duskBackground.opacity(0.08), location: 0.38),
+                    .init(color: Color.duskBackground.opacity(0.28), location: 0.54),
+                    .init(color: Color.duskBackground.opacity(0.60), location: 0.68),
+                    .init(color: Color.duskBackground.opacity(0.90), location: 0.80),
+                    .init(color: Color.duskBackground, location: 0.88),
                     .init(color: Color.duskBackground, location: 1),
                 ],
                 startPoint: .top,
