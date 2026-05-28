@@ -494,6 +494,9 @@ struct DetailCastSection: View {
             .scrollClipDisabled()
             #endif
         }
+        #if os(tvOS)
+        .focusSection()
+        #endif
     }
 }
 

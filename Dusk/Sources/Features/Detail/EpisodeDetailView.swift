@@ -80,11 +80,17 @@ struct EpisodeDetailView: View {
                         containerHeight: geometry.size.height,
                         backgroundLeadingInset: heroBackgroundLeadingInset
                     )
+#if os(tvOS)
+                    .focusSection()
+#endif
 
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, 20)
                             .padding(.top, 24)
+#if os(tvOS)
+                            .focusSection()
+#endif
                     }
 
                     if let offlineBannerText = viewModel.offlineBannerText {

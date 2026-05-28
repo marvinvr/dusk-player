@@ -118,6 +118,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Use `DetailHeroSection` for cinematic detail headers. It handles backdrop gradients,
   poster/title artwork, supertitle/subtitle/action slots, safe-area offset, and compact
   action placement.
+- On tvOS, keep focusable detail rows in separate `.focusSection()` groups. Hero
+  actions, expandable summaries, season/episode grids, and cast shelves should move
+  vertically to the next visible row instead of letting the focus engine skip to a
+  lower but more horizontally aligned item.
 - Detail screens use hidden inline navigation bars over hero artwork. Keep
   `.toolbarColorScheme(.dark, for: .navigationBar)` and hidden toolbar backgrounds unless
   the screen is no longer hero-led.
@@ -181,6 +185,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Prefer shared modifiers/helpers for small differences.
 - tvOS often needs larger poster metrics, explicit focus sections, `scrollClipDisabled`,
   plain button suppression or glass button styles, and default focus restoration.
+- For tvOS detail pages, use focus sections as vertical row boundaries when a row's first
+  focusable item may be horizontally offset from the current control.
 - iOS often needs navigation title display modes, searchable placement tuning, status bar
   behavior, refreshable lists, Safari sheets, and compact action stacks.
 - tvOS should not rely on iOS-only `List` styling, context menu behavior, or touch drag

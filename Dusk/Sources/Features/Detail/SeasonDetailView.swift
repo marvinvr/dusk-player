@@ -91,6 +91,9 @@ struct SeasonDetailView: View {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 36)
+#if os(tvOS)
+                            .focusSection()
+#endif
                     }
 
                     if let offlineBannerText = viewModel.offlineBannerText {

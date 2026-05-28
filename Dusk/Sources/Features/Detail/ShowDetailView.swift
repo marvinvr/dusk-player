@@ -87,6 +87,9 @@ struct ShowDetailView: View {
                         containerHeight: geometry.size.height,
                         backgroundLeadingInset: heroBackgroundLeadingInset
                     )
+#if os(tvOS)
+                    .focusSection()
+#endif
 
                     if let summary = details.summary, !summary.isEmpty {
                         Text(summary)
@@ -105,6 +108,9 @@ struct ShowDetailView: View {
 
                     seasonsSection(width: geometry.size.width)
                         .padding(.top, 40)
+#if os(tvOS)
+                        .focusSection()
+#endif
 
                     if let roles = details.roles, !roles.isEmpty {
                         DetailCastSection(roles: roles, plexService: plexService)

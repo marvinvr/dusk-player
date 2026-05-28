@@ -84,6 +84,9 @@ struct MovieDetailView: View {
                         containerHeight: geometry.size.height,
                         backgroundLeadingInset: heroBackgroundLeadingInset
                     )
+#if os(tvOS)
+                    .focusSection()
+#endif
                     if let summary = details.summary, !summary.isEmpty {
                         summarySection(summary)
                             .padding(.horizontal, horizontalPadding)
