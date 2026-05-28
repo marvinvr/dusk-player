@@ -18,8 +18,7 @@ struct PlayerControlsTVOverlay: View {
     private let bottomPadding: CGFloat = 2
     private let seekTooltipY: CGFloat = -6
     private let minimumScrubDistance: CGFloat = 2
-    private let scrubSensitivity: CGFloat = 4.25
-    private let scrubVelocityProjection: CGFloat = 0.32
+    private let scrubSensitivity: CGFloat = 1.45
 
     private enum FocusTarget: Hashable {
         case seekPoint
@@ -173,10 +172,9 @@ struct PlayerControlsTVOverlay: View {
                                 tvScrubGestureStartPosition = nil
                                 viewModel.toggleControls()
                             },
-                            onScrubChanged: { translationWidth, velocityWidth in
+                            onScrubChanged: { translationWidth, _ in
                                 updateTVScrub(
                                     translationWidth: translationWidth,
-                                    velocityWidth: velocityWidth,
                                     trackWidth: width
                                 )
                             },
@@ -246,7 +244,6 @@ struct PlayerControlsTVOverlay: View {
 
     private func updateTVScrub(
         translationWidth: CGFloat,
-        velocityWidth: CGFloat,
         trackWidth: CGFloat
     ) {
         guard focusedControl == .seekPoint,
@@ -258,8 +255,7 @@ struct PlayerControlsTVOverlay: View {
         let startPosition = tvScrubGestureStartPosition ?? tvScrubCursorPosition ?? viewModel.currentTime
         tvScrubGestureStartPosition = startPosition
 
-        let projectedTranslation = translationWidth + (velocityWidth * scrubVelocityProjection)
-        let delta = TimeInterval((projectedTranslation / trackWidth) * scrubSensitivity) * viewModel.duration
+        let delta = TimeInterval((translationWidth / trackWidth) * scrubSensitivity) * viewModel.duration
         tvScrubCursorPosition = clampedPosition(startPosition + delta)
         viewModel.scheduleHide()
     }
