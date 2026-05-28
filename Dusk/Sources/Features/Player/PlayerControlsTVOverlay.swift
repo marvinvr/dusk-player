@@ -6,7 +6,6 @@ struct PlayerControlsTVOverlay: View {
     @Environment(UserPreferences.self) private var preferences
     @FocusState private var focusedControl: FocusTarget?
     @State private var tvScrubCursorPosition: TimeInterval?
-    @State private var tvScrubGestureStartPosition: TimeInterval?
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
@@ -18,7 +17,8 @@ struct PlayerControlsTVOverlay: View {
     private let bottomPadding: CGFloat = 2
     private let seekTooltipY: CGFloat = -6
     private let minimumScrubDistance: CGFloat = 2
-    private let scrubSensitivity: CGFloat = 1.45
+    private let minimumScrubSecondsPerPoint: TimeInterval = 45
+    private let scrubFullDurationTouchPoints: TimeInterval = 70
 
     private enum FocusTarget: Hashable {
         case seekPoint
@@ -52,7 +52,6 @@ struct PlayerControlsTVOverlay: View {
                 restoreSeekFocus()
             } else {
                 tvScrubCursorPosition = nil
-                tvScrubGestureStartPosition = nil
                 focusedControl = nil
             }
         }
@@ -61,7 +60,6 @@ struct PlayerControlsTVOverlay: View {
                 restoreSeekFocus()
             } else if isVisible {
                 tvScrubCursorPosition = nil
-                tvScrubGestureStartPosition = nil
                 focusedControl = nil
             }
         }
@@ -169,17 +167,23 @@ struct PlayerControlsTVOverlay: View {
                             onTouchSurfaceTap: {
                                 guard focusedControl == .seekPoint else { return }
                                 tvScrubCursorPosition = nil
-                                tvScrubGestureStartPosition = nil
                                 viewModel.toggleControls()
                             },
-                            onScrubChanged: { translationWidth, _ in
+                            onScrubChanged: { deltaWidth in
                                 updateTVScrub(
-                                    translationWidth: translationWidth,
-                                    trackWidth: width
+                                    deltaWidth: deltaWidth
                                 )
                             },
                             onScrubEnded: {
                                 finishTVScrubPreview()
+                            },
+                            onRepeatLeft: {
+                                handleSeekPointJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
+                                restoreSeekFocus(reset: false)
+                            },
+                            onRepeatRight: {
+                                handleSeekPointJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
+                                restoreSeekFocus(reset: false)
                             }
                         )
                     }
@@ -242,33 +246,25 @@ struct PlayerControlsTVOverlay: View {
         return min(max(proposedX, halfWidth), totalWidth - halfWidth)
     }
 
-    private func updateTVScrub(
-        translationWidth: CGFloat,
-        trackWidth: CGFloat
-    ) {
+    private func updateTVScrub(deltaWidth: CGFloat) {
         guard focusedControl == .seekPoint,
-              viewModel.duration > 0,
-              trackWidth > 0 else {
+              viewModel.duration > 0 else {
             return
         }
 
-        let startPosition = tvScrubGestureStartPosition ?? tvScrubCursorPosition ?? viewModel.currentTime
-        tvScrubGestureStartPosition = startPosition
-
-        let delta = TimeInterval((translationWidth / trackWidth) * scrubSensitivity) * viewModel.duration
-        tvScrubCursorPosition = clampedPosition(startPosition + delta)
+        let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
+        let secondsPerPoint = max(minimumScrubSecondsPerPoint, viewModel.duration / scrubFullDurationTouchPoints)
+        tvScrubCursorPosition = clampedPosition(startPosition + TimeInterval(deltaWidth) * secondsPerPoint)
         viewModel.scheduleHide()
     }
 
     private func finishTVScrubPreview() {
-        tvScrubGestureStartPosition = nil
         viewModel.scheduleHide()
         restoreSeekFocus()
     }
 
     private func commitTVScrub() {
         guard let targetPosition = tvScrubCursorPosition else {
-            tvScrubGestureStartPosition = nil
             return
         }
 
@@ -277,7 +273,6 @@ struct PlayerControlsTVOverlay: View {
             viewModel.togglePlayPause()
         }
         tvScrubCursorPosition = nil
-        tvScrubGestureStartPosition = nil
         restoreSeekFocus()
     }
 
@@ -333,7 +328,6 @@ struct PlayerControlsTVOverlay: View {
     private func handleSeekPointJump(by offset: TimeInterval) {
         let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
         tvScrubCursorPosition = clampedPosition(startPosition + offset)
-        tvScrubGestureStartPosition = nil
         viewModel.scheduleHide()
     }
 
@@ -381,8 +375,10 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     let minimumScrubDistance: CGFloat
     let onTap: () -> Void
     let onTouchSurfaceTap: () -> Void
-    let onScrubChanged: (CGFloat, CGFloat) -> Void
+    let onScrubChanged: (CGFloat) -> Void
     let onScrubEnded: () -> Void
+    let onRepeatLeft: () -> Void
+    let onRepeatRight: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -398,10 +394,14 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         context.coordinator.touchSurfaceTapRecognizer.cancelsTouchesInView = false
         context.coordinator.panRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         context.coordinator.panRecognizer.delegate = context.coordinator
+        context.coordinator.leftLongPressRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.leftArrow.rawValue)]
+        context.coordinator.rightLongPressRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.rightArrow.rawValue)]
 
         view.addGestureRecognizer(context.coordinator.tapRecognizer)
         view.addGestureRecognizer(context.coordinator.touchSurfaceTapRecognizer)
         view.addGestureRecognizer(context.coordinator.panRecognizer)
+        view.addGestureRecognizer(context.coordinator.leftLongPressRecognizer)
+        view.addGestureRecognizer(context.coordinator.rightLongPressRecognizer)
         context.coordinator.sync(with: self)
         return view
     }
@@ -416,14 +416,26 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         let tapRecognizer = UITapGestureRecognizer()
         let touchSurfaceTapRecognizer = UITapGestureRecognizer()
         let panRecognizer = UIPanGestureRecognizer()
+        let leftLongPressRecognizer = UILongPressGestureRecognizer()
+        let rightLongPressRecognizer = UILongPressGestureRecognizer()
         private var hasStartedScrubbing = false
+        private var lastPanTranslationWidth: CGFloat = 0
+        private var repeatTask: Task<Void, Never>?
 
         init(parent: PlayerTVScrubGestureBridge) {
             self.parent = parent
             super.init()
+            leftLongPressRecognizer.minimumPressDuration = 0.45
+            rightLongPressRecognizer.minimumPressDuration = 0.45
             tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
             touchSurfaceTapRecognizer.addTarget(self, action: #selector(handleTouchSurfaceTap(_:)))
             panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+            leftLongPressRecognizer.addTarget(self, action: #selector(handleLeftLongPress(_:)))
+            rightLongPressRecognizer.addTarget(self, action: #selector(handleRightLongPress(_:)))
+        }
+
+        deinit {
+            repeatTask?.cancel()
         }
 
         func sync(with parent: PlayerTVScrubGestureBridge) {
@@ -445,20 +457,62 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         @objc
         private func handlePan(_ recognizer: UIPanGestureRecognizer) {
             let translationWidth = recognizer.translation(in: recognizer.view).x
-            let velocityWidth = recognizer.velocity(in: recognizer.view).x
 
             switch recognizer.state {
-            case .began, .changed:
+            case .began:
+                hasStartedScrubbing = false
+                lastPanTranslationWidth = 0
+            case .changed:
                 guard hasStartedScrubbing || abs(translationWidth) >= parent.minimumScrubDistance else {
                     return
                 }
+                let deltaWidth = hasStartedScrubbing ? translationWidth - lastPanTranslationWidth : translationWidth
                 hasStartedScrubbing = true
-                parent.onScrubChanged(translationWidth, velocityWidth)
+                lastPanTranslationWidth = translationWidth
+                parent.onScrubChanged(deltaWidth)
             case .ended, .cancelled, .failed:
                 if hasStartedScrubbing {
                     parent.onScrubEnded()
                 }
                 hasStartedScrubbing = false
+                lastPanTranslationWidth = 0
+            default:
+                break
+            }
+        }
+
+        @objc
+        private func handleLeftLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            handleLongPress(recognizer, action: parent.onRepeatLeft)
+        }
+
+        @objc
+        private func handleRightLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            handleLongPress(recognizer, action: parent.onRepeatRight)
+        }
+
+        private func handleLongPress(
+            _ recognizer: UILongPressGestureRecognizer,
+            action: @escaping () -> Void
+        ) {
+            switch recognizer.state {
+            case .began:
+                repeatTask?.cancel()
+                action()
+                repeatTask = Task { @MainActor in
+                    while !Task.isCancelled {
+                        do {
+                            try await Task.sleep(for: .milliseconds(120))
+                        } catch {
+                            return
+                        }
+                        guard !Task.isCancelled else { return }
+                        action()
+                    }
+                }
+            case .ended, .cancelled, .failed:
+                repeatTask?.cancel()
+                repeatTask = nil
             default:
                 break
             }

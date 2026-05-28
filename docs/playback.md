@@ -114,8 +114,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   bar; tvOS keeps a separate preview cursor while swiping the focused seek
   point. The thumb and thumbnail move during the swipe, but the filled progress
   bar, time readout, and video position keep tracking actual playback until
-  select commits the preview position and resumes playback. If BIF loading or
-  parsing fails, the controls keep their existing no-preview behavior.
+  select commits the preview position and resumes playback. Holding left/right
+  on the focused seek point repeats preview jumps after a short delay. If BIF
+  loading or parsing fails, the controls keep their existing no-preview behavior.
 - Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
   episode 1 of a season. The episode check comes from the active
   `PlexMediaDetails.index`, so missing episode numbers are treated as not the
