@@ -130,34 +130,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                     height: heroHeight
                 )
 
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.18),
-                        Color.black.opacity(0.86)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.86),
-                        Color.black.opacity(0.48),
-                        .clear
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-
-                LinearGradient(
-                    colors: [
-                        .clear,
-                        Color.duskBackground.opacity(0.26),
-                        Color.duskBackground
-                    ],
-                    startPoint: .center,
-                    endPoint: .bottom
-                )
+                DuskHeroBackdropOverlay()
             }
             .frame(width: containerWidth, height: heroHeight, alignment: .leading)
             .offset(x: -backgroundLeadingInset)

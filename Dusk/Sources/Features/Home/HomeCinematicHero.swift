@@ -23,14 +23,6 @@ struct HomeCinematicHeroLayout {
     var metadataFont: Font = .subheadline.weight(.medium)
     var summaryFont: Font = .body
     var summaryLineSpacing: CGFloat = 4
-    var bottomFadeHeightFactor: CGFloat = 1
-    var bottomFadeStops: [Gradient.Stop] = [
-        .init(color: Color.duskBackground.opacity(0), location: 0),
-        .init(color: Color.duskBackground.opacity(0.26), location: 0.7),
-        .init(color: Color.duskBackground, location: 1)
-    ]
-    var bottomFadeStartPoint: UnitPoint = .center
-    var bottomFadeEndPoint: UnitPoint = .bottom
 
     static let ios = HomeCinematicHeroLayout()
     static let tv = HomeCinematicHeroLayout(
@@ -52,18 +44,7 @@ struct HomeCinematicHeroLayout {
         episodeTitleFont: .title2.weight(.semibold),
         metadataFont: .headline.weight(.medium),
         summaryFont: .body,
-        summaryLineSpacing: 4,
-        bottomFadeHeightFactor: 0.68,
-        bottomFadeStops: [
-            .init(color: Color.duskBackground.opacity(0), location: 0),
-            .init(color: Color.duskBackground.opacity(0.10), location: 0.24),
-            .init(color: Color.duskBackground.opacity(0.34), location: 0.54),
-            .init(color: Color.duskBackground.opacity(0.72), location: 0.80),
-            .init(color: Color.duskBackground, location: 0.94),
-            .init(color: Color.duskBackground, location: 1)
-        ],
-        bottomFadeStartPoint: .top,
-        bottomFadeEndPoint: .bottom
+        summaryLineSpacing: 4
     )
 }
 
@@ -315,29 +296,7 @@ struct HomeCinematicHero: View {
                 heroHeight: heroHeight
             )
 
-            ZStack {
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.18),
-                        Color.black.opacity(0.86),
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-
-                LinearGradient(
-                    colors: [
-                        Color.black.opacity(0.86),
-                        Color.black.opacity(0.48),
-                        .clear,
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-
-                bottomFade(heroHeight: heroHeight)
-            }
-            .allowsHitTesting(false)
+            DuskHeroBackdropOverlay()
 
             #if os(iOS)
             if let detailsAction {
@@ -394,19 +353,6 @@ struct HomeCinematicHero: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private func bottomFade(heroHeight: CGFloat) -> some View {
-        let fadeHeight = min(heroHeight, max(1, heroHeight * layout.bottomFadeHeightFactor))
-
-        return LinearGradient(
-            stops: layout.bottomFadeStops,
-            startPoint: layout.bottomFadeStartPoint,
-            endPoint: layout.bottomFadeEndPoint
-        )
-        .frame(maxWidth: .infinity)
-        .frame(height: fadeHeight)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
     }
 
     private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {

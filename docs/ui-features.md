@@ -52,6 +52,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   labels, poster progress, and image URL selection.
 - Use `DuskAsyncImage` for Plex artwork. It integrates app image caching and can route
   Plex image requests through `PlexService` when needed.
+- Use `DetailHeroBackdrop` with `DuskHeroBackdropOverlay` for full-bleed hero artwork.
+  The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
   `duskNavigationTitle`, title display modes, list background/separator suppression,
   status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.

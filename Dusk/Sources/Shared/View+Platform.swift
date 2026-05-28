@@ -382,3 +382,45 @@ struct DetailHeroBackdrop: View {
         .frame(maxWidth: .infinity)
     }
 }
+
+struct DuskHeroBackdropOverlay: View {
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: Color.black.opacity(0.18), location: 0),
+                    .init(color: Color.black.opacity(0.56), location: 0.62),
+                    .init(color: Color.black.opacity(0.86), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            LinearGradient(
+                stops: [
+                    .init(color: Color.black.opacity(0.86), location: 0),
+                    .init(color: Color.black.opacity(0.50), location: 0.34),
+                    .init(color: Color.black.opacity(0.12), location: 0.68),
+                    .init(color: Color.black.opacity(0), location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+
+            LinearGradient(
+                stops: [
+                    .init(color: Color.duskBackground.opacity(0), location: 0),
+                    .init(color: Color.duskBackground.opacity(0), location: 0.28),
+                    .init(color: Color.duskBackground.opacity(0.08), location: 0.48),
+                    .init(color: Color.duskBackground.opacity(0.28), location: 0.66),
+                    .init(color: Color.duskBackground.opacity(0.58), location: 0.82),
+                    .init(color: Color.duskBackground.opacity(0.86), location: 0.94),
+                    .init(color: Color.duskBackground, location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .allowsHitTesting(false)
+    }
+}
