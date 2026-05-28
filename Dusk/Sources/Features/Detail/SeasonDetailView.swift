@@ -6,6 +6,7 @@ struct SeasonDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
+    @State private var focusedTVEpisodeKey: String?
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
@@ -155,7 +156,11 @@ struct SeasonDetailView: View {
                 }
             },
             subtitle: {
+                #if os(tvOS)
+                tvEpisodeHeroMetadata(details)
+                #else
                 metadataTagline(details)
+                #endif
             },
             actions: {
                 if viewModel.nextEpisodeToPlay != nil {
@@ -188,6 +193,49 @@ struct SeasonDetailView: View {
         }
         #endif
     }
+
+    #if os(tvOS)
+    private var focusedTVEpisode: PlexEpisode? {
+        viewModel.displayEpisodes.first { $0.ratingKey == focusedTVEpisodeKey }
+            ?? viewModel.nextEpisodeToPlay
+            ?? viewModel.displayEpisodes.first
+    }
+
+    @ViewBuilder
+    private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
+        if let episode = focusedTVEpisode {
+            VStack(alignment: .leading, spacing: 6) {
+                if let label = viewModel.episodeLabel(episode) {
+                    Text(label)
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(Color.white.opacity(0.76))
+                }
+
+                Text(episode.title)
+                    .font(.headline.weight(.semibold))
+                    .foregroundStyle(Color.white)
+                    .lineLimit(1)
+
+                if let subtitle = viewModel.episodeSubtitle(episode) {
+                    Text(subtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.76))
+                }
+
+                if let summary = episode.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.72))
+                        .lineSpacing(3)
+                        .lineLimit(2)
+                        .frame(maxWidth: 720, alignment: .leading)
+                }
+            }
+        } else {
+            metadataTagline(details)
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
@@ -254,6 +302,44 @@ struct SeasonDetailView: View {
             let imageHeight = Int((artworkWidth / (16.0 / 9.0)).rounded(.up))
             let showsInlineSummary = usesInlineEpisodeSummaryLayout && contentWidth >= 700
 
+            #if os(tvOS)
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Episodes")
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(alignment: .top, spacing: 28) {
+                        ForEach(viewModel.displayEpisodes) { episode in
+                            TVSeasonEpisodeCard(
+                                episode: episode,
+                                destination: viewModel.detailRoute(type: .episode, ratingKey: episode.ratingKey),
+                                imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
+                                label: viewModel.episodeLabel(episode),
+                                subtitle: viewModel.episodeSubtitle(episode),
+                                progress: viewModel.progress(for: episode),
+                                downloadStatus: viewModel.downloadStatus(for: episode),
+                                isPlayableOffline: viewModel.isPlayableOffline(episode),
+                                isUnavailableOffline: viewModel.isUnavailableOffline(episode),
+                                isWatched: viewModel.isWatched(episode),
+                                isUsingCachedData: viewModel.isUsingCachedData,
+                                showsOfflineAvailability: viewModel.showsOfflineAvailability,
+                                artworkWidth: artworkWidth,
+                                onFocus: {
+                                    focusedTVEpisodeKey = episode.ratingKey
+                                }
+                            )
+                            .id(episode.ratingKey)
+                            .contextMenu {
+                                episodeContextMenu(episode)
+                            }
+                        }
+                    }
+                    .padding(.vertical, 12)
+                }
+                .scrollClipDisabled()
+            }
+            #else
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
                     .font(.headline)
@@ -289,6 +375,7 @@ struct SeasonDetailView: View {
                     }
                 }
             }
+            #endif
         }
     }
 
@@ -471,6 +558,73 @@ private struct SeasonHeroActions: View {
 }
 
 #if os(tvOS)
+private struct TVSeasonEpisodeCard: View {
+    let episode: PlexEpisode
+    let destination: AppNavigationRoute
+    let imageURL: URL?
+    let label: String?
+    let subtitle: String?
+    let progress: Double?
+    let downloadStatus: DownloadStatus?
+    let isPlayableOffline: Bool
+    let isUnavailableOffline: Bool
+    let isWatched: Bool
+    let isUsingCachedData: Bool
+    let showsOfflineAvailability: Bool
+    let artworkWidth: CGFloat
+    let onFocus: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    private var artworkHeight: CGFloat {
+        artworkWidth / (16.0 / 9.0)
+    }
+
+    private var artworkShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: 16, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
+            NavigationLink(value: destination) {
+                SeasonEpisodePosterArtwork(
+                    imageURL: imageURL,
+                    progress: progress,
+                    artworkWidth: artworkWidth,
+                    showsPlayOverlay: false,
+                    isUnavailableOffline: isUnavailableOffline
+                )
+                .contentShape(.contextMenuPreview, artworkShape)
+            }
+            .buttonStyle(.card)
+            .focused($isFocused)
+            .accessibilityLabel("View \(episode.title)")
+            .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
+
+            SeasonEpisodeTextContent(
+                episode: episode,
+                label: label,
+                subtitle: subtitle,
+                downloadStatus: downloadStatus,
+                isPlayableOffline: isPlayableOffline,
+                isUnavailableOffline: isUnavailableOffline,
+                isWatched: isWatched,
+                isUsingCachedData: isUsingCachedData,
+                showsOfflineAvailability: showsOfflineAvailability,
+                showsInlineSummary: false
+            )
+            .frame(width: artworkWidth, alignment: .topLeading)
+        }
+        .frame(width: artworkWidth, alignment: .topLeading)
+        .zIndex(isFocused ? 1 : 0)
+        .onChange(of: isFocused) { _, newValue in
+            if newValue {
+                onFocus()
+            }
+        }
+    }
+}
+
 private struct TVSeasonEpisodeRow: View {
     let episode: PlexEpisode
     let destination: AppNavigationRoute
