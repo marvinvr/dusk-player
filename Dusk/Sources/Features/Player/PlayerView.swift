@@ -437,7 +437,6 @@ private struct PlayerSessionView: View {
                 .focused($skipMarkerFocused)
                 .duskSuppressTVOSButtonChrome()
                 .contentShape(.interaction, skipMarkerButtonShape)
-                .contentShape(.hoverEffect, skipMarkerButtonShape)
                 .focusEffectDisabled()
                 #else
                 .buttonStyle(.plain)
@@ -507,7 +506,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerButtonBackgroundColor: Color {
         #if os(tvOS)
-        .black.opacity(skipMarkerFocused ? 0.42 : 0.28)
+        .black.opacity(0.42)
         #else
         .white.opacity(0.08)
         #endif
@@ -515,7 +514,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerProgressColor: Color {
         #if os(tvOS)
-        Color.duskAccent.opacity(skipMarkerFocused ? 0.78 : 0.62)
+        Color.duskAccent.opacity(0.78)
         #else
         .white.opacity(0.18)
         #endif
@@ -523,7 +522,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerBorderColor: Color {
         #if os(tvOS)
-        .white.opacity(skipMarkerFocused ? 0.32 : 0.18)
+        .clear
         #else
         .white.opacity(0.14)
         #endif
@@ -531,7 +530,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerShadowColor: Color {
         #if os(tvOS)
-        .black.opacity(0.42)
+        .clear
         #else
         .black.opacity(0.28)
         #endif
@@ -539,7 +538,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerShadowRadius: CGFloat {
         #if os(tvOS)
-        20
+        0
         #else
         18
         #endif
@@ -547,7 +546,7 @@ private struct PlayerSessionView: View {
 
     private var skipMarkerShadowYOffset: CGFloat {
         #if os(tvOS)
-        10
+        0
         #else
         8
         #endif
