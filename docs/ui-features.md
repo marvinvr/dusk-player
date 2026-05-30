@@ -56,6 +56,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
   Its bottom fade must resolve to `Color.duskBackground` before the hero's lower edge
   so shelves, summaries, and episode sections do not create a visible cutoff line.
+- On tvOS, poster, episode, and cast artwork controls should use plain button chrome
+  plus `duskTVOSFocusEffectShape`. Avoid SwiftUI's `.card` button style here because
+  real Apple TV hardware can draw a gray system focus/material plate that clashes with
+  Dusk's hero fade and page background.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
   `duskNavigationTitle`, title display modes, list background/separator suppression,
   status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.
@@ -192,7 +196,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `HomeIOSView`/`HomeTVView`, `SettingsIOSView`/`SettingsTVView`.
 - Prefer shared modifiers/helpers for small differences.
 - tvOS often needs larger poster metrics, explicit focus sections, `scrollClipDisabled`,
-  plain button suppression or glass button styles, and default focus restoration.
+  explicit page backgrounds, plain/custom poster focus, glass button styles for primary
+  actions, and default focus restoration.
 - For tvOS detail pages, use focus sections as vertical row boundaries when a row's first
   focusable item may be horizontally offset from the current control.
 - iOS often needs navigation title display modes, searchable placement tuning, status bar

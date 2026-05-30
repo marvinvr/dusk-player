@@ -91,6 +91,15 @@ extension View {
         #endif
     }
 
+    @ViewBuilder
+    func duskTVOSPageBackground() -> some View {
+        #if os(tvOS)
+        self.background(Color.duskBackground.ignoresSafeArea())
+        #else
+        self
+        #endif
+    }
+
 }
 
 #if os(iOS)
@@ -152,7 +161,6 @@ private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
             .contentShape(.interaction, shape)
             .contentShape(.hoverEffect, shape)
             .focusEffectDisabled()
-            .hoverEffect(.highlight)
             .scaleEffect(isFocused ? 1.05 : 1.0)
             .shadow(
                 color: isFocused ? Color.duskAccent.opacity(0.30) : .clear,

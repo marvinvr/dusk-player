@@ -188,6 +188,7 @@ struct HomeTVView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            .duskTVOSPageBackground()
             .defaultFocus($focusedTarget, .heroPrimaryAction)
             .task(id: heroItemIDs) {
                 await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)

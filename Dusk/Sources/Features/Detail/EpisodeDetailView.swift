@@ -110,6 +110,7 @@ struct EpisodeDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .duskTVOSPageBackground()
         }
     }
 

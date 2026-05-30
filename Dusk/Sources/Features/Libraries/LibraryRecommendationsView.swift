@@ -130,6 +130,7 @@ struct LibraryRecommendationsView: View {
         #if os(tvOS)
         .scrollClipDisabled()
         #endif
+        .duskTVOSPageBackground()
     }
 
     @ViewBuilder

@@ -131,6 +131,7 @@ struct SeasonDetailView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            .duskTVOSPageBackground()
         }
     }
 
@@ -649,8 +650,9 @@ private struct TVSeasonEpisodeCard: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.card)
+            .buttonStyle(.plain)
             .focused($isFocused)
+            .duskTVOSFocusEffectShape(artworkShape)
             .accessibilityLabel("Play \(episode.title)")
             .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
         }
@@ -704,7 +706,8 @@ private struct TVSeasonEpisodeRow: View {
                     )
                     .contentShape(.contextMenuPreview, artworkShape)
                 }
-                .buttonStyle(.card)
+                .buttonStyle(.plain)
+                .duskTVOSFocusEffectShape(artworkShape)
                 .accessibilityLabel("View \(episode.title)")
                 .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
 

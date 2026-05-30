@@ -114,6 +114,7 @@ struct MovieDetailView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            .duskTVOSPageBackground()
         }
     }
 

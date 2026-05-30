@@ -126,6 +126,7 @@ struct ShowDetailView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            .duskTVOSPageBackground()
         }
     }
 

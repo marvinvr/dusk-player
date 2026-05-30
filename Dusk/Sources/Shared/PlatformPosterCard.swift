@@ -36,8 +36,9 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.card)
+            .buttonStyle(.plain)
             .focused($isFocused)
+            .duskTVOSFocusEffectShape(artworkShape)
             .contextMenu {
                 contextMenuContent()
             }
@@ -137,8 +138,9 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.card)
+            .buttonStyle(.plain)
             .focused($isFocused)
+            .duskTVOSFocusEffectShape(artworkShape)
             .contextMenu {
                 contextMenuContent()
             }

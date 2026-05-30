@@ -343,13 +343,15 @@ struct ActorCreditCard: View {
         let avatarSize: CGFloat = 144
         let cardWidth: CGFloat = 156
         let avatarTextSpacing: CGFloat = 28
+        let artworkShape = RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
 
         VStack(alignment: .leading, spacing: avatarTextSpacing) {
             NavigationLink(value: AppNavigationRoute.person(person)) {
                 avatarImage(size: avatarSize)
             }
-            .buttonStyle(.card)
+            .buttonStyle(.plain)
             .focused($isFocused)
+            .duskTVOSFocusEffectShape(artworkShape)
             .accessibilityLabel(accessibilityLabel)
             .frame(width: avatarSize, height: avatarSize)
 
