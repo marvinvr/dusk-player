@@ -65,8 +65,5 @@ To refresh the vendored iOS/tvOS VLCKit binaries manually, run:
 ./ci_scripts/install_vlckit.sh
 ```
 
-## Reference Points
-- ../plezy - another third party open source plex client where you can AND SHOULD take reference on how plex is integrated. They do a similar thing as this but a lot worse.
-- ../Swiftfin (jellyfin/Swiftfin) is the single most valuable reference. It's a SwiftUI Jellyfin client for iOS and tvOS that does exactly the hybrid VLCKit + AVPlayer approach, with stream resolution logic, subtitle/audio track selection, and tvOS focus navigation. Architecturally it's the closest thing to what you're building, just for Jellyfin instead of Plex.
-- ../PlexKit (lostinthoughs/PlexKit) - a Swift library wrapping the Plex API. Even if you don't use it as a dependency, it's useful reference for how the Plex API responses are structured as Codable models. Saves the agent from guessing at JSON shapes.
-- ../VLCKit - VLCKit's own repo (videolan/VLCKit) has example projects in the Examples/ directory showing how to set up the player view and handle delegates. Worth having around for Task 6 specifically.
+## Important
+- Read AGENTS.local.md at the beginning of every thread if it exists.

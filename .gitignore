@@ -54,3 +54,5 @@ Frameworks/VLCKit-tvOS.xcframework/**/_CodeSignature/**
 
 # Claude Code
 .claude/
+
+AGENTS.local.md
