@@ -185,6 +185,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - The tvOS full-screen interaction layer is focusable only while controls are
   hidden. When controls reappear, focus is restored to the seek point so remote
   input does not get stranded on the background reveal layer.
+- The first seek-point select immediately after a hidden-to-visible reveal is
+  ignored; this prevents the same remote press that revealed the HUD from also
+  activating the focused play bar and pausing playback.
 - Controls auto-hide again only while playback is playing; paused playback may
   keep controls visible until the user hides them manually.
 - The player disables the system idle timer while a session is actively loading,

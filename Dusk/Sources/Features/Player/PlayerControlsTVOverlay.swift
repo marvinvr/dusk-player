@@ -268,6 +268,10 @@ struct PlayerControlsTVOverlay: View {
 
     private func handleSeekPointSelect() {
         guard focusedControl == .seekPoint else { return }
+        guard !viewModel.shouldIgnoreSeekPointSelectAfterReveal() else {
+            viewModel.scheduleHide()
+            return
+        }
 
         if tvScrubCursorPosition != nil {
             commitTVScrub()

@@ -77,6 +77,7 @@ final class PlayerViewModel {
     @ObservationIgnored nonisolated(unsafe) var controlsAutoHideTask: Task<Void, Never>?
     @ObservationIgnored var controlsAutoHideDeadline: Date?
     @ObservationIgnored var controlsInteractionHoldCount = 0
+    @ObservationIgnored var suppressSeekPointSelectUntil: Date?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var markerSkipTask: Task<Void, Never>?
@@ -107,6 +108,7 @@ final class PlayerViewModel {
         controlsAutoHideDeadline = nil
         controlsInteractionHoldCount = 0
         isControlsInteractionHeld = false
+        suppressSeekPointSelectUntil = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
         markerSkipTask = nil

@@ -15,6 +15,7 @@ extension PlayerViewModel {
     private static let maxStallRecoveryAttempts = 2
     private static let controlsAutoHideDelay: TimeInterval = 4.0
     private static let controlsAutoHideRetryDelay: TimeInterval = 0.25
+    private static let seekPointSelectRevealSuppressionDelay: TimeInterval = 0.45
 
     func startSync() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -163,6 +164,7 @@ extension PlayerViewModel {
         let shouldShowControls = !showControls
         if shouldShowControls {
             resetControlsInteractionHold()
+            suppressImmediateSeekPointSelect()
         }
 
         withAnimation(Self.controlsVisibilityAnimation) {
@@ -181,6 +183,7 @@ extension PlayerViewModel {
         let shouldRevealControls = !showControls
         if shouldRevealControls {
             resetControlsInteractionHold()
+            suppressImmediateSeekPointSelect()
             withAnimation(Self.controlsVisibilityAnimation) {
                 showControls = true
             }
@@ -215,6 +218,13 @@ extension PlayerViewModel {
     func endAllControlsInteractionHolds() {
         resetControlsInteractionHold()
         scheduleHide()
+    }
+
+    func shouldIgnoreSeekPointSelectAfterReveal() -> Bool {
+        guard let suppressSeekPointSelectUntil else { return false }
+
+        self.suppressSeekPointSelectUntil = nil
+        return Date() < suppressSeekPointSelectUntil
     }
 
     func seek(to position: TimeInterval, revealControls: Bool) {
@@ -338,6 +348,10 @@ extension PlayerViewModel {
     private func resetControlsInteractionHold() {
         controlsInteractionHoldCount = 0
         isControlsInteractionHeld = false
+    }
+
+    private func suppressImmediateSeekPointSelect() {
+        suppressSeekPointSelectUntil = Date().addingTimeInterval(Self.seekPointSelectRevealSuppressionDelay)
     }
 
     private var controlsAutoHideIsArmed: Bool {
