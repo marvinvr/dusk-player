@@ -63,7 +63,12 @@ struct PlayerControlsTVOverlay: View {
                 focusedControl = nil
             }
         }
-        .onChange(of: focusedControl) { _, _ in
+        .onChange(of: focusedControl) { previousControl, focusedControl in
+            guard previousControl != nil,
+                  focusedControl != nil,
+                  previousControl != focusedControl else {
+                return
+            }
             viewModel.noteControlsInteraction()
         }
         .onMoveCommand(perform: handleMoveCommand)

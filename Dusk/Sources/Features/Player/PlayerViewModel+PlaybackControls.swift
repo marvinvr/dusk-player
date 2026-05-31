@@ -161,6 +161,10 @@ extension PlayerViewModel {
 
     func toggleControls() {
         let shouldShowControls = !showControls
+        if shouldShowControls {
+            resetControlsInteractionHold()
+        }
+
         withAnimation(Self.controlsVisibilityAnimation) {
             showControls = shouldShowControls
         }
@@ -168,14 +172,15 @@ extension PlayerViewModel {
         if shouldShowControls {
             scheduleHide()
         } else {
-            controlsInteractionHoldCount = 0
-            isControlsInteractionHeld = false
+            resetControlsInteractionHold()
             cancelScheduledHide()
         }
     }
 
     func touchControls() {
-        if !showControls {
+        let shouldRevealControls = !showControls
+        if shouldRevealControls {
+            resetControlsInteractionHold()
             withAnimation(Self.controlsVisibilityAnimation) {
                 showControls = true
             }
@@ -208,8 +213,7 @@ extension PlayerViewModel {
     }
 
     func endAllControlsInteractionHolds() {
-        controlsInteractionHoldCount = 0
-        isControlsInteractionHeld = false
+        resetControlsInteractionHold()
         scheduleHide()
     }
 
@@ -329,6 +333,11 @@ extension PlayerViewModel {
         controlsAutoHideTask?.cancel()
         controlsAutoHideTask = nil
         controlsAutoHideDeadline = nil
+    }
+
+    private func resetControlsInteractionHold() {
+        controlsInteractionHoldCount = 0
+        isControlsInteractionHeld = false
     }
 
     private var controlsAutoHideIsArmed: Bool {
