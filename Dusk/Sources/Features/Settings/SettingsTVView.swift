@@ -92,7 +92,7 @@ struct SettingsTVView: View {
 
                 TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
                     TVSettingsMenuRow(
-                        title: "Video Enhancement",
+                        title: "AI Upscaling",
                         options: VideoEnhancementMode.allCases,
                         selection: $preferences.videoEnhancementMode,
                         selectedTitle: preferences.videoEnhancementMode.displayName

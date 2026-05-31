@@ -141,7 +141,7 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
-                Picker("Video Enhancement", selection: $preferences.videoEnhancementMode) {
+                Picker("AI Upscaling", selection: $preferences.videoEnhancementMode) {
                     ForEach(VideoEnhancementMode.allCases) { mode in
                         Text(mode.displayName).tag(mode)
                     }
