@@ -156,32 +156,34 @@ struct PlayerControlsTVOverlay: View {
                 }
                 .position(x: thumbX, y: 38)
 
+                PlayerTVScrubGestureBridge(
+                    minimumScrubDistance: minimumScrubDistance,
+                    onTouchSurfaceTap: {
+                        guard focusedControl == .seekPoint else { return }
+                        tvScrubCursorPosition = nil
+                        viewModel.toggleControls()
+                    },
+                    onScrubChanged: { deltaWidth in
+                        updateTVScrub(
+                            deltaWidth: deltaWidth
+                        )
+                    },
+                    onScrubEnded: {
+                        finishTVScrubPreview()
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
                 Button(action: handleSeekPointSelect) {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    Circle()
+                        .fill(.clear)
+                        .frame(width: 52, height: 52)
+                        .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
                 .focused($focusedControl, equals: .seekPoint)
                 .focusEffectDisabled()
-                .overlay {
-                    PlayerTVScrubGestureBridge(
-                        minimumScrubDistance: minimumScrubDistance,
-                        onTouchSurfaceTap: {
-                            guard focusedControl == .seekPoint else { return }
-                            tvScrubCursorPosition = nil
-                            viewModel.toggleControls()
-                        },
-                        onScrubChanged: { deltaWidth in
-                            updateTVScrub(
-                                deltaWidth: deltaWidth
-                            )
-                        },
-                        onScrubEnded: {
-                            finishTVScrubPreview()
-                        }
-                    )
-                }
+                .position(x: thumbX, y: 38)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())

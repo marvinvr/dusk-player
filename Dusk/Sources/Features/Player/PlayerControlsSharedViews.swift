@@ -151,31 +151,13 @@ struct PlayerSeekBar: View {
             let playedWidth = playedTrackWidth(for: progress, totalWidth: width)
             let clampedProgress = max(0, min(progress, 1))
             let scrubX = width * clampedProgress
-            let seekTrack = ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay {
-                        Capsule()
-                            .strokeBorder(.white.opacity(0.16), lineWidth: 0.8)
-                    }
-                    .frame(height: trackHeight)
-
-                if playedWidth > 0 {
-                    Capsule()
-                        .fill(.white.opacity(0.96))
-                        .frame(width: playedWidth, height: trackHeight)
-                        .shadow(color: .white.opacity(0.18), radius: 5)
-                }
-            }
-            .frame(height: 32)
-            .contentShape(Rectangle())
 
             ZStack(alignment: .topLeading) {
                 #if os(tvOS)
-                seekTrack
+                seekTrack(playedWidth: playedWidth)
                 #else
                 if isInteractive {
-                    seekTrack.gesture(
+                    seekTrack(playedWidth: playedWidth).gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
                                 guard width > 0 else { return }
@@ -190,7 +172,7 @@ struct PlayerSeekBar: View {
                             }
                     )
                 } else {
-                    seekTrack
+                    seekTrack(playedWidth: playedWidth)
                 }
 
                 if viewModel.isScrubbing,
@@ -211,6 +193,55 @@ struct PlayerSeekBar: View {
             }
         }
         .frame(height: 32)
+    }
+
+    private func seekTrack(playedWidth: CGFloat) -> some View {
+        ZStack(alignment: .leading) {
+            Capsule()
+                #if os(tvOS)
+                .fill(.black.opacity(0.54))
+                #else
+                .fill(.ultraThinMaterial)
+                #endif
+                .overlay {
+                    Capsule()
+                        .strokeBorder(trackBorderColor, lineWidth: 0.8)
+                }
+                .frame(height: trackHeight)
+
+            if playedWidth > 0 {
+                Capsule()
+                    .fill(playedTrackColor)
+                    .frame(width: playedWidth, height: trackHeight)
+                    .shadow(color: playedTrackShadowColor, radius: 5)
+            }
+        }
+        .frame(height: 32)
+        .contentShape(Rectangle())
+    }
+
+    private var trackBorderColor: Color {
+        #if os(tvOS)
+        .white.opacity(0.2)
+        #else
+        .white.opacity(0.16)
+        #endif
+    }
+
+    private var playedTrackColor: Color {
+        #if os(tvOS)
+        Color.duskAccent.opacity(0.96)
+        #else
+        .white.opacity(0.96)
+        #endif
+    }
+
+    private var playedTrackShadowColor: Color {
+        #if os(tvOS)
+        Color.duskAccent.opacity(0.18)
+        #else
+        .white.opacity(0.18)
+        #endif
     }
 
     private func playedTrackWidth(for progress: Double, totalWidth: CGFloat) -> CGFloat {
