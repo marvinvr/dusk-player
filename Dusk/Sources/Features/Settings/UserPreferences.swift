@@ -25,6 +25,7 @@ final class UserPreferences {
         static let autoSkipIntroMode = "autoSkipIntroMode"
         static let autoSkipIntro = "autoSkipIntro"
         static let autoSkipCredits = "autoSkipCredits"
+        static let videoEnhancementMode = "videoEnhancementMode"
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
         static let appearanceMode = "appearanceMode"
@@ -97,6 +98,11 @@ final class UserPreferences {
     /// Jump interval for double-tapping the left side of the player.
     var playerDoubleTapBackwardInterval: PlayerSeekInterval {
         didSet { UserDefaults.standard.set(playerDoubleTapBackwardInterval.rawValue, forKey: Keys.playerDoubleTapBackwardInterval) }
+    }
+
+    /// Metal-backed video upscaling and adaptive sharpening.
+    var videoEnhancementMode: VideoEnhancementMode {
+        didSet { UserDefaults.standard.set(videoEnhancementMode.rawValue, forKey: Keys.videoEnhancementMode) }
     }
 
     /// Bypass StreamResolver and always use AVPlayer.
@@ -184,6 +190,13 @@ final class UserPreferences {
             defaults: defaults,
             fallback: .fifteenSeconds
         )
+        let videoEnhancementMode: VideoEnhancementMode
+        if let raw = defaults.string(forKey: Keys.videoEnhancementMode),
+           let mode = VideoEnhancementMode(rawValue: raw) {
+            videoEnhancementMode = mode
+        } else {
+            videoEnhancementMode = .automatic
+        }
         let storedForceAVPlayer = defaults.bool(forKey: Keys.forceAVPlayer)
         let storedForceVLCKit = defaults.bool(forKey: Keys.forceVLCKit)
         let forceAVPlayer = storedForceAVPlayer
@@ -227,6 +240,7 @@ final class UserPreferences {
         self.playerDoubleTapSeekEnabled = playerDoubleTapSeekEnabled
         self.playerDoubleTapForwardInterval = playerDoubleTapForwardInterval
         self.playerDoubleTapBackwardInterval = playerDoubleTapBackwardInterval
+        self.videoEnhancementMode = videoEnhancementMode
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit
         self.appearanceMode = appearanceMode

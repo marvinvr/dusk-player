@@ -46,6 +46,7 @@ extension PlayerViewModel {
         duration = engine.duration
         isBuffering = engine.isBuffering
         playbackError = engine.error
+        videoEnhancementStatus = engine.videoEnhancementStatus
 
         let didStartPlayback = !hasStartedPlayback && (state == .playing || currentTime > 0)
         if didStartPlayback {
@@ -167,6 +168,8 @@ extension PlayerViewModel {
         if shouldShowControls {
             scheduleHide()
         } else {
+            controlsInteractionHoldCount = 0
+            isControlsInteractionHeld = false
             cancelScheduledHide()
         }
     }
@@ -182,6 +185,26 @@ extension PlayerViewModel {
 
     func scheduleHide() {
         scheduleControlsAutoHide(resetDeadline: true)
+    }
+
+    func noteControlsInteraction() {
+        guard showControls else { return }
+        scheduleHide()
+    }
+
+    func beginControlsInteractionHold() {
+        guard showControls else { return }
+        controlsInteractionHoldCount += 1
+        isControlsInteractionHeld = true
+        scheduleControlsAutoHide(resetDeadline: false)
+    }
+
+    func endControlsInteractionHold() {
+        controlsInteractionHoldCount = max(0, controlsInteractionHoldCount - 1)
+        guard controlsInteractionHoldCount == 0 else { return }
+
+        isControlsInteractionHeld = false
+        scheduleHide()
     }
 
     func seek(to position: TimeInterval, revealControls: Bool) {
@@ -276,6 +299,7 @@ extension PlayerViewModel {
         showControls &&
             controlsAutoHideIsArmed &&
             !isScrubbing &&
+            !isControlsInteractionHeld &&
             playbackError == nil &&
             !showSubtitlePicker &&
             !showAudioPicker &&

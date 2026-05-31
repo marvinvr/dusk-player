@@ -2,6 +2,7 @@ import AVFoundation
 import CoreMedia
 import OSLog
 import SwiftUI
+import UIKit
 
 private let avPlayerEngineLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
@@ -22,12 +23,28 @@ final class AVPlayerEngine: PlaybackEngine {
     private(set) var availableAudioTracks: [AudioTrack] = []
     private(set) var selectedSubtitleTrackID: Int?
     private(set) var selectedAudioTrackID: Int?
+    var videoEnhancementStatus: VideoEnhancementStatus {
+        if let videoEnhancementRenderer {
+            return videoEnhancementRenderer.status
+        }
+        return videoEnhancementRequest.isPotentiallyEnabled
+            ? VideoEnhancementStatus(
+                state: .unavailable,
+                reason: videoEnhancementRequest.preflightUnavailabilityReason ?? "Metal unavailable"
+            )
+            : .disabled
+    }
     var onPlaybackEnded: (@MainActor () -> Void)?
 
     // MARK: - AVPlayer
 
     @ObservationIgnored private let player = AVPlayer()
     @ObservationIgnored nonisolated(unsafe) private let playerLayer = AVPlayerLayer()
+    @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
+    @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
+    @ObservationIgnored private var enhancedVideoOutput: AVPlayerItemVideoOutput?
+    @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLink: CADisplayLink?
+    @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLinkTarget: AVPlayerDisplayLinkTarget?
 
     // MARK: - Observers
 
@@ -63,6 +80,9 @@ final class AVPlayerEngine: PlaybackEngine {
 
     deinit {
         loadValidationTask?.cancel()
+        enhancedVideoDisplayLink?.invalidate()
+        enhancedVideoDisplayLink = nil
+        enhancedVideoDisplayLinkTarget = nil
         if let observer = timeObserver {
             player.removeTimeObserver(observer)
             timeObserver = nil
@@ -81,6 +101,7 @@ final class AVPlayerEngine: PlaybackEngine {
 
     func load(source: PlaybackSource) {
         loadValidationTask?.cancel()
+        removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
         removePlaybackStalledObserver()
@@ -126,6 +147,11 @@ final class AVPlayerEngine: PlaybackEngine {
         }
     }
 
+    func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
+        videoEnhancementRequest = request
+        videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
+    }
+
     func play() {
         player.play()
     }
@@ -138,6 +164,7 @@ final class AVPlayerEngine: PlaybackEngine {
     func stop() {
         loadValidationTask?.cancel()
         loadValidationTask = nil
+        removeEnhancedVideoOutput()
         player.pause()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -180,6 +207,7 @@ final class AVPlayerEngine: PlaybackEngine {
         }
 
         loadValidationTask?.cancel()
+        removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
         removePlaybackStalledObserver()
@@ -241,7 +269,10 @@ final class AVPlayerEngine: PlaybackEngine {
     // MARK: - Rendering
 
     func makePlayerView() -> AnyView {
-        AnyView(AVPlayerLayerRepresentable(playerLayer: playerLayer))
+        if let videoEnhancementRenderer {
+            return AnyView(VideoEnhancementRepresentable(renderer: videoEnhancementRenderer))
+        }
+        return AnyView(AVPlayerLayerRepresentable(playerLayer: playerLayer))
     }
 
     // MARK: - Private: KVO
@@ -305,6 +336,17 @@ final class AVPlayerEngine: PlaybackEngine {
         let item = AVPlayerItem(url: source.url)
         item.preferredForwardBufferDuration = PlaybackBufferPolicy.avPlayerForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules
+
+        if videoEnhancementRenderer != nil {
+            let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferMetalCompatibilityKey as String: true,
+            ])
+            item.add(output)
+            enhancedVideoOutput = output
+            startEnhancedVideoDisplayLink()
+        }
+
         player.replaceCurrentItem(with: item)
         observePlaybackEnd(for: item)
         observePlaybackStall(for: item)
@@ -407,6 +449,47 @@ final class AVPlayerEngine: PlaybackEngine {
             NotificationCenter.default.removeObserver(playbackStalledObserver)
             self.playbackStalledObserver = nil
         }
+    }
+
+    private func startEnhancedVideoDisplayLink() {
+        enhancedVideoDisplayLink?.invalidate()
+        let target = AVPlayerDisplayLinkTarget(engine: self)
+        let displayLink = CADisplayLink(target: target, selector: #selector(AVPlayerDisplayLinkTarget.tick(_:)))
+        displayLink.add(to: .main, forMode: .common)
+        enhancedVideoDisplayLinkTarget = target
+        enhancedVideoDisplayLink = displayLink
+    }
+
+    private func removeEnhancedVideoOutput() {
+        enhancedVideoDisplayLink?.invalidate()
+        enhancedVideoDisplayLink = nil
+        enhancedVideoDisplayLinkTarget = nil
+        if let enhancedVideoOutput,
+           let item = player.currentItem {
+            item.remove(enhancedVideoOutput)
+        }
+        enhancedVideoOutput = nil
+        videoEnhancementRenderer?.clear()
+    }
+
+    fileprivate func renderEnhancedFrame(hostTime: CFTimeInterval) {
+        guard let enhancedVideoOutput,
+              let videoEnhancementRenderer else {
+            return
+        }
+
+        let itemTime = enhancedVideoOutput.itemTime(forHostTime: hostTime)
+        guard enhancedVideoOutput.hasNewPixelBuffer(forItemTime: itemTime) else { return }
+
+        var displayTime = CMTime.invalid
+        guard let pixelBuffer = enhancedVideoOutput.copyPixelBuffer(
+            forItemTime: itemTime,
+            itemTimeForDisplay: &displayTime
+        ) else {
+            return
+        }
+
+        videoEnhancementRenderer.submit(pixelBuffer: pixelBuffer)
     }
 
     private func handlePlaybackEnded() {
@@ -547,5 +630,20 @@ final class AVPlayerUIView: UIView {
         CATransaction.setDisableActions(true)
         playerLayer.frame = bounds
         CATransaction.commit()
+    }
+}
+
+private final class AVPlayerDisplayLinkTarget: NSObject {
+    weak var engine: AVPlayerEngine?
+
+    init(engine: AVPlayerEngine) {
+        self.engine = engine
+    }
+
+    @objc func tick(_ displayLink: CADisplayLink) {
+        let timestamp = displayLink.timestamp
+        Task { @MainActor [weak engine] in
+            engine?.renderEnhancedFrame(hostTime: timestamp)
+        }
     }
 }

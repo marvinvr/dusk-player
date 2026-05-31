@@ -32,6 +32,7 @@ final class PlayerViewModel {
     var showBufferingIndicator = false
     var hasStartedPlayback = false
     var playbackError: PlaybackError?
+    var videoEnhancementStatus: VideoEnhancementStatus = .disabled
     var subtitleTracks: [SubtitleTrack] = []
     var audioTracks: [AudioTrack] = []
     var selectedSubtitleTrackID: Int?
@@ -41,6 +42,7 @@ final class PlayerViewModel {
     var showAudioPicker = false
     var showQualityPicker = false
     var showPlaybackInfo = false
+    var isControlsInteractionHeld = false
     var isScrubbing = false
     var scrubPosition: TimeInterval = 0
     var seekFeedback: PlayerSeekFeedbackPresentation?
@@ -74,6 +76,7 @@ final class PlayerViewModel {
     @ObservationIgnored nonisolated(unsafe) var syncTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var controlsAutoHideTask: Task<Void, Never>?
     @ObservationIgnored var controlsAutoHideDeadline: Date?
+    @ObservationIgnored var controlsInteractionHoldCount = 0
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var markerSkipTask: Task<Void, Never>?
@@ -102,6 +105,8 @@ final class PlayerViewModel {
         syncTimer = nil
         controlsAutoHideTask = nil
         controlsAutoHideDeadline = nil
+        controlsInteractionHoldCount = 0
+        isControlsInteractionHeld = false
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
         markerSkipTask = nil

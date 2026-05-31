@@ -128,6 +128,13 @@ extension PlaybackCoordinator {
                 forceAVPlayer: preferences.forceAVPlayer,
                 forceVLCKit: preferences.forceVLCKit
             )
+            newEngine.configureVideoEnhancement(
+                VideoEnhancementRequest.make(
+                    mode: preferences.videoEnhancementMode,
+                    media: media,
+                    part: part
+                )
+            )
             newEngine.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.handlePlaybackEnded()
@@ -285,6 +292,13 @@ extension PlaybackCoordinator {
             )
 
             let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
+            newEngine.configureVideoEnhancement(
+                VideoEnhancementRequest.make(
+                    mode: preferences.videoEnhancementMode,
+                    media: media,
+                    part: part
+                )
+            )
             newEngine.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.handlePlaybackEnded()

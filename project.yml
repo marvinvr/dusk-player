@@ -37,7 +37,9 @@ targets:
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
+        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/ios-arm64/VLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/ios-arm64-simulator/VLCKit.framework/Headers"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - framework: Frameworks/VLCKit.xcframework
@@ -69,7 +71,9 @@ targets:
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
+        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit-tvOS.xcframework/tvos-arm64/VLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/VLCKit-tvOS.xcframework/tvos-arm64-simulator/VLCKit.framework/Headers"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
+        SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
       - framework: Frameworks/VLCKit-tvOS.xcframework

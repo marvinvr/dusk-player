@@ -63,6 +63,9 @@ struct PlayerControlsTVOverlay: View {
                 focusedControl = nil
             }
         }
+        .onChange(of: focusedControl) { _, _ in
+            viewModel.noteControlsInteraction()
+        }
         .onMoveCommand(perform: handleMoveCommand)
     }
 
@@ -87,7 +90,8 @@ struct PlayerControlsTVOverlay: View {
 
                 PlayerTrackSettingsMenu(
                     viewModel: viewModel,
-                    context: context
+                    context: context,
+                    onMenuPresentationChanged: handleSettingsMenuPresentation
                 )
                 .focused($focusedControl, equals: .settings)
             }
@@ -257,6 +261,14 @@ struct PlayerControlsTVOverlay: View {
         let secondsPerPoint = max(minimumScrubSecondsPerPoint, viewModel.duration / scrubFullDurationTouchPoints)
         tvScrubCursorPosition = clampedPosition(startPosition + TimeInterval(deltaWidth) * secondsPerPoint)
         viewModel.scheduleHide()
+    }
+
+    private func handleSettingsMenuPresentation(isPresented: Bool) {
+        if isPresented {
+            viewModel.beginControlsInteractionHold()
+        } else {
+            viewModel.endControlsInteractionHold()
+        }
     }
 
     private func finishTVScrubPreview() {

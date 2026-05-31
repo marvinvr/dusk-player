@@ -34,6 +34,7 @@ protocol PlaybackEngine: AnyObject {
     /// Begin loading media from the given URL. If `startPosition` is non-nil,
     /// seek to that offset once loaded (resume playback).
     func load(source: PlaybackSource)
+    func configureVideoEnhancement(_ request: VideoEnhancementRequest)
     func play()
     func pause()
     func stop()
@@ -51,6 +52,7 @@ protocol PlaybackEngine: AnyObject {
     var duration: TimeInterval { get }
     var isBuffering: Bool { get }
     var error: PlaybackError? { get }
+    var videoEnhancementStatus: VideoEnhancementStatus { get }
     var onPlaybackEnded: (@MainActor () -> Void)? { get set }
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { get }
 

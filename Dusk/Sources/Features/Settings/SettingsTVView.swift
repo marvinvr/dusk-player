@@ -91,6 +91,15 @@ struct SettingsTVView: View {
                 }
 
                 TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
+                    TVSettingsMenuRow(
+                        title: "Video Enhancement",
+                        options: VideoEnhancementMode.allCases,
+                        selection: $preferences.videoEnhancementMode,
+                        selectedTitle: preferences.videoEnhancementMode.displayName
+                    ) { $0.displayName }
+
+                    tvRowDivider
+
                     TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
 
                     tvRowDivider

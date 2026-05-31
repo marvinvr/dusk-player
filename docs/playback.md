@@ -74,6 +74,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   natural end; the coordinator clears it before teardown.
 - `makePlayerView()` returns the rendering view. Player UI must not reach into
   engine internals.
+- `configureVideoEnhancement(_:)` is called before `makePlayerView()` for each
+  session. Engines expose `videoEnhancementStatus` so the UI can report whether
+  Metal enhancement is active, idle, disabled, or unavailable.
 - `load(source:)` should reset per-attempt state, validate playback URLs, honor
   `source.startPosition`, and begin playback when ready.
 - `stop()` should release observers/media and leave a reusable stopped state.
@@ -100,6 +103,8 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   mode to 5.1 or 7.1 for matching selected audio tracks when the OS route can
   accept it. Playback Info exposes the selected VLC audio track, mix mode,
   passthrough state, route, and channel counts for debugging route differences.
+- Video Enhancement is engine-owned and both engines must expose aligned status
+  through `videoEnhancementStatus`; see the dedicated section below.
 - Both engines perform preflight direct-play validation via
   `PlaybackError.validateDirectPlayURL`.
 - Buffering defaults are centralized in `PlaybackBufferPolicy`: AVPlayer targets
@@ -111,6 +116,38 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   uses a simpler drawable host.
 - Subtitle sizing is centralized in `PlaybackSubtitleStyle`; avoid separate
   magic numbers per engine unless there is a platform reason.
+
+## Video Enhancement
+- Video Enhancement is a local rendering preference, not a Plex playback-mode
+  decision. `videoEnhancementMode` persists in `UserPreferences`; the
+  coordinator creates a `VideoEnhancementRequest` from the selected Plex media
+  part before `makePlayerView()` and before engine `load(source:)`.
+- The feature must never request Plex transcoding, alter startup quality, or
+  replace the direct-play-first rule. Manual Quality remains the only user path
+  into Plex transcoding.
+- Modes are `automatic`, `enabled`, and `disabled`. `automatic` skips HDR,
+  skips streams above 50 fps, and skips sources that already match the output
+  closely. `enabled` still hard-disables streams above 70 fps so high-frame-rate
+  playback does not overload the renderer. `disabled` leaves the native engine
+  view path in place.
+- AVPlayer attaches an `AVPlayerItemVideoOutput` and submits copied pixel
+  buffers into `VideoEnhancementRenderer`. VLCKit installs raw libvlc callbacks
+  through `DuskVLCRawVideoOutput`, retains `CVPixelBuffer` frames, and submits
+  them through the Objective-C frame-consumer bridge. Keep both paths aligned
+  when changing frame ownership, channel layout, or teardown.
+- `VideoEnhancementRenderer` owns the Metal view, texture cache, frame queue,
+  and shader pass. The shader currently uses Lanczos sampling for upscaling and
+  adaptive sharpening. Runtime failures such as texture-cache or command-buffer
+  creation should turn into an `.unavailable` status instead of crashing.
+- Playback Info is the user-visible diagnostic surface. It should show
+  `Enhancement` as a state (`Off`, `Idle`, `Active`, `Unavailable`) and
+  `Enhancement Detail` with the input/output size plus the technical reason
+  (`Metal Lanczos + adaptive sharpening`, `Auto skips HDR`, texture failure,
+  and similar). Keep these rows useful for both AVPlayer and VLCKit debugging.
+- When changing this path, verify compile-only builds for iOS and tvOS, then
+  manually check one AVPlayer stream, one VLCKit stream, the Off setting,
+  Auto on a lower-resolution SDR stream, and player dismissal/teardown on
+  device.
 
 ## PlayerViewModel and Overlays
 - `PlayerView` is the full-screen shell. It reads coordinator state and creates
@@ -142,6 +179,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - tvOS uses focus-aware overlays, a gear menu for playback info and track
   selection, quality menus, remote seek handling, touch-surface tap reveal/hide,
   and explicit move-command routing.
+- tvOS focus moves and menu selections refresh the same auto-hide deadline as a
+  reveal. Open tvOS settings menus hold the HUD visible; when the menu closes,
+  the normal playing-state auto-hide timer is armed again.
 - The tvOS full-screen interaction layer is focusable only while controls are
   hidden. When controls reappear, focus is restored to the seek point so remote
   input does not get stranded on the background reveal layer.
@@ -150,7 +190,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in
   `PlayerControlsSharedViews.swift`.
 - `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear
-  menu; expose resolver/stream diagnostics there first.
+  menu; tvOS uses a custom full-screen diagnostic panel instead of the stock
+  sheet/list presentation so long technical values stay readable. Expose
+  resolver, stream, engine, and enhancement diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
   menus under the shared gear menu.
 - Marker skip buttons come from `PlexMarker.skipButtonTitle`; only intro and
@@ -180,8 +222,8 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## Settings and Preferences
 - Playback preferences live in `UserPreferences` and persist to UserDefaults.
-- Session-start defaults: `maxResolution`, forced engines, subtitle defaults,
-  and default audio language.
+- Session-start defaults: `maxResolution`, `videoEnhancementMode`, forced
+  engines, subtitle defaults, and default audio language.
 - Active UI defaults: intro auto-skip mode, credits auto-skip, double-tap seek,
   and continuous play.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.
@@ -195,6 +237,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Engine choice: `Playback/StreamResolver.swift`.
 - Engine contract: `Playback/PlaybackEngine.swift`, both engines,
   `PlayerViewModel`.
+- Video enhancement: `Playback/VideoEnhancement*.swift`,
+  `Playback/VideoEnhancementShaders.metal`, and
+  `Playback/DuskVLCRawVideoOutput.*`.
 - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
   platform `VLCKitRenderer*.swift` files.
 - Plex playback calls: `PlexService+Playback.swift`; metadata shape/fetching:

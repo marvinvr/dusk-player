@@ -331,6 +331,22 @@ private struct PlayerSessionView: View {
             )
         }
         #endif
+        #if os(tvOS)
+        .fullScreenCover(isPresented: $vm.showPlaybackInfo) {
+            if let debugInfo {
+                PlayerPlaybackInfoView(
+                    debugInfo: debugInfo,
+                    state: viewModel.state,
+                    isBuffering: viewModel.isBuffering,
+                    selectedAudioTrack: viewModel.selectedAudioTrack,
+                    engineDiagnostics: viewModel.engine.playbackDiagnostics,
+                    videoEnhancementStatus: viewModel.videoEnhancementStatus
+                )
+            } else {
+                PlayerPlaybackInfoUnavailableView()
+            }
+        }
+        #else
         .sheet(isPresented: $vm.showPlaybackInfo) {
             if let debugInfo {
                 PlayerPlaybackInfoView(
@@ -338,12 +354,14 @@ private struct PlayerSessionView: View {
                     state: viewModel.state,
                     isBuffering: viewModel.isBuffering,
                     selectedAudioTrack: viewModel.selectedAudioTrack,
-                    engineDiagnostics: viewModel.engine.playbackDiagnostics
+                    engineDiagnostics: viewModel.engine.playbackDiagnostics,
+                    videoEnhancementStatus: viewModel.videoEnhancementStatus
                 )
             } else {
                 PlayerPlaybackInfoUnavailableView()
             }
         }
+        #endif
     }
 
     private func playerToast(_ message: String) -> some View {

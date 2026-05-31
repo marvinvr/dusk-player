@@ -1,4 +1,5 @@
 #if canImport(VLCKit)
+import CoreVideo
 import OSLog
 import SwiftUI
 import UIKit
@@ -40,6 +41,27 @@ private func makeVLCKitRenderingHost() -> any VLCKitRenderingHost {
     #endif
 }
 
+private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrameConsumer, @unchecked Sendable {
+    nonisolated(unsafe) private weak var renderer: VideoEnhancementRenderer?
+
+    init(renderer: VideoEnhancementRenderer) {
+        self.renderer = renderer
+        super.init()
+    }
+
+    nonisolated func duskVLCVideoOutputDidProduce(_ pixelBuffer: CVPixelBuffer) {
+        let frame = VideoEnhancementFrame(
+            retaining: pixelBuffer,
+            channelLayout: .rgbaBytesInBGRA
+        )
+        let renderer = renderer
+
+        Task { @MainActor [weak renderer] in
+            renderer?.submit(frame: frame)
+        }
+    }
+}
+
 /// PlaybackEngine implementation backed by upstream VLCKit 4.x.
 ///
 /// Shared playback logic lives here. Platform-specific rendering behavior
@@ -62,6 +84,17 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var selectedSubtitleTrackID: Int?
     private(set) var selectedAudioTrackID: Int?
     private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = []
+    var videoEnhancementStatus: VideoEnhancementStatus {
+        if let videoEnhancementRenderer {
+            return videoEnhancementRenderer.status
+        }
+        return videoEnhancementRequest.isPotentiallyEnabled
+            ? VideoEnhancementStatus(
+                state: .unavailable,
+                reason: videoEnhancementRequest.preflightUnavailabilityReason ?? "Metal unavailable"
+            )
+            : .disabled
+    }
     var onPlaybackEnded: (@MainActor () -> Void)?
 
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
@@ -82,6 +115,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var videoRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var needsVideoRefreshOnPlay = false
+    @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
+    @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
+    @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
+    @ObservationIgnored nonisolated(unsafe) private var rawVideoOutput: DuskVLCRawVideoOutput?
 
     override init() {
         let player = VLCMediaPlayer()
@@ -106,6 +143,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         seekVerificationTask?.cancel()
         videoRefreshTask?.cancel()
         mediaPlayer.stop()
+        rawVideoOutput?.detach()
         mediaPlayer.delegate = nil
         renderingHost.detach(from: mediaPlayer)
     }
@@ -114,6 +152,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
+        rawVideoOutput?.detach()
         currentAttemptContext = source.context
         currentSource = source
         state = .loading
@@ -158,6 +197,23 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
     }
 
+    func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
+        videoEnhancementRequest = request
+        videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
+
+        if let videoEnhancementRenderer {
+            renderingHost.detach(from: mediaPlayer)
+            let frameSink = VLCKitVideoEnhancementFrameSink(renderer: videoEnhancementRenderer)
+            rawVideoFrameSink = frameSink
+            rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
+        } else {
+            rawVideoOutput?.detach()
+            rawVideoOutput = nil
+            rawVideoFrameSink = nil
+            renderingHost.attach(to: mediaPlayer, engine: self)
+        }
+    }
+
     func play() {
         let wasPaused = state == .paused
         suppressPlaybackEndedEvent = false
@@ -191,6 +247,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = false
         mediaPlayer.stop()
+        rawVideoOutput?.detach()
+        videoEnhancementRenderer?.clear()
         state = .stopped
         hasReportedPlaybackEnded = false
         playbackDiagnostics = []
@@ -247,6 +305,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = true
         mediaPlayer.stop()
+        rawVideoOutput?.detach()
         suppressPlaybackEndedEvent = false
 
         error = nil
@@ -287,7 +346,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func makePlayerView() -> AnyView {
-        AnyView(VLCPlayerRepresentable(playerView: renderingHost.playerView))
+        if let videoEnhancementRenderer {
+            return AnyView(VideoEnhancementRepresentable(renderer: videoEnhancementRenderer))
+        }
+        return AnyView(VLCPlayerRepresentable(playerView: renderingHost.playerView))
     }
 
     fileprivate func handleStateChange(_ vlcState: VLCMediaPlayerState) {
@@ -548,6 +610,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         applyNetworkBufferingOptions(to: media)
         configureAudioOutputPolicy(reason: "before-play")
         mediaPlayer.media = media
+        if let rawVideoOutput {
+            _ = rawVideoOutput.attach(to: mediaPlayer)
+        }
         mediaPlayer.currentSubTitleFontScale = PlaybackSubtitleStyle.vlcSubtitleFontScale
         mediaPlayer.play()
         loadValidationTask = nil

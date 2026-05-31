@@ -180,6 +180,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Add new user-facing preferences there with a key, default loading, and persistence.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in `UserPreferences`; do not
   bypass those setters.
+- `videoEnhancementMode` is a persisted playback preference with Auto, On, and
+  Off settings. It affects local rendering only, must not request Plex
+  transcoding, and must not alter startup quality.
+- Playback Info exposes Video Enhancement state and detail rows so AVPlayer and
+  VLCKit sessions can explain whether enhancement is active, waiting for a
+  frame, disabled by preference, or unavailable for a stream/runtime reason.
 - `SettingsSupport` owns shared settings copy, URLs, language options, and bindings.
 - Player Quality lives in the in-player gear menu, not global Settings. It is a
   per-session manual action and must not create a persisted default that starts

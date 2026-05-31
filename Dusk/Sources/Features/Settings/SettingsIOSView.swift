@@ -141,6 +141,13 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
+                Picker("Video Enhancement", selection: $preferences.videoEnhancementMode) {
+                    ForEach(VideoEnhancementMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
                 Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
                     .foregroundStyle(Color.duskTextPrimary)
                     .tint(Color.duskAccent)

@@ -298,6 +298,7 @@ struct PlayerTrackSettingsMenu: View {
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
+    var onMenuPresentationChanged: ((Bool) -> Void)?
 
     private var hasAvailableSettings: Bool {
         context.hasPlaybackInfo ||
@@ -318,9 +319,13 @@ struct PlayerTrackSettingsMenu: View {
     private var tvOSMenu: some View {
         Menu {
             playbackInfoButton
+                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
             qualityMenu
+                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
             subtitleTracksMenu
+                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
             audioTracksMenu
+                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Image(systemName: "gearshape")
                 .font(.footnote.weight(.semibold))
@@ -340,6 +345,7 @@ struct PlayerTrackSettingsMenu: View {
             } else {
                 ForEach(context.availableQualityPresets) { preset in
                     Button {
+                        viewModel.noteControlsInteraction()
                         Task {
                             await playback.switchQuality(to: preset)
                         }
@@ -351,6 +357,7 @@ struct PlayerTrackSettingsMenu: View {
                         )
                     }
                     .disabled(context.isChangingQuality || context.selectedQualityPreset == preset)
+                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
                 }
             }
         } label: {
@@ -366,6 +373,7 @@ struct PlayerTrackSettingsMenu: View {
                     .disabled(true)
             } else {
                 Button {
+                    viewModel.noteControlsInteraction()
                     viewModel.selectSubtitle(nil)
                 } label: {
                     trackMenuItem(
@@ -374,9 +382,11 @@ struct PlayerTrackSettingsMenu: View {
                         isSelected: viewModel.selectedSubtitleTrack == nil
                     )
                 }
+                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
 
                 ForEach(viewModel.subtitleTracks) { track in
                     Button {
+                        viewModel.noteControlsInteraction()
                         viewModel.selectSubtitle(track)
                     } label: {
                         trackMenuItem(
@@ -385,6 +395,7 @@ struct PlayerTrackSettingsMenu: View {
                             isSelected: viewModel.selectedSubtitleTrackID == track.id
                         )
                     }
+                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
                 }
             }
         } label: {
@@ -405,6 +416,7 @@ struct PlayerTrackSettingsMenu: View {
             } else {
                 ForEach(viewModel.audioTracks) { track in
                     Button {
+                        viewModel.noteControlsInteraction()
                         viewModel.selectAudio(track)
                     } label: {
                         trackMenuItem(
@@ -413,6 +425,7 @@ struct PlayerTrackSettingsMenu: View {
                             isSelected: viewModel.selectedAudioTrackID == track.id
                         )
                     }
+                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
                 }
             }
         } label: {
@@ -425,6 +438,7 @@ struct PlayerTrackSettingsMenu: View {
     private var playbackInfoButton: some View {
         if context.hasPlaybackInfo {
             Button {
+                viewModel.noteControlsInteraction()
                 viewModel.showPlaybackInfo = true
             } label: {
                 Label("Get Info", systemImage: "info.circle")
@@ -532,3 +546,25 @@ struct PlayerTrackSettingsMenu: View {
         }
     }
 }
+
+#if os(tvOS)
+private struct PlayerTVMenuPresentationLifecycleModifier: ViewModifier {
+    let onPresentationChanged: ((Bool) -> Void)?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                onPresentationChanged?(true)
+            }
+            .onDisappear {
+                onPresentationChanged?(false)
+            }
+    }
+}
+
+private extension View {
+    func tvMenuPresentationLifecycle(_ onPresentationChanged: ((Bool) -> Void)?) -> some View {
+        modifier(PlayerTVMenuPresentationLifecycleModifier(onPresentationChanged: onPresentationChanged))
+    }
+}
+#endif

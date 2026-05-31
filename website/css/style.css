@@ -669,6 +669,7 @@ img {
 .features-grid .feature-card:nth-child(5) { transition-delay: 0.32s; }
 .features-grid .feature-card:nth-child(6) { transition-delay: 0.40s; }
 .features-grid .feature-card:nth-child(7) { transition-delay: 0.48s; }
+.features-grid .feature-card:nth-child(8) { transition-delay: 0.56s; }
 
 /* --- Responsive --- */
 @media (max-width: 900px) {
