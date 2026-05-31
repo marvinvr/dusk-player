@@ -211,6 +211,7 @@ private struct PlayerSessionView: View {
         .duskCaptureStatusBarAppearance()
         .duskStatusBarHidden(!viewModel.showControls)
         .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
+        .playerIdleTimerDisabled(viewModel.shouldDisableIdleTimer)
         #if os(tvOS)
         .onPlayPauseCommand {
             viewModel.togglePlayPause()
@@ -620,6 +621,43 @@ private struct PlayerSessionView: View {
                 ratingKey: ratingKey
             )
         }
+    }
+}
+
+private extension View {
+    func playerIdleTimerDisabled(_ isDisabled: Bool) -> some View {
+        modifier(PlayerIdleTimerModifier(isDisabled: isDisabled))
+    }
+}
+
+private struct PlayerIdleTimerModifier: ViewModifier {
+    let isDisabled: Bool
+    @State private var previousIdleTimerDisabled: Bool?
+
+    func body(content: Content) -> some View {
+        content
+            .onAppear(perform: updateIdleTimer)
+            .onChange(of: isDisabled) { _, _ in
+                updateIdleTimer()
+            }
+            .onDisappear(perform: restoreIdleTimer)
+    }
+
+    private func updateIdleTimer() {
+        if isDisabled {
+            if previousIdleTimerDisabled == nil {
+                previousIdleTimerDisabled = UIApplication.shared.isIdleTimerDisabled
+            }
+            UIApplication.shared.isIdleTimerDisabled = true
+        } else {
+            restoreIdleTimer()
+        }
+    }
+
+    private func restoreIdleTimer() {
+        guard let previousIdleTimerDisabled else { return }
+        UIApplication.shared.isIdleTimerDisabled = previousIdleTimerDisabled
+        self.previousIdleTimerDisabled = nil
     }
 }
 

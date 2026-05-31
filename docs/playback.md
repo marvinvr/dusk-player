@@ -187,6 +187,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   input does not get stranded on the background reveal layer.
 - Controls auto-hide again only while playback is playing; paused playback may
   keep controls visible until the user hides them manually.
+- The player disables the system idle timer while a session is actively loading,
+  playing, or buffering, then restores the previous value on pause, stop, error,
+  or dismissal. This is required because Video Enhancement can render through a
+  Metal view instead of the native AVPlayer/VLCKit video surface.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in
   `PlayerControlsSharedViews.swift`.
 - `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear
