@@ -151,47 +151,32 @@ struct PlayerControlsTVOverlay: View {
                 }
                 .position(x: thumbX, y: 38)
 
-                Color.clear
-                    .contentShape(Rectangle())
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .focusable()
-                    .focused($focusedControl, equals: .seekPoint)
-                    .focusEffectDisabled()
-                    .overlay {
-                        PlayerTVScrubGestureBridge(
-                            minimumScrubDistance: minimumScrubDistance,
-                            isPressCaptureEnabled: focusedControl == .seekPoint,
-                            onTap: {
-                                guard focusedControl == .seekPoint else { return }
-                                if tvScrubCursorPosition != nil {
-                                    commitTVScrub()
-                                } else {
-                                    viewModel.togglePlayPause()
-                                }
-                            },
-                            onTouchSurfaceTap: {
-                                guard focusedControl == .seekPoint else { return }
-                                tvScrubCursorPosition = nil
-                                viewModel.toggleControls()
-                            },
-                            onScrubChanged: { deltaWidth in
-                                updateTVScrub(
-                                    deltaWidth: deltaWidth
-                                )
-                            },
-                            onScrubEnded: {
-                                finishTVScrubPreview()
-                            },
-                            onRepeatLeft: {
-                                handleSeekPointJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
-                                restoreSeekFocus(reset: false)
-                            },
-                            onRepeatRight: {
-                                handleSeekPointJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
-                                restoreSeekFocus(reset: false)
-                            }
-                        )
-                    }
+                Button(action: handleSeekPointSelect) {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+                .buttonStyle(.plain)
+                .focused($focusedControl, equals: .seekPoint)
+                .focusEffectDisabled()
+                .overlay {
+                    PlayerTVScrubGestureBridge(
+                        minimumScrubDistance: minimumScrubDistance,
+                        onTouchSurfaceTap: {
+                            guard focusedControl == .seekPoint else { return }
+                            tvScrubCursorPosition = nil
+                            viewModel.toggleControls()
+                        },
+                        onScrubChanged: { deltaWidth in
+                            updateTVScrub(
+                                deltaWidth: deltaWidth
+                            )
+                        },
+                        onScrubEnded: {
+                            finishTVScrubPreview()
+                        }
+                    )
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .contentShape(Rectangle())
@@ -274,6 +259,16 @@ struct PlayerControlsTVOverlay: View {
     private func finishTVScrubPreview() {
         viewModel.scheduleHide()
         restoreSeekFocus()
+    }
+
+    private func handleSeekPointSelect() {
+        guard focusedControl == .seekPoint else { return }
+
+        if tvScrubCursorPosition != nil {
+            commitTVScrub()
+        } else {
+            viewModel.togglePlayPause()
+        }
     }
 
     private func commitTVScrub() {
@@ -386,13 +381,9 @@ struct PlayerControlsTVOverlay: View {
 
 private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     let minimumScrubDistance: CGFloat
-    let isPressCaptureEnabled: Bool
-    let onTap: () -> Void
     let onTouchSurfaceTap: () -> Void
     let onScrubChanged: (CGFloat) -> Void
     let onScrubEnded: () -> Void
-    let onRepeatLeft: () -> Void
-    let onRepeatRight: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -439,12 +430,7 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
             self.parent = parent
         }
 
-        func sync(_ view: PlayerTVScrubGestureView, with parent: PlayerTVScrubGestureBridge) {
-            view.isPressCaptureEnabled = parent.isPressCaptureEnabled
-            view.onSelectPress = parent.onTap
-            view.onLeftPress = parent.onRepeatLeft
-            view.onRightPress = parent.onRepeatRight
-        }
+        func sync(_ view: PlayerTVScrubGestureView, with parent: PlayerTVScrubGestureBridge) {}
 
         @objc
         private func handleTouchSurfaceTap(_ recognizer: UITapGestureRecognizer) {
@@ -489,126 +475,8 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
 }
 
 private final class PlayerTVScrubGestureView: UIView {
-    var isPressCaptureEnabled = false {
-        didSet {
-            refreshFirstResponderStatus()
-        }
-    }
-
-    var onLeftPress: (() -> Void)?
-    var onRightPress: (() -> Void)?
-    var onSelectPress: (() -> Void)?
-
-    private var repeatTask: Task<Void, Never>?
-    private var isTrackingSelectPress = false
-
     override var canBecomeFocused: Bool {
         false
-    }
-
-    override var canBecomeFirstResponder: Bool {
-        isPressCaptureEnabled && window != nil
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        refreshFirstResponderStatus()
-    }
-
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard isPressCaptureEnabled else {
-            super.pressesBegan(presses, with: event)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .select }) {
-            isTrackingSelectPress = true
-            return
-        }
-
-        if presses.contains(where: { $0.type == .leftArrow }) {
-            startRepeating(action: onLeftPress)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .rightArrow }) {
-            startRepeating(action: onRightPress)
-            return
-        }
-
-        super.pressesBegan(presses, with: event)
-    }
-
-    override func pressesEnded(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard isPressCaptureEnabled else {
-            super.pressesEnded(presses, with: event)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .select }) {
-            if isTrackingSelectPress {
-                onSelectPress?()
-            }
-            isTrackingSelectPress = false
-            return
-        }
-
-        if presses.contains(where: { $0.type == .leftArrow || $0.type == .rightArrow }) {
-            stopRepeating()
-            return
-        }
-
-        super.pressesEnded(presses, with: event)
-    }
-
-    override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        if presses.contains(where: { $0.type == .select }) {
-            isTrackingSelectPress = false
-        }
-        stopRepeating()
-        super.pressesCancelled(presses, with: event)
-    }
-
-    private func startRepeating(action: (() -> Void)?) {
-        repeatTask?.cancel()
-        action?()
-        repeatTask = Task { @MainActor in
-            do {
-                try await Task.sleep(for: .milliseconds(420))
-            } catch {
-                return
-            }
-
-            while !Task.isCancelled {
-                action?()
-                do {
-                    try await Task.sleep(for: .milliseconds(120))
-                } catch {
-                    return
-                }
-            }
-        }
-    }
-
-    private func stopRepeating() {
-        repeatTask?.cancel()
-        repeatTask = nil
-    }
-
-    private func refreshFirstResponderStatus() {
-        guard window != nil else { return }
-
-        if isPressCaptureEnabled {
-            guard !isFirstResponder else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.isPressCaptureEnabled, self.window != nil else { return }
-                self.becomeFirstResponder()
-            }
-        } else if isFirstResponder {
-            resignFirstResponder()
-            stopRepeating()
-            isTrackingSelectPress = false
-        }
     }
 }
 #endif
