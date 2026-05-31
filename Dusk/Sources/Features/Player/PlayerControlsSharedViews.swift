@@ -318,14 +318,13 @@ struct PlayerTrackSettingsMenu: View {
     #if os(tvOS)
     private var tvOSMenu: some View {
         Menu {
-            playbackInfoButton
-                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-            qualityMenu
-                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-            subtitleTracksMenu
-                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-            audioTracksMenu
-                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
+            Group {
+                playbackInfoButton
+                qualityMenu
+                subtitleTracksMenu
+                audioTracksMenu
+            }
+            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Image(systemName: "gearshape")
                 .font(.footnote.weight(.semibold))
@@ -339,27 +338,30 @@ struct PlayerTrackSettingsMenu: View {
 
     private var qualityMenu: some View {
         Menu {
-            if !context.canSelectQuality {
-                Button("Unavailable Offline") {}
-                    .disabled(true)
-            } else {
-                ForEach(context.availableQualityPresets) { preset in
-                    Button {
-                        viewModel.noteControlsInteraction()
-                        Task {
-                            await playback.switchQuality(to: preset)
+            Group {
+                if !context.canSelectQuality {
+                    Button("Unavailable Offline") {}
+                        .disabled(true)
+                } else {
+                    ForEach(context.availableQualityPresets) { preset in
+                        Button {
+                            viewModel.noteControlsInteraction()
+                            viewModel.endAllControlsInteractionHolds()
+                            Task {
+                                await playback.switchQuality(to: preset)
+                            }
+                        } label: {
+                            trackMenuItem(
+                                title: preset.displayName,
+                                subtitle: preset.detailTitle,
+                                isSelected: context.selectedQualityPreset == preset
+                            )
                         }
-                    } label: {
-                        trackMenuItem(
-                            title: preset.displayName,
-                            subtitle: preset.detailTitle,
-                            isSelected: context.selectedQualityPreset == preset
-                        )
+                        .disabled(context.isChangingQuality || context.selectedQualityPreset == preset)
                     }
-                    .disabled(context.isChangingQuality || context.selectedQualityPreset == preset)
-                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
                 }
             }
+            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Label("Quality", systemImage: "rectangle.compress.vertical")
         }
@@ -368,36 +370,39 @@ struct PlayerTrackSettingsMenu: View {
 
     private var subtitleTracksMenu: some View {
         Menu {
-            if viewModel.subtitleTracks.isEmpty {
-                Button("No Subtitles") {}
-                    .disabled(true)
-            } else {
-                Button {
-                    viewModel.noteControlsInteraction()
-                    viewModel.selectSubtitle(nil)
-                } label: {
-                    trackMenuItem(
-                        title: "Off",
-                        subtitle: nil,
-                        isSelected: viewModel.selectedSubtitleTrack == nil
-                    )
-                }
-                .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-
-                ForEach(viewModel.subtitleTracks) { track in
+            Group {
+                if viewModel.subtitleTracks.isEmpty {
+                    Button("No Subtitles") {}
+                        .disabled(true)
+                } else {
                     Button {
                         viewModel.noteControlsInteraction()
-                        viewModel.selectSubtitle(track)
+                        viewModel.selectSubtitle(nil)
+                        viewModel.endAllControlsInteractionHolds()
                     } label: {
                         trackMenuItem(
-                            title: track.displayTitle,
-                            subtitle: track.language,
-                            isSelected: viewModel.selectedSubtitleTrackID == track.id
+                            title: "Off",
+                            subtitle: nil,
+                            isSelected: viewModel.selectedSubtitleTrack == nil
                         )
                     }
-                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
+
+                    ForEach(viewModel.subtitleTracks) { track in
+                        Button {
+                            viewModel.noteControlsInteraction()
+                            viewModel.selectSubtitle(track)
+                            viewModel.endAllControlsInteractionHolds()
+                        } label: {
+                            trackMenuItem(
+                                title: track.displayTitle,
+                                subtitle: track.language,
+                                isSelected: viewModel.selectedSubtitleTrackID == track.id
+                            )
+                        }
+                    }
                 }
             }
+            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Label {
                 Text("Subtitles")
@@ -410,24 +415,27 @@ struct PlayerTrackSettingsMenu: View {
 
     private var audioTracksMenu: some View {
         Menu {
-            if viewModel.audioTracks.isEmpty {
-                Button("No Audio Tracks") {}
-                    .disabled(true)
-            } else {
-                ForEach(viewModel.audioTracks) { track in
-                    Button {
-                        viewModel.noteControlsInteraction()
-                        viewModel.selectAudio(track)
-                    } label: {
-                        trackMenuItem(
-                            title: track.compactDisplayTitle,
-                            subtitle: track.detailDisplayTitle,
-                            isSelected: viewModel.selectedAudioTrackID == track.id
-                        )
+            Group {
+                if viewModel.audioTracks.isEmpty {
+                    Button("No Audio Tracks") {}
+                        .disabled(true)
+                } else {
+                    ForEach(viewModel.audioTracks) { track in
+                        Button {
+                            viewModel.noteControlsInteraction()
+                            viewModel.selectAudio(track)
+                            viewModel.endAllControlsInteractionHolds()
+                        } label: {
+                            trackMenuItem(
+                                title: track.compactDisplayTitle,
+                                subtitle: track.detailDisplayTitle,
+                                isSelected: viewModel.selectedAudioTrackID == track.id
+                            )
+                        }
                     }
-                    .tvMenuPresentationLifecycle(onMenuPresentationChanged)
                 }
             }
+            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Label("Audio", systemImage: "speaker.wave.2")
         }
@@ -440,6 +448,7 @@ struct PlayerTrackSettingsMenu: View {
             Button {
                 viewModel.noteControlsInteraction()
                 viewModel.showPlaybackInfo = true
+                viewModel.endAllControlsInteractionHolds()
             } label: {
                 Label("Get Info", systemImage: "info.circle")
             }
@@ -550,13 +559,18 @@ struct PlayerTrackSettingsMenu: View {
 #if os(tvOS)
 private struct PlayerTVMenuPresentationLifecycleModifier: ViewModifier {
     let onPresentationChanged: ((Bool) -> Void)?
+    @State private var isPresented = false
 
     func body(content: Content) -> some View {
         content
             .onAppear {
+                guard !isPresented else { return }
+                isPresented = true
                 onPresentationChanged?(true)
             }
             .onDisappear {
+                guard isPresented else { return }
+                isPresented = false
                 onPresentationChanged?(false)
             }
     }

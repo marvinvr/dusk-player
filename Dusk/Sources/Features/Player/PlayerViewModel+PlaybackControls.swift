@@ -207,6 +207,12 @@ extension PlayerViewModel {
         scheduleHide()
     }
 
+    func endAllControlsInteractionHolds() {
+        controlsInteractionHoldCount = 0
+        isControlsInteractionHeld = false
+        scheduleHide()
+    }
+
     func seek(to position: TimeInterval, revealControls: Bool) {
         let clampedPosition: TimeInterval
         if duration > 0 {
