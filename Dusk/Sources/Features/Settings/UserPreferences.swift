@@ -278,7 +278,7 @@ final class UserPreferences {
             return legacyValue ? .always : .off
         }
 
-        return .always
+        return .alwaysExceptFirstEpisode
     }
 
     private static func storedDownloadConcurrency(

@@ -235,6 +235,8 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   engines, subtitle defaults, and default audio language.
 - Active UI defaults: intro auto-skip mode, credits auto-skip, double-tap seek,
   and continuous play.
+- New installs default intro auto-skip to always except episode 1 of each
+  season; existing stored intro-skip preferences are preserved.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.
 - Settings UI is split by platform; shared labels/options live in
   `SettingsSupport`.

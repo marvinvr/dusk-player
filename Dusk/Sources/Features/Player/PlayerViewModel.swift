@@ -56,7 +56,7 @@ final class PlayerViewModel {
     var preferredSubtitleLanguage: String?
     var preferredAudioLanguage: String?
     var subtitleForcedOnly = false
-    var autoSkipIntroMode: AutoSkipIntroMode = .always
+    var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
     var autoSkipCredits = false
     var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
