@@ -180,7 +180,7 @@ struct PlayerControlsTVOverlay: View {
                         .frame(width: 52, height: 52)
                         .contentShape(Circle())
                 }
-                .buttonStyle(.plain)
+                .duskSuppressTVOSButtonChrome()
                 .focused($focusedControl, equals: .seekPoint)
                 .focusEffectDisabled()
                 .position(x: thumbX, y: 38)

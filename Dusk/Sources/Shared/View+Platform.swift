@@ -76,7 +76,7 @@ extension View {
     @ViewBuilder
     func duskSuppressTVOSButtonChrome() -> some View {
         #if os(tvOS)
-        self.buttonStyle(.plain)
+        self.buttonStyle(DuskTVChromeSuppressedButtonStyle())
         #else
         self
         #endif
@@ -147,6 +147,17 @@ private final class DuskStatusBarAppearanceCaptureController: UIViewController {
         parent?.modalPresentationCapturesStatusBarAppearance = true
         parent?.setNeedsStatusBarAppearanceUpdate()
         parent?.presentingViewController?.setNeedsStatusBarAppearanceUpdate()
+    }
+}
+#endif
+
+#if os(tvOS)
+private struct DuskTVChromeSuppressedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .opacity(configuration.isPressed ? 0.72 : 1.0)
+            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
     }
 }
 #endif

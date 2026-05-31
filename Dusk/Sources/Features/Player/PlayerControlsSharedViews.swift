@@ -230,7 +230,7 @@ struct PlayerSeekBar: View {
 
     private var playedTrackColor: Color {
         #if os(tvOS)
-        Color.duskAccent.opacity(0.96)
+        .white.opacity(0.96)
         #else
         .white.opacity(0.96)
         #endif
@@ -238,7 +238,7 @@ struct PlayerSeekBar: View {
 
     private var playedTrackShadowColor: Color {
         #if os(tvOS)
-        Color.duskAccent.opacity(0.18)
+        .white.opacity(0.18)
         #else
         .white.opacity(0.18)
         #endif
