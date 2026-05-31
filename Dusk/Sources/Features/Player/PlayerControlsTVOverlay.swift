@@ -402,15 +402,12 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         let view = PlayerTVScrubGestureView()
         view.backgroundColor = .clear
 
-        context.coordinator.tapRecognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.select.rawValue)]
         context.coordinator.touchSurfaceTapRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         context.coordinator.touchSurfaceTapRecognizer.allowedPressTypes = []
         context.coordinator.touchSurfaceTapRecognizer.cancelsTouchesInView = false
-        context.coordinator.touchSurfaceTapRecognizer.require(toFail: context.coordinator.tapRecognizer)
         context.coordinator.panRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
         context.coordinator.panRecognizer.delegate = context.coordinator
 
-        view.addGestureRecognizer(context.coordinator.tapRecognizer)
         view.addGestureRecognizer(context.coordinator.touchSurfaceTapRecognizer)
         view.addGestureRecognizer(context.coordinator.panRecognizer)
         context.coordinator.sync(with: self)
@@ -426,7 +423,6 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         private var parent: PlayerTVScrubGestureBridge
-        let tapRecognizer = UITapGestureRecognizer()
         let touchSurfaceTapRecognizer = UITapGestureRecognizer()
         let panRecognizer = UIPanGestureRecognizer()
         private var hasStartedScrubbing = false
@@ -435,7 +431,6 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
         init(parent: PlayerTVScrubGestureBridge) {
             self.parent = parent
             super.init()
-            tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
             touchSurfaceTapRecognizer.addTarget(self, action: #selector(handleTouchSurfaceTap(_:)))
             panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
         }
@@ -446,14 +441,9 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
 
         func sync(_ view: PlayerTVScrubGestureView, with parent: PlayerTVScrubGestureBridge) {
             view.isPressCaptureEnabled = parent.isPressCaptureEnabled
+            view.onSelectPress = parent.onTap
             view.onLeftPress = parent.onRepeatLeft
             view.onRightPress = parent.onRepeatRight
-        }
-
-        @objc
-        private func handleTap(_ recognizer: UITapGestureRecognizer) {
-            guard recognizer.state == .ended else { return }
-            parent.onTap()
         }
 
         @objc
@@ -507,8 +497,10 @@ private final class PlayerTVScrubGestureView: UIView {
 
     var onLeftPress: (() -> Void)?
     var onRightPress: (() -> Void)?
+    var onSelectPress: (() -> Void)?
 
     private var repeatTask: Task<Void, Never>?
+    private var isTrackingSelectPress = false
 
     override var canBecomeFocused: Bool {
         false
@@ -526,6 +518,11 @@ private final class PlayerTVScrubGestureView: UIView {
     override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
         guard isPressCaptureEnabled else {
             super.pressesBegan(presses, with: event)
+            return
+        }
+
+        if presses.contains(where: { $0.type == .select }) {
+            isTrackingSelectPress = true
             return
         }
 
@@ -548,6 +545,14 @@ private final class PlayerTVScrubGestureView: UIView {
             return
         }
 
+        if presses.contains(where: { $0.type == .select }) {
+            if isTrackingSelectPress {
+                onSelectPress?()
+            }
+            isTrackingSelectPress = false
+            return
+        }
+
         if presses.contains(where: { $0.type == .leftArrow || $0.type == .rightArrow }) {
             stopRepeating()
             return
@@ -557,6 +562,9 @@ private final class PlayerTVScrubGestureView: UIView {
     }
 
     override func pressesCancelled(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
+        if presses.contains(where: { $0.type == .select }) {
+            isTrackingSelectPress = false
+        }
         stopRepeating()
         super.pressesCancelled(presses, with: event)
     }
@@ -599,6 +607,7 @@ private final class PlayerTVScrubGestureView: UIView {
         } else if isFirstResponder {
             resignFirstResponder()
             stopRepeating()
+            isTrackingSelectPress = false
         }
     }
 }
