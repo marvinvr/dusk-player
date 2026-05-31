@@ -163,6 +163,9 @@ struct PlayerControlsTVOverlay: View {
                         tvScrubCursorPosition = nil
                         viewModel.toggleControls()
                     },
+                    onScrubBegan: {
+                        viewModel.beginControlsInteractionHold()
+                    },
                     onScrubChanged: { deltaWidth in
                         updateTVScrub(
                             deltaWidth: deltaWidth
@@ -264,7 +267,7 @@ struct PlayerControlsTVOverlay: View {
     }
 
     private func finishTVScrubPreview() {
-        viewModel.scheduleHide()
+        viewModel.endControlsInteractionHold()
         restoreSeekFocus()
     }
 
@@ -318,6 +321,8 @@ struct PlayerControlsTVOverlay: View {
 
     // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
     private func handleMoveCommand(_ direction: MoveCommandDirection) {
+        viewModel.noteControlsInteraction()
+
         let currentFocus = focusedControl ?? .seekPoint
 
         switch direction {
@@ -393,6 +398,7 @@ struct PlayerControlsTVOverlay: View {
 private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
     let minimumScrubDistance: CGFloat
     let onTouchSurfaceTap: () -> Void
+    let onScrubBegan: () -> Void
     let onScrubChanged: (CGFloat) -> Void
     let onScrubEnded: () -> Void
 
@@ -457,6 +463,7 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
             case .began:
                 hasStartedScrubbing = false
                 lastPanTranslationWidth = 0
+                parent.onScrubBegan()
             case .changed:
                 guard hasStartedScrubbing || abs(translationWidth) >= parent.minimumScrubDistance else {
                     return
@@ -466,9 +473,7 @@ private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
                 lastPanTranslationWidth = translationWidth
                 parent.onScrubChanged(deltaWidth)
             case .ended, .cancelled, .failed:
-                if hasStartedScrubbing {
-                    parent.onScrubEnded()
-                }
+                parent.onScrubEnded()
                 hasStartedScrubbing = false
                 lastPanTranslationWidth = 0
             default:
