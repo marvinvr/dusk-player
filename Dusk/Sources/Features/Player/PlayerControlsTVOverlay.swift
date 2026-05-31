@@ -258,12 +258,8 @@ struct PlayerControlsTVOverlay: View {
         viewModel.scheduleHide()
     }
 
-    private func handleSettingsMenuPresentation(isPresented: Bool) {
-        if isPresented {
-            viewModel.beginControlsInteractionHold()
-        } else {
-            viewModel.endControlsInteractionHold()
-        }
+    private func handleSettingsMenuPresentation(isPresented _: Bool) {
+        viewModel.noteControlsInteraction()
     }
 
     private func finishTVScrubPreview() {
