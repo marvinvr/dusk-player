@@ -191,8 +191,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `PlayerControlsSharedViews.swift`.
 - `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear
   menu; tvOS uses a custom full-screen diagnostic panel instead of the stock
-  sheet/list presentation so long technical values stay readable. Expose
-  resolver, stream, engine, and enhancement diagnostics there first.
+  sheet/list presentation so long technical values stay readable. Its rows are
+  focusable so remote up/down navigation scrolls the panel, and the back/menu
+  command dismisses it. Expose resolver, stream, engine, and enhancement
+  diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
   menus under the shared gear menu.
 - Marker skip buttons come from `PlexMarker.skipButtonTitle`; only intro and

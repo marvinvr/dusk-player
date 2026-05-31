@@ -2,6 +2,9 @@ import SwiftUI
 
 struct PlayerPlaybackInfoView: View {
     @Environment(\.dismiss) private var dismiss
+    #if os(tvOS)
+    @FocusState private var focusedTVInfoEntryID: String?
+    #endif
 
     let debugInfo: PlaybackDebugInfo
     let state: PlaybackState
@@ -48,56 +51,54 @@ struct PlayerPlaybackInfoView: View {
 
     #if os(tvOS)
     private var tvOSBody: some View {
-        ZStack {
+        let entries = infoEntries
+
+        return ZStack {
             Color.duskBackground
                 .ignoresSafeArea()
 
             VStack(alignment: .leading, spacing: 26) {
-                HStack(alignment: .top, spacing: 32) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Playback Info")
-                            .font(.largeTitle.weight(.bold))
-                            .foregroundStyle(Color.duskTextPrimary)
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Playback Info")
+                        .font(.largeTitle.weight(.bold))
+                        .foregroundStyle(Color.duskTextPrimary)
 
-                        Text(debugInfo.title)
-                            .font(.title3.weight(.medium))
-                            .foregroundStyle(Color.duskTextSecondary)
-                            .lineLimit(2)
-                    }
-
-                    Spacer(minLength: 32)
-
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.title2.weight(.bold))
-                            .foregroundStyle(Color.duskTextPrimary)
-                            .frame(width: 72, height: 72)
-                            .background(.ultraThinMaterial, in: Circle())
-                            .overlay {
-                                Circle()
-                                    .strokeBorder(.white.opacity(0.1), lineWidth: 1)
-                            }
-                    }
-                    .duskSuppressTVOSButtonChrome()
-                    .duskTVOSFocusEffectShape(Circle())
-                    .accessibilityLabel("Close")
+                    Text(debugInfo.title)
+                        .font(.title3.weight(.medium))
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(2)
                 }
 
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 10) {
-                        ForEach(infoEntries) { entry in
-                            tvOSPlaybackInfoRow(entry)
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVStack(alignment: .leading, spacing: 10) {
+                            ForEach(entries) { entry in
+                                tvOSPlaybackInfoRow(
+                                    entry,
+                                    isFocused: focusedTVInfoEntryID == entry.id
+                                )
+                                .id(entry.id)
+                                .focusable(true)
+                                .focused($focusedTVInfoEntryID, equals: entry.id)
+                            }
+                        }
+                        .padding(28)
+                    }
+                    .scrollIndicators(.visible)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 28, style: .continuous)
+                            .strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                    }
+                    .onAppear {
+                        focusedTVInfoEntryID = entries.first?.id
+                    }
+                    .onChange(of: focusedTVInfoEntryID) { _, entryID in
+                        guard let entryID else { return }
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            proxy.scrollTo(entryID, anchor: .center)
                         }
                     }
-                    .padding(28)
-                }
-                .scrollIndicators(.visible)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .strokeBorder(.white.opacity(0.08), lineWidth: 1)
                 }
             }
             .padding(.horizontal, 96)
@@ -108,7 +109,7 @@ struct PlayerPlaybackInfoView: View {
         }
     }
 
-    private func tvOSPlaybackInfoRow(_ entry: PlaybackInfoEntry) -> some View {
+    private func tvOSPlaybackInfoRow(_ entry: PlaybackInfoEntry, isFocused: Bool) -> some View {
         HStack(alignment: .top, spacing: 28) {
             Text(entry.label.uppercased())
                 .font(.subheadline.weight(.semibold))
@@ -125,7 +126,18 @@ struct PlayerPlaybackInfoView: View {
         }
         .padding(.horizontal, 22)
         .padding(.vertical, 14)
-        .background(Color.duskSurface.opacity(0.76), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.76),
+            in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(
+                    isFocused ? Color.duskAccent.opacity(0.45) : .white.opacity(0.04),
+                    lineWidth: 1
+                )
+        }
+        .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
     #endif
 
@@ -279,19 +291,6 @@ struct PlayerPlaybackInfoUnavailableView: View {
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
 
-                Button {
-                    dismiss()
-                } label: {
-                    Label("Close", systemImage: "xmark")
-                        .font(.headline)
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 16)
-                        .background(.ultraThinMaterial, in: Capsule())
-                }
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
-                .padding(.top, 12)
             }
             .padding(42)
             .frame(width: 620)
