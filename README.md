@@ -1,6 +1,6 @@
 # Dusk for Plex
 
-A native Swift/SwiftUI Plex client for Apple platforms.
+A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lower-resolution video.
 
 ![Dusk website](screenshots/dusk_website_screenshot.png)
 
@@ -26,6 +26,7 @@ A native Swift/SwiftUI Plex client for Apple platforms.
 - [x] tvOS App
 - [x] App Store Release
 - [x] Offline playback (Downloads)
+- [x] AI Upscaling
 - [ ] Plex Home Integration
 
 ### Later down the line
