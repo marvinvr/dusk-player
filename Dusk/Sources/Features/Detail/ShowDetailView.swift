@@ -94,7 +94,7 @@ struct ShowDetailView: View {
                     if let summary = details.summary, !summary.isEmpty {
                         Text(summary)
                             .font(.body)
-                            .foregroundStyle(Color.duskTextSecondary)
+                            .foregroundStyle(Color.primary.opacity(0.76))
                             .lineSpacing(4)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 32)
@@ -181,7 +181,7 @@ struct ShowDetailView: View {
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
 
@@ -190,7 +190,7 @@ struct ShowDetailView: View {
         if let genres = viewModel.genreText {
             Text(genres)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let rating = details.rating {
@@ -214,7 +214,7 @@ struct ShowDetailView: View {
         if let studio = details.studio {
             Text(studio)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
     }
 
@@ -226,15 +226,15 @@ struct ShowDetailView: View {
 
             Text(value)
                 .font(.subheadline.monospacedDigit())
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.primary.opacity(0.84))
         }
     }
 
     @ViewBuilder
     private func actionButtons() -> some View {
         let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
+            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
+            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
 
         layout {
             if viewModel.nextEpisode != nil {
@@ -249,12 +249,7 @@ struct ShowDetailView: View {
                         fillsWidth: usesFullWidthActionButtons
                     )
                 }
-                #if os(tvOS)
-                .buttonStyle(.glassProminent)
-                .tint(Color.duskAccent)
-                #else
-                .duskSuppressTVOSButtonChrome()
-                #endif
+                .detailHeroNativePrimaryButtonStyle()
                 .contextMenu {
                     if let episode = viewModel.nextEpisode {
                         PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
@@ -304,7 +299,7 @@ struct ShowDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Seasons")
                     .font(.headline)
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
                     .padding(.horizontal, horizontalPadding)
 
                 LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
@@ -332,30 +327,18 @@ struct ShowDetailView: View {
     private func seasonContextMenu(_ season: PlexSeason) -> some View {
         let downloadState = downloadManager.downloadState(for: DownloadScope(ratingKey: season.ratingKey, type: .season))
 
-        if season.isPartiallyWatched {
+        if !season.isFullyWatched {
             Button {
                 Task { await viewModel.markSeason(season, watched: true) }
             } label: {
                 Label("Mark Watched", systemImage: "eye")
             }
+        }
 
-            Button {
-                Task { await viewModel.markSeason(season, watched: false) }
-            } label: {
-                Label("Mark Unwatched", systemImage: "eye.slash")
-            }
-        } else if season.isFullyWatched {
-            Button {
-                Task { await viewModel.markSeason(season, watched: false) }
-            } label: {
-                Label("Mark Unwatched", systemImage: "eye.slash")
-            }
-        } else {
-            Button {
-                Task { await viewModel.markSeason(season, watched: true) }
-            } label: {
-                Label("Mark Watched", systemImage: "eye")
-            }
+        Button {
+            Task { await viewModel.markSeason(season, watched: false) }
+        } label: {
+            Label("Mark Unwatched", systemImage: "eye.slash")
         }
 
         if !downloadState.isDeleting && downloadState.canDelete {

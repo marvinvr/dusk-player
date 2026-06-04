@@ -43,7 +43,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and
   resumes from the same position without finalizing or scrobbling the session.
 - Transcoded playback uses AVPlayer by default because the server emits HLS.
-  `forceVLCKit` still forces VLCKit for debugging.
+  `forceVLCKit` still forces VLCKit for debugging. Dusk currently advertises
+  H.264/AAC for manual Plex HLS transcodes; direct-play HEVC remains supported,
+  but HEVC HLS transcoding is not advertised until the app can request a proven
+  Apple-compatible package.
+- Video Enhancement is disabled for manual HLS transcodes so AVPlayer's native
+  renderer remains the rendering path while the server owns the video pipeline.
 - Completed downloads do not expose quality switching because offline playback
   must stay local and cannot ask Plex to transcode.
 - Transcode failures keep the existing stream running and show an in-player

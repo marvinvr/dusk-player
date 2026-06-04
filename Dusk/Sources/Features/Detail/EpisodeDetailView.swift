@@ -85,7 +85,12 @@ struct EpisodeDetailView: View {
 #endif
 
                     if let summary = details.summary, !summary.isEmpty {
-                        ExpandableSummaryText(text: summary)
+                        ExpandableSummaryText(
+                            text: summary,
+                            collapsedLineLimit: episodeSummaryCollapsedLineLimit,
+                            foregroundStyle: episodeSummaryForegroundStyle,
+                            allowsExpansion: episodeSummaryAllowsExpansion
+                        )
                             .padding(.horizontal, 20)
                             .padding(.top, 24)
 #if os(tvOS)
@@ -216,13 +221,13 @@ struct EpisodeDetailView: View {
     private func metadataMarkerText(_ title: String) -> some View {
         Text(title)
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.white.opacity(0.76))
+            .foregroundStyle(Color.primary.opacity(0.82))
     }
 
     private var metadataSeparator: some View {
         Text(" · ")
             .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.white.opacity(0.76))
+            .foregroundStyle(Color.primary.opacity(0.56))
     }
 
     @ViewBuilder
@@ -235,7 +240,7 @@ struct EpisodeDetailView: View {
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
 
@@ -244,7 +249,7 @@ struct EpisodeDetailView: View {
         if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
             Text(originalDate)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let rating = details.rating {
@@ -254,88 +259,122 @@ struct EpisodeDetailView: View {
                     .foregroundStyle(.yellow)
                 Text(String(format: "%.1f", rating))
                     .font(.subheadline.monospacedDigit())
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(Color.primary.opacity(0.84))
             }
         }
     }
 
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
-        let layout = sizeClass == .regular
-            ? AnyLayout(HStackLayout(spacing: 12))
-            : AnyLayout(VStackLayout(spacing: 12))
+        if usesFullWidthActionButtons {
+            VStack(spacing: detailHeroActionSpacing) {
+                playButton(details)
 
-        layout {
-            Button {
-                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
-                Task { await playback.play(ratingKey: details.ratingKey) }
-            } label: {
-                DetailHeroPrimaryActionButtonLabel(
-                    title: "Play Episode",
-                    systemImage: "play.fill",
-                    fillsWidth: usesFullWidthActionButtons
-                )
-            }
-            #if os(tvOS)
-            .buttonStyle(.glassProminent)
-            .tint(Color.duskAccent)
-            #else
-            .duskSuppressTVOSButtonChrome()
-            #endif
-            .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
-            .contextMenu {
-                if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
-                    PlayVersionContextMenu(versions: details.media) { version in
-                        Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
-                    }
+                HStack(spacing: detailHeroActionSpacing) {
+                    downloadButton(details, fillsWidth: true)
+                    watchedButton(fillsWidth: true)
                 }
+                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
+        } else {
+            HStack(spacing: detailHeroActionSpacing) {
+                playButton(details)
+                downloadButton(details, fillsWidth: false)
+                episodeNavigationButton()
+                watchedButton(fillsWidth: false)
+            }
+        }
+    }
 
-            DownloadActionButton(
-                ratingKey: details.ratingKey,
-                type: .episode,
+    private func playButton(_ details: PlexMediaDetails) -> some View {
+        Button {
+            guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
+            Task { await playback.play(ratingKey: details.ratingKey) }
+        } label: {
+            DetailHeroPrimaryActionButtonLabel(
+                title: "Play Episode",
+                systemImage: "play.fill",
                 fillsWidth: usesFullWidthActionButtons
             )
-
-            #if os(tvOS)
-            if let seasonRatingKey = viewModel.seasonRatingKey {
-                NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
-                    DetailHeroSecondaryActionButtonLabel(
-                        title: "Go to Season",
-                        systemImage: "rectangle.stack.fill"
-                    )
+        }
+        .detailHeroNativePrimaryButtonStyle()
+        .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
+        .contextMenu {
+            if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
+                PlayVersionContextMenu(versions: details.media) { version in
+                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
                 }
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
             }
-            #endif
+        }
+    }
 
-            Button {
-                Task { await viewModel.toggleWatched() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: viewModel.isWatched ? "eye.slash" : "eye")
-                    Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
-                }
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
-                .padding(.vertical, 12)
-                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
-                .background(Color.duskSurface)
-                .foregroundStyle(Color.duskTextPrimary)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
+    private func downloadButton(_ details: PlexMediaDetails, fillsWidth: Bool) -> some View {
+        DownloadActionButton(
+            ratingKey: details.ratingKey,
+            type: .episode,
+            fillsWidth: fillsWidth
+        )
+    }
+
+    @ViewBuilder
+    private func episodeNavigationButton() -> some View {
+        #if os(tvOS)
+        if let seasonRatingKey = viewModel.seasonRatingKey {
+            NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
+                DetailHeroSecondaryActionButtonLabel(
+                    title: "Go to Season",
+                    systemImage: "rectangle.stack.fill"
                 )
             }
-            .duskSuppressTVOSButtonChrome()
-            .duskTVOSFocusEffectShape(Capsule())
+            .detailHeroNativeSecondaryButtonStyle()
         }
+        #else
+        EmptyView()
+        #endif
+    }
+
+    private func watchedButton(fillsWidth: Bool) -> some View {
+        Button {
+            Task { await viewModel.toggleWatched() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: viewModel.isWatched ? "eye.slash" : "eye")
+                Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
+            }
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
+            .contentShape(Capsule())
+        }
+        .detailHeroNativeSecondaryButtonStyle()
     }
 
     private var usesFullWidthActionButtons: Bool {
         usesFullWidthDetailActionButtons(for: sizeClass)
+    }
+
+    private var episodeSummaryCollapsedLineLimit: Int {
+        #if os(iOS)
+        2
+        #else
+        9
+        #endif
+    }
+
+    private var episodeSummaryForegroundStyle: Color {
+        #if os(iOS)
+        Color.primary.opacity(0.78)
+        #else
+        Color.primary.opacity(0.76)
+        #endif
+    }
+
+    private var episodeSummaryAllowsExpansion: Bool {
+        #if os(iOS)
+        false
+        #else
+        true
+        #endif
     }
 
 }

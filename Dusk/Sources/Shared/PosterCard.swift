@@ -53,7 +53,7 @@ struct PosterArtwork: View {
             if let availabilityBadge, !availabilityBadge.isEmpty {
                 Text(availabilityBadge)
                     .font(.caption2.weight(.bold))
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
                     .lineLimit(1)
                     .padding(.horizontal, 7)
                     .padding(.vertical, 5)
@@ -136,7 +136,7 @@ struct PosterCardText: View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.cardTextSpacing) {
             Text(title)
                 .font(DuskPosterMetrics.titleFont)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
                 .lineLimit(2)
                 .frame(width: width, alignment: .leading)
 
@@ -149,7 +149,7 @@ struct PosterCardText: View {
         if let subtitle, !subtitle.isEmpty {
             Text(subtitle)
                 .font(DuskPosterMetrics.subtitleFont)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(Color.primary.opacity(0.68))
                 .lineLimit(1)
                 .frame(width: width, alignment: .leading)
         } else {
@@ -255,11 +255,16 @@ extension PlexItem {
         switch type {
         case .movie, .episode, .clip:
             return isWatched || isPartiallyWatched
-        case .show, .season:
+        case .show:
             if let viewedLeafCount {
                 return viewedLeafCount > 0
             }
             return isWatched || isPartiallyWatched
+        case .season:
+            if let viewedLeafCount, viewedLeafCount > 0 {
+                return true
+            }
+            return isWatched || isPartiallyWatched || canMarkWatchedFromContextMenu
         default:
             return false
         }

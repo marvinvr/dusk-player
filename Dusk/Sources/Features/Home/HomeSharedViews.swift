@@ -51,20 +51,12 @@ struct HomeHeroActionButtonLabel: View {
                 .font(.headline.weight(.semibold))
                 .lineLimit(1)
         }
+        .frame(minHeight: 34)
         #if os(tvOS)
         .frame(minWidth: minimumButtonWidth)
         .contentShape(Capsule())
-        #endif
-        #if !os(tvOS)
-        .foregroundStyle(Color.white)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(Color.duskAccent, in: Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.16), radius: 10, y: 4)
+        #else
+        .contentShape(Capsule())
         #endif
     }
 }
@@ -83,13 +75,13 @@ struct HomeHeroSecondaryActionButtonLabel: View {
             .frame(minWidth: minimumButtonWidth)
             .contentShape(Capsule())
             #endif
-            .foregroundStyle(Color.white)
+            .foregroundStyle(Color.primary)
             .padding(.horizontal, 20)
             .padding(.vertical, 14)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
                 Capsule()
-                    .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
     }
@@ -107,11 +99,11 @@ struct HomeHeroPagerPill: View {
 
         ZStack(alignment: .leading) {
             Capsule()
-                .fill(isActive ? Color.white.opacity(0.24) : Color.white.opacity(0.28))
+                .fill(isActive ? Color.primary.opacity(0.24) : Color.primary.opacity(0.28))
 
             if isActive {
                 Capsule()
-                    .fill(Color.white)
+                    .fill(Color.primary)
                     .frame(
                         width: max((pillWidth - (fillInset * 2)) * clampedProgress, 0),
                         height: pillHeight - (fillInset * 2)
@@ -125,21 +117,37 @@ struct HomeHeroPagerPill: View {
         .overlay {
             if isActive {
                 Capsule()
-                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                    .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
             }
         }
     }
 }
 
-struct HeroPauseAwareButtonStyle: ButtonStyle {
-    let onPress: () -> Void
-
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .onChange(of: configuration.isPressed) { _, isPressed in
-                if isPressed {
-                    onPress()
-                }
-            }
+extension View {
+    @ViewBuilder
+    func homeHeroNativeButtonStyle() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.primary)
+        #elseif os(iOS)
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        } else {
+            self
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        }
+        #else
+        self
+        #endif
     }
 }

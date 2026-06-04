@@ -158,25 +158,14 @@ private extension DuskApp {
     }
 
     static func configureTabBarAppearance() {
-        let itemAppearance = UITabBarItemAppearance()
-        itemAppearance.normal.iconColor = .duskTextSecondary
-        itemAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor.duskTextSecondary]
-        itemAppearance.selected.iconColor = .duskAccent
-        itemAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor.duskAccent]
-
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()
         appearance.backgroundColor = .duskSurface
         appearance.shadowColor = UIColor.label.withAlphaComponent(0.05)
-        appearance.stackedLayoutAppearance = itemAppearance
-        appearance.inlineLayoutAppearance = itemAppearance
-        appearance.compactInlineLayoutAppearance = itemAppearance
 
         let tabBarAppearance = UITabBar.appearance()
         tabBarAppearance.standardAppearance = appearance
         tabBarAppearance.scrollEdgeAppearance = appearance
-        tabBarAppearance.unselectedItemTintColor = .duskTextSecondary
-        tabBarAppearance.tintColor = .duskAccent
     }
 }
 #endif

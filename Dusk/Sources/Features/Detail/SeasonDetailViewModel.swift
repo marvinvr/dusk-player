@@ -44,14 +44,12 @@ final class SeasonDetailViewModel {
         await reload()
     }
 
-    func toggleWatched(for episode: PlexEpisode) async {
-        let targetWatched = !isWatched(episode)
-
+    func setWatched(_ watched: Bool, for episode: PlexEpisode) async {
         if constrainsPlaybackToOfflineAvailability || isPlayableOffline(episode) {
             offlinePlaybackSyncManager?.recordWatchState(
                 serverID: serverID(for: episode),
                 ratingKey: episode.ratingKey,
-                watched: targetWatched
+                watched: watched
             )
             offlineStateVersion += 1
             await offlinePlaybackSyncManager?.syncPendingActions(force: true)
@@ -60,20 +58,24 @@ final class SeasonDetailViewModel {
         }
 
         do {
-            try await plexService.setWatched(targetWatched, ratingKey: episode.ratingKey)
+            try await plexService.setWatched(watched, ratingKey: episode.ratingKey)
             await reload()
         } catch {
             if isPlayableOffline(episode) {
                 offlinePlaybackSyncManager?.recordWatchState(
                     serverID: serverID(for: episode),
                     ratingKey: episode.ratingKey,
-                    watched: targetWatched
+                    watched: watched
                 )
                 offlineStateVersion += 1
             } else {
                 self.error = error.localizedDescription
             }
         }
+    }
+
+    func toggleWatched(for episode: PlexEpisode) async {
+        await setWatched(!isWatched(episode), for: episode)
     }
 
     func focusEpisode(_ episode: PlexEpisode) async {

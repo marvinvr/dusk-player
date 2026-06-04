@@ -30,7 +30,7 @@ struct MediaCarousel<Content: View, HeaderAccessory: View>: View {
             HStack(alignment: .firstTextBaseline, spacing: DuskPosterMetrics.carouselHeaderSpacing) {
                 Text(title)
                     .font(.title3.bold())
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
 
                 Spacer(minLength: 0)
 

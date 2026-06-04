@@ -83,9 +83,18 @@ extension View {
     }
 
     @ViewBuilder
-    func duskTVOSFocusEffectShape<S: Shape>(_ shape: S) -> some View {
+    func duskTVOSFocusEffectShape<S: Shape>(_ shape: S, scales: Bool = true) -> some View {
         #if os(tvOS)
-        modifier(DuskTVFocusEffectModifier(shape: shape))
+        modifier(DuskTVFocusEffectModifier(shape: shape, scales: scales))
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func duskTVOSFocusedScale(_ isFocused: Bool) -> some View {
+        #if os(tvOS)
+        modifier(DuskTVFocusedScaleModifier(isFocused: isFocused))
         #else
         self
         #endif
@@ -101,6 +110,15 @@ extension View {
     }
 
 }
+
+#if os(tvOS)
+private struct DuskTVChromeSuppressedButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.86 : 1.0)
+    }
+}
+#endif
 
 #if os(iOS)
 struct DuskSafariView: UIViewControllerRepresentable {
@@ -152,35 +170,43 @@ private final class DuskStatusBarAppearanceCaptureController: UIViewController {
 #endif
 
 #if os(tvOS)
-private struct DuskTVChromeSuppressedButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .opacity(configuration.isPressed ? 0.72 : 1.0)
-            .animation(.easeOut(duration: 0.08), value: configuration.isPressed)
-    }
-}
-#endif
-
 private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
     @Environment(\.isFocused) private var isFocused
 
     let shape: S
+    let scales: Bool
 
     func body(content: Content) -> some View {
         content
             .contentShape(.interaction, shape)
             .contentShape(.hoverEffect, shape)
             .focusEffectDisabled()
-            .scaleEffect(isFocused ? 1.05 : 1.0)
+            .hoverEffect(.highlight)
+            .scaleEffect(scales && isFocused ? 1.05 : 1.0)
             .shadow(
-                color: isFocused ? Color.duskAccent.opacity(0.30) : .clear,
-                radius: isFocused ? 20 : 0,
-                y: isFocused ? 10 : 0
+                color: scales && isFocused ? Color.white.opacity(0.34) : .clear,
+                radius: scales && isFocused ? 16 : 0,
+                y: scales && isFocused ? 6 : 0
             )
             .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
+
+private struct DuskTVFocusedScaleModifier: ViewModifier {
+    let isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isFocused ? 1.05 : 1.0)
+            .shadow(
+                color: isFocused ? Color.white.opacity(0.34) : .clear,
+                radius: isFocused ? 16 : 0,
+                y: isFocused ? 6 : 0
+            )
+            .animation(.easeOut(duration: 0.18), value: isFocused)
+    }
+}
+#endif
 
 enum DuskPosterMetrics {
     static var carouselSectionSpacing: CGFloat {

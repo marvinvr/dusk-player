@@ -21,6 +21,10 @@ struct HomeTVView: View {
         case heroPrimaryAction
     }
 
+    private var shelfTopPadding: CGFloat {
+        60
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let heroItems = viewModel.heroItems()
@@ -59,8 +63,7 @@ struct HomeTVView: View {
                                         )
                                     }
                                     #if os(tvOS)
-                                    .buttonStyle(.glassProminent)
-                                    .tint(Color.duskAccent)
+                                    .homeHeroNativeButtonStyle()
                                     .focused($focusedTarget, equals: .heroPrimaryAction)
                                     .prefersDefaultFocus(true, in: homeFocusScope)
                                     .background(
@@ -169,7 +172,7 @@ struct HomeTVView: View {
                             }
                         }
                     }
-                    .padding(.top, heroItems.isEmpty ? 56 : 44)
+                    .padding(.top, heroItems.isEmpty ? 56 : shelfTopPadding)
                     .padding(.bottom, DuskPosterMetrics.pageBottomPadding)
                     #if os(tvOS)
                     .focusSection()
@@ -228,11 +231,11 @@ struct HomeTVView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Home")
                 .font(.system(size: 44, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
 
             Text(serverName)
                 .font(.title3)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(Color.primary)
         }
     }
 

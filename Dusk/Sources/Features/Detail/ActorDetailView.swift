@@ -53,7 +53,7 @@ struct ActorDetailView: View {
         GeometryReader { geometry in
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    headerCard
+                    header
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 36)
 
@@ -87,7 +87,7 @@ struct ActorDetailView: View {
         }
     }
 
-    private var headerCard: some View {
+    private var header: some View {
         let artworkSize: CGFloat = {
             #if os(tvOS)
             160
@@ -109,24 +109,22 @@ struct ActorDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text(viewModel.person.name)
                     .font(.title2.bold())
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
                     .multilineTextAlignment(.leading)
 
                 if let roleName = viewModel.person.roleName, !roleName.isEmpty {
                     Text(roleName)
                         .font(.subheadline)
-                        .foregroundStyle(Color.duskTextSecondary)
+                        .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
                 Text(viewModel.creditSummary)
                     .font(.subheadline)
-                    .foregroundStyle(Color.duskTextSecondary)
+                    .foregroundStyle(Color.primary.opacity(0.76))
             }
 
             Spacer(minLength: 0)
         }
-        .padding(20)
-        .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     @ViewBuilder
@@ -146,31 +144,18 @@ struct ActorDetailView: View {
                 }
             }
             .frame(width: size, height: size)
-            #if os(tvOS)
             .clipShape(artworkShape)
-            #else
-            .clipShape(Circle())
-            #endif
         } else {
             personPlaceholder(size: size)
                 .frame(width: size, height: size)
-                #if os(tvOS)
                 .clipShape(artworkShape)
-                #else
-                .clipShape(Circle())
-                #endif
         }
     }
 
     private func personPlaceholder(size: CGFloat) -> some View {
         ZStack {
-            #if os(tvOS)
             RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
-                .fill(Color.duskBackground)
-            #else
-            Circle()
-                .fill(Color.duskBackground)
-            #endif
+                .fill(Color.duskSurface)
 
             Image(systemName: "person.fill")
                 .font(.system(size: size * 0.30, weight: .regular))
@@ -198,7 +183,7 @@ struct ActorDetailView: View {
         VStack(alignment: .leading, spacing: sectionSpacing) {
             Text(title)
                 .font(sectionTitleFont)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
                 .padding(.horizontal, horizontalPadding)
 
             PlexItemPosterGrid(
@@ -225,11 +210,11 @@ struct ActorDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No titles found")
                 .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
 
             Text("This actor doesn't have any movies or shows available in your connected Plex library.")
                 .font(.subheadline)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(Color.primary.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(20)

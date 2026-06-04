@@ -58,19 +58,19 @@ struct EpisodeRowView: View {
 
                 Text(primaryTitle)
                     .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
                     .lineLimit(2)
 
                 if let duration = formattedDuration {
                     Text(duration)
                         .font(.caption)
-                        .foregroundStyle(Color.duskTextSecondary)
+                        .foregroundStyle(Color.primary.opacity(0.72))
                 }
 
                 if let summary = episode.summary {
                     Text(summary)
                         .font(.caption)
-                        .foregroundStyle(Color.duskTextSecondary)
+                        .foregroundStyle(Color.primary.opacity(0.76))
                         .lineLimit(2)
                         .padding(.top, 2)
                 }

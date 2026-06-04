@@ -3,7 +3,7 @@ version = 1
 name = "dusk-player"
 
 [setup]
-script = ""
+script = "cd \"$CODEX_WORKTREE_PATH\""
 
 [[actions]]
 name = "iPhone Simulator"

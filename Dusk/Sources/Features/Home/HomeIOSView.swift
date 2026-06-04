@@ -40,8 +40,11 @@ struct HomeIOSView: View {
                                             systemImage: "play.fill"
                                         )
                                     }
-                                    .buttonStyle(HeroPauseAwareButtonStyle(onPress: callbacks.pauseRotation))
-                                    .duskSuppressTVOSButtonChrome()
+                                    .homeHeroNativeButtonStyle()
+                                    .simultaneousGesture(
+                                        DragGesture(minimumDistance: 0)
+                                            .onChanged { _ in callbacks.pauseRotation() }
+                                    )
                                     .contextMenu {
                                         HomeItemContextMenu(
                                             item: item,
@@ -150,6 +153,7 @@ struct HomeIOSView: View {
                 .duskNavigationTitle("")
                 .duskNavigationBarTitleDisplayModeInline()
                 .toolbarColorScheme(.dark, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .tabBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
         } else {
             content
@@ -162,7 +166,7 @@ struct HomeIOSView: View {
     private func homeSubtitle(_ serverName: String) -> some View {
         Text(serverName)
             .font(.subheadline)
-            .foregroundStyle(Color.duskTextSecondary)
+            .foregroundStyle(Color.primary)
             .lineLimit(1)
             .padding(.horizontal, 20)
     }

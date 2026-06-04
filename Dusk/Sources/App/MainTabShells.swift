@@ -54,12 +54,14 @@ struct MainTabIOSShell<Content: View>: View {
         TabView(selection: selection) {
             ForEach(tabs) { tab in
                 content(tab)
+                    .tint(Color.duskAccent)
                     .tag(tab)
                     .tabItem {
                         Label(tab.title, systemImage: tab.systemImage)
                     }
             }
         }
+        .tint(.primary)
     }
 }
 

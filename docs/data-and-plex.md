@@ -121,7 +121,9 @@ File: `PlexService+Playback.swift`.
   `/video/:/transcode/universal/decision` first, then
   `/video/:/transcode/universal/start.m3u8` when the decision allows it.
 - Non-original quality presets force `directPlay=0`, `directStream=0`,
-  `protocol=hls`, a Generic client profile, and an HLS transcode target.
+  `protocol=hls`, a Generic client profile, and an H.264/AAC HLS transcode
+  target. Do not add HEVC to the current mpegts HLS target without validating
+  the resulting package on iOS and tvOS AVPlayer.
 - Decision code `1001` means transcode available, `1000` means direct-play only,
   and codes `>= 2000` are treated as failures.
 - Transcode start URLs also carry `X-Plex-Token` in the query because playback

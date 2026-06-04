@@ -61,7 +61,7 @@ A crisp, high-clarity alternative. Avoids "pure" white to reduce eye strain.
 
 ## 4. Interaction States
 
-* **Hover/Focus (tvOS):** Scale the element to `1.05x` and add a subtle outer glow using the `AppAccent` color at 30% opacity.
+* **Hover/Focus (tvOS):** Scale the element to `1.05x` and add a subtle, tight neutral white outer glow.
 * **Loading:** Use a custom `ProgressView` tinted with `AppAccent`.
 * **Empty States:** Use SF Symbols with a "Dusk Gray" (`#8E95A8`) tint and centered `TextSecondary`.
 
@@ -86,6 +86,7 @@ Current SwiftUI implementation keeps the theme tokens in `Dusk/Sources/App/DuskA
 #### Current application rules
 
 * Apply `Color.duskAccent` as the app-wide `.tint(...)`.
+* Keep iOS/iPadOS tab bar selection monochrome by tinting the `TabView` with the native `.primary` color role. Do not hardcode selected tab colors; the floating iPad tab bar must adapt to both artwork and light content backgrounds.
 * Use `Color.duskBackground` for root screen backgrounds.
 * Use `Color.duskSurface` for list rows, cards, sheets, and elevated surfaces.
 * Use `Color.duskTextPrimary` for titles and high-emphasis labels.

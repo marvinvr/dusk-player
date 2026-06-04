@@ -249,8 +249,11 @@ private extension PlexService {
                 "add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=\(bitrate)&replace=true)"
             )
         }
+        // Plex's HEVC transcoder can choose HEVC HLS from this profile, but the
+        // current Generic/mpegts target is not reliable with AVPlayer on Apple
+        // platforms and can produce audio-only playback.
         clauses.append(
-            "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264,hevc&audioCodec=aac)"
+            "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)"
         )
         return clauses.joined(separator: "+")
     }

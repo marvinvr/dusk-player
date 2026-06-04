@@ -8,10 +8,31 @@ struct ShowAllCarouselLink: View {
         NavigationLink(value: route) {
             Text(title)
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.duskAccent)
         }
-        .buttonStyle(.plain)
-        .duskSuppressTVOSButtonChrome()
+        .controlSize(.small)
+        .buttonBorderShape(.capsule)
+        .showAllCarouselButtonStyle()
+    }
+}
+
+private extension View {
+    @ViewBuilder
+    func showAllCarouselButtonStyle() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.glass)
+            .tint(Color.primary)
+        #else
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .tint(Color.primary)
+        } else {
+            self
+                .buttonStyle(.bordered)
+                .tint(Color.primary)
+        }
+        #endif
     }
 }
 

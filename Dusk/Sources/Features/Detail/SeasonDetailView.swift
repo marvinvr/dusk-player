@@ -253,20 +253,20 @@ struct SeasonDetailView: View {
         if let episode = focusedTVEpisode {
             VStack(alignment: .leading, spacing: 6) {
                 Text(episode.title)
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(Color.white)
+                    .font(.headline.weight(.bold))
+                    .foregroundStyle(Color.primary)
                     .lineLimit(1)
 
                 if let subtitle = viewModel.episodeSubtitle(episode) {
                     Text(subtitle)
                         .font(.caption)
-                        .foregroundStyle(Color.white.opacity(0.76))
+                        .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
                 if let summary = episode.summary, !summary.isEmpty {
                     Text(summary)
                         .font(.caption)
-                        .foregroundStyle(Color.white.opacity(0.72))
+                        .foregroundStyle(Color.primary.opacity(0.76))
                         .lineSpacing(3)
                         .lineLimit(2)
                         .frame(maxWidth: 720, alignment: .leading)
@@ -300,15 +300,15 @@ struct SeasonDetailView: View {
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
 
     @ViewBuilder
     private func actionButtons() -> some View {
         let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
+            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
+            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
 
         layout {
             SeasonHeroActions(
@@ -358,7 +358,7 @@ struct SeasonDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
                     .font(.headline)
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     LazyHStack(alignment: .top, spacing: 28) {
@@ -393,7 +393,7 @@ struct SeasonDetailView: View {
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
                     .font(.headline)
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
 
                 LazyVStack(alignment: .leading, spacing: 20) {
                     ForEach(viewModel.displayEpisodes) { episode in
@@ -458,13 +458,27 @@ struct SeasonDetailView: View {
             }
         }
 
-        Button {
+        if viewModel.isPartiallyWatched(episode) {
+            Button {
+                Task { await viewModel.setWatched(true, for: episode) }
+            } label: {
+                Label("Mark Watched", systemImage: "eye")
+            }
+
+            Button {
+                Task { await viewModel.setWatched(false, for: episode) }
+            } label: {
+                Label("Mark Unwatched", systemImage: "eye.slash")
+            }
+        } else {
+            Button {
                 Task { await viewModel.toggleWatched(for: episode) }
             } label: {
-            Label(
-                viewModel.isWatched(episode) ? "Mark Unwatched" : "Mark Watched",
-                systemImage: viewModel.isWatched(episode) ? "eye.slash" : "eye"
-            )
+                Label(
+                    viewModel.isWatched(episode) ? "Mark Unwatched" : "Mark Watched",
+                    systemImage: viewModel.isWatched(episode) ? "eye.slash" : "eye"
+                )
+            }
         }
 
         if DownloadsFeature.isVisible {
@@ -566,8 +580,8 @@ private struct SeasonHeroActions: View {
 
     var body: some View {
         let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: 12))
-            : AnyLayout(HStackLayout(spacing: 12))
+            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
+            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
 
         layout {
             Button {
@@ -580,12 +594,7 @@ private struct SeasonHeroActions: View {
                     fillsWidth: usesFullWidthActionButtons
                 )
             }
-            #if os(tvOS)
-            .buttonStyle(.glassProminent)
-            .tint(Color.duskAccent)
-            #else
-            .duskSuppressTVOSButtonChrome()
-            #endif
+            .detailHeroNativePrimaryButtonStyle()
             .contextMenu {
                 if let nextEpisode {
                     PlayVersionContextMenu(versions: nextEpisodePlayableVersions) { version in
@@ -608,8 +617,7 @@ private struct SeasonHeroActions: View {
                         systemImage: "tv.fill"
                     )
                 }
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
+                .detailHeroNativeSecondaryButtonStyle()
             }
             #endif
         }
@@ -650,7 +658,7 @@ private struct TVSeasonEpisodeCard: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.plain)
+            .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
             .duskTVOSFocusEffectShape(artworkShape)
             .accessibilityLabel("Play \(episode.title)")
@@ -706,7 +714,7 @@ private struct TVSeasonEpisodeRow: View {
                     )
                     .contentShape(.contextMenuPreview, artworkShape)
                 }
-                .buttonStyle(.plain)
+                .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(artworkShape)
                 .accessibilityLabel("View \(episode.title)")
                 .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
@@ -868,7 +876,7 @@ private struct SeasonEpisodeTextContent: View {
                 if let label, !label.isEmpty {
                     Text(label)
                         .font(.caption.weight(.semibold))
-                        .foregroundStyle(Color.duskTextSecondary)
+                        .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
                 if isWatched {
@@ -882,14 +890,14 @@ private struct SeasonEpisodeTextContent: View {
 
             Text(episode.title)
                 .font(.headline)
-                .foregroundStyle(isUnavailableOffline ? Color.duskTextSecondary : Color.duskTextPrimary)
+                .foregroundStyle(isUnavailableOffline ? Color.primary.opacity(0.55) : Color.primary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
                     .font(.caption)
-                    .foregroundStyle(Color.duskTextSecondary)
+                    .foregroundStyle(Color.primary.opacity(0.76))
             }
 
             if showsInlineSummary {
@@ -928,7 +936,7 @@ private struct SeasonEpisodeSummaryText: View {
         if let summary = episode.summary, !summary.isEmpty {
             Text(summary)
                 .font(.subheadline)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(Color.primary.opacity(0.76))
                 .lineSpacing(4)
                 .lineLimit(lineLimit)
                 .truncationMode(.tail)

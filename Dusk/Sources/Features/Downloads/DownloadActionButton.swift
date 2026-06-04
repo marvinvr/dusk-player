@@ -30,19 +30,11 @@ struct DownloadActionButton: View {
                     Text(title)
                 }
                 .font(.subheadline.weight(.medium))
-                .frame(maxWidth: fillsWidth ? .infinity : nil)
-                .padding(.vertical, 12)
-                .padding(.horizontal, fillsWidth ? 0 : 18)
-                .background(Color.duskSurface)
+                .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
                 .foregroundStyle(foreground)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-                )
+                .contentShape(Capsule())
             }
-            .duskSuppressTVOSButtonChrome()
-            .duskTVOSFocusEffectShape(Capsule())
+            .detailHeroNativeSecondaryButtonStyle()
             .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
             .alert(deleteConfirmationTitle, isPresented: $isShowingDeleteConfirmation) {
                 Button("No", role: .cancel) {}
@@ -85,7 +77,7 @@ struct DownloadActionButton: View {
         if state.isDeleting || (isStartingDownload && state.status == nil) {
             ProgressView()
                 .controlSize(.small)
-                .tint(Color.duskTextPrimary)
+                .tint(Color.primary)
         } else {
             switch state.status {
             case .queued, .preparing:
@@ -139,9 +131,9 @@ struct DownloadActionButton: View {
     private var downloadTitle: String {
         switch type {
         case .episode:
-            "Download Episode"
+            "Download"
         case .movie:
-            "Download Movie"
+            "Download"
         case .season:
             "Download Season"
         case .show:
@@ -158,13 +150,13 @@ struct DownloadActionButton: View {
 
         return switch state.status {
         case .completed:
-            Color.duskAccent
+            Color.primary
         case .paused:
-            Color.duskAccent
+            Color.primary
         case .failed:
             .red
         default:
-            Color.duskTextPrimary
+            Color.primary
         }
     }
 

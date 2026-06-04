@@ -227,6 +227,7 @@ extension PlaybackCoordinator {
             let playbackDecision: PlaybackDecision
             let engineType: PlaybackEngineType
             let resolverReason: String
+            let videoEnhancementRequest: VideoEnhancementRequest
 
             if preset.isOriginal {
                 guard let directPlayURL = plexService.directPlayURL(for: part) else {
@@ -244,6 +245,11 @@ extension PlaybackCoordinator {
                 playbackDecision = .directPlay
                 engineType = resolverDecision.engine
                 resolverReason = resolverDecision.reason
+                videoEnhancementRequest = VideoEnhancementRequest.make(
+                    mode: preferences.videoEnhancementMode,
+                    media: media,
+                    part: part
+                )
                 activeTranscodeSessionID = nil
             } else {
                 let playbackSessionID = activePlaybackSessionIdentifier ?? UUID().uuidString
@@ -274,6 +280,7 @@ extension PlaybackCoordinator {
                 playbackDecision = .transcode(preset)
                 engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
                 resolverReason = "User selected Plex HLS transcode quality \(preset.displayName)"
+                videoEnhancementRequest = .disabled
             }
 
             let attemptContext = PlaybackAttemptContext(
@@ -292,13 +299,7 @@ extension PlaybackCoordinator {
             )
 
             let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
-            newEngine.configureVideoEnhancement(
-                VideoEnhancementRequest.make(
-                    mode: preferences.videoEnhancementMode,
-                    media: media,
-                    part: part
-                )
-            )
+            newEngine.configureVideoEnhancement(videoEnhancementRequest)
             newEngine.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.handlePlaybackEnded()

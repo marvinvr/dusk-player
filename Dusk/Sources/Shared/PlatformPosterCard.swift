@@ -36,9 +36,9 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.plain)
+            .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
-            .duskTVOSFocusEffectShape(artworkShape)
+            .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .contextMenu {
                 contextMenuContent()
             }
@@ -50,6 +50,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             )
         }
         .frame(width: width, alignment: .topLeading)
+        .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         #else
         NavigationLink(value: route) {
@@ -138,9 +139,9 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
-            .buttonStyle(.plain)
+            .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
-            .duskTVOSFocusEffectShape(artworkShape)
+            .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .contextMenu {
                 contextMenuContent()
             }
@@ -152,6 +153,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             )
         }
         .frame(width: width, alignment: .topLeading)
+        .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         #else
         Button(action: action) {

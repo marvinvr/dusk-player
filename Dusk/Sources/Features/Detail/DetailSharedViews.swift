@@ -11,6 +11,14 @@ func usesFullWidthDetailActionButtons(for sizeClass: UserInterfaceSizeClass?) ->
     #endif
 }
 
+var detailHeroActionSpacing: CGFloat {
+    #if os(tvOS)
+    22
+    #else
+    12
+    #endif
+}
+
 struct OfflineMetadataBanner: View {
     let message: String
 
@@ -22,7 +30,7 @@ struct OfflineMetadataBanner: View {
 
             Text(message)
                 .font(.caption.weight(.medium))
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer(minLength: 0)
@@ -195,7 +203,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     private var titleFallback: some View {
         Text(title)
             .font(.title2.bold())
-            .foregroundStyle(Color.white)
+            .foregroundStyle(Color.primary)
             .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
             .multilineTextAlignment(.leading)
             .lineLimit(2)
@@ -292,15 +300,8 @@ struct DetailHeroSecondaryActionButtonLabel: View {
                 .font(.subheadline.weight(.medium))
                 .lineLimit(1)
         }
-        .foregroundStyle(Color.duskTextPrimary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 12)
-        .background(Color.duskSurface)
-        .clipShape(Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-        )
+        .frame(minHeight: 32)
+        .contentShape(Capsule())
     }
 }
 
@@ -318,13 +319,63 @@ struct DetailHeroPrimaryActionButtonLabel: View {
                 .font(.headline)
                 .lineLimit(1)
         }
-        #if !os(tvOS)
-        .frame(maxWidth: fillsWidth ? .infinity : nil)
-        .foregroundStyle(Color.white)
-        .padding(.vertical, 14)
-        .padding(.horizontal, fillsWidth ? 0 : 18)
-        .background(Color.duskAccent)
-        .clipShape(Capsule())
+        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 34)
+        .contentShape(Capsule())
+    }
+}
+
+extension View {
+    @ViewBuilder
+    func detailHeroNativePrimaryButtonStyle() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.primary)
+        #elseif os(iOS)
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        } else {
+            self
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        }
+        #else
+        self
+        #endif
+    }
+
+    @ViewBuilder
+    func detailHeroNativeSecondaryButtonStyle() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.glass)
+            .controlSize(.regular)
+            .buttonBorderShape(.capsule)
+            .tint(Color.primary)
+        #elseif os(iOS)
+        if #available(iOS 26.0, *) {
+            self
+                .buttonStyle(.glass)
+                .controlSize(.regular)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        } else {
+            self
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .buttonBorderShape(.capsule)
+                .tint(Color.primary)
+        }
+        #else
+        self
         #endif
     }
 }
@@ -349,15 +400,16 @@ struct ActorCreditCard: View {
             NavigationLink(value: AppNavigationRoute.person(person)) {
                 avatarImage(size: avatarSize)
             }
-            .buttonStyle(.plain)
+            .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
-            .duskTVOSFocusEffectShape(artworkShape)
+            .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .accessibilityLabel(accessibilityLabel)
             .frame(width: avatarSize, height: avatarSize)
 
             personDetails(width: avatarSize)
         }
         .frame(width: cardWidth, alignment: .topLeading)
+        .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         #else
         NavigationLink(value: AppNavigationRoute.person(person)) {
@@ -412,13 +464,13 @@ struct ActorCreditCard: View {
         VStack(spacing: 2) {
             Text(person.name)
                 .font(.caption)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
                 .lineLimit(1)
 
             if let roleName = person.roleName, !roleName.isEmpty {
                 Text(roleName)
                     .font(.caption2)
-                    .foregroundStyle(Color.duskTextSecondary)
+                    .foregroundStyle(Color.primary.opacity(0.72))
                     .lineLimit(1)
             }
         }
@@ -453,7 +505,7 @@ struct DetailCastSection: View {
         VStack(alignment: .leading, spacing: 12) {
             Text(title)
                 .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
                 .padding(.horizontal, horizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
@@ -477,8 +529,9 @@ struct DetailCastSection: View {
 
 struct ExpandableSummaryText: View {
     let text: String
-
-    private let collapsedLineLimit = 9
+    var collapsedLineLimit = 9
+    var foregroundStyle = Color.primary.opacity(0.76)
+    var allowsExpansion = true
 
     @State private var isExpanded = false
     @State private var collapsedHeight: CGFloat = 0
@@ -488,7 +541,7 @@ struct ExpandableSummaryText: View {
         VStack(alignment: .leading, spacing: 8) {
             Text(text)
                 .font(.body)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(foregroundStyle)
                 .lineSpacing(4)
                 .lineLimit(isExpanded ? nil : collapsedLineLimit)
                 .truncationMode(.tail)
@@ -506,7 +559,7 @@ struct ExpandableSummaryText: View {
                     .allowsHitTesting(false)
                 }
 
-            if isExpandable {
+            if allowsExpansion, isExpandable {
                 Button(isExpanded ? "Show Less" : "Show More") {
                     isExpanded.toggle()
                 }

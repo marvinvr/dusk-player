@@ -22,12 +22,13 @@ struct HomeCinematicHeroLayout {
     var episodeTitleFont: Font = .title3.weight(.semibold)
     var metadataFont: Font = .subheadline.weight(.medium)
     var summaryFont: Font = .body
+    var summaryLineLimit: Int = 3
     var summaryLineSpacing: CGFloat = 4
 
-    static let ios = HomeCinematicHeroLayout()
+    static let ios = HomeCinematicHeroLayout(summaryLineLimit: 2)
     static let tv = HomeCinematicHeroLayout(
-        heroHeightFactor: 0.70,
-        heroHeightRange: 520 ... 760,
+        heroHeightFactor: 0.79,
+        heroHeightRange: 580 ... 860,
         maxContentWidth: 920,
         contentHorizontalPadding: 48,
         contentTopPadding: 56,
@@ -38,12 +39,13 @@ struct HomeCinematicHeroLayout {
         pagerHorizontalPadding: 48,
         pagerBottomPadding: 32,
         titleFontSize: 46,
-        titleLogoMaxWidth: 560,
-        titleLogoMaxHeight: 128,
+        titleLogoMaxWidth: 640,
+        titleLogoMaxHeight: 152,
         backdropImageAlignment: .top,
         episodeTitleFont: .title2.weight(.semibold),
         metadataFont: .headline.weight(.medium),
         summaryFont: .body,
+        summaryLineLimit: 2,
         summaryLineSpacing: 4
     )
 }
@@ -319,7 +321,7 @@ struct HomeCinematicHero: View {
                     if let episodeTitle = viewModel.heroEpisodeTitle(for: item) {
                         Text(episodeTitle)
                             .font(layout.episodeTitleFont)
-                            .foregroundStyle(Color.white.opacity(0.88))
+                            .foregroundStyle(Color.primary)
                             .lineLimit(2)
                             .frame(maxWidth: contentWidth, alignment: .leading)
                     }
@@ -327,17 +329,17 @@ struct HomeCinematicHero: View {
                     if !metadata.isEmpty {
                         Text(metadata.joined(separator: " · "))
                             .font(layout.metadataFont)
-                            .foregroundStyle(Color.white.opacity(0.76))
+                            .foregroundStyle(Color.primary.opacity(0.78))
                             .lineLimit(2)
                             .frame(maxWidth: contentWidth, alignment: .leading)
                     }
                 }
 
-                if let summary = viewModel.heroSummary(for: item) {
+                if showsHeroSummary, let summary = viewModel.heroSummary(for: item) {
                     Text(summary)
                         .font(layout.summaryFont)
-                        .foregroundStyle(Color.white.opacity(0.84))
-                        .lineLimit(3)
+                        .foregroundStyle(Color.primary.opacity(0.76))
+                        .lineLimit(layout.summaryLineLimit)
                         .lineSpacing(layout.summaryLineSpacing)
                         .frame(maxWidth: contentWidth, alignment: .leading)
                 }
@@ -356,7 +358,15 @@ struct HomeCinematicHero: View {
     }
 
     private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
-        item.type == .movie ? 12 : 8
+        item.type == .movie ? 18 : 14
+    }
+
+    private var showsHeroSummary: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom != .phone
+        #else
+        true
+        #endif
     }
 
     @ViewBuilder
@@ -393,7 +403,7 @@ struct HomeCinematicHero: View {
     private func heroTitleFallback(for item: PlexItem) -> some View {
         Text(viewModel.displayTitle(for: item))
             .font(.system(size: layout.titleFontSize, weight: .heavy, design: .rounded))
-            .foregroundStyle(Color.white)
+            .foregroundStyle(Color.primary)
             .lineLimit(3)
             .minimumScaleFactor(0.7)
             .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
@@ -611,12 +621,12 @@ struct HomeCinematicHero: View {
 
     #if os(tvOS)
     private func handleHeroMoveCommand(_ direction: MoveCommandDirection) {
-        guard heroItemIDs.count > 1 else { return }
-
         switch direction {
         case .left:
+            guard heroItemIDs.count > 1 else { return }
             showPreviousHero()
         case .right:
+            guard heroItemIDs.count > 1 else { return }
             showNextHero()
         default:
             break

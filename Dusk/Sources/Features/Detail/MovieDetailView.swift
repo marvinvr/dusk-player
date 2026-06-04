@@ -170,7 +170,7 @@ struct MovieDetailView: View {
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
 
@@ -179,7 +179,7 @@ struct MovieDetailView: View {
         if let genres = viewModel.genreText {
             Text(genres)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let rating = details.rating {
@@ -202,13 +202,13 @@ struct MovieDetailView: View {
         if let director = viewModel.directorText {
             Text("Directed by \(director)")
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let studio = details.studio {
             Text(studio)
                 .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.76))
+                .foregroundStyle(Color.primary.opacity(0.72))
         }
     }
 
@@ -219,7 +219,7 @@ struct MovieDetailView: View {
                 .foregroundStyle(color)
             Text(value)
                 .font(.subheadline.monospacedDigit())
-                .foregroundStyle(Color.white)
+                .foregroundStyle(Color.primary.opacity(0.84))
         }
     }
 
@@ -227,64 +227,69 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
-        let layout = sizeClass == .regular
-            ? AnyLayout(HStackLayout(spacing: 12))
-            : AnyLayout(VStackLayout(spacing: 12))
+        if usesFullWidthActionButtons {
+            VStack(spacing: detailHeroActionSpacing) {
+                playButton(details)
 
-        layout {
-            Button {
-                guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
-                Task { await playback.play(ratingKey: details.ratingKey) }
-            } label: {
-                DetailHeroPrimaryActionButtonLabel(
-                    title: viewModel.formattedResume.map { "Resume from \($0)" } ?? "Play",
-                    systemImage: "play.fill",
-                    fillsWidth: usesFullWidthActionButtons
-                )
-            }
-            #if os(tvOS)
-            .buttonStyle(.glassProminent)
-            .tint(Color.duskAccent)
-            #else
-            .duskSuppressTVOSButtonChrome()
-            #endif
-            .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
-            .contextMenu {
-                if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
-                    PlayVersionContextMenu(versions: details.media) { version in
-                        Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
-                    }
+                HStack(spacing: detailHeroActionSpacing) {
+                    downloadButton(details, fillsWidth: true)
+                    watchedButton(fillsWidth: true)
                 }
+                .frame(maxWidth: .infinity)
             }
+            .frame(maxWidth: .infinity)
+        } else {
+            HStack(spacing: detailHeroActionSpacing) {
+                playButton(details)
+                downloadButton(details, fillsWidth: false)
+                watchedButton(fillsWidth: false)
+            }
+        }
+    }
 
-            DownloadActionButton(
-                ratingKey: details.ratingKey,
-                type: .movie,
+    private func playButton(_ details: PlexMediaDetails) -> some View {
+        Button {
+            guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
+            Task { await playback.play(ratingKey: details.ratingKey) }
+        } label: {
+            DetailHeroPrimaryActionButtonLabel(
+                title: viewModel.formattedResume.map { "Resume from \($0)" } ?? "Play",
+                systemImage: "play.fill",
                 fillsWidth: usesFullWidthActionButtons
             )
-
-            Button {
-                Task { await viewModel.toggleWatched() }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: viewModel.isWatched ? "eye.slash" : "eye")
-                    Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
-                }
-                .font(.subheadline.weight(.medium))
-                .frame(maxWidth: usesFullWidthActionButtons ? .infinity : nil)
-                .padding(.vertical, 12)
-                .padding(.horizontal, usesFullWidthActionButtons ? 0 : 18)
-                .background(Color.duskSurface)
-                .foregroundStyle(Color.duskTextPrimary)
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-                )
-            }
-            .duskSuppressTVOSButtonChrome()
-            .duskTVOSFocusEffectShape(Capsule())
         }
+        .detailHeroNativePrimaryButtonStyle()
+        .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
+        .contextMenu {
+            if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
+                PlayVersionContextMenu(versions: details.media) { version in
+                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                }
+            }
+        }
+    }
+
+    private func downloadButton(_ details: PlexMediaDetails, fillsWidth: Bool) -> some View {
+        DownloadActionButton(
+            ratingKey: details.ratingKey,
+            type: .movie,
+            fillsWidth: fillsWidth
+        )
+    }
+
+    private func watchedButton(fillsWidth: Bool) -> some View {
+        Button {
+            Task { await viewModel.toggleWatched() }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: viewModel.isWatched ? "eye.slash" : "eye")
+                Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
+            }
+            .font(.subheadline.weight(.medium))
+            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
+            .contentShape(Capsule())
+        }
+        .detailHeroNativeSecondaryButtonStyle()
     }
 
     private var usesFullWidthActionButtons: Bool {
@@ -298,11 +303,11 @@ struct MovieDetailView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Synopsis")
                 .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(Color.primary)
 
             Text(summary)
                 .font(.body)
-                .foregroundStyle(Color.duskTextSecondary)
+                .foregroundStyle(Color.primary.opacity(0.76))
                 .lineSpacing(4)
         }
     }
@@ -315,11 +320,11 @@ struct MovieDetailView: View {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Media")
                     .font(.headline)
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .foregroundStyle(Color.primary)
 
                 Text(info)
                     .font(.subheadline.monospaced())
-                    .foregroundStyle(Color.duskTextSecondary)
+                    .foregroundStyle(Color.primary.opacity(0.76))
             }
         }
     }

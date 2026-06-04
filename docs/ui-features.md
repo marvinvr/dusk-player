@@ -9,7 +9,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   environment: `PlexService`, `PlaybackCoordinator`, `DownloadManager`,
   `OfflinePlaybackSyncManager`, and `UserPreferences`.
 - App-wide color scheme comes from `UserPreferences.appearanceMode`; app tint is
-  always `Color.duskAccent`.
+  `Color.duskAccent`, except iOS/iPadOS tab bar selection stays monochrome with
+  the native `.primary` color role so the floating iPad tab bar can adapt over both
+  artwork and light content backgrounds.
 - `ContentView` is the authenticated root gate: unauthenticated users see
   `SignInView`, disconnected users discover/pick servers, and connected users enter
   `MainTabView`.
@@ -41,6 +43,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
   `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
   progress, and route creation.
+- Context menus for partially watched playable items should expose both watch-state
+  endpoints: mark watched and mark unwatched. Do not collapse partial progress into
+  a single toggle action.
 - Use `MediaCarousel` for generic horizontal sections with optional "Show all" accessory.
 - Use `AdaptivePosterGridLayout.make(...)` for responsive poster grids. Do not hand-roll
   column math in feature files.
@@ -56,10 +61,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
   Its bottom fade must resolve to `Color.duskBackground` before the hero's lower edge
   so shelves, summaries, and episode sections do not create a visible cutoff line.
-- On tvOS, poster, episode, and cast artwork controls should use plain button chrome
-  plus `duskTVOSFocusEffectShape`. Avoid SwiftUI's `.card` button style here because
-  real Apple TV hardware can draw a gray system focus/material plate that clashes with
-  Dusk's hero fade and page background.
+- When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
+  The floating iPad tab bar can sit over hero artwork, so its selected label must
+  resolve against the tab bar material instead of the page's light appearance.
+- On tvOS, poster, episode, and cast artwork controls should use
+  `duskSuppressTVOSButtonChrome()` plus `duskTVOSFocusEffectShape`. Avoid SwiftUI's
+  `.plain`, `.borderless`, `.glass`, and `.card` button styles directly here because
+  real Apple TV hardware can draw gray/white system focus plates. When a poster card
+  has labels below the artwork, keep the artwork as the actual control but apply
+  `duskTVOSFocusedScale` to the outer card so the full poster container grows with
+  a tight neutral white glow and without gaining a button background.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
   `duskNavigationTitle`, title display modes, list background/separator suppression,
   status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.
@@ -86,6 +97,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   reduction. The home shells keep automatic rotation disabled so returning from
   playback preserves the selected hero instead of advancing in the background. Extend
   it carefully; it is stateful and timing-sensitive.
+- On tvOS, the home hero is intentionally taller than iOS but should still leave
+  enough of the first shelf visible to make lower home content discoverable and
+  reachable through normal focus movement.
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
@@ -126,6 +140,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Use `DetailHeroSection` for cinematic detail headers. It handles backdrop gradients,
   poster/title artwork, supertitle/subtitle/action slots, safe-area offset, and compact
   action placement.
+- Use `detailHeroNativeSecondaryButtonStyle()` and `detailHeroActionSpacing` for
+  secondary hero actions so native glass focus feedback stays consistent across
+  movie, season, episode, and download controls without focused capsules colliding.
 - On tvOS, keep focusable detail rows in separate `.focusSection()` groups. Hero
   actions, expandable summaries, season/episode grids, and cast shelves should move
   vertically to the next visible row instead of letting the focus engine skip to a

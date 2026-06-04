@@ -143,9 +143,12 @@ struct LibraryRecommendationsView: View {
                 .font(.subheadline.weight(.semibold))
             #endif
         }
-        .buttonStyle(.plain)
+        #if os(tvOS)
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Capsule())
+        #else
+        .buttonStyle(.plain)
+        #endif
     }
 
     private var continueWatchingSection: some View {
