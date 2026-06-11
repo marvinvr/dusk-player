@@ -61,6 +61,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
   Its bottom fade must resolve to `Color.duskBackground` before the hero's lower edge
   so shelves, summaries, and episode sections do not create a visible cutoff line.
+  When a detail hero swaps artwork from focus changes, opt into retaining the previous
+  backdrop while the next one loads instead of clearing the image.
+  Keep the opaque bottom cap in place; real Apple TV HDR output can expose a thin
+  boundary when the hero artwork and page background resolve through different render
+  paths.
 - When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
   The floating iPad tab bar can sit over hero artwork, so its selected label must
   resolve against the tab bar material instead of the page's light appearance.
@@ -97,9 +102,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   reduction. The home shells keep automatic rotation disabled so returning from
   playback preserves the selected hero instead of advancing in the background. Extend
   it carefully; it is stateful and timing-sensitive.
+- On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic
+  range to standard to avoid real-device HDR/SDR seams between the backdrop fade and
+  the shelves below.
 - On tvOS, the home hero is intentionally taller than iOS but should still leave
   enough of the first shelf visible to make lower home content discoverable and
-  reachable through normal focus movement.
+  reachable through normal focus movement. Keep the title/logo block, metadata, and
+  hero button sizing restrained so the hero reads cinematic instead of crowded.
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
@@ -160,9 +169,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   sorts offline-available episodes first when appropriate, and records offline watch
   mutations.
 - `SeasonDetailView` uses a tvOS-only horizontal, poster-only episode shelf. Focused
-  episode cards update the hero title/subtitle area and the episode cast row; selecting
-  a tvOS episode card starts playback directly while iOS keeps the vertical episode list
-  and detail-navigation behavior.
+  episode cards update the hero artwork, title/subtitle area, and the episode cast row
+  inside stable-height regions so rapid remote navigation does not shift the scroll
+  position; selecting a tvOS episode card starts playback directly while iOS keeps the
+  vertical episode list and detail-navigation behavior.
 - `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
   watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role

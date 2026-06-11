@@ -27,26 +27,26 @@ struct HomeCinematicHeroLayout {
 
     static let ios = HomeCinematicHeroLayout(summaryLineLimit: 2)
     static let tv = HomeCinematicHeroLayout(
-        heroHeightFactor: 0.79,
-        heroHeightRange: 580 ... 860,
-        maxContentWidth: 920,
-        contentHorizontalPadding: 48,
-        contentTopPadding: 56,
-        contentBottomPaddingWithPager: 60,
+        heroHeightFactor: 0.75,
+        heroHeightRange: 560 ... 820,
+        maxContentWidth: 820,
+        contentHorizontalPadding: 56,
+        contentTopPadding: 64,
+        contentBottomPaddingWithPager: 64,
         contentBottomPaddingWithoutPager: 32,
-        actionsTopPadding: 12,
-        actionsBottomPadding: 12,
-        pagerHorizontalPadding: 48,
-        pagerBottomPadding: 32,
-        titleFontSize: 46,
-        titleLogoMaxWidth: 640,
-        titleLogoMaxHeight: 152,
+        actionsTopPadding: 10,
+        actionsBottomPadding: 8,
+        pagerHorizontalPadding: 56,
+        pagerBottomPadding: 34,
+        titleFontSize: 40,
+        titleLogoMaxWidth: 560,
+        titleLogoMaxHeight: 124,
         backdropImageAlignment: .top,
-        episodeTitleFont: .title2.weight(.semibold),
-        metadataFont: .headline.weight(.medium),
-        summaryFont: .body,
+        episodeTitleFont: .title3.weight(.semibold),
+        metadataFont: .subheadline.weight(.medium),
+        summaryFont: .callout,
         summaryLineLimit: 2,
-        summaryLineSpacing: 4
+        summaryLineSpacing: 3
     )
 }
 
@@ -59,6 +59,7 @@ struct HomeCinematicHeroCallbacks {
 
 struct HomeCinematicHero: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+    @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(PlexService.self) private var plexService
 
@@ -98,11 +99,12 @@ struct HomeCinematicHero: View {
 
     var body: some View {
         let resolvedIndex = resolvedHeroIndex
-        let heroWidth = containerSize.width
-        let heroHeight = min(
+        let heroWidth = pixelAlignedLength(containerSize.width)
+        let rawHeroHeight = min(
             max(containerSize.height * layout.heroHeightFactor, layout.heroHeightRange.lowerBound),
             layout.heroHeightRange.upperBound
         ) + topInset
+        let heroHeight = pixelAlignedLength(rawHeroHeight)
         let backdropWidth = Int(heroWidth.rounded(.up))
         let backdropHeight = Int(heroHeight.rounded(.up))
         let safeContentWidth = max(heroWidth - contentLeadingInset - contentTrailingInset, 0)
@@ -190,6 +192,7 @@ struct HomeCinematicHero: View {
 
         #if os(tvOS)
         return baseHero
+            .duskTVOSStandardImageDynamicRange()
             .onMoveCommand(perform: handleHeroMoveCommand)
         #else
         if supportsDragNavigation {
@@ -246,6 +249,12 @@ struct HomeCinematicHero: View {
 
     private var heroItemIDs: [String] {
         items.map(\.ratingKey)
+    }
+
+    private func pixelAlignedLength(_ length: CGFloat) -> CGFloat {
+        let scale = displayScale
+        guard scale > 0, length.isFinite else { return length }
+        return (length * scale).rounded(.up) / scale
     }
 
     private var heroRotationDuration: TimeInterval {

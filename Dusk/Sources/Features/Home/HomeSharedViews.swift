@@ -39,24 +39,40 @@ struct HomeHeroActionButtonLabel: View {
     let systemImage: String
 
     #if os(tvOS)
-    private let minimumButtonWidth: CGFloat = 420
+    private let minimumButtonWidth: CGFloat = 340
     #endif
 
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-                .font(.headline.weight(.semibold))
+                .font(heroButtonFont)
 
             Text(title)
-                .font(.headline.weight(.semibold))
+                .font(heroButtonFont)
                 .lineLimit(1)
         }
-        .frame(minHeight: 34)
+        .frame(minHeight: heroButtonMinHeight)
         #if os(tvOS)
         .frame(minWidth: minimumButtonWidth)
         .contentShape(Capsule())
         #else
         .contentShape(Capsule())
+        #endif
+    }
+
+    private var heroButtonFont: Font {
+        #if os(tvOS)
+        .subheadline.weight(.semibold)
+        #else
+        .headline.weight(.semibold)
+        #endif
+    }
+
+    private var heroButtonMinHeight: CGFloat {
+        #if os(tvOS)
+        30
+        #else
+        34
         #endif
     }
 }
@@ -65,25 +81,49 @@ struct HomeHeroSecondaryActionButtonLabel: View {
     let title: String
 
     #if os(tvOS)
-    private let minimumButtonWidth: CGFloat = 420
+    private let minimumButtonWidth: CGFloat = 340
     #endif
 
     var body: some View {
         Text(title)
-            .font(.headline.weight(.semibold))
+            .font(heroButtonFont)
             #if os(tvOS)
             .frame(minWidth: minimumButtonWidth)
             .contentShape(Capsule())
             #endif
             .foregroundStyle(Color.primary)
-            .padding(.horizontal, 20)
-            .padding(.vertical, 14)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.vertical, verticalPadding)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
                 Capsule()
                     .strokeBorder(Color.primary.opacity(0.18), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.14), radius: 10, y: 4)
+    }
+
+    private var heroButtonFont: Font {
+        #if os(tvOS)
+        .subheadline.weight(.semibold)
+        #else
+        .headline.weight(.semibold)
+        #endif
+    }
+
+    private var horizontalPadding: CGFloat {
+        #if os(tvOS)
+        18
+        #else
+        20
+        #endif
+    }
+
+    private var verticalPadding: CGFloat {
+        #if os(tvOS)
+        12
+        #else
+        14
+        #endif
     }
 }
 
@@ -129,7 +169,7 @@ extension View {
         #if os(tvOS)
         self
             .buttonStyle(.glass)
-            .controlSize(.large)
+            .controlSize(.regular)
             .buttonBorderShape(.capsule)
             .tint(Color.primary)
         #elseif os(iOS)

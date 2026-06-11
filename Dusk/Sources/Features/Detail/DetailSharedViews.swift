@@ -57,6 +57,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     var backgroundLeadingInset: CGFloat = 0
     var heroBaseHeight: CGFloat = 380
     var posterWidth: CGFloat = 120
+    var keepsPreviousBackdropWhileLoading = false
     @ViewBuilder var supertitle: Supertitle
     @ViewBuilder var subtitle: Subtitle
     @ViewBuilder var actions: Actions
@@ -71,6 +72,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         backgroundLeadingInset: CGFloat = 0,
         heroBaseHeight: CGFloat = 380,
         posterWidth: CGFloat = 120,
+        keepsPreviousBackdropWhileLoading: Bool = false,
         @ViewBuilder supertitle: () -> Supertitle,
         @ViewBuilder subtitle: () -> Subtitle,
         @ViewBuilder actions: () -> Actions
@@ -84,6 +86,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         self.backgroundLeadingInset = backgroundLeadingInset
         self.heroBaseHeight = heroBaseHeight
         self.posterWidth = posterWidth
+        self.keepsPreviousBackdropWhileLoading = keepsPreviousBackdropWhileLoading
         self.supertitle = supertitle()
         self.subtitle = subtitle()
         self.actions = actions()
@@ -135,7 +138,8 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             ZStack {
                 DetailHeroBackdrop(
                     imageURL: backdropURL,
-                    height: heroHeight
+                    height: heroHeight,
+                    keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading
                 )
 
                 DuskHeroBackdropOverlay()
@@ -244,6 +248,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         backgroundLeadingInset: CGFloat = 0,
         heroBaseHeight: CGFloat = 380,
         posterWidth: CGFloat = 120,
+        keepsPreviousBackdropWhileLoading: Bool = false,
         @ViewBuilder subtitle: () -> Subtitle,
         @ViewBuilder actions: () -> Actions
     ) {
@@ -256,6 +261,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         self.backgroundLeadingInset = backgroundLeadingInset
         self.heroBaseHeight = heroBaseHeight
         self.posterWidth = posterWidth
+        self.keepsPreviousBackdropWhileLoading = keepsPreviousBackdropWhileLoading
         self.supertitle = EmptyView()
         self.subtitle = subtitle()
         self.actions = actions()

@@ -80,6 +80,11 @@ final class SeasonDetailViewModel {
 
     func focusEpisode(_ episode: PlexEpisode) async {
         let ratingKey = episode.ratingKey
+        if focusedEpisodeRatingKey == ratingKey,
+           focusedEpisodeDetails?.ratingKey == ratingKey {
+            return
+        }
+
         focusedEpisodeRatingKey = ratingKey
 
         if let cached = episodeDetailsCache[ratingKey] {
@@ -128,9 +133,20 @@ final class SeasonDetailViewModel {
         return MediaTextFormatter.watchedCount(viewedCount)
     }
 
-    func backdropURL(width: Int, height: Int) -> URL? {
-        downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: details?.art, width: width, height: height)
+    func backdropURL(
+        width: Int,
+        height: Int,
+        focusedEpisode: PlexEpisode? = nil,
+        focusedEpisodeDetails: PlexMediaDetails? = nil
+    ) -> URL? {
+        let path = focusedEpisodeDetails?.thumb
+            ?? focusedEpisodeDetails?.art
+            ?? focusedEpisode?.thumb
+            ?? focusedEpisode?.art
+            ?? details?.art
+
+        return downloadManager?.localArtworkURL(for: path)
+            ?? plexService.imageURL(for: path, width: width, height: height)
     }
 
     func posterURL(width: Int, height: Int) -> URL? {

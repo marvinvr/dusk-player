@@ -101,8 +101,12 @@ The arm64 override is required because the vendored iOS `VLCKit.xcframework` doe
 When tvOS is relevant:
 
 ```bash
-xcodebuild -project Dusk.xcodeproj -scheme Dusk-tvOS -configuration Debug -destination 'generic/platform=tvOS Simulator' build
+xcodebuild -project Dusk.xcodeproj -scheme Dusk-tvOS -configuration Debug -destination 'generic/platform=tvOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
 ```
+
+The arm64 override is also required for the current vendored tvOS
+`VLCKit-tvOS.xcframework`; the simulator binary in this checkout does not provide
+an `x86_64` slice.
 
 For docs-only changes, a build is normally unnecessary. Verify the file and `git status --short`.
 

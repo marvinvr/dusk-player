@@ -109,6 +109,15 @@ extension View {
         #endif
     }
 
+    @ViewBuilder
+    func duskTVOSStandardImageDynamicRange() -> some View {
+        #if os(tvOS)
+        self.allowedDynamicRange(.standard)
+        #else
+        self
+        #endif
+    }
+
 }
 
 #if os(tvOS)
@@ -387,33 +396,27 @@ enum DuskPosterMetrics {
 }
 
 struct DetailHeroBackdrop: View {
+    @Environment(PlexService.self) private var plexService
+
     let imageURL: URL?
     let height: CGFloat
     var imageAlignment: Alignment = .center
+    var keepsPreviousImageWhileLoading = false
+
+    #if canImport(UIKit)
+    @State private var retainedImage: UIImage?
+    @State private var retainedImageURL: URL?
+    #endif
 
     var body: some View {
         GeometryReader { geometry in
             ZStack {
                 Color.duskSurface
 
-                if let imageURL {
-                    DuskAsyncImage(url: imageURL) { phase in
-                        switch phase {
-                        case .success(let image):
-                            image
-                                .resizable()
-                                .scaledToFill()
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: imageAlignment)
-                                .frame(
-                                    width: geometry.size.width,
-                                    height: geometry.size.height,
-                                    alignment: imageAlignment
-                                )
-                                .clipped()
-                        default:
-                            Color.clear
-                        }
-                    }
+                if keepsPreviousImageWhileLoading {
+                    retainedBackdropImage(size: geometry.size)
+                } else {
+                    asyncBackdropImage(size: geometry.size)
                 }
             }
             .frame(
@@ -425,10 +428,83 @@ struct DetailHeroBackdrop: View {
         }
         .frame(height: height)
         .frame(maxWidth: .infinity)
+        .task(id: imageURL) {
+            await loadRetainedImageIfNeeded()
+        }
+    }
+
+    @ViewBuilder
+    private func asyncBackdropImage(size: CGSize) -> some View {
+        if let imageURL {
+            DuskAsyncImage(url: imageURL) { phase in
+                switch phase {
+                case .success(let image):
+                    backdropImage(image, size: size)
+                default:
+                    Color.clear
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func retainedBackdropImage(size: CGSize) -> some View {
+        #if canImport(UIKit)
+        if let retainedImage {
+            backdropImage(Image(uiImage: retainedImage), size: size)
+                .id(retainedImageURL)
+                .transition(.opacity)
+        }
+        #else
+        asyncBackdropImage(size: size)
+        #endif
+    }
+
+    private func backdropImage(_ image: Image, size: CGSize) -> some View {
+        image
+            .resizable()
+            .scaledToFill()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: imageAlignment)
+            .frame(
+                width: size.width,
+                height: size.height,
+                alignment: imageAlignment
+            )
+            .clipped()
+    }
+
+    @MainActor
+    private func loadRetainedImageIfNeeded() async {
+        guard keepsPreviousImageWhileLoading else { return }
+
+        #if canImport(UIKit)
+        guard let imageURL else {
+            withAnimation(.easeInOut(duration: 0.16)) {
+                retainedImage = nil
+                retainedImageURL = nil
+            }
+            return
+        }
+
+        do {
+            let image = try await DuskImageLoader.shared.image(for: imageURL, using: plexService)
+            guard !Task.isCancelled else { return }
+
+            withAnimation(.easeInOut(duration: 0.18)) {
+                retainedImage = image
+                retainedImageURL = imageURL
+            }
+        } catch {
+            guard retainedImage == nil else { return }
+            retainedImageURL = nil
+        }
+        #endif
     }
 }
 
 struct DuskHeroBackdropOverlay: View {
+    private let bottomBackgroundHeight: CGFloat = 24
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -466,6 +542,11 @@ struct DuskHeroBackdropOverlay: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+
+            Color.duskBackground
+                .frame(maxWidth: .infinity)
+                .frame(height: bottomBackgroundHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .allowsHitTesting(false)
     }

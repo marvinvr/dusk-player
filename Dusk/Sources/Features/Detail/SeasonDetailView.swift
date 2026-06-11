@@ -7,7 +7,10 @@ struct SeasonDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
+    #if os(tvOS)
     @State private var focusedTVEpisodeKey: String?
+    @State private var tvEpisodeFocusTask: Task<Void, Never>?
+    #endif
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
@@ -50,6 +53,9 @@ struct SeasonDetailView: View {
 #if os(tvOS)
         .task(id: viewModel.nextEpisodeToPlay?.ratingKey) {
             await loadInitialTVEpisodeDetailsIfNeeded()
+        }
+        .onDisappear {
+            tvEpisodeFocusTask?.cancel()
         }
 #endif
         .onChange(of: playback.showPlayer) { _, isShowing in
@@ -145,6 +151,25 @@ struct SeasonDetailView: View {
     ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
+        let heroBackdropURL: URL? = {
+            #if os(tvOS)
+            viewModel.backdropURL(
+                width: Int(containerWidth.rounded(.up)),
+                height: Int(heroHeight.rounded(.up)),
+                focusedEpisode: focusedTVEpisode,
+                focusedEpisodeDetails: selectedTVEpisodeDetails
+            )
+            #else
+            viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up)))
+            #endif
+        }()
+        let keepsPreviousBackdropWhileLoading: Bool = {
+            #if os(tvOS)
+            true
+            #else
+            false
+            #endif
+        }()
         let posterWidth: CGFloat = {
             #if os(tvOS)
             DuskPosterMetrics.heroPosterWidth
@@ -155,7 +180,7 @@ struct SeasonDetailView: View {
         let posterImageWidth = Int(posterWidth.rounded())
         let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
-            backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
+            backdropURL: heroBackdropURL,
             posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             title: heroTitle(fallback: details.title),
             topInset: topInset,
@@ -163,6 +188,7 @@ struct SeasonDetailView: View {
             backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
             posterWidth: CGFloat(posterWidth),
+            keepsPreviousBackdropWhileLoading: keepsPreviousBackdropWhileLoading,
             supertitle: {
                 if let showTitle = viewModel.showTitle {
                     showTitleLink(showTitle)
@@ -185,7 +211,7 @@ struct SeasonDetailView: View {
 
     private var episodesBottomPadding: CGFloat {
         #if os(tvOS)
-        selectedTVEpisodeRoles.isEmpty ? 56 : 24
+        24
         #else
         56
         #endif
@@ -248,44 +274,65 @@ struct SeasonDetailView: View {
         selectedTVEpisodeDetails?.roles ?? []
     }
 
+    private var tvEpisodeHeroMetadataHeight: CGFloat { 116 }
+    private var tvEpisodeCastSectionHeight: CGFloat { 292 }
+
     @ViewBuilder
     private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
-        if let episode = focusedTVEpisode {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(episode.title)
-                    .font(.headline.weight(.bold))
-                    .foregroundStyle(Color.primary)
-                    .lineLimit(1)
+        Group {
+            if let episode = focusedTVEpisode {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(episode.title)
+                        .font(.headline.weight(.bold))
+                        .foregroundStyle(Color.primary)
+                        .lineLimit(1)
 
-                if let subtitle = viewModel.episodeSubtitle(episode) {
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(Color.primary.opacity(0.78))
-                }
+                    if let subtitle = viewModel.episodeSubtitle(episode) {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(Color.primary.opacity(0.78))
+                    }
 
-                if let summary = episode.summary, !summary.isEmpty {
-                    Text(summary)
-                        .font(.caption)
-                        .foregroundStyle(Color.primary.opacity(0.76))
-                        .lineSpacing(3)
-                        .lineLimit(2)
-                        .frame(maxWidth: 720, alignment: .leading)
+                    if let summary = episode.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.caption)
+                            .foregroundStyle(Color.primary.opacity(0.76))
+                            .lineSpacing(3)
+                            .lineLimit(2)
+                            .frame(maxWidth: 720, alignment: .leading)
+                    }
                 }
+            } else {
+                metadataTagline(details)
             }
-        } else {
-            metadataTagline(details)
+        }
+        .frame(height: tvEpisodeHeroMetadataHeight, alignment: .topLeading)
+        .clipped()
+        .transaction { transaction in
+            transaction.disablesAnimations = true
         }
     }
 
     @ViewBuilder
     private func tvEpisodeCastSection() -> some View {
-        if !selectedTVEpisodeRoles.isEmpty {
-            DetailCastSection(
-                roles: selectedTVEpisodeRoles,
-                plexService: plexService,
-                title: "Episode Cast"
-            )
+        ZStack(alignment: .topLeading) {
+            if !selectedTVEpisodeRoles.isEmpty {
+                DetailCastSection(
+                    roles: selectedTVEpisodeRoles,
+                    plexService: plexService,
+                    title: "Episode Cast"
+                )
+                .transition(.opacity)
+            }
         }
+        .frame(
+            maxWidth: .infinity,
+            minHeight: tvEpisodeCastSectionHeight,
+            maxHeight: tvEpisodeCastSectionHeight,
+            alignment: .topLeading
+        )
+        .clipped()
+        .animation(.easeInOut(duration: 0.16), value: selectedTVEpisodeDetails?.ratingKey)
     }
     #endif
 
@@ -371,8 +418,7 @@ struct SeasonDetailView: View {
                                 isWatched: viewModel.isWatched(episode),
                                 artworkWidth: artworkWidth,
                                 onFocus: {
-                                    focusedTVEpisodeKey = episode.ratingKey
-                                    Task { await viewModel.focusEpisode(episode) }
+                                    focusTVEpisode(episode)
                                 },
                                 onPlay: {
                                     guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
@@ -433,8 +479,36 @@ struct SeasonDetailView: View {
     @MainActor
     private func loadInitialTVEpisodeDetailsIfNeeded() async {
         guard focusedTVEpisodeKey == nil, let episode = focusedTVEpisode else { return }
-        focusedTVEpisodeKey = episode.ratingKey
+        setFocusedTVEpisodeKey(episode.ratingKey)
         await viewModel.focusEpisode(episode)
+    }
+
+    @MainActor
+    private func focusTVEpisode(_ episode: PlexEpisode) {
+        guard focusedTVEpisodeKey != episode.ratingKey else { return }
+
+        setFocusedTVEpisodeKey(episode.ratingKey)
+        tvEpisodeFocusTask?.cancel()
+        tvEpisodeFocusTask = Task {
+            do {
+                try await Task.sleep(nanoseconds: 120_000_000)
+            } catch {
+                return
+            }
+
+            guard !Task.isCancelled else { return }
+            await viewModel.focusEpisode(episode)
+        }
+    }
+
+    @MainActor
+    private func setFocusedTVEpisodeKey(_ ratingKey: String) {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+
+        withTransaction(transaction) {
+            focusedTVEpisodeKey = ratingKey
+        }
     }
     #endif
 
