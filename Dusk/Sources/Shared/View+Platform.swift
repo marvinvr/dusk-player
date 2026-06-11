@@ -118,6 +118,42 @@ extension View {
         #endif
     }
 
+    /// Fades the bottom of a hero backdrop + `DuskHeroBackdropOverlay` stack
+    /// into the page background.
+    ///
+    /// On tvOS this masks the hero to transparent instead of painting
+    /// `Color.duskBackground` over it. Real Apple TV HDR output resolves fills
+    /// drawn inside the hero subtree and the page background through different
+    /// color pipelines, so two stacked fills of the same color can still meet
+    /// with a visible seam and gray mismatch. With the mask, the page
+    /// background is the only fill at the boundary, which makes a seam
+    /// impossible regardless of the output color pipeline. The mask stops are
+    /// the exact inverse of the overlay's iOS bottom fade so both platforms
+    /// produce the same composite.
+    @ViewBuilder
+    func duskHeroBackdropBottomFade() -> some View {
+        #if os(tvOS)
+        self.mask {
+            LinearGradient(
+                stops: [
+                    .init(color: .white, location: 0),
+                    .init(color: .white, location: 0.20),
+                    .init(color: .white.opacity(0.92), location: 0.38),
+                    .init(color: .white.opacity(0.72), location: 0.54),
+                    .init(color: .white.opacity(0.40), location: 0.68),
+                    .init(color: .white.opacity(0.10), location: 0.80),
+                    .init(color: .white.opacity(0), location: 0.88),
+                    .init(color: .white.opacity(0), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        #else
+        self
+        #endif
+    }
+
 }
 
 #if os(tvOS)
@@ -502,8 +538,15 @@ struct DetailHeroBackdrop: View {
     }
 }
 
+/// Shared hero scrims. Always pair the backdrop + overlay stack with
+/// `duskHeroBackdropBottomFade()`: on iOS the overlay paints the bottom fade
+/// itself, on tvOS the modifier masks the hero out instead. Never paint
+/// `Color.duskBackground` inside the hero on tvOS — see
+/// `duskHeroBackdropBottomFade()` for why.
 struct DuskHeroBackdropOverlay: View {
+    #if !os(tvOS)
     private let bottomBackgroundHeight: CGFloat = 24
+    #endif
 
     var body: some View {
         ZStack {
@@ -528,6 +571,7 @@ struct DuskHeroBackdropOverlay: View {
                 endPoint: .trailing
             )
 
+            #if !os(tvOS)
             LinearGradient(
                 stops: [
                     .init(color: Color.duskBackground.opacity(0), location: 0),
@@ -547,6 +591,7 @@ struct DuskHeroBackdropOverlay: View {
                 .frame(maxWidth: .infinity)
                 .frame(height: bottomBackgroundHeight)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+            #endif
         }
         .allowsHitTesting(false)
     }

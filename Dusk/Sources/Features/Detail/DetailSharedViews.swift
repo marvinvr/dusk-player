@@ -145,6 +145,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 DuskHeroBackdropOverlay()
             }
             .frame(width: containerWidth, height: heroHeight, alignment: .leading)
+            .duskHeroBackdropBottomFade()
             .offset(x: -backgroundLeadingInset)
             .allowsHitTesting(false)
 

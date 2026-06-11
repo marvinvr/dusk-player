@@ -57,15 +57,20 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   labels, poster progress, and image URL selection.
 - Use `DuskAsyncImage` for Plex artwork. It integrates app image caching and can route
   Plex image requests through `PlexService` when needed.
-- Use `DetailHeroBackdrop` with `DuskHeroBackdropOverlay` for full-bleed hero artwork.
-  The overlay owns the shared top, leading, and bottom fades for Home and detail heroes.
-  Its bottom fade must resolve to `Color.duskBackground` before the hero's lower edge
-  so shelves, summaries, and episode sections do not create a visible cutoff line.
+- Use `DetailHeroBackdrop` with `DuskHeroBackdropOverlay` for full-bleed hero artwork,
+  and always apply `duskHeroBackdropBottomFade()` to the backdrop + overlay stack.
+  The overlay owns the shared top and leading scrims; the bottom fade into the page
+  is platform-split: on iOS the overlay paints a `Color.duskBackground` gradient and
+  cap, on tvOS the modifier instead masks the hero to fully transparent so the page
+  background underneath is the only fill at the hero boundary.
+  Never paint `Color.duskBackground` (gradient or solid) inside a hero subtree on
+  tvOS: real Apple TV HDR output resolves hero-subtree fills and the plain page
+  background through different color pipelines, so two stacked fills of the same
+  color still meet with a visible seam and gray mismatch on hardware even though
+  every simulator renders them identically. Fading the hero to zero alpha is the
+  only seam-proof topology.
   When a detail hero swaps artwork from focus changes, opt into retaining the previous
   backdrop while the next one loads instead of clearing the image.
-  Keep the opaque bottom cap in place; real Apple TV HDR output can expose a thin
-  boundary when the hero artwork and page background resolve through different render
-  paths.
 - When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
   The floating iPad tab bar can sit over hero artwork, so its selected label must
   resolve against the tab bar material instead of the page's light appearance.

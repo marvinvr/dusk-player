@@ -300,14 +300,17 @@ struct HomeCinematicHero: View {
         let metadata = viewModel.heroMetadata(for: item)
 
         return ZStack(alignment: .bottomLeading) {
-            heroBackdrop(
-                for: item,
-                width: backdropWidth,
-                height: backdropHeight,
-                heroHeight: heroHeight
-            )
+            ZStack {
+                heroBackdrop(
+                    for: item,
+                    width: backdropWidth,
+                    height: backdropHeight,
+                    heroHeight: heroHeight
+                )
 
-            DuskHeroBackdropOverlay()
+                DuskHeroBackdropOverlay()
+            }
+            .duskHeroBackdropBottomFade()
 
             #if os(iOS)
             if let detailsAction {
