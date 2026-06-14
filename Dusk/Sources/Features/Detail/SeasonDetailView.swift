@@ -100,13 +100,38 @@ struct SeasonDetailView: View {
                     .focusSection()
 #endif
 
+#if os(tvOS)
+                    // On tvOS the season page effectively becomes the episode
+                    // browser: keep the episode row directly under the banner so
+                    // both stay on screen while zapping. The season summary moves
+                    // below the row (the banner already shows per-episode detail).
+                    if let offlineBannerText = viewModel.offlineBannerText {
+                        OfflineMetadataBanner(message: offlineBannerText)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 24)
+                    }
+
+                    episodesSection(width: geometry.size.width)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, 28)
+                        .padding(.bottom, episodesBottomPadding)
+                        .focusSection()
+
+                    if let summary = details.summary, !summary.isEmpty {
+                        ExpandableSummaryText(text: summary)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.top, 32)
+                            .focusSection()
+                    }
+
+                    tvEpisodeCastSection()
+                        .padding(.top, 8)
+                        .padding(.bottom, 56)
+#else
                     if let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 36)
-#if os(tvOS)
-                            .focusSection()
-#endif
                     }
 
                     if let offlineBannerText = viewModel.offlineBannerText {
@@ -119,14 +144,6 @@ struct SeasonDetailView: View {
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 40)
                         .padding(.bottom, episodesBottomPadding)
-#if os(tvOS)
-                        .focusSection()
-#endif
-
-#if os(tvOS)
-                    tvEpisodeCastSection()
-                        .padding(.top, 8)
-                        .padding(.bottom, 56)
 #endif
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
@@ -149,7 +166,14 @@ struct SeasonDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat = 0
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase: CGFloat = {
+            #if os(tvOS)
+            // Keep the banner compact so the episode row fits on the same screen.
+            min(max(containerHeight * 0.56, 580), 620)
+            #else
+            min(max(containerHeight * 0.72, 520), 760)
+            #endif
+        }()
         let heroHeight = heroBase + topInset
         let heroBackdropURL: URL? = {
             #if os(tvOS)
@@ -392,7 +416,7 @@ struct SeasonDetailView: View {
             let contentWidth = max(width - (horizontalPadding * 2), 280)
             let artworkWidth: CGFloat = {
                 #if os(tvOS)
-                min(max(contentWidth * 0.56, 260), 420)
+                min(max(contentWidth * 0.46, 240), 380)
                 #else
                 min(max(contentWidth * 0.48, 170), 320)
                 #endif
