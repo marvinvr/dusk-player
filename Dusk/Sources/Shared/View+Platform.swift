@@ -127,24 +127,19 @@ extension View {
     /// color pipelines, so two stacked fills of the same color can still meet
     /// with a visible seam and gray mismatch. With the mask, the page
     /// background is the only fill at the boundary, which makes a seam
-    /// impossible regardless of the output color pipeline. The mask stops are
-    /// the exact inverse of the overlay's iOS bottom fade so both platforms
-    /// produce the same composite.
+    /// impossible regardless of the output color pipeline. The mask always
+    /// reaches zero alpha before the hero boundary so the seam stays impossible.
+    ///
+    /// `.standard` mirrors the inverse of the overlay's iOS bottom fade so both
+    /// platforms produce the same composite. `.compact` is a tvOS-only, shorter
+    /// and lighter fade that reveals more of the backdrop, used by the home
+    /// cinematic hero banner.
     @ViewBuilder
-    func duskHeroBackdropBottomFade() -> some View {
+    func duskHeroBackdropBottomFade(_ style: DuskHeroBottomFadeStyle = .standard) -> some View {
         #if os(tvOS)
         self.mask {
             LinearGradient(
-                stops: [
-                    .init(color: .white, location: 0),
-                    .init(color: .white, location: 0.20),
-                    .init(color: .white.opacity(0.92), location: 0.38),
-                    .init(color: .white.opacity(0.72), location: 0.54),
-                    .init(color: .white.opacity(0.40), location: 0.68),
-                    .init(color: .white.opacity(0.10), location: 0.80),
-                    .init(color: .white.opacity(0), location: 0.88),
-                    .init(color: .white.opacity(0), location: 1),
-                ],
+                stops: style.maskStops,
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -154,6 +149,44 @@ extension View {
         #endif
     }
 
+}
+
+/// Selects the bottom-fade curve used by `duskHeroBackdropBottomFade()` on tvOS.
+enum DuskHeroBottomFadeStyle {
+    /// Full fade. Used by detail heroes.
+    case standard
+    /// Shorter, lighter fade that keeps more of the backdrop visible. Used by
+    /// the home cinematic hero banner.
+    case compact
+
+    #if os(tvOS)
+    var maskStops: [Gradient.Stop] {
+        switch self {
+        case .standard:
+            return [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 0.20),
+                .init(color: .white.opacity(0.92), location: 0.38),
+                .init(color: .white.opacity(0.72), location: 0.54),
+                .init(color: .white.opacity(0.40), location: 0.68),
+                .init(color: .white.opacity(0.10), location: 0.80),
+                .init(color: .white.opacity(0), location: 0.88),
+                .init(color: .white.opacity(0), location: 1),
+            ]
+        case .compact:
+            return [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 0.34),
+                .init(color: .white.opacity(0.94), location: 0.50),
+                .init(color: .white.opacity(0.78), location: 0.64),
+                .init(color: .white.opacity(0.50), location: 0.76),
+                .init(color: .white.opacity(0.20), location: 0.86),
+                .init(color: .white.opacity(0), location: 0.94),
+                .init(color: .white.opacity(0), location: 1),
+            ]
+        }
+    }
+    #endif
 }
 
 #if os(tvOS)

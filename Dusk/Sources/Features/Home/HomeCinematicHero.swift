@@ -310,7 +310,7 @@ struct HomeCinematicHero: View {
 
                 DuskHeroBackdropOverlay()
             }
-            .duskHeroBackdropBottomFade()
+            .duskHeroBackdropBottomFade(.compact)
 
             #if os(iOS)
             if let detailsAction {

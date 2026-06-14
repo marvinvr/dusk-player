@@ -62,7 +62,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   The overlay owns the shared top and leading scrims; the bottom fade into the page
   is platform-split: on iOS the overlay paints a `Color.duskBackground` gradient and
   cap, on tvOS the modifier instead masks the hero to fully transparent so the page
-  background underneath is the only fill at the hero boundary.
+  background underneath is the only fill at the hero boundary. Pass `.compact` to the
+  modifier for a shorter, lighter tvOS fade that reveals more of the backdrop (the home
+  cinematic hero banner uses this); detail heroes keep the default `.standard` fade.
   Never paint `Color.duskBackground` (gradient or solid) inside a hero subtree on
   tvOS: real Apple TV HDR output resolves hero-subtree fills and the plain page
   background through different color pipelines, so two stacked fills of the same
