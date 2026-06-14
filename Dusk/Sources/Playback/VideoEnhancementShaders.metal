@@ -72,15 +72,31 @@ static half3 sampleLanczos(
     constexpr sampler linearSampler(address::clamp_to_edge, filter::linear);
     float2 sourcePosition = uv * sourceSize - 0.5;
     float2 basePosition = floor(sourcePosition);
+    float2 f = sourcePosition - basePosition; // fractional offset in [0, 1)
+
+    // Lanczos is separable, so the 4x4 grid only has four distinct weights per
+    // axis. Evaluate the kernel eight times here instead of recomputing the
+    // two-sinc product for all sixteen taps (the dominant per-pixel cost).
+    float wx[4] = {
+        lanczos2(-1.0 - f.x),
+        lanczos2(0.0 - f.x),
+        lanczos2(1.0 - f.x),
+        lanczos2(2.0 - f.x),
+    };
+    float wy[4] = {
+        lanczos2(-1.0 - f.y),
+        lanczos2(0.0 - f.y),
+        lanczos2(1.0 - f.y),
+        lanczos2(2.0 - f.y),
+    };
 
     half3 color = half3(0.0);
     float weightSum = 0.0;
 
-    for (int y = -1; y <= 2; y++) {
-        for (int x = -1; x <= 2; x++) {
-            float2 samplePosition = basePosition + float2(x, y);
-            float weight = lanczos2(samplePosition.x - sourcePosition.x) *
-                lanczos2(samplePosition.y - sourcePosition.y);
+    for (int y = 0; y < 4; y++) {
+        for (int x = 0; x < 4; x++) {
+            float weight = wx[x] * wy[y];
+            float2 samplePosition = basePosition + float2(x - 1, y - 1);
             float2 clampedPosition = clamp(samplePosition, float2(0.0), sourceSize - 1.0);
             float2 sampleUV = (clampedPosition + 0.5) / sourceSize;
             color += sampleSource(sourceTexture, linearSampler, sampleUV, sourceRGBA) * half(weight);

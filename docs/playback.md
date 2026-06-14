@@ -151,10 +151,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   it out of sync with audio. Dropping intermediate frames keeps the picture
   aligned with the audio clock instead. Do not reintroduce a per-frame task hop.
 - `VideoEnhancementRenderer` owns the Metal view, texture cache, coalescing
-  frame inbox, and shader pass. The shader currently uses Lanczos sampling for
-  upscaling and adaptive sharpening. Runtime failures such as texture-cache or
-  command-buffer creation should turn into an `.unavailable` status instead of
-  crashing.
+  frame inbox, and shader pass. The shader currently uses separable Lanczos
+  sampling for upscaling and adaptive sharpening. Runtime failures such as
+  texture-cache or command-buffer creation should turn into an `.unavailable`
+  status instead of crashing.
+- Adaptive quality keeps playback smooth on GPU-bound hardware (4K Apple TV).
+  Dropped frames on the push path are the load signal: a burst of drops steps
+  the shader down (Lanczos -> bilinear -> bilinear without sharpening) so every
+  frame is still drawn, and several fully clean windows step it back up. Probing
+  backs off when an upgrade immediately fails, so heavy content settles instead
+  of oscillating. The active tier shows up in the `Enhancement` reason
+  (`Adaptive: bilinear ...`). Tunables live next to `performanceLevel`; dropping
+  frames is the floor only when even bilinear cannot keep up.
 - Playback Info is the user-visible diagnostic surface. It should show
   `Enhancement` as a state (`Off`, `Idle`, `Active`, `Unavailable`) and
   `Enhancement Detail` with the input/output size plus the technical reason
