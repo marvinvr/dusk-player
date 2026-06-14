@@ -1,4 +1,5 @@
 import CoreVideo
+import Foundation
 import Metal
 import QuartzCore
 import SwiftUI
@@ -24,6 +25,14 @@ final class VideoEnhancementRenderer {
     private weak var view: VideoEnhancementMetalView?
     private var latestFrame: VideoEnhancementFrame?
     private(set) var status: VideoEnhancementStatus
+
+    /// Coalescing inbox for frames pushed from a background producer thread.
+    /// Only the most recent frame is kept; `isDraining` guarantees a single
+    /// in-flight main-actor render so we never queue more work than the GPU can
+    /// drain. Guarded by `frameLock`.
+    nonisolated(unsafe) private let frameLock = NSLock()
+    nonisolated(unsafe) private var pendingFrame: VideoEnhancementFrame?
+    nonisolated(unsafe) private var isDraining = false
 
     init?(request: VideoEnhancementRequest) {
         guard request.isPotentiallyEnabled else { return nil }
@@ -67,12 +76,63 @@ final class VideoEnhancementRenderer {
         submit(frame: VideoEnhancementFrame(retaining: pixelBuffer))
     }
 
+    /// Direct render path for producers already on the main actor that pace
+    /// themselves by time (AVPlayer's display-link pull). Renders immediately.
     func submit(frame: VideoEnhancementFrame) {
         latestFrame = frame
         render(frame: frame)
     }
 
+    /// Thread-safe push path for background producers that emit one callback per
+    /// decoded frame (VLCKit raw video output). Frames are coalesced to the most
+    /// recent one and rendered at most one-at-a-time on the main actor. When the
+    /// GPU cannot sustain the source frame rate, intermediate frames are dropped
+    /// instead of being queued, which keeps the picture aligned with the audio
+    /// clock rather than drifting into slow motion.
+    nonisolated func enqueue(frame: VideoEnhancementFrame) {
+        frameLock.lock()
+        pendingFrame = frame
+        let shouldSchedule = !isDraining
+        if shouldSchedule {
+            isDraining = true
+        }
+        frameLock.unlock()
+
+        guard shouldSchedule else { return }
+        Task { @MainActor in
+            self.drainPendingFrames()
+        }
+    }
+
+    @MainActor
+    private func drainPendingFrames() {
+        frameLock.lock()
+        let frame = pendingFrame
+        pendingFrame = nil
+        frameLock.unlock()
+
+        if let frame {
+            latestFrame = frame
+            render(frame: frame)
+        }
+
+        frameLock.lock()
+        let hasMore = pendingFrame != nil
+        if !hasMore {
+            isDraining = false
+        }
+        frameLock.unlock()
+
+        guard hasMore else { return }
+        Task { @MainActor in
+            self.drainPendingFrames()
+        }
+    }
+
     func clear() {
+        frameLock.lock()
+        pendingFrame = nil
+        frameLock.unlock()
         latestFrame = nil
         status = request.isPotentiallyEnabled ? .idle : .disabled
     }

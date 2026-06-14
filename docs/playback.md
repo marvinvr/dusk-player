@@ -135,15 +135,26 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   closely. `enabled` still hard-disables streams above 70 fps so high-frame-rate
   playback does not overload the renderer. `disabled` leaves the native engine
   view path in place.
-- AVPlayer attaches an `AVPlayerItemVideoOutput` and submits copied pixel
-  buffers into `VideoEnhancementRenderer`. VLCKit installs raw libvlc callbacks
-  through `DuskVLCRawVideoOutput`, retains `CVPixelBuffer` frames, and submits
-  them through the Objective-C frame-consumer bridge. Keep both paths aligned
-  when changing frame ownership, channel layout, or teardown.
-- `VideoEnhancementRenderer` owns the Metal view, texture cache, frame queue,
-  and shader pass. The shader currently uses Lanczos sampling for upscaling and
-  adaptive sharpening. Runtime failures such as texture-cache or command-buffer
-  creation should turn into an `.unavailable` status instead of crashing.
+- AVPlayer attaches an `AVPlayerItemVideoOutput` and, from a display link,
+  pulls the time-current pixel buffer (`itemTime(forHostTime:)` +
+  `hasNewPixelBuffer`) into `VideoEnhancementRenderer.submit`. This path paces
+  itself by time, so it drops to the current frame under load. VLCKit installs
+  raw libvlc callbacks through `DuskVLCRawVideoOutput`, retains `CVPixelBuffer`
+  frames, and pushes them through the Objective-C frame-consumer bridge into
+  `VideoEnhancementRenderer.enqueue`. Keep both paths aligned when changing
+  frame ownership, channel layout, or teardown.
+- The push path (`enqueue`) must coalesce to the most recent frame and keep a
+  single in-flight main-actor render. libvlc emits one display callback per
+  decoded frame against its audio clock; rendering every one in order on a GPU
+  that cannot sustain the source frame rate (notably 4K upscales on Apple TV)
+  builds an unbounded backlog that plays the video back in slow motion and drifts
+  it out of sync with audio. Dropping intermediate frames keeps the picture
+  aligned with the audio clock instead. Do not reintroduce a per-frame task hop.
+- `VideoEnhancementRenderer` owns the Metal view, texture cache, coalescing
+  frame inbox, and shader pass. The shader currently uses Lanczos sampling for
+  upscaling and adaptive sharpening. Runtime failures such as texture-cache or
+  command-buffer creation should turn into an `.unavailable` status instead of
+  crashing.
 - Playback Info is the user-visible diagnostic surface. It should show
   `Enhancement` as a state (`Off`, `Idle`, `Active`, `Unavailable`) and
   `Enhancement Detail` with the input/output size plus the technical reason

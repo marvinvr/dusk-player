@@ -50,15 +50,15 @@ private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrame
     }
 
     nonisolated func duskVLCVideoOutputDidProduce(_ pixelBuffer: CVPixelBuffer) {
+        guard let renderer else { return }
         let frame = VideoEnhancementFrame(
             retaining: pixelBuffer,
             channelLayout: .rgbaBytesInBGRA
         )
-        let renderer = renderer
-
-        Task { @MainActor [weak renderer] in
-            renderer?.submit(frame: frame)
-        }
+        // Coalesce on the renderer instead of queueing a main-actor task per
+        // frame: under GPU load this drops stale frames rather than letting an
+        // unbounded backlog push the video into slow motion behind the audio.
+        renderer.enqueue(frame: frame)
     }
 }
 
