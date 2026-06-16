@@ -17,25 +17,46 @@ final class VideoEnhancementRenderer {
         var _padding: Float = 0
     }
 
+    // Immutable Metal context. Sendable `let`s are implicitly nonisolated, so
+    // the render queue can use them without hopping to the main actor.
     private let request: VideoEnhancementRequest
     private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let pipelineState: MTLRenderPipelineState
-    private var textureCache: CVMetalTextureCache?
-    private weak var view: VideoEnhancementMetalView?
-    private var latestFrame: VideoEnhancementFrame?
-    private(set) var status: VideoEnhancementStatus
 
-    /// Coalescing inbox for frames pushed from a background producer thread.
-    /// Only the most recent frame is kept; `isDraining` guarantees a single
-    /// in-flight main-actor render so we never queue more work than the GPU can
-    /// drain. Guarded by `frameLock`.
-    nonisolated(unsafe) private let frameLock = NSLock()
+    /// Dedicated serial queue that performs all GPU work. Rendering is kept off
+    /// the main thread so the player's periodic UI work (time sync, SwiftUI
+    /// diffing, HUD) cannot stall frames, and a blocking `nextDrawable()` paces
+    /// rendering against the display without freezing the interface.
+    private let renderQueue = DispatchQueue(
+        label: "com.dusk.videoenhancement.render",
+        qos: .userInteractive
+    )
+
+    /// Render-queue-owned Metal state. Only touched on `renderQueue`.
+    nonisolated(unsafe) private var textureCache: CVMetalTextureCache?
+    nonisolated(unsafe) private var metalLayer: CAMetalLayer?
+    nonisolated(unsafe) private var lastDrawnFrame: VideoEnhancementFrame?
+
+    /// Latest status, written from the render queue and read from the main
+    /// actor. Guarded by `statusLock`.
+    private let statusLock = NSLock()
+    nonisolated(unsafe) private var _status: VideoEnhancementStatus
+
+    nonisolated var status: VideoEnhancementStatus {
+        statusLock.lock()
+        defer { statusLock.unlock() }
+        return _status
+    }
+
+    /// Coalescing inbox for pushed frames. Only the most recent frame is kept;
+    /// `isDraining` guarantees a single in-flight drain on `renderQueue`, so we
+    /// never queue more work than the GPU can drain. Guarded by `frameLock`.
+    private let frameLock = NSLock()
     nonisolated(unsafe) private var pendingFrame: VideoEnhancementFrame?
     nonisolated(unsafe) private var isDraining = false
-    /// Count of frames replaced before they could be drawn. This is the live
-    /// "GPU can't keep up" signal that drives adaptive quality. Guarded by
-    /// `frameLock`.
+    /// Count of frames replaced before they could be drawn: the live "GPU can't
+    /// keep up" signal that drives adaptive quality. Guarded by `frameLock`.
     nonisolated(unsafe) private var droppedFrameCount = 0
 
     /// Adaptive quality: when the GPU cannot sustain the source frame rate the
@@ -44,22 +65,22 @@ final class VideoEnhancementRenderer {
     /// sharpening) so every frame is drawn, then probe back up when headroom
     /// returns. Downgrade quickly, upgrade cautiously, and back off probing when
     /// an upgrade immediately fails so stable heavy content settles instead of
-    /// oscillating. Main-actor state, updated in `evaluateAdaptiveQuality`.
+    /// oscillating. Render-queue-owned state, updated in `evaluateAdaptiveQuality`.
     private enum PerformanceLevel: Int {
         case full = 0          // Lanczos + adaptive sharpening
         case bilinearSharp = 1 // bilinear + adaptive sharpening
         case bilinear = 2      // bilinear only
     }
-    private static let maxPerformanceLevel = PerformanceLevel.bilinear.rawValue
-    private static let qualityEvalWindow = 48
-    private static let downgradeDropThreshold = 3
-    private static let upgradeStreakInitial = 3
-    private static let upgradeStreakMax = 24
-    private var performanceLevel: PerformanceLevel = .full
-    private var renderedInWindow = 0
-    private var cleanWindowStreak = 0
-    private var windowsSinceUpgrade = Int.max
-    private var upgradeStreakRequired = VideoEnhancementRenderer.upgradeStreakInitial
+    nonisolated private static let maxPerformanceLevel = PerformanceLevel.bilinear.rawValue
+    nonisolated private static let qualityEvalWindow = 48
+    nonisolated private static let downgradeDropThreshold = 3
+    nonisolated private static let upgradeStreakInitial = 3
+    nonisolated private static let upgradeStreakMax = 24
+    nonisolated(unsafe) private var performanceLevel: PerformanceLevel = .full
+    nonisolated(unsafe) private var renderedInWindow = 0
+    nonisolated(unsafe) private var cleanWindowStreak = 0
+    nonisolated(unsafe) private var windowsSinceUpgrade = Int.max
+    nonisolated(unsafe) private var upgradeStreakRequired = VideoEnhancementRenderer.upgradeStreakInitial
 
     init?(request: VideoEnhancementRequest) {
         guard request.isPotentiallyEnabled else { return nil }
@@ -90,32 +111,27 @@ final class VideoEnhancementRenderer {
         self.device = device
         self.commandQueue = commandQueue
         self.textureCache = cache
-        self.status = .idle
+        self._status = .idle
     }
 
     func makeView() -> VideoEnhancementMetalView {
         let view = VideoEnhancementMetalView(renderer: self, device: device)
-        self.view = view
+        metalLayer = view.metalLayer
         return view
     }
 
+    // MARK: - Frame intake
+
+    /// Entry point for producers already on the main actor (AVPlayer's
+    /// display-link pull). Routes through the same coalescing path as `enqueue`.
     func submit(pixelBuffer: CVPixelBuffer) {
-        submit(frame: VideoEnhancementFrame(retaining: pixelBuffer))
+        enqueue(frame: VideoEnhancementFrame(retaining: pixelBuffer))
     }
 
-    /// Direct render path for producers already on the main actor that pace
-    /// themselves by time (AVPlayer's display-link pull). Renders immediately.
-    func submit(frame: VideoEnhancementFrame) {
-        latestFrame = frame
-        render(frame: frame)
-    }
-
-    /// Thread-safe push path for background producers that emit one callback per
-    /// decoded frame (VLCKit raw video output). Frames are coalesced to the most
-    /// recent one and rendered at most one-at-a-time on the main actor. When the
-    /// GPU cannot sustain the source frame rate, intermediate frames are dropped
-    /// instead of being queued, which keeps the picture aligned with the audio
-    /// clock rather than drifting into slow motion.
+    /// Thread-safe push path for any producer. Frames are coalesced to the most
+    /// recent one and drawn one-at-a-time on the render queue. When the GPU
+    /// cannot sustain the source frame rate, intermediate frames are dropped
+    /// instead of being queued, keeping the picture aligned with the audio clock.
     nonisolated func enqueue(frame: VideoEnhancementFrame) {
         frameLock.lock()
         if pendingFrame != nil {
@@ -131,34 +147,31 @@ final class VideoEnhancementRenderer {
         frameLock.unlock()
 
         guard shouldSchedule else { return }
-        Task { @MainActor in
-            self.drainPendingFrames()
+        renderQueue.async { [weak self] in
+            self?.drainPendingFrames()
         }
     }
 
-    @MainActor
-    private func drainPendingFrames() {
-        frameLock.lock()
-        let frame = pendingFrame
-        pendingFrame = nil
-        frameLock.unlock()
+    /// Runs on `renderQueue`. Renders the newest pending frame repeatedly,
+    /// dropping any older frames that piled up while the GPU was busy. The serial
+    /// queue plus `isDraining` keeps exactly one drain loop in flight.
+    nonisolated private func drainPendingFrames() {
+        while true {
+            frameLock.lock()
+            let frame = pendingFrame
+            pendingFrame = nil
+            if frame == nil {
+                isDraining = false
+                frameLock.unlock()
+                return
+            }
+            frameLock.unlock()
 
-        if let frame {
-            latestFrame = frame
-            render(frame: frame)
-            evaluateAdaptiveQuality()
-        }
-
-        frameLock.lock()
-        let hasMore = pendingFrame != nil
-        if !hasMore {
-            isDraining = false
-        }
-        frameLock.unlock()
-
-        guard hasMore else { return }
-        Task { @MainActor in
-            self.drainPendingFrames()
+            if let frame {
+                lastDrawnFrame = frame
+                renderToLayer(frame: frame)
+                evaluateAdaptiveQuality()
+            }
         }
     }
 
@@ -167,25 +180,28 @@ final class VideoEnhancementRenderer {
         pendingFrame = nil
         droppedFrameCount = 0
         frameLock.unlock()
-        latestFrame = nil
-        performanceLevel = .full
-        renderedInWindow = 0
-        cleanWindowStreak = 0
-        windowsSinceUpgrade = Int.max
-        upgradeStreakRequired = Self.upgradeStreakInitial
-        status = request.isPotentiallyEnabled ? .idle : .disabled
+        setStatus(request.isPotentiallyEnabled ? .idle : .disabled)
+        renderQueue.async { [weak self] in
+            self?.lastDrawnFrame = nil
+            self?.resetAdaptiveState()
+        }
     }
 
+    /// Redraws the last frame at the current drawable size (e.g. after a layout
+    /// change) so paused video does not go black. Dispatched to the render queue.
     func renderCurrentFrame() {
-        guard let latestFrame else { return }
-        render(frame: latestFrame)
+        renderQueue.async { [weak self] in
+            guard let self, let frame = self.lastDrawnFrame else { return }
+            self.renderToLayer(frame: frame)
+        }
     }
+
+    // MARK: - Adaptive quality (render queue)
 
     /// Adjusts `performanceLevel` from the live drop signal with hysteresis.
-    /// Called after each push-path render. Downgrades on a burst of drops,
-    /// upgrades only after several fully clean windows, and widens the upgrade
-    /// requirement whenever an upgrade immediately fails.
-    private func evaluateAdaptiveQuality() {
+    /// Downgrades on a burst of drops, upgrades only after several fully clean
+    /// windows, and widens the upgrade requirement whenever an upgrade fails.
+    nonisolated private func evaluateAdaptiveQuality() {
         frameLock.lock()
         let dropsSoFar = droppedFrameCount
         frameLock.unlock()
@@ -231,7 +247,7 @@ final class VideoEnhancementRenderer {
         }
     }
 
-    private func downgradePerformance() {
+    nonisolated private func downgradePerformance() {
         let failedProbe = windowsSinceUpgrade <= 1
         performanceLevel = PerformanceLevel(
             rawValue: min(performanceLevel.rawValue + 1, Self.maxPerformanceLevel)
@@ -247,18 +263,40 @@ final class VideoEnhancementRenderer {
         }
     }
 
-    private func render(frame: VideoEnhancementFrame) {
-        let pixelBuffer = frame.pixelBuffer
-        guard let view else { return }
-        let layer = view.metalLayer
-        let outputSize = layer.drawableSize
-        guard outputSize.width > 0, outputSize.height > 0 else { return }
+    nonisolated private func resetAdaptiveState() {
+        performanceLevel = .full
+        renderedInWindow = 0
+        cleanWindowStreak = 0
+        windowsSinceUpgrade = Int.max
+        upgradeStreakRequired = Self.upgradeStreakInitial
+    }
 
-        guard let drawable = layer.nextDrawable(),
-              let texture = makeTexture(from: pixelBuffer) else {
-            status = VideoEnhancementStatus(state: .unavailable, reason: "Could not create Metal texture")
+    // MARK: - Rendering (render queue)
+
+    nonisolated private func setStatus(_ newStatus: VideoEnhancementStatus) {
+        statusLock.lock()
+        _status = newStatus
+        statusLock.unlock()
+    }
+
+    nonisolated private func renderToLayer(frame: VideoEnhancementFrame) {
+        guard let metalLayer else { return }
+        let pixelBuffer = frame.pixelBuffer
+
+        guard let texture = makeTexture(from: pixelBuffer) else {
+            setStatus(VideoEnhancementStatus(state: .unavailable, reason: "Could not create Metal texture"))
             return
         }
+
+        // nextDrawable() may block while the compositor recycles a drawable;
+        // because we are off the main thread this paces rendering instead of
+        // freezing the UI.
+        guard let drawable = metalLayer.nextDrawable() else { return }
+
+        // Derive the output size from the drawable itself rather than reading the
+        // layer's drawableSize across threads.
+        let outputSize = CGSize(width: drawable.texture.width, height: drawable.texture.height)
+        guard outputSize.width > 0, outputSize.height > 0 else { return }
 
         let inputSize = CGSize(
             width: CVPixelBufferGetWidth(pixelBuffer),
@@ -274,7 +312,7 @@ final class VideoEnhancementRenderer {
 
         guard let commandBuffer = commandQueue.makeCommandBuffer(),
               let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: passDescriptor) else {
-            status = VideoEnhancementStatus(state: .unavailable, reason: "Could not create command buffer")
+            setStatus(VideoEnhancementStatus(state: .unavailable, reason: "Could not create command buffer"))
             return
         }
 
@@ -305,10 +343,10 @@ final class VideoEnhancementRenderer {
         commandBuffer.present(drawable)
         commandBuffer.commit()
 
-        status = decision.status
+        setStatus(decision.status)
     }
 
-    private func makeTexture(from pixelBuffer: CVPixelBuffer) -> MTLTexture? {
+    nonisolated private func makeTexture(from pixelBuffer: CVPixelBuffer) -> MTLTexture? {
         guard let textureCache,
               let pixelFormat = metalPixelFormat(for: pixelBuffer) else {
             return nil
@@ -338,7 +376,7 @@ final class VideoEnhancementRenderer {
         return texture
     }
 
-    private func metalPixelFormat(for pixelBuffer: CVPixelBuffer) -> MTLPixelFormat? {
+    nonisolated private func metalPixelFormat(for pixelBuffer: CVPixelBuffer) -> MTLPixelFormat? {
         switch CVPixelBufferGetPixelFormatType(pixelBuffer) {
         case kCVPixelFormatType_32BGRA:
             .bgra8Unorm
@@ -349,7 +387,7 @@ final class VideoEnhancementRenderer {
         }
     }
 
-    private func enhancementDecision(
+    nonisolated private func enhancementDecision(
         inputSize: CGSize,
         outputSize: CGSize
     ) -> (status: VideoEnhancementStatus, sharpening: Float, useLanczos: Bool) {
@@ -445,7 +483,7 @@ final class VideoEnhancementRenderer {
         )
     }
 
-    private func aspectFitRect(inputSize: CGSize, outputSize: CGSize) -> CGRect {
+    nonisolated private func aspectFitRect(inputSize: CGSize, outputSize: CGSize) -> CGRect {
         guard inputSize.width > 0, inputSize.height > 0 else {
             return CGRect(origin: .zero, size: outputSize)
         }

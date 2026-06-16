@@ -155,6 +155,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   sampling for upscaling and adaptive sharpening. Runtime failures such as
   texture-cache or command-buffer creation should turn into an `.unavailable`
   status instead of crashing.
+- All GPU work runs on a dedicated serial `renderQueue`, never the main thread,
+  so the player's periodic main-thread work (time sync, SwiftUI diffing, HUD)
+  cannot stall frames and a blocking `nextDrawable()` paces rendering without
+  freezing the UI. Both producers funnel through `enqueue`; only `makeView`,
+  `clear`, and the layout-driven `renderCurrentFrame` are called on the main
+  actor. Render-queue-owned state is `nonisolated(unsafe)` and touched only on
+  that queue; `status` is published back through a lock. Output size is taken
+  from the drawable's texture, not the layer, to avoid a cross-thread read.
 - Adaptive quality keeps playback smooth on GPU-bound hardware (4K Apple TV).
   Dropped frames on the push path are the load signal: a burst of drops steps
   the shader down (Lanczos -> bilinear -> bilinear without sharpening) so every
