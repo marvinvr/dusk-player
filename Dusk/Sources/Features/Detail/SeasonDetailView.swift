@@ -113,7 +113,7 @@ struct SeasonDetailView: View {
 
                     episodesSection(width: geometry.size.width)
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 28)
+                        .padding(.top, 24)
                         .padding(.bottom, episodesBottomPadding)
                         .focusSection()
 
@@ -168,8 +168,9 @@ struct SeasonDetailView: View {
     ) -> some View {
         let heroBase: CGFloat = {
             #if os(tvOS)
-            // Keep the banner compact so the episode row fits on the same screen.
-            min(max(containerHeight * 0.56, 580), 620)
+            // Keep the banner compact so the episode row lands high enough that
+            // focusing a card never scrolls the banner off-screen.
+            min(max(containerHeight * 0.50, 500), 540)
             #else
             min(max(containerHeight * 0.72, 520), 760)
             #endif
@@ -196,7 +197,9 @@ struct SeasonDetailView: View {
         }()
         let posterWidth: CGFloat = {
             #if os(tvOS)
-            DuskPosterMetrics.heroPosterWidth
+            // Smaller than the standard hero poster: the season page doubles as
+            // the episode browser, so the banner needs to stay short.
+            240
             #else
             sizeClass == .regular ? 186 : 124
             #endif
@@ -416,7 +419,7 @@ struct SeasonDetailView: View {
             let contentWidth = max(width - (horizontalPadding * 2), 280)
             let artworkWidth: CGFloat = {
                 #if os(tvOS)
-                min(max(contentWidth * 0.46, 240), 380)
+                min(max(contentWidth * 0.44, 240), 360)
                 #else
                 min(max(contentWidth * 0.48, 170), 320)
                 #endif
