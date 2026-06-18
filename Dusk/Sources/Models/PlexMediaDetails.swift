@@ -201,6 +201,17 @@ struct PlexMedia: Codable, Sendable, Identifiable {
 
     let parts: [PlexMediaPart]
 
+    /// Whether this version has at least one part Plex still reports as present.
+    var hasAvailablePart: Bool {
+        parts.contains { $0.isAvailable }
+    }
+
+    /// The first part Plex still reports as present, falling back to the first
+    /// part when nothing is explicitly flagged.
+    var firstAvailablePart: PlexMediaPart? {
+        parts.first { $0.isAvailable } ?? parts.first
+    }
+
     enum CodingKeys: String, CodingKey {
         case id, container, videoCodec, audioCodec
         case videoResolution, videoProfile, audioProfile, audioChannels
@@ -245,11 +256,24 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
     let videoProfile: String?
     let audioProfile: String?
 
+    /// Plex's file-presence flags. Only populated reliably when the metadata
+    /// request asks Plex to stat the files (`checkFiles=1`). When a file is
+    /// deleted and re-added, Plex can keep the old version around with these set
+    /// to `false` until its trash is emptied.
+    let accessible: Bool?
+    let exists: Bool?
+
     let streams: [PlexStream]
+
+    /// Treat a part as unavailable only when Plex explicitly flags it missing;
+    /// absent flags mean "assume available" so we never hide good versions.
+    var isAvailable: Bool {
+        accessible != false && exists != false
+    }
 
     enum CodingKeys: String, CodingKey {
         case id, key, file, size, container, duration
-        case videoProfile, audioProfile
+        case videoProfile, audioProfile, accessible, exists
         case streams = "Stream"
     }
 
@@ -263,7 +287,32 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
         videoProfile = try container.decodeIfPresent(String.self, forKey: .videoProfile)
         audioProfile = try container.decodeIfPresent(String.self, forKey: .audioProfile)
+        accessible = Self.decodeFlexibleBool(container, forKey: .accessible)
+        exists = Self.decodeFlexibleBool(container, forKey: .exists)
         streams = try container.decodeIfPresent([PlexStream].self, forKey: .streams) ?? []
+    }
+
+    /// Plex serializes these flags inconsistently across versions (bool, `1`/`0`,
+    /// or `"1"`/`"0"`), so decode defensively and treat anything unexpected as
+    /// "unknown" rather than failing the whole part.
+    private static func decodeFlexibleBool(
+        _ container: KeyedDecodingContainer<CodingKeys>,
+        forKey key: CodingKeys
+    ) -> Bool? {
+        if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+            return value
+        }
+        if let intValue = try? container.decodeIfPresent(Int.self, forKey: key) {
+            return intValue != 0
+        }
+        if let stringValue = try? container.decodeIfPresent(String.self, forKey: key) {
+            switch stringValue.trimmingCharacters(in: .whitespaces).lowercased() {
+            case "1", "true", "yes": return true
+            case "0", "false", "no": return false
+            default: return nil
+            }
+        }
+        return nil
     }
 }
 

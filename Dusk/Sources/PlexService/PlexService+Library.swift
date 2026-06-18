@@ -166,8 +166,8 @@ extension PlexService {
             .map { PlexSearchResult(hub: $0) }
     }
 
-    func getMediaDetails(ratingKey: String) async throws -> PlexMediaDetails {
-        let data = try await getMediaDetailsPayload(ratingKey: ratingKey)
+    func getMediaDetails(ratingKey: String, checkFiles: Bool = false) async throws -> PlexMediaDetails {
+        let data = try await getMediaDetailsPayload(ratingKey: ratingKey, checkFiles: checkFiles)
         let response = try decodeJSON(MetadataResponse<PlexMediaDetails>.self, from: data)
         let items = response.MediaContainer.Metadata ?? []
 
@@ -178,12 +178,17 @@ extension PlexService {
         return details
     }
 
-    func getMediaDetailsPayload(ratingKey: String) async throws -> Data {
-        try await rawServerRequest(
+    /// - Parameter checkFiles: when `true`, asks Plex to stat the backing files so
+    ///   each `Part` carries accurate `accessible`/`exists` flags. Used right
+    ///   before playback so a stale/missing version isn't chosen for direct play.
+    func getMediaDetailsPayload(ratingKey: String, checkFiles: Bool = false) async throws -> Data {
+        var queryItems = [URLQueryItem(name: "includeMarkers", value: "1")]
+        if checkFiles {
+            queryItems.append(URLQueryItem(name: "checkFiles", value: "1"))
+        }
+        return try await rawServerRequest(
             path: PlexMetadataCache.metadataEndpoint(ratingKey),
-            queryItems: [
-                URLQueryItem(name: "includeMarkers", value: "1"),
-            ]
+            queryItems: queryItems
         )
     }
 

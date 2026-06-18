@@ -15,8 +15,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 1. Detail/list UI asks `PlaybackCoordinator` to play a `ratingKey` through
    `play`, `playFromStart`, or `playVersion`.
 2. `startPlaybackSession` gets `PlexMediaDetails` from completed-download cache
-   when playable, otherwise from `plexService.getMediaDetails`.
-3. The coordinator chooses a `PlexMedia` version, then its first part.
+   when playable, otherwise from `plexService.getMediaDetails(checkFiles: true)`
+   so each part carries accurate `accessible`/`exists` flags.
+3. The coordinator chooses a `PlexMedia` version, then its first *available*
+   part (`PlexMedia.firstAvailablePart`).
 4. If a matching completed download exists, playback uses the local file URL.
    Otherwise `PlexService.directPlayURL(for:)` builds `{serverBaseURL}{part.key}`
    and adds `X-Plex-Token` when available.
@@ -56,7 +58,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## StreamResolver and Media Version Choice
 - `StreamResolver.selectMediaVersion` filters out media versions with no
-  parts. With multiple candidates it targets `preferences.maxResolution`.
+  parts, then prefers versions Plex still reports as present (`hasAvailablePart`,
+  backed by per-part `accessible`/`exists`). This avoids picking a stale version
+  Plex keeps after a file is deleted and re-added, which would 404 on direct play
+  and surface as "not available". It falls back to all candidates when nothing is
+  explicitly flagged available. With multiple candidates it targets
+  `preferences.maxResolution`.
 - `MaxResolution.auto` targets 1080p on iOS/iPadOS and 4K on tvOS.
 - The preferred resolution is a target, not a hard failure: choose the highest
   height at/below target, then closest above target, then unknown-height

@@ -26,7 +26,7 @@ extension PlaybackCoordinator {
                 details = cachedDetails
             } else {
                 do {
-                    details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+                    details = try await plexService.getMediaDetails(ratingKey: ratingKey, checkFiles: true)
                 } catch {
                     if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
                         details = cachedDetails
@@ -59,7 +59,7 @@ extension PlaybackCoordinator {
                 in: details,
                 selectedMediaID: selectedMediaID
             )
-            let part = localMediaVersion?.part ?? media?.parts.first
+            let part = localMediaVersion?.part ?? media?.firstAvailablePart
 
             guard let media,
                   let part else {

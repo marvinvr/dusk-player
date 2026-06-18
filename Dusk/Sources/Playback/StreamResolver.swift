@@ -45,12 +45,20 @@ enum StreamResolver {
             return MediaCandidate(index: index, media: media)
         }
 
-        guard !playableCandidates.isEmpty else { return mediaVersions.first }
-        guard playableCandidates.count > 1 else { return playableCandidates.first?.media }
+        // Prefer versions whose underlying file Plex still reports as present.
+        // When a file is deleted and re-added (often with different naming),
+        // Plex can keep the dead version (accessible/exists = false) alongside
+        // the live one; direct-playing it 404s and surfaces as "not available".
+        // Fall back to the full set when nothing is explicitly flagged available.
+        let availableCandidates = playableCandidates.filter { $0.media.hasAvailablePart }
+        let candidates = availableCandidates.isEmpty ? playableCandidates : availableCandidates
+
+        guard !candidates.isEmpty else { return mediaVersions.first }
+        guard candidates.count > 1 else { return candidates.first?.media }
 
         let targetHeight = preferredMaxResolution.selectionTargetMaxHeight
 
-        let withinTarget = playableCandidates
+        let withinTarget = candidates
             .filter { candidate in
                 guard let height = candidate.height else { return false }
                 return height <= targetHeight
@@ -61,7 +69,7 @@ enum StreamResolver {
             return bestWithinTarget.media
         }
 
-        let aboveTarget = playableCandidates
+        let aboveTarget = candidates
             .filter { candidate in
                 guard let height = candidate.height else { return false }
                 return height > targetHeight
@@ -72,7 +80,7 @@ enum StreamResolver {
             return closestAboveTarget.media
         }
 
-        return playableCandidates
+        return candidates
             .sorted(by: sortUnknownHeights)
             .first?.media
     }
