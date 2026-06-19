@@ -1,0 +1,37 @@
+# mmux workspace config.
+# Run `mmux` in this directory to open (or reattach to) the session.
+
+name: dusk-player
+
+# Agents: interactive programs you spawn on demand from the sidebar.
+agents:
+  - name: Claude
+    cmd: claude
+    args: ["--dangerously-skip-permissions"]
+  - name: Codex
+    cmd: codex
+    args: ["--dangerously-bypass-approvals-and-sandbox"]
+
+# Processes: commands you start/stop and watch. cwd is relative to this file.
+processes:
+  - name: iPhone Simulator
+    cmd: ./scripts/iphone.sh
+    args: []
+    cwd: .
+    autostart: false
+  - name: iPad Simulator
+    cmd: ./scripts/ipad.sh
+    args: []
+    cwd: .
+    autostart: false
+  - name: TVOS Simulator
+    cmd: ./scripts/tvos.sh
+    args: []
+    cwd: .
+    autostart: false
+
+# Linked projects: sibling dirs (e.g. extra clones) shown alongside this one,
+# each its own sidebar group. One level deep, de-duplicated by path.
+linked-projects:
+  - ../dusk-player2
+  - ../dusk-player3
