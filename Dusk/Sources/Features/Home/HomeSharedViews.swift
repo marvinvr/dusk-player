@@ -6,6 +6,7 @@ struct HomeItemContextMenu: View {
     let onMarkWatched: () -> Void
     let onMarkUnwatched: () -> Void
     let onSelectRoute: (AppNavigationRoute) -> Void
+    var onRemoveFromContinueWatching: (() -> Void)?
 
     var body: some View {
         if item.canMarkWatchedFromContextMenu {
@@ -14,6 +15,10 @@ struct HomeItemContextMenu: View {
 
         if item.canMarkUnwatchedFromContextMenu {
             Button("Mark Unwatched", systemImage: "eye.slash", action: onMarkUnwatched)
+        }
+
+        if let onRemoveFromContinueWatching {
+            Button("Remove from Continue Watching", systemImage: "minus.circle", action: onRemoveFromContinueWatching)
         }
 
         Button(detailsLabel, systemImage: "info.circle") {
@@ -187,15 +192,15 @@ extension View {
             .buttonBorderShape(.capsule)
             .tint(Color.primary)
         #elseif os(iOS)
-        // Prominent, `Color.primary`-tinted glass so the hero CTA contrasts the
-        // artwork behind it (dark in Light mode, light in Dark mode). `.regular`
-        // height keeps it a short, wide pill instead of an oversized capsule.
+        // Prominent glass tinted with a translucent `primary` so the hero CTA
+        // contrasts the artwork (dark in Light mode, light in Dark) while still
+        // reading as liquid glass. `.regular` height keeps it a short, wide pill.
         if #available(iOS 26.0, *) {
             self
                 .buttonStyle(.glassProminent)
                 .controlSize(.regular)
                 .buttonBorderShape(.capsule)
-                .tint(Color.primary)
+                .tint(Color.duskPrimaryButtonTint)
         } else {
             self
                 .buttonStyle(.borderedProminent)

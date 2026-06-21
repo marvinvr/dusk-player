@@ -227,7 +227,8 @@ struct MovieDetailView: View {
             watchedButton()
         }
         #else
-        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+        // Primary fills the stack width; secondary row is centered beneath it.
+        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {

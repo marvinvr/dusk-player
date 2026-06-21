@@ -62,6 +62,7 @@ struct HomeCinematicHero: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     @Environment(PlexService.self) private var plexService
+    @Environment(PlaybackCoordinator.self) private var playback
 
     let items: [PlexItem]
     let viewModel: HomeViewModel
@@ -154,7 +155,7 @@ struct HomeCinematicHero: View {
                     .padding(.leading, contentLeadingInset + layout.pagerHorizontalPadding)
                     .padding(.trailing, contentTrailingInset + layout.pagerHorizontalPadding)
                     .padding(.bottom, layout.pagerBottomPadding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: heroContentBlockAlignment)
             }
         }
         .frame(height: heroHeight)
@@ -179,6 +180,17 @@ struct HomeCinematicHero: View {
             resetHeroSlideState()
             resetHeroDragState()
             restartHeroRotation()
+        }
+        .onChange(of: playback.showPlayer) { _, isShowing in
+            // The player presents as a full-screen cover, which does not change
+            // scenePhase, so the rotation timer would otherwise keep advancing the
+            // hero behind it. Pause while playing and restart fresh on return so we
+            // come back to the hero the user launched from.
+            if isShowing {
+                pauseHeroRotation()
+            } else {
+                restartHeroRotation()
+            }
         }
         .task(id: heroRotationSeed) {
             await rotateHeroIfNeeded()
@@ -326,8 +338,8 @@ struct HomeCinematicHero: View {
             }
             #endif
 
-            VStack(alignment: .leading, spacing: 16) {
-                VStack(alignment: .leading, spacing: heroTitleBlockSpacing(for: item)) {
+            VStack(alignment: heroContentHorizontalAlignment, spacing: 16) {
+                VStack(alignment: heroContentHorizontalAlignment, spacing: heroTitleBlockSpacing(for: item)) {
                     heroTitle(for: item, contentWidth: contentWidth)
 
                     if let episodeTitle = viewModel.heroEpisodeTitle(for: item) {
@@ -335,7 +347,8 @@ struct HomeCinematicHero: View {
                             .font(layout.episodeTitleFont)
                             .foregroundStyle(Color.primary)
                             .lineLimit(2)
-                            .frame(maxWidth: contentWidth, alignment: .leading)
+                            .multilineTextAlignment(heroTextAlignment)
+                            .frame(maxWidth: contentWidth, alignment: heroContentFrameAlignment)
                     }
 
                     if !metadata.isEmpty {
@@ -343,7 +356,8 @@ struct HomeCinematicHero: View {
                             .font(layout.metadataFont)
                             .foregroundStyle(Color.primary.opacity(0.78))
                             .lineLimit(2)
-                            .frame(maxWidth: contentWidth, alignment: .leading)
+                            .multilineTextAlignment(heroTextAlignment)
+                            .frame(maxWidth: contentWidth, alignment: heroContentFrameAlignment)
                     }
                 }
 
@@ -353,7 +367,8 @@ struct HomeCinematicHero: View {
                         .foregroundStyle(Color.primary.opacity(0.76))
                         .lineLimit(layout.summaryLineLimit)
                         .lineSpacing(layout.summaryLineSpacing)
-                        .frame(maxWidth: contentWidth, alignment: .leading)
+                        .multilineTextAlignment(heroTextAlignment)
+                        .frame(maxWidth: contentWidth, alignment: heroContentFrameAlignment)
                 }
 
                 heroActions(for: item)
@@ -364,7 +379,7 @@ struct HomeCinematicHero: View {
             .padding(.trailing, contentTrailingInset + layout.contentHorizontalPadding)
             .padding(.bottom, reservesPagerSpace ? layout.contentBottomPaddingWithPager : layout.contentBottomPaddingWithoutPager)
             .padding(.top, topInset + layout.contentTopPadding)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: heroContentBlockAlignment)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -379,6 +394,32 @@ struct HomeCinematicHero: View {
         #else
         true
         #endif
+    }
+
+    // iPhone centers the entire hero block — title logo, text, action button, and
+    // pager — while iPad and tvOS keep the leading-aligned cinematic layout.
+    private var centersHeroContent: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .phone
+        #else
+        false
+        #endif
+    }
+
+    private var heroContentHorizontalAlignment: HorizontalAlignment {
+        centersHeroContent ? .center : .leading
+    }
+
+    private var heroContentFrameAlignment: Alignment {
+        centersHeroContent ? .center : .leading
+    }
+
+    private var heroContentBlockAlignment: Alignment {
+        centersHeroContent ? .bottom : .bottomLeading
+    }
+
+    private var heroTextAlignment: TextAlignment {
+        centersHeroContent ? .center : .leading
     }
 
     @ViewBuilder
@@ -400,12 +441,12 @@ struct HomeCinematicHero: View {
                 .resizable()
                 .scaledToFit()
                 .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-                .frame(width: width, height: height, alignment: .bottomLeading)
+                .frame(width: width, height: height, alignment: heroContentBlockAlignment)
         } else if failedHeroTitleImageKeys.contains(item.ratingKey) {
             heroTitleFallback(for: item)
         } else {
             Color.clear
-                .frame(width: width, height: height, alignment: .bottomLeading)
+                .frame(width: width, height: height, alignment: heroContentBlockAlignment)
         }
         #else
         heroTitleFallback(for: item)
@@ -413,13 +454,18 @@ struct HomeCinematicHero: View {
     }
 
     private func heroTitleFallback(for item: PlexItem) -> some View {
+        // When a show/movie has no title-logo artwork, the title renders as text.
+        // Force it white (rather than `Color.primary`) so it always reads against
+        // the dark hero backdrop, even in Light mode. Only this fallback title is
+        // affected — episode title, metadata, and summary keep `Color.primary`.
         Text(viewModel.displayTitle(for: item))
             .font(.system(size: layout.titleFontSize, weight: .heavy, design: .rounded))
-            .foregroundStyle(Color.primary)
+            .foregroundStyle(Color.white)
             .lineLimit(3)
             .minimumScaleFactor(0.7)
             .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .multilineTextAlignment(heroTextAlignment)
+            .frame(maxWidth: .infinity, alignment: heroContentFrameAlignment)
     }
 
     @ViewBuilder

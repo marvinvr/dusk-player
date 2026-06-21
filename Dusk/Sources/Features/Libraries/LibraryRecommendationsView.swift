@@ -135,18 +135,16 @@ struct LibraryRecommendationsView: View {
 
     @ViewBuilder
     private func browseLibraryButton(labelText: String) -> some View {
+        #if os(tvOS)
+        ShowAllCarouselLink(
+            route: AppNavigationRoute.library(viewModel.library),
+            title: labelText
+        )
+        #else
         NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
-            #if os(tvOS)
-            TVBrowseLibraryButtonLabel(title: labelText)
-            #else
             Label(labelText, systemImage: "square.grid.2x2")
                 .font(.subheadline.weight(.semibold))
-            #endif
         }
-        #if os(tvOS)
-        .duskSuppressTVOSButtonChrome()
-        .duskTVOSFocusEffectShape(Capsule())
-        #else
         .buttonStyle(.plain)
         #endif
     }
@@ -258,27 +256,3 @@ struct LibraryRecommendationsView: View {
         }
     }
 }
-
-#if os(tvOS)
-private struct TVBrowseLibraryButtonLabel: View {
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "square.grid.2x2")
-                .font(.subheadline.weight(.semibold))
-
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-        }
-        .foregroundStyle(Color.duskTextPrimary)
-        .padding(.horizontal, 18)
-        .padding(.vertical, 10)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule()
-                .strokeBorder(Color.duskTextSecondary.opacity(0.16), lineWidth: 1)
-        )
-    }
-}
-#endif

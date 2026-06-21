@@ -73,6 +73,19 @@ extension PlexService {
         }
     }
 
+    /// Hides an item from the server-wide "Continue Watching" hub without
+    /// changing its watch state, mirroring Plex's "Remove from Continue
+    /// Watching" action.
+    func removeFromContinueWatching(ratingKey: String) async throws {
+        _ = try await rawServerRequest(
+            method: "PUT",
+            path: "/actions/removeFromContinueWatching",
+            queryItems: [
+                URLQueryItem(name: "ratingKey", value: ratingKey),
+            ]
+        )
+    }
+
     func directPlayURL(for part: PlexMediaPart) -> URL? {
         guard let baseURL = serverBaseURL else {
             plexPlaybackLogger.error(

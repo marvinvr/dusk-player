@@ -137,14 +137,29 @@ struct EpisodeDetailView: View {
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
+            // The season·episode marker rides directly under the title (so on iPad
+            // it heads the right column), while the rest of the metadata stays in
+            // the left column with the show logo and the actions.
+            titleAccessory: AnyView(
+                episodeMarkerRow()
+                    .multilineTextAlignment(detailHeroTextAlignment(for: sizeClass))
+            ),
             supertitle: {
                 if let showTitle = viewModel.showTitle {
-                    showTitleLink(showTitle)
+                    DetailHeroShowTitleLink(
+                        title: showTitle,
+                        logoURL: viewModel.showTitleLogoURL(
+                            width: Int((containerWidth * 0.5).rounded(.up)),
+                            height: 128
+                        ),
+                        showRoute: viewModel.showRatingKey.map {
+                            AppNavigationRoute.media(type: .show, ratingKey: $0)
+                        }
+                    )
                 }
             },
             subtitle: {
                 VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
-                    episodeMarkerRow()
                     metadataTagline(details)
                     heroMetadata(details)
                 }
@@ -179,29 +194,6 @@ struct EpisodeDetailView: View {
     }
 
     @ViewBuilder
-    private func showTitleLink(_ title: String) -> some View {
-#if os(tvOS)
-        Text(title)
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.duskAccent)
-#else
-        if let showRatingKey = viewModel.showRatingKey {
-            NavigationLink(value: AppNavigationRoute.media(type: .show, ratingKey: showRatingKey)) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.duskAccent)
-            }
-            .buttonStyle(.plain)
-            .duskSuppressTVOSButtonChrome()
-        } else {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.duskAccent)
-        }
-#endif
-    }
-
-    @ViewBuilder
     private func seasonMetadataLink(_ title: String) -> some View {
 #if os(tvOS)
         metadataMarkerText(title)
@@ -220,14 +212,33 @@ struct EpisodeDetailView: View {
 
     private func metadataMarkerText(_ title: String) -> some View {
         Text(title)
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.primary.opacity(0.82))
+            .font(markerFont)
+            .foregroundStyle(markerColor)
     }
 
     private var metadataSeparator: some View {
         Text(" · ")
-            .font(.subheadline.weight(.medium))
+            .font(markerFont)
             .foregroundStyle(Color.primary.opacity(0.56))
+    }
+
+    // On iPad the season·episode marker sits under the episode title in the
+    // right column as a quiet subtitle, so it reads smaller and greyer there.
+    // (tvOS is also `.regular`, so guard to iOS to leave it untouched.)
+    private var usesQuietMarker: Bool {
+        #if os(iOS)
+        sizeClass == .regular
+        #else
+        false
+        #endif
+    }
+
+    private var markerFont: Font {
+        usesQuietMarker ? .footnote.weight(.medium) : .subheadline.weight(.medium)
+    }
+
+    private var markerColor: Color {
+        usesQuietMarker ? Color.duskTextSecondary : Color.primary.opacity(0.82)
     }
 
     @ViewBuilder
@@ -274,7 +285,8 @@ struct EpisodeDetailView: View {
             watchedButton()
         }
         #else
-        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+        // Primary fills the stack width; secondary row is centered beneath it.
+        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {

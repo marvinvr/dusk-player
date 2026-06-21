@@ -76,9 +76,11 @@ ratings, active states, and inline links.
 
 * **Style:** prominent Liquid Glass — `.buttonStyle(.glassProminent)` (fallback
   `.borderedProminent` below iOS 26), on **all** platforms (tvOS included).
-* **Color:** `.tint(Color.primary)` for built-in contrast — a **dark** glass pill
-  in Light mode, a **light** one in Dark mode; label/icon use
-  `Color.duskPrimaryActionLabel` (the inverse of `primary`).
+* **Color:** `.tint(Color.duskPrimaryButtonTint)` — a *translucent* `primary` so the
+  button keeps a **dark** (Light mode) / **light** (Dark mode) lean for contrast
+  while still reading as liquid glass, not a solid black/white fill. Label/icon use
+  `Color.duskPrimaryActionLabel` (the inverse of `primary`). Tune the tint's opacity
+  (in `DuskApp.swift`) to trade contrast for glassiness.
 * **Height:** `.controlSize(.regular)`, `.capsule` — deliberately short (tvOS used
   to be `.large`; it is now `.regular` too).
 * **Width:** iPhone → ~60% of the screen, **centered**; iPad → fills the hero's

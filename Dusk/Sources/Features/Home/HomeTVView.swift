@@ -49,6 +49,14 @@ struct HomeTVView: View {
                             contentLeadingInset: leadingContentInset,
                             contentTrailingInset: trailingContentInset,
                             layout: .tv,
+                            // Keep tvOS hero rotation OFF. The focusable play button
+                            // lives inside the per-item hero slide (keyed by ratingKey),
+                            // so an unattended rotation tears down the view that owns the
+                            // `.heroPrimaryAction` focus binding. While another tab is on
+                            // screen the Home tab stays alive and keeps rotating, leaving
+                            // the binding detached — so returning to Home and pressing down
+                            // from the tab bar drops focus into nothing (cursor vanishes,
+                            // nothing is selectable). iOS has no focus engine and keeps it on.
                             autoRotates: false,
                             supportsDragNavigation: false,
                             primaryAction: { item, callbacks in
@@ -86,6 +94,9 @@ struct HomeTVView: View {
                                             },
                                             onSelectRoute: { route in
                                                 path.append(route)
+                                            },
+                                            onRemoveFromContinueWatching: {
+                                                Task { await viewModel.removeFromContinueWatching(item) }
                                             }
                                         )
                                         .onAppear {

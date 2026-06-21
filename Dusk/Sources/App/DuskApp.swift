@@ -217,6 +217,14 @@ extension Color {
         }
     )
 
+    /// Tint for the prominent primary action glass. A *translucent* `primary` so
+    /// the button keeps a dark/light lean for contrast while the glass material
+    /// still reads through it — more "liquid glass" than a solid black/white fill.
+    /// Lower the opacity for more glass, raise it for more contrast.
+    static var duskPrimaryButtonTint: Color {
+        Color.primary.opacity(0.7)
+    }
+
 }
 
 private extension UIColor {

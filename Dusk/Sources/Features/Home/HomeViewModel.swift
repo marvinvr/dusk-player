@@ -102,6 +102,24 @@ final class HomeViewModel {
         }
     }
 
+    func removeFromContinueWatching(_ item: PlexItem) async {
+        // Optimistically drop the item so the hero updates immediately, then
+        // reconcile with the server's refreshed Continue Watching hub.
+        let removedRatingKey = item.ratingKey
+        withAnimation(.easeInOut(duration: 0.3)) {
+            continueWatching.removeAll { $0.ratingKey == removedRatingKey }
+        }
+
+        do {
+            try await plexService.removeFromContinueWatching(ratingKey: removedRatingKey)
+            await load()
+        } catch {
+            self.error = error.localizedDescription
+            // Restore the optimistic removal if the server rejected the request.
+            await load()
+        }
+    }
+
     func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }

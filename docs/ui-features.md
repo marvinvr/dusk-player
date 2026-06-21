@@ -113,11 +113,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   hubs so the custom continue-watching flow is not duplicated.
 - Recently Added hubs are expanded through `getHubItems(...)` so shelf limits are
   intentional and "Show all" can point to `.hub`.
-- `HomeCinematicHero` owns optional hero rotation, drag navigation on iOS, tvOS remote
+- `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS remote
   swipe capture, image preloading, title-logo fallback, pager state, and motion
-  reduction. The home shells keep automatic rotation disabled so returning from
-  playback preserves the selected hero instead of advancing in the background. Extend
-  it carefully; it is stateful and timing-sensitive.
+  reduction. iOS enables automatic rotation (`autoRotates: true`): the hero advances
+  every 7s and the pager pills animate a fill that tracks the timer. The hero pauses
+  rotation while `PlaybackCoordinator.showPlayer` is true and restarts it fresh on
+  return, so opening the player no longer advances the hero in the background.
+  Rotation also respects Reduce Motion, scene phase, and drag interaction.
+  **tvOS keeps `autoRotates: false`** — the focusable play button lives inside the
+  per-item hero slide (keyed by `ratingKey`), so an unattended rotation tears down the
+  view that owns the `.heroPrimaryAction` focus binding. Because the Home tab stays
+  alive behind other tabs, a background rotation leaves that binding detached, and
+  returning to Home and pressing down from the tab bar drops focus into nothing (the
+  cursor vanishes and nothing is selectable). Do not re-enable tvOS rotation without
+  first moving the play button to a stable focusable view outside the sliding slides.
+  Extend it carefully; it is stateful and timing-sensitive.
 - On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic
   range to standard to avoid real-device HDR/SDR seams between the backdrop fade and
   the shelves below.
@@ -133,7 +143,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
-  details, season, and show routes when available.
+  details, season, and show routes when available. Its optional
+  `onRemoveFromContinueWatching` adds Plex's "Remove from Continue Watching" action
+  (server `PUT /actions/removeFromContinueWatching`); the hero supplies it because its
+  items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`
+  drops the item optimistically, then reloads to reconcile.
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid.
 
@@ -207,11 +221,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SeasonDetailView` uses a tvOS-only horizontal episode shelf. Each card shows the
   episode title with a "Season X · Episode N" subtitle and a watched checkmark beside
   the title (via the shared `PosterCardText`), matching the season cards; partially
-  watched episodes keep the in-poster progress bar. Focused episode cards update the
-  hero artwork, title/subtitle area, and the episode cast row inside stable-height
-  regions, and the committed focus is debounced so rapid remote navigation does not
-  shift the scroll position; selecting a tvOS episode card starts playback directly
-  while iOS keeps the vertical episode list and detail-navigation behavior.
+  watched episodes keep the in-poster progress bar. The tvOS season hero mirrors the
+  show hero: the show's clear-logo is the title artwork (`showTitleLogoURL`, falling
+  back to the show name), so it drops the iOS show-name supertitle link. The focused
+  episode's name rides just beneath the logo as a "somewhat prominent" title accessory,
+  with its "Episode N · 45 min · air date" tagline and summary in the subtitle slot.
+  Focused episode cards update the hero artwork, that episode title/metadata block, and
+  the episode cast row inside stable-height regions, and the committed focus is debounced
+  so rapid remote navigation does not shift the scroll position; selecting a tvOS episode
+  card starts playback directly while iOS keeps the vertical episode list and
+  detail-navigation behavior.
 - `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
   watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role

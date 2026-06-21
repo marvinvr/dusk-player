@@ -195,8 +195,22 @@ struct SeasonDetailView: View {
             false
             #endif
         }()
+        // tvOS mirrors the show page: the show's clear-logo is the hero title, so
+        // pass it as the title artwork (the show name is the text fallback). iOS
+        // keeps the show logo in the supertitle link, so no title artwork there.
+        let heroTitleArtworkURL: URL? = {
+            #if os(tvOS)
+            viewModel.showTitleLogoURL(
+                width: Int((containerWidth * 0.45).rounded(.up)),
+                height: 128
+            )
+            #else
+            nil
+            #endif
+        }()
         DetailHeroSection(
             backdropURL: heroBackdropURL,
+            titleArtworkURL: heroTitleArtworkURL,
             title: heroTitle(fallback: details.title),
             descriptionText: details.summary,
             topInset: topInset,
@@ -205,10 +219,26 @@ struct SeasonDetailView: View {
             heroBaseHeight: heroBase,
             keepsPreviousBackdropWhileLoading: keepsPreviousBackdropWhileLoading,
             titleLineLimit: heroTitleLineLimit,
+            titleAccessory: heroTitleAccessory,
             supertitle: {
+                #if os(tvOS)
+                // The show logo is the title now, so the season hero drops the
+                // separate show-name supertitle the iOS layout uses.
+                EmptyView()
+                #else
                 if let showTitle = viewModel.showTitle {
-                    showTitleLink(showTitle)
+                    DetailHeroShowTitleLink(
+                        title: showTitle,
+                        logoURL: viewModel.showTitleLogoURL(
+                            width: Int((containerWidth * 0.5).rounded(.up)),
+                            height: 128
+                        ),
+                        showRoute: viewModel.showRatingKey.map {
+                            viewModel.detailRoute(type: .show, ratingKey: $0)
+                        }
+                    )
                 }
+                #endif
             },
             subtitle: {
                 #if os(tvOS)
@@ -225,6 +255,18 @@ struct SeasonDetailView: View {
         )
     }
 
+    // On tvOS the focused episode's name rides directly under the show logo as a
+    // "somewhat prominent" line, so the page reads like the show hero (logo on
+    // top) while still surfacing the episode the row is parked on. iOS keeps the
+    // episode title inside its row, so no hero accessory there.
+    private var heroTitleAccessory: AnyView? {
+        #if os(tvOS)
+        AnyView(tvEpisodeTitleView())
+        #else
+        nil
+        #endif
+    }
+
     private var episodesBottomPadding: CGFloat {
         #if os(tvOS)
         24
@@ -235,46 +277,21 @@ struct SeasonDetailView: View {
 
     private func heroTitle(fallback: String) -> String {
         #if os(tvOS)
-        if let episode = focusedTVEpisode {
-            return episode.title
-        }
-        #endif
-
+        // The show's clear-logo is the hero title on tvOS (matching the show
+        // page); this text only shows when Plex has no logo, so use the show name.
+        return viewModel.showTitle ?? fallback
+        #else
         return fallback
+        #endif
     }
 
-    // On tvOS the hero title shows the focused episode's name and updates as the
-    // user zaps the episode row, so keep it to a single line to stop the banner
-    // from growing/shrinking. The other detail pages keep the default two lines.
+    // tvOS only falls back to title text when the show has no clear logo; keep it
+    // to a single line so the banner height stays put. iOS keeps two lines.
     private var heroTitleLineLimit: Int {
         #if os(tvOS)
         1
         #else
         2
-        #endif
-    }
-
-    @ViewBuilder
-    private func showTitleLink(_ title: String) -> some View {
-        #if os(tvOS)
-        Text(title)
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(Color.duskAccent)
-        #else
-        if let showRatingKey = viewModel.showRatingKey {
-            NavigationLink(value: viewModel.detailRoute(type: .show, ratingKey: showRatingKey)) {
-                Text(title)
-                    .font(.subheadline.weight(.medium))
-                    .foregroundStyle(Color.duskAccent)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .duskSuppressTVOSButtonChrome()
-        } else {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(Color.duskAccent)
-        }
         #endif
     }
 
@@ -304,13 +321,29 @@ struct SeasonDetailView: View {
     private var tvEpisodeHeroMetadataHeight: CGFloat { 92 }
     private var tvEpisodeCastSectionHeight: CGFloat { 292 }
 
+    // The focused episode's name, sitting under the show logo. Kept to a single
+    // (truncated) line and non-animated so the banner doesn't grow/shrink or
+    // cross-fade as the user zaps the episode row.
+    @ViewBuilder
+    private func tvEpisodeTitleView() -> some View {
+        Text(focusedTVEpisode?.title ?? "")
+            .font(.title3.weight(.semibold))
+            .foregroundStyle(Color.duskTextPrimary)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .transaction { transaction in
+                transaction.disablesAnimations = true
+            }
+    }
+
     @ViewBuilder
     private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
         Group {
             if let episode = focusedTVEpisode {
-                // The episode name is the hero title now, so this box carries the
-                // supporting metadata: an "Episode N · 45 min · air date" tagline
-                // (same styling as the rest of the app) and the episode summary.
+                // The episode name sits above in the title accessory, so this box
+                // carries the supporting metadata: an "Episode N · 45 min · air
+                // date" tagline (same styling as the rest of the app) and summary.
                 VStack(alignment: .leading, spacing: 6) {
                     if let metaLine = tvEpisodeMetaLine(episode) {
                         Text(metaLine)
@@ -392,7 +425,8 @@ struct SeasonDetailView: View {
             watchedButton()
         }
         #else
-        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+        // Primary fills the stack width; secondary row is centered beneath it.
+        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
             seasonPlayActions(label: viewModel.playButtonShortLabel)
 
             HStack(spacing: detailHeroActionSpacing) {

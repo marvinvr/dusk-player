@@ -457,6 +457,7 @@ private struct PlayerSessionView: View {
                 .duskSuppressTVOSButtonChrome()
                 .contentShape(.interaction, skipMarkerButtonShape)
                 .focusEffectDisabled()
+                .duskTVOSFocusedScale(skipMarkerFocused)
                 #else
                 .buttonStyle(.plain)
                 #endif
@@ -523,52 +524,32 @@ private struct PlayerSessionView: View {
         RoundedRectangle(cornerRadius: 100, style: .continuous)
     }
 
+    // Skip Intro / Skip Credits uses the same translucent native styling on
+    // every platform. tvOS used to render a heavy black fill with an
+    // accent-colored countdown, which read as flat and non-native next to the
+    // iPad capsule; the focus lift comes from `duskTVOSFocusedScale` instead.
     private var skipMarkerButtonBackgroundColor: Color {
-        #if os(tvOS)
-        .black.opacity(0.42)
-        #else
         .white.opacity(0.08)
-        #endif
     }
 
     private var skipMarkerProgressColor: Color {
-        #if os(tvOS)
-        Color.duskAccent.opacity(0.78)
-        #else
         .white.opacity(0.18)
-        #endif
     }
 
     private var skipMarkerBorderColor: Color {
-        #if os(tvOS)
-        .clear
-        #else
         .white.opacity(0.14)
-        #endif
     }
 
     private var skipMarkerShadowColor: Color {
-        #if os(tvOS)
-        .clear
-        #else
         .black.opacity(0.28)
-        #endif
     }
 
     private var skipMarkerShadowRadius: CGFloat {
-        #if os(tvOS)
-        0
-        #else
         18
-        #endif
     }
 
     private var skipMarkerShadowYOffset: CGFloat {
-        #if os(tvOS)
-        0
-        #else
         8
-        #endif
     }
 
     private func errorOverlay(_ error: PlaybackError) -> some View {

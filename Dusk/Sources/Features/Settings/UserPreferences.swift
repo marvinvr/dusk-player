@@ -225,7 +225,13 @@ final class UserPreferences {
            let mode = AppearanceMode(rawValue: raw) {
             appearanceMode = mode
         } else {
+            // tvOS's Light appearance is unpleasant for this app, so default to Dark
+            // there. Other platforms still follow the system setting by default.
+            #if os(tvOS)
+            appearanceMode = .dark
+            #else
             appearanceMode = .system
+            #endif
         }
 
         self.maxResolution = maxResolution

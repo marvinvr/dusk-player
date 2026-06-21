@@ -8,9 +8,17 @@ enum TVSettingsMetrics {
     /// every text column aligns while the card background bleeds slightly wider
     /// on each side (the standard grouped-list look).
     static let contentInset: CGFloat = 30
-    /// Top/bottom padding inside each card so rows clear the rounded corners and
-    /// focus halos have room to breathe.
-    static let cardVerticalPadding: CGFloat = 16
+    /// How far the focus band bleeds outward from the row's content box toward
+    /// the card edge. Rows lay out inside `contentInset`, so the band lands
+    /// `contentInset - rowBandOutset` (≈8pt) from the card edge: it covers the
+    /// whole field while the text/control still sit inset within the band.
+    static let rowBandOutset: CGFloat = 22
+    /// Top/bottom padding inside each card. Kept small and tuned so the first and
+    /// last row's focus band sits the same ~8pt from the card edge as the band's
+    /// sides (`contentInset - rowBandOutset`), instead of leaving a larger gap at
+    /// the ends than between rows. The band's rounded corners still nest inside
+    /// the card's corner radius at this inset.
+    static let cardVerticalPadding: CGFloat = 4
     /// Gap between sections — and between the page title and the first section.
     /// Kept clearly larger than the intra-section gaps so groups read as groups.
     static let sectionSpacing: CGFloat = 48
@@ -245,9 +253,10 @@ private extension View {
     func tvSettingsRowFocusHighlight(_ isFocused: Bool) -> some View {
         #if os(tvOS)
         background {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .fill(Color.duskTextPrimary.opacity(isFocused ? 0.20 : 0))
-                .padding(.vertical, 3)
+                .padding(.vertical, 4)
+                .padding(.horizontal, -TVSettingsMetrics.rowBandOutset)
         }
         .animation(.easeOut(duration: 0.18), value: isFocused)
         #else

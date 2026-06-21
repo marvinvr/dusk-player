@@ -176,12 +176,12 @@ enum DuskHeroBottomFadeStyle {
         case .compact:
             return [
                 .init(color: .white, location: 0),
-                .init(color: .white, location: 0.34),
-                .init(color: .white.opacity(0.94), location: 0.50),
-                .init(color: .white.opacity(0.78), location: 0.64),
-                .init(color: .white.opacity(0.50), location: 0.76),
-                .init(color: .white.opacity(0.20), location: 0.86),
-                .init(color: .white.opacity(0), location: 0.94),
+                .init(color: .white, location: 0.30),
+                .init(color: .white.opacity(0.90), location: 0.46),
+                .init(color: .white.opacity(0.64), location: 0.60),
+                .init(color: .white.opacity(0.34), location: 0.72),
+                .init(color: .white.opacity(0.10), location: 0.82),
+                .init(color: .white.opacity(0), location: 0.90),
                 .init(color: .white.opacity(0), location: 1),
             ]
         }

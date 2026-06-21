@@ -27,7 +27,7 @@ struct HomeIOSView: View {
                             containerSize: geometry.size,
                             topInset: geometry.safeAreaInsets.top,
                             layout: .ios,
-                            autoRotates: false,
+                            autoRotates: true,
                             supportsDragNavigation: true,
                             primaryAction: { item, callbacks in
                                 AnyView(
@@ -62,6 +62,9 @@ struct HomeIOSView: View {
                                             },
                                             onSelectRoute: { route in
                                                 path.append(route)
+                                            },
+                                            onRemoveFromContinueWatching: {
+                                                Task { await viewModel.removeFromContinueWatching(item) }
                                             }
                                         )
                                     }
