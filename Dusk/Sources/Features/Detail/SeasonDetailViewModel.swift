@@ -78,6 +78,28 @@ final class SeasonDetailViewModel {
         await setWatched(!isWatched(episode), for: episode)
     }
 
+    /// The whole season is "watched" once every episode has been viewed.
+    var isSeasonWatched: Bool {
+        _ = offlineStateVersion
+        if !episodes.isEmpty {
+            return episodes.allSatisfy { isWatched($0) }
+        }
+        guard let viewed = details?.viewedLeafCount, let total = details?.leafCount, total > 0 else {
+            return false
+        }
+        return viewed >= total
+    }
+
+    func toggleSeasonWatched() async {
+        let target = !isSeasonWatched
+        do {
+            try await plexService.setWatched(target, ratingKey: ratingKey)
+            await refresh()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     func focusEpisode(_ episode: PlexEpisode) async {
         let ratingKey = episode.ratingKey
         if focusedEpisodeRatingKey == ratingKey,
@@ -264,6 +286,14 @@ final class SeasonDetailViewModel {
             return "Resume · \(label)"
         }
         return "Play · \(label)"
+    }
+
+    /// Short play-button label for the season hero: intentionally omits which
+    /// episode will resume/play so the primary button stays simple.
+    var playButtonShortLabel: String {
+        _ = offlineStateVersion
+        guard let ep = nextEpisodeToPlay else { return "Play" }
+        return isPartiallyWatched(ep) ? "Resume" : "Play"
     }
 
     var nextEpisodeRoute: AppNavigationRoute? {

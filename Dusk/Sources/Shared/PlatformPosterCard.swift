@@ -11,6 +11,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var showsPlayOverlay = false
     var availabilityBadge: String? = nil
     var isDimmed = false
+    var isWatched = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -46,7 +47,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             PosterCardText(
                 title: title,
                 subtitle: subtitle,
-                width: width
+                width: width,
+                isWatched: isWatched
             )
         }
         .frame(width: width, alignment: .topLeading)
@@ -63,7 +65,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 imageAspectRatio: imageAspectRatio,
                 showsPlayOverlay: showsPlayOverlay,
                 availabilityBadge: availabilityBadge,
-                isDimmed: isDimmed
+                isDimmed: isDimmed,
+                isWatched: isWatched
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -87,7 +90,8 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
         imageAspectRatio: CGFloat = 2.0 / 3.0,
         showsPlayOverlay: Bool = false,
         availabilityBadge: String? = nil,
-        isDimmed: Bool = false
+        isDimmed: Bool = false,
+        isWatched: Bool = false
     ) {
         self.route = route
         self.imageURL = imageURL
@@ -99,6 +103,7 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
         self.showsPlayOverlay = showsPlayOverlay
         self.availabilityBadge = availabilityBadge
         self.isDimmed = isDimmed
+        self.isWatched = isWatched
         self.contextMenuContent = { EmptyView() }
     }
 }

@@ -58,7 +58,11 @@ struct FeatureErrorView: View {
                 .padding(.horizontal, 40)
 
             Button(retryTitle, action: retryAction)
-                .foregroundStyle(Color.duskAccent)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 12)
+                .background(Color.duskAccent, in: Capsule())
                 .duskSuppressTVOSButtonChrome()
                 .duskTVOSFocusEffectShape(Capsule())
         }

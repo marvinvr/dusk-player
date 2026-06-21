@@ -19,6 +19,31 @@ var detailHeroActionSpacing: CGFloat {
     #endif
 }
 
+/// Horizontal alignment for the detail hero's text/action blocks. iPhone centers
+/// the whole hero (no poster); iPad and tvOS stay leading-aligned.
+@MainActor
+func detailHeroContentAlignment(for sizeClass: UserInterfaceSizeClass?) -> HorizontalAlignment {
+    usesFullWidthDetailActionButtons(for: sizeClass) ? .center : .leading
+}
+
+/// Text alignment counterpart to `detailHeroContentAlignment(for:)`.
+@MainActor
+func detailHeroTextAlignment(for sizeClass: UserInterfaceSizeClass?) -> TextAlignment {
+    usesFullWidthDetailActionButtons(for: sizeClass) ? .center : .leading
+}
+
+/// Whether the synopsis should render as its own section below the hero. The iPad
+/// (regular) hero shows the description in its right column, so it is suppressed
+/// below there; iPhone and tvOS keep the separate section.
+@MainActor
+func detailShowsSynopsisBelowHero(for sizeClass: UserInterfaceSizeClass?) -> Bool {
+    #if os(tvOS)
+    true
+    #else
+    sizeClass != .regular
+    #endif
+}
+
 struct OfflineMetadataBanner: View {
     let message: String
 
@@ -49,53 +74,50 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     let backdropURL: URL?
-    let posterURL: URL?
     let titleArtworkURL: URL?
     let title: String
+    var descriptionText: String? = nil
     let topInset: CGFloat
     let containerWidth: CGFloat
     var backgroundLeadingInset: CGFloat = 0
     var heroBaseHeight: CGFloat = 380
-    var posterWidth: CGFloat = 120
     var keepsPreviousBackdropWhileLoading = false
+    var titleLineLimit: Int = 2
     @ViewBuilder var supertitle: Supertitle
     @ViewBuilder var subtitle: Subtitle
     @ViewBuilder var actions: Actions
 
     init(
         backdropURL: URL?,
-        posterURL: URL?,
         titleArtworkURL: URL? = nil,
         title: String,
+        descriptionText: String? = nil,
         topInset: CGFloat,
         containerWidth: CGFloat,
         backgroundLeadingInset: CGFloat = 0,
         heroBaseHeight: CGFloat = 380,
-        posterWidth: CGFloat = 120,
         keepsPreviousBackdropWhileLoading: Bool = false,
+        titleLineLimit: Int = 2,
         @ViewBuilder supertitle: () -> Supertitle,
         @ViewBuilder subtitle: () -> Subtitle,
         @ViewBuilder actions: () -> Actions
     ) {
         self.backdropURL = backdropURL
-        self.posterURL = posterURL
         self.titleArtworkURL = titleArtworkURL
         self.title = title
+        self.descriptionText = descriptionText
         self.topInset = topInset
         self.containerWidth = containerWidth
         self.backgroundLeadingInset = backgroundLeadingInset
         self.heroBaseHeight = heroBaseHeight
-        self.posterWidth = posterWidth
         self.keepsPreviousBackdropWhileLoading = keepsPreviousBackdropWhileLoading
+        self.titleLineLimit = titleLineLimit
         self.supertitle = supertitle()
         self.subtitle = subtitle()
         self.actions = actions()
     }
 
     private var heroHeight: CGFloat { heroBaseHeight + topInset }
-    private var usesTextColumnActions: Bool {
-        sizeClass == .regular && posterURL != nil
-    }
 
     var body: some View {
         let horizontalPadding: CGFloat = {
@@ -103,13 +125,6 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             DuskPosterMetrics.detailHorizontalPadding
             #else
             20
-            #endif
-        }()
-        let posterTextSpacing: CGFloat = {
-            #if os(tvOS)
-            24
-            #else
-            16
             #endif
         }()
         let contentTopPadding: CGFloat = {
@@ -142,48 +157,99 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                     keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading
                 )
 
-                DuskHeroBackdropOverlay()
+                DuskHeroBackdropOverlay(style: .soft)
             }
             .frame(width: containerWidth, height: heroHeight, alignment: .leading)
             .duskHeroBackdropBottomFade()
             .offset(x: -backgroundLeadingInset)
             .allowsHitTesting(false)
 
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(alignment: .bottom, spacing: posterTextSpacing) {
-                    if let posterURL {
-                        posterView(url: posterURL)
-                    }
-
-                    VStack(alignment: .leading, spacing: usesTextColumnActions ? 16 : 10) {
-                        supertitle
-
-                        titleView(height: titleArtworkHeight)
-
-                        subtitle
-
-                        if usesTextColumnActions {
-                            actions
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                }
-
-                if !usesTextColumnActions {
-                    actions
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, contentBottomPadding)
-            .padding(.top, contentTopPadding)
+            heroContent(titleArtworkHeight: titleArtworkHeight)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, contentBottomPadding)
+                .padding(.top, contentTopPadding)
         }
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
-    private func titleView(height: CGFloat) -> some View {
+    private func heroContent(titleArtworkHeight: CGFloat) -> some View {
+        #if os(tvOS)
+        tvOSHeroContent(titleArtworkHeight: titleArtworkHeight)
+        #else
+        if sizeClass == .regular {
+            twoColumnHeroContent(titleArtworkHeight: titleArtworkHeight)
+        } else {
+            centeredHeroContent(titleArtworkHeight: titleArtworkHeight)
+        }
+        #endif
+    }
+
+    #if os(tvOS)
+    // tvOS now drops the poster too: a left-aligned column (title, metadata) over
+    // the backdrop with a single action row beneath it.
+    @ViewBuilder
+    private func tvOSHeroContent(titleArtworkHeight: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: 20) {
+            VStack(alignment: .leading, spacing: 10) {
+                supertitle
+                titleView(height: titleArtworkHeight, alignment: .leading)
+                subtitle
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            actions
+        }
+    }
+    #else
+    // iPhone: one centered column over the backdrop, no poster.
+    @ViewBuilder
+    private func centeredHeroContent(titleArtworkHeight: CGFloat) -> some View {
+        VStack(alignment: .center, spacing: 14) {
+            supertitle
+            titleView(height: titleArtworkHeight, alignment: .center)
+            subtitle
+            actions
+                .padding(.top, 4)
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .multilineTextAlignment(.center)
+    }
+
+    // iPad: title artwork + actions on the left, marker / metadata / description
+    // on the right, both reading off the shared backdrop (no poster).
+    @ViewBuilder
+    private func twoColumnHeroContent(titleArtworkHeight: CGFloat) -> some View {
+        let leftColumnWidth = min(max(containerWidth * 0.34, 320), 440)
+
+        HStack(alignment: .top, spacing: 32) {
+            VStack(alignment: .leading, spacing: 18) {
+                titleView(height: titleArtworkHeight, alignment: .leading)
+                actions
+            }
+            .frame(width: leftColumnWidth, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 12) {
+                supertitle
+                subtitle
+
+                if let descriptionText, !descriptionText.isEmpty {
+                    ExpandableSummaryText(
+                        text: descriptionText,
+                        collapsedLineLimit: 7,
+                        allowsExpansion: false
+                    )
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private func titleView(height: CGFloat, alignment: Alignment) -> some View {
         if let titleArtworkURL {
             DuskAsyncImage(url: titleArtworkURL) { phase in
                 switch phase {
@@ -192,77 +258,57 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                         .resizable()
                         .scaledToFit()
                         .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-                        .frame(maxWidth: .infinity, maxHeight: height, alignment: .leading)
+                        .frame(maxWidth: .infinity, maxHeight: height, alignment: alignment)
                 case .empty:
                     Color.clear
-                        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: height, maxHeight: height, alignment: alignment)
                 case .failure:
-                    titleFallback
+                    titleFallback(alignment: alignment)
                 }
             }
         } else {
-            titleFallback
+            titleFallback(alignment: alignment)
         }
     }
 
-    private var titleFallback: some View {
+    private func titleFallback(alignment: Alignment) -> some View {
         Text(title)
             .font(.title2.bold())
             .foregroundStyle(Color.primary)
             .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
-            .multilineTextAlignment(.leading)
-            .lineLimit(2)
+            .multilineTextAlignment(alignment == .center ? .center : .leading)
+            .lineLimit(titleLineLimit)
             .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: alignment)
             .layoutPriority(1)
-    }
-
-    @ViewBuilder
-    private func posterView(url: URL) -> some View {
-        let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
-
-        DuskAsyncImage(url: url) { phase in
-            switch phase {
-            case .success(let image):
-                image
-                    .resizable()
-                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            default:
-                shape
-                    .fill(Color.duskSurface)
-                    .aspectRatio(2.0 / 3.0, contentMode: .fit)
-            }
-        }
-        .frame(width: posterWidth)
-        .clipShape(shape)
-        .shadow(color: .black.opacity(0.4), radius: 12, y: 6)
     }
 }
 
 extension DetailHeroSection where Supertitle == EmptyView {
     init(
         backdropURL: URL?,
-        posterURL: URL?,
         titleArtworkURL: URL? = nil,
         title: String,
+        descriptionText: String? = nil,
         topInset: CGFloat,
         containerWidth: CGFloat,
         backgroundLeadingInset: CGFloat = 0,
         heroBaseHeight: CGFloat = 380,
-        posterWidth: CGFloat = 120,
         keepsPreviousBackdropWhileLoading: Bool = false,
+        titleLineLimit: Int = 2,
         @ViewBuilder subtitle: () -> Subtitle,
         @ViewBuilder actions: () -> Actions
     ) {
         self.backdropURL = backdropURL
-        self.posterURL = posterURL
         self.titleArtworkURL = titleArtworkURL
         self.title = title
+        self.descriptionText = descriptionText
         self.topInset = topInset
         self.containerWidth = containerWidth
         self.backgroundLeadingInset = backgroundLeadingInset
         self.heroBaseHeight = heroBaseHeight
-        self.posterWidth = posterWidth
         self.keepsPreviousBackdropWhileLoading = keepsPreviousBackdropWhileLoading
+        self.titleLineLimit = titleLineLimit
         self.supertitle = EmptyView()
         self.subtitle = subtitle()
         self.actions = actions()
@@ -294,21 +340,27 @@ struct PlayVersionContextMenu: View {
     }
 }
 
-struct DetailHeroSecondaryActionButtonLabel: View {
-    let title: String
+/// Icon-only secondary action label for detail heroes. Pairs with
+/// `detailHeroNativeSecondaryButtonStyle()` to make a compact glass icon button
+/// (a capsule pill on iOS, a circle on tvOS) without crowding the row with text.
+struct DetailHeroSecondaryIconLabel: View {
     let systemImage: String
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: systemImage)
-                .font(.subheadline.weight(.semibold))
+        Image(systemName: systemImage)
+            .font(.subheadline.weight(.semibold))
+            // Square on tvOS so the circular button reads as round; a slimmer pill
+            // on iOS where the secondaries sit in a capsule row.
+            .frame(minWidth: iconMinWidth, minHeight: 32)
+            .contentShape(Capsule())
+    }
 
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .lineLimit(1)
-        }
-        .frame(minHeight: 32)
-        .contentShape(Capsule())
+    private var iconMinWidth: CGFloat {
+        #if os(tvOS)
+        32
+        #else
+        24
+        #endif
     }
 }
 
@@ -327,6 +379,14 @@ struct DetailHeroPrimaryActionButtonLabel: View {
                 .lineLimit(1)
         }
         .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 34)
+        #if os(tvOS)
+        // tvOS is left-aligned, so give the primary a contained width (space to its
+        // right) rather than letting it hug the short "Play" / "Resume" label.
+        .frame(minWidth: 260)
+        #endif
+        // The primary button fills with `Color.primary` (prominent glass) on every
+        // platform, so the label uses the inverse color to stay legible.
+        .foregroundStyle(Color.duskPrimaryActionLabel)
         .contentShape(Capsule())
     }
 }
@@ -335,22 +395,27 @@ extension View {
     @ViewBuilder
     func detailHeroNativePrimaryButtonStyle() -> some View {
         #if os(tvOS)
+        // Match iOS: prominent, `Color.primary`-tinted glass for contrast, at
+        // `.regular` size so the button is smaller than the old `.large` capsule.
         self
-            .buttonStyle(.glass)
-            .controlSize(.large)
+            .buttonStyle(.glassProminent)
+            .controlSize(.regular)
             .buttonBorderShape(.capsule)
             .tint(Color.primary)
         #elseif os(iOS)
+        // Prominent, `Color.primary`-tinted glass gives the primary action built-in
+        // contrast: a dark glass capsule in Light mode, light in Dark mode. Sits at
+        // `.regular` height (not `.large`) so the button reads compact, not oversized.
         if #available(iOS 26.0, *) {
             self
-                .buttonStyle(.glass)
-                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+                .controlSize(.regular)
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         } else {
             self
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }
@@ -362,10 +427,12 @@ extension View {
     @ViewBuilder
     func detailHeroNativeSecondaryButtonStyle() -> some View {
         #if os(tvOS)
+        // tvOS secondaries are icon-only and sit beside the primary, so make them
+        // round — there is no width to match.
         self
             .buttonStyle(.glass)
             .controlSize(.regular)
-            .buttonBorderShape(.capsule)
+            .buttonBorderShape(.circle)
             .tint(Color.primary)
         #elseif os(iOS)
         if #available(iOS 26.0, *) {
@@ -385,7 +452,35 @@ extension View {
         self
         #endif
     }
+
+    /// Sizes and aligns the stacked iOS detail hero action block so the primary
+    /// button and the secondary row underneath share a single width. iPhone uses
+    /// ~60% of the screen, centered; iPad/regular uses a capped width, leading
+    /// aligned in the hero text column. No-op on tvOS, which keeps its inline row.
+    @ViewBuilder
+    func detailHeroActionStackFrame(isCompactPhone: Bool) -> some View {
+        #if os(iOS)
+        if isCompactPhone {
+            self
+                .containerRelativeFrame(.horizontal) { width, _ in
+                    max(width * detailHeroCompactActionWidthFraction, 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .center)
+        } else {
+            self
+                .frame(maxWidth: detailHeroRegularActionMaxWidth, alignment: .leading)
+        }
+        #else
+        self
+        #endif
+    }
 }
+
+/// Fraction of the hero (screen) width the iPhone primary action button spans.
+let detailHeroCompactActionWidthFraction: CGFloat = 0.6
+
+/// Maximum width of the stacked iPad/regular detail action block.
+let detailHeroRegularActionMaxWidth: CGFloat = 460
 
 // MARK: - Actor Credit Card
 

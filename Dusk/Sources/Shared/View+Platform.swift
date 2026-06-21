@@ -462,6 +462,14 @@ enum DuskPosterMetrics {
         .caption2
         #endif
     }
+
+    static var posterProgressBarHeight: CGFloat {
+        #if os(tvOS)
+        7
+        #else
+        5
+        #endif
+    }
 }
 
 struct DetailHeroBackdrop: View {
@@ -571,18 +579,90 @@ struct DetailHeroBackdrop: View {
     }
 }
 
+/// Selects how heavily `DuskHeroBackdropOverlay` scrims the backdrop on iOS.
+/// tvOS is unaffected — it always renders the full-strength vertical scrim and
+/// relies on `duskHeroBackdropBottomFade()` for the bottom transition.
+enum DuskHeroOverlayStyle {
+    /// Full-strength scrim. Used by the home cinematic hero, whose rotating
+    /// backdrops need a dependable dark base for the overlaid text.
+    case standard
+    /// Lighter scrim that lets more of the backdrop read through. Used by the
+    /// movie/show/season/episode detail heroes, where the artwork should lead
+    /// and the title block sits in the lower third over a still-solid base.
+    case soft
+
+    #if !os(tvOS)
+    /// Top-to-bottom darkening applied across the whole hero. `.soft` keeps the
+    /// upper two thirds close to clear and only ramps up behind the title block.
+    var verticalDarkeningStops: [Gradient.Stop] {
+        switch self {
+        case .standard:
+            return [
+                .init(color: Color.black.opacity(0.18), location: 0),
+                .init(color: Color.black.opacity(0.56), location: 0.62),
+                .init(color: Color.black.opacity(0.86), location: 1),
+            ]
+        case .soft:
+            return [
+                .init(color: Color.black.opacity(0.14), location: 0),
+                .init(color: Color.black.opacity(0.14), location: 0.34),
+                .init(color: Color.black.opacity(0.24), location: 0.62),
+                .init(color: Color.black.opacity(0.48), location: 0.82),
+                .init(color: Color.black.opacity(0.70), location: 1),
+            ]
+        }
+    }
+
+    /// Bottom fade into `Color.duskBackground` that blends the hero into the
+    /// page and backs the title block. Both styles still reach full opacity
+    /// before the hero edge so the join to the page stays seamless; `.soft`
+    /// simply holds the fade off until the lower third.
+    var bottomBackgroundFadeStops: [Gradient.Stop] {
+        switch self {
+        case .standard:
+            return [
+                .init(color: Color.duskBackground.opacity(0), location: 0),
+                .init(color: Color.duskBackground.opacity(0), location: 0.20),
+                .init(color: Color.duskBackground.opacity(0.08), location: 0.38),
+                .init(color: Color.duskBackground.opacity(0.28), location: 0.54),
+                .init(color: Color.duskBackground.opacity(0.60), location: 0.68),
+                .init(color: Color.duskBackground.opacity(0.90), location: 0.80),
+                .init(color: Color.duskBackground, location: 0.88),
+                .init(color: Color.duskBackground, location: 1),
+            ]
+        case .soft:
+            return [
+                .init(color: Color.duskBackground.opacity(0), location: 0),
+                .init(color: Color.duskBackground.opacity(0), location: 0.40),
+                .init(color: Color.duskBackground.opacity(0.06), location: 0.52),
+                .init(color: Color.duskBackground.opacity(0.22), location: 0.64),
+                .init(color: Color.duskBackground.opacity(0.48), location: 0.74),
+                .init(color: Color.duskBackground.opacity(0.80), location: 0.84),
+                .init(color: Color.duskBackground, location: 0.92),
+                .init(color: Color.duskBackground, location: 1),
+            ]
+        }
+    }
+    #endif
+}
+
 /// Shared hero scrims. Always pair the backdrop + overlay stack with
 /// `duskHeroBackdropBottomFade()`: on iOS the overlay paints the bottom fade
 /// itself, on tvOS the modifier masks the hero out instead. Never paint
 /// `Color.duskBackground` inside the hero on tvOS — see
 /// `duskHeroBackdropBottomFade()` for why.
+///
+/// `style` only affects iOS; tvOS always renders the full-strength scrim.
 struct DuskHeroBackdropOverlay: View {
+    var style: DuskHeroOverlayStyle = .standard
+
     #if !os(tvOS)
     private let bottomBackgroundHeight: CGFloat = 24
     #endif
 
     var body: some View {
         ZStack {
+            #if os(tvOS)
             LinearGradient(
                 stops: [
                     .init(color: Color.black.opacity(0.18), location: 0),
@@ -592,6 +672,13 @@ struct DuskHeroBackdropOverlay: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
+            #else
+            LinearGradient(
+                stops: style.verticalDarkeningStops,
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            #endif
 
             LinearGradient(
                 stops: [
@@ -606,16 +693,7 @@ struct DuskHeroBackdropOverlay: View {
 
             #if !os(tvOS)
             LinearGradient(
-                stops: [
-                    .init(color: Color.duskBackground.opacity(0), location: 0),
-                    .init(color: Color.duskBackground.opacity(0), location: 0.20),
-                    .init(color: Color.duskBackground.opacity(0.08), location: 0.38),
-                    .init(color: Color.duskBackground.opacity(0.28), location: 0.54),
-                    .init(color: Color.duskBackground.opacity(0.60), location: 0.68),
-                    .init(color: Color.duskBackground.opacity(0.90), location: 0.80),
-                    .init(color: Color.duskBackground, location: 0.88),
-                    .init(color: Color.duskBackground, location: 1),
-                ],
+                stops: style.bottomBackgroundFadeStops,
                 startPoint: .top,
                 endPoint: .bottom
             )

@@ -87,7 +87,9 @@ struct MovieDetailView: View {
 #if os(tvOS)
                     .focusSection()
 #endif
-                    if let summary = details.summary, !summary.isEmpty {
+                    // On iPad the synopsis lives in the hero's right column; the
+                    // centered iPhone hero (and tvOS) keep it as a section below.
+                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         summarySection(summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 40)
@@ -130,30 +132,21 @@ struct MovieDetailView: View {
     ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
-        let posterWidth: CGFloat = {
-            #if os(tvOS)
-            DuskPosterMetrics.heroPosterWidth
-            #else
-            sizeClass == .regular ? 180 : 120
-            #endif
-        }()
-        let posterImageWidth = Int(posterWidth.rounded())
-        let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
-            posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             titleArtworkURL: viewModel.titleLogoURL(width: Int((containerWidth * 0.45).rounded(.up)), height: 128),
             title: details.title,
+            descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
-            heroBaseHeight: heroBase,
-            posterWidth: CGFloat(posterWidth)
+            heroBaseHeight: heroBase
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
                 metadataTagline(details)
                 heroMetadata(details)
             }
+            .multilineTextAlignment(detailHeroTextAlignment(for: sizeClass))
         } actions: {
             actionButtons(details)
         }
@@ -227,24 +220,23 @@ struct MovieDetailView: View {
 
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
-        if usesFullWidthActionButtons {
-            VStack(spacing: detailHeroActionSpacing) {
-                playButton(details)
+        #if os(tvOS)
+        HStack(spacing: detailHeroActionSpacing) {
+            playButton(details)
+            downloadButton(details)
+            watchedButton()
+        }
+        #else
+        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+            playButton(details)
 
-                HStack(spacing: detailHeroActionSpacing) {
-                    downloadButton(details, fillsWidth: true)
-                    watchedButton(fillsWidth: true)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .frame(maxWidth: .infinity)
-        } else {
             HStack(spacing: detailHeroActionSpacing) {
-                playButton(details)
-                downloadButton(details, fillsWidth: false)
-                watchedButton(fillsWidth: false)
+                downloadButton(details)
+                watchedButton()
             }
         }
+        .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
+        #endif
     }
 
     private func playButton(_ details: PlexMediaDetails) -> some View {
@@ -255,7 +247,7 @@ struct MovieDetailView: View {
             DetailHeroPrimaryActionButtonLabel(
                 title: viewModel.formattedResume.map { "Resume from \($0)" } ?? "Play",
                 systemImage: "play.fill",
-                fillsWidth: usesFullWidthActionButtons
+                fillsWidth: fillsActionWidth
             )
         }
         .detailHeroNativePrimaryButtonStyle()
@@ -269,31 +261,36 @@ struct MovieDetailView: View {
         }
     }
 
-    private func downloadButton(_ details: PlexMediaDetails, fillsWidth: Bool) -> some View {
+    private func downloadButton(_ details: PlexMediaDetails) -> some View {
         DownloadActionButton(
             ratingKey: details.ratingKey,
             type: .movie,
-            fillsWidth: fillsWidth
+            iconOnly: true
         )
     }
 
-    private func watchedButton(fillsWidth: Bool) -> some View {
+    private func watchedButton() -> some View {
         Button {
             Task { await viewModel.toggleWatched() }
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: viewModel.isWatched ? "eye.slash" : "eye")
-                Text(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
-            }
-            .font(.subheadline.weight(.medium))
-            .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
-            .contentShape(Capsule())
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye")
         }
         .detailHeroNativeSecondaryButtonStyle()
+        .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
     }
 
     private var usesFullWidthActionButtons: Bool {
         usesFullWidthDetailActionButtons(for: sizeClass)
+    }
+
+    // The primary label fills its container on all iOS layouts (the action stack
+    // owns the final width); tvOS keeps content-sized buttons in an inline row.
+    private var fillsActionWidth: Bool {
+        #if os(tvOS)
+        false
+        #else
+        true
+        #endif
     }
 
     // MARK: - Summary

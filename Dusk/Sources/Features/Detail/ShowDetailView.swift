@@ -91,7 +91,7 @@ struct ShowDetailView: View {
                     .focusSection()
 #endif
 
-                    if let summary = details.summary, !summary.isEmpty {
+                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         Text(summary)
                             .font(.body)
                             .foregroundStyle(Color.primary.opacity(0.76))
@@ -140,30 +140,21 @@ struct ShowDetailView: View {
     ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
-        let posterWidth: CGFloat = {
-            #if os(tvOS)
-            DuskPosterMetrics.heroPosterWidth
-            #else
-            sizeClass == .regular ? 180 : 120
-            #endif
-        }()
-        let posterImageWidth = Int(posterWidth.rounded())
-        let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
-            posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             titleArtworkURL: viewModel.titleLogoURL(width: Int((containerWidth * 0.45).rounded(.up)), height: 128),
             title: details.title,
+            descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
-            heroBaseHeight: heroBase,
-            posterWidth: CGFloat(posterWidth)
+            heroBaseHeight: heroBase
         ) {
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
                 metadataTagline(details)
                 heroMetadata(details)
             }
+            .multilineTextAlignment(detailHeroTextAlignment(for: sizeClass))
         } actions: {
             actionButtons()
         }
@@ -232,55 +223,92 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
-            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
+        #if os(tvOS)
+        HStack(spacing: detailHeroActionSpacing) {
+            playButton()
+            downloadButton()
+            watchedButton()
+        }
+        #else
+        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+            playButton()
 
-        layout {
-            if viewModel.nextEpisode != nil {
-                Button {
-                    if let ep = viewModel.nextEpisode {
-                        Task { await playback.play(ratingKey: ep.ratingKey) }
-                    }
-                } label: {
-                    DetailHeroPrimaryActionButtonLabel(
-                        title: viewModel.playButtonLabel,
-                        systemImage: "play.fill",
-                        fillsWidth: usesFullWidthActionButtons
-                    )
+            HStack(spacing: detailHeroActionSpacing) {
+                downloadButton()
+                watchedButton()
+            }
+        }
+        .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
+        #endif
+    }
+
+    @ViewBuilder
+    private func playButton() -> some View {
+        if viewModel.nextEpisode != nil {
+            Button {
+                if let ep = viewModel.nextEpisode {
+                    Task { await playback.play(ratingKey: ep.ratingKey) }
                 }
-                .detailHeroNativePrimaryButtonStyle()
-                .contextMenu {
-                    if let episode = viewModel.nextEpisode {
-                        PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
-                            Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
-                        }
+            } label: {
+                DetailHeroPrimaryActionButtonLabel(
+                    title: viewModel.playButtonShortLabel,
+                    systemImage: "play.fill",
+                    fillsWidth: fillsActionWidth
+                )
+            }
+            .detailHeroNativePrimaryButtonStyle()
+            .contextMenu {
+                if let episode = viewModel.nextEpisode {
+                    PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
+                        Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
                     }
+                }
 
-                    if let nextEpisodeRoute = viewModel.nextEpisodeRoute {
-                        NavigationLink(value: nextEpisodeRoute) {
-                            Label(viewModel.nextEpisodeMenuLabel, systemImage: "play.rectangle")
-                        }
+                if let nextEpisodeRoute = viewModel.nextEpisodeRoute {
+                    NavigationLink(value: nextEpisodeRoute) {
+                        Label(viewModel.nextEpisodeMenuLabel, systemImage: "play.rectangle")
                     }
+                }
 
-                    if let nextSeasonRoute = viewModel.nextSeasonRoute {
-                        NavigationLink(value: nextSeasonRoute) {
-                            Label(viewModel.nextSeasonMenuLabel, systemImage: "rectangle.stack")
-                        }
+                if let nextSeasonRoute = viewModel.nextSeasonRoute {
+                    NavigationLink(value: nextSeasonRoute) {
+                        Label(viewModel.nextSeasonMenuLabel, systemImage: "rectangle.stack")
                     }
                 }
             }
-
-            DownloadActionButton(
-                ratingKey: viewModel.ratingKey,
-                type: .show,
-                fillsWidth: usesFullWidthActionButtons
-            )
         }
+    }
+
+    private func downloadButton() -> some View {
+        DownloadActionButton(
+            ratingKey: viewModel.ratingKey,
+            type: .show,
+            iconOnly: true
+        )
+    }
+
+    private func watchedButton() -> some View {
+        Button {
+            Task { await viewModel.toggleWatched() }
+        } label: {
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye")
+        }
+        .detailHeroNativeSecondaryButtonStyle()
+        .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
     }
 
     private var usesFullWidthActionButtons: Bool {
         usesFullWidthDetailActionButtons(for: sizeClass)
+    }
+
+    // The primary label fills its container on all iOS layouts (the action stack
+    // owns the final width); tvOS keeps content-sized buttons in an inline row.
+    private var fillsActionWidth: Bool {
+        #if os(tvOS)
+        false
+        #else
+        true
+        #endif
     }
 
     @ViewBuilder
@@ -312,7 +340,8 @@ struct ShowDetailView: View {
                             progress: viewModel.seasonProgress(season),
                             width: layout.posterWidth,
                             availabilityBadge: viewModel.seasonAvailabilityBadge(season),
-                            isDimmed: viewModel.isSeasonUnavailableOffline(season)
+                            isDimmed: viewModel.isSeasonUnavailableOffline(season),
+                            isWatched: season.isFullyWatched
                         ) {
                             seasonContextMenu(season)
                         }

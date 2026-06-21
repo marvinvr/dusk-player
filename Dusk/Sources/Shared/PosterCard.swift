@@ -112,18 +112,20 @@ struct PosterArtwork: View {
 
     private func progressBar(progress: Double) -> some View {
         let clampedProgress = max(0, min(progress, 1.0))
+        let height = DuskPosterMetrics.posterProgressBarHeight
 
         return ZStack(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 2)
-                .fill(.white.opacity(0.3))
-                .frame(height: 3)
+            Capsule()
+                .fill(.white.opacity(0.35))
+                .frame(height: height)
             GeometryReader { geo in
-                RoundedRectangle(cornerRadius: 2)
+                Capsule()
                     .fill(Color.duskAccent)
-                    .frame(width: geo.size.width * clampedProgress, height: 3, alignment: .leading)
+                    .frame(width: geo.size.width * clampedProgress, height: height, alignment: .leading)
             }
         }
-        .frame(height: 3)
+        .frame(height: height)
+        .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
     }
 }
 
@@ -131,17 +133,32 @@ struct PosterCardText: View {
     let title: String
     var subtitle: String?
     var width: CGFloat = 130
+    /// Shows a "watched" checkmark next to the title (e.g. a fully watched season).
+    var isWatched: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.cardTextSpacing) {
+            titleRow
+
+            subtitleRow
+        }
+    }
+
+    @ViewBuilder
+    private var titleRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
             Text(title)
                 .font(DuskPosterMetrics.titleFont)
                 .foregroundStyle(Color.primary)
                 .lineLimit(2)
-                .frame(width: width, alignment: .leading)
 
-            subtitleRow
+            if isWatched {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(DuskPosterMetrics.subtitleFont)
+                    .foregroundStyle(Color.duskAccent)
+            }
         }
+        .frame(width: width, alignment: .leading)
     }
 
     @ViewBuilder
@@ -173,6 +190,7 @@ struct PosterCard: View {
     var showsPlayOverlay: Bool = false
     var availabilityBadge: String? = nil
     var isDimmed: Bool = false
+    var isWatched: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -189,7 +207,8 @@ struct PosterCard: View {
             PosterCardText(
                 title: title,
                 subtitle: subtitle,
-                width: width
+                width: width,
+                isWatched: isWatched
             )
         }
         .frame(width: width, alignment: .topLeading)

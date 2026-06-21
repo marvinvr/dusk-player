@@ -59,6 +59,24 @@ final class ShowDetailViewModel {
         }
     }
 
+    /// The whole show is "watched" once every episode has been viewed.
+    var isWatched: Bool {
+        guard let viewed = details?.viewedLeafCount, let total = details?.leafCount, total > 0 else {
+            return false
+        }
+        return viewed >= total
+    }
+
+    func toggleWatched() async {
+        let target = !isWatched
+        do {
+            try await plexService.setWatched(target, ratingKey: ratingKey)
+            try await reload()
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
     var genreText: String? {
         guard let genres = details?.genres, !genres.isEmpty else { return nil }
         return genres.prefix(3).map(\.tag).joined(separator: ", ")
@@ -143,10 +161,13 @@ final class ShowDetailViewModel {
             }
         }
 
+        // Fully watched seasons show a checkmark next to the title instead of a
+        // full progress bar, so suppress the bar once everything has been viewed.
         guard let total = season.leafCount,
               let viewed = season.viewedLeafCount,
               total > 0,
-              viewed > 0 else { return nil }
+              viewed > 0,
+              viewed < total else { return nil }
         return Double(viewed) / Double(total)
     }
 
@@ -182,6 +203,14 @@ final class ShowDetailViewModel {
             return "Resume · \(label)"
         }
         return "Play · \(label)"
+    }
+
+    /// Short play-button label for the show hero: intentionally omits which episode
+    /// will resume/play so the primary button stays simple ("Play" / "Resume").
+    var playButtonShortLabel: String {
+        _ = offlineStateVersion
+        guard let ep = nextEpisode else { return "Play" }
+        return isPartiallyWatched(ep) ? "Resume" : "Play"
     }
 
     var nextEpisodeRoute: AppNavigationRoute? {

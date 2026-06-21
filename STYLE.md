@@ -5,8 +5,8 @@
 Dusk is a **content-first** player. The UI should "recede" to let movie posters and cinematic backdrops lead the experience.
 
 * **Modern Minimal:** Use thin strokes (1pt), large corner radii, and generous whitespace.
-* **Glassmorphism:** Use system materials (`ultraThinMaterial`) for overlays and navigation bars.
-* **Vibrant Accents:** Use a single brand color (**Sunset Coral**) for all primary actions.
+* **Glassmorphism:** Use system materials (`ultraThinMaterial`) and native **Liquid Glass** button styles for overlays, navigation bars, and actions.
+* **Vibrant Accents:** Use a single brand color (**Sunset Coral**) for accents — progress, ratings, active states, and inline links. Do **not** use it as a primary action button fill (see §3.3); primary actions use neutral, contrasting Liquid Glass.
 
 ---
 
@@ -49,13 +49,66 @@ A crisp, high-clarity alternative. Avoids "pure" white to reduce eye strain.
 ### 3.2 Shapes
 
 * **Poster Corner Radius:** `16pt`
-* **Button Corner Radius:** Full Pill (`100pt`)
+* **Button Corner Radius:** Full Pill (`100pt` / `.capsule`)
 * **Card/Sheet Corner Radius:** `28pt`
 * **Borders:** `1pt` solid.
 * *Dark:* `White.opacity(0.05)`
 * *Light:* `Black.opacity(0.05)`
 
+### 3.3 Detail Hero Actions & Layout
 
+The movie / show / season / episode detail heroes are **backdrop-led with no
+poster** on every platform. Action buttons use the **native Liquid Glass** styles;
+never fill one with the Sunset Coral accent — coral is reserved for progress,
+ratings, active states, and inline links.
+
+**Hero layout.**
+
+* **iPhone:** a single **centered** column over the backdrop — title artwork,
+  metadata, then the actions, all center-aligned.
+* **iPad:** **two columns** — left: title artwork, the primary button, and the
+  secondary icon row beneath it; right: the season/episode marker, metadata, and
+  the synopsis. The synopsis renders here instead of as a section below the hero.
+* **tvOS:** a **left-aligned** column (title artwork, metadata) with a single
+  action row beneath it — primary plus the secondary icons to its right.
+
+**Primary action (Play / Resume).**
+
+* **Style:** prominent Liquid Glass — `.buttonStyle(.glassProminent)` (fallback
+  `.borderedProminent` below iOS 26), on **all** platforms (tvOS included).
+* **Color:** `.tint(Color.primary)` for built-in contrast — a **dark** glass pill
+  in Light mode, a **light** one in Dark mode; label/icon use
+  `Color.duskPrimaryActionLabel` (the inverse of `primary`).
+* **Height:** `.controlSize(.regular)`, `.capsule` — deliberately short (tvOS used
+  to be `.large`; it is now `.regular` too).
+* **Width:** iPhone → ~60% of the screen, **centered**; iPad → fills the hero's
+  left column (`detailHeroRegularActionMaxWidth` cap, ≈460pt); tvOS → a contained
+  `minWidth` (~260pt) so it does not hug the short label, leaving space to its right.
+* **Label:** keep it simple. Show and Season say just **"Play"** / **"Resume"** on
+  every platform — never the specific episode (that is too much information).
+
+**Secondary actions (Download / Mark Watched / Go to Show|Season).**
+
+* **Icon-only everywhere** — use `DetailHeroSecondaryIconLabel` (SF Symbol only)
+  plus an `.accessibilityLabel`; no text crowds the row.
+* **Style:** neutral Liquid Glass — `.buttonStyle(.glass)` (fallback `.bordered`),
+  `.tint(Color.primary)`, `.controlSize(.regular)`. **Shape:** `.capsule` pills on
+  iOS, **`.circle`** on tvOS (there is no shared width to match there).
+* **Placement:** a compact row **below** the primary on iOS (centered on iPhone,
+  leading on iPad); **to the right** of the primary on tvOS. Movie, Show, Season,
+  and Episode all expose a watched toggle; Show/Season mark the whole show/season.
+
+**Home cinematic hero button.**
+
+* Same prominent, contrasting Liquid Glass as the detail primary, sized as a
+  **wide, short pill** (≈240pt iPhone / ≈300pt iPad).
+
+**Helpers:** `detailHeroNativePrimaryButtonStyle()`,
+`detailHeroNativeSecondaryButtonStyle()`, `DetailHeroSecondaryIconLabel`,
+`detailHeroActionStackFrame(isCompactPhone:)`, `detailHeroContentAlignment(for:)` /
+`detailHeroTextAlignment(for:)`, and `detailShowsSynopsisBelowHero(for:)` (detail
+screens); `homeHeroNativeButtonStyle()` + `HomeHeroActionButtonLabel(fillsWidth:)`
+(home hero).
 
 ---
 

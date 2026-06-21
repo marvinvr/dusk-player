@@ -37,6 +37,7 @@ struct HomeItemContextMenu: View {
 struct HomeHeroActionButtonLabel: View {
     let title: String
     let systemImage: String
+    var fillsWidth: Bool = false
 
     #if os(tvOS)
     private let minimumButtonWidth: CGFloat = 340
@@ -56,7 +57,20 @@ struct HomeHeroActionButtonLabel: View {
         .frame(minWidth: minimumButtonWidth)
         .contentShape(Capsule())
         #else
+        .frame(maxWidth: fillsWidth ? .infinity : nil)
         .contentShape(Capsule())
+        #endif
+        .foregroundStyle(labelColor)
+    }
+
+    // iOS draws the home hero button as prominent, `Color.primary`-tinted glass,
+    // so its label uses the inverse color for contrast. tvOS keeps translucent
+    // glass where the standard `primary` label already reads correctly.
+    private var labelColor: Color {
+        #if os(tvOS)
+        .primary
+        #else
+        .duskPrimaryActionLabel
         #endif
     }
 
@@ -72,7 +86,7 @@ struct HomeHeroActionButtonLabel: View {
         #if os(tvOS)
         30
         #else
-        34
+        32
         #endif
     }
 }
@@ -173,16 +187,19 @@ extension View {
             .buttonBorderShape(.capsule)
             .tint(Color.primary)
         #elseif os(iOS)
+        // Prominent, `Color.primary`-tinted glass so the hero CTA contrasts the
+        // artwork behind it (dark in Light mode, light in Dark mode). `.regular`
+        // height keeps it a short, wide pill instead of an oversized capsule.
         if #available(iOS 26.0, *) {
             self
-                .buttonStyle(.glass)
-                .controlSize(.large)
+                .buttonStyle(.glassProminent)
+                .controlSize(.regular)
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         } else {
             self
-                .buttonStyle(.bordered)
-                .controlSize(.large)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.regular)
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }

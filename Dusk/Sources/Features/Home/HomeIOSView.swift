@@ -37,10 +37,15 @@ struct HomeIOSView: View {
                                     } label: {
                                         HomeHeroActionButtonLabel(
                                             title: viewModel.heroPrimaryActionTitle(for: item),
-                                            systemImage: "play.fill"
+                                            systemImage: "play.fill",
+                                            fillsWidth: true
                                         )
                                     }
                                     .homeHeroNativeButtonStyle()
+                                    .frame(
+                                        maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 300 : 240,
+                                        alignment: .leading
+                                    )
                                     .simultaneousGesture(
                                         DragGesture(minimumDistance: 0)
                                             .onChanged { _ in callbacks.pauseRotation() }
@@ -153,7 +158,6 @@ struct HomeIOSView: View {
                 .duskNavigationTitle("")
                 .duskNavigationBarTitleDisplayModeInline()
                 .toolbarColorScheme(.dark, for: .navigationBar)
-                .toolbarColorScheme(.dark, for: .tabBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
         } else {
             content

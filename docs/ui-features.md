@@ -40,6 +40,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `FeatureEmptyStateView`, and `FeatureErrorView`.
 - Poster UI is layered: `PosterArtwork`, `PosterCardText`, `PosterCard`,
   `PosterNavigationCard`, and `PosterActionCard`.
+- Fully watched items (e.g. fully watched seasons) pass `isWatched` to the poster
+  card to show a checkmark next to the title; suppress the progress bar in that
+  case (pass `progress: nil`) so completion reads as the checkmark, not a full bar.
+  Partial progress still renders the bar (`DuskPosterMetrics.posterProgressBarHeight`).
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
   `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
   progress, and route creation.
@@ -65,6 +69,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   background underneath is the only fill at the hero boundary. Pass `.compact` to the
   modifier for a shorter, lighter tvOS fade that reveals more of the backdrop (the home
   cinematic hero banner uses this); detail heroes keep the default `.standard` fade.
+  On iOS the overlay's own scrim strength is selectable via its `style`: the home hero
+  keeps the default `.standard`, while the movie/show/season/episode detail heroes pass
+  `.soft` to hold the darkening and bottom fade off until the lower third so more of the
+  backdrop reads through behind the title block. `style` is iOS-only — tvOS always
+  renders the full-strength vertical scrim regardless.
   Never paint `Color.duskBackground` (gradient or solid) inside a hero subtree on
   tvOS: real Apple TV HDR output resolves hero-subtree fills and the plain page
   background through different color pipelines, so two stacked fills of the same
@@ -116,6 +125,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   enough of the first shelf visible to make lower home content discoverable and
   reachable through normal focus movement. Keep the title/logo block, metadata, and
   hero button sizing restrained so the hero reads cinematic instead of crowded.
+- On iOS the home hero play button uses `homeHeroNativeButtonStyle()` (prominent,
+  `Color.primary`-tinted Liquid Glass that contrasts the artwork) with
+  `HomeHeroActionButtonLabel(fillsWidth: true)`, sized as a wide, short pill
+  (≈240pt iPhone / ≈300pt iPad). Keep it consistent with the detail primary button
+  (`STYLE.md` §3.3); do not fill it with the coral accent.
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
@@ -153,12 +167,27 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   watch-state mutations, image URL selection, and computed display state.
 - Shared detail UI lives in `DetailSharedViews.swift` only when reused across detail
   screens.
-- Use `DetailHeroSection` for cinematic detail headers. It handles backdrop gradients,
-  poster/title artwork, supertitle/subtitle/action slots, safe-area offset, and compact
-  action placement.
-- Use `detailHeroNativeSecondaryButtonStyle()` and `detailHeroActionSpacing` for
-  secondary hero actions so native glass focus feedback stays consistent across
-  movie, season, episode, and download controls without focused capsules colliding.
+- Use `DetailHeroSection` for cinematic detail headers. It owns the backdrop
+  gradient/scrim, title artwork, supertitle/subtitle/action slots, an optional
+  `descriptionText`, and safe-area offset. There is **no poster on any platform**:
+  iPhone centers one column (title, metadata, actions); iPad uses two columns
+  (left: title + actions, right: marker/metadata + `descriptionText`); tvOS is a
+  left-aligned column with the action row beneath. Use
+  `detailHeroContentAlignment(for:)` / `detailHeroTextAlignment(for:)` to center
+  hero text on iPhone, and `detailShowsSynopsisBelowHero(for:)` to drop the
+  below-hero synopsis section on iPad (the hero's right column shows it there).
+- Detail hero actions share one button system across all platforms (see
+  `STYLE.md` §3.3). The primary uses `detailHeroNativePrimaryButtonStyle()` —
+  prominent, `Color.primary`-tinted Liquid Glass for contrast (dark-on-light /
+  light-on-dark) with a `Color.duskPrimaryActionLabel` label; on Show/Season it
+  reads just "Play" / "Resume" (`playButtonShortLabel`), never the target episode.
+  Secondary actions (download, watched, go-to-show/season) are **icon-only**
+  everywhere via `DetailHeroSecondaryIconLabel` + `detailHeroNativeSecondaryButtonStyle()`
+  with an `.accessibilityLabel` (capsule pills on iOS, circles on tvOS). On iOS wrap
+  the action block in `detailHeroActionStackFrame(isCompactPhone:)` (iPhone ≈60%
+  centered, iPad fills the hero's left column); tvOS lays the icons out to the right
+  of the primary. Movie/Show/Season/Episode all expose a watched toggle; Show/Season
+  toggle the whole show/season. Do not fill primary actions with `Color.duskAccent`.
 - On tvOS, keep focusable detail rows in separate `.focusSection()` groups. Hero
   actions, expandable summaries, season/episode grids, and cast shelves should move
   vertically to the next visible row instead of letting the focus engine skip to a
@@ -175,11 +204,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SeasonDetailViewModel` loads season details and episodes, computes the next episode,
   sorts offline-available episodes first when appropriate, and records offline watch
   mutations.
-- `SeasonDetailView` uses a tvOS-only horizontal, poster-only episode shelf. Focused
-  episode cards update the hero artwork, title/subtitle area, and the episode cast row
-  inside stable-height regions so rapid remote navigation does not shift the scroll
-  position; selecting a tvOS episode card starts playback directly while iOS keeps the
-  vertical episode list and detail-navigation behavior.
+- `SeasonDetailView` uses a tvOS-only horizontal episode shelf. Each card shows the
+  episode title with a "Season X · Episode N" subtitle and a watched checkmark beside
+  the title (via the shared `PosterCardText`), matching the season cards; partially
+  watched episodes keep the in-poster progress bar. Focused episode cards update the
+  hero artwork, title/subtitle area, and the episode cast row inside stable-height
+  regions, and the committed focus is debounced so rapid remote navigation does not
+  shift the scroll position; selecting a tvOS episode card starts playback directly
+  while iOS keeps the vertical episode list and detail-navigation behavior.
 - `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
   watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role
@@ -201,10 +233,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SearchView` owns a tab `NavigationStack` and lazy-creates `SearchViewModel`.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
-- Empty, loading, error, and no-result rows are local because Search uses a `List`, but
-  colors and symbols must still follow shared style tokens.
-- Search result rows route through `AppNavigationRoute.destination(for:)` so people,
-  movies, shows, seasons, and episodes stay consistent with the rest of the app.
+- Presentation is platform-adaptive so search feels native everywhere. tvOS and iPad
+  (`userInterfaceIdiom == .pad`) render each result group as a
+  `PlexItemPosterCarouselSection` (the same poster carousels Home uses for hubs); iPhone
+  renders each group as a titled `PlexItemPosterGrid` section (matching the library grid).
+  Plex `/hubs/search` returns one hub per media type, which maps cleanly onto a carousel
+  row or a grid section.
+- All platforms reuse the shared `FeatureStateViews` for empty/loading/error/no-result
+  states through one `searchResults(_:content:)` wrapper, so state reporting stays uniform.
+- Search results route through `AppNavigationRoute.destination(for:)` so people, movies,
+  shows, seasons, and episodes stay consistent with the rest of the app.
 - `SettingsView` selects the platform shell. Shared sheet/navigation chrome is in
   `SettingsContainer`.
 - `SettingsViewModel` is for transient settings UI state: server picker, server load
@@ -227,8 +265,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - iOS settings use `List`, `Section`, `Picker`, `Toggle`, `Link`, Safari sheet, and
   confirmation dialogs.
 - tvOS settings use `ScrollView` plus `TVSettingsSection`, `TVSettingsMenuRow`,
-  `TVSettingsToggleRow`, and action/link row components. Keep tvOS rows focus-friendly
-  and avoid iOS list-only affordances there.
+  `TVSettingsToggleRow`, and action/link row components. The page leads with a
+  `.title` "Settings" header (tvOS has no nav-bar title). Shared spacing lives in
+  `TVSettingsMetrics` (`contentInset`, `cardVerticalPadding`, `sectionSpacing`) so
+  the header, section labels, card content, and footers stay aligned. Keep tvOS
+  rows focus-friendly and avoid iOS list-only affordances there. Each focusable row
+  shows focus with `tvSettingsRowFocusHighlight(_:)` — a neutral background band
+  driven by a per-row `@FocusState` (rows can't use the scale+glow effect because
+  they sit inside a shared card). Any new tvOS settings row must carry that band, or
+  it will be invisible when focused (`.duskSuppressTVOSButtonChrome()` strips the
+  system focus effect, leaving no indicator on its own).
 
 ## Platform Differences
 
@@ -253,7 +299,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `duskTextPrimary`, `duskTextSecondary`, and `duskAccent`.
 - Root feature screens should paint `Color.duskBackground.ignoresSafeArea()`.
 - Elevated rows/cards use `Color.duskSurface` and subtle 1pt strokes.
-- Primary playback actions use `Color.duskAccent`; do not introduce ad-hoc brand colors.
+- Primary action buttons use neutral contrasting Liquid Glass (`Color.primary`-tinted
+  prominent glass), not the coral accent. Reserve `Color.duskAccent` for progress,
+  ratings, active states, and inline links. Do not introduce ad-hoc brand colors.
 - Posters use 16pt corners. Sheets/cards use the larger rounded style already present in
   settings and library rows.
 - Prefer system materials for overlays and hero controls where existing UI does.

@@ -17,7 +17,12 @@ struct SettingsTVView: View {
         let subtitleLanguageBinding = SettingsSupport.subtitleLanguageBinding(preferences)
 
         return ScrollView {
-            VStack(alignment: .leading, spacing: 32) {
+            VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                Text("Settings")
+                    .font(.title.weight(.bold))
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .padding(.leading, TVSettingsMetrics.contentInset)
+
                 TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
                     TVSettingsMenuRow(
                         title: "Max Resolution",
@@ -213,7 +218,8 @@ struct SettingsTVView: View {
             }
             .frame(maxWidth: 980, alignment: .leading)
             .padding(.horizontal, 60)
-            .padding(.vertical, 48)
+            .padding(.top, 48)
+            .padding(.bottom, 88)
         }
     }
 

@@ -205,6 +205,18 @@ extension Color {
         }
     )
 
+    /// Label/icon color for prominent primary action buttons whose fill is
+    /// `Color.primary` (a dark glass capsule in Light mode, light in Dark mode).
+    /// Resolves to the inverse of `primary` so the title stays legible on the
+    /// contrasting fill: white in Light mode, black in Dark mode.
+    static let duskPrimaryActionLabel = Color(
+        uiColor: UIColor { traits in
+            traits.userInterfaceStyle == .dark
+                ? UIColor(duskHex: 0x090A0F)
+                : UIColor(duskHex: 0xFFFFFF)
+        }
+    )
+
 }
 
 private extension UIColor {

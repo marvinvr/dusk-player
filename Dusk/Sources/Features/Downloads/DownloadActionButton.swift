@@ -18,6 +18,9 @@ struct DownloadActionButton: View {
     let ratingKey: String
     let type: PlexMediaType
     var fillsWidth = false
+    /// Icon-only rendering for the iOS detail hero secondary row (the state icon
+    /// already conveys download status, so the text label is dropped).
+    var iconOnly = false
 
     @ViewBuilder
     var body: some View {
@@ -25,16 +28,24 @@ struct DownloadActionButton: View {
             Button {
                 handleTap()
             } label: {
-                HStack(spacing: 8) {
-                    icon
-                    Text(title)
+                Group {
+                    if iconOnly {
+                        icon
+                            .frame(minWidth: 24, minHeight: 32)
+                    } else {
+                        HStack(spacing: 8) {
+                            icon
+                            Text(title)
+                        }
+                        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
+                    }
                 }
                 .font(.subheadline.weight(.medium))
-                .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 32)
                 .foregroundStyle(foreground)
                 .contentShape(Capsule())
             }
             .detailHeroNativeSecondaryButtonStyle()
+            .accessibilityLabel(title)
             .disabled(state.isDeleting || (isStartingDownload && state.status == nil))
             .alert(deleteConfirmationTitle, isPresented: $isShowingDeleteConfirmation) {
                 Button("No", role: .cancel) {}

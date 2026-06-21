@@ -1,5 +1,21 @@
 import SwiftUI
 
+/// Shared spacing tokens for the tvOS settings page. Centralized so the page
+/// title, section headers, card content, and footers all share one text-column
+/// inset and the vertical rhythm between groups stays consistent.
+enum TVSettingsMetrics {
+    /// Horizontal inset shared by section headers, card content, and footers so
+    /// every text column aligns while the card background bleeds slightly wider
+    /// on each side (the standard grouped-list look).
+    static let contentInset: CGFloat = 30
+    /// Top/bottom padding inside each card so rows clear the rounded corners and
+    /// focus halos have room to breathe.
+    static let cardVerticalPadding: CGFloat = 16
+    /// Gap between sections — and between the page title and the first section.
+    /// Kept clearly larger than the intra-section gaps so groups read as groups.
+    static let sectionSpacing: CGFloat = 48
+}
+
 struct TVSettingsSection<Content: View>: View {
     let title: String
     let footer: String?
@@ -19,23 +35,29 @@ struct TVSettingsSection<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.title3.weight(.semibold))
-                .foregroundStyle(Color.duskTextPrimary)
+                .font(.subheadline.weight(.semibold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .foregroundStyle(Color.duskTextSecondary)
+                .padding(.leading, TVSettingsMetrics.contentInset)
+                .padding(.bottom, 12)
 
             VStack(spacing: 0) {
                 content
             }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 10)
+            .padding(.horizontal, TVSettingsMetrics.contentInset)
+            .padding(.vertical, TVSettingsMetrics.cardVerticalPadding)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
 
             if let footer, !footer.isEmpty {
                 Text(footer)
-                    .font(.subheadline)
+                    .font(.footnote)
                     .foregroundStyle(footerColor)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 14)
+                    .padding(.horizontal, TVSettingsMetrics.contentInset)
             }
         }
     }
@@ -47,6 +69,7 @@ struct TVSettingsMenuRow<Option: Hashable>: View {
     let selectedTitle: String
     let optionTitle: (Option) -> String
     @Binding var selection: Option
+    @FocusState private var isFocused: Bool
 
     init(
         title: String,
@@ -74,15 +97,18 @@ struct TVSettingsMenuRow<Option: Hashable>: View {
                 .lineLimit(1)
         }
         .pickerStyle(.navigationLink)
+        .focused($isFocused)
         .accessibilityLabel(title)
         .accessibilityValue(selectedTitle)
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .tvSettingsRowFocusHighlight(isFocused)
     }
 }
 
 struct TVSettingsToggleRow: View {
     let title: String
     @Binding var isOn: Bool
+    @FocusState private var isFocused: Bool
 
     var body: some View {
         HStack(spacing: 20) {
@@ -96,8 +122,10 @@ struct TVSettingsToggleRow: View {
                 .labelsHidden()
                 .toggleStyle(SwitchToggleStyle())
                 .tint(Color.duskAccent)
+                .focused($isFocused)
         }
         .frame(minHeight: 72)
+        .tvSettingsRowFocusHighlight(isFocused)
     }
 }
 
@@ -109,6 +137,7 @@ struct TVSettingsActionRow: View {
     let isLoading: Bool
     let detail: String?
     let action: () -> Void
+    @FocusState private var isFocused: Bool
 
     init(
         title: String,
@@ -137,6 +166,8 @@ struct TVSettingsActionRow: View {
             }
         }
         .duskSuppressTVOSButtonChrome()
+        .focused($isFocused)
+        .tvSettingsRowFocusHighlight(isFocused)
     }
 
     @ViewBuilder
@@ -197,5 +228,30 @@ struct TVSettingsExternalLinkRow: View {
         }
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+private extension View {
+    /// Neutral focus band drawn behind a focused tvOS settings row.
+    ///
+    /// Rows live inside a shared section card, so the app's scale + white-glow
+    /// focus effect (`duskTVOSFocusEffectShape`) can't be used here — scaling a
+    /// single row would overflow the card and overlap its neighbors. This
+    /// background highlight marks the focused row without disturbing the grouped
+    /// layout. It must be driven by an explicit per-row `@FocusState` bool: the
+    /// environment `isFocused` can't be read above a `.focused()` view, the same
+    /// reason the poster cards thread an explicit binding.
+    @ViewBuilder
+    func tvSettingsRowFocusHighlight(_ isFocused: Bool) -> some View {
+        #if os(tvOS)
+        background {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Color.duskTextPrimary.opacity(isFocused ? 0.20 : 0))
+                .padding(.vertical, 3)
+        }
+        .animation(.easeOut(duration: 0.18), value: isFocused)
+        #else
+        self
+        #endif
     }
 }

@@ -128,7 +128,7 @@ struct SeasonDetailView: View {
                         .padding(.top, 8)
                         .padding(.bottom, 56)
 #else
-                    if let summary = details.summary, !summary.isEmpty {
+                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, horizontalPadding)
                             .padding(.top, 36)
@@ -195,27 +195,16 @@ struct SeasonDetailView: View {
             false
             #endif
         }()
-        let posterWidth: CGFloat = {
-            #if os(tvOS)
-            // Smaller than the standard hero poster: the season page doubles as
-            // the episode browser, so the banner needs to stay short.
-            240
-            #else
-            sizeClass == .regular ? 186 : 124
-            #endif
-        }()
-        let posterImageWidth = Int(posterWidth.rounded())
-        let posterHeight = Int((Double(posterWidth) * 1.5).rounded())
         DetailHeroSection(
             backdropURL: heroBackdropURL,
-            posterURL: viewModel.posterURL(width: posterImageWidth, height: posterHeight),
             title: heroTitle(fallback: details.title),
+            descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
-            posterWidth: CGFloat(posterWidth),
             keepsPreviousBackdropWhileLoading: keepsPreviousBackdropWhileLoading,
+            titleLineLimit: heroTitleLineLimit,
             supertitle: {
                 if let showTitle = viewModel.showTitle {
                     showTitleLink(showTitle)
@@ -229,7 +218,7 @@ struct SeasonDetailView: View {
                 #endif
             },
             actions: {
-                if viewModel.nextEpisodeToPlay != nil {
+                if heroPlayEpisode != nil {
                     actionButtons()
                 }
             }
@@ -247,11 +236,22 @@ struct SeasonDetailView: View {
     private func heroTitle(fallback: String) -> String {
         #if os(tvOS)
         if let episode = focusedTVEpisode {
-            return viewModel.episodeLabel(episode) ?? episode.title
+            return episode.title
         }
         #endif
 
         return fallback
+    }
+
+    // On tvOS the hero title shows the focused episode's name and updates as the
+    // user zaps the episode row, so keep it to a single line to stop the banner
+    // from growing/shrinking. The other detail pages keep the default two lines.
+    private var heroTitleLineLimit: Int {
+        #if os(tvOS)
+        1
+        #else
+        2
+        #endif
     }
 
     @ViewBuilder
@@ -301,23 +301,22 @@ struct SeasonDetailView: View {
         selectedTVEpisodeDetails?.roles ?? []
     }
 
-    private var tvEpisodeHeroMetadataHeight: CGFloat { 116 }
+    private var tvEpisodeHeroMetadataHeight: CGFloat { 92 }
     private var tvEpisodeCastSectionHeight: CGFloat { 292 }
 
     @ViewBuilder
     private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
         Group {
             if let episode = focusedTVEpisode {
+                // The episode name is the hero title now, so this box carries the
+                // supporting metadata: an "Episode N · 45 min · air date" tagline
+                // (same styling as the rest of the app) and the episode summary.
                 VStack(alignment: .leading, spacing: 6) {
-                    Text(episode.title)
-                        .font(.headline.weight(.bold))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(1)
-
-                    if let subtitle = viewModel.episodeSubtitle(episode) {
-                        Text(subtitle)
-                            .font(.caption)
+                    if let metaLine = tvEpisodeMetaLine(episode) {
+                        Text(metaLine)
+                            .font(.subheadline.weight(.medium))
                             .foregroundStyle(Color.primary.opacity(0.78))
+                            .lineLimit(1)
                     }
 
                     if let summary = episode.summary, !summary.isEmpty {
@@ -338,6 +337,13 @@ struct SeasonDetailView: View {
         .transaction { transaction in
             transaction.disablesAnimations = true
         }
+    }
+
+    private func tvEpisodeMetaLine(_ episode: PlexEpisode) -> String? {
+        [viewModel.episodeLabel(episode), viewModel.episodeSubtitle(episode)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+            .nilIfEmpty
     }
 
     @ViewBuilder
@@ -380,37 +386,107 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
-            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
-
-        layout {
-            SeasonHeroActions(
-                nextEpisode: viewModel.nextEpisodeToPlay,
-                playButtonLabel: viewModel.playButtonLabel,
-                nextEpisodePlayableVersions: viewModel.nextEpisodePlayableVersions,
-                nextEpisodeRoute: viewModel.nextEpisodeRoute,
-                nextEpisodeMenuLabel: viewModel.nextEpisodeMenuLabel,
-                showRoute: viewModel.showRatingKey.map { viewModel.detailRoute(type: .show, ratingKey: $0) },
-                usesFullWidthActionButtons: usesFullWidthActionButtons,
-                onPlay: { episode in
-                    Task { await playback.play(ratingKey: episode.ratingKey) }
-                },
-                onPlayVersion: { episode, version in
-                    Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
-                }
-            )
-
-            DownloadActionButton(
-                ratingKey: viewModel.ratingKey,
-                type: .season,
-                fillsWidth: usesFullWidthActionButtons
-            )
+        #if os(tvOS)
+        HStack(spacing: detailHeroActionSpacing) {
+            seasonPlayActions(label: viewModel.playButtonShortLabel)
+            watchedButton()
         }
+        #else
+        VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: detailHeroActionSpacing) {
+            seasonPlayActions(label: viewModel.playButtonShortLabel)
+
+            HStack(spacing: detailHeroActionSpacing) {
+                DownloadActionButton(
+                    ratingKey: viewModel.ratingKey,
+                    type: .season,
+                    iconOnly: true
+                )
+                watchedButton()
+            }
+        }
+        .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
+        #endif
+    }
+
+    private func seasonPlayActions(label: String) -> some View {
+        SeasonHeroActions(
+            nextEpisode: heroPlayEpisode,
+            playButtonLabel: label,
+            nextEpisodePlayableVersions: heroPlayEpisodeVersions,
+            nextEpisodeRoute: heroPlayEpisodeRoute,
+            nextEpisodeMenuLabel: heroPlayEpisodeMenuLabel,
+            showRoute: viewModel.showRatingKey.map { viewModel.detailRoute(type: .show, ratingKey: $0) },
+            usesFullWidthActionButtons: fillsActionWidth,
+            onPlay: { episode in
+                guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
+                Task { await playback.play(ratingKey: episode.ratingKey) }
+            },
+            onPlayVersion: { episode, version in
+                Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
+            }
+        )
+    }
+
+    private func watchedButton() -> some View {
+        Button {
+            Task { await viewModel.toggleSeasonWatched() }
+        } label: {
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isSeasonWatched ? "eye.slash" : "eye")
+        }
+        .detailHeroNativeSecondaryButtonStyle()
+        .accessibilityLabel(viewModel.isSeasonWatched ? "Mark Season Unwatched" : "Mark Season Watched")
+    }
+
+    // The episode the hero Play button targets. iOS plays the "next up" episode;
+    // tvOS doubles as an episode browser, so it plays whatever episode is focused
+    // in the row — keeping the button in sync with the banner the user is reading.
+    private var heroPlayEpisode: PlexEpisode? {
+        #if os(tvOS)
+        focusedTVEpisode
+        #else
+        viewModel.nextEpisodeToPlay
+        #endif
+    }
+
+    private var heroPlayEpisodeVersions: [PlexMedia] {
+        #if os(tvOS)
+        selectedTVEpisodeDetails?.media.filter { !$0.parts.isEmpty } ?? []
+        #else
+        viewModel.nextEpisodePlayableVersions
+        #endif
+    }
+
+    private var heroPlayEpisodeRoute: AppNavigationRoute? {
+        #if os(tvOS)
+        focusedTVEpisode.map { viewModel.detailRoute(type: .episode, ratingKey: $0.ratingKey) }
+        #else
+        viewModel.nextEpisodeRoute
+        #endif
+    }
+
+    private var heroPlayEpisodeMenuLabel: String {
+        #if os(tvOS)
+        if let episode = focusedTVEpisode, let label = viewModel.episodeLabel(episode) {
+            return "Go to \(label)"
+        }
+        return "Go to Episode"
+        #else
+        viewModel.nextEpisodeMenuLabel
+        #endif
     }
 
     private var usesFullWidthActionButtons: Bool {
         usesFullWidthDetailActionButtons(for: sizeClass)
+    }
+
+    // The primary label fills its container on all iOS layouts (the action stack
+    // owns the final width); tvOS keeps content-sized buttons in an inline row.
+    private var fillsActionWidth: Bool {
+        #if os(tvOS)
+        false
+        #else
+        true
+        #endif
     }
 
     @ViewBuilder
@@ -514,7 +590,12 @@ struct SeasonDetailView: View {
     private func focusTVEpisode(_ episode: PlexEpisode) {
         guard focusedTVEpisodeKey != episode.ratingKey else { return }
 
-        setFocusedTVEpisodeKey(episode.ratingKey)
+        // Debounce the committed focus. The banner tracks the focused episode, so
+        // updating it rebuilds the whole page; doing that on every card while the
+        // user zaps through the row quickly makes the outer ScrollView drift
+        // downward even though focus stays on the row. The per-card focus
+        // highlight is driven locally by @FocusState, so it still reacts
+        // instantly — only the banner waits until the user settles on a card.
         tvEpisodeFocusTask?.cancel()
         tvEpisodeFocusTask = Task {
             do {
@@ -524,6 +605,7 @@ struct SeasonDetailView: View {
             }
 
             guard !Task.isCancelled else { return }
+            setFocusedTVEpisodeKey(episode.ratingKey)
             await viewModel.focusEpisode(episode)
         }
     }
@@ -713,12 +795,10 @@ private struct SeasonHeroActions: View {
             #if os(tvOS)
             if let showRoute {
                 NavigationLink(value: showRoute) {
-                    DetailHeroSecondaryActionButtonLabel(
-                        title: "Go to Show",
-                        systemImage: "tv.fill"
-                    )
+                    DetailHeroSecondaryIconLabel(systemImage: "tv.fill")
                 }
                 .detailHeroNativeSecondaryButtonStyle()
+                .accessibilityLabel("Go to Show")
             }
             #endif
         }
@@ -746,6 +826,10 @@ private struct TVSeasonEpisodeCard: View {
         RoundedRectangle(cornerRadius: 16, style: .continuous)
     }
 
+    private var episodeNumberLabel: String? {
+        MediaTextFormatter.seasonEpisodeLabel(season: episode.parentIndex, episode: episode.index)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
             Button(action: onPlay) {
@@ -754,18 +838,25 @@ private struct TVSeasonEpisodeCard: View {
                     progress: progress,
                     artworkWidth: artworkWidth,
                     showsPlayOverlay: false,
-                    isUnavailableOffline: isUnavailableOffline,
-                    isWatched: isWatched
+                    isUnavailableOffline: isUnavailableOffline
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
             .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
-            .duskTVOSFocusEffectShape(artworkShape)
+            .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .accessibilityLabel("Play \(episode.title)")
             .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
+
+            PosterCardText(
+                title: episode.title,
+                subtitle: episodeNumberLabel,
+                width: artworkWidth,
+                isWatched: isWatched
+            )
         }
         .frame(width: artworkWidth, alignment: .topLeading)
+        .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         .onChange(of: isFocused) { _, newValue in
             if newValue {
@@ -934,7 +1025,6 @@ private struct SeasonEpisodePosterArtwork: View {
     let artworkWidth: CGFloat
     let showsPlayOverlay: Bool
     let isUnavailableOffline: Bool
-    var isWatched = false
 
     var body: some View {
         PosterArtwork(
@@ -944,16 +1034,6 @@ private struct SeasonEpisodePosterArtwork: View {
             imageAspectRatio: 16.0 / 9.0,
             showsPlayOverlay: showsPlayOverlay
         )
-        .overlay(alignment: .topTrailing) {
-            if isWatched {
-                Image(systemName: "checkmark.circle.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.duskAccent)
-                    .padding(10)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .padding(12)
-            }
-        }
         .opacity(isUnavailableOffline ? 0.46 : 1)
     }
 }

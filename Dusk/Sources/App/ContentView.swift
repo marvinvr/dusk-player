@@ -76,12 +76,24 @@ struct ContentView: View {
                         Button("Retry") {
                             resetDiscoveryState()
                         }
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(Color.duskAccent, in: Capsule())
                         .duskSuppressTVOSButtonChrome()
+                        .duskTVOSFocusEffectShape(Capsule())
 
                         Button("Sign Out", role: .destructive) {
                             signOut()
                         }
+                        .font(.headline)
+                        .foregroundStyle(.red)
+                        .padding(.horizontal, 32)
+                        .padding(.vertical, 12)
+                        .background(.ultraThinMaterial, in: Capsule())
                         .duskSuppressTVOSButtonChrome()
+                        .duskTVOSFocusEffectShape(Capsule())
                     }
                 } else {
                     ProgressView()
