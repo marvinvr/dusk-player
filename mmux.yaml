@@ -25,7 +25,17 @@ processes:
     cwd: .
     autostart: false
   - name: TVOS Simulator
-    cmd: ./scripts/tvos.sh
+    cmd: ./scripts/tv.sh
+    args: []
+    cwd: .
+    autostart: false
+  - name: Build Check (iOS)
+    cmd: ./scripts/build-ios.sh
+    args: []
+    cwd: .
+    autostart: false
+  - name: Build Check (tvOS)
+    cmd: ./scripts/build-tv.sh
     args: []
     cwd: .
     autostart: false

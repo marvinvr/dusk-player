@@ -82,6 +82,28 @@ build_tvos_app() {
     build
 }
 
+check_ios_build() {
+  xcodebuild \
+    -project "$REPO_ROOT/Dusk.xcodeproj" \
+    -scheme Dusk \
+    -configuration Debug \
+    -destination 'generic/platform=iOS Simulator' \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    ARCHS=arm64 \
+    ONLY_ACTIVE_ARCH=YES \
+    build
+}
+
+check_tvos_build() {
+  xcodebuild \
+    -project "$REPO_ROOT/Dusk.xcodeproj" \
+    -scheme Dusk-tvOS \
+    -configuration Debug \
+    -destination 'generic/platform=tvOS Simulator' \
+    -derivedDataPath "$DERIVED_DATA_PATH" \
+    build
+}
+
 install_and_launch_app() {
   local device_uuid="$1"
   local app_path="$2"
