@@ -25,6 +25,8 @@ struct SettingsContainer<Content: View>: View {
             .sheet(isPresented: serverPickerPresented) {
                 ServerPickerView(servers: viewModel.availableServers) { server in
                     try await viewModel.connect(to: server, using: plexService)
+                } onCancel: {
+                    viewModel.showServerPicker = false
                 }
             }
             .duskNavigationTitle("Settings")
