@@ -113,7 +113,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   track.
 - VLCKit keeps encoded passthrough off, but automatically nudges the output mix
   mode to 5.1 or 7.1 for matching selected audio tracks when the OS route can
-  accept it. Playback Info exposes the selected VLC audio track, mix mode,
+  accept it. The mix mode is clamped to the active route's channel capacity:
+  requesting 7.1 on a stereo route (iPhone speaker / stereo headphones) makes
+  VLCKit stall audio a few seconds into playback while video continues, most
+  visibly on TrueHD/Atmos tracks that default to 7.1, so a route that cannot
+  render the surround layout steps down to the largest layout it can, then to a
+  stereo downmix. Playback Info exposes the selected VLC audio track, mix mode,
   passthrough state, route, and channel counts for debugging route differences.
 - Video Enhancement is engine-owned and both engines must expose aligned status
   through `videoEnhancementStatus`; see the dedicated section below.

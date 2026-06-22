@@ -706,7 +706,17 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             outputs.compactMap { $0.channels?.count }.max() ?? 0
         )
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
-        let targetMixMode = desiredAudioMixMode(forChannelCount: selectedChannels)
+        let desiredMixMode = desiredAudioMixMode(forChannelCount: selectedChannels)
+        // Only request a surround mix the active output route can actually
+        // render. Forcing 5.1/7.1 onto a stereo route (the iPhone speaker or
+        // stereo wired/Bluetooth headphones) makes VLCKit stall audio output a
+        // few seconds into playback while video keeps going — most visible on
+        // TrueHD/Atmos tracks, which default to 7.1. Step down to the richest
+        // layout the route supports, otherwise downmix to stereo.
+        let targetMixMode = audioMixMode(
+            forDesired: desiredMixMode,
+            maximumOutputChannelCount: maximumOutputChannelCount
+        )
         let preferredOutputChannels = preferredOutputChannelCount(for: targetMixMode)
 
         if #available(iOS 15.0, tvOS 15.0, *) {
@@ -796,6 +806,38 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
 
         return .modeUnset
+    }
+
+    /// Clamp a desired surround mix mode to what the current output route can
+    /// render. Requesting a layout with more channels than the route supports
+    /// (e.g. 7.1 on a 2-channel iPhone speaker) makes VLCKit stall audio a few
+    /// seconds into playback while video continues. Stereo/binaural/unset modes
+    /// pass through untouched; surround modes step down to the largest layout
+    /// that fits, falling back to an explicit stereo downmix.
+    private func audioMixMode(
+        forDesired desired: VLCMediaPlayer.AudioMixMode,
+        maximumOutputChannelCount: Int
+    ) -> VLCMediaPlayer.AudioMixMode {
+        guard let requiredChannels = preferredOutputChannelCount(for: desired) else {
+            return desired
+        }
+
+        if maximumOutputChannelCount >= requiredChannels {
+            return desired
+        }
+
+        // Descending channel order so the first match is the richest layout
+        // the route can still render.
+        let surroundFallbacks: [(mode: VLCMediaPlayer.AudioMixMode, channels: Int)] = [
+            (.mode5_1, 6),
+            (.mode4_0, 4),
+        ]
+        for fallback in surroundFallbacks
+        where fallback.channels < requiredChannels && maximumOutputChannelCount >= fallback.channels {
+            return fallback.mode
+        }
+
+        return .modeStereo
     }
 
     private func preferredOutputChannelCount(for mode: VLCMediaPlayer.AudioMixMode) -> Int? {
