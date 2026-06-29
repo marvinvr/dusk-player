@@ -28,6 +28,7 @@ protocol VLCKitRenderingHost: AnyObject, Sendable {
         isSeekable: Bool
     )
     func invalidatePlaybackState()
+    func setVideoFillEnabled(_ enabled: Bool)
 }
 
 @MainActor
@@ -263,6 +264,15 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // video output refresh until play() is called.
         needsVideoRefreshOnPlay = true
         #endif
+    }
+
+    func setVideoFillEnabled(_ enabled: Bool) {
+        // With Video Enhancement active the picture is drawn by the Metal
+        // renderer; otherwise VLCKit draws straight into the rendering host and
+        // the crop is applied there. Forward to both so whichever path is live
+        // honors the zoom (the inactive one no-ops).
+        videoEnhancementRenderer?.setVideoFillEnabled(enabled)
+        renderingHost.setVideoFillEnabled(enabled)
     }
 
     func seek(to position: TimeInterval) {

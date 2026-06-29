@@ -17,12 +17,19 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
     private var playHandler: (() -> Void)?
     private var pauseHandler: (() -> Void)?
     private var seekHandler: ((Int64, @escaping () -> Void) -> Void)?
+    private var aspectFillEnabled = false
 
     @MainActor
     override init() {
-        self.playerView = IOSVLCPictureInPictureContainerView()
+        let container = IOSVLCPictureInPictureContainerView()
+        self.playerView = container
         super.init()
-        playerView.backgroundColor = .black
+        container.backgroundColor = .black
+        // The crop ratio that fills the screen depends on the drawable's aspect
+        // ratio, so re-apply it whenever the view lays out (e.g. on rotation).
+        container.onLayout = { [weak self] in
+            self?.applyVideoCropRatio()
+        }
     }
 
     deinit {
@@ -57,6 +64,7 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
         }
 
         player.drawable = self
+        applyVideoCropRatio()
     }
 
     func detach(from player: VLCMediaPlayer) {
@@ -82,6 +90,30 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
 
     func invalidatePlaybackState() {
         pictureInPictureController?.invalidatePlaybackState()
+    }
+
+    func setVideoFillEnabled(_ enabled: Bool) {
+        MainActor.assumeIsolated {
+            aspectFillEnabled = enabled
+            applyVideoCropRatio()
+        }
+    }
+
+    /// Crops the video to the drawable's aspect ratio (so it fills the screen
+    /// with no letterbox/pillarbox) when zoom is on, otherwise clears the crop
+    /// so the whole frame is shown. Passing 0/0 resets VLCKit's crop ratio.
+    private func applyVideoCropRatio() {
+        MainActor.assumeIsolated {
+            guard let mediaPlayer else { return }
+            if aspectFillEnabled {
+                let bounds = playerView.bounds
+                let width = UInt32(max(1, Int(bounds.width.rounded())))
+                let height = UInt32(max(1, Int(bounds.height.rounded())))
+                mediaPlayer.setCropRatioWithNumerator(width, denominator: height)
+            } else {
+                mediaPlayer.setCropRatioWithNumerator(0, denominator: 0)
+            }
+        }
     }
 
     func addSubview(_ view: UIView) {
@@ -150,5 +182,12 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
     }
 }
 
-private final class IOSVLCPictureInPictureContainerView: UIView {}
+private final class IOSVLCPictureInPictureContainerView: UIView {
+    var onLayout: (() -> Void)?
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        onLayout?()
+    }
+}
 #endif

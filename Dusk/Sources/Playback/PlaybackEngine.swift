@@ -45,6 +45,12 @@ protocol PlaybackEngine: AnyObject {
     /// Engines should restore their video rendering pipeline here.
     func handleReturnToForeground()
 
+    /// Toggles how the video fills its container. `false` letterboxes the video
+    /// to fit (aspect fit); `true` zooms it to fill the container, cropping the
+    /// overflow (aspect fill). Driven by the iOS/iPadOS player zoom control;
+    /// tvOS does not call this.
+    func setVideoFillEnabled(_ enabled: Bool)
+
     // MARK: - State
 
     var state: PlaybackState { get }
@@ -74,6 +80,7 @@ protocol PlaybackEngine: AnyObject {
 
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
+    func setVideoFillEnabled(_ enabled: Bool) {}
 }
 
 @MainActor

@@ -38,6 +38,7 @@ final class PlayerViewModel {
     var selectedSubtitleTrackID: Int?
     var selectedAudioTrackID: Int?
     var showControls = true
+    var aspectFillEnabled = false
     var showSubtitlePicker = false
     var showAudioPicker = false
     var showQualityPicker = false

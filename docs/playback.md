@@ -220,6 +220,15 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - iOS uses touch overlays, a gear menu for playback info, quality, and track
   selection, sheets for quality/audio/subtitle choices, and double-tap seek
   zones when enabled.
+- The iOS/iPadOS controls expose a round zoom button at the top-right that
+  toggles `PlayerViewModel.aspectFillEnabled` and calls
+  `PlaybackEngine.setVideoFillEnabled(_:)`. Fill zooms the picture to cover the
+  drawable (cropping the overflow) instead of letterboxing it; it is
+  session-scoped and starts off. Each rendering path applies it natively:
+  AVPlayer flips `AVPlayerLayer.videoGravity`, VLCKit sets a crop ratio matching
+  the drawable's aspect ratio (re-applied on layout so rotation stays correct),
+  and the Video Enhancement Metal renderer switches its viewport from aspect-fit
+  to aspect-fill. tvOS does not expose the control.
 - tvOS uses focus-aware overlays, a gear menu for playback info and track
   selection, quality menus, remote seek handling, touch-surface tap reveal/hide,
   and explicit move-command routing.

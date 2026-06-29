@@ -40,7 +40,25 @@ struct PlayerControlsIOSOverlay: View {
             }
 
             Spacer()
+
+            aspectFillButton
         }
+    }
+
+    private var aspectFillButton: some View {
+        Button {
+            viewModel.toggleAspectFill()
+        } label: {
+            Image(systemName: viewModel.aspectFillEnabled
+                ? "arrow.down.right.and.arrow.up.left"
+                : "arrow.up.left.and.arrow.down.right")
+                .font(.title3.weight(.semibold))
+                .contentTransition(.symbolEffect(.replace, options: .speed(2)))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+        }
+        .accessibilityLabel(viewModel.aspectFillEnabled ? "Fit video to screen" : "Zoom video to fill screen")
     }
 
     private var centerControls: some View {

@@ -230,6 +230,11 @@ final class AVPlayerEngine: PlaybackEngine {
         finishValidatedLoad(source: source, attemptID: source.context.attemptID)
     }
 
+    func setVideoFillEnabled(_ enabled: Bool) {
+        playerLayer.videoGravity = enabled ? .resizeAspectFill : .resizeAspect
+        videoEnhancementRenderer?.setVideoFillEnabled(enabled)
+    }
+
     func handleReturnToForeground() {
         // Re-attach the player to its layer to restore the GPU rendering pipeline
         // that iOS tears down when the app is backgrounded.

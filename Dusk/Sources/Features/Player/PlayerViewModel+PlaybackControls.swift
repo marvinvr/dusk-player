@@ -84,6 +84,12 @@ extension PlayerViewModel {
         touchControls()
     }
 
+    func toggleAspectFill() {
+        aspectFillEnabled.toggle()
+        engine.setVideoFillEnabled(aspectFillEnabled)
+        noteControlsInteraction()
+    }
+
     func seek(by offset: TimeInterval, revealControls: Bool = false) {
         seek(to: displayPosition + offset, revealControls: revealControls)
     }

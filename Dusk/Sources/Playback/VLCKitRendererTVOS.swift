@@ -29,5 +29,8 @@ final class TVOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked S
     ) {}
 
     func invalidatePlaybackState() {}
+
+    // The zoom-to-fill control is iOS/iPadOS only.
+    func setVideoFillEnabled(_ enabled: Bool) {}
 }
 #endif

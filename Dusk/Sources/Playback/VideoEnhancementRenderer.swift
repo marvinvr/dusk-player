@@ -43,6 +43,19 @@ final class VideoEnhancementRenderer {
     private let statusLock = NSLock()
     nonisolated(unsafe) private var _status: VideoEnhancementStatus
 
+    /// Whether the picture is zoomed to fill the drawable (aspect fill, cropping
+    /// the overflow) instead of letterboxed to fit. Written from the main actor
+    /// via the player zoom control, read on the render queue. Guarded by
+    /// `fillLock`.
+    private let fillLock = NSLock()
+    nonisolated(unsafe) private var _aspectFill = false
+
+    nonisolated private var aspectFill: Bool {
+        fillLock.lock()
+        defer { fillLock.unlock() }
+        return _aspectFill
+    }
+
     nonisolated var status: VideoEnhancementStatus {
         statusLock.lock()
         defer { statusLock.unlock() }
@@ -187,6 +200,15 @@ final class VideoEnhancementRenderer {
         }
     }
 
+    /// Toggles aspect-fill zoom. Redraws the last frame so a change applies
+    /// immediately even while playback is paused.
+    func setVideoFillEnabled(_ enabled: Bool) {
+        fillLock.lock()
+        _aspectFill = enabled
+        fillLock.unlock()
+        renderCurrentFrame()
+    }
+
     /// Redraws the last frame at the current drawable size (e.g. after a layout
     /// change) so paused video does not go black. Dispatched to the render queue.
     func renderCurrentFrame() {
@@ -316,7 +338,7 @@ final class VideoEnhancementRenderer {
             return
         }
 
-        let viewportRect = aspectFitRect(inputSize: inputSize, outputSize: outputSize)
+        let viewportRect = displayRect(inputSize: inputSize, outputSize: outputSize, fill: aspectFill)
         encoder.setViewport(MTLViewport(
             originX: Double(viewportRect.minX),
             originY: Double(viewportRect.minY),
@@ -483,12 +505,18 @@ final class VideoEnhancementRenderer {
         )
     }
 
-    nonisolated private func aspectFitRect(inputSize: CGSize, outputSize: CGSize) -> CGRect {
+    /// Computes the on-screen rectangle for the decoded frame. `fill == false`
+    /// aspect-fits (letterbox/pillarbox); `fill == true` aspect-fills by scaling
+    /// to cover the drawable, which yields a rect larger than the output with a
+    /// negative origin so Metal crops the overflow at the framebuffer edges.
+    nonisolated private func displayRect(inputSize: CGSize, outputSize: CGSize, fill: Bool) -> CGRect {
         guard inputSize.width > 0, inputSize.height > 0 else {
             return CGRect(origin: .zero, size: outputSize)
         }
 
-        let scale = min(outputSize.width / inputSize.width, outputSize.height / inputSize.height)
+        let widthScale = outputSize.width / inputSize.width
+        let heightScale = outputSize.height / inputSize.height
+        let scale = fill ? max(widthScale, heightScale) : min(widthScale, heightScale)
         let fittedSize = CGSize(width: inputSize.width * scale, height: inputSize.height * scale)
         return CGRect(
             x: (outputSize.width - fittedSize.width) / 2,
