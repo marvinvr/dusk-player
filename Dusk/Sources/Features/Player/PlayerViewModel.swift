@@ -64,6 +64,7 @@ final class PlayerViewModel {
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
     var hasConfiguredAutomaticTrackSelection = false
     var hasAppliedAutomaticAudioSelection = false
+    var hasUserSelectedAudioTrack = false
     var hasAppliedAutomaticSubtitleSelection = false
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
@@ -136,6 +137,7 @@ final class PlayerViewModel {
         isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
         hasConfiguredAutomaticTrackSelection = true
         hasAppliedAutomaticAudioSelection = false
+        hasUserSelectedAudioTrack = false
         hasAppliedAutomaticSubtitleSelection = false
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
