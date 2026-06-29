@@ -259,7 +259,7 @@ struct PlayerControlsTVOverlay: View {
     }
 
     private func handleSettingsMenuPresentation(isPresented _: Bool) {
-        viewModel.noteControlsInteraction()
+        viewModel.noteSettingsMenuInteraction()
     }
 
     private func finishTVScrubPreview() {

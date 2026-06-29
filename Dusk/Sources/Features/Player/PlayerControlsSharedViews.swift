@@ -537,6 +537,13 @@ struct PlayerTrackSettingsMenu: View {
                 .accessibilityLabel("Playback Settings")
         }
         .disabled(!hasAvailableSettings)
+        // A native iOS `Menu` exposes no presentation callback, so detect the
+        // opening tap to refresh and extend the HUD's auto-hide deadline.
+        // Otherwise the timer keeps running and hides the controls behind the
+        // open menu before the user can pick a track or quality.
+        .simultaneousGesture(TapGesture().onEnded {
+            viewModel.noteSettingsMenuInteraction()
+        })
     }
 
     private func settingsMenuItem(

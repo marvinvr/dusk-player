@@ -14,6 +14,10 @@ extension PlayerViewModel {
     private static let stallProgressTolerance: TimeInterval = 0.75
     private static let maxStallRecoveryAttempts = 2
     private static let controlsAutoHideDelay: TimeInterval = 4.0
+    // The settings menu is a deliberate, multi-step interaction (open the menu,
+    // read the options, drill into a picker), so it gets a longer auto-hide
+    // window than a normal tap to avoid the HUD vanishing mid-selection.
+    private static let settingsControlsAutoHideDelay: TimeInterval = controlsAutoHideDelay * 2
     private static let controlsAutoHideRetryDelay: TimeInterval = 0.25
     private static let seekPointSelectRevealSuppressionDelay: TimeInterval = 0.45
 
@@ -206,6 +210,17 @@ extension PlayerViewModel {
         scheduleHide()
     }
 
+    /// Refreshes the auto-hide deadline with the longer settings window when the
+    /// user engages the playback settings menu. The menu takes a beat to open,
+    /// read, and navigate, so the normal tap timeout is too short and the HUD
+    /// would otherwise hide while the menu is still open. Mirrors
+    /// `noteControlsInteraction()` and never reveals the HUD on its own, so a
+    /// spurious menu lifecycle callback can't strand the controls on screen.
+    func noteSettingsMenuInteraction() {
+        guard showControls else { return }
+        scheduleControlsAutoHide(resetDeadline: true, delay: Self.settingsControlsAutoHideDelay)
+    }
+
     func beginControlsInteractionHold() {
         guard showControls else { return }
         controlsInteractionHoldCount += 1
@@ -364,14 +379,14 @@ extension PlayerViewModel {
         hasStartedPlayback || state == .playing || currentTime > 0
     }
 
-    private func scheduleControlsAutoHide(resetDeadline: Bool) {
+    private func scheduleControlsAutoHide(resetDeadline: Bool, delay: TimeInterval = PlayerViewModel.controlsAutoHideDelay) {
         guard shouldKeepControlsAutoHidePending else {
             cancelScheduledHide()
             return
         }
 
         if resetDeadline || controlsAutoHideDeadline == nil {
-            controlsAutoHideDeadline = Date().addingTimeInterval(Self.controlsAutoHideDelay)
+            controlsAutoHideDeadline = Date().addingTimeInterval(delay)
         }
 
         guard controlsAutoHideTask == nil else { return }

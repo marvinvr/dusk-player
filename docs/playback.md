@@ -246,11 +246,17 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - tvOS uses focus-aware overlays, a gear menu for playback info and track
   selection, quality menus, remote seek handling, touch-surface tap reveal/hide,
   and explicit move-command routing.
-- tvOS focus moves, settings-menu presentation callbacks, and menu selections
-  refresh the same auto-hide deadline as a reveal. Do not use tvOS `Menu`
-  appear/disappear callbacks as hard HUD holds; SwiftUI can emit those lifecycle
-  events outside a real open-menu interval, which would otherwise leave the HUD
-  stuck visible.
+- Engaging the playback settings menu refreshes the auto-hide deadline with a
+  longer window than a normal tap (`settingsControlsAutoHideDelay`, double the
+  base delay) via `PlayerViewModel.noteSettingsMenuInteraction()`, so the HUD
+  does not hide while the menu is open. iOS detects the gear's opening tap with
+  a `simultaneousGesture` (a native `Menu` exposes no presentation callback);
+  tvOS routes its settings-menu presentation callbacks to the same refresh.
+- tvOS focus moves and menu selections refresh the auto-hide deadline as a
+  reveal. Do not use tvOS `Menu` appear/disappear callbacks as hard HUD holds;
+  SwiftUI can emit those lifecycle events outside a real open-menu interval,
+  which would otherwise leave the HUD stuck visible. The settings refresh guards
+  on `showControls` and never reveals the HUD on its own for the same reason.
 - The tvOS full-screen interaction layer is focusable only while controls are
   hidden. When controls reappear, focus is restored to the seek point so remote
   input does not get stranded on the background reveal layer.
