@@ -125,20 +125,32 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   render the surround layout steps down to the largest layout it can, then to a
   stereo downmix. Playback Info exposes the selected VLC audio track, mix mode,
   passthrough state, route, and channel counts for debugging route differences.
-- On iOS, automatic audio selection also steers off codecs VLCKit cannot decode
-  reliably onto a compatible companion track. VLCKit's software TrueHD/MLP path
-  (the lossless bed under Atmos on BluRay remuxes) starves the audio output
-  under load, so playback cuts in and out while video keeps going; clamping the
-  mix mode does not fix it because the fault is the decode, not the route. Such
-  remuxes almost always ship a lossy AC3/E-AC3 companion that VLCKit renders
-  cleanly, and since passthrough stays off the surround mix is downmixed locally
-  anyway, so the companion is sonically equivalent on a phone.
-  `PlayerViewModel+TrackSelection` penalizes TrueHD/MLP in `audioSelectionScore`
-  and `enforceReliableAudioTrackIfNeeded` switches to the best companion on every
-  engine sync (so a late-arriving track is still honored). It never overrides an
-  explicit user choice and leaves the track in place when it is the only one.
-  tvOS is excluded; it has not shown the issue and is often wired to receivers
+- On iOS, automatic audio selection also prefers a compatible companion track
+  over Dolby TrueHD/MLP (the lossless bed under Atmos on BluRay remuxes) as a
+  conservative safeguard: such remuxes almost always ship a lossy AC3/E-AC3
+  companion that VLCKit renders cleanly, and since passthrough stays off the
+  surround mix is downmixed locally anyway, so the companion is sonically
+  equivalent on a phone. `PlayerViewModel+TrackSelection` penalizes TrueHD/MLP in
+  `audioSelectionScore` and `enforceReliableAudioTrackIfNeeded` switches to the
+  best companion on every engine sync (so a late-arriving track is still
+  honored). It never overrides an explicit user choice and leaves the track in
+  place when it is the only one. tvOS is excluded; it is often wired to receivers
   that want the surround track.
+- `configureAudioOutputPolicy` is idempotent and reacts only to genuine output
+  route changes. The headphone/AirPods dropout — sound cutting in and out every
+  few seconds, never on the built-in speaker — was VLCKit's audio output being
+  torn down and rebuilt repeatedly: the policy ran on every spatial- and
+  rendering-mode notification and re-poked the live player (passthrough,
+  equalizer, mix mode) plus re-asserted multichannel support, which AirPods
+  spatialization kept renegotiating into a self-sustaining loop (the speaker has
+  no spatial audio, so it never started there). The policy now builds a signature
+  of the resolved config and touches the player/session only when it actually
+  changes, opts into multichannel session content only when a surround mix is
+  really being sent (so a stereo downmix does not invite spatialization), and no
+  longer observes the spatial/rendering-capability notifications — only
+  `routeChangeNotification`. This is why the codec/mix-mode changes above did not
+  fix the headphone case on their own: the fault was the audio-output churn, not
+  the track.
 - Video Enhancement is engine-owned and both engines must expose aligned status
   through `videoEnhancementStatus`; see the dedicated section below.
 - Both engines perform preflight direct-play validation via

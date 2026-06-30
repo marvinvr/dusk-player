@@ -117,6 +117,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var currentAttemptContext: PlaybackAttemptContext?
     private var currentSource: PlaybackSource?
     private var lastAppliedAudioMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
+    private var lastAppliedAudioConfigSignature: String?
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var seekVerificationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
@@ -180,6 +181,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         selectedAudioTrackID = nil
         playbackDiagnostics = []
         lastAppliedAudioMixMode = .modeUnset
+        lastAppliedAudioConfigSignature = nil
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
@@ -790,35 +792,68 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             maximumOutputChannelCount: maximumOutputChannelCount
         )
         let preferredOutputChannels = preferredOutputChannelCount(for: targetMixMode)
+        // We only need multichannel session support when we are actually sending
+        // a surround mix. Opting in for a stereo downmix invites the system to
+        // engage AirPods/Bluetooth spatialization for our content, which keeps
+        // renegotiating and feeds the dropout loop below.
+        let wantsMultichannelOutput = preferredOutputChannels != nil
 
-        if #available(iOS 15.0, tvOS 15.0, *) {
-            do {
-                try session.setSupportsMultichannelContent(true)
-            } catch {
-                vlcKitEngineLogger.debug(
-                    "Failed to opt in to multichannel audio session content support: \(error.localizedDescription, privacy: .public)"
-                )
+        // Idempotency guard. Bluetooth routes — AirPods especially — emit a
+        // stream of route/spatial/rendering notifications during playback, and
+        // every one of them used to re-poke the live VLCMediaPlayer audio output
+        // (passthrough, equalizer, mix mode) and re-assert multichannel support.
+        // Each re-poke tears down and rebuilds VLCKit's audio output, so the
+        // sound cut in and out for a few seconds at a time — only on headphones,
+        // because the built-in speaker has no spatial audio to churn. Re-apply
+        // the player/session audio settings ONLY when the resolved configuration
+        // actually changes; otherwise this is a no-op and the audio keeps playing.
+        let signature = [
+            selectedAudioTrackID.map(String.init) ?? "auto",
+            audioMixModeLabel(targetMixMode),
+            String(preferredOutputChannels ?? 0),
+            String(wantsMultichannelOutput),
+        ].joined(separator: "|")
+
+        if signature != lastAppliedAudioConfigSignature {
+            if #available(iOS 15.0, tvOS 15.0, *) {
+                do {
+                    try session.setSupportsMultichannelContent(wantsMultichannelOutput)
+                } catch {
+                    vlcKitEngineLogger.debug(
+                        "Failed to set multichannel audio session content support \(wantsMultichannelOutput, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
-        }
 
-        if let preferredOutputChannels,
-           maximumOutputChannelCount >= preferredOutputChannels,
-           session.preferredOutputNumberOfChannels != preferredOutputChannels {
-            do {
-                try session.setPreferredOutputNumberOfChannels(preferredOutputChannels)
-            } catch {
-                vlcKitEngineLogger.debug(
-                    "Failed to set preferred output channel count \(preferredOutputChannels, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                )
+            if let preferredOutputChannels,
+               maximumOutputChannelCount >= preferredOutputChannels,
+               session.preferredOutputNumberOfChannels != preferredOutputChannels {
+                do {
+                    try session.setPreferredOutputNumberOfChannels(preferredOutputChannels)
+                } catch {
+                    vlcKitEngineLogger.debug(
+                        "Failed to set preferred output channel count \(preferredOutputChannels, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
-        }
 
-        mediaPlayer.audio?.passthrough = false
-        mediaPlayer.equalizer = nil
-        if mediaPlayer.audioMixMode != targetMixMode {
-            mediaPlayer.audioMixMode = targetMixMode
+            if mediaPlayer.audio?.passthrough != false {
+                mediaPlayer.audio?.passthrough = false
+            }
+            if mediaPlayer.equalizer != nil {
+                mediaPlayer.equalizer = nil
+            }
+            if mediaPlayer.audioMixMode != targetMixMode {
+                mediaPlayer.audioMixMode = targetMixMode
+            }
+            lastAppliedAudioMixMode = mediaPlayer.audioMixMode
+            lastAppliedAudioConfigSignature = signature
+        } else {
+            vlcKitEngineLogger.debug(
+                "Skipped redundant VLC audio policy reason=\(reason, privacy: .public) signature=\(signature, privacy: .public)"
+            )
+            return
         }
-        lastAppliedAudioMixMode = mediaPlayer.audioMixMode
 
         let routeSummary = outputs.map { output in
             let channelCount = output.channels?.count ?? 0
@@ -946,32 +981,25 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     private func registerAudioSessionObserversIfNeeded() {
         #if os(iOS) || os(tvOS)
-        let notifications: [Notification.Name] = {
-            var names: [Notification.Name] = [
-                AVAudioSession.routeChangeNotification,
-            ]
-            if #available(iOS 15.0, tvOS 15.0, *) {
-                names.append(AVAudioSession.spatialPlaybackCapabilitiesChangedNotification)
+        // Observe only genuine output-route changes (plugging in headphones,
+        // switching to AirPlay, etc.). Deliberately NOT the spatial-playback /
+        // rendering-capability / rendering-mode notifications: AirPods emit those
+        // continuously while spatial audio negotiates, and reacting to them by
+        // reconfiguring the VLCMediaPlayer audio output is exactly what made the
+        // sound stutter in and out on headphones. Our mix-mode/channel decision
+        // depends on the route, which routeChange already covers, and the policy
+        // is idempotent so a route change that resolves to the same config is a
+        // no-op anyway.
+        let observer = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.configureAudioOutputPolicy(reason: "routeChange")
             }
-            if #available(iOS 17.2, tvOS 17.2, *) {
-                names.append(AVAudioSession.renderingCapabilitiesChangeNotification)
-                names.append(AVAudioSession.renderingModeChangeNotification)
-            }
-            return names
-        }()
-
-        for name in notifications {
-            let observer = NotificationCenter.default.addObserver(
-                forName: name,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                Task { @MainActor [weak self] in
-                    self?.configureAudioOutputPolicy(reason: name.rawValue)
-                }
-            }
-            audioSessionObservers.append(observer)
         }
+        audioSessionObservers.append(observer)
         #endif
     }
 }
