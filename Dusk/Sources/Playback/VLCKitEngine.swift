@@ -98,6 +98,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
     var onPlaybackEnded: (@MainActor () -> Void)?
 
+    #if os(iOS)
+    private(set) var isPictureInPicturePossible = false
+    private(set) var isPictureInPictureActive = false
+    @ObservationIgnored private weak var pictureInPictureDelegate: (any PlaybackPictureInPictureDelegate)?
+    #endif
+
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
     private let renderingHost: any VLCKitRenderingHost
 
@@ -132,6 +138,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         player.timeChangeUpdateInterval = 0.25
         player.minimalTimePeriod = 250_000
         renderingHost.attach(to: player, engine: self)
+        configurePictureInPictureBridge()
         configureAudioOutputPolicy()
         registerAudioSessionObserversIfNeeded()
     }
@@ -274,6 +281,61 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         videoEnhancementRenderer?.setVideoFillEnabled(enabled)
         renderingHost.setVideoFillEnabled(enabled)
     }
+
+    #if os(iOS)
+    // MARK: - Picture in Picture
+
+    /// VLCKit 4.x drives PiP through a native `AVPictureInPictureController` it
+    /// builds behind the `VLCPictureInPictureDrawable` host — this is the
+    /// Apple-sanctioned native path, not the old non-native hack. The host vends
+    /// the window controller asynchronously; we mirror its readiness and active
+    /// state into observable flags for the player UI and relay lifecycle events
+    /// to the coordinator.
+    func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {
+        pictureInPictureDelegate = delegate
+    }
+
+    func startPictureInPicture() {
+        guard isPictureInPicturePossible else { return }
+        (renderingHost as? IOSVLCKitRenderingHost)?.startPictureInPicture()
+    }
+
+    func stopPictureInPicture() {
+        (renderingHost as? IOSVLCKitRenderingHost)?.stopPictureInPicture()
+    }
+
+    private func configurePictureInPictureBridge() {
+        guard let iosHost = renderingHost as? IOSVLCKitRenderingHost else { return }
+        iosHost.onPictureInPictureReadyChanged = { [weak self] in
+            self?.refreshPictureInPicturePossible()
+        }
+        iosHost.onPictureInPictureActiveChanged = { [weak self] isActive in
+            guard let self else { return }
+            self.isPictureInPictureActive = isActive
+            if isActive {
+                self.pictureInPictureDelegate?.pictureInPictureActiveDidChange(true)
+            } else {
+                // VLCKit's binding can't distinguish a restore-tap from a close,
+                // so always offer to restore the player UI first (non-destructive
+                // — playback is never silently lost), then report the stop.
+                self.pictureInPictureDelegate?.pictureInPictureRestorePlayerUI { _ in }
+                self.pictureInPictureDelegate?.pictureInPictureActiveDidChange(false)
+            }
+        }
+    }
+
+    private func refreshPictureInPicturePossible() {
+        guard let iosHost = renderingHost as? IOSVLCKitRenderingHost else {
+            isPictureInPicturePossible = false
+            return
+        }
+        // The native PiP drawable is only live when VLCKit renders into the
+        // host; Video Enhancement detaches it for the Metal path.
+        isPictureInPicturePossible = iosHost.isPictureInPictureReady && rawVideoOutput == nil
+    }
+    #else
+    private func configurePictureInPictureBridge() {}
+    #endif
 
     func seek(to position: TimeInterval) {
         let clampedPosition: TimeInterval

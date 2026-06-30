@@ -94,6 +94,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `stop()` should release observers/media and leave a reusable stopped state.
 - Track IDs are engine-local. `PlayerViewModel` maps engine tracks to Plex
   stream metadata before presenting them.
+- Picture in Picture is optional, observable engine state: `isPictureInPicturePossible`,
+  `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
+  `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything
+  to off, so tvOS engines and the Metal enhancement path get a safe no-op. See
+  the Picture in Picture section.
 
 ## AVPlayer and VLCKit Split
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible
@@ -143,10 +148,36 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   caching. Dusk does not configure an explicit back-buffer size.
 - Both engines implement stall recovery by reloading/restarting near the
   observed position. Keep recovery behavior engine-specific.
-- iOS VLCKit has extra PiP/drawable and video-output refresh behavior; tvOS
-  uses a simpler drawable host.
+- iOS VLCKit has extra drawable and video-output refresh behavior and hosts the
+  native PiP pipeline (see Picture in Picture); tvOS uses a simpler drawable host.
 - Subtitle sizing is centralized in `PlaybackSubtitleStyle`; avoid separate
   magic numbers per engine unless there is a platform reason.
+
+## Picture in Picture
+- iOS only, both engines, native. AVPlayer uses an `AVPictureInPictureController`
+  built from the `AVPlayerLayer`. VLCKit uses VLCKit 4.x's
+  `VLCPictureInPictureDrawable`/`...WindowControlling`, which wraps a native
+  `AVPictureInPictureController` behind the drawable — the Apple-sanctioned path,
+  not the old non-native hack. tvOS uses the protocol no-op defaults.
+- Prerequisites already in place: the audio session is
+  `.playback`/`.moviePlayback`/`.longFormVideo` (`DuskApp`) and `UIBackgroundModes`
+  includes `audio` (`Info-iOS.plist`). PiP will not run without both.
+- Availability: `isPictureInPicturePossible` is false until the system controller
+  is ready and is always false when Video Enhancement is on (the Metal path
+  replaces the layer/drawable, so there is nothing native to project). The
+  player's round top-right PiP button (`PlayerControlsIOSOverlay`) only shows when
+  possible and toggles via `PlayerViewModel.togglePictureInPicture()`.
+- Lifecycle (the subtle part): starting PiP drops the full-screen cover
+  (`showPlayer = false`) so the floating window is unobstructed. The engine must
+  outlive that dismissal — `PlaybackCoordinator.onPlayerDismissed` and
+  `PlayerViewModel.cleanup` both skip teardown while `isPictureInPictureActive`,
+  and `startPlaybackIfNeeded` skips the reload (`engine.state == .idle` guard) so
+  returning re-presents the player over the live engine instead of restarting.
+- Restore vs. close is handled in `PlaybackCoordinator+PictureInPicture`. AVPlayer
+  distinguishes them via its delegate: the restore button re-presents the player
+  (completion fired from `notePlayerUIDidAppear`), the close button finalizes the
+  session. VLCKit's binding only reports start/stop, so it always re-presents the
+  player on stop (non-destructive — playback is never silently lost).
 
 ## Video Enhancement
 - Video Enhancement is a local rendering preference, not a Plex playback-mode

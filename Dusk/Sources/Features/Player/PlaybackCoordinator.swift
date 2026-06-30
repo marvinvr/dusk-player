@@ -19,6 +19,13 @@ final class PlaybackCoordinator {
     var upNextPresentation: UpNextPresentation?
     var isSwitchingQuality = false
     var qualitySwitchError: String?
+    /// True while a Picture in Picture window is showing. The full-screen player
+    /// cover is dropped while this is set, so the engine must outlive the cover's
+    /// dismissal (see `onPlayerDismissed`).
+    var isPictureInPictureActive = false
+    /// Completion handed up by AVKit's restore delegate; fired once the
+    /// re-presented player UI reports it is on screen.
+    @ObservationIgnored var pendingPictureInPictureRestoreCompletion: ((Bool) -> Void)?
 
     let plexService: PlexService
     let preferences: UserPreferences
@@ -114,6 +121,12 @@ final class PlaybackCoordinator {
     /// Called when the full-screen player cover is dismissed.
     /// Sends a final "stopped" timeline, scrobbles if needed, and tears down.
     func onPlayerDismissed() {
+        // The cover is also dismissed when PiP takes over (so the floating window
+        // is unobstructed). In that case keep the session alive — teardown
+        // happens when the PiP window itself closes (see the PiP delegate).
+        if isPictureInPictureActive {
+            return
+        }
         cancelUpNextCountdown()
         finalizeCurrentPlaybackSession(markCompleted: false)
         clearPlayerState()
@@ -127,5 +140,65 @@ final class PlaybackCoordinator {
 
     func resetContinuousPlayEpisodeRunCountForCurrentItem() {
         continuousPlayEpisodeRunCount = activeItemDetails?.type == .episode ? 1 : 0
+    }
+}
+
+// MARK: - Picture in Picture
+
+/// Picture in Picture lifecycle handling.
+///
+/// The full-screen player cover is dropped while PiP is active so the floating
+/// window is unobstructed; the engine outlives the cover because
+/// `onPlayerDismissed` and `PlayerViewModel.cleanup` both check
+/// `isPictureInPictureActive`. Returning to the app re-presents the cover over
+/// the still-live engine — `PlayerViewModel.startPlaybackIfNeeded` skips the
+/// reload so playback continues from where the window left it.
+extension PlaybackCoordinator: PlaybackPictureInPictureDelegate {
+    func pictureInPictureActiveDidChange(_ isActive: Bool) {
+        isPictureInPictureActive = isActive
+
+        if isActive {
+            // Hide the cover so the floating window stands alone. Teardown is
+            // suppressed in onPlayerDismissed while this flag is set.
+            if showPlayer {
+                showPlayer = false
+            }
+        } else if !showPlayer {
+            // PiP closed while the player UI was dismissed and no restore was
+            // requested (e.g. AVKit's close button). Finalize the session as if
+            // the player had been dismissed normally.
+            cancelUpNextCountdown()
+            finalizeCurrentPlaybackSession(markCompleted: false)
+            clearPlayerState()
+        }
+    }
+
+    func pictureInPictureRestorePlayerUI(completion: @escaping (Bool) -> Void) {
+        guard !showPlayer else {
+            completion(true)
+            return
+        }
+
+        pendingPictureInPictureRestoreCompletion = completion
+        showPlayer = true
+
+        // Safety net: if the re-presented player never reports back, release the
+        // system's restore handshake anyway so PiP can finish stopping.
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(800))
+            self?.flushPendingPictureInPictureRestoreCompletion()
+        }
+    }
+
+    /// Called by the player view once it is back on screen so AVKit can animate
+    /// the video out of the PiP window and into the player.
+    func notePlayerUIDidAppear() {
+        flushPendingPictureInPictureRestoreCompletion()
+    }
+
+    private func flushPendingPictureInPictureRestoreCompletion() {
+        guard let completion = pendingPictureInPictureRestoreCompletion else { return }
+        pendingPictureInPictureRestoreCompletion = nil
+        completion(true)
     }
 }

@@ -119,8 +119,12 @@ final class PlayerViewModel {
         bufferingStartedAt = nil
         stalledPlaybackStartedAt = nil
         // Pause (not stop) so the coordinator can read final position
-        // for timeline reporting before tearing down the engine.
-        engine.pause()
+        // for timeline reporting before tearing down the engine. While a PiP
+        // window is showing, the cover is dismissed but playback must keep
+        // running in the floating window, so leave the engine alone.
+        if !engine.isPictureInPictureActive {
+            engine.pause()
+        }
     }
 
     func configureAutomaticTrackSelection(
@@ -146,6 +150,10 @@ final class PlayerViewModel {
     func startPlaybackIfNeeded(source: PlaybackSource) {
         guard !hasLoadedSource else { return }
         hasLoadedSource = true
+        // Returning from a PiP window re-presents the player over the same live
+        // engine; loading again would restart playback from the top. Only load
+        // a fresh engine that has not begun playing yet.
+        guard engine.state == .idle else { return }
         engine.load(source: source)
     }
 }

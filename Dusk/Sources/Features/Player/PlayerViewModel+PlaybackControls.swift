@@ -88,6 +88,15 @@ extension PlayerViewModel {
         touchControls()
     }
 
+    func togglePictureInPicture() {
+        if engine.isPictureInPictureActive {
+            engine.stopPictureInPicture()
+        } else {
+            engine.startPictureInPicture()
+        }
+        noteControlsInteraction()
+    }
+
     func toggleAspectFill() {
         aspectFillEnabled.toggle()
         engine.setVideoFillEnabled(aspectFillEnabled)

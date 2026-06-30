@@ -41,7 +41,25 @@ struct PlayerControlsIOSOverlay: View {
 
             Spacer()
 
+            pictureInPictureButton
             aspectFillButton
+        }
+    }
+
+    @ViewBuilder
+    private var pictureInPictureButton: some View {
+        if viewModel.engine.isPictureInPicturePossible {
+            Button {
+                viewModel.togglePictureInPicture()
+            } label: {
+                Image(systemName: viewModel.engine.isPictureInPictureActive ? "pip.exit" : "pip.enter")
+                    .font(.title3.weight(.semibold))
+                    .contentTransition(.symbolEffect(.replace, options: .speed(2)))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .accessibilityLabel("Picture in Picture")
         }
     }
 

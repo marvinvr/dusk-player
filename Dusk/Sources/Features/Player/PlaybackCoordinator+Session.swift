@@ -140,7 +140,10 @@ extension PlaybackCoordinator {
                     await self?.handlePlaybackEnded()
                 }
             }
+            newEngine.setPictureInPictureDelegate(self)
 
+            isPictureInPictureActive = false
+            pendingPictureInPictureRestoreCompletion = nil
             hasScrobbled = false
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
@@ -307,7 +310,11 @@ extension PlaybackCoordinator {
             }
 
             engine?.onPlaybackEnded = nil
+            engine?.setPictureInPictureDelegate(nil)
             engine?.stop()
+            newEngine.setPictureInPictureDelegate(self)
+            isPictureInPictureActive = false
+            pendingPictureInPictureRestoreCompletion = nil
             engine = newEngine
             playbackSource = PlaybackSource(
                 url: playbackURL,
@@ -436,8 +443,11 @@ extension PlaybackCoordinator {
         cancelUpNextCountdown()
         upNextPresentation = nil
         engine?.onPlaybackEnded = nil
+        engine?.setPictureInPictureDelegate(nil)
         nowPlayingController.endSession()
         engine = nil
+        isPictureInPictureActive = false
+        pendingPictureInPictureRestoreCompletion = nil
         activeItemDetails = nil
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false

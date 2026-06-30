@@ -3,6 +3,9 @@ import CoreMedia
 import OSLog
 import SwiftUI
 import UIKit
+#if os(iOS)
+import AVKit
+#endif
 
 private let avPlayerEngineLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
@@ -10,8 +13,11 @@ private let avPlayerEngineLogger = Logger(
 )
 
 /// Native AVPlayer-based playback engine for MP4/MOV with standard codecs.
+///
+/// Inherits `NSObject` so it can act as its own `AVPictureInPictureControllerDelegate`
+/// (which requires `NSObjectProtocol`), mirroring `VLCKitEngine`.
 @MainActor @Observable
-final class AVPlayerEngine: PlaybackEngine {
+final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - PlaybackEngine State
 
     private(set) var state: PlaybackState = .idle
@@ -40,6 +46,13 @@ final class AVPlayerEngine: PlaybackEngine {
 
     @ObservationIgnored private let player = AVPlayer()
     @ObservationIgnored nonisolated(unsafe) private let playerLayer = AVPlayerLayer()
+    #if os(iOS)
+    private(set) var isPictureInPicturePossible = false
+    private(set) var isPictureInPictureActive = false
+    @ObservationIgnored private var pipController: AVPictureInPictureController?
+    @ObservationIgnored nonisolated(unsafe) private var pipPossibleObserver: NSKeyValueObservation?
+    @ObservationIgnored private weak var pictureInPictureDelegate: (any PlaybackPictureInPictureDelegate)?
+    #endif
     @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored private var enhancedVideoOutput: AVPlayerItemVideoOutput?
@@ -70,16 +83,24 @@ final class AVPlayerEngine: PlaybackEngine {
 
     // MARK: - Init
 
-    init() {
+    override init() {
+        super.init()
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspect
         player.appliesMediaSelectionCriteriaAutomatically = false
         player.automaticallyWaitsToMinimizeStalling = true
         setupKVOObservers()
+        #if os(iOS)
+        refreshPictureInPictureController()
+        #endif
     }
 
     deinit {
         loadValidationTask?.cancel()
+        #if os(iOS)
+        pipPossibleObserver?.invalidate()
+        pipPossibleObserver = nil
+        #endif
         enhancedVideoDisplayLink?.invalidate()
         enhancedVideoDisplayLink = nil
         enhancedVideoDisplayLinkTarget = nil
@@ -150,6 +171,12 @@ final class AVPlayerEngine: PlaybackEngine {
     func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
         videoEnhancementRequest = request
         videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
+        #if os(iOS)
+        // PiP renders from the `AVPlayerLayer`. With Video Enhancement active the
+        // layer is replaced by the Metal view and never enters the hierarchy, so
+        // native PiP is unavailable in that mode.
+        refreshPictureInPictureController()
+        #endif
     }
 
     func play() {
@@ -234,6 +261,58 @@ final class AVPlayerEngine: PlaybackEngine {
         playerLayer.videoGravity = enabled ? .resizeAspectFill : .resizeAspect
         videoEnhancementRenderer?.setVideoFillEnabled(enabled)
     }
+
+    #if os(iOS)
+    // MARK: - Picture in Picture
+
+    func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {
+        pictureInPictureDelegate = delegate
+    }
+
+    func startPictureInPicture() {
+        guard let pipController, pipController.isPictureInPicturePossible else { return }
+        pipController.startPictureInPicture()
+    }
+
+    func stopPictureInPicture() {
+        pipController?.stopPictureInPicture()
+    }
+
+    /// Builds the native `AVPictureInPictureController` from the player layer
+    /// when the layer-backed render path is live, or tears it down when Video
+    /// Enhancement takes over the Metal path (or the device lacks PiP support).
+    private func refreshPictureInPictureController() {
+        let enhancementActive = videoEnhancementRenderer != nil
+        guard !enhancementActive, AVPictureInPictureController.isPictureInPictureSupported() else {
+            teardownPictureInPictureController()
+            return
+        }
+        guard pipController == nil else { return }
+
+        let source = AVPictureInPictureController.ContentSource(playerLayer: playerLayer)
+        let controller = AVPictureInPictureController(contentSource: source)
+        controller.delegate = self
+        pipController = controller
+        pipPossibleObserver = controller.observe(
+            \.isPictureInPicturePossible,
+            options: [.initial, .new]
+        ) { [weak self] controller, _ in
+            let possible = controller.isPictureInPicturePossible
+            Task { @MainActor [weak self] in
+                self?.isPictureInPicturePossible = possible
+            }
+        }
+    }
+
+    private func teardownPictureInPictureController() {
+        pipPossibleObserver?.invalidate()
+        pipPossibleObserver = nil
+        pipController?.delegate = nil
+        pipController = nil
+        isPictureInPicturePossible = false
+        isPictureInPictureActive = false
+    }
+    #endif
 
     func handleReturnToForeground() {
         // Re-attach the player to its layer to restore the GPU rendering pipeline
@@ -598,6 +677,67 @@ final class AVPlayerEngine: PlaybackEngine {
         }
     }
 }
+
+#if os(iOS)
+/// Carries a non-`Sendable` value (an AVKit completion handler) across into a
+/// main-actor closure. Safe here because the handler is created and invoked on
+/// the main thread only.
+private struct UncheckedSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
+}
+
+// AVKit calls these on the main thread; `assumeIsolated` keeps the hops
+// synchronous so the restore handshake stays in order with `didStop`.
+extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
+    nonisolated func pictureInPictureControllerDidStartPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        MainActor.assumeIsolated {
+            isPictureInPictureActive = true
+            pictureInPictureDelegate?.pictureInPictureActiveDidChange(true)
+        }
+    }
+
+    nonisolated func pictureInPictureControllerDidStopPictureInPicture(
+        _ pictureInPictureController: AVPictureInPictureController
+    ) {
+        MainActor.assumeIsolated {
+            isPictureInPictureActive = false
+            pictureInPictureDelegate?.pictureInPictureActiveDidChange(false)
+        }
+    }
+
+    nonisolated func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        restoreUserInterfaceForPictureInPictureStopWithCompletionHandler completionHandler: @escaping (Bool) -> Void
+    ) {
+        // AVKit hands us this handler on the main thread and we only ever call it
+        // on the main thread; box it so it can cross into the main-actor closure
+        // under strict concurrency.
+        let handler = UncheckedSendableBox(completionHandler)
+        MainActor.assumeIsolated {
+            if let pictureInPictureDelegate {
+                pictureInPictureDelegate.pictureInPictureRestorePlayerUI(completion: handler.value)
+            } else {
+                handler.value(true)
+            }
+        }
+    }
+
+    nonisolated func pictureInPictureController(
+        _ pictureInPictureController: AVPictureInPictureController,
+        failedToStartPictureInPictureWithError error: any Error
+    ) {
+        MainActor.assumeIsolated {
+            avPlayerEngineLogger.error(
+                "AVPlayer PiP failed to start: \(error.localizedDescription, privacy: .public)"
+            )
+            isPictureInPictureActive = false
+        }
+    }
+}
+#endif
 
 // MARK: - SwiftUI Bridge
 

@@ -225,6 +225,9 @@ private struct PlayerSessionView: View {
         }
         #endif
         .onAppear {
+            // If we are re-presenting after the user tapped restore on the PiP
+            // window, let the system finish animating the video back into place.
+            playback.notePlayerUIDidAppear()
             viewModel.configureAutomaticTrackSelection(
                 preferences: preferences,
                 part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first,

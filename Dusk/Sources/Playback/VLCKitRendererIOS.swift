@@ -19,6 +19,15 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
     private var seekHandler: ((Int64, @escaping () -> Void) -> Void)?
     private var aspectFillEnabled = false
 
+    /// VLCKit vends the window controller asynchronously once its native PiP
+    /// pipeline is ready; until then PiP cannot be started.
+    var isPictureInPictureReady: Bool { pictureInPictureController != nil }
+    /// Fires when `isPictureInPictureReady` flips so the engine can republish an
+    /// observable "PiP possible" flag for the button.
+    var onPictureInPictureReadyChanged: (@MainActor () -> Void)?
+    /// Fires when the floating window starts (`true`) or stops (`false`).
+    var onPictureInPictureActiveChanged: (@MainActor (Bool) -> Void)?
+
     @MainActor
     override init() {
         let container = IOSVLCPictureInPictureContainerView()
@@ -73,6 +82,9 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
         playHandler = nil
         pauseHandler = nil
         seekHandler = nil
+        // The window controller is only vended after playback starts, so it is
+        // already nil here (detach runs on video-enhancement enable or deinit).
+        // Readiness changes are reported from `pictureInPictureReady` instead.
         pictureInPictureController = nil
     }
 
@@ -90,6 +102,14 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
 
     func invalidatePlaybackState() {
         pictureInPictureController?.invalidatePlaybackState()
+    }
+
+    func startPictureInPicture() {
+        pictureInPictureController?.startPictureInPicture()
+    }
+
+    func stopPictureInPicture() {
+        pictureInPictureController?.stopPictureInPicture()
     }
 
     func setVideoFillEnabled(_ enabled: Bool) {
@@ -140,10 +160,36 @@ final class IOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Se
 
     func pictureInPictureReady() -> (((any VLCPictureInPictureWindowControlling)?) -> Void)? {
         { [weak self] controller in
-            guard let self, let controller else { return }
+            guard let self else { return }
+
+            // The window controller is not `Sendable`, so keep it inside this
+            // nonisolated closure (VLCKit invokes it on the main thread, like the
+            // other VLCDrawable callbacks) and only hop the Sendable readiness/
+            // state notifications onto the main actor.
+            guard let controller else {
+                self.pictureInPictureController = nil
+                self.notifyPictureInPictureReadyChanged()
+                return
+            }
 
             self.pictureInPictureController = controller
             controller.invalidatePlaybackState()
+            controller.stateChangeEventHandler = { [weak self] isStarted in
+                self?.notifyPictureInPictureActiveChanged(isStarted)
+            }
+            self.notifyPictureInPictureReadyChanged()
+        }
+    }
+
+    private func notifyPictureInPictureReadyChanged() {
+        MainActor.assumeIsolated {
+            onPictureInPictureReadyChanged?()
+        }
+    }
+
+    private func notifyPictureInPictureActiveChanged(_ isActive: Bool) {
+        MainActor.assumeIsolated {
+            onPictureInPictureActiveChanged?(isActive)
         }
     }
 

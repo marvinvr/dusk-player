@@ -22,6 +22,20 @@ struct PlaybackEngineDiagnostic: Sendable, Identifiable {
     var id: String { label }
 }
 
+/// Receives Picture in Picture lifecycle events from a `PlaybackEngine` so the
+/// owner (the coordinator) can keep the session alive while the floating window
+/// is shown and restore the player UI when the user returns from it.
+@MainActor
+protocol PlaybackPictureInPictureDelegate: AnyObject {
+    /// The floating window started (`true`) or stopped (`false`).
+    func pictureInPictureActiveDidChange(_ isActive: Bool)
+
+    /// The user asked to return to the full app UI from the PiP window. Call
+    /// `completion(true)` once the player UI is back on screen so the system can
+    /// animate the video back into place.
+    func pictureInPictureRestorePlayerUI(completion: @escaping (Bool) -> Void)
+}
+
 /// Unified interface for media playback. Concrete implementations wrap
 /// AVPlayer (`AVPlayerEngine`) or VLCKit (`VLCKitEngine`).
 ///
@@ -76,11 +90,35 @@ protocol PlaybackEngine: AnyObject {
     /// Returns a platform-specific view that renders the video content.
     func makePlayerView() -> AnyView
 
+    // MARK: - Picture in Picture
+
+    /// Whether Picture in Picture can be started right now: the device supports
+    /// it, the engine renders to a native layer (not the Metal enhancement
+    /// path), and the system controller is ready. iOS only.
+    var isPictureInPicturePossible: Bool { get }
+
+    /// Whether a Picture in Picture window is currently active.
+    var isPictureInPictureActive: Bool { get }
+
+    /// Routes PiP lifecycle events back to the owner. Held weakly.
+    func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?)
+
+    func startPictureInPicture()
+    func stopPictureInPicture()
+
 }
 
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
+
+    // Picture in Picture is iOS-only and opt-in per engine; tvOS engines and
+    // the Metal video-enhancement render path fall back to these no-ops.
+    var isPictureInPicturePossible: Bool { false }
+    var isPictureInPictureActive: Bool { false }
+    func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {}
+    func startPictureInPicture() {}
+    func stopPictureInPicture() {}
 }
 
 @MainActor
