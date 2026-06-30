@@ -780,23 +780,31 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             outputs.compactMap { $0.channels?.count }.max() ?? 0
         )
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
+        #if os(tvOS)
+        // tvOS drives true multichannel output to the connected receiver over
+        // HDMI/eARC, so pick the richest surround layout the route can render.
         let desiredMixMode = desiredAudioMixMode(forChannelCount: selectedChannels)
-        // Only request a surround mix the active output route can actually
-        // render. Forcing 5.1/7.1 onto a stereo route (the iPhone speaker or
-        // stereo wired/Bluetooth headphones) makes VLCKit stall audio output a
-        // few seconds into playback while video keeps going — most visible on
-        // TrueHD/Atmos tracks, which default to 7.1. Step down to the richest
-        // layout the route supports, otherwise downmix to stereo.
         let targetMixMode = audioMixMode(
             forDesired: desiredMixMode,
             maximumOutputChannelCount: maximumOutputChannelCount
         )
         let preferredOutputChannels = preferredOutputChannelCount(for: targetMixMode)
-        // We only need multichannel session support when we are actually sending
-        // a surround mix. Opting in for a stereo downmix invites the system to
-        // engage AirPods/Bluetooth spatialization for our content, which keeps
-        // renegotiating and feeds the dropout loop below.
         let wantsMultichannelOutput = preferredOutputChannels != nil
+        #else
+        // iOS/iPadOS: the output route is effectively stereo — built-in speaker,
+        // wired, or Bluetooth/AirPods. Deliberately do NOT drive surround mix
+        // modes, preferred output channel counts, or multichannel session
+        // content here. Each of those restarts VLCKit's audio output, and
+        // Bluetooth routes renegotiate spatial/rendering capabilities
+        // constantly, which churned the output and stuttered the sound in and
+        // out (worst on AirPods). Leave the mix mode unset and let VLCKit downmix
+        // to the active route on its own; the rare multichannel-capable iOS route
+        // (AirPlay / USB to a receiver) is handled by that same downmix path.
+        // Surround is owned by the system audio session here, not forced by us.
+        let targetMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
+        let preferredOutputChannels: Int? = nil
+        let wantsMultichannelOutput = false
+        #endif
 
         // Idempotency guard. Bluetooth routes — AirPods especially — emit a
         // stream of route/spatial/rendering notifications during playback, and
@@ -815,7 +823,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         ].joined(separator: "|")
 
         if signature != lastAppliedAudioConfigSignature {
-            if #available(iOS 15.0, tvOS 15.0, *) {
+            #if os(tvOS)
+            if #available(tvOS 15.0, *) {
                 do {
                     try session.setSupportsMultichannelContent(wantsMultichannelOutput)
                 } catch {
@@ -836,6 +845,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                     )
                 }
             }
+            #endif
 
             if mediaPlayer.audio?.passthrough != false {
                 mediaPlayer.audio?.passthrough = false
@@ -899,6 +909,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             ?? mediaPlayer.audioTracks.first
     }
 
+    #if os(tvOS)
     private func desiredAudioMixMode(forChannelCount channels: Int?) -> VLCMediaPlayer.AudioMixMode {
         guard let channels else { return .modeUnset }
 
@@ -916,11 +927,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     /// Clamp a desired surround mix mode to what the current output route can
-    /// render. Requesting a layout with more channels than the route supports
-    /// (e.g. 7.1 on a 2-channel iPhone speaker) makes VLCKit stall audio a few
-    /// seconds into playback while video continues. Stereo/binaural/unset modes
-    /// pass through untouched; surround modes step down to the largest layout
-    /// that fits, falling back to an explicit stereo downmix.
+    /// render (tvOS only — iOS does not drive surround). Requesting a layout with
+    /// more channels than the receiver supports (e.g. a 7.1 source to a 5.1
+    /// receiver) can stall the audio output, so stereo/binaural/unset modes pass
+    /// through untouched while surround modes step down to the largest layout that
+    /// fits, falling back to an explicit stereo downmix.
     private func audioMixMode(
         forDesired desired: VLCMediaPlayer.AudioMixMode,
         maximumOutputChannelCount: Int
@@ -959,6 +970,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             nil
         }
     }
+    #endif
 
     private func audioMixModeLabel(_ mode: VLCMediaPlayer.AudioMixMode) -> String {
         switch mode {

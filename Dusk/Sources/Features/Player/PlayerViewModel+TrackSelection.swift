@@ -10,7 +10,6 @@ extension PlayerViewModel {
 
     func selectAudio(_ track: AudioTrack) {
         hasAppliedAutomaticAudioSelection = true
-        hasUserSelectedAudioTrack = true
         engine.selectAudioTrack(track)
         selectedAudioTrackID = track.id
         showAudioPicker = false
@@ -33,8 +32,6 @@ extension PlayerViewModel {
             }
             hasAppliedAutomaticAudioSelection = true
         }
-
-        enforceReliableAudioTrackIfNeeded()
 
         if !hasAppliedAutomaticSubtitleSelection, !subtitleTracks.isEmpty {
             let preferredSubtitleTrack = preferredSubtitleTrack()
@@ -65,54 +62,6 @@ extension PlayerViewModel {
             }
             .first?
             .element
-    }
-
-    /// Steer playback off an audio track the active engine can't render
-    /// reliably, onto a compatible companion track when the source ships one.
-    ///
-    /// VLCKit's iOS software decode + downmix path for Dolby TrueHD / MLP (the
-    /// lossless bed under Atmos on BluRay remuxes) delivers samples late under
-    /// load, so the audio output repeatedly underruns: it plays for a few
-    /// seconds, cuts out, recovers, and cuts out again. Such remuxes almost
-    /// always carry a lossy AC3/E-AC3 companion track that VLCKit renders
-    /// cleanly, and since Dusk keeps passthrough off (the surround mix is always
-    /// decoded and downmixed locally) the companion is sonically equivalent on a
-    /// phone. Prefer it.
-    ///
-    /// Runs on every engine sync rather than once so a companion track that VLC
-    /// reports a beat after the unreliable one is still honored. It never
-    /// overrides an explicit user choice, and it leaves the unreliable track in
-    /// place when it is the only audio track (nothing better to switch to).
-    func enforceReliableAudioTrackIfNeeded() {
-        guard hasConfiguredAutomaticTrackSelection, !hasUserSelectedAudioTrack else { return }
-        guard let current = currentlySelectedAudioTrack(),
-              Self.isUnreliableDirectPlaybackAudioCodec(current) else { return }
-
-        let reliableAlternative = audioTracks.enumerated()
-            .filter { !Self.isUnreliableDirectPlaybackAudioCodec($0.element) }
-            .sorted { lhs, rhs in
-                let lhsScore = audioSelectionScore(for: lhs.element, originalIndex: lhs.offset)
-                let rhsScore = audioSelectionScore(for: rhs.element, originalIndex: rhs.offset)
-                if lhsScore != rhsScore {
-                    return lhsScore > rhsScore
-                }
-                return lhs.offset < rhs.offset
-            }
-            .first?
-            .element
-
-        guard let reliableAlternative else { return }
-
-        engine.selectAudioTrack(reliableAlternative)
-        selectedAudioTrackID = reliableAlternative.id
-    }
-
-    func currentlySelectedAudioTrack() -> AudioTrack? {
-        if let selectedAudioTrackID,
-           let track = audioTracks.first(where: { $0.id == selectedAudioTrackID }) {
-            return track
-        }
-        return audioTracks.first
     }
 
     func preferredSubtitleTrack() -> SubtitleTrack? {
@@ -350,13 +299,6 @@ extension PlayerViewModel {
             score -= 40
         }
 
-        // Rank a codec the active engine can't render reliably (iOS VLCKit
-        // TrueHD/Atmos) below anything it can, while still leaving it selectable
-        // when it is the only track. See enforceReliableAudioTrackIfNeeded.
-        if Self.isUnreliableDirectPlaybackAudioCodec(track) {
-            score -= 5_000
-        }
-
         return score - originalIndex
     }
 
@@ -489,30 +431,6 @@ extension PlayerViewModel {
         return normalized.contains("stereo")
             || normalized.contains("downmix")
             || normalized.contains("2 0")
-    }
-
-    /// Whether the active engine can render this audio codec reliably for
-    /// direct playback. On iOS, VLCKit's software TrueHD/MLP decode + downmix
-    /// path starves the audio output under load and cuts in and out, so it is
-    /// treated as unreliable; every other codec we direct-play is fine. AVPlayer
-    /// never sees TrueHD (StreamResolver routes it to VLCKit), so a platform
-    /// check is sufficient without inspecting the engine type. tvOS is excluded:
-    /// it has not shown the issue and Apple TV is often wired to receivers that
-    /// genuinely want the surround track.
-    static func isUnreliableDirectPlaybackAudioCodec(_ track: AudioTrack) -> Bool {
-        #if os(iOS)
-        let normalized = [
-            track.codec,
-            track.displayTitle,
-            track.channelLayout,
-        ]
-        .compactMap { normalizedTitle($0) }
-        .joined(separator: " ")
-
-        return normalized.contains("truehd") || normalized.contains("mlp")
-        #else
-        return false
-        #endif
     }
 
     static func audioCodecPreferenceScore(for track: AudioTrack) -> Int {
