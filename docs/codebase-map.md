@@ -34,6 +34,8 @@ SwiftUI environment:
 - `DownloadManager`
 - `OfflinePlaybackSyncManager`
 - `UserPreferences`
+- `TopShelfCoordinator` (tvOS only; mirrors Continue Watching into the Apple TV
+  Top Shelf and routes its `dusk://` deep links — see `Dusk/TopShelf/`)
 
 `ContentView` gates the app by auth/connection state:
 

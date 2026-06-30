@@ -50,6 +50,9 @@ targets:
     platform: tvOS
     sources:
       - path: Dusk/Sources
+      - path: Dusk/TopShelf/TopShelfSnapshot.swift
+      - path: Dusk/TopShelf/TopShelfDeepLink.swift
+      - path: Dusk/TopShelf/TopShelfCoordinator.swift
       - path: Dusk/Resources
         buildPhase: resources
         excludes:
@@ -60,12 +63,8 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
         PRODUCT_NAME: Dusk
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
-        INFOPLIST_KEY_UILaunchScreen_UIColorName: LaunchBackground
-        INFOPLIST_KEY_UILaunchScreen_UIImageName: LaunchLogo
-        INFOPLIST_KEY_UILaunchScreen_UIImageRespectsSafeAreaInsets: false
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Dusk/Support/Info-tvOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconTV
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
@@ -75,6 +74,33 @@ targets:
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
+    entitlements:
+      path: Dusk/Support/Dusk-tvOS.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.dusk-player.app
     dependencies:
       - framework: Frameworks/VLCKit-tvOS.xcframework
         embed: true
+      - target: DuskTopShelf
+        embed: true
+
+  DuskTopShelf:
+    type: app-extension
+    platform: tvOS
+    sources:
+      - path: Dusk/TopShelf/TopShelfSnapshot.swift
+      - path: Dusk/TopShelf/TopShelfContentProvider.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app.topshelf
+        PRODUCT_NAME: DuskTopShelf
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Dusk/Support/Info-TopShelf.plist
+        DEVELOPMENT_TEAM: ""
+        SWIFT_STRICT_CONCURRENCY: complete
+    entitlements:
+      path: Dusk/Support/DuskTopShelf.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.com.dusk-player.app

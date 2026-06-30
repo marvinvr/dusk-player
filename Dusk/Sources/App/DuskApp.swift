@@ -87,6 +87,9 @@ struct DuskApp: App {
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
     @State private var userPreferences = UserPreferences()
+    #if os(tvOS)
+    @State private var topShelfCoordinator: TopShelfCoordinator
+    #endif
 
     init() {
         AppImageCache.configureSharedCache()
@@ -104,6 +107,9 @@ struct DuskApp: App {
             offlinePlaybackSyncManager: playbackSync
         ))
         _userPreferences = State(initialValue: prefs)
+        #if os(tvOS)
+        _topShelfCoordinator = State(initialValue: TopShelfCoordinator(plexService: service))
+        #endif
         #if os(iOS)
         Self.configurePlaybackAudioSession()
         Self.configureTabBarAppearance()
@@ -118,12 +124,19 @@ struct DuskApp: App {
                 .environment(downloadManager)
                 .environment(offlinePlaybackSyncManager)
                 .environment(userPreferences)
+                #if os(tvOS)
+                .environment(topShelfCoordinator)
+                #endif
                 .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
                 .tint(Color.duskAccent)
                 .task {
                     PlaybackEngineFactory.prewarmIfNeeded()
                     offlinePlaybackSyncManager.startAutomaticSync()
                     await offlinePlaybackSyncManager.syncPendingActions(force: true)
+                    #if os(tvOS)
+                    TopShelfCoordinator.scheduleAppRefresh()
+                    await topShelfCoordinator.refresh()
+                    #endif
                 }
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
@@ -131,14 +144,27 @@ struct DuskApp: App {
                         Task {
                             await offlinePlaybackSyncManager.syncPendingActions(force: true)
                         }
+                        #if os(tvOS)
+                        Task { await topShelfCoordinator.refresh() }
+                        #endif
                     } else {
                         offlinePlaybackSyncManager.stopAutomaticSync()
+                        #if os(tvOS)
+                        if newPhase == .background {
+                            TopShelfCoordinator.scheduleAppRefresh()
+                        }
+                        #endif
                     }
                 }
                 .onChange(of: userPreferences.downloadsWifiOnly) {
                     downloadManager.evaluateNetworkConstraints()
                 }
         }
+        #if os(tvOS)
+        .backgroundTask(.appRefresh(TopShelfCoordinator.backgroundRefreshIdentifier)) {
+            await TopShelfCoordinator.performBackgroundRefresh()
+        }
+        #endif
     }
 }
 

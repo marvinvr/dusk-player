@@ -195,6 +195,20 @@ extension PlexItem {
             return banner ?? art ?? thumb ?? parentThumb ?? grandparentArt ?? grandparentThumb
         }
     }
+
+    /// Best available 16:9 image path for the tvOS Top Shelf "Continue Watching"
+    /// shelf. Prefers episode stills and movie backdrops (true 16:9) over wide
+    /// banners so cards fill the `.hdtv` shape cleanly.
+    var topShelfImagePath: String? {
+        switch type {
+        case .episode:
+            return thumb ?? grandparentArt ?? art ?? grandparentThumb ?? parentThumb
+        case .season:
+            return art ?? thumb ?? parentThumb ?? banner
+        default:
+            return art ?? thumb ?? banner ?? grandparentArt
+        }
+    }
 }
 
 // MARK: - Nested tag types

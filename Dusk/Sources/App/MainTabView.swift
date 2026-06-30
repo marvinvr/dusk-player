@@ -5,6 +5,9 @@ struct MainTabView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
+    #if os(tvOS)
+    @Environment(TopShelfCoordinator.self) private var topShelfCoordinator
+    #endif
     @State private var selectedTab: MainTabItem = .home
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
@@ -30,8 +33,17 @@ struct MainTabView: View {
                     selectedTab = .home
                 }
             }
+            #if os(tvOS)
+            .task { consumePendingTopShelfDeepLink() }
+            .onChange(of: topShelfCoordinator.pendingPlayRatingKey) { _, _ in
+                consumePendingTopShelfDeepLink()
+            }
+            #endif
             .fullScreenCover(isPresented: $bindablePlayback.showPlayer, onDismiss: {
                 playback.onPlayerDismissed()
+                #if os(tvOS)
+                Task { await topShelfCoordinator.refresh(force: true) }
+                #endif
             }) {
                 PlayerView()
                     .environment(plexService)
@@ -179,4 +191,15 @@ struct MainTabView: View {
             $showsPath
         }
     }
+
+    #if os(tvOS)
+    /// Resumes a Continue Watching item selected from the tvOS Top Shelf. Runs
+    /// once the tab shell is on screen (i.e. authenticated and connected), so a
+    /// cold launch from the Home screen lands here after the server connects.
+    private func consumePendingTopShelfDeepLink() {
+        guard let ratingKey = topShelfCoordinator.consumePendingPlayRatingKey() else { return }
+        selectedTab = .home
+        Task { await playback.play(ratingKey: ratingKey) }
+    }
+    #endif
 }
