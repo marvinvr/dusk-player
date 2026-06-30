@@ -40,8 +40,5 @@ processes:
     cwd: .
     autostart: false
 
-# Linked projects: sibling dirs (e.g. extra clones) shown alongside this one,
-# each its own sidebar group. One level deep, de-duplicated by path.
 linked-projects:
   - ../dusk-player2
-  - ../dusk-player3
