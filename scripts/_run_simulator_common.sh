@@ -79,6 +79,8 @@ build_tvos_app() {
     -configuration Debug \
     -destination "id=$device_uuid" \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    ARCHS=arm64 \
+    ONLY_ACTIVE_ARCH=YES \
     build
 }
 
@@ -101,6 +103,8 @@ check_tvos_build() {
     -configuration Debug \
     -destination 'generic/platform=tvOS Simulator' \
     -derivedDataPath "$DERIVED_DATA_PATH" \
+    ARCHS=arm64 \
+    ONLY_ACTIVE_ARCH=YES \
     build
 }
 
