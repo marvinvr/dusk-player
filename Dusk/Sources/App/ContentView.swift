@@ -4,9 +4,6 @@ import SwiftUI
 /// based on PlexService auth/connection state.
 struct ContentView: View {
     @Environment(PlexService.self) private var plexService
-    #if os(tvOS)
-    @Environment(TopShelfCoordinator.self) private var topShelfCoordinator
-    #endif
     @State private var discoveredServers: [PlexServer]?
     @State private var connectError: String?
     @State private var refreshedConnectionIdentifier: String?
@@ -38,19 +35,6 @@ struct ContentView: View {
         .task(id: plexService.currentServerIdentifier) {
             await refreshConnectedServerIfNeeded()
         }
-        #if os(tvOS)
-        .onOpenURL { topShelfCoordinator.handleOpenURL($0) }
-        .onChange(of: plexService.isConnected) { _, isConnected in
-            if isConnected {
-                Task { await topShelfCoordinator.refresh() }
-            }
-        }
-        .onChange(of: plexService.isAuthenticated) { _, isAuthenticated in
-            if !isAuthenticated {
-                topShelfCoordinator.handleSignOut()
-            }
-        }
-        #endif
     }
 
     private var connectionRefreshView: some View {

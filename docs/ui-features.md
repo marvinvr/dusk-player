@@ -151,47 +151,6 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid.
 
-## tvOS Top Shelf (Continue Watching)
-
-- tvOS-only. Surfaces Continue Watching in the Apple TV Home-screen top shelf so a show
-  can be resumed directly from the Home screen (the rich top-row presentation when Dusk
-  sits in the top row). All code lives in `Dusk/TopShelf/`.
-- **Snapshot architecture.** The extension runs in its own sandbox and never talks to
-  Plex. The app writes a `TopShelfSnapshot` (JSON) into the shared App Group container
-  (`group.com.dusk-player.app`, see `TopShelfSharedContainer`/`TopShelfSnapshotStore`);
-  the `DuskTopShelf` extension's `TopShelfContentProvider` (a `TVTopShelfContentProvider`)
-  reads it and renders `TVTopShelfSectionedContent` (one "Continue Watching" section of
-  `.hdtv` items with `playbackProgress`). Keep the extension dependency-free — it compiles
-  only `TopShelfSnapshot.swift` plus its provider, no networking or auth.
-- **`TopShelfCoordinator`** (tvOS app, `@Observable`, environment-injected by `DuskApp`)
-  owns the whole integration: it builds/writes the snapshot, calls
-  `TVTopShelfContentProvider.topShelfContentDidChange()` after every write, and routes the
-  deep link. Snapshot entries are precomputed (no work in the extension): a
-  self-authenticating image URL via `PlexService.externalImageURL(...)` (token embedded in
-  the query so the system can fetch without headers; 16:9 `PlexItem.topShelfImagePath`) and
-  a ready `dusk://` action URL.
-- **Freshness.** Refresh is debounced (`refresh(force:)`) and runs on connect + scene
-  activation (`ContentView`/`DuskApp`), forced on player dismissal (`MainTabView`), and
-  periodically in the background via a `BGAppRefreshTask`
-  (`TopShelfCoordinator.backgroundRefreshIdentifier`, scheduled on launch + backgrounding,
-  handled by `.backgroundTask(.appRefresh:)` in `DuskApp` using a fresh `PlexService`).
-  Transient fetch errors keep the previous snapshot; sign-out clears it (`handleSignOut`).
-- **Deep links.** `TopShelfDeepLink` builds/parses `dusk://play?ratingKey=&type=`. Selecting
-  a top-shelf item opens that URL → `ContentView.onOpenURL` hands it to the coordinator,
-  which stores `pendingPlayRatingKey`; `MainTabView` consumes it once the tab shell is on
-  screen (so a cold launch resumes after the server connects) and calls
-  `playback.play(...)`. Both the item's display and play actions resume, so a single click
-  starts the show.
-- **Project wiring traps.** Three identifiers must stay in sync: the App Group
-  (`group.com.dusk-player.app`) on both the `Dusk-tvOS` app and `DuskTopShelf` extension
-  entitlements; the BG task id in `Info-tvOS.plist` `BGTaskSchedulerPermittedIdentifiers`
-  vs `backgroundRefreshIdentifier`; and `Info-TopShelf.plist`'s
-  `NSExtensionPrincipalClass` (`$(PRODUCT_MODULE_NAME).TopShelfContentProvider`, point
-  `com.apple.tv-top-shelf`). The tvOS app uses an explicit `Info-tvOS.plist` (it registers
-  the `dusk` URL scheme and `fetch` background mode), so it sets
-  `GENERATE_INFOPLIST_FILE: false`. Device/release builds need the App Groups capability
-  enabled for both bundle ids in the developer account.
-
 ## Libraries
 
 - `LibrariesViewModel` loads Plex libraries once and groups by `PlexLibraryType`.

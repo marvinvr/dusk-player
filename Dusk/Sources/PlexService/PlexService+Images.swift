@@ -16,32 +16,6 @@ extension PlexService {
         return directImageURL(for: path)
     }
 
-    /// Builds a fully self-authenticating image URL (Plex token embedded in the
-    /// query string) suitable for an out-of-process consumer such as the tvOS
-    /// Top Shelf extension, which fetches images itself and cannot attach Plex
-    /// auth headers. Prefers a server-side resized transcode and falls back to
-    /// the direct image path.
-    func externalImageURL(for path: String?, width: Int, height: Int? = nil) -> URL? {
-        guard let path else { return nil }
-
-        let size = ImageRequestSize(width: max(width, 1), height: height)
-        guard let baseURL = transcodedImageURL(for: path, size: size) ?? directImageURL(for: path) else {
-            return nil
-        }
-
-        guard let token = preferredServerToken,
-              var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else {
-            return baseURL
-        }
-
-        var items = components.queryItems ?? []
-        if !items.contains(where: { $0.name.caseInsensitiveCompare("X-Plex-Token") == .orderedSame }) {
-            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
-            components.queryItems = items
-        }
-        return components.url ?? baseURL
-    }
-
     func directImageURL(for path: String) -> URL? {
         guard let urlString = imageRequestURLString(for: path, includeToken: false) else {
             return nil
