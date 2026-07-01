@@ -93,7 +93,13 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `source.startPosition`, and begin playback when ready.
 - `stop()` should release observers/media and leave a reusable stopped state.
 - Track IDs are engine-local. `PlayerViewModel` maps engine tracks to Plex
-  stream metadata before presenting them.
+  stream metadata before presenting them. VLCKit 4 identifies player tracks by a
+  stable string `trackId`; the inherited int `identifier` is NOT a reliable
+  selector, so `VLCKitEngine` mints a stable Int model id per `trackId` and
+  matches on `trackId` for selection. Matching on the int `identifier` silently
+  selected the wrong track, so switching audio/subtitle never took effect — the
+  decoder stayed on the file's default (e.g. a heavy TrueHD track), which was the
+  real cause of "picked AC3 but it still plays 8-channel TrueHD" stutter.
 - Picture in Picture is optional, observable engine state: `isPictureInPicturePossible`,
   `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
   `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything

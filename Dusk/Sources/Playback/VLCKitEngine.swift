@@ -123,6 +123,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var currentSource: PlaybackSource?
     private var lastAppliedAudioMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
     private var lastAppliedAudioConfigSignature: String?
+    // VLCKit 4 identifies player tracks by a stable string `trackId`. The int
+    // `identifier` inherited from `VLCMediaTrack` is not a reliable selector for
+    // player tracks, so matching on it silently selected the wrong track and
+    // switching audio/subtitle tracks never took effect. Map each `trackId` to a
+    // stable unique Int for the `AudioTrack`/`SubtitleTrack` models, and back to
+    // the `trackId` for selection. Shared across audio/subtitle (trackIds are
+    // unique per type, e.g. "audio/0" vs "spu/0").
+    private var trackIDsByModelID: [Int: String] = [:]
+    private var modelIDsByTrackID: [String: Int] = [:]
+    private var nextTrackModelID = 1
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var seekVerificationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
@@ -187,6 +197,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         playbackDiagnostics = []
         lastAppliedAudioMixMode = .modeUnset
         lastAppliedAudioConfigSignature = nil
+        trackIDsByModelID = [:]
+        modelIDsByTrackID = [:]
+        nextTrackModelID = 1
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
@@ -410,16 +423,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             return
         }
 
-        mediaPlayer.textTracks
-            .first { Int($0.identifier) == track.id }?
-            .isSelectedExclusively = true
+        if let trackID = trackIDsByModelID[track.id],
+           let vlcTrack = mediaPlayer.textTracks.first(where: { $0.trackId == trackID }) {
+            vlcTrack.isSelectedExclusively = true
+        }
         selectedSubtitleTrackID = track.id
     }
 
     func selectAudioTrack(_ track: AudioTrack) {
-        mediaPlayer.audioTracks
-            .first { Int($0.identifier) == track.id }?
-            .isSelectedExclusively = true
+        if let trackID = trackIDsByModelID[track.id],
+           let vlcTrack = mediaPlayer.audioTracks.first(where: { $0.trackId == trackID }) {
+            vlcTrack.isSelectedExclusively = true
+        }
         selectedAudioTrackID = track.id
         configureAudioOutputPolicy(reason: "audio-track-selected")
     }
@@ -723,7 +738,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func refreshTracks() {
         availableAudioTracks = mediaPlayer.audioTracks.map { track in
             AudioTrack(
-                id: Int(track.identifier),
+                id: modelID(forTrackID: track.trackId),
                 displayTitle: trackDisplayTitle(for: track),
                 language: track.language,
                 languageCode: normalizedLanguageCode(from: track.language),
@@ -732,12 +747,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 channelLayout: nil
             )
         }
-        selectedAudioTrackID = mediaPlayer.audioTracks.first(where: \.isSelected).map { Int($0.identifier) }
+        selectedAudioTrackID = mediaPlayer.audioTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
         configureAudioOutputPolicy(reason: "tracks-refreshed")
 
         availableSubtitleTracks = mediaPlayer.textTracks.map { track in
             SubtitleTrack(
-                id: Int(track.identifier),
+                id: modelID(forTrackID: track.trackId),
                 displayTitle: trackDisplayTitle(for: track),
                 language: track.language,
                 languageCode: normalizedLanguageCode(from: track.language),
@@ -748,7 +763,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 externalURL: nil
             )
         }
-        selectedSubtitleTrackID = mediaPlayer.textTracks.first(where: \.isSelected).map { Int($0.identifier) }
+        selectedSubtitleTrackID = mediaPlayer.textTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
     }
 
     private func trackDisplayTitle(for track: VLCMediaPlayer.Track) -> String {
@@ -906,12 +921,27 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     private func selectedVLCTrack() -> VLCMediaPlayer.Track? {
         if let selectedAudioTrackID,
-           let track = mediaPlayer.audioTracks.first(where: { Int($0.identifier) == selectedAudioTrackID }) {
+           let trackID = trackIDsByModelID[selectedAudioTrackID],
+           let track = mediaPlayer.audioTracks.first(where: { $0.trackId == trackID }) {
             return track
         }
 
         return mediaPlayer.audioTracks.first(where: \.isSelected)
             ?? mediaPlayer.audioTracks.first
+    }
+
+    /// Returns a stable, unique model Int for a VLCKit `trackId`, minting one on
+    /// first sight. `trackIDsByModelID` maps back so selection targets the exact
+    /// VLCKit track. Reset per media load.
+    private func modelID(forTrackID trackID: String) -> Int {
+        if let existing = modelIDsByTrackID[trackID] {
+            return existing
+        }
+        let id = nextTrackModelID
+        nextTrackModelID += 1
+        modelIDsByTrackID[trackID] = id
+        trackIDsByModelID[id] = trackID
+        return id
     }
 
     #if os(tvOS)
