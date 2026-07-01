@@ -39,6 +39,3 @@ processes:
     args: []
     cwd: .
     autostart: false
-
-linked-projects:
-  - ../dusk-player2
