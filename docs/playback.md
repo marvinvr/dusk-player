@@ -143,6 +143,16 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   did not help and were reverted, because the fault was the output churn — not the
   codec or the requested layout. Playback Info still exposes the selected VLC
   audio track, mix mode, passthrough state, route, and channel counts.
+- The AVAudioSession *mode* is engine-owned via `PlaybackEngine.prefersSpatializedAudioSession`
+  (iOS, read by `PlaybackNowPlayingController`). AVPlayer keeps `.moviePlayback`,
+  which lets iOS spatialize audio for AirPods and which AVPlayer feeds natively.
+  VLCKit returns `false`: its raw audio output does not feed that spatializer
+  cleanly, so on a Bluetooth route the audio kept underrunning and stuttering
+  (worse with AirPods spatial audio; a pause/resume reset it until the next
+  underrun). VLCKit therefore gets a plain `.default` session with no multichannel
+  content and a slightly larger preferred IO buffer for slack against the jittery
+  Bluetooth clock. This is separate from `configureAudioOutputPolicy` above, which
+  governs the VLC player's own mix, not the session's signal processing.
 - Video Enhancement is engine-owned and both engines must expose aligned status
   through `videoEnhancementStatus`; see the dedicated section below.
 - Both engines perform preflight direct-play validation via

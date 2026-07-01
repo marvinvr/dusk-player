@@ -105,11 +105,22 @@ final class PlaybackNowPlayingController {
 private extension PlaybackNowPlayingController {
     func configureAndActivateAudioSession() {
         let session = AVAudioSession.sharedInstance()
+        let wantsSpatializedAudio = engine?.prefersSpatializedAudioSession ?? true
 
         do {
-            try session.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
+            // VLCKit's raw audio output stutters when iOS spatializes it for a
+            // Bluetooth route (AirPods), so it asks for a plain `.default`
+            // session with no movie signal processing or multichannel content.
+            // AVPlayer keeps `.moviePlayback`, which it feeds natively.
+            let mode: AVAudioSession.Mode = wantsSpatializedAudio ? .moviePlayback : .default
+            try session.setCategory(.playback, mode: mode, policy: .longFormVideo)
             if #available(iOS 15.0, *) {
-                try session.setSupportsMultichannelContent(true)
+                try session.setSupportsMultichannelContent(wantsSpatializedAudio)
+            }
+            if !wantsSpatializedAudio {
+                // Give the output more slack against the higher-latency, jittery
+                // Bluetooth clock so a brief scheduling hiccup does not underrun.
+                try? session.setPreferredIOBufferDuration(0.03)
             }
             try session.setActive(true)
             isAudioSessionActive = true

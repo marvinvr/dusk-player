@@ -85,6 +85,15 @@ protocol PlaybackEngine: AnyObject {
     func selectSubtitleTrack(_ track: SubtitleTrack?)
     func selectAudioTrack(_ track: AudioTrack)
 
+    // MARK: - Audio session
+
+    /// Whether this engine wants the rich `.moviePlayback` audio session, which
+    /// lets iOS spatialize audio for AirPods. AVPlayer feeds that spatializer
+    /// natively and smoothly; VLCKit's raw audio output does not, and on a
+    /// Bluetooth route it underruns and stutters, so it opts out for a plain,
+    /// unprocessed session. iOS only — consumed by `PlaybackNowPlayingController`.
+    var prefersSpatializedAudioSession: Bool { get }
+
     // MARK: - Rendering
 
     /// Returns a platform-specific view that renders the video content.
@@ -111,6 +120,9 @@ protocol PlaybackEngine: AnyObject {
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
+
+    // Default: keep the rich movie-playback session. Only VLCKit opts out.
+    var prefersSpatializedAudioSession: Bool { true }
 
     // Picture in Picture is iOS-only and opt-in per engine; tvOS engines and
     // the Metal video-enhancement render path fall back to these no-ops.

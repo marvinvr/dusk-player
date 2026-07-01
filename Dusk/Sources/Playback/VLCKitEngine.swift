@@ -98,6 +98,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
     var onPlaybackEnded: (@MainActor () -> Void)?
 
+    // VLCKit feeds iOS a raw audio stream that the `.moviePlayback` spatializer
+    // keeps re-negotiating on a Bluetooth route, underrunning the output and
+    // stuttering the sound. Opt out of the spatialized session for a plain one.
+    var prefersSpatializedAudioSession: Bool { false }
+
     #if os(iOS)
     private(set) var isPictureInPicturePossible = false
     private(set) var isPictureInPictureActive = false
