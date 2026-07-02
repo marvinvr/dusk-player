@@ -320,7 +320,7 @@ private struct PlayerSessionView: View {
         .sheet(isPresented: $vm.showAudioPicker) {
             PlayerSelectionSheet(
                 title: "Audio",
-                items: viewModel.audioTracks,
+                items: viewModel.selectableAudioTracks,
                 selectedID: viewModel.selectedAudioTrackID,
                 itemTitle: \.compactDisplayTitle,
                 itemSubtitle: \.detailDisplayTitle,

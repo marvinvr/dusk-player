@@ -41,10 +41,18 @@ extension PlayerViewModel {
         }
     }
 
+    /// Tracks that are actually offered to the user and to automatic selection.
+    /// Tracks the engine cannot decode (e.g. TrueHD on the bundled VLCKit
+    /// build) are listed by the container but unplayable — selecting one kills
+    /// the working audio ES and leaves silence, so they are never offered.
+    var selectableAudioTracks: [AudioTrack] {
+        audioTracks.filter(\.isDecodable)
+    }
+
     func preferredAudioTrack() -> AudioTrack? {
         guard let preferredAudioLanguage else { return nil }
 
-        let languageMatches = audioTracks.enumerated().filter { _, track in
+        let languageMatches = selectableAudioTracks.enumerated().filter { _, track in
             Self.normalizedLanguageCode(track.languageCode) == preferredAudioLanguage
         }
         guard !languageMatches.isEmpty else { return nil }
@@ -176,7 +184,8 @@ extension PlayerViewModel {
                 languageCode: Self.normalizedLanguageCode(source.languageCode ?? source.languageTag) ?? track.languageCode,
                 codec: source.codec ?? track.codec,
                 channels: source.channels ?? track.channels,
-                channelLayout: source.channelLayout ?? track.channelLayout
+                channelLayout: source.channelLayout ?? track.channelLayout,
+                isDecodable: track.isDecodable
             )
         }
     }

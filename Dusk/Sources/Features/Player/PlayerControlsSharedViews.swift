@@ -334,7 +334,7 @@ struct PlayerTrackSettingsMenu: View {
     private var hasAvailableSettings: Bool {
         context.hasPlaybackInfo ||
             context.hasQualityControl ||
-            !viewModel.audioTracks.isEmpty ||
+            !viewModel.selectableAudioTracks.isEmpty ||
             !viewModel.subtitleTracks.isEmpty
     }
 
@@ -447,11 +447,11 @@ struct PlayerTrackSettingsMenu: View {
     private var audioTracksMenu: some View {
         Menu {
             Group {
-                if viewModel.audioTracks.isEmpty {
+                if viewModel.selectableAudioTracks.isEmpty {
                     Button("No Audio Tracks") {}
                         .disabled(true)
                 } else {
-                    ForEach(viewModel.audioTracks) { track in
+                    ForEach(viewModel.selectableAudioTracks) { track in
                         Button {
                             viewModel.noteControlsInteraction()
                             viewModel.selectAudio(track)
@@ -470,7 +470,7 @@ struct PlayerTrackSettingsMenu: View {
         } label: {
             Label("Audio", systemImage: "speaker.wave.2")
         }
-        .disabled(viewModel.audioTracks.isEmpty)
+        .disabled(viewModel.selectableAudioTracks.isEmpty)
     }
 
     @ViewBuilder
@@ -516,7 +516,7 @@ struct PlayerTrackSettingsMenu: View {
                     icon: "speaker.wave.2"
                 )
             }
-            .disabled(viewModel.audioTracks.isEmpty)
+            .disabled(viewModel.selectableAudioTracks.isEmpty)
 
             Button {
                 viewModel.showSubtitlePicker = true

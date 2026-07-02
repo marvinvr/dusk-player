@@ -10,6 +10,12 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
     let codec: String?
     let channels: Int?
     let channelLayout: String?
+    /// Whether the engine that produced this track can actually decode it.
+    /// The vendored VLCKit build ships without some decoders (e.g. TrueHD/MLP),
+    /// so a track can exist in the container yet be unplayable: selecting it
+    /// kills the working audio ES and leaves silence. Undecodable tracks are
+    /// excluded from automatic selection and from the track pickers.
+    var isDecodable: Bool = true
 
     var compactDisplayTitle: String {
         let title = Self.trimmed(displayTitle)

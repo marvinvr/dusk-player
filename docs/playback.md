@@ -97,9 +97,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   stable string `trackId`; the inherited int `identifier` is NOT a reliable
   selector, so `VLCKitEngine` mints a stable Int model id per `trackId` and
   matches on `trackId` for selection. Matching on the int `identifier` silently
-  selected the wrong track, so switching audio/subtitle never took effect — the
-  decoder stayed on the file's default (e.g. a heavy TrueHD track), which was the
-  real cause of "picked AC3 but it still plays 8-channel TrueHD" stutter.
+  selected the wrong track, so switching audio/subtitle never took effect.
+- Engine tracks carry `isDecodable`. The bundled VLCKit build cannot decode
+  every codec a container may hold (see "Undecodable audio tracks" below);
+  tracks the engine cannot decode are excluded from automatic selection and
+  from the pickers, because selecting one kills the working audio ES.
 - Picture in Picture is optional, observable engine state: `isPictureInPicturePossible`,
   `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
   `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything
@@ -121,7 +123,32 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   tracks by Plex selected/default metadata, channel count, codec desirability,
   and non-commentary/non-descriptive titles. This prevents a matching-language
   commentary or stereo downmix from beating a theatrical 5.1/7.1/Atmos-style
-  track.
+  track. It only considers `selectableAudioTracks` (decodable tracks): ranking
+  by desirability used to steer playback onto a TrueHD track the bundled
+  VLCKit cannot decode, which is what actually broke Bluray-remux audio.
+
+### Undecodable audio tracks (TrueHD/MLP)
+- The vendored VLCKit 4.0.0a19 is built from source with an explicit ffmpeg
+  decoder allowlist (`contrib/src/ffmpeg/rules.mak`) that does NOT include
+  `truehd`/`mlp`, and VLCKit's patch 0007 additionally disables MLP on iOS
+  ("to be in compliance with the App Store ToS" — Dolby licensing; AC-3/E-AC-3
+  decode through Apple's licensed AudioToolbox instead). libvlc logs
+  ``Codec `mlpa' (TrueHD Audio) is not supported`` and cannot play such tracks.
+- Failure chain this produced on Bluray remuxes (default track TrueHD, with a
+  companion AC-3 track): libvlc auto-falls back to AC-3 at start; the app's
+  auto-selection then re-selected the "better" TrueHD track; libvlc unselects
+  the working AC-3 ES, the TrueHD decoder fails to open, and there is NO
+  second fallback — audio goes silent until a pause/resume/seek/track event
+  revives it, then dies again. That is the cyclic "audio cuts in and out,
+  sometimes catches itself" symptom: route-independent, streamed or local,
+  only on files whose preferred track is undecodable.
+- Fix layers: `VLCKitEngine.undecodableAudioFourCCs` marks such tracks
+  (`AudioTrack.isDecodable == false`); auto-selection and the pickers skip
+  them. To actually decode TrueHD, rebuild the frameworks with
+  `DUSK_EXTRA_VLC_PATCHES=1 ./ci_scripts/install_vlckit.sh` (applies
+  `ci_scripts/vlc-patches/`) and remove the corresponding fourccs from
+  `undecodableAudioFourCCs` — that is a deliberate licensing/App Store
+  decision, not a code default.
 - VLCKit keeps encoded passthrough off. `configureAudioOutputPolicy` is split by
   platform because the routes are fundamentally different, and it is idempotent
   (a signature of the resolved config gates every player/session write) and
@@ -136,19 +163,16 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   stereo (built-in speaker, wired, or Bluetooth/AirPods), so the policy leaves the
   VLC mix mode unset and lets VLCKit downmix to the route on its own; it sets no
   preferred output channel count and does not touch multichannel session content
-  (the AVAudioSession is owned by `PlaybackNowPlayingController`). This is the fix
-  for the headphone/AirPods dropout — sound cutting in and out every few seconds,
-  never on the built-in speaker. The cause was VLCKit's audio output being torn
-  down and rebuilt repeatedly: the old policy forced a surround mix mode plus
-  multichannel session content and re-applied it on every route/spatial/rendering
-  notification, and AirPods spatialization kept renegotiating those into a
-  self-sustaining loop (the speaker has no spatial audio, so it never started
-  there). Each re-apply restarted the audio unit. Server transcoding never showed
-  it because that path uses AVPlayer, which never runs this policy. Earlier
-  attempts (clamping the mix mode, switching off TrueHD to a companion AC3 track)
-  did not help and were reverted, because the fault was the output churn — not the
-  codec or the requested layout. Playback Info still exposes the selected VLC
-  audio track, mix mode, passthrough state, route, and channel counts.
+  (the AVAudioSession is owned by `PlaybackNowPlayingController`). Keeping this
+  policy idempotent matters: every re-poke of the live player's audio settings
+  (mix mode, passthrough, equalizer) restarts VLCKit's audio output, which is an
+  audible gap. Historical note: the recurring "audio cuts in and out on this
+  remux" bug was chased through several audio-session/mix-mode theories before
+  the actual cause was found — the app steering playback onto an undecodable
+  TrueHD track (see "Undecodable audio tracks" above). The idempotency and
+  no-surround-on-iOS changes remain as valid hardening, but they were not the
+  root cause. Playback Info still exposes the selected VLC audio track, mix
+  mode, passthrough state, route, and channel counts.
 - The AVAudioSession *mode* is engine-owned via `PlaybackEngine.prefersSpatializedAudioSession`
   (iOS, read by `PlaybackNowPlayingController`). AVPlayer keeps `.moviePlayback`,
   which lets iOS spatialize audio for AirPods and which AVPlayer feeds natively.

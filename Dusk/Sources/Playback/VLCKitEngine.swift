@@ -744,7 +744,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 languageCode: normalizedLanguageCode(from: track.language),
                 codec: track.codecName(),
                 channels: Int(track.audio?.channelsNumber ?? 0).nonZeroValue,
-                channelLayout: nil
+                channelLayout: nil,
+                isDecodable: Self.canDecodeAudioCodec(track.codec)
             )
         }
         selectedAudioTrackID = mediaPlayer.audioTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
@@ -764,6 +765,34 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             )
         }
         selectedSubtitleTrackID = mediaPlayer.textTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
+    }
+
+    /// Audio codecs present in containers that the vendored VLCKit build cannot
+    /// decode. The bundled libvlc's ffmpeg contrib is built from an explicit
+    /// decoder allowlist that omits TrueHD/MLP (and VLCKit's patch 0007
+    /// additionally disables MLP on iOS for App Store compliance), so libvlc
+    /// fails with "Codec `mlpa' is not supported" and selecting such a track
+    /// silences audio entirely. Keep this in sync with the framework build:
+    /// if VLCKit is ever rebuilt with these decoders enabled (see
+    /// ci_scripts/vlc-patches/), remove the corresponding entries here.
+    private static let undecodableAudioFourCCs: Set<UInt32> = [
+        fourCC("m", "l", "p", "a"), // TrueHD (VLC_CODEC_TRUEHD)
+        fourCC("m", "l", "p", " "), // MLP (VLC_CODEC_MLP)
+    ]
+
+    private static func canDecodeAudioCodec(_ codec: UInt32) -> Bool {
+        !undecodableAudioFourCCs.contains(codec)
+    }
+
+    /// Packs characters the way libvlc's VLC_FOURCC macro does (little endian),
+    /// matching the raw `VLCMediaTrack.codec` value.
+    private static func fourCC(
+        _ a: Character, _ b: Character, _ c: Character, _ d: Character
+    ) -> UInt32 {
+        UInt32(a.asciiValue ?? 0)
+            | UInt32(b.asciiValue ?? 0) << 8
+            | UInt32(c.asciiValue ?? 0) << 16
+            | UInt32(d.asciiValue ?? 0) << 24
     }
 
     private func trackDisplayTitle(for track: VLCMediaPlayer.Track) -> String {
