@@ -10,10 +10,32 @@ VERSION_PATH="${ROOT_DIR}/Frameworks/VLCKit-VERSION.txt"
 SOURCE_DIR="${BUILD_DIR}/vlckit-src"
 VLCKIT_REPO_URL="https://code.videolan.org/videolan/VLCKit.git"
 VLCKIT_REF="4.0.0a19"
+EXTRA_VLC_PATCH_DIR="${ROOT_DIR}/ci_scripts/vlc-patches"
 TEMP_FILES=()
 
 # Manual maintenance script for refreshing the vendored VLCKit binary.
 # CI consumes the checked-in xcframework and should not run this script.
+#
+# Extra libvlc patches (OPT-IN): run with DUSK_EXTRA_VLC_PATCHES=1 to copy
+# every *.patch from ci_scripts/vlc-patches/ into VLCKit's libvlc/patches/
+# before the build, so VLCKit git-am's them onto the pinned vlc revision along
+# with its own patch series. The effective version label gains a "+patched"
+# suffix so a later plain run knows the installed build differs and rebuilds.
+# NOTE: 0013 (TrueHD/MLP decoding) is a deliberate licensing / App Store
+# decision — read the patch header before rebuilding with it.
+
+wants_extra_patches() {
+    [ "${DUSK_EXTRA_VLC_PATCHES:-0}" = "1" ] &&
+    compgen -G "${EXTRA_VLC_PATCH_DIR}/*.patch" >/dev/null
+}
+
+effective_version() {
+    if wants_extra_patches; then
+        printf '%s+patched\n' "${VLCKIT_REF}"
+    else
+        printf '%s\n' "${VLCKIT_REF}"
+    fi
+}
 
 cleanup() {
     local exit_code=$?
@@ -42,7 +64,7 @@ has_expected_vlckit() {
     [ -d "${IOS_FRAMEWORK_DIR}" ] &&
     [ -d "${TVOS_FRAMEWORK_DIR}" ] &&
     [ -f "${VERSION_PATH}" ] &&
-    [ "$(cat "${VERSION_PATH}")" = "${VLCKIT_REF}" ] &&
+    [ "$(cat "${VERSION_PATH}")" = "$(effective_version)" ] &&
     [ -d "${IOS_FRAMEWORK_DIR}/ios-arm64-simulator" ] &&
     [ -d "${TVOS_FRAMEWORK_DIR}/tvos-arm64-simulator" ] &&
     find "${IOS_FRAMEWORK_DIR}" -path "*Headers/VLCDrawable.h" -print -quit | grep -q .
@@ -125,6 +147,12 @@ mkdir -p "${ROOT_DIR}/Frameworks" "${BUILD_DIR}"
 
 git clone --depth 1 --branch "${VLCKIT_REF}" "${VLCKIT_REPO_URL}" "${SOURCE_DIR}"
 
+if wants_extra_patches; then
+    echo "Adding extra libvlc patches from ${EXTRA_VLC_PATCH_DIR}:"
+    ls "${EXTRA_VLC_PATCH_DIR}"/*.patch
+    cp "${EXTRA_VLC_PATCH_DIR}"/*.patch "${SOURCE_DIR}/libvlc/patches/"
+fi
+
 (
     cd "${SOURCE_DIR}"
     ./compileAndBuildVLCKit.sh -f -r
@@ -141,7 +169,7 @@ thin_ios_simulator_slice
 install_framework "${SOURCE_DIR}/build/tvOS/VLCKit.xcframework" "${TVOS_FRAMEWORK_DIR}"
 thin_tvos_simulator_slice
 cp "${SOURCE_DIR}/COPYING" "${LICENSE_PATH}"
-printf '%s\n' "${VLCKIT_REF}" > "${VERSION_PATH}"
+effective_version > "${VERSION_PATH}"
 
 echo "Pinned iOS VLCKit installed at ${IOS_FRAMEWORK_DIR}."
 echo "Pinned tvOS VLCKit installed at ${TVOS_FRAMEWORK_DIR}."

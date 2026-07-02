@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dusk Player <dusk@localhost>
+Date: Thu, 2 Jul 2026 12:00:00 +0200
+Subject: [PATCH 13/13] contrib/ffmpeg: re-enable TrueHD/MLP decoding on
+ iOS/tvOS
+
+VLCKit's patch 0007 disables ffmpeg's mlp decoder, demuxer and parser on
+iOS "to be in compliance with the App Store ToS" (Dolby licensing; AC-3 /
+E-AC-3 are decoded through Apple's licensed AudioToolbox instead, but no
+system decoder exists for TrueHD). Because ffmpeg's truehd decoder depends
+on the mlp parser, that block removes TrueHD decoding entirely: libvlc
+fails with "Codec `mlpa' (TrueHD Audio) is not supported" and Bluray-remux
+default tracks cannot be played.
+
+Dropping the block restores the stock ffmpeg behaviour (truehd and mlp
+decoders are enabled by default), so TrueHD/Atmos tracks decode to PCM.
+
+NOTE: applying this patch is a deliberate licensing / App Store decision
+by the app maintainer, not a build default. After rebuilding the
+frameworks with this patch, also remove the TrueHD/MLP fourccs from
+`VLCKitEngine.undecodableAudioFourCCs` so the tracks become selectable
+again.
+---
+ contrib/src/ffmpeg/rules.mak | 6 ------
+ 1 file changed, 6 deletions(-)
+
+diff --git a/contrib/src/ffmpeg/rules.mak b/contrib/src/ffmpeg/rules.mak
+--- a/contrib/src/ffmpeg/rules.mak
++++ b/contrib/src/ffmpeg/rules.mak
+@@ -41,13 +41,7 @@
+ ifdef HAVE_DARWIN_OS
+ FFMPEGCONF += \
+ 	--disable-securetransport
+-ifdef HAVE_IOS
+-FFMPEGCONF += \
+-	--disable-decoder=mlp \
+-	--disable-demuxer=mlp \
+-	--disable-parser=mlp
+ endif
+-endif
+ 
+ ifdef ENABLE_PDB
+ FFMPEGCONF += --ln_s=false
+--
+2.39.5 (Apple Git-154)
