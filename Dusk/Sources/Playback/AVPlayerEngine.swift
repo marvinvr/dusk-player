@@ -172,9 +172,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         videoEnhancementRequest = request
         videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
         #if os(iOS)
-        // PiP renders from the `AVPlayerLayer`. With Video Enhancement active the
-        // layer is replaced by the Metal view and never enters the hierarchy, so
-        // native PiP is unavailable in that mode.
+        // PiP renders from the `AVPlayerLayer`. Even with Video Enhancement active
+        // the layer stays in the hierarchy (behind the Metal view — see
+        // `makePlayerView()`), so native PiP keeps working; the floating window
+        // just shows the non-upscaled stream straight from AVPlayer.
         refreshPictureInPictureController()
         #endif
     }
@@ -278,12 +279,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         pipController?.stopPictureInPicture()
     }
 
-    /// Builds the native `AVPictureInPictureController` from the player layer
-    /// when the layer-backed render path is live, or tears it down when Video
-    /// Enhancement takes over the Metal path (or the device lacks PiP support).
+    /// Builds the native `AVPictureInPictureController` from the player layer, or
+    /// tears it down when the device lacks PiP support. The controller is kept
+    /// alive in Video Enhancement mode too: `makePlayerView()` keeps the
+    /// `AVPlayerLayer` in the hierarchy behind the Metal view, so it still has a
+    /// live layer to project the (non-upscaled) stream into the floating window.
     private func refreshPictureInPictureController() {
-        let enhancementActive = videoEnhancementRenderer != nil
-        guard !enhancementActive, AVPictureInPictureController.isPictureInPictureSupported() else {
+        guard AVPictureInPictureController.isPictureInPictureSupported() else {
             teardownPictureInPictureController()
             return
         }
@@ -354,7 +356,17 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     func makePlayerView() -> AnyView {
         if let videoEnhancementRenderer {
-            return AnyView(VideoEnhancementRepresentable(renderer: videoEnhancementRenderer))
+            // The Metal view shows the upscaled picture full-screen. Keep the real
+            // `AVPlayerLayer` underneath it (fully occluded by the opaque Metal
+            // view) so it stays in the view hierarchy: that is what lets native
+            // Picture in Picture stay possible while enhancement is on. The PiP
+            // window then projects the non-upscaled stream directly from AVPlayer.
+            return AnyView(
+                ZStack {
+                    AVPlayerLayerRepresentable(playerLayer: playerLayer)
+                    VideoEnhancementRepresentable(renderer: videoEnhancementRenderer)
+                }
+            )
         }
         return AnyView(AVPlayerLayerRepresentable(playerLayer: playerLayer))
     }

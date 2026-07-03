@@ -105,8 +105,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Picture in Picture is optional, observable engine state: `isPictureInPicturePossible`,
   `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
   `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything
-  to off, so tvOS engines and the Metal enhancement path get a safe no-op. See
-  the Picture in Picture section.
+  to off, so tvOS engines get a safe no-op. Video Enhancement no longer disables
+  PiP — each engine keeps a native surface alive for the floating window (see
+  the Picture in Picture section). See the Picture in Picture section.
 
 ## AVPlayer and VLCKit Split
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible
@@ -207,10 +208,27 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `.playback`/`.moviePlayback`/`.longFormVideo` (`DuskApp`) and `UIBackgroundModes`
   includes `audio` (`Info-iOS.plist`). PiP will not run without both.
 - Availability: `isPictureInPicturePossible` is false until the system controller
-  is ready and is always false when Video Enhancement is on (the Metal path
-  replaces the layer/drawable, so there is nothing native to project). The
-  player's round top-right PiP button (`PlayerControlsIOSOverlay`) only shows when
-  possible and toggles via `PlayerViewModel.togglePictureInPicture()`.
+  is ready. It is **also available with Video Enhancement on** — the upscaled
+  picture stays full-screen while PiP projects the non-upscaled source stream
+  (all PiP needs). The player's round top-right PiP button
+  (`PlayerControlsIOSOverlay`) only shows when possible and toggles via
+  `PlayerViewModel.togglePictureInPicture()`.
+- Enhanced-mode PiP (the part that makes the above work): the Metal upscaler
+  takes over the full-screen surface, so each engine keeps a *separate* native
+  layer alive behind it, occluded, purely to feed PiP.
+  - AVPlayer keeps its real `AVPlayerLayer` mounted behind the Metal view
+    (`makePlayerView()` returns a `ZStack`); the same native
+    `AVPictureInPictureController` projects from it, no other change.
+  - VLCKit cannot: libvlc has one video output, and enhancement claims it via
+    raw callbacks, so the drawable-backed PiP host is detached. Instead
+    `VLCKitEnhancedPictureInPictureOutput` tees the same decoded frames into an
+    `AVSampleBufferDisplayLayer` and drives a sample-buffer
+    `AVPictureInPictureController`. The frames are RGBA-in-BGRA (see Video
+    Enhancement), so it channel-swaps each frame to true BGRA (vImage) before
+    display, coalescing to the latest frame on a serial queue like the Metal
+    renderer. A `CMTimebase` synced from the engine drives the PiP scrubber.
+    The display layer is mounted (occluded) behind the Metal view for the same
+    "keep a native surface on screen" reason.
 - Lifecycle (the subtle part): starting PiP drops the full-screen cover
   (`showPlayer = false`) so the floating window is unobstructed. The engine must
   outlive that dismissal — `PlaybackCoordinator.onPlayerDismissed` and
@@ -220,8 +238,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Restore vs. close is handled in `PlaybackCoordinator+PictureInPicture`. AVPlayer
   distinguishes them via its delegate: the restore button re-presents the player
   (completion fired from `notePlayerUIDidAppear`), the close button finalizes the
-  session. VLCKit's binding only reports start/stop, so it always re-presents the
-  player on stop (non-destructive — playback is never silently lost).
+  session. VLCKit's *drawable* binding only reports start/stop, so it always
+  re-presents the player on stop (non-destructive — playback is never silently
+  lost). The enhanced-mode sample-buffer output owns a real
+  `AVPictureInPictureControllerDelegate`, so it *does* get the proper
+  restore-vs-close callbacks and behaves like AVPlayer.
 
 ## Video Enhancement
 - Video Enhancement is a local rendering preference, not a Plex playback-mode

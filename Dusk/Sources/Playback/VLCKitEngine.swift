@@ -44,6 +44,11 @@ private func makeVLCKitRenderingHost() -> any VLCKitRenderingHost {
 
 private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrameConsumer, @unchecked Sendable {
     nonisolated(unsafe) private weak var renderer: VideoEnhancementRenderer?
+    #if os(iOS)
+    /// Tee target for Picture in Picture. The same decoded frames feed a native
+    /// sample-buffer PiP window (non-upscaled) alongside the Metal upscaler.
+    nonisolated(unsafe) weak var pictureInPictureOutput: VLCKitEnhancedPictureInPictureOutput?
+    #endif
 
     init(renderer: VideoEnhancementRenderer) {
         self.renderer = renderer
@@ -51,15 +56,20 @@ private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrame
     }
 
     nonisolated func duskVLCVideoOutputDidProduce(_ pixelBuffer: CVPixelBuffer) {
-        guard let renderer else { return }
-        let frame = VideoEnhancementFrame(
-            retaining: pixelBuffer,
-            channelLayout: .rgbaBytesInBGRA
-        )
-        // Coalesce on the renderer instead of queueing a main-actor task per
-        // frame: under GPU load this drops stale frames rather than letting an
-        // unbounded backlog push the video into slow motion behind the audio.
-        renderer.enqueue(frame: frame)
+        if let renderer {
+            let frame = VideoEnhancementFrame(
+                retaining: pixelBuffer,
+                channelLayout: .rgbaBytesInBGRA
+            )
+            // Coalesce on the renderer instead of queueing a main-actor task per
+            // frame: under GPU load this drops stale frames rather than letting an
+            // unbounded backlog push the video into slow motion behind the audio.
+            renderer.enqueue(frame: frame)
+        }
+        #if os(iOS)
+        // Same coalescing discipline for the PiP feed (see the output class).
+        pictureInPictureOutput?.submit(pixelBuffer: pixelBuffer)
+        #endif
     }
 }
 
@@ -107,6 +117,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var isPictureInPicturePossible = false
     private(set) var isPictureInPictureActive = false
     @ObservationIgnored private weak var pictureInPictureDelegate: (any PlaybackPictureInPictureDelegate)?
+    /// Native sample-buffer PiP for the Video Enhancement path. Present only
+    /// while enhancement is active (the drawable-backed PiP host cannot render
+    /// while libvlc feeds the Metal upscaler through raw callbacks).
+    @ObservationIgnored private var enhancedPictureInPictureOutput: VLCKitEnhancedPictureInPictureOutput?
     #endif
 
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
@@ -234,10 +248,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             let frameSink = VLCKitVideoEnhancementFrameSink(renderer: videoEnhancementRenderer)
             rawVideoFrameSink = frameSink
             rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
+            #if os(iOS)
+            configureEnhancedPictureInPicture(frameSink: frameSink)
+            #endif
         } else {
             rawVideoOutput?.detach()
             rawVideoOutput = nil
             rawVideoFrameSink = nil
+            #if os(iOS)
+            teardownEnhancedPictureInPicture()
+            #endif
             renderingHost.attach(to: mediaPlayer, engine: self)
         }
     }
@@ -317,11 +337,52 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     func startPictureInPicture() {
         guard isPictureInPicturePossible else { return }
-        (renderingHost as? IOSVLCKitRenderingHost)?.startPictureInPicture()
+        if let enhancedPictureInPictureOutput {
+            enhancedPictureInPictureOutput.start()
+        } else {
+            (renderingHost as? IOSVLCKitRenderingHost)?.startPictureInPicture()
+        }
     }
 
     func stopPictureInPicture() {
-        (renderingHost as? IOSVLCKitRenderingHost)?.stopPictureInPicture()
+        if let enhancedPictureInPictureOutput {
+            enhancedPictureInPictureOutput.stop()
+        } else {
+            (renderingHost as? IOSVLCKitRenderingHost)?.stopPictureInPicture()
+        }
+    }
+
+    /// Builds the sample-buffer PiP output for the Video Enhancement path and
+    /// bridges its readiness/active/restore events into the engine's observable
+    /// PiP state and the coordinator delegate.
+    private func configureEnhancedPictureInPicture(frameSink: VLCKitVideoEnhancementFrameSink) {
+        let output = VLCKitEnhancedPictureInPictureOutput()
+        output.playbackDelegate = self
+        output.onPictureInPicturePossibleChanged = { [weak self] in
+            self?.refreshPictureInPicturePossible()
+        }
+        output.onPictureInPictureActiveChanged = { [weak self] isActive in
+            guard let self else { return }
+            self.isPictureInPictureActive = isActive
+            self.pictureInPictureDelegate?.pictureInPictureActiveDidChange(isActive)
+        }
+        output.onRestoreUI = { [weak self] completion in
+            guard let self, let delegate = self.pictureInPictureDelegate else {
+                completion(true)
+                return
+            }
+            delegate.pictureInPictureRestorePlayerUI(completion: completion)
+        }
+        frameSink.pictureInPictureOutput = output
+        enhancedPictureInPictureOutput = output
+        refreshPictureInPicturePossible()
+    }
+
+    private func teardownEnhancedPictureInPicture() {
+        enhancedPictureInPictureOutput?.clear()
+        enhancedPictureInPictureOutput = nil
+        isPictureInPictureActive = false
+        refreshPictureInPicturePossible()
     }
 
     private func configurePictureInPictureBridge() {
@@ -345,6 +406,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func refreshPictureInPicturePossible() {
+        // With Video Enhancement active, VLCKit's own drawable is detached and the
+        // sample-buffer output owns PiP instead.
+        if let enhancedPictureInPictureOutput {
+            isPictureInPicturePossible = enhancedPictureInPictureOutput.isPictureInPicturePossible
+            return
+        }
         guard let iosHost = renderingHost as? IOSVLCKitRenderingHost else {
             isPictureInPicturePossible = false
             return
@@ -441,6 +508,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     func makePlayerView() -> AnyView {
         if let videoEnhancementRenderer {
+            #if os(iOS)
+            if let enhancedPictureInPictureOutput {
+                // Keep the PiP sample-buffer layer in the hierarchy (occluded by
+                // the opaque Metal view) so native PiP stays possible while the
+                // upscaled picture is shown full-screen.
+                return AnyView(
+                    ZStack {
+                        VLCEnhancedPiPDisplayRepresentable(
+                            displayView: enhancedPictureInPictureOutput.displayView
+                        )
+                        VideoEnhancementRepresentable(renderer: videoEnhancementRenderer)
+                    }
+                )
+            }
+            #endif
             return AnyView(VideoEnhancementRepresentable(renderer: videoEnhancementRenderer))
         }
         return AnyView(VLCPlayerRepresentable(playerView: renderingHost.playerView))
@@ -551,6 +633,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             isPlaying: state == .playing,
             isSeekable: duration > 0
         )
+        #if os(iOS)
+        enhancedPictureInPictureOutput?.updatePlaybackState(
+            currentTime: currentTime,
+            duration: duration,
+            isPlaying: state == .playing
+        )
+        #endif
     }
 
     private func applySubtitleStyling(to media: VLCMedia) {
@@ -1141,6 +1230,38 @@ private struct VLCPlayerRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
+
+#if os(iOS)
+/// Hosts the sample-buffer PiP display view (occluded behind the Metal view).
+private struct VLCEnhancedPiPDisplayRepresentable: UIViewRepresentable {
+    let displayView: VLCKitEnhancedPiPDisplayView
+
+    func makeUIView(context: Context) -> VLCKitEnhancedPiPDisplayView {
+        displayView
+    }
+
+    func updateUIView(_ uiView: VLCKitEnhancedPiPDisplayView, context: Context) {}
+}
+
+extension VLCKitEngine: VLCKitEnhancedPictureInPicturePlaybackDelegate {
+    var enhancedPiPIsPlaying: Bool { state == .playing }
+    var enhancedPiPCurrentTime: TimeInterval { currentTime }
+    var enhancedPiPDuration: TimeInterval { duration }
+
+    func enhancedPiPSetPlaying(_ playing: Bool) {
+        if playing {
+            play()
+        } else {
+            pause()
+        }
+    }
+
+    func enhancedPiPSkip(by seconds: TimeInterval, completion: @escaping () -> Void) {
+        seek(to: currentTime + seconds)
+        completion()
+    }
+}
+#endif
 
 private extension Int {
     var nonZeroValue: Int? {

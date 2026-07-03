@@ -12,6 +12,7 @@
 		043F5DD3F0A6C47FDAB0103C /* ShowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E0CEE228B108E654D2D3FD /* ShowDetailView.swift */; };
 		053F70BD5E443D188775C913 /* PlayerControlsOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F5B10C80802214DB6C255DB /* PlayerControlsOverlay.swift */; };
 		0702599D6E012EB01CE2117A /* HomeIOSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F0BB357EE502E0491A0B5 /* HomeIOSView.swift */; };
+		083F34C8D75235F2EA7004EF /* VLCKitEnhancedPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A4C3672FBD742042FB63E9 /* VLCKitEnhancedPictureInPicture.swift */; };
 		0C0265CEDF2F24F3A6C2F416 /* PosterCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC85B7143D7774B74A1855BF /* PosterCard.swift */; };
 		0C8AAE808560045BD3405F48 /* MediaFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FABA212CEF54442E338EF5F /* MediaFormatting.swift */; };
 		0C9687177AE365CE96E2119B /* LibraryItemsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1381933827E832D2448FF0DB /* LibraryItemsViewModel.swift */; };
@@ -74,6 +75,7 @@
 		4CECA98BAC95F47BFC6E92B5 /* MainTabShells.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA5AAA4DEC1C24EA84E11DF /* MainTabShells.swift */; };
 		500B48872BB5111F6CA1C797 /* HomeCinematicHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6A19842481580689AEC855 /* HomeCinematicHero.swift */; };
 		50A906D96B140BB70868FAE9 /* ActorDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286D5629D02733782DC17C24 /* ActorDetailView.swift */; };
+		50D53789B1E9A1A936FA7451 /* VLCKitEnhancedPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A4C3672FBD742042FB63E9 /* VLCKitEnhancedPictureInPicture.swift */; };
 		51067C4AE0230027EAA8E6FE /* LibraryGenreSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1E38D5DFEC2C3D4DEA908C7 /* LibraryGenreSupport.swift */; };
 		5168F0A3D9473E68B2BCE86A /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2A90BC03A7C9895263EAD07 /* SettingsViewModel.swift */; };
 		51CDA7EF644BA8EBD3495EA3 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693F697A72ECEE11C60FDD7 /* HomeViewModel.swift */; };
@@ -413,6 +415,7 @@
 		D1EA6CCEA23C3304F38B78D7 /* PlexService+Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Library.swift"; sourceTree = "<group>"; };
 		D2A90BC03A7C9895263EAD07 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
 		D2E03BAD6F6D7F3A24BBB7BF /* StreamResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamResolver.swift; sourceTree = "<group>"; };
+		D5A4C3672FBD742042FB63E9 /* VLCKitEnhancedPictureInPicture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLCKitEnhancedPictureInPicture.swift; sourceTree = "<group>"; };
 		D97C0F3FABBE04C2708A7342 /* PlexItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexItem.swift; sourceTree = "<group>"; };
 		DA1F9A43D09E5C5AD680E39C /* PlaybackNowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackNowPlayingController.swift; sourceTree = "<group>"; };
 		DF6A3B1BC36ECD7390A15164 /* VLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = VLCKit.xcframework; path = Frameworks/VLCKit.xcframework; sourceTree = "<group>"; };
@@ -742,6 +745,7 @@
 				98DF050C007C8205042A9E6B /* VideoEnhancementRenderer.swift */,
 				454D16527A6597376006EFF2 /* VideoEnhancementShaders.metal */,
 				D0FBDD990F75DBE769A45421 /* VLCKitEngine.swift */,
+				D5A4C3672FBD742042FB63E9 /* VLCKitEnhancedPictureInPicture.swift */,
 				058C7E86E87AED03DB7C58CE /* VLCKitRendererIOS.swift */,
 				A904B86FC535FC7ADFADE196 /* VLCKitRendererTVOS.swift */,
 			);
@@ -986,6 +990,7 @@
 				BA9E74091F704ED4565A42AA /* TVSettingsComponents.swift in Sources */,
 				A2C6EC83179E5F92E489896D /* UserPreferences.swift in Sources */,
 				F57A4C33589F7DA227C55CE0 /* VLCKitEngine.swift in Sources */,
+				083F34C8D75235F2EA7004EF /* VLCKitEnhancedPictureInPicture.swift in Sources */,
 				8C90BB9AA36F60BF87DB025D /* VLCKitRendererIOS.swift in Sources */,
 				14E190A902F59C65163E62CF /* VLCKitRendererTVOS.swift in Sources */,
 				30C280A37E619C93EF431992 /* VideoEnhancement.swift in Sources */,
@@ -1122,6 +1127,7 @@
 				3FE983092FCE0D8477FB79CD /* TVSettingsComponents.swift in Sources */,
 				8B58F17B03B0655F1DB24A37 /* UserPreferences.swift in Sources */,
 				9ABD723FB86B80B580E0069A /* VLCKitEngine.swift in Sources */,
+				50D53789B1E9A1A936FA7451 /* VLCKitEnhancedPictureInPicture.swift in Sources */,
 				A75C125DE10FC430D7D30211 /* VLCKitRendererIOS.swift in Sources */,
 				57000B53E50ADEAEA44AFD06 /* VLCKitRendererTVOS.swift in Sources */,
 				A6A278D5558446C28C57C476 /* VideoEnhancement.swift in Sources */,
