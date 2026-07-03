@@ -891,17 +891,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     /// Audio codecs present in containers that the vendored VLCKit build cannot
-    /// decode. The bundled libvlc's ffmpeg contrib is built from an explicit
-    /// decoder allowlist that omits TrueHD/MLP (and VLCKit's patch 0007
-    /// additionally disables MLP on iOS for App Store compliance), so libvlc
-    /// fails with "Codec `mlpa' is not supported" and selecting such a track
-    /// silences audio entirely. Keep this in sync with the framework build:
-    /// if VLCKit is ever rebuilt with these decoders enabled (see
-    /// ci_scripts/vlc-patches/), remove the corresponding entries here.
-    private static let undecodableAudioFourCCs: Set<UInt32> = [
-        fourCC("m", "l", "p", "a"), // TrueHD (VLC_CODEC_TRUEHD)
-        fourCC("m", "l", "p", " "), // MLP (VLC_CODEC_MLP)
-    ]
+    /// decode. Tracks matching these are skipped by automatic selection, and
+    /// picking one in the picker reroutes playback through a server transcode
+    /// (see `PlayerViewModel.selectAudio`).
+    ///
+    /// Currently empty: the vendored frameworks are built with
+    /// `ci_scripts/vlc-patches/0013`, which re-enables ffmpeg's TrueHD/MLP
+    /// decoders that VLCKit's stock iOS build disables ("Codec `mlpa' is not
+    /// supported"). If the frameworks are ever refreshed WITHOUT that patch
+    /// (a plain `./ci_scripts/install_vlckit.sh` run), re-add
+    /// `fourCC("m", "l", "p", "a")` (TrueHD) and `fourCC("m", "l", "p", " ")`
+    /// (MLP) here or those tracks will select a dead decoder and go silent.
+    private static let undecodableAudioFourCCs: Set<UInt32> = []
 
     private static func canDecodeAudioCodec(_ codec: UInt32) -> Bool {
         !undecodableAudioFourCCs.contains(codec)

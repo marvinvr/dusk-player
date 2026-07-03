@@ -131,12 +131,17 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   VLCKit cannot decode, which is what actually broke Bluray-remux audio.
 
 ### Undecodable audio tracks (TrueHD/MLP)
-- The vendored VLCKit 4.0.0a19 is built from source with an explicit ffmpeg
-  decoder allowlist (`contrib/src/ffmpeg/rules.mak`) that does NOT include
-  `truehd`/`mlp`, and VLCKit's patch 0007 additionally disables MLP on iOS
-  ("to be in compliance with the App Store ToS" — Dolby licensing; AC-3/E-AC-3
-  decode through Apple's licensed AudioToolbox instead). libvlc logs
-  ``Codec `mlpa' (TrueHD Audio) is not supported`` and cannot play such tracks.
+- The vendored frameworks are now built with `ci_scripts/vlc-patches/0013`
+  (`DUSK_EXTRA_VLC_PATCHES=1 ./ci_scripts/install_vlckit.sh`, VERSION
+  `4.0.0a19+patched`), so TrueHD/MLP decode natively and
+  `VLCKitEngine.undecodableAudioFourCCs` is empty. Everything below describes
+  the stock-VLCKit situation and the safety net that stays in place for it.
+- Stock VLCKit 4.0.0a19 disables ffmpeg's mlp decoder/demuxer/parser on iOS
+  via its patch 0007 ("to be in compliance with the App Store ToS" — Dolby
+  licensing; AC-3/E-AC-3 decode through Apple's licensed AudioToolbox
+  instead), and ffmpeg's truehd decoder depends on the mlp parser. libvlc
+  then logs ``Codec `mlpa' (TrueHD Audio) is not supported`` and cannot play
+  such tracks.
 - Failure chain this produced on Bluray remuxes (default track TrueHD, with a
   companion AC-3 track): libvlc auto-falls back to AC-3 at start; the app's
   auto-selection then re-selected the "better" TrueHD track; libvlc unselects

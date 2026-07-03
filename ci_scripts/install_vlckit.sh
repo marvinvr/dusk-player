@@ -81,6 +81,30 @@ remove_debug_symbol_paths() {
     done
 }
 
+# Rewrites the xcframework Info.plist entry for the thinned simulator slice.
+# The AvailableLibraries array order is not stable across VLCKit builds, so
+# locate the entry by its LibraryIdentifier instead of assuming an index.
+patch_thinned_slice_plist() {
+    local plist_path="$1"
+    local fat_identifier="$2"
+    local thin_identifier="$3"
+    local index=0
+
+    while true; do
+        local identifier
+        identifier="$(/usr/libexec/PlistBuddy -c "Print :AvailableLibraries:${index}:LibraryIdentifier" "${plist_path}" 2>/dev/null)" || break
+        if [ "${identifier}" = "${fat_identifier}" ]; then
+            plutil -replace "AvailableLibraries.${index}.LibraryIdentifier" -string "${thin_identifier}" "${plist_path}"
+            plutil -replace "AvailableLibraries.${index}.SupportedArchitectures" -json '["arm64"]' "${plist_path}"
+            return 0
+        fi
+        index=$((index + 1))
+    done
+
+    echo "ERROR: ${fat_identifier} not found in ${plist_path}" >&2
+    return 1
+}
+
 thin_ios_simulator_slice() {
     local simulator_dir="${IOS_FRAMEWORK_DIR}/ios-arm64_x86_64-simulator"
     local thin_simulator_dir="${IOS_FRAMEWORK_DIR}/ios-arm64-simulator"
@@ -97,8 +121,8 @@ thin_ios_simulator_slice() {
     mv "${thin_binary}" "${simulator_binary}"
     chmod 755 "${simulator_binary}"
 
-    plutil -replace 'AvailableLibraries.1.LibraryIdentifier' -string 'ios-arm64-simulator' "${IOS_FRAMEWORK_DIR}/Info.plist"
-    plutil -replace 'AvailableLibraries.1.SupportedArchitectures' -json '["arm64"]' "${IOS_FRAMEWORK_DIR}/Info.plist"
+    patch_thinned_slice_plist "${IOS_FRAMEWORK_DIR}/Info.plist" \
+        "ios-arm64_x86_64-simulator" "ios-arm64-simulator"
 
     codesign --force --sign - --timestamp=none "${simulator_framework}" >/dev/null
 }
@@ -119,8 +143,8 @@ thin_tvos_simulator_slice() {
     mv "${thin_binary}" "${simulator_binary}"
     chmod 755 "${simulator_binary}"
 
-    plutil -replace 'AvailableLibraries.1.LibraryIdentifier' -string 'tvos-arm64-simulator' "${TVOS_FRAMEWORK_DIR}/Info.plist"
-    plutil -replace 'AvailableLibraries.1.SupportedArchitectures' -json '["arm64"]' "${TVOS_FRAMEWORK_DIR}/Info.plist"
+    patch_thinned_slice_plist "${TVOS_FRAMEWORK_DIR}/Info.plist" \
+        "tvos-arm64_x86_64-simulator" "tvos-arm64-simulator"
 
     codesign --force --sign - --timestamp=none "${simulator_framework}" >/dev/null
 }
