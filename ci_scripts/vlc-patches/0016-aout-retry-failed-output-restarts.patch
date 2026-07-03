@@ -1,0 +1,106 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dusk Player <dusk@localhost>
+Date: Fri, 3 Jul 2026 12:00:01 +0200
+Subject: [PATCH 16/16] aout: retry failed output restarts instead of muting
+ the stream forever
+
+When a requested output restart fails (aout_OutputNew or the filter
+chain rebuild), stream_CheckReady() zeroed mixer_format and every
+subsequent vlc_aout_stream_Play() returned AOUT_DEC_FAILED for the rest
+of the input: dead silence while video keeps playing. On iOS this is
+easy to hit because the restart is often *caused* by the very event
+that makes it fail - an audio route change (Bluetooth handoff) whose
+AVAudioSession is still in flux when Start() runs.
+
+Keep a retry deadline instead: when the stream is dead and 500ms have
+passed, re-enter the regular AOUT_RESTART_OUTPUT path (formats are
+recomputed from input_format there, so the retry is a clean re-run).
+The decoder-level RELOAD_DECODER_AOUT fallback stays untouched; this
+just adds a much cheaper first line of recovery that does not tear down
+the decoder.
+
+Also stop calling aout_FiltersSetClockDelay() with a NULL filter chain
+when the filters rebuild failed (latent crash on the exact branch the
+retry keeps alive).
+---
+ src/audio_output/dec.c | 32 +++++++++++++++++++++++++++++---
+ 1 file changed, 29 insertions(+), 3 deletions(-)
+
+diff --git a/src/audio_output/dec.c b/src/audio_output/dec.c
+index 6243296..b8c304a 100644
+--- a/src/audio_output/dec.c
++++ b/src/audio_output/dec.c
+@@ -108,6 +108,13 @@ struct vlc_aout_stream
+ 
+     atomic_uchar restart;
+ 
++    /* Set when a requested output restart failed (aout_OutputNew or filter
++     * chain error). stream_CheckReady() retries the restart once
++     * vlc_tick_now() passes this date instead of leaving the stream silent
++     * until the end of the input. VLC_TICK_INVALID when no retry is
++     * pending. */
++    vlc_tick_t output_retry_date;
++
+     atomic_uint buffers_lost;
+     atomic_uint buffers_played;
+ };
+@@ -385,6 +392,7 @@ vlc_aout_stream * vlc_aout_stream_New(audio_output_t *p_aout,
+         stream->volume = aout_volume_New (p_aout, cfg->replay_gain);
+ 
+     atomic_init(&stream->restart, 0);
++    stream->output_retry_date = VLC_TICK_INVALID;
+     stream->input_profile = cfg->profile;
+     stream->filter_format = stream->mixer_format = stream->input_format = *p_format;
+ 
+@@ -481,8 +489,23 @@ static int stream_CheckReady (vlc_aout_stream *stream)
+ 
+     int restart = atomic_exchange_explicit(&stream->restart, 0,
+                                            memory_order_acquire);
++
++    if (unlikely(restart == 0 && stream->mixer_format.i_format == 0
++              && stream->output_retry_date != VLC_TICK_INVALID
++              && vlc_tick_now() >= stream->output_retry_date))
++    {
++        /* A previous output restart failed, e.g. because of a transient
++         * AVAudioSession activation error on iOS while the audio route was
++         * changing. Retry instead of dropping every incoming buffer (dead
++         * silence) until the end of the input. */
++        msg_Warn(aout, "audio output dead after a failed restart, retrying");
++        restart = AOUT_RESTART_OUTPUT;
++    }
++
+     if (unlikely(restart != 0))
+     {
++        stream->output_retry_date = VLC_TICK_INVALID;
++
+         if (stream->filters)
+         {
+             aout_FiltersDelete (aout, stream->filters);
+@@ -506,7 +529,11 @@ static int stream_CheckReady (vlc_aout_stream *stream)
+ 
+             if (aout_OutputNew(aout, stream, &stream->mixer_format, stream->input_profile,
+                                &stream->filter_format, &stream->filters_cfg))
++            {
+                 stream->mixer_format.i_format = 0;
++                stream->output_retry_date =
++                    vlc_tick_now() + VLC_TICK_FROM_MS(500);
++            }
+             if (stream->volume != NULL)
+                 aout_volume_SetFormat(stream->volume,
+                                       stream->mixer_format.i_format);
+@@ -535,8 +562,11 @@ static int stream_CheckReady (vlc_aout_stream *stream)
+             {
+                 aout_OutputDelete (aout);
+                 stream->mixer_format.i_format = 0;
++                stream->output_retry_date =
++                    vlc_tick_now() + VLC_TICK_FROM_MS(500);
+             }
+-            aout_FiltersSetClockDelay(stream->filters, stream->sync.delay);
++            else
++                aout_FiltersSetClockDelay(stream->filters, stream->sync.delay);
+         }
+ 
+         vlc_audio_meter_Reset(&owner->meter,
+--
+2.39.0
+

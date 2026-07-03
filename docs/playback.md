@@ -154,9 +154,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   landing that restart inside the startup window (output bring-up,
   passthrough probing, session activation, resume-seek flush) can brick the
   stream on device — a failed `aout_OutputNew` sets
-  `mixer_format.i_format = 0` in libvlc's `dec.c` and nothing retries, so
-  video plays with no audio until a manual pause/resume forces another
-  restart via the audiounit resume path.
+  `mixer_format.i_format = 0` in libvlc's `dec.c` and, in stock libvlc,
+  nothing retries: video plays with no audio until a manual pause/resume
+  forces another restart via the audiounit resume path. Since vlc-patch 0016
+  the vendored build retries such failed restarts after 500 ms, so even this
+  class self-heals — preselection still avoids provoking it at all.
 - The runtime auto-selection remains as a safety net for preselect mapping
   misses. It is deferred until steady-state playback
   (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
@@ -172,7 +174,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   post-settle switch restarts a live output with one ~30 ms flush.
 
 ### Undecodable audio tracks (TrueHD/MLP)
-- The vendored frameworks are now built with `ci_scripts/vlc-patches/0013`
+- The vendored frameworks are now built with the full `ci_scripts/vlc-patches/`
+  series — 0013 (TrueHD/MLP), 0014 (Apple SDK build fix), 0015/0016 (audio
+  silence-latch recovery, see below) —
   (`DUSK_EXTRA_VLC_PATCHES=1 ./ci_scripts/install_vlckit.sh`, VERSION
   `4.0.0a19+patched`), so TrueHD/MLP decode natively and
   `VLCKitEngine.undecodableAudioFourCCs` is empty. Everything below describes
@@ -226,6 +230,46 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   (a signature of the resolved config gates every player/session write) and
   observes only `routeChangeNotification` — never the spatial- or
   rendering-capability notifications.
+
+### Audio silence latches (vlc-patches 0015/0016) and session ownership
+- Stock libvlc's iOS AudioUnit output has three states in which it keeps
+  accepting buffers and reporting success to the core while rendering pure
+  silence, so no recovery machinery (decoder reload, output restart) ever
+  engages — video plays on with dead audio, and a manual pause→play is the
+  only cure because it happens to re-run session activation +
+  `AudioOutputUnitStart` + the unlatch:
+  1. Interruption latch — `AVAudioSessionInterruptionTypeBegan` silences the
+     render callback (`ca_SetAliveState(false)`); iOS often omits
+     `shouldResume` from the matching *ended* notification (Bluetooth
+     handoffs/auto-switching), or never sends *ended* at all for
+     was-suspended pseudo-interruptions, so the latch held forever.
+  2. Resume fall-through — if `AVAudioSession` activation failed during
+     unpause, `audiounit_ios.m` reported the stream resumed with the
+     AudioUnit still stopped: the render callback never ran again.
+  3. Unclamped start deferral — a pathological first-block date after a
+     seek/flush deferred audible start arbitrarily far while silence rendered.
+- vlc-patch 0015 fixes all three in the vendored build: was-suspended
+  interruptions are ignored; interruption-ended always revives the output
+  and requests a clean output restart; both resume-failure branches request
+  an output restart instead of falling through; `Start()` retries session
+  activation briefly (transient `!act`/busy errors are normal while a
+  Bluetooth route settles); start deferrals are clamped at 2 s. vlc-patch
+  0016 makes a failed output restart itself retry after 500 ms
+  (`stream_CheckReady` re-enters the regular `AOUT_RESTART_OUTPUT` path)
+  instead of muting the stream until the end of the input.
+- Session ownership: the app (`PlaybackNowPlayingController`) is the single
+  owner of the `AVAudioSession` category/mode/policy. Patched
+  `avas_SetActive` no longer re-asserts `.moviePlayback` when a
+  Playback-category session is already configured — previously the app
+  (`.default` mode for VLCKit, the anti-spatialization choice) and VLC
+  (`.moviePlayback`) flipped the mode on every output start/resume, and each
+  flip forces a route re-evaluation that glitches Bluetooth routes and
+  spawns exactly the spurious interruptions that trip latch 1 and 2.
+  App-side, `beginSession` no longer deactivates the previous session before
+  activating the new one (the deactivate→activate whiplash was another
+  failure generator), session activation/deactivation failures log instead
+  of asserting, and the interruption handler only pauses the engine when it
+  was actually playing (never pokes a loading/buffering player mid-open).
 - tvOS drives true multichannel output to the connected receiver over HDMI/eARC:
   it nudges the VLC mix mode to 5.1 or 7.1 for the selected track, clamped to the
   route's channel capacity (a route that cannot render the layout steps down to

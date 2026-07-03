@@ -4,6 +4,12 @@ import Foundation
 import AVFoundation
 import MediaPlayer
 import UIKit
+import os
+
+private let nowPlayingLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+    category: "PlaybackNowPlaying"
+)
 #endif
 
 @MainActor
@@ -36,7 +42,13 @@ final class PlaybackNowPlayingController {
         skipForwardInterval: TimeInterval
     ) {
         #if os(iOS)
-        endSession()
+        // Reset any previous session WITHOUT deactivating the shared
+        // AVAudioSession: `setActive(false, .notifyOthersOnDeactivation)`
+        // followed by an immediate `setActive(true)` for the new item is a
+        // route whiplash (it invites other apps to resume mid-handoff), and
+        // rapid deactivate/activate cycles are exactly what produces the
+        // transient session errors that latch VLCKit's audio output silent.
+        endSession(deactivateAudioSession: false)
 
         self.details = details
         self.engine = engine
@@ -69,7 +81,7 @@ final class PlaybackNowPlayingController {
         #endif
     }
 
-    func endSession() {
+    func endSession(deactivateAudioSession: Bool = true) {
         #if os(iOS)
         artworkTask?.cancel()
         artworkTask = nil
@@ -81,10 +93,17 @@ final class PlaybackNowPlayingController {
         UIApplication.shared.endReceivingRemoteControlEvents()
 
         if isAudioSessionActive {
-            do {
-                try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
-            } catch {
-                assertionFailure("Failed to deactivate playback audio session: \(error.localizedDescription)")
+            if deactivateAudioSession {
+                do {
+                    try AVAudioSession.sharedInstance().setActive(false, options: [.notifyOthersOnDeactivation])
+                } catch {
+                    // Expected when the engine's audio output has not fully
+                    // wound down yet (the session reports itself busy);
+                    // harmless, so never trap debug builds over it.
+                    nowPlayingLogger.warning(
+                        "Failed to deactivate playback audio session: \(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
             isAudioSessionActive = false
         }
@@ -125,7 +144,13 @@ private extension PlaybackNowPlayingController {
             try session.setActive(true)
             isAudioSessionActive = true
         } catch {
-            assertionFailure("Failed to activate playback audio session: \(error.localizedDescription)")
+            // Transient activation failures are normal while a Bluetooth
+            // route or another app's session settles. VLCKit's audio output
+            // retries activation itself (and self-recovers via an output
+            // restart), so log instead of trapping debug builds.
+            nowPlayingLogger.warning(
+                "Failed to activate playback audio session: \(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 
@@ -416,8 +441,15 @@ private extension PlaybackNowPlayingController {
 
         switch type {
         case .began:
-            wasPlayingBeforeInterruption = engine?.state == .playing
-            engine?.pause()
+            let wasPlaying = engine?.state == .playing
+            wasPlayingBeforeInterruption = wasPlaying
+            // Only pause when actually playing: interruptions delivered
+            // while the engine is still loading/buffering (Bluetooth
+            // handoffs love firing mid-startup) must not poke the player
+            // mid-open — the engine keeps its own startup sequencing.
+            if wasPlaying {
+                engine?.pause()
+            }
             publishEngineSnapshot(force: true)
         case .ended:
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue ?? 0)

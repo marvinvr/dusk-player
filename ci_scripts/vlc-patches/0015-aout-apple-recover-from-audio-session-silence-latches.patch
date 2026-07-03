@@ -1,0 +1,212 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Dusk Player <dusk@localhost>
+Date: Fri, 3 Jul 2026 12:00:00 +0200
+Subject: [PATCH 15/16] aout/apple: recover from AVAudioSession silence
+ latches instead of muting forever
+
+The iOS AudioUnit output has three states in which it keeps accepting
+buffers and reporting success to the core while rendering pure silence.
+Because nothing fails, no recovery machinery (decoder reload, output
+restart) ever engages; video keeps playing with dead audio until the
+user manually pauses and resumes, which happens to re-run the exact
+session-activation + AudioOutputUnitStart + unlatch sequence:
+
+1. Interruption latch: AVAudioSessionInterruptionTypeBegan sets
+   b_paused via ca_SetAliveState(false). iOS frequently omits
+   AVAudioSessionInterruptionOptionShouldResume from the matching
+   "ended" notification (Bluetooth handoffs/auto-switching especially)
+   or, for was-suspended pseudo-interruptions, never sends "ended" at
+   all - so the render callback stayed silenced forever.
+   Now: was-suspended interruptions are ignored, and interruption-ended
+   always revives the output and requests a clean output restart.
+
+2. Resume fall-through: when Pause(false) failed to reactivate the
+   session, the code fell through and reported the stream as resumed
+   with the AudioUnit still stopped: the render callback never ran
+   again. The AudioOutputUnitStart failure branch equally returned with
+   no recovery scheduled.
+   Now: both failure branches request an output restart and keep the
+   stopped state consistent.
+
+3. Unclamped start deferral: ca_Play computes first_play_date from the
+   converted clock date of the first block after start/flush; a
+   pathological date (stale clock data right after a heavy seek or
+   buffering cycle) silences the render callback for the whole
+   deferral.
+   Now: deferrals beyond 2 seconds are clamped and logged.
+
+Additionally, Start() retries AVAudioSession activation briefly
+(transient '!act'/busy errors are normal while a Bluetooth route or a
+neighbouring session settles), and avas_SetActive no longer re-asserts
+the MoviePlayback session mode when the hosting application already
+configured a Playback-category session: the app<->VLC mode ping-pong
+forced a route re-evaluation on every output start/resume, which is
+precisely what generated the spurious interruptions and activation
+failures that trip states 1 and 2.
+---
+ modules/audio_output/apple/audiounit_ios.m         | 78 ++++++++++++++++++----
+ modules/audio_output/apple/avaudiosession_common.m | 14 +++-
+ modules/audio_output/apple/coreaudio_common.c      | 14 ++++
+ 3 files changed, 91 insertions(+), 15 deletions(-)
+
+diff --git a/modules/audio_output/apple/audiounit_ios.m b/modules/audio_output/apple/audiounit_ios.m
+index 0bd313e..fbfe14d 100644
+--- a/modules/audio_output/apple/audiounit_ios.m
++++ b/modules/audio_output/apple/audiounit_ios.m
+@@ -164,10 +164,30 @@ - (void)handleInterruption:(NSNotification *)notification
+     NSUInteger interruptionType = [userInfo[AVAudioSessionInterruptionTypeKey] unsignedIntegerValue];
+ 
+     if (interruptionType == AVAudioSessionInterruptionTypeBegan) {
++        if (@available(iOS 10.3, tvOS 10.3, watchOS 3.2, *)) {
++            if ([userInfo[AVAudioSessionInterruptionWasSuspendedKey] boolValue]) {
++                /* Not a real interruption: iOS only reports that the app was
++                 * suspended while the session was inactive. No "ended"
++                 * notification will follow, so latching the silence flag here
++                 * would mute playback forever once the app resumes. */
++                msg_Dbg(p_aout, "ignoring was-suspended interruption");
++                return;
++            }
++        }
+         ca_SetAliveState(p_aout, false);
+-    } else if (interruptionType == AVAudioSessionInterruptionTypeEnded
+-               && [userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue] == AVAudioSessionInterruptionOptionShouldResume) {
++    } else if (interruptionType == AVAudioSessionInterruptionTypeEnded) {
++        /* Always revive the output when an interruption ends. iOS often
++         * omits AVAudioSessionInterruptionOptionShouldResume for
++         * route-related interruptions (Bluetooth handoffs in particular);
++         * keeping the silence latch in that case mutes playback forever
++         * while the core still believes audio is rendering fine. Request a
++         * full output restart on top so the AudioUnit and the session are
++         * rebuilt from a clean state; if the user paused meanwhile, the
++         * restart is simply processed on the next resume. */
++        msg_Dbg(p_aout, "interruption ended (options: %lu), reviving output",
++                (unsigned long)[userInfo[AVAudioSessionInterruptionOptionKey] unsignedIntegerValue]);
+         ca_SetAliveState(p_aout, true);
++        aout_RestartRequest(p_aout, false);
+     }
+ }
+ 
+@@ -200,17 +220,30 @@ - (void)handleInterruption:(NSNotification *)notification
+     }
+     else
+     {
+-        if (avas_SetActive(p_aout, p_sys->avInstance, true, 0) == VLC_SUCCESS)
++        if (avas_SetActive(p_aout, p_sys->avInstance, true, 0) != VLC_SUCCESS)
+         {
+-            err = AudioOutputUnitStart(p_sys->au_unit);
+-            if (err != noErr)
+-            {
+-                ca_LogErr("AudioOutputUnitStart failed");
+-                avas_SetActive(p_aout, p_sys->avInstance, false, 0);
+-                /* Do not un-pause, the Render Callback won't run, and next call
+-                 * of ca_Play will deadlock */
+-                return;
+-            }
++            /* The session could not be reactivated (transient failures are
++             * common while a route change or another session settles). Do
++             * NOT fall through and report the stream as resumed: the
++             * AudioUnit is stopped, the render callback would never run and
++             * playback would stay silent until the end of the stream.
++             * Recover through a full output restart instead, which re-runs
++             * Start() and thus the session activation. */
++            msg_Warn(p_aout, "resume failed to activate AVAudioSession, "
++                     "requesting output restart");
++            aout_RestartRequest(p_aout, false);
++            return;
++        }
++        err = AudioOutputUnitStart(p_sys->au_unit);
++        if (err != noErr)
++        {
++            ca_LogErr("AudioOutputUnitStart failed, requesting output restart");
++            avas_SetActive(p_aout, p_sys->avInstance, false, 0);
++            /* Do not un-pause, the Render Callback won't run, and next call
++             * of ca_Play will deadlock. Recover through a full output
++             * restart instead of leaving the stream silent. */
++            aout_RestartRequest(p_aout, false);
++            return;
+         }
+     }
+     p_sys->b_stopped = pause;
+@@ -289,8 +322,25 @@ - (void)handleInterruption:(NSNotification *)notification
+                                name:AVAudioSessionInterruptionNotification
+                              object:nil];
+ 
+-    /* Activate the AVAudioSession */
+-    if (avas_SetActive(p_aout, p_sys->avInstance, true, 0) != VLC_SUCCESS)
++    /* Activate the AVAudioSession. Transient activation failures are common
++     * on iOS while the audio route is in flux (Bluetooth handoff, another
++     * session winding down), so retry briefly before failing the whole
++     * output: a failed Start() would otherwise leave the audio stream dead
++     * while video keeps playing. */
++    int active = VLC_EGENERIC;
++    for (unsigned nth = 0; nth < 4; ++nth)
++    {
++        if (nth > 0)
++        {
++            msg_Warn(p_aout, "AVAudioSession activation failed, retrying (%u)",
++                     nth);
++            vlc_tick_sleep(VLC_TICK_FROM_MS(100));
++        }
++        active = avas_SetActive(p_aout, p_sys->avInstance, true, 0);
++        if (active == VLC_SUCCESS)
++            break;
++    }
++    if (active != VLC_SUCCESS)
+     {
+         [[NSNotificationCenter defaultCenter] removeObserver:p_sys->aoutWrapper];
+         return VLC_EGENERIC;
+diff --git a/modules/audio_output/apple/avaudiosession_common.m b/modules/audio_output/apple/avaudiosession_common.m
+index 7a0fbc4..6489e77 100644
+--- a/modules/audio_output/apple/avaudiosession_common.m
++++ b/modules/audio_output/apple/avaudiosession_common.m
+@@ -203,7 +203,19 @@ static AVAudioSessionRouteSharingPolicy API_AVAILABLE(ios(11.0), watchos(7.0) VI
+ 
+     if (active)
+     {
+-        if (@available(iOS 11.0, watchOS 7.0, tvOS 11.0, *))
++        if ([instance.category isEqualToString:AVAudioSessionCategoryPlayback])
++        {
++            /* The hosting application already configured a Playback-category
++             * session (possibly with a different mode or sharing policy
++             * tuned for its output pipeline). Leave that configuration
++             * alone: re-asserting MoviePlayback here on every output
++             * start/resume made the session mode ping-pong between the app
++             * and VLC, and every flip forces a route re-evaluation that
++             * glitches Bluetooth routes and spawns spurious interruptions.
++             * Only claim the category when no playback session exists. */
++            ret = true;
++        }
++        else if (@available(iOS 11.0, watchOS 7.0, tvOS 11.0, *))
+         {
+             AVAudioSessionRouteSharingPolicy policy = GetRouteSharingPolicy(p_aout);
+ 
+diff --git a/modules/audio_output/apple/coreaudio_common.c b/modules/audio_output/apple/coreaudio_common.c
+index 18278e3..f846d74 100644
+--- a/modules/audio_output/apple/coreaudio_common.c
++++ b/modules/audio_output/apple/coreaudio_common.c
+@@ -347,8 +347,22 @@ ca_Play(audio_output_t * p_aout, block_t * p_block, vlc_tick_t date)
+         p_sys->first_play_date = date - BytesToTicks(p_sys, p_sys->i_out_size);
+ 
+         if (p_sys->first_play_date > now)
++        {
++            /* A pathological start date (stale clock conversion right after
++             * a heavy seek or buffering cycle) would keep the render
++             * callback writing silence for the whole deferral while video
++             * plays on, which the user perceives as dead audio. Cap the
++             * deferral; the regular timing reports re-align the clocks
++             * right after start. */
++            if (p_sys->first_play_date - now > VLC_TICK_FROM_MS(2000))
++            {
++                msg_Warn(p_aout, "clamping excessive audio start deferral "
++                         "(%"PRId64" us)", p_sys->first_play_date - now);
++                p_sys->first_play_date = now + VLC_TICK_FROM_MS(40);
++            }
+             msg_Dbg(p_aout, "deferring start (%"PRId64" us)",
+                     p_sys->first_play_date - now);
++        }
+         else
+             msg_Dbg(p_aout, "starting late (%"PRId64" us)",
+                     p_sys->first_play_date - now);
+--
+2.39.0
+
