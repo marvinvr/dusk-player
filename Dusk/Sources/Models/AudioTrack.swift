@@ -10,11 +10,16 @@ struct AudioTrack: Sendable, Identifiable, Hashable {
     let codec: String?
     let channels: Int?
     let channelLayout: String?
+    /// Plex stream id backing this track, when known (from merged part
+    /// metadata). Used to pin a server transcode to this exact audio stream
+    /// when the local engine cannot decode it.
+    var plexStreamID: Int? = nil
     /// Whether the engine that produced this track can actually decode it.
     /// The vendored VLCKit build ships without some decoders (e.g. TrueHD/MLP),
-    /// so a track can exist in the container yet be unplayable: selecting it
-    /// kills the working audio ES and leaves silence. Undecodable tracks are
-    /// excluded from automatic selection and from the track pickers.
+    /// so a track can exist in the container yet be unplayable: selecting its
+    /// ES kills the working audio and leaves silence. Automatic selection
+    /// skips undecodable tracks; picking one in the picker reroutes playback
+    /// through a server transcode pinned to the stream instead.
     var isDecodable: Bool = true
 
     var compactDisplayTitle: String {
@@ -55,6 +60,7 @@ extension AudioTrack {
         self.codec = stream.codec
         self.channels = stream.channels
         self.channelLayout = stream.channelLayout
+        self.plexStreamID = stream.id
     }
 
     private static func trimmed(_ value: String) -> String {

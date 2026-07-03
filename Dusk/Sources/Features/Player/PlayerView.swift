@@ -243,6 +243,11 @@ private struct PlayerSessionView: View {
                     duration: duration
                 )
             }
+            viewModel.transcodeAudioFallbackHandler = { track in
+                Task {
+                    await playback.transcodeForUndecodableAudio(track)
+                }
+            }
             viewModel.startPlaybackIfNeeded(source: playbackSource)
             #if os(tvOS)
             if viewModel.activeSkipMarker != nil {
@@ -320,7 +325,7 @@ private struct PlayerSessionView: View {
         .sheet(isPresented: $vm.showAudioPicker) {
             PlayerSelectionSheet(
                 title: "Audio",
-                items: viewModel.selectableAudioTracks,
+                items: viewModel.audioTracks,
                 selectedID: viewModel.selectedAudioTrackID,
                 itemTitle: \.compactDisplayTitle,
                 itemSubtitle: \.detailDisplayTitle,

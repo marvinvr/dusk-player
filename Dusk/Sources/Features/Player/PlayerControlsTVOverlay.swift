@@ -386,7 +386,7 @@ struct PlayerControlsTVOverlay: View {
     private var hasAvailableTrackSettings: Bool {
         context.hasPlaybackInfo ||
             context.hasQualityControl ||
-            !viewModel.selectableAudioTracks.isEmpty ||
+            !viewModel.audioTracks.isEmpty ||
             !viewModel.subtitleTracks.isEmpty
     }
 }

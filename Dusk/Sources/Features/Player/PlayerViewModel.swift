@@ -65,6 +65,16 @@ final class PlayerViewModel {
     var hasConfiguredAutomaticTrackSelection = false
     var hasAppliedAutomaticAudioSelection = false
     var hasAppliedAutomaticSubtitleSelection = false
+    /// One-shot guard for the undecodable-audio transcode fallback. Not reset
+    /// by `configureAutomaticTrackSelection` so a re-presented player (e.g.
+    /// returning from PiP) cannot restart the session a second time.
+    var hasRequestedUndecodableAudioFallback = false
+    /// Asks the coordinator to restart playback as a server transcode pinned
+    /// to the given audio stream (nil = the part's default audio stream).
+    /// Fired when the user picks a track the engine cannot decode locally, or
+    /// when a file has no locally decodable audio at all — sound must come
+    /// from the server transcoder instead of a dead local decoder.
+    var transcodeAudioFallbackHandler: (@MainActor (AudioTrack?) -> Void)?
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?

@@ -10,9 +10,19 @@ extension PlayerViewModel {
 
     func selectAudio(_ track: AudioTrack) {
         hasAppliedAutomaticAudioSelection = true
+        showAudioPicker = false
+
+        guard track.isDecodable else {
+            // The local engine cannot decode this codec (e.g. TrueHD on the
+            // bundled VLCKit build) — selecting the ES would just kill the
+            // working audio and leave silence. Restart as a server transcode
+            // pinned to this stream so the choice still produces sound.
+            transcodeAudioFallbackHandler?(track)
+            return
+        }
+
         engine.selectAudioTrack(track)
         selectedAudioTrackID = track.id
-        showAudioPicker = false
     }
 
     func syncTrackLists() {
@@ -33,6 +43,16 @@ extension PlayerViewModel {
             hasAppliedAutomaticAudioSelection = true
         }
 
+        // A file whose every audio track is locally undecodable (e.g. a
+        // TrueHD-only remux) would direct-play as a silent video. Rescue it
+        // once by restarting as a server transcode of the default stream.
+        if !hasRequestedUndecodableAudioFallback,
+           !audioTracks.isEmpty,
+           selectableAudioTracks.isEmpty {
+            hasRequestedUndecodableAudioFallback = true
+            transcodeAudioFallbackHandler?(nil)
+        }
+
         if !hasAppliedAutomaticSubtitleSelection, !subtitleTracks.isEmpty {
             let preferredSubtitleTrack = preferredSubtitleTrack()
             engine.selectSubtitleTrack(preferredSubtitleTrack)
@@ -41,10 +61,10 @@ extension PlayerViewModel {
         }
     }
 
-    /// Tracks that are actually offered to the user and to automatic selection.
-    /// Tracks the engine cannot decode (e.g. TrueHD on the bundled VLCKit
-    /// build) are listed by the container but unplayable — selecting one kills
-    /// the working audio ES and leaves silence, so they are never offered.
+    /// Tracks automatic selection may choose: only ones the local engine can
+    /// actually decode. The pickers still list every track — selecting an
+    /// undecodable one reroutes through the server-transcode fallback in
+    /// `selectAudio` instead of silencing playback.
     var selectableAudioTracks: [AudioTrack] {
         audioTracks.filter(\.isDecodable)
     }
@@ -185,6 +205,7 @@ extension PlayerViewModel {
                 codec: source.codec ?? track.codec,
                 channels: source.channels ?? track.channels,
                 channelLayout: source.channelLayout ?? track.channelLayout,
+                plexStreamID: source.id,
                 isDecodable: track.isDecodable
             )
         }

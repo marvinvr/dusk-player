@@ -157,8 +157,42 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoOutput: DuskVLCRawVideoOutput?
 
+    /// Shared libvlc instances, configured on top of VLCKit's default options
+    /// (`VLCLibrary.initWithOptions:` appends to them).
+    ///
+    /// `--aout=audiounit_ios,any` pins the audio output to the classic
+    /// pull-model AudioUnit module instead of libvlc 4's new default
+    /// `avsamplebuffer` (AVSampleBufferAudioRenderer, capability 100 vs 99).
+    /// avsamplebuffer drives the core playback clock from a 1-second periodic
+    /// time observer of an AVSampleBufferRenderSynchronizer, a mechanism with
+    /// documented iOS-specific drift (fine on macOS/simulator, which is why
+    /// the dropouts never reproduce off-device), and mpv deliberately ships
+    /// the equivalent output opt-in rather than default. When the reported
+    /// clock lurches, libvlc's aout core reacts with "playback too late /
+    /// too early" silence insertions and buffer flushes — audible as cyclic
+    /// audio dropouts a few seconds long that a pause/resume temporarily
+    /// clears. audiounit_ios reports timing from the real-time CoreAudio
+    /// render callback instead. The ",any" suffix keeps a fallback if the
+    /// module is ever missing so playback never starts without audio.
+    /// `UserPreferences.vlcUseAVSampleBufferAudio` (Settings → Playback
+    /// Advanced) restores the libvlc default for on-device A/B testing;
+    /// it is read once per engine, so it applies to the next playback.
+    nonisolated(unsafe) private static let audioUnitLibrary =
+        VLCLibrary(options: ["--aout=audiounit_ios,any"])
+    nonisolated(unsafe) private static let libvlcDefaultLibrary =
+        VLCLibrary(options: [])
+
+    /// Mirrors `UserPreferences.Keys.vlcUseAVSampleBufferAudio` (Settings).
+    private static let useAVSampleBufferAudioDefaultsKey = "vlcUseAVSampleBufferAudio"
+
+    private static func chooseLibrary() -> VLCLibrary {
+        UserDefaults.standard.bool(forKey: useAVSampleBufferAudioDefaultsKey)
+            ? libvlcDefaultLibrary
+            : audioUnitLibrary
+    }
+
     override init() {
-        let player = VLCMediaPlayer()
+        let player = VLCMediaPlayer(library: Self.chooseLibrary())
         let renderingHost = makeVLCKitRenderingHost()
         self.mediaPlayer = player
         self.renderingHost = renderingHost

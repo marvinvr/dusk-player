@@ -194,7 +194,7 @@ extension PlaybackCoordinator {
         }
     }
 
-    func switchQuality(to preset: PlaybackQualityPreset) async {
+    func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: Int? = nil) async {
         guard !isSwitchingQuality else { return }
         guard let details = activeItemDetails,
               let ratingKey,
@@ -203,7 +203,7 @@ extension PlaybackCoordinator {
             presentQualitySwitchError("Quality changes are unavailable for this playback.")
             return
         }
-        guard preset != debugInfo.qualityPreset else { return }
+        guard preset != debugInfo.qualityPreset || audioStreamID != nil else { return }
         guard debugInfo.availableQualityPresets.contains(preset) else {
             presentQualitySwitchError("Choose a quality below the original stream.")
             return
@@ -265,7 +265,8 @@ extension PlaybackCoordinator {
                     mediaIndex: mediaIndex,
                     preset: preset,
                     sessionIdentifier: playbackSessionID,
-                    transcodeSessionID: transcodeSessionID
+                    transcodeSessionID: transcodeSessionID,
+                    audioStreamID: audioStreamID
                 )
 
                 switch result.outcome {
@@ -282,7 +283,9 @@ extension PlaybackCoordinator {
                 sanitizedURL = plexService.sanitizedPlaybackURLString(for: playbackURL)
                 playbackDecision = .transcode(preset)
                 engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
-                resolverReason = "User selected Plex HLS transcode quality \(preset.displayName)"
+                resolverReason = audioStreamID != nil
+                    ? "Server transcode for locally undecodable audio stream (quality \(preset.displayName))"
+                    : "User selected Plex HLS transcode quality \(preset.displayName)"
                 videoEnhancementRequest = .disabled
             }
 
@@ -346,6 +349,33 @@ extension PlaybackCoordinator {
             )
             presentQualitySwitchError(error.localizedDescription)
         }
+    }
+
+    /// Restarts the current session as a server transcode pinned to the given
+    /// audio stream (nil = the part's default audio stream). Used when the
+    /// local engine cannot decode a track (e.g. TrueHD on the bundled VLCKit
+    /// build): the server decodes it to an AVPlayer-friendly stream, so the
+    /// user's choice produces sound instead of a dead local decoder.
+    func transcodeForUndecodableAudio(_ track: AudioTrack?) async {
+        guard let debugInfo else {
+            presentQualitySwitchError("Audio transcoding is unavailable for this playback.")
+            return
+        }
+        guard let preset = debugInfo.availableQualityPresets.first(where: { !$0.isOriginal }) else {
+            presentQualitySwitchError("No transcode quality is available for this item.")
+            return
+        }
+
+        let audioStreams = debugInfo.part.streams.filter { $0.streamType == .audio }
+        let fallbackStream = audioStreams.first { $0.isSelected ?? false }
+            ?? audioStreams.first { $0.isDefault ?? false }
+            ?? audioStreams.first
+        let streamID = track?.plexStreamID ?? fallbackStream?.id
+
+        playbackSessionLogger.notice(
+            "Switching to server transcode for locally undecodable audio (streamID \(streamID.map(String.init) ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
+        )
+        await switchQuality(to: preset, audioStreamID: streamID)
     }
 
     func handlePlaybackEnded() async {

@@ -99,9 +99,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   matches on `trackId` for selection. Matching on the int `identifier` silently
   selected the wrong track, so switching audio/subtitle never took effect.
 - Engine tracks carry `isDecodable`. The bundled VLCKit build cannot decode
-  every codec a container may hold (see "Undecodable audio tracks" below);
-  tracks the engine cannot decode are excluded from automatic selection and
-  from the pickers, because selecting one kills the working audio ES.
+  every codec a container may hold (see "Undecodable audio tracks" below).
+  Automatic selection only considers decodable tracks; the pickers list all of
+  them, and picking an undecodable one reroutes through
+  `PlaybackCoordinator.transcodeForUndecodableAudio` (server transcode pinned
+  to that stream) instead of silencing playback.
 - Picture in Picture is optional, observable engine state: `isPictureInPicturePossible`,
   `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
   `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything
@@ -144,12 +146,35 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   sometimes catches itself" symptom: route-independent, streamed or local,
   only on files whose preferred track is undecodable.
 - Fix layers: `VLCKitEngine.undecodableAudioFourCCs` marks such tracks
-  (`AudioTrack.isDecodable == false`); auto-selection and the pickers skip
-  them. To actually decode TrueHD, rebuild the frameworks with
-  `DUSK_EXTRA_VLC_PATCHES=1 ./ci_scripts/install_vlckit.sh` (applies
-  `ci_scripts/vlc-patches/`) and remove the corresponding fourccs from
-  `undecodableAudioFourCCs` — that is a deliberate licensing/App Store
-  decision, not a code default.
+  (`AudioTrack.isDecodable == false`); auto-selection skips them. The pickers
+  still offer them: `PlayerViewModel.selectAudio` reroutes an undecodable pick
+  through `transcodeAudioFallbackHandler` → `PlaybackCoordinator.
+  transcodeForUndecodableAudio(_:)`, which restarts the session as a Plex HLS
+  transcode pinned to that stream (`switchQuality(to:audioStreamID:)`), so the
+  choice produces sound. A file with zero locally decodable audio tracks (a
+  TrueHD-only remux) triggers the same fallback automatically instead of
+  direct-playing as a silent video. To decode TrueHD natively, rebuild the
+  frameworks with `DUSK_EXTRA_VLC_PATCHES=1 ./ci_scripts/install_vlckit.sh`
+  (applies `ci_scripts/vlc-patches/`) and remove the corresponding fourccs
+  from `undecodableAudioFourCCs` — a deliberate licensing/App Store decision,
+  not a code default.
+
+### VLCKit audio output module
+- `VLCKitEngine` runs its players on a shared `VLCLibrary` with
+  `--aout=audiounit_ios,any`, pinning libvlc 4's audio output to the classic
+  AudioUnit module. libvlc 4's new default, `avsamplebuffer`
+  (AVSampleBufferAudioRenderer, capability 100 vs 99), drives the master
+  playback clock from a 1-second periodic observer of an
+  AVSampleBufferRenderSynchronizer — a mechanism with documented iOS-specific
+  drift that does not exist on macOS (so simulator runs cannot reproduce it),
+  and mpv ships the equivalent output opt-in rather than default. When those
+  timing reports lurch under device load, the aout core inserts silence or
+  flushes buffers ("playback way too late/early"), audible as cyclic
+  dropouts that pause/resume temporarily clears. A PCM-tap harness proved the
+  demux→decode→delivery pipeline is gapless through seeks and pause/resume,
+  isolating the output layer. Settings → Playback Advanced → "VLCKit
+  AVSampleBuffer Audio" restores the libvlc default for on-device A/B testing
+  (applies to the next playback session).
 - VLCKit keeps encoded passthrough off. `configureAudioOutputPolicy` is split by
   platform because the routes are fundamentally different, and it is idempotent
   (a signature of the resolved config gates every player/session write) and
