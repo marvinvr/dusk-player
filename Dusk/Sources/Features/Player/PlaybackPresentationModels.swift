@@ -19,6 +19,15 @@ struct PlaybackSource: Sendable {
     let url: URL
     let startPosition: TimeInterval?
     let context: PlaybackAttemptContext
+    /// Position of the automatically preferred audio stream among the part's
+    /// audio streams (libvlc `:audio-track` semantics), computed from Plex
+    /// metadata BEFORE playback starts. VLCKit passes it as a media option so
+    /// the audio output opens directly on the winning track. Switching tracks
+    /// after start restarts libvlc's audio output for the format change, and
+    /// a restart landing in the startup window can leave playback silent
+    /// until a manual pause/resume — pre-selecting removes the switch
+    /// entirely. `nil` leaves the container/libvlc default untouched.
+    var preferredAudioTrackPosition: Int? = nil
 }
 
 struct PlaybackDebugInfo: Sendable {

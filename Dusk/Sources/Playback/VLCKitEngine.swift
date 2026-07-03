@@ -132,6 +132,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var suppressPlaybackEndedEvent = false
     private var ignoreNextStoppedEvent = false
     private var pendingSeekTarget: TimeInterval?
+    /// Count of consecutive accepted, advancing time updates while playing,
+    /// unbuffered, with no seek in flight. Reset by anything that disturbs
+    /// the pipeline (load, seek, pause, buffering, stall recovery). Automatic
+    /// audio selection waits for a few of these — proof the clock is running
+    /// and rendering has been continuous — before switching tracks.
+    private var steadyPlaybackTicks = 0
     private var pendingSeekStartedAt: Date?
     private var currentAttemptContext: PlaybackAttemptContext?
     private var currentSource: PlaybackSource?
@@ -238,6 +244,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         ignoreNextStoppedEvent = false
         clearPendingSeek()
         pendingStartPosition = source.startPosition
+        steadyPlaybackTicks = 0
         availableSubtitleTracks = []
         availableAudioTracks = []
         selectedSubtitleTrackID = nil
@@ -317,6 +324,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         videoRefreshTask = nil
         mediaPlayer.pause()
         state = .paused
+        steadyPlaybackTicks = 0
         syncRendererPlaybackState()
     }
 
@@ -469,6 +477,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingSeekTarget = clampedPosition
         pendingSeekStartedAt = Date()
         currentTime = clampedPosition
+        steadyPlaybackTicks = 0
 
         // Seek without pausing — pausing first creates a race between
         // VLCKit's asynchronous state callbacks and the timed resume,
@@ -506,6 +515,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         isBuffering = true
         pendingStartPosition = recoveryPosition
         hasAppliedStartPosition = recoveryPosition <= 0
+        steadyPlaybackTicks = 0
         hasReportedPlaybackEnded = false
         availableSubtitleTracks = []
         availableAudioTracks = []
@@ -547,15 +557,19 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// activation, the resume seek's flush — a failed `aout_OutputNew` marks
     /// the stream dead (`mixer_format.i_format = 0`) and libvlc never retries:
     /// video plays, audio is simply absent until a pause/resume forces another
-    /// restart. Steady state means: actually playing, not buffering, the
-    /// pending start-position seek issued AND settled (`pendingSeekTarget`
-    /// only clears once time updates reach the target), and a real time tick
-    /// observed — i.e. the pipeline is demonstrably rendering, the same
-    /// conditions under which manual track switches are reliable.
+    /// restart. Note this is only the SAFETY NET: the preferred track is
+    /// normally preselected via the `:audio-track` media option before play
+    /// (`PlaybackSource.preferredAudioTrackPosition`), so no switch happens at
+    /// all. Steady state means: actually playing, not buffering, the pending
+    /// start-position seek issued AND settled, and several consecutive
+    /// advancing time ticks observed (~1s at the 250 ms cadence; the counter
+    /// resets on load/seek/pause/buffering) — i.e. the pipeline has
+    /// demonstrably been rendering for a while, the same conditions under
+    /// which manual track switches are reliable.
     var isReadyForAutomaticAudioSelection: Bool {
         guard state == .playing, !isBuffering else { return false }
         guard hasAppliedStartPosition || (pendingStartPosition ?? 0) <= 0 else { return false }
-        return pendingSeekTarget == nil && currentTime > 0
+        return pendingSeekTarget == nil && steadyPlaybackTicks >= 4
     }
 
     func makePlayerView() -> AnyView {
@@ -585,6 +599,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         switch vlcState {
         case .opening, .buffering:
             isBuffering = true
+            steadyPlaybackTicks = 0
             if state != .playing && state != .paused {
                 state = .loading
             }
@@ -666,6 +681,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
 
         if shouldAcceptUpdatedTime(updatedTime) {
+            if state == .playing, !isBuffering, pendingSeekTarget == nil, updatedTime > currentTime {
+                steadyPlaybackTicks += 1
+            }
             currentTime = updatedTime
         }
         syncRendererPlaybackState()
@@ -843,6 +861,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         applySubtitleStyling(to: media)
         applyNetworkBufferingOptions(to: media)
+        if let audioTrackPosition = source.preferredAudioTrackPosition {
+            // Open directly on the automatically preferred audio track
+            // (position among the audio ESes, computed from Plex metadata).
+            // This avoids the post-start ES switch whose audio-output restart
+            // could land in the fragile startup window and mute playback.
+            media.addOption(":audio-track=\(audioTrackPosition)")
+            vlcKitEngineLogger.notice(
+                "Playback attempt \(source.context.attemptLabel, privacy: .public) preselecting audio track position \(audioTrackPosition, privacy: .public) via media option"
+            )
+        }
         configureAudioOutputPolicy(reason: "before-play")
         mediaPlayer.media = media
         if let rawVideoOutput {

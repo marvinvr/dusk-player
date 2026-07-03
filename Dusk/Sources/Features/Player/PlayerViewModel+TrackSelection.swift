@@ -334,42 +334,120 @@ extension PlayerViewModel {
     }
 
     func audioSelectionScore(for track: AudioTrack, originalIndex: Int) -> Int {
-        var score = 0
-
-        if sourcePart?.streams.contains(where: {
+        let isPlexSelected = sourcePart?.streams.contains(where: {
             $0.streamType == .audio &&
                 ($0.isSelected ?? false) &&
                 scoreAudioMatch(track: track, stream: $0) >= 5
-        }) == true {
-            score += 1_000
-        }
+        }) == true
 
-        if sourcePart?.streams.contains(where: {
+        let isPlexDefault = sourcePart?.streams.contains(where: {
             $0.streamType == .audio &&
                 ($0.isDefault ?? false) &&
                 scoreAudioMatch(track: track, stream: $0) >= 5
-        }) == true {
+        }) == true
+
+        return Self.audioSelectionScore(
+            for: track,
+            originalIndex: originalIndex,
+            isPlexSelected: isPlexSelected,
+            isPlexDefault: isPlexDefault
+        )
+    }
+
+    /// Shared scoring core for automatic audio selection, used both at
+    /// runtime (VLC track list merged with Plex metadata) and before playback
+    /// starts (`preferredAudioStreamPosition`, pure Plex metadata).
+    static func audioSelectionScore(
+        for track: AudioTrack,
+        originalIndex: Int,
+        isPlexSelected: Bool,
+        isPlexDefault: Bool
+    ) -> Int {
+        var score = 0
+
+        if isPlexSelected {
+            score += 1_000
+        }
+
+        if isPlexDefault {
             score += 500
         }
 
-        score += (track.channels ?? Self.inferredChannelCount(from: track) ?? 0) * 40
-        score += Self.audioCodecPreferenceScore(for: track)
-        score += Self.platformAudioCodecAdjustment(for: track)
+        score += (track.channels ?? inferredChannelCount(from: track) ?? 0) * 40
+        score += audioCodecPreferenceScore(for: track)
+        score += platformAudioCodecAdjustment(for: track)
 
-        if Self.containsCommentaryMarker(track.displayTitle) {
+        if containsCommentaryMarker(track.displayTitle) {
             score -= 2_000
         }
 
-        if Self.containsDescriptiveAudioMarker(track.displayTitle) {
+        if containsDescriptiveAudioMarker(track.displayTitle) {
             score -= 1_500
         }
 
-        if (track.channels ?? Self.inferredChannelCount(from: track)) == 2 ||
-            Self.containsStereoDownmixMarker(track.displayTitle) {
+        if (track.channels ?? inferredChannelCount(from: track)) == 2 ||
+            containsStereoDownmixMarker(track.displayTitle) {
             score -= 40
         }
 
         return score - originalIndex
+    }
+
+    /// Pre-start twin of `preferredAudioTrack()`, operating on Plex part
+    /// metadata alone. Returns the winning stream's position among the part's
+    /// audio streams — libvlc's `:audio-track` index — so VLCKit can open
+    /// directly on that track instead of switching after playback starts
+    /// (switching restarts the audio output, which is fragile mid-startup).
+    /// Same policy as the runtime path: scope to the preferred language when
+    /// configured (any match counts), otherwise re-rank only within the
+    /// default track's language and only when there is a real alternative.
+    static func preferredAudioStreamPosition(
+        inPart part: PlexMediaPart?,
+        preferredLanguage rawPreferredLanguage: String?
+    ) -> Int? {
+        guard let part else { return nil }
+        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        guard audioStreams.count > 1 else { return nil }
+
+        let preferredLanguage = normalizedLanguageCode(rawPreferredLanguage)
+        let scopeLanguage: String?
+        if let preferredLanguage {
+            scopeLanguage = preferredLanguage
+        } else {
+            let anchor = audioStreams.first(where: { $0.isSelected ?? false })
+                ?? audioStreams.first(where: { $0.isDefault ?? false })
+                ?? audioStreams.first
+            scopeLanguage = normalizedLanguageCode(anchor?.languageCode ?? anchor?.languageTag)
+        }
+
+        let candidates = audioStreams.enumerated().filter { _, stream in
+            normalizedLanguageCode(stream.languageCode ?? stream.languageTag) == scopeLanguage
+        }
+        guard candidates.count > (preferredLanguage != nil ? 0 : 1) else { return nil }
+
+        return candidates
+            .sorted { lhs, rhs in
+                let lhsScore = audioSelectionScore(
+                    for: AudioTrack(stream: lhs.element),
+                    originalIndex: lhs.offset,
+                    isPlexSelected: lhs.element.isSelected ?? false,
+                    isPlexDefault: lhs.element.isDefault ?? false
+                )
+                let rhsScore = audioSelectionScore(
+                    for: AudioTrack(stream: rhs.element),
+                    originalIndex: rhs.offset,
+                    isPlexSelected: rhs.element.isSelected ?? false,
+                    isPlexDefault: rhs.element.isDefault ?? false
+                )
+
+                if lhsScore != rhsScore {
+                    return lhsScore > rhsScore
+                }
+
+                return lhs.offset < rhs.offset
+            }
+            .first?
+            .offset
     }
 
     func scoreSubtitleMatch(track: SubtitleTrack, stream: PlexStream) -> Int {

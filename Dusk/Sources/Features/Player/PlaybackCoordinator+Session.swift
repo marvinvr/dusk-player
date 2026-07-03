@@ -155,10 +155,23 @@ extension PlaybackCoordinator {
             activeTranscodeSessionID = nil
             activeItemDetails = details
             engine = newEngine
+            let preferredAudioTrackPosition: Int? = switch playbackDecision {
+            case .directPlay, .localDownload:
+                // Chosen pre-start so VLCKit opens on the winning track and
+                // never has to switch (and restart the audio output) mid-start.
+                PlayerViewModel.preferredAudioStreamPosition(
+                    inPart: part,
+                    preferredLanguage: preferences.defaultAudioLanguage
+                )
+            case .transcode:
+                // HLS rewrites the stream layout; positions no longer apply.
+                nil
+            }
             playbackSource = PlaybackSource(
                 url: playbackURL,
                 startPosition: startPosition,
-                context: attemptContext
+                context: attemptContext,
+                preferredAudioTrackPosition: preferredAudioTrackPosition
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -322,7 +335,13 @@ extension PlaybackCoordinator {
             playbackSource = PlaybackSource(
                 url: playbackURL,
                 startPosition: currentTime,
-                context: attemptContext
+                context: attemptContext,
+                preferredAudioTrackPosition: preset.isOriginal
+                    ? PlayerViewModel.preferredAudioStreamPosition(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultAudioLanguage
+                    )
+                    : nil
             )
             self.debugInfo = PlaybackDebugInfo(
                 title: details.title,

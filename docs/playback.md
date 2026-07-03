@@ -138,22 +138,38 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Selection only considers `selectableAudioTracks` (decodable tracks): ranking
   by desirability used to steer playback onto a TrueHD track the bundled
   VLCKit cannot decode, which is what actually broke Bluray-remux audio.
-- Automatic audio selection is deferred until steady-state playback
-  (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
-  buffering, start-position seek issued and settled, a real time tick seen —
-  `sync()` retries every tick until then), and is skipped entirely when the
-  preferred track is already the selected one. Switching the audio ES makes
-  libvlc restart the audio output for the input format change (e.g. TrueHD
-  7.1 → AC-3 5.1); landing that restart inside the startup window (output
-  bring-up, passthrough probing, session activation, resume-seek flush) can
-  brick the stream on device — a failed `aout_OutputNew` sets
+- The automatically preferred audio track is normally PRESELECTED before
+  playback starts: `PlaybackCoordinator` computes it from Plex part metadata
+  (`PlayerViewModel.preferredAudioStreamPosition`, the pre-start twin of the
+  runtime policy sharing the same scorer), carries it in
+  `PlaybackSource.preferredAudioTrackPosition`, and `VLCKitEngine` passes it
+  as the `:audio-track=<position>` media option (0-based position among the
+  audio ESes — verified against this libvlc build). libvlc then opens
+  directly on the winning track: no post-start ES switch exists at all, the
+  losing track's decoder is never created, and the audio output is brought
+  up exactly once. Direct play / local downloads only — HLS transcodes
+  rewrite the stream layout, so positions are not passed there.
+- Why no-switch matters: switching the audio ES makes libvlc restart the
+  audio output for the input format change (e.g. TrueHD 7.1 → AC-3 5.1);
+  landing that restart inside the startup window (output bring-up,
+  passthrough probing, session activation, resume-seek flush) can brick the
+  stream on device — a failed `aout_OutputNew` sets
   `mixer_format.i_format = 0` in libvlc's `dec.c` and nothing retries, so
   video plays with no audio until a manual pause/resume forces another
-  restart. Steady-state switches use the exact code path as manual picker
-  changes, which are reliable. Verified in the C-API harness (throttled HTTP
-  + amem PCM tap + audiounit log tracing): ASAP switch interleaves the
-  restart with output bring-up; post-settle switch restarts a live output
-  with one ~30 ms flush.
+  restart via the audiounit resume path.
+- The runtime auto-selection remains as a safety net for preselect mapping
+  misses. It is deferred until steady-state playback
+  (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
+  buffering, start-position seek issued and settled, and ≥4 consecutive
+  advancing time ticks — ~1 s at the 250 ms cadence; the counter resets on
+  load/seek/pause/buffering so the gate cannot open mid-refill), and it is
+  skipped entirely when the preferred track is already selected, which is
+  the normal case with preselection in place. Steady-state switches use the
+  same code path as manual picker changes, which are reliable. Verified in
+  the C-API harness (throttled Range-HTTP + amem PCM tap + audiounit log
+  tracing): ASAP switch interleaves the output restart with bring-up;
+  `:audio-track` preselect yields a single bring-up with zero switches;
+  post-settle switch restarts a live output with one ~30 ms flush.
 
 ### Undecodable audio tracks (TrueHD/MLP)
 - The vendored frameworks are now built with `ci_scripts/vlc-patches/0013`
