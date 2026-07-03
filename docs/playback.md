@@ -138,6 +138,22 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Selection only considers `selectableAudioTracks` (decodable tracks): ranking
   by desirability used to steer playback onto a TrueHD track the bundled
   VLCKit cannot decode, which is what actually broke Bluray-remux audio.
+- Automatic audio selection is deferred until steady-state playback
+  (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
+  buffering, start-position seek issued and settled, a real time tick seen —
+  `sync()` retries every tick until then), and is skipped entirely when the
+  preferred track is already the selected one. Switching the audio ES makes
+  libvlc restart the audio output for the input format change (e.g. TrueHD
+  7.1 → AC-3 5.1); landing that restart inside the startup window (output
+  bring-up, passthrough probing, session activation, resume-seek flush) can
+  brick the stream on device — a failed `aout_OutputNew` sets
+  `mixer_format.i_format = 0` in libvlc's `dec.c` and nothing retries, so
+  video plays with no audio until a manual pause/resume forces another
+  restart. Steady-state switches use the exact code path as manual picker
+  changes, which are reliable. Verified in the C-API harness (throttled HTTP
+  + amem PCM tap + audiounit log tracing): ASAP switch interleaves the
+  restart with output bring-up; post-settle switch restarts a live output
+  with one ~30 ms flush.
 
 ### Undecodable audio tracks (TrueHD/MLP)
 - The vendored frameworks are now built with `ci_scripts/vlc-patches/0013`

@@ -85,6 +85,14 @@ protocol PlaybackEngine: AnyObject {
     func selectSubtitleTrack(_ track: SubtitleTrack?)
     func selectAudioTrack(_ track: AudioTrack)
 
+    /// Whether automatic (app-driven) audio track selection may run right now.
+    /// VLCKit defers it until playback is steadily rendering: switching the
+    /// audio ES restarts libvlc's audio output (input format change), and doing
+    /// that inside the startup window — output bring-up, audio session
+    /// activation, resume seek — can leave the restarted output dead until a
+    /// manual pause/resume. Steady-state switches are safe.
+    var isReadyForAutomaticAudioSelection: Bool { get }
+
     // MARK: - Audio session
 
     /// Whether this engine wants the rich `.moviePlayback` audio session, which
@@ -120,6 +128,9 @@ protocol PlaybackEngine: AnyObject {
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
+
+    // Default: no startup fragility — only VLCKit defers automatic selection.
+    var isReadyForAutomaticAudioSelection: Bool { true }
 
     // Default: keep the rich movie-playback session. Only VLCKit opts out.
     var prefersSpatializedAudioSession: Bool { true }

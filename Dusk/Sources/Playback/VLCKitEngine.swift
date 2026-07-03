@@ -540,6 +540,24 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         configureAudioOutputPolicy(reason: "audio-track-selected")
     }
 
+    /// Automatic audio selection must wait for steady-state playback. Switching
+    /// the audio ES makes libvlc restart the audio output for the input format
+    /// change (e.g. TrueHD 7.1 → AC-3 5.1); if that restart lands inside the
+    /// startup window — output bring-up, passthrough probing, audio session
+    /// activation, the resume seek's flush — a failed `aout_OutputNew` marks
+    /// the stream dead (`mixer_format.i_format = 0`) and libvlc never retries:
+    /// video plays, audio is simply absent until a pause/resume forces another
+    /// restart. Steady state means: actually playing, not buffering, the
+    /// pending start-position seek issued AND settled (`pendingSeekTarget`
+    /// only clears once time updates reach the target), and a real time tick
+    /// observed — i.e. the pipeline is demonstrably rendering, the same
+    /// conditions under which manual track switches are reliable.
+    var isReadyForAutomaticAudioSelection: Bool {
+        guard state == .playing, !isBuffering else { return false }
+        guard hasAppliedStartPosition || (pendingStartPosition ?? 0) <= 0 else { return false }
+        return pendingSeekTarget == nil && currentTime > 0
+    }
+
     func makePlayerView() -> AnyView {
         if let videoEnhancementRenderer {
             #if os(iOS)

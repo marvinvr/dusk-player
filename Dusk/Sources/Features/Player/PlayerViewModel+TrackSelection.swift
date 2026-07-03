@@ -35,8 +35,14 @@ extension PlayerViewModel {
     func applyAutomaticTrackSelectionIfNeeded() {
         guard hasConfiguredAutomaticTrackSelection else { return }
 
-        if !hasAppliedAutomaticAudioSelection, !audioTracks.isEmpty {
-            if let preferredAudioTrack = preferredAudioTrack() {
+        // Audio waits for steady-state playback (`sync()` retries every tick):
+        // switching the audio ES restarts libvlc's audio output, and doing so
+        // during startup/buffering/the resume seek can leave it silent until a
+        // manual pause/resume. Steady-state switches are reliable.
+        if !hasAppliedAutomaticAudioSelection, !audioTracks.isEmpty,
+           engine.isReadyForAutomaticAudioSelection {
+            if let preferredAudioTrack = preferredAudioTrack(),
+               preferredAudioTrack.id != engine.selectedAudioTrackID {
                 engine.selectAudioTrack(preferredAudioTrack)
                 selectedAudioTrackID = preferredAudioTrack.id
             }
