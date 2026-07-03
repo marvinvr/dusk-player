@@ -122,11 +122,20 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - AVPlayer uses `AVPlayerLayer`, KVO, media-selection groups, and text style
   rules. VLCKit uses `VLCMediaPlayer`, delegate callbacks, track APIs, media
   options, and renderer hosts split by platform.
-- Automatic audio selection keeps the user's preferred language, then ranks
-  tracks by Plex selected/default metadata, channel count, codec desirability,
-  and non-commentary/non-descriptive titles. This prevents a matching-language
-  commentary or stereo downmix from beating a theatrical 5.1/7.1/Atmos-style
-  track. It only considers `selectableAudioTracks` (decodable tracks): ranking
+- Automatic audio selection keeps the user's preferred language (with no
+  language preference configured it re-ranks only within the default track's
+  language), then ranks tracks by Plex selected/default metadata, channel
+  count, codec desirability, and non-commentary/non-descriptive titles. This
+  prevents a matching-language commentary or stereo downmix from beating a
+  theatrical 5.1/7.1/Atmos-style track.
+- Codec desirability is platform-aware (`platformAudioCodecAdjustment`): on
+  tvOS lossless bitstreams (TrueHD/MLP, DTS-HD, PCM) rank top — they decode
+  to multichannel LPCM over HDMI — while iPhone/iPad demote them below lossy
+  surround (E-AC-3/AC-3/DTS), because the phone outputs a stereo/binaural
+  downmix either way and lossless only costs decode CPU, battery, and
+  streaming bandwidth. Ranking is relative, so a lossless-only file still
+  plays natively, and the pickers can always select any track manually.
+- Selection only considers `selectableAudioTracks` (decodable tracks): ranking
   by desirability used to steer playback onto a TrueHD track the bundled
   VLCKit cannot decode, which is what actually broke Bluray-remux audio.
 

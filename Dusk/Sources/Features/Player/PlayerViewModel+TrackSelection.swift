@@ -70,12 +70,25 @@ extension PlayerViewModel {
     }
 
     func preferredAudioTrack() -> AudioTrack? {
-        guard let preferredAudioLanguage else { return nil }
+        let languageMatches: [(offset: Int, element: AudioTrack)]
 
-        let languageMatches = selectableAudioTracks.enumerated().filter { _, track in
-            Self.normalizedLanguageCode(track.languageCode) == preferredAudioLanguage
+        if let preferredAudioLanguage {
+            languageMatches = selectableAudioTracks.enumerated().filter { _, track in
+                Self.normalizedLanguageCode(track.languageCode) == preferredAudioLanguage
+            }
+            guard !languageMatches.isEmpty else { return nil }
+        } else {
+            // No preferred language configured: never switch the authored
+            // language, but still re-rank between same-language alternatives
+            // so the platform codec adjustment below can demote e.g. a
+            // container-default TrueHD track in favor of its AC-3/E-AC-3
+            // sibling on iPhone. Only step in when there is a real choice.
+            let anchorLanguage = defaultAudioAnchorLanguageCode()
+            languageMatches = selectableAudioTracks.enumerated().filter { _, track in
+                Self.normalizedLanguageCode(track.languageCode) == anchorLanguage
+            }
+            guard languageMatches.count > 1 else { return nil }
         }
-        guard !languageMatches.isEmpty else { return nil }
 
         return languageMatches
             .sorted { lhs, rhs in
@@ -90,6 +103,26 @@ extension PlayerViewModel {
             }
             .first?
             .element
+    }
+
+    /// The language playback would land on with no user preference: the
+    /// Plex-selected stream, else the container-default stream, else the
+    /// first track. Automatic re-ranking without a configured language stays
+    /// inside this group, so it may swap codecs but never the spoken language.
+    func defaultAudioAnchorLanguageCode() -> String? {
+        let audioStreams = sourcePart?.streams.filter { $0.streamType == .audio } ?? []
+        if let anchor = audioStreams.first(where: { $0.isSelected ?? false })
+            ?? audioStreams.first(where: { $0.isDefault ?? false })
+            ?? audioStreams.first {
+            return Self.normalizedLanguageCode(anchor.languageCode ?? anchor.languageTag)
+        }
+
+        if let selectedTrackID = engine.selectedAudioTrackID,
+           let selectedTrack = audioTracks.first(where: { $0.id == selectedTrackID }) {
+            return Self.normalizedLanguageCode(selectedTrack.languageCode)
+        }
+
+        return Self.normalizedLanguageCode(audioTracks.first?.languageCode)
     }
 
     func preferredSubtitleTrack() -> SubtitleTrack? {
@@ -315,6 +348,7 @@ extension PlayerViewModel {
 
         score += (track.channels ?? Self.inferredChannelCount(from: track) ?? 0) * 40
         score += Self.audioCodecPreferenceScore(for: track)
+        score += Self.platformAudioCodecAdjustment(for: track)
 
         if Self.containsCommentaryMarker(track.displayTitle) {
             score -= 2_000
@@ -514,6 +548,41 @@ extension PlayerViewModel {
         }
 
         return 0
+    }
+
+    /// Platform correction on top of the pure quality ladder above. On tvOS
+    /// the ladder is right as-is: lossless bitstreams (TrueHD/MLP, DTS-HD,
+    /// PCM) decode to multichannel LPCM over HDMI and are the best possible
+    /// pick. On iPhone/iPad the endpoint is a stereo/binaural downmix
+    /// whichever track plays, so lossless buys nothing audible while costing
+    /// decode CPU, battery, and (for remote streams) several Mbit/s — the
+    /// lossy surround sibling (E-AC-3/AC-3/DTS) is the better automatic
+    /// default. Sized to outweigh the Plex selected+default bonuses (+1500),
+    /// a 7.1-vs-5.1 channel edge (+80), and the ladder gap, so a
+    /// same-language lossy surround alternative wins; ranking stays relative,
+    /// so a file whose only track is lossless still plays it natively.
+    static func platformAudioCodecAdjustment(for track: AudioTrack) -> Int {
+        #if os(tvOS)
+        return 0
+        #else
+        return isLosslessBitstreamAudio(track) ? -1_800 : 0
+        #endif
+    }
+
+    static func isLosslessBitstreamAudio(_ track: AudioTrack) -> Bool {
+        let normalized = [
+            track.codec,
+            track.displayTitle,
+            track.channelLayout,
+        ]
+        .compactMap { normalizedTitle($0) }
+        .joined(separator: " ")
+
+        return normalized.contains("truehd")
+            || normalized.contains("mlp")
+            || normalized.contains("dts hd")
+            || normalized.contains("dtshd")
+            || normalized.contains("pcm")
     }
 
     static func inferredChannelCount(from track: AudioTrack) -> Int? {
