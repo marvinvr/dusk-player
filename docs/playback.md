@@ -162,8 +162,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - The runtime auto-selection remains as a safety net for preselect mapping
   misses. It is deferred until steady-state playback
   (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
-  buffering, start-position seek issued and settled, and ≥4 consecutive
-  advancing time ticks — ~1 s at the 250 ms cadence; the counter resets on
+  buffering, start-position seek issued and settled, the post-bring-up
+  audio revive already performed, and ≥4 consecutive advancing time ticks —
+  ~1 s at the 250 ms cadence; the counter resets on
   load/seek/pause/buffering so the gate cannot open mid-refill), and it is
   skipped entirely when the preferred track is already selected, which is
   the normal case with preselection in place. Steady-state switches use the
@@ -257,6 +258,45 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   0016 makes a failed output restart itself retry after 500 ms
   (`stream_CheckReady` re-enters the regular `AOUT_RESTART_OUTPUT` path)
   instead of muting the stream until the end of the input.
+- App-side seek/startup discipline (`VLCKitEngine`), because every libvlc
+  seek flushes the decoders and the audio output, and a flush landing on an
+  output mid-bring-up is what latched the remaining silent states:
+  - The resume position is applied immediately after `play()`, while the
+    input is still opening — the seek is queued on the input thread and
+    processed before the audio output exists. The first `.playing` state
+    keeps a fallback seek only when the early seek demonstrably did not land
+    (observed player time far from the target). Deliberately NOT the
+    `:start-time` media option: libvlc treats that as a virtual sub-clip
+    (duration shrinks, later seeks become relative), which would corrupt
+    Plex timeline reporting.
+  - `applySeek` issues exactly one seek command (`time`). Setting `position`
+    then `time` was two input seeks — double flush — per app seek; libvlc's
+    input core already falls back to a position-seek internally when a
+    demuxer cannot seek by time.
+  - Seek verification retries are skipped while the player is buffering: a
+    buffering player has accepted the seek and is refilling (far double-tap
+    seeks over the network take longer than the retry delays), and
+    re-seeking mid-refill just multiplied the flush storm. Retries only fire
+    when playback runs on at the pre-seek position, i.e. the seek was truly
+    ignored.
+- App-side audio revive (`VLCKitEngine`): two silent-render states survive
+  the vendored patches because nothing observable fails — an interruption
+  `began` whose `ended` never arrives (patch 0015 revives only on `ended`;
+  some Bluetooth handoffs never send it), and a started-but-dead render
+  unit. Both are cured by exactly what a manual pause→play does
+  (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
+  render unlatch), so the engine automates that cure as a ~120 ms
+  pause→resume "revive" that reports `.playing` throughout (no HUD/Now
+  Playing flash; a user pause during the window always wins):
+  - once per audio-output bring-up (load and stall recovery; iOS/iPadOS
+    only), fired at ≥4 steady time ticks — the same proven-stable moment as
+    automatic track selection, and ordered before it so an ES switch never
+    interleaves with the revive. A real user pause→resume before that point
+    consumes the revive, since it already ran the same cure natively.
+  - whenever an audio-session interruption `began` is not followed by an
+    `ended` within 2.5 s while the engine still reports playing (nothing
+    paused us, so the user expects sound). If `ended` does arrive, the
+    patched libvlc revives itself and the watchdog is cancelled.
 - Session ownership: the app (`PlaybackNowPlayingController`) is the single
   owner of the `AVAudioSession` category/mode/policy. Patched
   `avas_SetActive` no longer re-asserts `.moviePlayback` when a

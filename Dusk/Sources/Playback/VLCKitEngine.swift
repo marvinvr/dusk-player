@@ -139,6 +139,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// and rendering has been continuous — before switching tracks.
     private var steadyPlaybackTicks = 0
     private var pendingSeekStartedAt: Date?
+    /// One-shot: a fresh audio-output bring-up (load or stall recovery)
+    /// schedules a single pause→play "revive" once playback is steady. The
+    /// vendored libvlc patches recover every *detectable* audio failure, but
+    /// the iOS AudioUnit output still has states where it renders silence
+    /// while reporting success (an interruption latch whose "ended"
+    /// notification never arrives, a started-but-dead render unit), and
+    /// neither libvlc nor the app can observe them. The only universal cure
+    /// is the pause→resume cycle (AudioOutputUnitStop → session reactivation
+    /// → AudioOutputUnitStart → render unlatch), so the engine performs it
+    /// once per bring-up, at the moment the pipeline is demonstrably stable.
+    private var needsPostBringUpAudioRevive = false
+    private var isPerformingAudioRevive = false
+    private var lastAudioReviveAt: Date?
+    @ObservationIgnored nonisolated(unsafe) private var audioReviveResumeTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) private var audioInterruptionWatchdogTask: Task<Void, Never>?
     private var currentAttemptContext: PlaybackAttemptContext?
     private var currentSource: PlaybackSource?
     private var lastAppliedAudioMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
@@ -220,6 +235,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         seekVerificationTask?.cancel()
         videoRefreshTask?.cancel()
+        audioReviveResumeTask?.cancel()
+        audioInterruptionWatchdogTask?.cancel()
         mediaPlayer.stop()
         rawVideoOutput?.detach()
         mediaPlayer.delegate = nil
@@ -230,6 +247,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
+        cancelAudioRevive()
+        armPostBringUpAudioRevive()
         rawVideoOutput?.detach()
         currentAttemptContext = source.context
         currentSource = source
@@ -305,6 +324,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     func play() {
         let wasPaused = state == .paused
+        if wasPaused {
+            // A real pause→resume already re-runs the session-activation +
+            // AudioOutputUnitStart sequence — the exact cure the pending
+            // revive would perform — so a second cycle is redundant.
+            needsPostBringUpAudioRevive = false
+        }
         suppressPlaybackEndedEvent = false
         mediaPlayer.play()
         if wasPaused || needsVideoRefreshOnPlay {
@@ -318,6 +343,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func pause() {
+        // User intent wins over an in-flight revive's timed resume.
+        cancelAudioReviveResume()
         seekVerificationTask?.cancel()
         seekVerificationTask = nil
         videoRefreshTask?.cancel()
@@ -333,6 +360,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask = nil
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
+        cancelAudioRevive()
         clearPendingSeek()
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = false
@@ -503,6 +531,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
+        cancelAudioRevive()
+        armPostBringUpAudioRevive()
         clearPendingSeek()
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = true
@@ -569,6 +599,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     var isReadyForAutomaticAudioSelection: Bool {
         guard state == .playing, !isBuffering else { return false }
         guard hasAppliedStartPosition || (pendingStartPosition ?? 0) <= 0 else { return false }
+        // Let the post-bring-up audio revive finish first so a safety-net ES
+        // switch (an audio-output restart) never interleaves with it.
+        guard !needsPostBringUpAudioRevive, !isPerformingAudioRevive else { return false }
         return pendingSeekTarget == nil && steadyPlaybackTicks >= 4
     }
 
@@ -612,14 +645,27 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
             if !hasAppliedStartPosition, let start = pendingStartPosition, start > 0 {
                 hasAppliedStartPosition = true
-                seek(to: start)
+                // The start position was normally applied while the input was
+                // still opening (see finishValidatedLoad), before the audio
+                // output existed. Only fall back to the legacy post-start
+                // seek when that early seek demonstrably did not land —
+                // seeking here flushes the audio output in the middle of its
+                // bring-up, the most fragile moment of the whole session.
+                if abs(observedPlayerTime - start) > Self.pendingSeekTolerance {
+                    seek(to: start)
+                }
             }
 
             refreshTracks()
 
         case .paused:
             isBuffering = false
-            state = .paused
+            // The audio revive's 120 ms pause→resume is engine housekeeping,
+            // not a user-visible playback state; keep reporting .playing so
+            // the HUD, Now Playing, and PiP don't flash a pause.
+            if !isPerformingAudioRevive {
+                state = .paused
+            }
 
         case .stopping:
             isBuffering = false
@@ -683,6 +729,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         if shouldAcceptUpdatedTime(updatedTime) {
             if state == .playing, !isBuffering, pendingSeekTarget == nil, updatedTime > currentTime {
                 steadyPlaybackTicks += 1
+                if steadyPlaybackTicks == 4, needsPostBringUpAudioRevive {
+                    // The pipeline has demonstrably been rendering for ~1s —
+                    // the same conditions under which a manual pause/resume
+                    // is reliable. Run the one-shot bring-up revive now.
+                    needsPostBringUpAudioRevive = false
+                    performAudioRevive(reason: "post-bring-up")
+                }
             }
             currentTime = updatedTime
         }
@@ -728,13 +781,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func applySeek(to position: TimeInterval) {
-        if duration > 0 {
-            let normalizedPosition = min(max(position / duration, 0), 1)
-            if normalizedPosition.isFinite {
-                mediaPlayer.position = normalizedPosition
-            }
-        }
-
+        // Exactly ONE seek command. Setting `position` and then `time` issued
+        // two back-to-back input seeks — and every libvlc seek flushes the
+        // decoders and the audio output, so each app seek doubled the churn
+        // the output has to survive. libvlc's input core already emulates a
+        // time-seek with a position-seek internally when a demuxer cannot
+        // seek by time, so the position pre-seek bought nothing.
         let targetMs = Int(position * 1000.0)
         mediaPlayer.time = VLCTime(int: Int32(clamping: targetMs))
     }
@@ -771,6 +823,14 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func shouldRetrySeek(toward target: TimeInterval) -> Bool {
         guard let pendingSeekTarget else { return false }
         guard abs(pendingSeekTarget - target) <= Self.pendingSeekTolerance else { return false }
+        // A buffering player has ACCEPTED the seek and is refilling — far
+        // seeks over the network legitimately take longer than these retry
+        // delays. Re-seeking now would flush the refill and hammer the audio
+        // output with another restart cycle (this is what killed audio when
+        // double-tap seeking "too far"). Only retry when playback is running
+        // yet demonstrably still at the pre-seek position, i.e. the seek was
+        // actually ignored.
+        guard !isBuffering else { return false }
         return !hasReachedPendingSeekTarget(using: observedPlayerTime)
     }
 
@@ -878,6 +938,22 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
         mediaPlayer.currentSubTitleFontScale = PlaybackSubtitleStyle.vlcSubtitleFontScale
         mediaPlayer.play()
+        if let start = pendingStartPosition, start > 0 {
+            // Apply the resume position NOW, while the input is still
+            // opening: play() creates the player input synchronously, so the
+            // seek is queued on the input thread and processed before the
+            // decoders start rendering — before the audio output even
+            // exists. The old approach seeked on the first .playing state,
+            // which flushed the audio output right as it was brought up and
+            // could latch it silent until a manual pause/resume. The
+            // .playing handler keeps a fallback for the rare case where this
+            // early seek is dropped (e.g. the demuxer refused to seek while
+            // opening). Note: NOT the `:start-time` media option — that
+            // shifts libvlc's whole reported timeline (duration shrinks,
+            // seeks become relative), which would corrupt Plex progress
+            // reporting.
+            seek(to: start)
+        }
         loadValidationTask = nil
     }
 
@@ -1225,6 +1301,109 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
     }
 
+    // MARK: - Audio revive
+
+    /// Arms the one-shot post-bring-up revive (see `needsPostBringUpAudioRevive`).
+    /// iOS/iPadOS only: the silent-render latches live in libvlc's iOS
+    /// AudioUnit/AVAudioSession interplay; the tvOS HDMI route has shown no
+    /// such failures and a pause blip there would be more visible.
+    private func armPostBringUpAudioRevive() {
+        #if os(iOS)
+        needsPostBringUpAudioRevive = true
+        #endif
+    }
+
+    /// The automated version of the manual "pause, then play" cure: cycles the
+    /// player through a ~120 ms pause→resume, which stops and restarts the
+    /// AudioUnit, re-activates the audio session, and clears libvlc's
+    /// silent-render latches. If audio was healthy this is a barely
+    /// perceptible hold (pause does not flush, playback continues from the
+    /// same buffers); if it was silently dead, this brings it back — without
+    /// the user having to do it by hand.
+    private func performAudioRevive(reason: String) {
+        guard state == .playing, !isPerformingAudioRevive else { return }
+        if let lastAudioReviveAt, Date().timeIntervalSince(lastAudioReviveAt) < 3.0 {
+            return
+        }
+        lastAudioReviveAt = Date()
+        isPerformingAudioRevive = true
+
+        let attemptLabel = currentAttemptContext?.attemptLabel ?? "unknown"
+        vlcKitEngineLogger.notice(
+            "Playback attempt \(attemptLabel, privacy: .public) VLCKit performing audio revive (\(reason, privacy: .public))"
+        )
+
+        mediaPlayer.pause()
+        audioReviveResumeTask = Task { @MainActor [weak self] in
+            do {
+                try await Task.sleep(for: .milliseconds(120))
+            } catch {
+                return
+            }
+
+            guard let self, !Task.isCancelled, self.isPerformingAudioRevive else { return }
+            self.isPerformingAudioRevive = false
+            self.audioReviveResumeTask = nil
+            self.mediaPlayer.play()
+        }
+    }
+
+    /// Cancels only the revive's timed resume — used when the user pauses,
+    /// so their intent is never overridden by a scheduled play().
+    private func cancelAudioReviveResume() {
+        audioReviveResumeTask?.cancel()
+        audioReviveResumeTask = nil
+        isPerformingAudioRevive = false
+    }
+
+    private func cancelAudioRevive() {
+        cancelAudioReviveResume()
+        audioInterruptionWatchdogTask?.cancel()
+        audioInterruptionWatchdogTask = nil
+        needsPostBringUpAudioRevive = false
+        lastAudioReviveAt = nil
+    }
+
+    /// An interruption "began" without a matching "ended" leaves libvlc's
+    /// AudioUnit render callback latched silent forever while the core keeps
+    /// reporting success (the vendored patch 0015 revives only on "ended",
+    /// which iOS omits entirely for some Bluetooth handoffs). The app cannot
+    /// detect the silence, but it CAN see the unmatched notification: if no
+    /// "ended" arrives shortly and the engine is still nominally playing —
+    /// meaning nothing paused us, so the user expects sound — run the revive.
+    private func handleAudioSessionInterruption(typeValue: UInt?) {
+        guard let typeValue,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+
+        switch type {
+        case .began:
+            audioInterruptionWatchdogTask?.cancel()
+            audioInterruptionWatchdogTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: .milliseconds(2500))
+                } catch {
+                    return
+                }
+
+                guard let self, !Task.isCancelled else { return }
+                self.audioInterruptionWatchdogTask = nil
+                guard self.state == .playing else { return }
+                self.performAudioRevive(reason: "interruption-without-ended")
+            }
+
+        case .ended:
+            // The vendored libvlc revives its output on every interruption
+            // end itself; the watchdog is only for the never-ended case.
+            audioInterruptionWatchdogTask?.cancel()
+            audioInterruptionWatchdogTask = nil
+
+        @unknown default:
+            break
+        }
+    }
+
     private func registerAudioSessionObserversIfNeeded() {
         #if os(iOS) || os(tvOS)
         // Observe only genuine output-route changes (plugging in headphones,
@@ -1246,6 +1425,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             }
         }
         audioSessionObservers.append(observer)
+
+        let interruptionObserver = NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let typeValue = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt
+            Task { @MainActor [weak self] in
+                self?.handleAudioSessionInterruption(typeValue: typeValue)
+            }
+        }
+        audioSessionObservers.append(interruptionObserver)
         #endif
     }
 }
