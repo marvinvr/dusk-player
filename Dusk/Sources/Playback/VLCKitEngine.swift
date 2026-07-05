@@ -15,6 +15,90 @@ private let vlcKitEngineLogger = Logger(
     category: "VLCKitEngine"
 )
 
+/// Bridges libvlc's internal log stream into the unified logger (category
+/// "libvlc") so TestFlight/device sessions can be diagnosed from Console.app
+/// or a sysdiagnose without a debugger. VLCKit DROPS all libvlc messages
+/// unless a logger is attached — which is why no on-device trace of the
+/// audio output's actual behavior ("deferring start", "playback way too
+/// late", session activation failures, output restarts) has ever been
+/// available while chasing the silent-audio bugs.
+///
+/// Volume control: errors and warnings always pass (rare, and exactly the
+/// audio/clock complaints that matter). Info/debug chatter passes only for
+/// audio/clock-related emitters and messages. The `vlcVerboseLogging` user
+/// default opens the full firehose for a deep capture without rebuilding.
+/// Everything is emitted at .notice or above so it persists to the log
+/// store (OSLog .info/.debug are memory-only by default and would be
+/// missing from a sysdiagnose).
+private final class VLCLibraryLogBridge: NSObject, VLCLogging, @unchecked Sendable {
+    nonisolated(unsafe) static let shared = VLCLibraryLogBridge()
+
+    var level: VLCLogLevel = .debug
+
+    private let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+        category: "libvlc"
+    )
+    private let verbose = UserDefaults.standard.bool(forKey: "vlcVerboseLogging")
+
+    func handleMessage(
+        _ message: String,
+        logLevel: VLCLogLevel,
+        context: VLCLogContext?
+    ) {
+        let module = context?.module ?? ""
+        let objectType = context?.objectType ?? ""
+
+        guard verbose
+            || logLevel == .error
+            || logLevel == .warning
+            || Self.isAudioPipelineRelated(
+                module: module, objectType: objectType, message: message
+            ) else {
+            return
+        }
+
+        let line = "[\(module)/\(objectType)] \(message)"
+        switch logLevel {
+        case .error:
+            logger.error("\(line, privacy: .public)")
+        case .warning:
+            logger.warning("\(line, privacy: .public)")
+        default:
+            logger.notice("\(line, privacy: .public)")
+        }
+    }
+
+    /// Emitters and phrases covering the audio output, the aout core, the
+    /// clock, ES selection, and the session/interruption handling — the
+    /// complete "why is there no sound" surface.
+    private static func isAudioPipelineRelated(
+        module: String,
+        objectType: String,
+        message: String
+    ) -> Bool {
+        if module.contains("audiounit") || module.contains("avsamplebuffer")
+            || module.contains("aout") {
+            return true
+        }
+        if objectType.contains("audio") {
+            return true
+        }
+
+        let phrases = [
+            "audio", "aout", "deferring start", "starting late", "clamping",
+            "playback way too", "playback too", "underrun", "drift",
+            "master clock", "resetting", "interruption", "AVAudioSession",
+            "restarting output", "restart requested", "silence", "es out",
+            "selecting", "mute", "volume",
+        ]
+        for phrase in phrases where message.localizedCaseInsensitiveContains(phrase) {
+            return true
+        }
+        return false
+    }
+}
+
 /// Platform renderer contract for the shared VLCKit playback core.
 protocol VLCKitRenderingHost: AnyObject, Sendable {
     var playerView: UIView { get }
@@ -200,10 +284,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// `UserPreferences.vlcUseAVSampleBufferAudio` (Settings → Playback
     /// Advanced) restores the libvlc default for on-device A/B testing;
     /// it is read once per engine, so it applies to the next playback.
-    nonisolated(unsafe) private static let audioUnitLibrary =
-        VLCLibrary(options: ["--aout=audiounit_ios,any"])
-    nonisolated(unsafe) private static let libvlcDefaultLibrary =
-        VLCLibrary(options: [])
+    nonisolated(unsafe) private static let audioUnitLibrary: VLCLibrary = {
+        let library = VLCLibrary(options: ["--aout=audiounit_ios,any"])
+        library.loggers = [VLCLibraryLogBridge.shared]
+        return library
+    }()
+    nonisolated(unsafe) private static let libvlcDefaultLibrary: VLCLibrary = {
+        let library = VLCLibrary(options: [])
+        library.loggers = [VLCLibraryLogBridge.shared]
+        return library
+    }()
 
     /// Mirrors `UserPreferences.Keys.vlcUseAVSampleBufferAudio` (Settings).
     private static let useAVSampleBufferAudioDefaultsKey = "vlcUseAVSampleBufferAudio"
@@ -235,8 +325,22 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             : audioUnitLibrary
     }
 
+    /// True when the Settings → Playback Advanced A/B toggle routed this
+    /// engine onto libvlc's default `avsamplebuffer` output instead of the
+    /// pinned `audiounit_ios`. Surfaced in Playback Info because the two
+    /// modules fail in completely different ways (the 0015 recovery patches
+    /// only cover audiounit_ios) — an accidentally-left-on toggle would make
+    /// every audiounit fix look ineffective.
+    private let usesAVSampleBufferAudioOutput: Bool
+
     override init() {
-        let player = VLCMediaPlayer(library: Self.chooseLibrary())
+        let usesAVSampleBuffer = UserDefaults.standard.bool(
+            forKey: Self.useAVSampleBufferAudioDefaultsKey
+        )
+        self.usesAVSampleBufferAudioOutput = usesAVSampleBuffer
+        let player = VLCMediaPlayer(
+            library: usesAVSampleBuffer ? Self.libvlcDefaultLibrary : Self.audioUnitLibrary
+        )
         let renderingHost = makeVLCKitRenderingHost()
         self.mediaPlayer = player
         self.renderingHost = renderingHost
@@ -255,6 +359,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             vlcKitEngineLogger.notice("VLCKit audit: \(audit.detail, privacy: .public)")
         } else {
             vlcKitEngineLogger.error("VLCKit audit: \(audit.detail, privacy: .public)")
+        }
+        if usesAVSampleBufferAudioOutput {
+            vlcKitEngineLogger.error(
+                "VLCKit audio module: avsamplebuffer (Settings A/B toggle is ON — the audiounit recovery patches do NOT cover this output)"
+            )
+        } else {
+            vlcKitEngineLogger.notice("VLCKit audio module: audiounit_ios (pinned)")
         }
     }
 
@@ -532,6 +643,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             clampedPosition = max(position, 0)
         }
 
+        vlcKitEngineLogger.notice(
+            "VLCKit seek to \(clampedPosition, format: .fixed(precision: 1), privacy: .public)s (state=\(String(describing: self.state), privacy: .public), buffering=\(self.isBuffering, privacy: .public))"
+        )
         pendingSeekTarget = clampedPosition
         pendingSeekStartedAt = Date()
         currentTime = clampedPosition
@@ -1211,6 +1325,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 value: Self.vendoredVLCKitAudit.detail
             ),
             PlaybackEngineDiagnostic(
+                label: "VLC Audio Module",
+                value: usesAVSampleBufferAudioOutput
+                    ? "avsamplebuffer (Settings toggle ON — unpatched path!)"
+                    : "audiounit_ios (pinned, patched)"
+            ),
+            PlaybackEngineDiagnostic(
                 label: "VLC Audio Track",
                 value: "\(selectedTrackLabel) / \(selectedChannels.map { "\($0)ch" } ?? "unknown channels")"
             ),
@@ -1354,16 +1474,17 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
-    /// The automated version of the manual "pause, then play" cure: cycles the
-    /// player through a ~400 ms pause→resume, which stops and restarts the
-    /// AudioUnit, re-activates the audio session, clears libvlc's
-    /// silent-render latches, and shifts the aout timing reference by the
-    /// pause duration (the resumed render callback then publishes a fresh
-    /// timing report that re-syncs the master clock). The gap is deliberately
-    /// human-scale: it must cover session re-activation settling the same way
-    /// a real pause→play does. If audio was healthy this is a short hold
-    /// (pause does not flush, playback continues from the same buffers); if
-    /// it was silently dead, this brings it back without user action.
+    /// The automated version of the manual "pause, then play" cure, replicated
+    /// EXACTLY: the same `mediaPlayer.pause()` … wait … `mediaPlayer.play()`
+    /// sequence a user produces, including the human-scale gap and the
+    /// post-resume video-output refresh the manual path schedules. The gap
+    /// matters: pause→resume shifts every playback clock forward by the pause
+    /// duration and forces a fresh audio timing report, so a cure must pause
+    /// long enough to cover whatever timing gap is keeping the audio silent —
+    /// a short programmatic blip provably did not cure what a slow human
+    /// pause→play cures. If audio was healthy this is a visible-but-brief
+    /// hold (pause does not flush; playback continues from the same buffers);
+    /// if audio was silently dead, this brings it back without user action.
     private func performAudioRevive(reason: String) {
         guard state == .playing, !isPerformingAudioRevive else { return }
         if let lastAudioReviveAt, Date().timeIntervalSince(lastAudioReviveAt) < 3.0 {
@@ -1371,16 +1492,17 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
         lastAudioReviveAt = Date()
         isPerformingAudioRevive = true
+        steadyPlaybackTicks = 0
 
         let attemptLabel = currentAttemptContext?.attemptLabel ?? "unknown"
         vlcKitEngineLogger.notice(
-            "Playback attempt \(attemptLabel, privacy: .public) VLCKit performing audio revive (\(reason, privacy: .public))"
+            "Playback attempt \(attemptLabel, privacy: .public) VLCKit audio revive pausing (\(reason, privacy: .public))"
         )
 
         mediaPlayer.pause()
         audioReviveResumeTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(400))
+                try await Task.sleep(for: .milliseconds(1200))
             } catch {
                 return
             }
@@ -1388,7 +1510,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             guard let self, !Task.isCancelled, self.isPerformingAudioRevive else { return }
             self.isPerformingAudioRevive = false
             self.audioReviveResumeTask = nil
+            vlcKitEngineLogger.notice("VLCKit audio revive resuming")
             self.mediaPlayer.play()
+            // Manual resumes also refresh the video output shortly after
+            // play (see play()); keep the replica exact.
+            self.scheduleVideoOutputRefreshAfterResume()
         }
     }
 
@@ -1423,6 +1549,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         switch type {
         case .began:
+            vlcKitEngineLogger.notice(
+                "VLCKit observed audio session interruption BEGAN (state=\(String(describing: self.state), privacy: .public))"
+            )
             audioInterruptionWatchdogTask?.cancel()
             audioInterruptionWatchdogTask = Task { @MainActor [weak self] in
                 do {
@@ -1440,6 +1569,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         case .ended:
             // The vendored libvlc revives its output on every interruption
             // end itself; the watchdog is only for the never-ended case.
+            vlcKitEngineLogger.notice(
+                "VLCKit observed audio session interruption ENDED (state=\(String(describing: self.state), privacy: .public))"
+            )
             audioInterruptionWatchdogTask?.cancel()
             audioInterruptionWatchdogTask = nil
 

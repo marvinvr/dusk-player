@@ -285,12 +285,16 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   some Bluetooth handoffs never send it), and a started-but-dead render
   unit. Both are cured by exactly what a manual pause→play does
   (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
-  render unlatch, plus a fresh render-callback timing report that re-syncs
-  the master clock), so the engine automates that cure as a ~400 ms
-  pause→resume "revive" that reports `.playing` throughout (no HUD/Now
-  Playing flash; a user pause during the window always wins; the gap is
-  human-scale on purpose so session reactivation settles like a real
-  pause→play):
+  render unlatch, a fresh render-callback timing report that re-syncs the
+  master clock, and a clock shift equal to the pause duration), so the
+  engine automates that cure as an exact replica of the manual sequence: a
+  1.2 s pause→resume "revive" (including the post-resume video-output
+  refresh the manual path schedules) that reports `.playing` throughout (no
+  HUD/Now Playing flash; a user pause during the window always wins). The
+  gap is deliberately human-scale — pause→resume shifts every playback
+  clock forward by the pause duration, so the cure must pause long enough
+  to cover whatever timing gap keeps the audio silent; a short programmatic
+  blip provably did not cure what a slow manual pause→play cures:
   - once per audio-output disturbance — media open, stall recovery, and
     each seek burst (every seek flushes the output) — on iOS/iPadOS only,
     fired at ≥4 steady time ticks after the disturbance settles: the same
@@ -313,7 +317,22 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
     actually loaded into the process for the same marker, logs the verdict
     at engine init, and Playback Info shows it as the "VLCKit Build" row
     ("Patched (0015/0016 audio recovery present)" vs "STALE"). When
-    debugging audio on a device, check this row FIRST.
+    debugging audio on a device, check this row FIRST — then the "VLC Audio
+    Module" row, which exposes whether the Settings A/B toggle silently
+    routed audio through libvlc's default `avsamplebuffer` output (the
+    audiounit recovery patches do not cover that path).
+- On-device libvlc tracing: `VLCLibraryLogBridge` attaches to both shared
+  `VLCLibrary` instances and forwards libvlc's internal messages into the
+  unified log (subsystem = bundle id, category "libvlc") at `.notice`+ so
+  they persist into Console.app captures and sysdiagnoses from TestFlight
+  devices. Errors/warnings always pass; info/debug pass only for
+  audio/clock/ES-selection emitters ("deferring start", "playback way too
+  late", output restarts, session activation failures, interruptions). The
+  `vlcVerboseLogging` user default opens the full firehose. VLCKit drops
+  ALL libvlc messages when no logger is attached — never remove this bridge
+  while any audio bug is open. Filter Console on category `libvlc` plus
+  categories `VLCKitEngine`/`PlaybackSession` for the app-side breadcrumbs
+  (seeks, revives, interruptions, audits).
 - Session ownership: the app (`PlaybackNowPlayingController`) is the single
   owner of the `AVAudioSession` category/mode/policy. Patched
   `avas_SetActive` no longer re-asserts `.moviePlayback` when a
@@ -361,8 +380,15 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Both engines perform preflight direct-play validation via
   `PlaybackError.validateDirectPlayURL`.
 - Buffering defaults are centralized in `PlaybackBufferPolicy`: AVPlayer targets
-  20 seconds of forward buffer, while VLCKit uses 8,000 ms for network and file
-  caching. Dusk does not configure an explicit back-buffer size.
+  20 seconds of forward buffer, while VLCKit uses 1,500 ms for network and file
+  caching. Do NOT raise the VLC caching values casually: libvlc caching becomes
+  the input's pts_delay, which scales every clock window in the pipeline — the
+  initial dejitter, the audio output's start deferral after open/seek/flush,
+  and the late/early drift thresholds. At the previous 8,000 ms those windows
+  stretched to many seconds of silent-but-"healthy" audio after every start
+  and seek (a manual pause→play "cured" it only because pausing shifts the
+  clocks by the pause duration). VLC-iOS ships 999 ms on the same stack.
+  Dusk does not configure an explicit back-buffer size.
 - Both engines implement stall recovery by reloading/restarting near the
   observed position. Keep recovery behavior engine-specific.
 - iOS VLCKit has extra drawable and video-output refresh behavior and hosts the
