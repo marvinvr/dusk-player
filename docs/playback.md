@@ -285,18 +285,35 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   some Bluetooth handoffs never send it), and a started-but-dead render
   unit. Both are cured by exactly what a manual pause→play does
   (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
-  render unlatch), so the engine automates that cure as a ~120 ms
+  render unlatch, plus a fresh render-callback timing report that re-syncs
+  the master clock), so the engine automates that cure as a ~400 ms
   pause→resume "revive" that reports `.playing` throughout (no HUD/Now
-  Playing flash; a user pause during the window always wins):
-  - once per audio-output bring-up (load and stall recovery; iOS/iPadOS
-    only), fired at ≥4 steady time ticks — the same proven-stable moment as
-    automatic track selection, and ordered before it so an ES switch never
-    interleaves with the revive. A real user pause→resume before that point
-    consumes the revive, since it already ran the same cure natively.
+  Playing flash; a user pause during the window always wins; the gap is
+  human-scale on purpose so session reactivation settles like a real
+  pause→play):
+  - once per audio-output disturbance — media open, stall recovery, and
+    each seek burst (every seek flushes the output) — on iOS/iPadOS only,
+    fired at ≥4 steady time ticks after the disturbance settles: the same
+    proven-stable moment as automatic track selection, and ordered before
+    it so an ES switch never interleaves with the revive. A real user
+    pause→resume before that point consumes the revive, since it already
+    ran the same cure natively. Revives are rate-limited to one per 3 s.
   - whenever an audio-session interruption `began` is not followed by an
     `ended` within 2.5 s while the engine still reports playing (nothing
     paused us, so the user expects sound). If `ended` does arrive, the
     patched libvlc revives itself and the watchdog is cancelled.
+- Stale-embed guard: Xcode's framework-embed step can silently reuse an old
+  cached VLCKit when the checked-in binary is replaced in-place — device
+  builds have shipped pre-patch VLCKit while the repo contained the patched
+  one, making every audio fix look ineffective. Two defenses:
+  - Build time: `scripts/verify_embedded_vlckit.sh` (post-build phase on
+    both targets) fails the build when the embedded VLCKit lacks the
+    patch-0015 marker string, with a "delete DerivedData" message.
+  - Runtime: `VLCKitEngine.vendoredVLCKitAudit` scans the framework binary
+    actually loaded into the process for the same marker, logs the verdict
+    at engine init, and Playback Info shows it as the "VLCKit Build" row
+    ("Patched (0015/0016 audio recovery present)" vs "STALE"). When
+    debugging audio on a device, check this row FIRST.
 - Session ownership: the app (`PlaybackNowPlayingController`) is the single
   owner of the `AVAudioSession` category/mode/policy. Patched
   `avas_SetActive` no longer re-asserts `.moviePlayback` when a

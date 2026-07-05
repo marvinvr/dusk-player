@@ -772,6 +772,7 @@
 				59E964A6B021CE1C3B7AAA5D /* Resources */,
 				C7248C53D7B0FFDDEF8B4743 /* Frameworks */,
 				B28B4343F39FF30480431A72 /* Embed Frameworks */,
+				9665D34BDE2A79F604D715B5 /* Verify embedded VLCKit is not stale */,
 			);
 			buildRules = (
 			);
@@ -792,6 +793,7 @@
 				FAFC774E61400ADC66821212 /* Resources */,
 				6AAA87650960B8F86766DDF1 /* Frameworks */,
 				14F0C2C029DCD35FB01DAB26 /* Embed Frameworks */,
+				FD196F53256A05002E3957A0 /* Verify embedded VLCKit is not stale */,
 			);
 			buildRules = (
 			);
@@ -861,6 +863,47 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		9665D34BDE2A79F604D715B5 /* Verify embedded VLCKit is not stale */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Verify embedded VLCKit is not stale";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = ./scripts/verify_embedded_vlckit.sh;
+		};
+		FD196F53256A05002E3957A0 /* Verify embedded VLCKit is not stale */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Verify embedded VLCKit is not stale";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = ./scripts/verify_embedded_vlckit.sh;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		1A0F757B2C046BB3CC7E147E /* Sources */ = {

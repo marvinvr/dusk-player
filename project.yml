@@ -44,6 +44,10 @@ targets:
     dependencies:
       - framework: Frameworks/VLCKit.xcframework
         embed: true
+    postBuildScripts:
+      - script: ./scripts/verify_embedded_vlckit.sh
+        name: Verify embedded VLCKit is not stale
+        basedOnDependencyAnalysis: false
 
   Dusk-tvOS:
     type: application
@@ -78,3 +82,7 @@ targets:
     dependencies:
       - framework: Frameworks/VLCKit-tvOS.xcframework
         embed: true
+    postBuildScripts:
+      - script: ./scripts/verify_embedded_vlckit.sh
+        name: Verify embedded VLCKit is not stale
+        basedOnDependencyAnalysis: false
