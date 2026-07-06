@@ -1,10 +1,10 @@
 #!/bin/bash
 # Fails the build when the VLCKit binary embedded into the app product does
-# not match the checked-in Frameworks/ copy.
+# not match the copy in Frameworks/ (fetched by ci_scripts/install_vlckit.sh).
 #
 # Why this exists: Xcode's framework-embed step can silently keep a stale
-# cached copy when a checked-in framework binary is replaced in-place (the
-# vendored VLCKit updates do exactly that). This has shipped device builds
+# cached copy when the framework binary in Frameworks/ is replaced in-place (a
+# VLCKit version refresh does exactly that). This has shipped device builds
 # with an old VLCKit while the repo contained a newer one, which makes every
 # playback fix look ineffective and costs hours of phantom debugging. A hard
 # build failure with a clear message is cheaper.
@@ -60,7 +60,7 @@ if [ -z "${embedded_uuids}" ] || [ -z "${repo_uuids}" ]; then
 fi
 
 if comm -12 <(printf '%s\n' "${embedded_uuids}") <(printf '%s\n' "${repo_uuids}") | grep -q .; then
-    echo "note: Embedded ${FRAMEWORK_NAME} matches the checked-in Frameworks/ copy."
+    echo "note: Embedded ${FRAMEWORK_NAME} matches the Frameworks/ copy."
     exit 0
 fi
 

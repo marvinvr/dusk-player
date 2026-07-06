@@ -26,22 +26,12 @@ Pods/
 # Carthage
 Carthage/Build/
 
-# VLCKit vendored framework (large binary)
+# VLCKit frameworks (~140 MB of prebuilt binaries) are NOT committed to git.
+# `ci_scripts/install_vlckit.sh` downloads + checksum-verifies the pinned build
+# into `Frameworks/`; CI runs it automatically via `ci_scripts/ci_post_clone.sh`,
+# and it must be run once locally after cloning. Only the license and the
+# pinned-version marker (Frameworks/VLCKit-VERSION.txt) are tracked.
 *.xcframework/
-!Frameworks/
-!Frameworks/VLCKit.xcframework/
-!Frameworks/VLCKit.xcframework/**
-!Frameworks/VLCKit-tvOS.xcframework/
-!Frameworks/VLCKit-tvOS.xcframework/**
-Frameworks/VLCKit.xcframework/**/dSYMs/
-Frameworks/VLCKit.xcframework/**/dSYMs/**
-Frameworks/VLCKit-tvOS.xcframework/**/dSYMs/
-Frameworks/VLCKit-tvOS.xcframework/**/dSYMs/**
-Frameworks/VLCKit.xcframework/**/_CodeSignature/
-Frameworks/VLCKit.xcframework/**/_CodeSignature/**
-Frameworks/VLCKit-tvOS.xcframework/**/_CodeSignature/
-Frameworks/VLCKit-tvOS.xcframework/**/_CodeSignature/**
-!Frameworks/VLCKit-LICENSE.txt
 
 # OS files
 .DS_Store

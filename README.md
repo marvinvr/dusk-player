@@ -44,11 +44,13 @@ xcodegen generate
 open Dusk.xcodeproj
 ```
 
-The repository now vendors `Frameworks/VLCKit.xcframework` for iOS/iPadOS and `Frameworks/VLCKit-tvOS.xcframework` for tvOS. To refresh those binaries manually, run:
+VLCKit is vendored but **not committed** to git: the `Frameworks/MobileVLCKit.xcframework` (iOS/iPadOS) and `Frameworks/TVVLCKit.xcframework` (tvOS) binaries are downloaded on demand. After cloning, fetch them (this also refreshes the pinned version):
 
 ```bash
 ./ci_scripts/install_vlckit.sh
 ```
+
+CI does this automatically via `ci_scripts/ci_post_clone.sh`, so no binaries live in the repo.
 
 ## License
 

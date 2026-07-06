@@ -9,8 +9,11 @@ LICENSE_PATH="${ROOT_DIR}/Frameworks/VLCKit-LICENSE.txt"
 VERSION_PATH="${ROOT_DIR}/Frameworks/VLCKit-VERSION.txt"
 EXTRACT_DIR="${BUILD_DIR}/vlckit-prebuilt"
 
-# Manual maintenance script for refreshing the vendored VLCKit binaries.
-# CI consumes the checked-in xcframeworks and should not run this script.
+# Installs the pinned VLCKit binaries into Frameworks/. The xcframeworks are not
+# committed to git: CI fetches them via ci_scripts/ci_post_clone.sh, and this
+# script must be run once locally after cloning (and to refresh the pinned
+# version). It is idempotent — a no-op when the expected version is already in
+# place (see has_expected_vlckit).
 #
 # Dusk vendors the STABLE MobileVLCKit/TVVLCKit line (libvlc 3.0), installed
 # from VideoLAN's official prebuilt CocoaPods artifacts — not built from

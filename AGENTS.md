@@ -16,7 +16,7 @@ If `AGENTS.local.md` exists, read it immediately after this file. It contains ch
 - **Plex is the source of truth**: App is stateless beyond auth token (Keychain) and user preferences (UserDefaults). All metadata, watch state, and library data is fetched from Plex.
 - **No premature abstraction**: No `MediaProvider` protocol. Plex-specific code is fine. Keep it in `PlexService` but don't abstract until a second backend exists.
 - **SwiftUI, multi-platform**: iOS/iPadOS and tvOS are project targets. Share as much UI as possible, use `#if os(tvOS)` for platform differences.
-- **VLCKit is vendored**: No CocoaPods. Pinned stable-line `MobileVLCKit.xcframework` (iOS) and `TVVLCKit.xcframework` (tvOS) binaries — VideoLAN's official prebuilt artifacts, thinned to arm64 — are checked into `Frameworks/` and linked dynamically for LGPL compliance.
+- **VLCKit is vendored, fetched not committed**: No CocoaPods. Pinned stable-line `MobileVLCKit.xcframework` (iOS) and `TVVLCKit.xcframework` (tvOS) binaries — VideoLAN's official prebuilt artifacts, thinned to arm64 — are downloaded into `Frameworks/` by `ci_scripts/install_vlckit.sh` and linked dynamically for LGPL compliance. The `.xcframework` binaries are git-ignored (~140 MB); CI fetches them automatically via `ci_scripts/ci_post_clone.sh`, and you must run the script once locally after cloning. Only the license and `Frameworks/VLCKit-VERSION.txt` are tracked.
 - **Direct play first**: Playback starts with direct play unless the resolver flags the media as locally unplayable (e.g. Dolby Vision profile 5) or a local download is used. When an online direct-play attempt fails, the coordinator automatically falls back to a Plex server stream (HLS with `directStream=1`, video copied without re-encoding when possible). Manual transcoding remains a per-session player Quality action and must never become an automatic startup *quality* default.
 
 ## Code Style
@@ -59,7 +59,10 @@ xcodegen generate
 open Dusk.xcodeproj
 ```
 
-To refresh the vendored iOS/tvOS VLCKit binaries manually, run:
+The iOS/tvOS VLCKit binaries are **not committed** to git, so fetch them into
+`Frameworks/` after cloning (this is also how you refresh the pinned version).
+CI does this automatically via `ci_scripts/ci_post_clone.sh`; the script is
+idempotent and a no-op once the pinned version is present:
 
 ```bash
 ./ci_scripts/install_vlckit.sh
