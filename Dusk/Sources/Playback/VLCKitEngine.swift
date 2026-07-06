@@ -216,11 +216,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var suppressPlaybackEndedEvent = false
     private var ignoreNextStoppedEvent = false
     private var pendingSeekTarget: TimeInterval?
-    /// Count of consecutive accepted, advancing time updates while playing,
-    /// unbuffered, with no seek in flight. Reset by anything that disturbs
-    /// the pipeline (load, seek, pause, buffering, stall recovery). Automatic
-    /// audio selection waits for a few of these — proof the clock is running
-    /// and rendering has been continuous — before switching tracks.
+    /// Count of consecutive accepted, advancing time updates while playing
+    /// with no seek in flight. Reset by anything that truly disturbs the
+    /// pipeline (load, seek, pause, stall recovery) — but deliberately NOT
+    /// by buffering state events and NOT gated on `isBuffering`: libvlc
+    /// emits buffering events continuously on network streams (cache-level
+    /// churn), which kept this counter pinned at zero forever — device logs
+    /// proved the audio revive and the automatic track selection never ran
+    /// at all on network playback. Advancing time IS the proof the pipeline
+    /// is rendering; a real refill freezes the clock and stops the count on
+    /// its own.
     private var steadyPlaybackTicks = 0
     private var pendingSeekStartedAt: Date?
     /// One-shot: an audio-output disturbance (load, stall recovery, or a
@@ -236,6 +241,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// that re-syncs the master clock), so the engine performs it once per
     /// disturbance, at the moment the pipeline is demonstrably stable.
     private var needsSettleAudioRevive = false
+    /// Timestamp of the first advancing time update after the last
+    /// disturbance; the settle revive fires once ~1 s of wall time has
+    /// passed since then (time-based, buffering-immune).
+    private var audioReviveFirstProgressAt: Date?
     private var isPerformingAudioRevive = false
     private var lastAudioReviveAt: Date?
     @ObservationIgnored nonisolated(unsafe) private var audioReviveResumeTask: Task<Void, Never>?
@@ -493,6 +502,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         mediaPlayer.pause()
         state = .paused
         steadyPlaybackTicks = 0
+        audioReviveFirstProgressAt = nil
         syncRendererPlaybackState()
     }
 
@@ -650,10 +660,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingSeekStartedAt = Date()
         currentTime = clampedPosition
         steadyPlaybackTicks = 0
+        audioReviveFirstProgressAt = nil
         // Every seek flushes the audio output; if the flush leaves it in a
         // silent-but-"healthy" state, the settle revive brings it back once
         // playback is steady again (one revive per burst of seeks — arming is
-        // idempotent and the ticks only rebuild after the last seek settles).
+        // idempotent and the progress clock restarts after the last seek).
         armSettleAudioRevive()
 
         // Seek without pausing — pausing first creates a race between
@@ -746,9 +757,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// demonstrably been rendering for a while, the same conditions under
     /// which manual track switches are reliable.
     var isReadyForAutomaticAudioSelection: Bool {
-        guard state == .playing, !isBuffering else { return false }
+        // Deliberately NOT gated on `isBuffering`: libvlc's continuous
+        // buffering events on network streams kept that flag flapping and
+        // this gate closed forever (device logs showed the safety net never
+        // ran). Advancing time — steadyPlaybackTicks — is the real signal.
+        guard state == .playing else { return false }
         guard hasAppliedStartPosition || (pendingStartPosition ?? 0) <= 0 else { return false }
-        // Let the post-bring-up audio revive finish first so a safety-net ES
+        // Let the settle audio revive finish first so a safety-net ES
         // switch (an audio-output restart) never interleaves with it.
         guard !needsSettleAudioRevive, !isPerformingAudioRevive else { return false }
         return pendingSeekTarget == nil && steadyPlaybackTicks >= 4
@@ -780,8 +795,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         logStateChange(vlcState)
         switch vlcState {
         case .opening, .buffering:
+            // Do NOT reset steadyPlaybackTicks here: libvlc fires buffering
+            // events continuously on network streams (cache-level updates),
+            // which permanently zeroed the counter and disabled everything
+            // gated on it. A genuine refill freezes the reported time, which
+            // stops the counter by itself.
             isBuffering = true
-            steadyPlaybackTicks = 0
             if state != .playing && state != .paused {
                 state = .loading
             }
@@ -876,15 +895,26 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
 
         if shouldAcceptUpdatedTime(updatedTime) {
-            if state == .playing, !isBuffering, pendingSeekTarget == nil, updatedTime > currentTime {
+            if state == .playing, pendingSeekTarget == nil, updatedTime > currentTime {
                 steadyPlaybackTicks += 1
-                if steadyPlaybackTicks == 4, needsSettleAudioRevive {
-                    // The pipeline has demonstrably been rendering for ~1s
-                    // after the last disturbance (open, recovery, or seek
-                    // burst) — the same conditions under which a manual
-                    // pause/resume is reliable. Run the one-shot revive now.
-                    needsSettleAudioRevive = false
-                    performAudioRevive(reason: "settle-after-disturbance")
+                if needsSettleAudioRevive {
+                    // Time-based, buffering-immune trigger: fire the one-shot
+                    // revive once playback has demonstrably been advancing
+                    // for ~1 s of wall time after the last disturbance (open,
+                    // recovery, or seek burst) — the same conditions under
+                    // which a manual pause/resume is reliable. The previous
+                    // consecutive-ticks-while-unbuffered gate could never
+                    // open on network streams (buffering-event spam), so the
+                    // revive never actually ran on device.
+                    if let firstProgressAt = audioReviveFirstProgressAt {
+                        if Date().timeIntervalSince(firstProgressAt) >= 1.0 {
+                            needsSettleAudioRevive = false
+                            audioReviveFirstProgressAt = nil
+                            performAudioRevive(reason: "settle-after-disturbance")
+                        }
+                    } else {
+                        audioReviveFirstProgressAt = Date()
+                    }
                 }
             }
             currentTime = updatedTime
@@ -1122,11 +1152,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask = nil
     }
 
+    /// Buffering events fire continuously on network streams, so only real
+    /// transitions are logged — at notice level, because debug-level OSLog
+    /// is memory-only and invisible in Console captures/sysdiagnoses, which
+    /// blinded on-device debugging of the silent-audio failures.
+    @ObservationIgnored private var lastLoggedVLCState: VLCMediaPlayerState?
+
     private func logStateChange(_ vlcState: VLCMediaPlayerState) {
+        guard vlcState != lastLoggedVLCState else { return }
+        lastLoggedVLCState = vlcState
         let attemptLabel = currentAttemptContext?.attemptLabel ?? "unknown"
-        let parsedStatus = String(describing: mediaPlayer.media?.parsedStatus)
-        vlcKitEngineLogger.debug(
-            "Playback attempt \(attemptLabel, privacy: .public) VLCKit state=\(String(describing: vlcState), privacy: .public) parsedStatus=\(parsedStatus, privacy: .public) currentTime=\(self.currentTime, privacy: .public) duration=\(self.duration, privacy: .public) buffering=\(self.isBuffering, privacy: .public)"
+        vlcKitEngineLogger.notice(
+            "Playback attempt \(attemptLabel, privacy: .public) VLCKit state=\(String(describing: vlcState), privacy: .public) currentTime=\(self.currentTime, privacy: .public) duration=\(self.duration, privacy: .public) buffering=\(self.isBuffering, privacy: .public)"
         )
     }
 
@@ -1531,6 +1568,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         audioInterruptionWatchdogTask?.cancel()
         audioInterruptionWatchdogTask = nil
         needsSettleAudioRevive = false
+        audioReviveFirstProgressAt = nil
         lastAudioReviveAt = nil
     }
 

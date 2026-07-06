@@ -161,13 +161,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   class self-heals — preselection still avoids provoking it at all.
 - The runtime auto-selection remains as a safety net for preselect mapping
   misses. It is deferred until steady-state playback
-  (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing, not
-  buffering, start-position seek issued and settled, the post-bring-up
-  audio revive already performed, and ≥4 consecutive advancing time ticks —
-  ~1 s at the 250 ms cadence; the counter resets on
-  load/seek/pause/buffering so the gate cannot open mid-refill), and it is
-  skipped entirely when the preferred track is already selected, which is
-  the normal case with preselection in place. Steady-state switches use the
+  (`PlaybackEngine.isReadyForAutomaticAudioSelection`; VLCKit: playing,
+  start-position seek issued and settled, the settle audio revive already
+  performed, and ≥4 consecutive advancing time ticks — ~1 s at the 250 ms
+  cadence; the counter resets on load/seek/pause). The counter and the gate
+  are deliberately NOT tied to buffering state: libvlc emits buffering
+  events continuously on network streams (cache-level churn), and the old
+  reset-on-buffering/`!isBuffering` gate provably never opened on device —
+  the safety net and the audio revive silently never ran. Advancing time is
+  the real steadiness signal; a genuine refill freezes the clock and stops
+  the counter on its own. Auto-selection is skipped entirely when the
+  preferred track is already selected, which is the normal case with
+  preselection in place. Steady-state switches use the
   same code path as manual picker changes, which are reliable. Verified in
   the C-API harness (throttled Range-HTTP + amem PCM tap + audiounit log
   tracing): ASAP switch interleaves the output restart with bring-up;
@@ -297,11 +302,13 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   blip provably did not cure what a slow manual pause→play cures:
   - once per audio-output disturbance — media open, stall recovery, and
     each seek burst (every seek flushes the output) — on iOS/iPadOS only,
-    fired at ≥4 steady time ticks after the disturbance settles: the same
-    proven-stable moment as automatic track selection, and ordered before
-    it so an ES switch never interleaves with the revive. A real user
-    pause→resume before that point consumes the revive, since it already
-    ran the same cure natively. Revives are rate-limited to one per 3 s.
+    fired once reported time has been advancing for ~1 s of wall clock
+    after the disturbance settles (time-based and buffering-immune; the
+    old consecutive-unbuffered-ticks trigger never fired on network
+    streams), ordered before automatic track selection so an ES switch
+    never interleaves with the revive. A real user pause→resume before
+    that point consumes the revive, since it already ran the same cure
+    natively. Revives are rate-limited to one per 3 s.
   - whenever an audio-session interruption `began` is not followed by an
     `ended` within 2.5 s while the engine still reports playing (nothing
     paused us, so the user expects sound). If `ended` does arrive, the

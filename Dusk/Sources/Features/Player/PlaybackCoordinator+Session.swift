@@ -167,6 +167,16 @@ extension PlaybackCoordinator {
                 // HLS rewrites the stream layout; positions no longer apply.
                 nil
             }
+            let audioStreamSummary = part.streams
+                .filter { $0.streamType == .audio }
+                .map { stream in
+                    "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isSelected ?? false)]"
+                }
+                .joined(separator: " ")
+            let preferredLanguageLabel = preferences.defaultAudioLanguage ?? "none"
+            playbackSessionLogger.notice(
+                "Audio preselect position=\(preferredAudioTrackPosition.map(String.init) ?? "none", privacy: .public) preferredLanguage=\(preferredLanguageLabel, privacy: .public) streams=\(audioStreamSummary, privacy: .public)"
+            )
             playbackSource = PlaybackSource(
                 url: playbackURL,
                 startPosition: startPosition,
