@@ -217,8 +217,23 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     func seek(to position: TimeInterval) {
+        seek(to: position, precise: true)
+    }
+
+    /// `precise: true` (and the plain `seek(to:)`) is frame-accurate — used for
+    /// scrub commits and the initial resume seek, where the position is exact.
+    /// `precise: false` allows ~2 s of tolerance each side so AVPlayer can land
+    /// on a nearby keyframe instead of decoding up to the exact frame, which is
+    /// much faster on long-GOP content and fine for transient double-tap/remote
+    /// skip jumps.
+    func seek(to position: TimeInterval, precise: Bool) {
         let time = CMTime(seconds: position, preferredTimescale: 1000)
-        player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        if precise {
+            player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
+        } else {
+            let tolerance = CMTime(seconds: 2, preferredTimescale: 1000)
+            player.seek(to: time, toleranceBefore: tolerance, toleranceAfter: tolerance)
+        }
     }
 
     func recoverFromStall() {
@@ -294,6 +309,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         let source = AVPictureInPictureController.ContentSource(playerLayer: playerLayer)
         let controller = AVPictureInPictureController(contentSource: source)
         controller.delegate = self
+        // Hand playback off to the floating window automatically when the app
+        // is backgrounded mid-playback, matching standard video-app behavior.
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
         pipController = controller
         pipPossibleObserver = controller.observe(
             \.isPictureInPicturePossible,

@@ -104,7 +104,9 @@ extension PlayerViewModel {
     }
 
     func seek(by offset: TimeInterval, revealControls: Bool = false) {
-        seek(to: displayPosition + offset, revealControls: revealControls)
+        // Transient jump: the target is an approximate offset from the current
+        // position, so let the engine take the fast keyframe-tolerant path.
+        seek(to: displayPosition + offset, revealControls: revealControls, precise: false)
     }
 
     func handleSeekJump(by offset: TimeInterval) {
@@ -164,7 +166,8 @@ extension PlayerViewModel {
 
     func commitScrub(shouldPlay: Bool) {
         let targetPosition = scrubPosition
-        engine.seek(to: targetPosition)
+        // Final position the user deliberately chose — seek frame-accurately.
+        engine.seek(to: targetPosition, precise: true)
         isScrubbing = false
 
         if shouldPlay {
@@ -257,7 +260,10 @@ extension PlayerViewModel {
         return Date() < suppressSeekPointSelectUntil
     }
 
-    func seek(to position: TimeInterval, revealControls: Bool) {
+    /// `precise` defaults to frame-accurate for deliberate targets (marker
+    /// skips, tvOS preview commits); `seek(by:)` opts transient double-tap and
+    /// remote skip jumps into the engine's fast keyframe-tolerant path.
+    func seek(to position: TimeInterval, revealControls: Bool, precise: Bool = true) {
         let clampedPosition: TimeInterval
         if duration > 0 {
             clampedPosition = min(max(position, 0), duration)
@@ -265,7 +271,7 @@ extension PlayerViewModel {
             clampedPosition = max(position, 0)
         }
 
-        engine.seek(to: clampedPosition)
+        engine.seek(to: clampedPosition, precise: precise)
 
         if revealControls {
             touchControls()

@@ -187,8 +187,12 @@ extension PlayerViewModel {
             return selectedTrackID
         }
 
+        // Only an embedded Plex-selected stream may imply a selection: if Plex
+        // has an external sidecar (`key != nil`) marked selected, no engine
+        // track corresponds to it, and matching by language would highlight an
+        // embedded track that is not actually rendering.
         if let sourceStream = sourcePart?.streams.first(where: {
-            $0.streamType == .subtitle && ($0.isSelected ?? false)
+            $0.streamType == .subtitle && ($0.isSelected ?? false) && $0.key == nil
         }), let matchedTrack = bestMatchingSubtitleTrack(for: sourceStream) {
             return matchedTrack.id
         }
@@ -251,7 +255,15 @@ extension PlayerViewModel {
     }
 
     func mergeSubtitleMetadata(into engineTracks: [SubtitleTrack]) -> [SubtitleTrack] {
-        let sourceStreams = sourcePart?.streams.filter { $0.streamType == .subtitle } ?? []
+        // Engine subtitle tracks are always embedded in the container: neither
+        // engine mounts Plex sidecar files (`key != nil`) — AVPlayer cannot
+        // attach a sidecar SRT/VTT to an existing item without an AVComposition
+        // rebuild, and VLCKit direct play adds no slave inputs. Excluding them
+        // here keeps the picker honest: an external stream must never relabel
+        // an embedded engine track with metadata the engine cannot render.
+        let sourceStreams = sourcePart?.streams.filter {
+            $0.streamType == .subtitle && $0.key == nil
+        } ?? []
         guard !sourceStreams.isEmpty else { return engineTracks }
 
         var remaining = Array(sourceStreams.enumerated())

@@ -64,6 +64,14 @@ protocol PlaybackEngine: AnyObject {
     func pause()
     func stop()
     func seek(to position: TimeInterval)
+
+    /// Seek with a precision hint. `precise: false` lets the engine trade
+    /// frame accuracy for speed (e.g. AVPlayer snapping to a nearby keyframe
+    /// instead of decoding up to the exact frame) — meant for transient jumps
+    /// like double-tap/remote skips where the position is approximate anyway.
+    /// `precise: true` behaves like `seek(to:)`. Engines that don't
+    /// distinguish keep the default, which forwards to `seek(to:)`.
+    func seek(to position: TimeInterval, precise: Bool)
     func recoverFromStall()
 
     /// Called when the app returns to foreground after being backgrounded.
@@ -139,6 +147,12 @@ protocol PlaybackEngine: AnyObject {
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
+
+    // Default: the precision hint is ignored — only AVPlayer distinguishes
+    // tolerant (keyframe) seeks from frame-accurate ones.
+    func seek(to position: TimeInterval, precise: Bool) {
+        seek(to: position)
+    }
 
     // Default: no startup fragility — only VLCKit defers automatic selection.
     var isReadyForAutomaticAudioSelection: Bool { true }
