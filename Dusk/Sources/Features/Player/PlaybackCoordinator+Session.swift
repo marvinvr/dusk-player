@@ -17,7 +17,14 @@ extension PlaybackCoordinator {
         loadError = nil
         qualitySwitchError = nil
         cancelUpNextCountdown()
+        cancelDirectPlayFallbackWatch()
         upNextPresentation = nil
+        // Plex session hygiene: a replaced session that was never finalized
+        // (e.g. direct restart) must not leave its server transcoder running.
+        if let staleTranscodeSessionID = activeTranscodeSessionID {
+            stopTranscodeSessionInBackground(staleTranscodeSessionID)
+            activeTranscodeSessionID = nil
+        }
 
         do {
             let details: PlexMediaDetails
@@ -70,10 +77,21 @@ extension PlaybackCoordinator {
                 return false
             }
 
-            let playbackURL: URL
-            let sanitizedURL: String
-            let playbackDecision: PlaybackDecision
+            let resolverDecision = StreamResolver.evaluate(
+                media: media,
+                forceAVPlayer: preferences.forceAVPlayer,
+                forceVLCKit: preferences.forceVLCKit
+            )
+
+            let sessionIdentifier = UUID().uuidString
+            var playbackURL: URL
+            var sanitizedURL: String
+            var playbackDecision: PlaybackDecision
             let usesLocalDownload: Bool
+            var engineType = resolverDecision.engine
+            var resolverReason = resolverDecision.reason
+            var transcodeSessionID: String?
+
             if let localURL {
                 playbackURL = localURL
                 sanitizedURL = localURL.path
@@ -91,14 +109,41 @@ extension PlaybackCoordinator {
                 sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
                 playbackDecision = .directPlay
                 usesLocalDownload = false
+
+                if resolverDecision.requiresServerTranscode {
+                    // Delivery ladder: neither local engine can render this
+                    // media correctly, so skip direct play and start on the
+                    // server-stream rung. On any failure or ambiguity fall
+                    // back to direct play so playback still starts.
+                    let mediaIndex = details.media.firstIndex { $0.id == media.id } ?? 0
+                    let serverStreamSessionID = UUID().uuidString
+                    do {
+                        let result = try await plexService.serverStreamURL(
+                            ratingKey: ratingKey,
+                            mediaIndex: mediaIndex,
+                            sessionIdentifier: sessionIdentifier,
+                            transcodeSessionID: serverStreamSessionID
+                        )
+                        if case .transcodeAvailable = result.outcome {
+                            playbackURL = result.url
+                            sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
+                            playbackDecision = .serverStream
+                            transcodeSessionID = serverStreamSessionID
+                            engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
+                            resolverReason = "Server stream: \(resolverDecision.reason)"
+                        } else {
+                            playbackSessionLogger.notice(
+                                "Server stream unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); proceeding with direct play"
+                            )
+                        }
+                    } catch {
+                        playbackSessionLogger.error(
+                            "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
+                        )
+                    }
+                }
             }
 
-            let resolverDecision = StreamResolver.evaluate(
-                media: media,
-                forceAVPlayer: preferences.forceAVPlayer,
-                forceVLCKit: preferences.forceVLCKit
-            )
-            let engineType = resolverDecision.engine
             let serverID = downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
@@ -113,28 +158,30 @@ extension PlaybackCoordinator {
                 title: details.title,
                 ratingKey: ratingKey,
                 engine: engineType,
-                resolverReason: resolverDecision.reason,
+                resolverReason: resolverReason,
                 mediaID: media.id,
                 partID: part.id,
                 sanitizedPlaybackURL: sanitizedURL
             )
 
             playbackSessionLogger.notice(
-                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) prepared for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverDecision.reason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
+                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) prepared for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
             )
 
-            let newEngine = PlaybackEngineFactory.makeEngine(
-                for: media,
-                forceAVPlayer: preferences.forceAVPlayer,
-                forceVLCKit: preferences.forceVLCKit
-            )
-            newEngine.configureVideoEnhancement(
-                VideoEnhancementRequest.make(
+            let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
+            // Server streams are HLS from the Plex transcoder; like manual
+            // transcodes they keep the native renderer as the video path.
+            let videoEnhancementRequest: VideoEnhancementRequest
+            if case .serverStream = playbackDecision {
+                videoEnhancementRequest = .disabled
+            } else {
+                videoEnhancementRequest = VideoEnhancementRequest.make(
                     mode: preferences.videoEnhancementMode,
                     media: media,
                     part: part
                 )
-            )
+            }
+            newEngine.configureVideoEnhancement(videoEnhancementRequest)
             newEngine.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
                     await self?.handlePlaybackEnded()
@@ -151,8 +198,8 @@ extension PlaybackCoordinator {
             self.ratingKey = ratingKey
             activePlaybackServerID = serverID
             activePlaybackUsesLocalDownload = usesLocalDownload
-            activePlaybackSessionIdentifier = UUID().uuidString
-            activeTranscodeSessionID = nil
+            activePlaybackSessionIdentifier = sessionIdentifier
+            activeTranscodeSessionID = transcodeSessionID
             activeItemDetails = details
             engine = newEngine
             let preferredAudioTrackPosition: Int? = switch playbackDecision {
@@ -163,7 +210,7 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 )
-            case .transcode:
+            case .transcode, .serverStream:
                 // HLS rewrites the stream layout; positions no longer apply.
                 nil
             }
@@ -190,7 +237,7 @@ extension PlaybackCoordinator {
                 media: media,
                 part: part,
                 attemptID: attemptID,
-                resolverReason: resolverDecision.reason,
+                resolverReason: resolverReason,
                 sanitizedPlaybackURL: sanitizedURL
             )
             playerPresentationID = UUID()
@@ -202,6 +249,12 @@ extension PlaybackCoordinator {
                 skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
             )
             startTimelineReporting()
+
+            if case .directPlay = playbackDecision {
+                // Online direct play gets the automatic delivery-ladder watch:
+                // if the engine dies, the session swaps to a server stream.
+                startDirectPlayFallbackWatch()
+            }
 
             if presentPlayer {
                 showPlayer = true
@@ -276,24 +329,35 @@ extension PlaybackCoordinator {
                     media: media,
                     part: part
                 )
+                // Plex session hygiene: returning to Original releases the
+                // server transcoder that fed the previous quality.
+                if let oldTranscodeSessionID = activeTranscodeSessionID {
+                    stopTranscodeSessionInBackground(oldTranscodeSessionID)
+                }
                 activeTranscodeSessionID = nil
             } else {
                 let playbackSessionID = activePlaybackSessionIdentifier ?? UUID().uuidString
                 activePlaybackSessionIdentifier = playbackSessionID
-                let transcodeSessionID = activeTranscodeSessionID ?? UUID().uuidString
-                activeTranscodeSessionID = transcodeSessionID
+                let newTranscodeSessionID = UUID().uuidString
 
                 let result = try await plexService.transcodeURL(
                     ratingKey: ratingKey,
                     mediaIndex: mediaIndex,
                     preset: preset,
                     sessionIdentifier: playbackSessionID,
-                    transcodeSessionID: transcodeSessionID,
+                    transcodeSessionID: newTranscodeSessionID,
                     audioStreamID: audioStreamID
                 )
 
                 switch result.outcome {
                 case .transcodeAvailable:
+                    // Plex session hygiene: stop the previous transcoder only
+                    // after the new session is confirmed, so a failed switch
+                    // keeps the current stream running (doc invariant).
+                    if let oldTranscodeSessionID = activeTranscodeSessionID {
+                        stopTranscodeSessionInBackground(oldTranscodeSessionID)
+                    }
+                    activeTranscodeSessionID = newTranscodeSessionID
                     playbackURL = result.url
                 case .directPlayOnly:
                     presentQualitySwitchError("Plex reported that this item can only direct play.")
@@ -312,65 +376,20 @@ extension PlaybackCoordinator {
                 videoEnhancementRequest = .disabled
             }
 
-            let attemptContext = PlaybackAttemptContext(
+            activateReplacementAttempt(
+                transitionLabel: "switching quality",
                 attemptID: attemptID,
-                title: details.title,
+                details: details,
                 ratingKey: ratingKey,
-                engine: engineType,
-                resolverReason: resolverReason,
-                mediaID: media.id,
-                partID: part.id,
-                sanitizedPlaybackURL: sanitizedURL
-            )
-
-            playbackSessionLogger.notice(
-                "Playback attempt \(attemptContext.attemptLabel, privacy: .public) switching quality for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(currentTime, privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
-            )
-
-            let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
-            newEngine.configureVideoEnhancement(videoEnhancementRequest)
-            newEngine.onPlaybackEnded = { [weak self] in
-                Task { @MainActor [weak self] in
-                    await self?.handlePlaybackEnded()
-                }
-            }
-
-            engine?.onPlaybackEnded = nil
-            engine?.setPictureInPictureDelegate(nil)
-            engine?.stop()
-            newEngine.setPictureInPictureDelegate(self)
-            isPictureInPictureActive = false
-            pendingPictureInPictureRestoreCompletion = nil
-            engine = newEngine
-            playbackSource = PlaybackSource(
-                url: playbackURL,
-                startPosition: currentTime,
-                context: attemptContext,
-                preferredAudioTrackPosition: preset.isOriginal
-                    ? PlayerViewModel.preferredAudioStreamPosition(
-                        inPart: part,
-                        preferredLanguage: preferences.defaultAudioLanguage
-                    )
-                    : nil
-            )
-            self.debugInfo = PlaybackDebugInfo(
-                title: details.title,
-                engine: engineType,
-                decision: playbackDecision,
                 media: media,
                 part: part,
-                attemptID: attemptID,
+                playbackURL: playbackURL,
+                sanitizedURL: sanitizedURL,
+                playbackDecision: playbackDecision,
+                engineType: engineType,
                 resolverReason: resolverReason,
-                sanitizedPlaybackURL: sanitizedURL
-            )
-            activePlaybackUsesLocalDownload = false
-            playerPresentationID = UUID()
-            nowPlayingController.beginSession(
-                details: details,
-                engine: newEngine,
-                plexService: plexService,
-                skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
-                skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+                videoEnhancementRequest: videoEnhancementRequest,
+                startPosition: currentTime
             )
         } catch {
             playbackSessionLogger.error(
@@ -407,6 +426,234 @@ extension PlaybackCoordinator {
         await switchQuality(to: preset, audioStreamID: streamID)
     }
 
+    /// Swaps the live session onto a new engine/source without finalizing it:
+    /// shared mechanics for quality switches and the automatic direct-play →
+    /// server-stream fallback. Keeps timeline reporting, scrobble state, and
+    /// the Plex session identifier intact; the new `playerPresentationID`
+    /// rebuilds the player view, which loads the new source.
+    private func activateReplacementAttempt(
+        transitionLabel: String,
+        attemptID: UUID,
+        details: PlexMediaDetails,
+        ratingKey: String,
+        media: PlexMedia,
+        part: PlexMediaPart,
+        playbackURL: URL,
+        sanitizedURL: String,
+        playbackDecision: PlaybackDecision,
+        engineType: PlaybackEngineType,
+        resolverReason: String,
+        videoEnhancementRequest: VideoEnhancementRequest,
+        startPosition: TimeInterval?
+    ) {
+        let attemptContext = PlaybackAttemptContext(
+            attemptID: attemptID,
+            title: details.title,
+            ratingKey: ratingKey,
+            engine: engineType,
+            resolverReason: resolverReason,
+            mediaID: media.id,
+            partID: part.id,
+            sanitizedPlaybackURL: sanitizedURL
+        )
+
+        playbackSessionLogger.notice(
+            "Playback attempt \(attemptContext.attemptLabel, privacy: .public) \(transitionLabel, privacy: .public) for ratingKey \(ratingKey, privacy: .public), title \(details.title, privacy: .public), engine \(String(describing: engineType), privacy: .public), media \(media.id, privacy: .public), part \(part.id, privacy: .public), startPosition=\(String(describing: startPosition), privacy: .public), reason \(resolverReason, privacy: .public), URL \(sanitizedURL, privacy: .public)"
+        )
+
+        let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
+        newEngine.configureVideoEnhancement(videoEnhancementRequest)
+        newEngine.onPlaybackEnded = { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.handlePlaybackEnded()
+            }
+        }
+
+        cancelDirectPlayFallbackWatch()
+        engine?.onPlaybackEnded = nil
+        engine?.setPictureInPictureDelegate(nil)
+        engine?.stop()
+        newEngine.setPictureInPictureDelegate(self)
+        isPictureInPictureActive = false
+        pendingPictureInPictureRestoreCompletion = nil
+        engine = newEngine
+        let preferredAudioTrackPosition: Int? = switch playbackDecision {
+        case .directPlay, .localDownload:
+            PlayerViewModel.preferredAudioStreamPosition(
+                inPart: part,
+                preferredLanguage: preferences.defaultAudioLanguage
+            )
+        case .transcode, .serverStream:
+            // HLS rewrites the stream layout; positions no longer apply.
+            nil
+        }
+        playbackSource = PlaybackSource(
+            url: playbackURL,
+            startPosition: startPosition,
+            context: attemptContext,
+            preferredAudioTrackPosition: preferredAudioTrackPosition
+        )
+        debugInfo = PlaybackDebugInfo(
+            title: details.title,
+            engine: engineType,
+            decision: playbackDecision,
+            media: media,
+            part: part,
+            attemptID: attemptID,
+            resolverReason: resolverReason,
+            sanitizedPlaybackURL: sanitizedURL
+        )
+        activePlaybackUsesLocalDownload = false
+        playerPresentationID = UUID()
+        nowPlayingController.beginSession(
+            details: details,
+            engine: newEngine,
+            plexService: plexService,
+            skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+            skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+        )
+
+        if case .directPlay = playbackDecision {
+            // Returning to Original direct play re-arms the ladder watch.
+            startDirectPlayFallbackWatch()
+        }
+    }
+
+    // MARK: - Automatic delivery-ladder fallback
+
+    /// Arms the one-shot direct-play failure watch for the current attempt.
+    /// While an online direct-play session is live, a ~500 ms cadence loop
+    /// observes the engine; when it reports a terminal error the session is
+    /// swapped to the server-stream ladder rung instead of dying on the error
+    /// overlay. Cancelled by finalize/clear and by every engine swap; never
+    /// armed for local downloads or server streams/transcodes.
+    func startDirectPlayFallbackWatch() {
+        cancelDirectPlayFallbackWatch()
+
+        let expectedPresentationID = playerPresentationID
+        directPlayFallbackWatchTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                if Task.isCancelled { return }
+                guard let self else { return }
+                guard self.playerPresentationID == expectedPresentationID,
+                      !self.didFinalizeCurrentSession,
+                      let engine = self.engine else {
+                    return
+                }
+                guard engine.state == .error || engine.error != nil else { continue }
+
+                // One-shot: consume the watch before attempting the swap so a
+                // failed fallback leaves the normal error surface alone.
+                self.directPlayFallbackWatchTask = nil
+                await self.performDirectPlayServerStreamFallback()
+                return
+            }
+        }
+    }
+
+    func cancelDirectPlayFallbackWatch() {
+        directPlayFallbackWatchTask?.cancel()
+        directPlayFallbackWatchTask = nil
+    }
+
+    /// One-shot delivery-ladder fallback: an online direct-play attempt died
+    /// with an engine error, so restart at the same position as a server HLS
+    /// stream (direct-stream/remux). If this attempt itself fails, the normal
+    /// error surface stays in place — there is no rung below this one.
+    func performDirectPlayServerStreamFallback() async {
+        guard !didFinalizeCurrentSession,
+              !activePlaybackUsesLocalDownload,
+              !isSwitchingQuality,
+              let details = activeItemDetails,
+              let ratingKey,
+              let debugInfo,
+              case .directPlay = debugInfo.decision,
+              let engine else {
+            return
+        }
+
+        let failureDescription = engine.error?.errorDescription ?? "engine reported state .error"
+        // The engine's clock may have died at 0; timeline reports carry the
+        // last position Plex saw, so resume from whichever is further.
+        let resumePosition = max(engine.currentTime, TimeInterval(lastReportedTimeMs) / 1000.0)
+
+        playbackSessionLogger.error(
+            "Playback attempt \(debugInfo.attemptLabel, privacy: .public) direct play failed for ratingKey \(ratingKey, privacy: .public): \(failureDescription, privacy: .public); attempting server-stream fallback from \(resumePosition, privacy: .public)s"
+        )
+
+        guard let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
+              let part = details.media[mediaIndex].parts.first else {
+            playbackSessionLogger.error(
+                "Server-stream fallback aborted for ratingKey \(ratingKey, privacy: .public): could not resolve the active media version"
+            )
+            return
+        }
+        let media = details.media[mediaIndex]
+
+        let playbackSessionID = activePlaybackSessionIdentifier ?? UUID().uuidString
+        activePlaybackSessionIdentifier = playbackSessionID
+        let transcodeSessionID = UUID().uuidString
+        let expectedPresentationID = playerPresentationID
+
+        do {
+            let result = try await plexService.serverStreamURL(
+                ratingKey: ratingKey,
+                mediaIndex: mediaIndex,
+                sessionIdentifier: playbackSessionID,
+                transcodeSessionID: transcodeSessionID
+            )
+
+            // The session may have been torn down or replaced while awaiting
+            // the server's decision.
+            guard !didFinalizeCurrentSession,
+                  playerPresentationID == expectedPresentationID,
+                  self.ratingKey == ratingKey else {
+                stopTranscodeSessionInBackground(transcodeSessionID)
+                return
+            }
+
+            guard case .transcodeAvailable = result.outcome else {
+                playbackSessionLogger.error(
+                    "Server-stream fallback unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); leaving the error surface in place"
+                )
+                return
+            }
+
+            activeTranscodeSessionID = transcodeSessionID
+            activateReplacementAttempt(
+                transitionLabel: "falling back to server stream after direct-play failure",
+                attemptID: UUID(),
+                details: details,
+                ratingKey: ratingKey,
+                media: media,
+                part: part,
+                playbackURL: result.url,
+                sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
+                playbackDecision: .serverStream,
+                engineType: preferences.forceVLCKit ? .vlcKit : .avPlayer,
+                resolverReason: "Direct play failed (\(failureDescription)); automatic server-stream fallback",
+                videoEnhancementRequest: .disabled,
+                startPosition: resumePosition
+            )
+            // Informational note through the toast surface the player already
+            // renders for quality-switch messages.
+            presentQualitySwitchError("Direct play failed — switched to converted stream")
+        } catch {
+            playbackSessionLogger.error(
+                "Server-stream fallback failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
+            )
+        }
+    }
+
+    /// Fire-and-forget `/video/:/transcode/universal/stop` for Plex session
+    /// hygiene; `PlexService` logs failures instead of throwing.
+    func stopTranscodeSessionInBackground(_ transcodeSessionID: String) {
+        Task {
+            await plexService.stopTranscodeSession(transcodeSessionID: transcodeSessionID)
+        }
+    }
+
     func handlePlaybackEnded() async {
         guard !isHandlingPlaybackEnded else { return }
         guard upNextPresentation == nil else { return }
@@ -431,6 +678,13 @@ extension PlaybackCoordinator {
 
         timelineTimer?.invalidate()
         timelineTimer = nil
+        cancelDirectPlayFallbackWatch()
+
+        // Plex session hygiene: release the server transcoder with the session.
+        if let transcodeSessionID = activeTranscodeSessionID {
+            stopTranscodeSessionInBackground(transcodeSessionID)
+            activeTranscodeSessionID = nil
+        }
 
         let snapshot = timelineSnapshot(markCompleted: markCompleted)
         lastReportedTimeMs = snapshot.timeMs
@@ -500,11 +754,17 @@ extension PlaybackCoordinator {
         timelineTimer?.invalidate()
         timelineTimer = nil
         cancelUpNextCountdown()
+        cancelDirectPlayFallbackWatch()
         upNextPresentation = nil
         engine?.onPlaybackEnded = nil
         engine?.setPictureInPictureDelegate(nil)
         nowPlayingController.endSession()
         engine = nil
+        // Normally already stopped by finalize; belt-and-braces for paths
+        // that clear without finalizing.
+        if let transcodeSessionID = activeTranscodeSessionID {
+            stopTranscodeSessionInBackground(transcodeSessionID)
+        }
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil
         activeItemDetails = nil

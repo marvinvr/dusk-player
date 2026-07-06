@@ -53,6 +53,8 @@ struct PlaybackDebugInfo: Sendable {
             "No"
         case let .transcode(preset):
             preset.displayName
+        case .serverStream:
+            "Direct Stream (HLS)"
         }
     }
 
@@ -62,7 +64,7 @@ struct PlaybackDebugInfo: Sendable {
             "Yes"
         case .localDownload:
             "Local"
-        case .transcode:
+        case .transcode, .serverStream:
             "No"
         }
     }
@@ -72,6 +74,7 @@ struct PlaybackDebugInfo: Sendable {
         case .directPlay: "Direct Play"
         case .localDownload: "Local Download"
         case let .transcode(preset): "Transcode \(preset.displayName)"
+        case .serverStream: "Server Stream (HLS)"
         }
     }
 
@@ -81,6 +84,10 @@ struct PlaybackDebugInfo: Sendable {
             .original
         case let .transcode(preset):
             preset
+        case .serverStream:
+            // The server copies the original video track when it can, so the
+            // effective quality is the original's; no preset cap applies.
+            .original
         }
     }
 
@@ -92,7 +99,7 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .localDownload:
             false
-        case .directPlay, .transcode:
+        case .directPlay, .transcode, .serverStream:
             true
         }
     }
@@ -101,7 +108,7 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .localDownload:
             false
-        case .directPlay, .transcode:
+        case .directPlay, .transcode, .serverStream:
             true
         }
     }
@@ -197,6 +204,11 @@ enum PlaybackDecision: Sendable {
     case directPlay
     case localDownload
     case transcode(PlaybackQualityPreset)
+    /// Delivery-ladder rung below direct play: the server packages the item as
+    /// HLS with direct-stream enabled (video/audio copied when possible, only
+    /// re-encoded when it must be). No quality preset applies — the video
+    /// quality stays the original's.
+    case serverStream
 }
 
 enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {

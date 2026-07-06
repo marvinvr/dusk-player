@@ -44,9 +44,16 @@ final class PlaybackCoordinator {
     var continuousPlayEpisodeRunCount = 0
     var activePlaybackSessionIdentifier: String?
     var activeTranscodeSessionID: String?
+    /// Counts 10-second timeline ticks so the transcode keep-alive ping fires
+    /// roughly every 60 seconds while a server transcode session is active.
+    @ObservationIgnored var transcodePingTickCounter = 0
 
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
+    /// One-shot per attempt: observes the engine after an online direct-play
+    /// start and swaps the session to the server-stream ladder rung when the
+    /// engine fails. Cancelled on finalize/clear/engine swap.
+    @ObservationIgnored nonisolated(unsafe) var directPlayFallbackWatchTask: Task<Void, Never>?
 
     init(
         plexService: PlexService,
@@ -62,6 +69,7 @@ final class PlaybackCoordinator {
 
     deinit {
         timelineTimer?.invalidate()
+        directPlayFallbackWatchTask?.cancel()
     }
 
     // MARK: - Play an Item
