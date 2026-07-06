@@ -1502,16 +1502,30 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
+    /// Gap between the revive's pause and resume. The two commands are
+    /// processed strictly in order by the player thread, so the cure
+    /// sequence (AudioUnit stop → session reactivation → AudioUnit start →
+    /// render unlatch) executes fully regardless of gap length — the gap is
+    /// only headroom for iOS audio-session churn, and the patched framework
+    /// self-heals a too-hasty reactivation anyway (activation retries plus
+    /// the 500 ms output-restart retry). Default 100 ms; overridable
+    /// without a new build via the `vlcAudioReviveGapMs` user default
+    /// (clamped 40–1000) for on-device tuning.
+    private static var audioReviveGapMilliseconds: Int {
+        let stored = UserDefaults.standard.integer(forKey: "vlcAudioReviveGapMs")
+        guard stored > 0 else { return 100 }
+        return min(max(stored, 40), 1_000)
+    }
+
     /// The automated version of the manual "pause, then play" cure: the same
     /// `mediaPlayer.pause()` … wait … `mediaPlayer.play()` sequence a user
     /// produces, including the post-resume video-output refresh the manual
     /// path schedules. Confirmed on device to restore audio in the
     /// silent-but-"healthy" sessions exactly like the manual cure does. The
-    /// gap is tuned short (~350 ms) so the hold reads as normal startup/seek
-    /// latency; if audio was healthy the pause does not flush and playback
-    /// continues from the same buffers. Returns whether the revive actually
-    /// started (the rate limiter may defer it — callers keep the arm and
-    /// retry on the next time tick).
+    /// short gap keeps the hold imperceptible; if audio was healthy the
+    /// pause does not flush and playback continues from the same buffers.
+    /// Returns whether the revive actually started (the rate limiter may
+    /// defer it — callers keep the arm and retry on the next time tick).
     @discardableResult
     private func performAudioRevive(reason: String) -> Bool {
         guard state == .playing, !isPerformingAudioRevive else { return false }
@@ -1528,9 +1542,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         )
 
         mediaPlayer.pause()
+        let gapMilliseconds = Self.audioReviveGapMilliseconds
         audioReviveResumeTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(350))
+                try await Task.sleep(for: .milliseconds(gapMilliseconds))
             } catch {
                 return
             }

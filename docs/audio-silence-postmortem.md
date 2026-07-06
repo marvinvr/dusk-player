@@ -80,7 +80,7 @@ zeroing between decoder and hardware); what IS proven on device:
 
 The mitigation is the engine's **settle audio revive**
 (`performAudioRevive`): an exact automated replica of the manual cure
-(`mediaPlayer.pause()` → ~350 ms → `mediaPlayer.play()` + the post-resume
+(`mediaPlayer.pause()` → ~100 ms (tunable via `vlcAudioReviveGapMs`) → `mediaPlayer.play()` + the post-resume
 video refresh), fired at the first advancing time tick after every
 disturbance (open, stall recovery, seek burst), one-shot per disturbance,
 rate-limited, suppressing the transient `.paused` state so the UI never
@@ -102,7 +102,7 @@ proven cure.
   The resume seek is issued right after `play()` instead (queued before the
   audio output exists), with a fallback on the first `.playing` state.
 - "The pause duration must cover the timing gap" — untested speculation
-  from the era when the revive never actually fired; 350 ms works.
+  from the era when the revive never actually fired; even a ~100 ms gap works — the pause/play commands execute in order regardless, and the patched framework self-heals hasty session reactivation.
 
 ## Also fixed along the way (keep these)
 

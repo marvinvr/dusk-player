@@ -296,8 +296,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
   render unlatch, and a fresh render-callback timing report that re-syncs
   the master clock), so the engine automates that cure as a replica of the
-  manual sequence: a ~350 ms pause→resume "revive" (including the
-  post-resume video-output refresh the manual path schedules) that reports
+  manual sequence: a ~100 ms pause→resume "revive" (gap tunable without a
+  rebuild via the `vlcAudioReviveGapMs` user default, clamped 40–1000 ms;
+  including the post-resume video-output refresh the manual path
+  schedules) that reports
   `.playing` throughout (no HUD/Now Playing flash; a user pause during the
   window always wins). Confirmed on device (2026-07-06) to restore audio
   exactly like the manual cure:
