@@ -818,6 +818,19 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 }
             }
 
+            // Primary, event-driven revive hook: libvlc only reports
+            // .playing after the audio output has been built and started
+            // (the output is created during preroll, which completes before
+            // the player unbuffers), so this is a fixed point in the
+            // pipeline — independent of the time-tick heuristics, which
+            // remain as the fallback trigger in updateTime. Skipped while a
+            // seek is still in flight; the tick path fires right after it
+            // settles instead.
+            if needsSettleAudioRevive, pendingSeekTarget == nil,
+               performAudioRevive(reason: "entered-playing") {
+                needsSettleAudioRevive = false
+            }
+
             refreshTracks()
 
         case .paused:

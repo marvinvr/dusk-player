@@ -80,11 +80,15 @@ zeroing between decoder and hardware); what IS proven on device:
 
 The mitigation is the engine's **settle audio revive**
 (`performAudioRevive`): an exact automated replica of the manual cure
-(`mediaPlayer.pause()` → ~100 ms (tunable via `vlcAudioReviveGapMs`) → `mediaPlayer.play()` + the post-resume
-video refresh), fired at the first advancing time tick after every
-disturbance (open, stall recovery, seek burst), one-shot per disturbance,
-rate-limited, suppressing the transient `.paused` state so the UI never
-flashes. iOS/iPadOS only. Confirmed working on device 2026-07-06. If the
+(`mediaPlayer.pause()` → ~100 ms (tunable via `vlcAudioReviveGapMs`) →
+`mediaPlayer.play()` + the post-resume video refresh), one-shot per
+disturbance (open, stall recovery, seek burst), rate-limited, suppressing
+the transient `.paused` state so the UI never flashes. Two independent
+triggers — the `.playing` state transition (event-driven primary; libvlc
+only reports playing after the audio output is up) and the first advancing
+time tick (fallback) — and the arm survives until a revive actually starts,
+so the cure cannot be lost to a race. iOS/iPadOS only. Confirmed working on
+device 2026-07-06. If the
 root cause is ever fixed at the libvlc level, the revive can become a
 dormant safety net — do not remove it based on theory alone; it is the only
 proven cure.

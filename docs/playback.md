@@ -304,14 +304,23 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   window always wins). Confirmed on device (2026-07-06) to restore audio
   exactly like the manual cure:
   - once per audio-output disturbance — media open, stall recovery, and
-    each seek burst (every seek flushes the output) — on iOS/iPadOS only,
-    fired at the first advancing time tick after the disturbance settles
-    (buffering-immune; the old consecutive-unbuffered-ticks trigger never
-    fired on network streams), ordered before automatic track selection so
-    an ES switch never interleaves with the revive. A real user
-    pause→resume before that point consumes the revive, since it already
-    ran the same cure natively. Revives are rate-limited (1.5 s); a
-    deferred revive stays armed and retries on the next tick.
+    each seek burst (every seek flushes the output) — on iOS/iPadOS only.
+    Two independent triggers, first to succeed wins, and the arm survives
+    until a revive actually starts (a deferred/rate-limited attempt
+    retries), so the cure cannot be lost to a race:
+    1. event-driven (primary): the `.playing` state transition, a fixed
+       point in the pipeline — libvlc only reports playing after the audio
+       output is built and started (output creation happens during preroll,
+       which completes before unbuffering). Far seeks that refill emit a
+       buffering→playing transition, so they hit this hook too. Skipped
+       while a seek is in flight.
+    2. time-tick fallback: the first advancing accepted time update after
+       the disturbance (buffering-immune; the old
+       consecutive-unbuffered-ticks trigger never fired on network streams).
+    The revive is ordered before automatic track selection so an ES switch
+    never interleaves with it. A real user pause→resume before that point
+    consumes the revive, since it already ran the same cure natively.
+    Rate limit: 1.5 s between revives.
   - whenever an audio-session interruption `began` is not followed by an
     `ended` within 2.5 s while the engine still reports playing (nothing
     paused us, so the user expects sound). If `ended` does arrive, the
