@@ -1,6 +1,6 @@
 #if os(tvOS)
+import TVVLCKit
 import UIKit
-import VLCKit
 
 final class TVOSVLCKitRenderingHost: NSObject, VLCKitRenderingHost, @unchecked Sendable {
     let playerView: UIView

@@ -1,8 +1,6 @@
+import AVFoundation
 import SwiftUI
 import UIKit
-#if os(iOS)
-import AVFoundation
-#endif
 
 enum AppImageCache {
     static let memoryCapacity = 0
@@ -104,8 +102,8 @@ struct DuskApp: App {
             offlinePlaybackSyncManager: playbackSync
         ))
         _userPreferences = State(initialValue: prefs)
-        #if os(iOS)
         Self.configurePlaybackAudioSession()
+        #if os(iOS)
         Self.configureTabBarAppearance()
         #endif
     }
@@ -142,21 +140,27 @@ struct DuskApp: App {
     }
 }
 
-#if os(iOS)
 private extension DuskApp {
     static func configurePlaybackAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()
 
         do {
+            // `.longFormVideo` routing policy is iOS-only; tvOS keeps the plain
+            // playback category (HDMI route, no AirPlay long-form handoff).
+            #if os(tvOS)
+            try audioSession.setCategory(.playback, mode: .moviePlayback)
+            #else
             try audioSession.setCategory(.playback, mode: .moviePlayback, policy: .longFormVideo)
-            if #available(iOS 15.0, *) {
-                try audioSession.setSupportsMultichannelContent(true)
-            }
+            #endif
+            try audioSession.setSupportsMultichannelContent(true)
         } catch {
             assertionFailure("Failed to configure playback audio session: \(error.localizedDescription)")
         }
     }
+}
 
+#if os(iOS)
+private extension DuskApp {
     static func configureTabBarAppearance() {
         let appearance = UITabBarAppearance()
         appearance.configureWithDefaultBackground()

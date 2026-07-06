@@ -1,6 +1,11 @@
 #import <CoreVideo/CoreVideo.h>
 #import <Foundation/Foundation.h>
-#import <VLCKit/VLCKit.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_TV
+#import <TVVLCKit/TVVLCKit.h>
+#else
+#import <MobileVLCKit/MobileVLCKit.h>
+#endif
 
 NS_ASSUME_NONNULL_BEGIN
 

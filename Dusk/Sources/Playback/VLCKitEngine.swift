@@ -1,15 +1,17 @@
-#if canImport(VLCKit)
+#if canImport(MobileVLCKit)
+import MobileVLCKit
+#elseif canImport(TVVLCKit)
+import TVVLCKit
+#endif
+#if canImport(MobileVLCKit) || canImport(TVVLCKit)
+import AVFoundation
 import CoreVideo
 import OSLog
 import SwiftUI
 import UIKit
-import VLCKit
-#if os(iOS) || os(tvOS)
-import AVFoundation
-#endif
 #endif
 
-#if canImport(VLCKit)
+#if canImport(MobileVLCKit) || canImport(TVVLCKit)
 private let vlcKitEngineLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "VLCKitEngine"
@@ -157,7 +159,8 @@ private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrame
     }
 }
 
-/// PlaybackEngine implementation backed by upstream VLCKit 4.x.
+/// PlaybackEngine implementation backed by the stable VLCKit 3.x line
+/// (MobileVLCKit on iOS/iPadOS, TVVLCKit on tvOS).
 ///
 /// Shared playback logic lives here. Platform-specific rendering behavior
 /// lives in `VLCKitRendererIOS.swift` and `VLCKitRendererTVOS.swift`.
@@ -269,18 +272,20 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var audioInterruptionWatchdogTask: Task<Void, Never>?
     private var currentAttemptContext: PlaybackAttemptContext?
     private var currentSource: PlaybackSource?
-    private var lastAppliedAudioMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
     private var lastAppliedAudioConfigSignature: String?
-    // VLCKit 4 identifies player tracks by a stable string `trackId`. The int
-    // `identifier` inherited from `VLCMediaTrack` is not a reliable selector for
-    // player tracks, so matching on it silently selected the wrong track and
-    // switching audio/subtitle tracks never took effect. Map each `trackId` to a
-    // stable unique Int for the `AudioTrack`/`SubtitleTrack` models, and back to
-    // the `trackId` for selection. Shared across audio/subtitle (trackIds are
-    // unique per type, e.g. "audio/0" vs "spu/0").
+    // VLCKit 3 identifies player tracks by libvlc elementary-stream indexes,
+    // which are only unique per track kind. Key them as "audio/<index>" /
+    // "spu/<index>" and map each key to a stable unique Int for the
+    // `AudioTrack`/`SubtitleTrack` models, and back for selection.
     private var trackIDsByModelID: [Int: String] = [:]
     private var modelIDsByTrackID: [String: Int] = [:]
     private var nextTrackModelID = 1
+    /// Metadata for the current audio track list, keyed by ES index. Feeds the
+    /// audio-output policy and diagnostics (VLCKit 3 exposes codec/channel data
+    /// only through `VLCMedia.tracksInformation`, not on the player).
+    private var latestAudioTrackInfosByIndex: [Int: VLCTrackInfo] = [:]
+    /// Last seen (audio, text) track counts; see `refreshTracksIfCountsChanged`.
+    private var lastObservedTrackCounts: (audio: Int32, text: Int32) = (-1, -1)
     @ObservationIgnored nonisolated(unsafe) private var audioSessionObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var seekVerificationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
@@ -291,108 +296,65 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoOutput: DuskVLCRawVideoOutput?
 
-    /// Shared libvlc instances, configured on top of VLCKit's default options
-    /// (`VLCLibrary.initWithOptions:` appends to them).
-    ///
-    /// `--aout=audiounit_ios,any` pins the audio output to the classic
-    /// pull-model AudioUnit module instead of libvlc 4's new default
-    /// `avsamplebuffer` (AVSampleBufferAudioRenderer, capability 100 vs 99).
-    /// avsamplebuffer drives the core playback clock from a 1-second periodic
-    /// time observer of an AVSampleBufferRenderSynchronizer, a mechanism with
-    /// documented iOS-specific drift (fine on macOS/simulator, which is why
-    /// the dropouts never reproduce off-device), and mpv deliberately ships
-    /// the equivalent output opt-in rather than default. When the reported
-    /// clock lurches, libvlc's aout core reacts with "playback too late /
-    /// too early" silence insertions and buffer flushes — audible as cyclic
-    /// audio dropouts a few seconds long that a pause/resume temporarily
-    /// clears. audiounit_ios reports timing from the real-time CoreAudio
-    /// render callback instead. The ",any" suffix keeps a fallback if the
-    /// module is ever missing so playback never starts without audio.
-    /// `UserPreferences.vlcUseAVSampleBufferAudio` (Settings → Playback
-    /// Advanced) restores the libvlc default for on-device A/B testing;
-    /// it is read once per engine, so it applies to the next playback.
-    nonisolated(unsafe) private static let audioUnitLibrary: VLCLibrary = {
-        let library = VLCLibrary(options: ["--aout=audiounit_ios,any"])
-        library.loggers = [VLCLibraryLogBridge.shared]
-        return library
-    }()
-    nonisolated(unsafe) private static let libvlcDefaultLibrary: VLCLibrary = {
+    /// Shared libvlc instance. On the stable 3.x line the iOS/tvOS audio
+    /// output IS the classic pull-model AudioUnit module — the
+    /// `avsamplebuffer` output that libvlc 4.0-dev defaulted to (and whose
+    /// clock drift caused the cyclic audio dropouts documented in
+    /// docs/audio-silence-postmortem.md) does not exist on this branch, so no
+    /// `--aout` pin or A/B toggle is needed.
+    nonisolated(unsafe) private static let sharedLibrary: VLCLibrary = {
         let library = VLCLibrary(options: [])
         library.loggers = [VLCLibraryLogBridge.shared]
         return library
     }()
 
-    /// Mirrors `UserPreferences.Keys.vlcUseAVSampleBufferAudio` (Settings).
-    private static let useAVSampleBufferAudioDefaultsKey = "vlcUseAVSampleBufferAudio"
-
-    /// Audit of the VLCKit binary actually loaded into THIS process. The
-    /// repo's `Frameworks/` binaries carry the audio-silence recovery patches
-    /// (vlc-patches 0015/0016), but Xcode's framework-embed step can silently
-    /// reuse a stale cached copy when a checked-in binary is replaced
-    /// in-place — device builds have shipped pre-patch VLCKit while the repo
-    /// contained the patched one, making every "fix" look ineffective. Scan
-    /// the loaded framework for a patch-0015 log string so the app can state
-    /// definitively which build it is running (logged at engine init and
-    /// shown in Playback Info).
-    static let vendoredVLCKitAudit: (hasSilencePatches: Bool, detail: String) = {
-        let marker = Data("clamping excessive audio start deferral".utf8)
-        guard let binaryURL = Bundle(for: VLCMediaPlayer.self).executableURL,
-              let binary = try? Data(contentsOf: binaryURL, options: .mappedIfSafe) else {
-            return (false, "Unknown (could not read the loaded VLCKit binary)")
-        }
-        if binary.range(of: marker) != nil {
-            return (true, "Patched (0015/0016 audio recovery present)")
-        }
-        return (false, "STALE — audio recovery patches MISSING; clean build / reinstall")
-    }()
-
-    private static func chooseLibrary() -> VLCLibrary {
-        UserDefaults.standard.bool(forKey: useAVSampleBufferAudioDefaultsKey)
-            ? libvlcDefaultLibrary
-            : audioUnitLibrary
+    /// Master switch for the pause→play audio revive machinery below.
+    ///
+    /// The revive was built against libvlc 4.0-dev's rewritten audio output,
+    /// which could latch into rendering silence while reporting success (see
+    /// docs/audio-silence-postmortem.md). The vendored stable 3.x line uses
+    /// the field-proven audiounit output that has shown none of those states,
+    /// so the machinery is DORMANT by default and kept only as a safety net —
+    /// set the `vlcAudioReviveEnabled` user default to re-arm it without a
+    /// rebuild if silent playback is ever observed on this stack.
+    private static var isAudioReviveEnabled: Bool {
+        UserDefaults.standard.bool(forKey: "vlcAudioReviveEnabled")
     }
 
-    /// True when the Settings → Playback Advanced A/B toggle routed this
-    /// engine onto libvlc's default `avsamplebuffer` output instead of the
-    /// pinned `audiounit_ios`. Surfaced in Playback Info because the two
-    /// modules fail in completely different ways (the 0015 recovery patches
-    /// only cover audiounit_ios) — an accidentally-left-on toggle would make
-    /// every audiounit fix look ineffective.
-    private let usesAVSampleBufferAudioOutput: Bool
+    /// Audit of the VLCKit binary actually loaded into THIS process. Xcode's
+    /// framework-embed step can silently reuse a stale cached copy when a
+    /// checked-in binary is replaced in-place — device builds have shipped
+    /// outdated VLCKit while the repo contained a newer one, making fixes
+    /// look ineffective (see docs/audio-silence-postmortem.md). Build-time
+    /// staleness is caught by scripts/verify_embedded_vlckit.sh (Mach-O UUID
+    /// compare against Frameworks/); this runtime audit reports the loaded
+    /// libvlc version so Playback Info can state definitively which build is
+    /// running.
+    static let vendoredVLCKitAudit: (isExpectedBuild: Bool, detail: String) = {
+        let version = sharedLibrary.version
+        if version.hasPrefix("3.0.") {
+            return (true, "Stable VLCKit 3.x (libvlc \(version))")
+        }
+        return (false, "UNEXPECTED build (libvlc \(version)) — expected the stable 3.x line; clean build / reinstall")
+    }()
 
     override init() {
-        let usesAVSampleBuffer = UserDefaults.standard.bool(
-            forKey: Self.useAVSampleBufferAudioDefaultsKey
-        )
-        self.usesAVSampleBufferAudioOutput = usesAVSampleBuffer
-        let player = VLCMediaPlayer(
-            library: usesAVSampleBuffer ? Self.libvlcDefaultLibrary : Self.audioUnitLibrary
-        )
+        let player = VLCMediaPlayer(library: Self.sharedLibrary)
         let renderingHost = makeVLCKitRenderingHost()
         self.mediaPlayer = player
         self.renderingHost = renderingHost
         super.init()
 
         player.delegate = self
-        player.timeChangeUpdateInterval = 0.25
-        player.minimalTimePeriod = 250_000
         renderingHost.attach(to: player, engine: self)
-        configurePictureInPictureBridge()
         configureAudioOutputPolicy()
         registerAudioSessionObserversIfNeeded()
 
         let audit = Self.vendoredVLCKitAudit
-        if audit.hasSilencePatches {
+        if audit.isExpectedBuild {
             vlcKitEngineLogger.notice("VLCKit audit: \(audit.detail, privacy: .public)")
         } else {
             vlcKitEngineLogger.error("VLCKit audit: \(audit.detail, privacy: .public)")
-        }
-        if usesAVSampleBufferAudioOutput {
-            vlcKitEngineLogger.error(
-                "VLCKit audio module: avsamplebuffer (Settings A/B toggle is ON — the audiounit recovery patches do NOT cover this output)"
-            )
-        } else {
-            vlcKitEngineLogger.notice("VLCKit audio module: audiounit_ios (pinned)")
         }
     }
 
@@ -438,11 +400,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         selectedSubtitleTrackID = nil
         selectedAudioTrackID = nil
         playbackDiagnostics = []
-        lastAppliedAudioMixMode = .modeUnset
         lastAppliedAudioConfigSignature = nil
         trackIDsByModelID = [:]
         modelIDsByTrackID = [:]
         nextTrackModelID = 1
+        latestAudioTrackInfosByIndex = [:]
+        lastObservedTrackCounts = (-1, -1)
         syncRendererPlaybackState()
 
         vlcKitEngineLogger.notice(
@@ -567,31 +530,23 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     #if os(iOS)
     // MARK: - Picture in Picture
 
-    /// VLCKit 4.x drives PiP through a native `AVPictureInPictureController` it
-    /// builds behind the `VLCPictureInPictureDrawable` host — this is the
-    /// Apple-sanctioned native path, not the old non-native hack. The host vends
-    /// the window controller asynchronously; we mirror its readiness and active
-    /// state into observable flags for the player UI and relay lifecycle events
-    /// to the coordinator.
+    /// VLCKit 3.x has no drawable-native Picture in Picture (that was a 4.x
+    /// feature). The sample-buffer output built for the Video Enhancement path
+    /// (`VLCKitEnhancedPictureInPictureOutput`, a real
+    /// `AVPictureInPictureController` over an `AVSampleBufferDisplayLayer`) is
+    /// the only PiP surface for VLC sessions, so PiP is possible exactly when
+    /// Video Enhancement's raw frame tap is active.
     func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {
         pictureInPictureDelegate = delegate
     }
 
     func startPictureInPicture() {
         guard isPictureInPicturePossible else { return }
-        if let enhancedPictureInPictureOutput {
-            enhancedPictureInPictureOutput.start()
-        } else {
-            (renderingHost as? IOSVLCKitRenderingHost)?.startPictureInPicture()
-        }
+        enhancedPictureInPictureOutput?.start()
     }
 
     func stopPictureInPicture() {
-        if let enhancedPictureInPictureOutput {
-            enhancedPictureInPictureOutput.stop()
-        } else {
-            (renderingHost as? IOSVLCKitRenderingHost)?.stopPictureInPicture()
-        }
+        enhancedPictureInPictureOutput?.stop()
     }
 
     /// Builds the sample-buffer PiP output for the Video Enhancement path and
@@ -627,43 +582,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         refreshPictureInPicturePossible()
     }
 
-    private func configurePictureInPictureBridge() {
-        guard let iosHost = renderingHost as? IOSVLCKitRenderingHost else { return }
-        iosHost.onPictureInPictureReadyChanged = { [weak self] in
-            self?.refreshPictureInPicturePossible()
-        }
-        iosHost.onPictureInPictureActiveChanged = { [weak self] isActive in
-            guard let self else { return }
-            self.isPictureInPictureActive = isActive
-            if isActive {
-                self.pictureInPictureDelegate?.pictureInPictureActiveDidChange(true)
-            } else {
-                // VLCKit's binding can't distinguish a restore-tap from a close,
-                // so always offer to restore the player UI first (non-destructive
-                // — playback is never silently lost), then report the stop.
-                self.pictureInPictureDelegate?.pictureInPictureRestorePlayerUI { _ in }
-                self.pictureInPictureDelegate?.pictureInPictureActiveDidChange(false)
-            }
-        }
-    }
-
     private func refreshPictureInPicturePossible() {
-        // With Video Enhancement active, VLCKit's own drawable is detached and the
-        // sample-buffer output owns PiP instead.
-        if let enhancedPictureInPictureOutput {
-            isPictureInPicturePossible = enhancedPictureInPictureOutput.isPictureInPicturePossible
-            return
-        }
-        guard let iosHost = renderingHost as? IOSVLCKitRenderingHost else {
-            isPictureInPicturePossible = false
-            return
-        }
-        // The native PiP drawable is only live when VLCKit renders into the
-        // host; Video Enhancement detaches it for the Metal path.
-        isPictureInPicturePossible = iosHost.isPictureInPictureReady && rawVideoOutput == nil
+        isPictureInPicturePossible = enhancedPictureInPictureOutput?.isPictureInPicturePossible ?? false
     }
-    #else
-    private func configurePictureInPictureBridge() {}
     #endif
 
     func seek(to position: TimeInterval) {
@@ -740,25 +661,31 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     func selectSubtitleTrack(_ track: SubtitleTrack?) {
         guard let track else {
-            mediaPlayer.deselectAllTextTracks()
+            mediaPlayer.currentVideoSubTitleIndex = -1
             selectedSubtitleTrackID = nil
             return
         }
 
-        if let trackID = trackIDsByModelID[track.id],
-           let vlcTrack = mediaPlayer.textTracks.first(where: { $0.trackId == trackID }) {
-            vlcTrack.isSelectedExclusively = true
+        if let index = vlcTrackIndex(forModelID: track.id) {
+            mediaPlayer.currentVideoSubTitleIndex = Int32(index)
         }
         selectedSubtitleTrackID = track.id
     }
 
     func selectAudioTrack(_ track: AudioTrack) {
-        if let trackID = trackIDsByModelID[track.id],
-           let vlcTrack = mediaPlayer.audioTracks.first(where: { $0.trackId == trackID }) {
-            vlcTrack.isSelectedExclusively = true
+        if let index = vlcTrackIndex(forModelID: track.id) {
+            mediaPlayer.currentAudioTrackIndex = Int32(index)
         }
         selectedAudioTrackID = track.id
         configureAudioOutputPolicy(reason: "audio-track-selected")
+    }
+
+    /// Track model IDs map to engine-local keys like "audio/3"/"spu/2"; the
+    /// numeric part is the libvlc elementary-stream index used for selection.
+    private func vlcTrackIndex(forModelID id: Int) -> Int? {
+        guard let key = trackIDsByModelID[id],
+              let last = key.split(separator: "/").last else { return nil }
+        return Int(last)
     }
 
     /// Automatic audio selection must wait for steady-state playback. Switching
@@ -892,8 +819,34 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 state = .paused
             }
 
-        case .stopping:
+        case .ended:
+            // libvlc 3 signals natural end-of-stream explicitly (followed by
+            // a .stopped event, which the flag below swallows).
             isBuffering = false
+            vlcReportedPlaying = false
+            cancelAudioReviveSequence()
+            state = .stopped
+            clearPendingSeek()
+            ignoreNextStoppedEvent = true
+
+            if !suppressPlaybackEndedEvent {
+                currentTime = max(currentTime, duration)
+                if !hasReportedPlaybackEnded {
+                    hasReportedPlaybackEnded = true
+                    if let currentAttemptContext {
+                        vlcKitEngineLogger.notice(
+                            "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) VLCKit reached end of playback"
+                        )
+                    }
+                    onPlaybackEnded?()
+                }
+            }
+            suppressPlaybackEndedEvent = false
+
+        case .esAdded:
+            // Elementary stream added — the 3.x signal that the track lists
+            // changed (this branch has no per-track delegate callbacks).
+            refreshTracks()
 
         case .stopped:
             if ignoreNextStoppedEvent {
@@ -982,7 +935,20 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             }
             currentTime = updatedTime
         }
+        refreshTracksIfCountsChanged()
         syncRendererPlaybackState()
+    }
+
+    /// libvlc 3 has no track-added/-removed delegate callbacks; poll the track
+    /// counts on the (already throttled) time ticks and refresh on movement.
+    private func refreshTracksIfCountsChanged() {
+        let counts = (
+            audio: mediaPlayer.numberOfAudioTracks,
+            text: mediaPlayer.numberOfSubtitlesTracks
+        )
+        guard counts != lastObservedTrackCounts else { return }
+        lastObservedTrackCounts = counts
+        refreshTracks()
     }
 
     private var shouldTreatCurrentStopAsPlaybackEnded: Bool {
@@ -1009,6 +975,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func applySubtitleStyling(to media: VLCMedia) {
+        // VLCKit 3.x has no player-level font-scale property; sub-text-scale
+        // is the per-media equivalent (percent, 100 = default).
+        let scalePercent = Int((PlaybackSubtitleStyle.vlcSubtitleFontScale * 100).rounded())
+        media.addOption(":sub-text-scale=\(scalePercent)")
         media.addOption(":freetype-color=#FFFFFF")
         media.addOption(":freetype-background-color=#000000")
         media.addOption(":freetype-background-opacity=110")
@@ -1132,14 +1102,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     private func refreshVideoOutputAfterResume() {
         #if os(iOS)
-        // Re-selecting the active video track nudges VLCKit to rebuild the
+        // Re-asserting the current video track nudges VLCKit to rebuild the
         // video output when audio has resumed but rendering is still stale.
-        guard let selectedTrack = mediaPlayer.videoTracks.first(where: \.isSelected)
-            ?? mediaPlayer.videoTracks.first else {
-            return
+        let current = mediaPlayer.currentVideoTrackIndex
+        if current >= 0 {
+            mediaPlayer.currentVideoTrackIndex = current
         }
-
-        selectedTrack.isSelectedExclusively = true
         renderingHost.invalidatePlaybackState()
         #endif
     }
@@ -1153,14 +1121,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
-        guard let media = VLCMedia(url: source.url) else {
-            failLoad(
-                .unknown("Playback failed while opening the direct-play stream."),
-                attemptID: attemptID,
-                message: "VLCKit could not create media"
-            )
-            return
-        }
+        let media = VLCMedia(url: source.url)
 
         applySubtitleStyling(to: media)
         applyNetworkBufferingOptions(to: media)
@@ -1179,7 +1140,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         if let rawVideoOutput {
             _ = rawVideoOutput.attach(to: mediaPlayer)
         }
-        mediaPlayer.currentSubTitleFontScale = PlaybackSubtitleStyle.vlcSubtitleFontScale
         mediaPlayer.play()
         if let start = pendingStartPosition, start > 0 {
             // Apply the resume position NOW, while the input is still
@@ -1230,51 +1190,149 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         )
     }
 
+    private struct VLCTrackInfo {
+        let index: Int
+        let name: String
+        let codecFourCC: UInt32?
+        let channels: Int
+        let language: String?
+    }
+
     private func refreshTracks() {
-        availableAudioTracks = mediaPlayer.audioTracks.map { track in
+        let audioInfos = vlcTrackInfos(
+            indexes: mediaPlayer.audioTrackIndexes,
+            names: mediaPlayer.audioTrackNames,
+            informationType: VLCMediaTracksInformationTypeAudio
+        )
+        latestAudioTrackInfosByIndex = Dictionary(
+            audioInfos.map { ($0.index, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        availableAudioTracks = audioInfos.map { info in
             AudioTrack(
-                id: modelID(forTrackID: track.trackId),
-                displayTitle: trackDisplayTitle(for: track),
-                language: track.language,
-                languageCode: normalizedLanguageCode(from: track.language),
-                codec: track.codecName(),
-                channels: Int(track.audio?.channelsNumber ?? 0).nonZeroValue,
+                id: modelID(forTrackID: "audio/\(info.index)"),
+                displayTitle: info.name,
+                language: info.language,
+                languageCode: normalizedLanguageCode(from: info.language),
+                codec: info.codecFourCC.map(Self.fourCCDisplayString),
+                channels: info.channels.nonZeroValue,
                 channelLayout: nil,
-                isDecodable: Self.canDecodeAudioCodec(track.codec)
+                isDecodable: Self.canDecodeAudioCodec(info.codecFourCC ?? 0)
             )
         }
-        selectedAudioTrackID = mediaPlayer.audioTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
+        let currentAudioIndex = Int(mediaPlayer.currentAudioTrackIndex)
+        selectedAudioTrackID = currentAudioIndex >= 0
+            ? modelID(forTrackID: "audio/\(currentAudioIndex)")
+            : nil
         configureAudioOutputPolicy(reason: "tracks-refreshed")
 
-        availableSubtitleTracks = mediaPlayer.textTracks.map { track in
+        let subtitleInfos = vlcTrackInfos(
+            indexes: mediaPlayer.videoSubTitlesIndexes,
+            names: mediaPlayer.videoSubTitlesNames,
+            informationType: VLCMediaTracksInformationTypeText
+        )
+        availableSubtitleTracks = subtitleInfos.map { info in
             SubtitleTrack(
-                id: modelID(forTrackID: track.trackId),
-                displayTitle: trackDisplayTitle(for: track),
-                language: track.language,
-                languageCode: normalizedLanguageCode(from: track.language),
-                codec: track.codecName(),
+                id: modelID(forTrackID: "spu/\(info.index)"),
+                displayTitle: info.name,
+                language: info.language,
+                languageCode: normalizedLanguageCode(from: info.language),
+                codec: info.codecFourCC.map(Self.fourCCDisplayString),
                 isForced: false,
                 isHearingImpaired: false,
                 isExternal: false,
                 externalURL: nil
             )
         }
-        selectedSubtitleTrackID = mediaPlayer.textTracks.first(where: \.isSelected).map { modelID(forTrackID: $0.trackId) }
+        let currentSubtitleIndex = Int(mediaPlayer.currentVideoSubTitleIndex)
+        selectedSubtitleTrackID = currentSubtitleIndex >= 0
+            ? modelID(forTrackID: "spu/\(currentSubtitleIndex)")
+            : nil
+    }
+
+    /// Track lists on VLCKit 3.x are parallel index/name arrays (including a
+    /// "Disable" pseudo-track at index -1, filtered out here). Codec, channel,
+    /// and language metadata lives in `VLCMedia.tracksInformation`, matched by
+    /// elementary-stream id.
+    private func vlcTrackInfos(
+        indexes: [Any],
+        names: [Any],
+        informationType: String
+    ) -> [VLCTrackInfo] {
+        let metadataByID = mediaTrackMetadata(ofType: informationType)
+        return zip(indexes, names).compactMap { rawIndex, rawName in
+            guard let index = (rawIndex as? NSNumber)?.intValue, index >= 0 else { return nil }
+            let metadata = metadataByID[index]
+            let arrayName = (rawName as? String).flatMap { $0.isEmpty ? nil : $0 }
+            let name = arrayName
+                ?? metadata?.description.flatMap { $0.isEmpty ? nil : $0 }
+                ?? metadata?.language
+                ?? "Track \(index)"
+            return VLCTrackInfo(
+                index: index,
+                name: name,
+                codecFourCC: metadata?.codecFourCC,
+                channels: metadata?.channels ?? 0,
+                language: metadata?.language
+            )
+        }
+    }
+
+    private struct VLCTrackMetadata {
+        let codecFourCC: UInt32?
+        let channels: Int
+        let language: String?
+        let description: String?
+    }
+
+    private func mediaTrackMetadata(ofType type: String) -> [Int: VLCTrackMetadata] {
+        guard let tracks = mediaPlayer.media?.tracksInformation as? [[String: Any]] else {
+            return [:]
+        }
+
+        var result: [Int: VLCTrackMetadata] = [:]
+        for track in tracks {
+            guard (track[VLCMediaTracksInformationType] as? String) == type,
+                  let id = (track[VLCMediaTracksInformationId] as? NSNumber)?.intValue else {
+                continue
+            }
+            result[id] = VLCTrackMetadata(
+                codecFourCC: (track[VLCMediaTracksInformationCodec] as? NSNumber)?.uint32Value,
+                channels: (track[VLCMediaTracksInformationAudioChannelsNumber] as? NSNumber)?.intValue ?? 0,
+                language: track[VLCMediaTracksInformationLanguage] as? String,
+                description: track[VLCMediaTracksInformationDescription] as? String
+            )
+        }
+        return result
+    }
+
+    /// Renders a VLC_FOURCC value ("mlpa", "ac-3", …) for display.
+    private static func fourCCDisplayString(_ value: UInt32) -> String {
+        let bytes = [
+            UInt8(value & 0xFF),
+            UInt8((value >> 8) & 0xFF),
+            UInt8((value >> 16) & 0xFF),
+            UInt8((value >> 24) & 0xFF),
+        ]
+        let characters = bytes.map { byte in
+            (32...126).contains(byte) ? String(UnicodeScalar(byte)) : " "
+        }
+        return characters.joined().trimmingCharacters(in: .whitespaces)
     }
 
     /// Audio codecs present in containers that the vendored VLCKit build cannot
-    /// decode. Tracks matching these are skipped by automatic selection, and
+    /// decode. Stock VideoLAN builds disable ffmpeg's TrueHD/MLP decoders on
+    /// iOS/tvOS for App Store licensing compliance ("Codec `mlpa' is not
+    /// supported"), and the vendored stable 3.x binaries are stock — the
+    /// patched source builds that re-enabled TrueHD were retired with the 4.x
+    /// alpha. Tracks matching these are skipped by automatic selection, and
     /// picking one in the picker reroutes playback through a server transcode
-    /// (see `PlayerViewModel.selectAudio`).
-    ///
-    /// Currently empty: the vendored frameworks are built with
-    /// `ci_scripts/vlc-patches/0013`, which re-enables ffmpeg's TrueHD/MLP
-    /// decoders that VLCKit's stock iOS build disables ("Codec `mlpa' is not
-    /// supported"). If the frameworks are ever refreshed WITHOUT that patch
-    /// (a plain `./ci_scripts/install_vlckit.sh` run), re-add
-    /// `fourCC("m", "l", "p", "a")` (TrueHD) and `fourCC("m", "l", "p", " ")`
-    /// (MLP) here or those tracks will select a dead decoder and go silent.
-    private static let undecodableAudioFourCCs: Set<UInt32> = []
+    /// (see `PlayerViewModel.selectAudio`). A file with no locally decodable
+    /// audio at all triggers the same fallback automatically.
+    private static let undecodableAudioFourCCs: Set<UInt32> = [
+        fourCC("m", "l", "p", "a"), // TrueHD
+        fourCC("m", "l", "p", " "), // MLP
+    ]
 
     private static func canDecodeAudioCodec(_ codec: UInt32) -> Bool {
         !undecodableAudioFourCCs.contains(codec)
@@ -1291,22 +1349,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             | UInt32(d.asciiValue ?? 0) << 24
     }
 
-    private func trackDisplayTitle(for track: VLCMediaPlayer.Track) -> String {
-        if !track.trackName.isEmpty {
-            return track.trackName
-        }
-
-        if let description = track.trackDescription, !description.isEmpty {
-            return description
-        }
-
-        if let language = track.language, !language.isEmpty {
-            return language
-        }
-
-        return "Unknown"
-    }
-
     private func normalizedLanguageCode(from language: String?) -> String? {
         guard let language, !language.isEmpty else { return nil }
         return language.lowercased()
@@ -1317,9 +1359,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let session = AVAudioSession.sharedInstance()
         let route = session.currentRoute
         let outputs = route.outputs
-        let selectedTrack = selectedVLCTrack()
-        let selectedTrackLabel = selectedTrack.map { self.trackDisplayTitle(for: $0) } ?? "Unknown"
-        let selectedChannels = selectedTrack.flatMap { Int($0.audio?.channelsNumber ?? 0).nonZeroValue }
+        let selectedInfo = selectedAudioTrackInfo()
+        let selectedTrackLabel = selectedInfo?.name ?? "Unknown"
+        let selectedChannels = selectedInfo?.channels.nonZeroValue
         let outputChannelCount = max(
             Int(session.outputNumberOfChannels),
             outputs.compactMap { $0.channels?.count }.max() ?? 0
@@ -1327,26 +1369,25 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
         #if os(tvOS)
         // tvOS drives true multichannel output to the connected receiver over
-        // HDMI/eARC, so pick the richest surround layout the route can render.
-        let desiredMixMode = desiredAudioMixMode(forChannelCount: selectedChannels)
-        let targetMixMode = audioMixMode(
-            forDesired: desiredMixMode,
-            maximumOutputChannelCount: maximumOutputChannelCount
-        )
-        let preferredOutputChannels = preferredOutputChannelCount(for: targetMixMode)
+        // HDMI/eARC. libvlc 3's audiounit output negotiates the channel layout
+        // itself (VLCKit 3.x has no mix-mode API); we only open the audio
+        // session up to the richest layout the route can render.
+        let preferredOutputChannels: Int? = {
+            guard let selectedChannels, selectedChannels > 2 else { return nil }
+            return min(selectedChannels, max(2, maximumOutputChannelCount))
+        }()
         let wantsMultichannelOutput = preferredOutputChannels != nil
         #else
         // iOS/iPadOS: the output route is effectively stereo — built-in speaker,
-        // wired, or Bluetooth/AirPods. Deliberately do NOT drive surround mix
-        // modes, preferred output channel counts, or multichannel session
-        // content here. Each of those restarts VLCKit's audio output, and
-        // Bluetooth routes renegotiate spatial/rendering capabilities
-        // constantly, which churned the output and stuttered the sound in and
-        // out (worst on AirPods). Leave the mix mode unset and let VLCKit downmix
-        // to the active route on its own; the rare multichannel-capable iOS route
-        // (AirPlay / USB to a receiver) is handled by that same downmix path.
-        // Surround is owned by the system audio session here, not forced by us.
-        let targetMixMode: VLCMediaPlayer.AudioMixMode = .modeUnset
+        // wired, or Bluetooth/AirPods. Deliberately do NOT drive preferred
+        // output channel counts or multichannel session content here. Each of
+        // those restarts VLCKit's audio output, and Bluetooth routes
+        // renegotiate spatial/rendering capabilities constantly, which churned
+        // the output and stuttered the sound in and out (worst on AirPods).
+        // Let VLCKit downmix to the active route on its own; the rare
+        // multichannel-capable iOS route (AirPlay / USB to a receiver) is
+        // handled by that same downmix path. Surround is owned by the system
+        // audio session here, not forced by us.
         let preferredOutputChannels: Int? = nil
         let wantsMultichannelOutput = false
         #endif
@@ -1362,21 +1403,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // actually changes; otherwise this is a no-op and the audio keeps playing.
         let signature = [
             selectedAudioTrackID.map(String.init) ?? "auto",
-            audioMixModeLabel(targetMixMode),
             String(preferredOutputChannels ?? 0),
             String(wantsMultichannelOutput),
         ].joined(separator: "|")
 
         if signature != lastAppliedAudioConfigSignature {
             #if os(tvOS)
-            if #available(tvOS 15.0, *) {
-                do {
-                    try session.setSupportsMultichannelContent(wantsMultichannelOutput)
-                } catch {
-                    vlcKitEngineLogger.debug(
-                        "Failed to set multichannel audio session content support \(wantsMultichannelOutput, privacy: .public): \(error.localizedDescription, privacy: .public)"
-                    )
-                }
+            do {
+                try session.setSupportsMultichannelContent(wantsMultichannelOutput)
+            } catch {
+                vlcKitEngineLogger.debug(
+                    "Failed to set multichannel audio session content support \(wantsMultichannelOutput, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                )
             }
 
             if let preferredOutputChannels,
@@ -1398,10 +1436,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             if mediaPlayer.equalizer != nil {
                 mediaPlayer.equalizer = nil
             }
-            if mediaPlayer.audioMixMode != targetMixMode {
-                mediaPlayer.audioMixMode = targetMixMode
-            }
-            lastAppliedAudioMixMode = mediaPlayer.audioMixMode
             lastAppliedAudioConfigSignature = signature
         } else {
             vlcKitEngineLogger.debug(
@@ -1426,9 +1460,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             ),
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Module",
-                value: usesAVSampleBufferAudioOutput
-                    ? "avsamplebuffer (Settings toggle ON — unpatched path!)"
-                    : "audiounit_ios (pinned, patched)"
+                value: "audiounit (libvlc 3 default)"
             ),
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Track",
@@ -1436,7 +1468,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             ),
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Output",
-                value: "mix=\(self.audioMixModeLabel(self.lastAppliedAudioMixMode)), passthrough=\(self.mediaPlayer.audio?.passthrough == true ? "On" : "Off")"
+                value: "passthrough=\(self.mediaPlayer.audio?.passthrough == true ? "On" : "Off")"
             ),
             PlaybackEngineDiagnostic(
                 label: "Audio Route",
@@ -1449,25 +1481,27 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         ]
 
         vlcKitEngineLogger.notice(
-            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) mixMode=\(self.audioMixModeLabel(self.lastAppliedAudioMixMode), privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
+            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
         )
         #endif
     }
 
-    private func selectedVLCTrack() -> VLCMediaPlayer.Track? {
+    private func selectedAudioTrackInfo() -> VLCTrackInfo? {
         if let selectedAudioTrackID,
-           let trackID = trackIDsByModelID[selectedAudioTrackID],
-           let track = mediaPlayer.audioTracks.first(where: { $0.trackId == trackID }) {
-            return track
+           let index = vlcTrackIndex(forModelID: selectedAudioTrackID),
+           let info = latestAudioTrackInfosByIndex[index] {
+            return info
         }
 
-        return mediaPlayer.audioTracks.first(where: \.isSelected)
-            ?? mediaPlayer.audioTracks.first
+        let currentIndex = Int(mediaPlayer.currentAudioTrackIndex)
+        return latestAudioTrackInfosByIndex[currentIndex]
+            ?? latestAudioTrackInfosByIndex.values.min(by: { $0.index < $1.index })
     }
 
-    /// Returns a stable, unique model Int for a VLCKit `trackId`, minting one on
-    /// first sight. `trackIDsByModelID` maps back so selection targets the exact
-    /// VLCKit track. Reset per media load.
+    /// Returns a stable, unique model Int for an engine-local track key
+    /// ("audio/<index>" / "spu/<index>"), minting one on first sight.
+    /// `trackIDsByModelID` maps back so selection targets the exact VLCKit
+    /// track. Reset per media load.
     private func modelID(forTrackID trackID: String) -> Int {
         if let existing = modelIDsByTrackID[trackID] {
             return existing
@@ -1477,88 +1511,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         modelIDsByTrackID[trackID] = id
         trackIDsByModelID[id] = trackID
         return id
-    }
-
-    #if os(tvOS)
-    private func desiredAudioMixMode(forChannelCount channels: Int?) -> VLCMediaPlayer.AudioMixMode {
-        guard let channels else { return .modeUnset }
-
-        if channels >= 8 {
-            return .mode7_1
-        }
-        if channels >= 6 {
-            return .mode5_1
-        }
-        if channels >= 4 {
-            return .mode4_0
-        }
-
-        return .modeUnset
-    }
-
-    /// Clamp a desired surround mix mode to what the current output route can
-    /// render (tvOS only — iOS does not drive surround). Requesting a layout with
-    /// more channels than the receiver supports (e.g. a 7.1 source to a 5.1
-    /// receiver) can stall the audio output, so stereo/binaural/unset modes pass
-    /// through untouched while surround modes step down to the largest layout that
-    /// fits, falling back to an explicit stereo downmix.
-    private func audioMixMode(
-        forDesired desired: VLCMediaPlayer.AudioMixMode,
-        maximumOutputChannelCount: Int
-    ) -> VLCMediaPlayer.AudioMixMode {
-        guard let requiredChannels = preferredOutputChannelCount(for: desired) else {
-            return desired
-        }
-
-        if maximumOutputChannelCount >= requiredChannels {
-            return desired
-        }
-
-        // Descending channel order so the first match is the richest layout
-        // the route can still render.
-        let surroundFallbacks: [(mode: VLCMediaPlayer.AudioMixMode, channels: Int)] = [
-            (.mode5_1, 6),
-            (.mode4_0, 4),
-        ]
-        for fallback in surroundFallbacks
-        where fallback.channels < requiredChannels && maximumOutputChannelCount >= fallback.channels {
-            return fallback.mode
-        }
-
-        return .modeStereo
-    }
-
-    private func preferredOutputChannelCount(for mode: VLCMediaPlayer.AudioMixMode) -> Int? {
-        switch mode {
-        case .mode7_1:
-            8
-        case .mode5_1:
-            6
-        case .mode4_0:
-            4
-        default:
-            nil
-        }
-    }
-    #endif
-
-    private func audioMixModeLabel(_ mode: VLCMediaPlayer.AudioMixMode) -> String {
-        switch mode {
-        case .modeUnset:
-            "Unset"
-        case .modeStereo:
-            "Stereo"
-        case .modeBinaural:
-            "Binaural"
-        case .mode4_0:
-            "4.0"
-        case .mode5_1:
-            "5.1"
-        case .mode7_1:
-            "7.1"
-        @unknown default:
-            String(describing: mode)
-        }
     }
 
     // MARK: - Audio revive
@@ -1577,8 +1529,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// iOS/iPadOS only: the silent-render latches live in libvlc's iOS
     /// AudioUnit/AVAudioSession interplay; the tvOS HDMI route has shown no
     /// such failures and a pause blip there would be more visible.
+    /// DORMANT by default on the stable 3.x line — see `isAudioReviveEnabled`.
     private func armSettleAudioRevive(initialBringUp: Bool = false) {
         #if os(iOS)
+        guard Self.isAudioReviveEnabled else { return }
         needsSettleAudioRevive = true
         if initialBringUp {
             isInitialAudioWarmup = true
@@ -1795,6 +1749,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             vlcKitEngineLogger.notice(
                 "VLCKit observed audio session interruption BEGAN (state=\(String(describing: self.state), privacy: .public))"
             )
+            guard Self.isAudioReviveEnabled else { return }
             audioInterruptionWatchdogTask?.cancel()
             audioInterruptionWatchdogTask = Task { @MainActor [weak self] in
                 do {
@@ -1861,17 +1816,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 }
 
 extension VLCKitEngine: VLCMediaPlayerDelegate {
-    nonisolated func mediaPlayerStateChanged(_ newState: VLCMediaPlayerState) {
+    // VLCKit 3.x delivers delegate events as notifications and has no
+    // per-track callbacks; track-list changes surface through the .esAdded
+    // state and the count poll in `refreshTracksIfCountsChanged`.
+    nonisolated func mediaPlayerStateChanged(_ aNotification: Notification) {
+        let newState = mediaPlayer.state
         Task { @MainActor [weak self] in
             self?.handleStateChange(newState)
-        }
-    }
-
-    nonisolated func mediaPlayerLengthChanged(_ length: Int64) {
-        let timeMs = mediaPlayer.time.intValue
-        Task { @MainActor [weak self] in
-            self?.updateTime(timeMs: timeMs, lengthMs: Int32(length))
-            self?.renderingHost.invalidatePlaybackState()
         }
     }
 
@@ -1880,34 +1831,6 @@ extension VLCKitEngine: VLCMediaPlayerDelegate {
         let lengthMs = mediaPlayer.media?.length.intValue ?? 0
         Task { @MainActor [weak self] in
             self?.updateTime(timeMs: timeMs, lengthMs: lengthMs)
-        }
-    }
-
-    nonisolated func mediaPlayerTrackAdded(_ trackId: String, with trackType: VLCMedia.TrackType) {
-        Task { @MainActor [weak self] in
-            self?.refreshTracks()
-        }
-    }
-
-    nonisolated func mediaPlayerTrackRemoved(_ trackId: String, with trackType: VLCMedia.TrackType) {
-        Task { @MainActor [weak self] in
-            self?.refreshTracks()
-        }
-    }
-
-    nonisolated func mediaPlayerTrackUpdated(_ trackId: String, with trackType: VLCMedia.TrackType) {
-        Task { @MainActor [weak self] in
-            self?.refreshTracks()
-        }
-    }
-
-    nonisolated func mediaPlayerTrackSelected(
-        _ trackType: VLCMedia.TrackType,
-        selectedId: String,
-        unselectedId: String
-    ) {
-        Task { @MainActor [weak self] in
-            self?.refreshTracks()
         }
     }
 }

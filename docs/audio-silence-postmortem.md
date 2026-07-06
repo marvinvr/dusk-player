@@ -1,5 +1,25 @@
 # Post-mortem: The VLCKit Silent-Audio Saga (2026-07)
 
+> **2026-07-06 addendum — the stack this describes was retired.** Dusk moved
+> from the self-built, self-patched VLCKit `4.0.0a19` (libvlc 4.0-dev) to
+> VideoLAN's official prebuilt **stable MobileVLCKit/TVVLCKit 3.7.3**
+> (libvlc 3.0.23), whose field-proven audiounit output has none of the
+> rewritten-aout failure modes below. Consequences:
+> - the local libvlc patch series (`ci_scripts/vlc-patches/`, 0013–0016) was
+>   deleted with the source-build script; it lives in git history;
+> - the app-side pause→play **audio revive is DORMANT** by default, gated on
+>   the `vlcAudioReviveEnabled` user default (`VLCKitEngine`). It stays
+>   compiled as the only proven cure for undetectable silent-render states —
+>   re-arm it on device without a rebuild if silence is ever observed again;
+> - TrueHD/MLP is undecodable again (stock builds disable it for App Store
+>   licensing); the undecodable-track transcode fallback covers it;
+> - the stale-embed guard now compares Mach-O UUIDs
+>   (`scripts/verify_embedded_vlckit.sh`) and the runtime audit reports the
+>   loaded libvlc version instead of a patch marker string.
+>
+> The diagnostic tooling (libvlc log bridge, Playback Info rows, capture
+> procedure) survives the migration and remains the way to debug audio.
+
 Read this BEFORE touching VLCKit audio, playback recovery, or anything gated
 on "steady playback". It documents what was actually broken, what was chased
 for months without being the cause, and the diagnostic tooling that now

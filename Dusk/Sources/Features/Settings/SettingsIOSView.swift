@@ -155,10 +155,6 @@ struct SettingsIOSView: View {
                 Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
                     .foregroundStyle(Color.duskTextPrimary)
                     .tint(Color.duskAccent)
-
-                Toggle("VLCKit AVSampleBuffer Audio", isOn: $preferences.vlcUseAVSampleBufferAudio)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .tint(Color.duskAccent)
             } header: {
                 Text("Playback Advanced")
                     .foregroundStyle(Color.duskTextSecondary)

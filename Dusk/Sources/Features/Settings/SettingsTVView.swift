@@ -110,7 +110,6 @@ struct SettingsTVView: View {
                     tvRowDivider
 
                     TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
-                    TVSettingsToggleRow(title: "VLCKit AVSampleBuffer Audio", isOn: $preferences.vlcUseAVSampleBufferAudio)
                 }
 
                 TVSettingsSection(title: "Server", footer: viewModel.serverError, footerColor: .red) {

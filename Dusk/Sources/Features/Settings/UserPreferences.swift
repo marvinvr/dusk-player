@@ -28,7 +28,6 @@ final class UserPreferences {
         static let videoEnhancementMode = "videoEnhancementMode"
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
-        static let vlcUseAVSampleBufferAudio = "vlcUseAVSampleBufferAudio"
         static let appearanceMode = "appearanceMode"
         static let downloadMaxResolution = "downloadMaxResolution"
         static let downloadsWifiOnly = "downloadsWifiOnly"
@@ -126,15 +125,6 @@ final class UserPreferences {
         }
     }
 
-    /// Debug escape hatch: use libvlc 4's default AVSampleBufferAudioRenderer
-    /// audio output instead of the classic AudioUnit one. Dusk pins VLCKit
-    /// playback to `audiounit_ios` because the AVSampleBuffer output stutters
-    /// on real devices (see VLCKitEngine); this toggle restores the libvlc
-    /// default for A/B testing. Applies to the next playback session.
-    var vlcUseAVSampleBufferAudio: Bool {
-        didSet { UserDefaults.standard.set(vlcUseAVSampleBufferAudio, forKey: Keys.vlcUseAVSampleBufferAudio) }
-    }
-
     /// App-wide appearance override.
     var appearanceMode: AppearanceMode {
         didSet { UserDefaults.standard.set(appearanceMode.rawValue, forKey: Keys.appearanceMode) }
@@ -209,7 +199,6 @@ final class UserPreferences {
         }
         let storedForceAVPlayer = defaults.bool(forKey: Keys.forceAVPlayer)
         let storedForceVLCKit = defaults.bool(forKey: Keys.forceVLCKit)
-        let vlcUseAVSampleBufferAudio = defaults.bool(forKey: Keys.vlcUseAVSampleBufferAudio)
         let forceAVPlayer = storedForceAVPlayer
         let forceVLCKit = storedForceAVPlayer ? false : storedForceVLCKit
         let downloadMaxResolution: MaxResolution
@@ -260,7 +249,6 @@ final class UserPreferences {
         self.videoEnhancementMode = videoEnhancementMode
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit
-        self.vlcUseAVSampleBufferAudio = vlcUseAVSampleBufferAudio
         self.appearanceMode = appearanceMode
         self.downloadMaxResolution = downloadMaxResolution
         self.downloadsWifiOnly = downloadsWifiOnly

@@ -69,7 +69,17 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     let displayView: VLCKitEnhancedPiPDisplayView
 
     private(set) var isPictureInPicturePossible = false
-    private(set) var isPictureInPictureActive = false
+    private(set) var isPictureInPictureActive = false {
+        didSet { isActiveForFrameIntake = isPictureInPictureActive }
+    }
+
+    /// Mirror of `isPictureInPictureActive` readable from the libvlc video
+    /// thread in `submit` (the real flag is main-actor state). Written only on
+    /// the main actor; a slightly stale read just throttles one extra frame.
+    nonisolated(unsafe) private var isActiveForFrameIntake = false
+    /// Frame-intake counter for idle throttling; touched only on the libvlc
+    /// video thread inside `submit`.
+    nonisolated(unsafe) private var intakeFrameCounter = 0
 
     /// Fires when `isPictureInPicturePossible` changes so the engine can
     /// republish its observable flag for the PiP button.
@@ -200,6 +210,15 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     /// Thread-safe push from the libvlc video thread. Coalesces to the newest
     /// frame; a single drain runs on `renderQueue`.
     nonisolated func submit(pixelBuffer: CVPixelBuffer) {
+        // While the floating window is closed, the layer only needs enough
+        // frames to stay startable and open on a current picture — paying the
+        // full-resolution CPU channel swap for every decoded frame would waste
+        // a core. Every 10th frame keeps the preview fresh at ~2-6 fps.
+        if !isActiveForFrameIntake {
+            intakeFrameCounter += 1
+            if intakeFrameCounter % 10 != 0 { return }
+        }
+
         frameLock.lock()
         pendingPixelBuffer = pixelBuffer
         let shouldSchedule = !isDraining

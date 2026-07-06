@@ -96,7 +96,7 @@ After code changes, run compile-only verification. Do not run tests or launch th
 xcodebuild -project Dusk.xcodeproj -scheme Dusk -configuration Debug -destination 'generic/platform=iOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
 ```
 
-The arm64 override is required because the vendored iOS `VLCKit.xcframework` does not provide an `x86_64` simulator slice.
+The arm64 override is required because the vendored iOS `MobileVLCKit.xcframework` is thinned to arm64 only (device and simulator).
 
 When tvOS is relevant:
 
@@ -104,9 +104,8 @@ When tvOS is relevant:
 xcodebuild -project Dusk.xcodeproj -scheme Dusk-tvOS -configuration Debug -destination 'generic/platform=tvOS Simulator' ARCHS=arm64 ONLY_ACTIVE_ARCH=YES build
 ```
 
-The arm64 override is also required for the current vendored tvOS
-`VLCKit-tvOS.xcframework`; the simulator binary in this checkout does not provide
-an `x86_64` slice.
+The arm64 override is also required for the vendored tvOS
+`TVVLCKit.xcframework`; its slices are likewise thinned to arm64 only.
 
 For docs-only changes, a build is normally unnecessary. Verify the file and `git status --short`.
 

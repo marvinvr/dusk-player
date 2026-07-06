@@ -1,12 +1,21 @@
 #import "DuskVLCRawVideoOutput.h"
 
 #import <CoreVideo/CoreVideo.h>
-#import <VLCKit/VLCKit.h>
+#import <TargetConditionals.h>
+#if TARGET_OS_TV
+#import <TVVLCKit/TVVLCKit.h>
+#else
+#import <MobileVLCKit/MobileVLCKit.h>
+#endif
 #import <vlc/vlc.h>
 #import <string.h>
 
+// VLCKit 3.x keeps the raw libvlc player handle behind the private
+// `playerInstance` accessor (verified against the vendored 3.7.3 binary's
+// method list). Guarded by respondsToSelector below so a future VLCKit that
+// removes it degrades to "enhancement unavailable" instead of crashing.
 @interface VLCMediaPlayer (DuskLibVLCBridge)
-@property (nonatomic, readonly) void *libVLCMediaPlayer;
+@property (nonatomic, readonly) libvlc_media_player_t *playerInstance;
 @end
 
 static unsigned DuskVLCSetupVideoFormat(
@@ -53,11 +62,11 @@ static void DuskVLCDisplayVideo(void *opaque, void *picture);
         return YES;
     }
 
-    if (![player respondsToSelector:@selector(libVLCMediaPlayer)]) {
+    if (![player respondsToSelector:@selector(playerInstance)]) {
         return NO;
     }
 
-    libvlc_media_player_t *mediaPlayer = (libvlc_media_player_t *)player.libVLCMediaPlayer;
+    libvlc_media_player_t *mediaPlayer = player.playerInstance;
     if (mediaPlayer == NULL) {
         return NO;
     }

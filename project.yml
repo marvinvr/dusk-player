@@ -37,12 +37,12 @@ targets:
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
-        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/ios-arm64/VLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/ios-arm64-simulator/VLCKit.framework/Headers"
+        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/MobileVLCKit.xcframework/ios-arm64/MobileVLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/MobileVLCKit.xcframework/ios-arm64-simulator/MobileVLCKit.framework/Headers"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
-      - framework: Frameworks/VLCKit.xcframework
+      - framework: Frameworks/MobileVLCKit.xcframework
         embed: true
     postBuildScripts:
       - script: ./scripts/verify_embedded_vlckit.sh
@@ -64,23 +64,19 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
         PRODUCT_NAME: Dusk
-        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: true
-        INFOPLIST_KEY_UILaunchScreen_Generation: true
-        INFOPLIST_KEY_UILaunchScreen_UIColorName: LaunchBackground
-        INFOPLIST_KEY_UILaunchScreen_UIImageName: LaunchLogo
-        INFOPLIST_KEY_UILaunchScreen_UIImageRespectsSafeAreaInsets: false
-        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Dusk/Support/Info-tvOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconTV
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
-        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit-tvOS.xcframework/tvos-arm64/VLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/VLCKit-tvOS.xcframework/tvos-arm64-simulator/VLCKit.framework/Headers"
+        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/TVVLCKit.xcframework/tvos-arm64/TVVLCKit.framework/Headers $(PROJECT_DIR)/Frameworks/TVVLCKit.xcframework/tvos-arm64-simulator/TVVLCKit.framework/Headers"
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/Frameworks"
         SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
-      - framework: Frameworks/VLCKit-tvOS.xcframework
+      - framework: Frameworks/TVVLCKit.xcframework
         embed: true
     postBuildScripts:
       - script: ./scripts/verify_embedded_vlckit.sh
