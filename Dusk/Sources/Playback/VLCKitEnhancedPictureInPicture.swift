@@ -73,10 +73,20 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         didSet { isActiveForFrameIntake = isPictureInPictureActive }
     }
 
+    /// True when the display layer is the PRIMARY on-screen surface (PiP
+    /// support mode for plain VLC sessions) rather than an occluded PiP feed
+    /// behind the Metal view — the intake then runs at full rate even while
+    /// the floating window is closed.
+    var isPrimaryDisplaySurface = false {
+        didSet { isPrimaryForFrameIntake = isPrimaryDisplaySurface }
+    }
+
     /// Mirror of `isPictureInPictureActive` readable from the libvlc video
     /// thread in `submit` (the real flag is main-actor state). Written only on
     /// the main actor; a slightly stale read just throttles one extra frame.
     nonisolated(unsafe) private var isActiveForFrameIntake = false
+    /// Mirror of `isPrimaryDisplaySurface` for the same reason.
+    nonisolated(unsafe) private var isPrimaryForFrameIntake = false
     /// Frame-intake counter for idle throttling; touched only on the libvlc
     /// video thread inside `submit`.
     nonisolated(unsafe) private var intakeFrameCounter = 0
@@ -210,11 +220,13 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     /// Thread-safe push from the libvlc video thread. Coalesces to the newest
     /// frame; a single drain runs on `renderQueue`.
     nonisolated func submit(pixelBuffer: CVPixelBuffer) {
-        // While the floating window is closed, the layer only needs enough
-        // frames to stay startable and open on a current picture — paying the
-        // full-resolution CPU channel swap for every decoded frame would waste
-        // a core. Every 10th frame keeps the preview fresh at ~2-6 fps.
-        if !isActiveForFrameIntake {
+        // While the floating window is closed, an OCCLUDED layer only needs
+        // enough frames to stay startable and open on a current picture —
+        // paying the full-resolution CPU channel swap for every decoded frame
+        // would waste a core. Every 10th frame keeps the preview fresh at
+        // ~2-6 fps. No throttling when the layer is the visible surface (PiP
+        // support mode) or the floating window is open.
+        if !isActiveForFrameIntake && !isPrimaryForFrameIntake {
             intakeFrameCounter += 1
             if intakeFrameCounter % 10 != 0 { return }
         }

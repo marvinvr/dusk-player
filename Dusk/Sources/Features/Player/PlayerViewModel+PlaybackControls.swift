@@ -33,6 +33,11 @@ extension PlayerViewModel {
         let engineState = engine.state
         let now = Date()
 
+        if engine.playerViewGeneration != lastPlayerViewGeneration {
+            lastPlayerViewGeneration = engine.playerViewGeneration
+            engineView = engine.makePlayerView()
+        }
+
         if let pendingPlaybackState,
            let pendingPlaybackStateExpiration,
            now < pendingPlaybackStateExpiration,

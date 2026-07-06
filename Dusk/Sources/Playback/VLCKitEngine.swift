@@ -136,7 +136,9 @@ private final class VLCKitVideoEnhancementFrameSink: NSObject, DuskVLCVideoFrame
     nonisolated(unsafe) weak var pictureInPictureOutput: VLCKitEnhancedPictureInPictureOutput?
     #endif
 
-    init(renderer: VideoEnhancementRenderer) {
+    /// `renderer` is nil in Picture in Picture support mode, where the raw tap
+    /// exists purely to feed the sample-buffer output (no Metal upscaling).
+    init(renderer: VideoEnhancementRenderer?) {
         self.renderer = renderer
         super.init()
     }
@@ -204,11 +206,25 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var isPictureInPicturePossible = false
     private(set) var isPictureInPictureActive = false
     @ObservationIgnored private weak var pictureInPictureDelegate: (any PlaybackPictureInPictureDelegate)?
-    /// Native sample-buffer PiP for the Video Enhancement path. Present only
-    /// while enhancement is active (the drawable-backed PiP host cannot render
-    /// while libvlc feeds the Metal upscaler through raw callbacks).
+    /// Native sample-buffer PiP output. Present while Video Enhancement's raw
+    /// frame tap is active, or while the on-demand PiP support mode below is.
     @ObservationIgnored private var enhancedPictureInPictureOutput: VLCKitEnhancedPictureInPictureOutput?
+    /// On-demand Picture in Picture for plain (non-enhanced) sessions.
+    /// VLCKit 3.x has no drawable-native PiP and libvlc has exactly one video
+    /// output, so the button tap swaps the whole rendering pipeline: the raw
+    /// frame tap is attached, the sample-buffer layer becomes the PRIMARY
+    /// on-screen surface, media reloads in place at the current position
+    /// (raw callbacks must be installed before play), and PiP auto-starts
+    /// once the system controller reports possible. The mode persists for the
+    /// rest of the session — switching back would be another visible reload.
+    @ObservationIgnored private var isPipSupportModeActive = false
+    /// Set while a support-mode start is waiting for the controller to become
+    /// possible after the pipeline swap; consumed by `refreshPictureInPicturePossible`.
+    @ObservationIgnored private var pendingPictureInPictureStart = false
     #endif
+    /// Bumped whenever `makePlayerView()` would return a different view
+    /// (entering PiP support mode); `PlayerViewModel` re-fetches the view.
+    private(set) var playerViewGeneration = 0
 
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
     private let renderingHost: any VLCKitRenderingHost
@@ -380,6 +396,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         cancelAudioRevive()
         armSettleAudioRevive(initialBringUp: true)
         vlcReportedPlaying = false
+        #if os(iOS)
+        // A new source starts on the native drawable; PiP support mode is
+        // re-entered on demand.
+        tearDownPictureInPictureSupportModeIfNeeded()
+        #endif
         rawVideoOutput?.detach()
         currentAttemptContext = source.context
         currentSource = source
@@ -432,6 +453,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
+        #if os(iOS)
+        tearDownPictureInPictureSupportModeIfNeeded()
+        #endif
         videoEnhancementRequest = request
         videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
 
@@ -501,6 +525,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         ignoreNextStoppedEvent = false
         mediaPlayer.stop()
         rawVideoOutput?.detach()
+        #if os(iOS)
+        tearDownPictureInPictureSupportModeIfNeeded()
+        #endif
         videoEnhancementRenderer?.clear()
         state = .stopped
         hasReportedPlaybackEnded = false
@@ -541,12 +568,58 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func startPictureInPicture() {
-        guard isPictureInPicturePossible else { return }
-        enhancedPictureInPictureOutput?.start()
+        if let enhancedPictureInPictureOutput,
+           enhancedPictureInPictureOutput.isPictureInPicturePossible {
+            enhancedPictureInPictureOutput.start()
+            return
+        }
+        guard canEnterPictureInPictureSupportMode, !isPipSupportModeActive else { return }
+        enterPictureInPictureSupportMode()
     }
 
     func stopPictureInPicture() {
         enhancedPictureInPictureOutput?.stop()
+    }
+
+    /// A plain session can enter support mode whenever media is loaded and
+    /// playback is not torn down; the reload resumes from the live position.
+    private var canEnterPictureInPictureSupportMode: Bool {
+        currentSource != nil && state != .idle && state != .stopped && state != .error
+    }
+
+    private func enterPictureInPictureSupportMode() {
+        vlcKitEngineLogger.notice("VLCKit entering PiP support mode (pipeline swap + in-place reload)")
+        isPipSupportModeActive = true
+        pendingPictureInPictureStart = true
+
+        let frameSink = VLCKitVideoEnhancementFrameSink(renderer: nil)
+        rawVideoFrameSink = frameSink
+        rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
+        configureEnhancedPictureInPicture(frameSink: frameSink)
+        // The sample-buffer layer is the visible surface in this mode, so the
+        // intake must run at full rate even while the floating window is closed.
+        enhancedPictureInPictureOutput?.isPrimaryDisplaySurface = true
+        renderingHost.detach(from: mediaPlayer)
+        playerViewGeneration += 1
+
+        // Same in-place reload as stall recovery: raw video callbacks only
+        // take effect on a fresh input, and this resumes at the live position.
+        recoverFromStall()
+    }
+
+    private func tearDownPictureInPictureSupportModeIfNeeded() {
+        guard isPipSupportModeActive else {
+            pendingPictureInPictureStart = false
+            return
+        }
+        isPipSupportModeActive = false
+        pendingPictureInPictureStart = false
+        rawVideoOutput?.detach()
+        rawVideoOutput = nil
+        rawVideoFrameSink = nil
+        teardownEnhancedPictureInPicture()
+        renderingHost.attach(to: mediaPlayer, engine: self)
+        playerViewGeneration += 1
     }
 
     /// Builds the sample-buffer PiP output for the Video Enhancement path and
@@ -583,7 +656,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func refreshPictureInPicturePossible() {
-        isPictureInPicturePossible = enhancedPictureInPictureOutput?.isPictureInPicturePossible ?? false
+        let outputPossible = enhancedPictureInPictureOutput?.isPictureInPicturePossible ?? false
+        // Plain sessions show the button too: tapping it enters support mode.
+        let newValue = outputPossible || canEnterPictureInPictureSupportMode
+        if isPictureInPicturePossible != newValue {
+            isPictureInPicturePossible = newValue
+        }
+        if outputPossible, pendingPictureInPictureStart {
+            pendingPictureInPictureStart = false
+            enhancedPictureInPictureOutput?.start()
+        }
     }
     #endif
 
@@ -736,6 +818,17 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             #endif
             return AnyView(VideoEnhancementRepresentable(renderer: videoEnhancementRenderer))
         }
+        #if os(iOS)
+        if isPipSupportModeActive, let enhancedPictureInPictureOutput {
+            // PiP support mode: the sample-buffer layer IS the on-screen
+            // surface (libvlc's one video output feeds the raw tap).
+            return AnyView(
+                VLCEnhancedPiPDisplayRepresentable(
+                    displayView: enhancedPictureInPictureOutput.displayView
+                )
+            )
+        }
+        #endif
         return AnyView(VLCPlayerRepresentable(playerView: renderingHost.playerView))
     }
 
@@ -903,6 +996,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         syncRendererPlaybackState()
         renderingHost.invalidatePlaybackState()
+        #if os(iOS)
+        refreshPictureInPicturePossible()
+        #endif
     }
 
     fileprivate func updateTime(timeMs: Int32, lengthMs: Int32) {

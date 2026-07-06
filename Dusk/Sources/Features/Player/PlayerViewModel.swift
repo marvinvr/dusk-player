@@ -50,7 +50,11 @@ final class PlayerViewModel {
     var autoSkipCountdownProgress: Double?
 
     let engine: any PlaybackEngine
-    let engineView: AnyView
+    /// The engine's rendering view. Refreshed from `sync()` when the engine
+    /// reports a new `playerViewGeneration` (VLCKit swaps its rendering
+    /// surface when entering Picture in Picture support mode mid-session).
+    var engineView: AnyView
+    @ObservationIgnored var lastPlayerViewGeneration = 0
     let markers: [PlexMarker]
     var hasLoadedSource = false
     var sourcePart: PlexMediaPart?
@@ -96,6 +100,7 @@ final class PlayerViewModel {
     init(engine: any PlaybackEngine, markers: [PlexMarker] = []) {
         self.engine = engine
         self.engineView = engine.makePlayerView()
+        self.lastPlayerViewGeneration = engine.playerViewGeneration
         self.markers = markers.sorted { $0.startTimeOffset < $1.startTimeOffset }
         startSync()
     }

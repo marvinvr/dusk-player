@@ -151,8 +151,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `isPictureInPictureActive`, `start/stopPictureInPicture()`, and
   `setPictureInPictureDelegate(_:)`. The protocol extension defaults everything
   to off, so tvOS engines get a safe no-op. AVPlayer PiP is always available;
-  VLCKit PiP exists only while Video Enhancement's raw frame tap is active (see
-  the Picture in Picture section).
+  VLCKit PiP uses the sample-buffer output — immediately when Video
+  Enhancement's raw frame tap is already running, otherwise via the on-demand
+  PiP support mode (see the Picture in Picture section).
+- `playerViewGeneration` is bumped when an engine replaces its rendering view
+  mid-session (VLCKit entering PiP support mode); `PlayerViewModel.sync()`
+  re-calls `makePlayerView()` when it changes.
 
 ## AVPlayer and VLCKit Split
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible
@@ -444,17 +448,35 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - iOS only, native. AVPlayer uses an `AVPictureInPictureController` built from
   the `AVPlayerLayer` and auto-starts PiP when the app is backgrounded during
   playback (`canStartPictureInPictureAutomaticallyFromInline`). VLCKit 3.x has
-  no drawable-native PiP (that was a 4.x feature), so VLC PiP exists only
-  through the sample-buffer output on the Video Enhancement path. tvOS uses
-  the protocol no-op defaults.
+  no drawable-native PiP (that was a 4.x feature); all VLC PiP goes through
+  the sample-buffer output. tvOS uses the protocol no-op defaults.
+- VLCKit PiP support mode (plain sessions, button-triggered): libvlc has
+  exactly one video output, so PiP needs the raw frame tap — which cannot
+  coexist with the native drawable. When the user taps PiP on a session where
+  the tap is not already running, `VLCKitEngine.enterPictureInPictureSupportMode`
+  swaps the pipeline: it attaches the raw tap feeding a fresh
+  `VLCKitEnhancedPictureInPictureOutput`, makes the sample-buffer layer the
+  PRIMARY on-screen surface (`isPrimaryDisplaySurface`, full-rate intake, no
+  Metal renderer involved), reloads the media in place at the live position
+  (raw callbacks only bind on a fresh input — same mechanics as stall
+  recovery, masked as loading), and auto-starts PiP once the controller
+  reports possible (`pendingPictureInPictureStart`). The mode persists for
+  the rest of the session — switching back would be another visible reload —
+  and is torn down on `load`/`stop`/`configureVideoEnhancement`. Costs while
+  active: vmem software rendering plus the per-frame BGRA channel swap, i.e.
+  the same class of overhead as Video Enhancement; HDR content is rendered
+  through the 8-bit conversion without libvlc's GL tone mapping, so it can
+  look flatter in this mode.
+- With Video Enhancement already on, the tap and output are already live and
+  the button starts PiP directly (no reload).
 - Prerequisites already in place: the audio session is
   `.playback`/`.moviePlayback`/`.longFormVideo` (`DuskApp`) and `UIBackgroundModes`
   includes `audio` (`Info-iOS.plist`). PiP will not run without both.
-- Availability: `isPictureInPicturePossible` is false until the system controller
-  is ready. For VLCKit that means: only while Video Enhancement's raw frame
-  tap feeds the sample-buffer layer. The player's round top-right PiP button
-  (`PlayerControlsIOSOverlay`) only shows when possible and toggles via
-  `PlayerViewModel.togglePictureInPicture()`.
+- Availability: `isPictureInPicturePossible` is true for VLC sessions whenever
+  media is loaded (the button may trigger the support-mode swap) and for the
+  enhanced path once the system controller is ready. The player's round
+  top-right PiP button (`PlayerControlsIOSOverlay`) only shows when possible
+  and toggles via `PlayerViewModel.togglePictureInPicture()`.
 - Enhanced-mode PiP (the part that makes the above work): the Metal upscaler
   takes over the full-screen surface, so each engine keeps a *separate* native
   layer alive behind it, occluded, purely to feed PiP.

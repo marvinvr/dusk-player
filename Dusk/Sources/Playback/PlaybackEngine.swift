@@ -126,11 +126,16 @@ protocol PlaybackEngine: AnyObject {
     /// Returns a platform-specific view that renders the video content.
     func makePlayerView() -> AnyView
 
+    /// Bumped when the engine replaces its rendering view mid-session (VLCKit
+    /// entering Picture in Picture support mode); `PlayerViewModel` re-calls
+    /// `makePlayerView()` when it changes. Engines with a stable view keep the
+    /// default 0.
+    var playerViewGeneration: Int { get }
+
     // MARK: - Picture in Picture
 
-    /// Whether Picture in Picture can be started right now: the device supports
-    /// it, the engine renders to a native layer (not the Metal enhancement
-    /// path), and the system controller is ready. iOS only.
+    /// Whether Picture in Picture can be started (or, for VLCKit's on-demand
+    /// support mode, prepared) right now. iOS only.
     var isPictureInPicturePossible: Bool { get }
 
     /// Whether a Picture in Picture window is currently active.
@@ -147,6 +152,11 @@ protocol PlaybackEngine: AnyObject {
 extension PlaybackEngine {
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
+
+    // Bumped when the engine replaces its rendering view mid-session (VLCKit
+    // entering Picture in Picture support mode); `PlayerViewModel` re-calls
+    // `makePlayerView()` when it changes. Engines with a stable view keep 0.
+    var playerViewGeneration: Int { 0 }
 
     // Default: the precision hint is ignored — only AVPlayer distinguishes
     // tolerant (keyframe) seeks from frame-accurate ones.
