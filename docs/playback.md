@@ -301,8 +301,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   pause → sleep → play provably lost that race on slow connections (the
   timed play was processed before the pause, which then confirmed
   afterwards and stranded the player paused). Phases: pause issued → wait
-  for the `.paused` event → gap (~100 ms, pure headroom, tunable via the
-  `vlcAudioReviveGapMs` user default, clamped 40–1000 ms) → play issued
+  for the `.paused` event → hold (1.2 s on initial warmup, 100 ms on seek
+  revives; tunable via `vlcAudioWarmupReviveGapMs`/`vlcAudioReviveGapMs`)
+  → play issued
   (plus the post-resume video-output refresh the manual path schedules) →
   wait for the `.playing` event; a stray late pause confirmation is
   re-played (bounded enforcer). The only timers are failsafes whose expiry
@@ -314,15 +315,19 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
     Two independent triggers, first to succeed wins, and the arm survives
     until a revive actually starts (a deferred/rate-limited attempt
     retries), so the cure cannot be lost to a race:
-    1. event-driven (primary): the `.playing` state transition, a fixed
-       point in the pipeline — libvlc only reports playing after the audio
-       output is built and started (output creation happens during preroll,
-       which completes before unbuffering). Far seeks that refill emit a
-       buffering→playing transition, so they hit this hook too. Skipped
-       while a seek is in flight.
-    2. time-tick fallback: an advancing accepted time update after the
-       disturbance (buffering-immune; covers near/cached seeks that settle
-       without any state transition, and any missed event).
+    1. initial warmup (load/stall recovery): PRIMARY trigger is ≥4 accepted
+       advancing time ticks (~1 s of confirmed rendering; ticks freeze
+       during genuine refills, so the wait adapts to connection speed), and
+       the pause holds 1.2 s (`vlcAudioWarmupReviveGapMs`, default 1200).
+       This is the configuration confirmed on device to cure silent starts
+       100% of the time. Firing earlier (first tick or the `.playing`
+       event) provably cured seeks but NOT starts — the silent state forms
+       during the first ~second of rendering, and a cure that runs before
+       it exists cures nothing. The latency hides behind the loading mask.
+    2. seek revives: the `.playing` transition after a refill (far seeks)
+       or the first advancing tick (near/cached seeks that settle without a
+       state transition), with a 100 ms hold (`vlcAudioReviveGapMs`) —
+       confirmed sufficient for seek-induced silence.
     On initial bring-up (load and stall recovery, not seeks) the engine
     masks the whole warmup as `.loading`: the user-facing state first
     becomes `.playing` only when the revive has completed and audio is

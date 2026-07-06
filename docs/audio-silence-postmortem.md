@@ -81,19 +81,25 @@ zeroing between decoder and hardware); what IS proven on device:
 The mitigation is the engine's **settle audio revive**
 (`beginAudioRevive` and the `AudioRevivePhase` machine in
 `VLCKitEngine`): an automated replica of the manual cure, run CLOSED-LOOP —
-pause issued → wait for libvlc's `.paused` confirmation → ~100 ms gap
-(pure headroom, tunable via `vlcAudioReviveGapMs`) → play issued → wait
+pause issued → wait for libvlc's `.paused` confirmation → hold (1.2 s on
+initial warmup via `vlcAudioWarmupReviveGapMs`, 100 ms on seek revives via
+`vlcAudioReviveGapMs`) → play issued → wait
 for the `.playing` confirmation, with bounded re-play enforcement for
 stray late pauses and failsafe timers whose expiry actions are safe in
 every ordering. An earlier open-loop version (pause → sleep → play)
 provably lost the ordering race on slow connections and stranded the
 player paused — never reintroduce wall-clock sequencing here. One-shot
-per disturbance (open, stall recovery, seek burst), rate-limited, two
-triggers (`.playing` transition primary, advancing time tick fallback),
-arm survives until a revive actually starts. On initial bring-up the
-warmup is masked as `.loading` so the UI only ever sees loading →
-playing-with-audio. iOS/iPadOS only. Confirmed working on device
-2026-07-06. If the
+per disturbance (open, stall recovery, seek burst), rate-limited, arm
+survives until a revive actually starts. TRIGGER TIMING IS
+EFFECTIVENESS-CRITICAL, separately from sequencing correctness: the
+initial-warmup cure only works once playback has rendered for ~1 s (≥4
+advancing ticks) with a 1.2 s hold — the silent state forms during the
+first second, and firing at the first tick or the `.playing` event cured
+seeks but provably NOT starts (device-tested 2026-07-06, multiple builds).
+Seek revives fire at the `.playing` transition after a refill or the first
+tick, with a 100 ms hold. On initial bring-up the warmup is masked as
+`.loading` (and the center play/pause button hidden) so the UI only ever
+sees loading → playing-with-audio. iOS/iPadOS only. If the
 root cause is ever fixed at the libvlc level, the revive can become a
 dormant safety net — do not remove it based on theory alone; it is the only
 proven cure.
@@ -110,8 +116,11 @@ proven cure.
   timeline (sub-clip semantics) and would corrupt Plex progress reporting.
   The resume seek is issued right after `play()` instead (queued before the
   audio output exists), with a fallback on the first `.playing` state.
-- "The pause duration must cover the timing gap" — untested speculation
-  from the era when the revive never actually fired; even a ~100 ms gap works — the pause/play commands execute in order regardless, and the patched framework self-heals hasty session reactivation.
+- "Any post-bring-up moment is equally good for the cure" — false. The
+  100 ms gap and early triggers cure SEEK silence but not START silence;
+  the start cure needs ~1 s of rendered progress before the pause and a
+  1.2 s hold. Do not re-tighten the warmup revive without device evidence;
+  the loading mask makes its latency invisible anyway.
 
 ## Also fixed along the way (keep these)
 

@@ -84,17 +84,12 @@ struct PlayerControlsIOSOverlay: View {
 
         return HStack {
             Spacer()
-            if viewModel.isAwaitingPlaybackStart {
-                // Startup (including the VLCKit audio warmup, masked as
-                // .loading): a spinner instead of a play/pause button that
-                // would render "play" while video is already moving and then
-                // flip the moment the warmup completes.
-                ProgressView()
-                    .progressViewStyle(.circular)
-                    .tint(.white)
-                    .frame(width: 72, height: 72)
-                    .background(.ultraThinMaterial, in: Circle())
-            } else {
+            // Hidden during startup (including the VLCKit audio warmup,
+            // masked as .loading): the button would render "play" while
+            // video is already moving and then flip the moment the warmup
+            // completes. The standard buffering spinner in PlayerView covers
+            // the loading presentation instead.
+            if !viewModel.isAwaitingPlaybackStart {
                 Button { viewModel.togglePlayPause() } label: {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 44))

@@ -854,14 +854,15 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 // emission overtook it); keep waiting for the .paused event.
                 break
             case .inactive:
-                // Primary, event-driven revive hook: libvlc only reports
-                // .playing after the audio output has been built and started
-                // (output creation happens during preroll, which completes
-                // before the player unbuffers) — a fixed point in the
-                // pipeline, not a timing assumption. Skipped while a seek is
-                // in flight; the time-tick hook in updateTime fires right
-                // after it settles instead.
-                if needsSettleAudioRevive, pendingSeekTarget == nil {
+                // Event-driven revive hook for SEEK revives (far seeks that
+                // refill emit buffering→playing). Deliberately NOT used for
+                // the initial warmup: firing the cure at the first .playing
+                // proved too early on device — the silent state forms during
+                // the first ~second of rendering, and a cure that runs
+                // before it exists cures nothing. Warmup waits for confirmed
+                // rendering progress in updateTime instead (empirically
+                // reliable; the latency hides behind the loading mask).
+                if needsSettleAudioRevive, !isInitialAudioWarmup, pendingSeekTarget == nil {
                     beginAudioRevive(reason: "entered-playing")
                 }
             }
@@ -960,14 +961,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         if shouldAcceptUpdatedTime(updatedTime) {
             if vlcReportedPlaying, pendingSeekTarget == nil, updatedTime > currentTime {
                 steadyPlaybackTicks += 1
-                if needsSettleAudioRevive, audioRevivePhase == .inactive {
-                    // Fallback revive hook: covers seeks that settle without
-                    // emitting a state transition (near/cached seeks never
-                    // leave .playing) and any missed .playing event. Uses the
-                    // raw vlcReportedPlaying flag, not the user-facing state,
-                    // which is masked as .loading during warmup. The arm is
-                    // only consumed inside beginAudioRevive when the revive
-                    // actually starts — a rate-limited attempt retries on the
+                let requiredTicks = isInitialAudioWarmup ? 4 : 1
+                if needsSettleAudioRevive, audioRevivePhase == .inactive,
+                   steadyPlaybackTicks >= requiredTicks {
+                    // Time-progress revive hook. For the initial warmup this
+                    // is the PRIMARY trigger and waits for ~1 s of confirmed
+                    // rendering (4 advancing ticks at the 250 ms cadence —
+                    // the empirically proven point where the cure reliably
+                    // works; earlier triggers cured seeks but not starts).
+                    // Ticks freeze during genuine refills, so the wait adapts
+                    // to connection speed instead of racing it, and the
+                    // latency hides behind the loading mask. For seek revives
+                    // this is the fallback covering near/cached seeks that
+                    // settle without a state transition. The arm is only
+                    // consumed inside beginAudioRevive when the revive
+                    // actually starts — a deferred attempt retries on the
                     // next tick.
                     beginAudioRevive(reason: "time-progress")
                 }
@@ -1578,15 +1586,27 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
-    /// Gap between the CONFIRMED pause and the resume. Correctness does not
-    /// depend on it (the resume is only issued after libvlc reported the
-    /// pause), so it is pure headroom for iOS audio-session churn.
-    /// Default 100 ms; overridable without a new build via the
-    /// `vlcAudioReviveGapMs` user default (clamped 40–1000).
+    /// Gap between the CONFIRMED pause and the resume for seek revives.
+    /// Sequencing correctness does not depend on it (the resume is only
+    /// issued after libvlc reported the pause); 100 ms is confirmed on
+    /// device to cure seek-induced silence. Overridable without a new build
+    /// via the `vlcAudioReviveGapMs` user default (clamped 40–1000).
     private static var audioReviveGapMilliseconds: Int {
         let stored = UserDefaults.standard.integer(forKey: "vlcAudioReviveGapMs")
         guard stored > 0 else { return 100 }
         return min(max(stored, 40), 1_000)
+    }
+
+    /// Gap for the initial-warmup revive. 1.2 s (together with the ~1 s
+    /// rendering-progress trigger) is the configuration confirmed on device
+    /// to cure the silent start 100% of the time; shorter holds traded cure
+    /// reliability for latency that the loading mask hides anyway.
+    /// Overridable via the `vlcAudioWarmupReviveGapMs` user default
+    /// (clamped 100–3000).
+    private static var audioWarmupReviveGapMilliseconds: Int {
+        let stored = UserDefaults.standard.integer(forKey: "vlcAudioWarmupReviveGapMs")
+        guard stored > 0 else { return 1_200 }
+        return min(max(stored, 100), 3_000)
     }
 
     /// Starts the closed-loop revive — the automated manual "pause, then
@@ -1643,7 +1663,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         audioReviveTask?.cancel()
         audioRevivePhase = .awaitingResumeConfirmation
 
-        let gapMilliseconds = Self.audioReviveGapMilliseconds
+        let gapMilliseconds = isInitialAudioWarmup
+            ? Self.audioWarmupReviveGapMilliseconds
+            : Self.audioReviveGapMilliseconds
         audioReviveTask = Task { @MainActor [weak self] in
             do {
                 try await Task.sleep(for: .milliseconds(gapMilliseconds))
