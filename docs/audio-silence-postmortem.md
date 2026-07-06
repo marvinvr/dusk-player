@@ -79,16 +79,21 @@ zeroing between decoder and hardware); what IS proven on device:
 - once cured, playback stays healthy until the next disturbance.
 
 The mitigation is the engine's **settle audio revive**
-(`performAudioRevive`): an exact automated replica of the manual cure
-(`mediaPlayer.pause()` → ~100 ms (tunable via `vlcAudioReviveGapMs`) →
-`mediaPlayer.play()` + the post-resume video refresh), one-shot per
-disturbance (open, stall recovery, seek burst), rate-limited, suppressing
-the transient `.paused` state so the UI never flashes. Two independent
-triggers — the `.playing` state transition (event-driven primary; libvlc
-only reports playing after the audio output is up) and the first advancing
-time tick (fallback) — and the arm survives until a revive actually starts,
-so the cure cannot be lost to a race. iOS/iPadOS only. Confirmed working on
-device 2026-07-06. If the
+(`beginAudioRevive` and the `AudioRevivePhase` machine in
+`VLCKitEngine`): an automated replica of the manual cure, run CLOSED-LOOP —
+pause issued → wait for libvlc's `.paused` confirmation → ~100 ms gap
+(pure headroom, tunable via `vlcAudioReviveGapMs`) → play issued → wait
+for the `.playing` confirmation, with bounded re-play enforcement for
+stray late pauses and failsafe timers whose expiry actions are safe in
+every ordering. An earlier open-loop version (pause → sleep → play)
+provably lost the ordering race on slow connections and stranded the
+player paused — never reintroduce wall-clock sequencing here. One-shot
+per disturbance (open, stall recovery, seek burst), rate-limited, two
+triggers (`.playing` transition primary, advancing time tick fallback),
+arm survives until a revive actually starts. On initial bring-up the
+warmup is masked as `.loading` so the UI only ever sees loading →
+playing-with-audio. iOS/iPadOS only. Confirmed working on device
+2026-07-06. If the
 root cause is ever fixed at the libvlc level, the revive can become a
 dormant safety net — do not remove it based on theory alone; it is the only
 proven cure.

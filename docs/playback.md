@@ -295,14 +295,20 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   unit. Both are cured by exactly what a manual pause→play does
   (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
   render unlatch, and a fresh render-callback timing report that re-syncs
-  the master clock), so the engine automates that cure as a replica of the
-  manual sequence: a ~100 ms pause→resume "revive" (gap tunable without a
-  rebuild via the `vlcAudioReviveGapMs` user default, clamped 40–1000 ms;
-  including the post-resume video-output refresh the manual path
-  schedules) that reports
-  `.playing` throughout (no HUD/Now Playing flash; a user pause during the
-  window always wins). Confirmed on device (2026-07-06) to restore audio
-  exactly like the manual cure:
+  the master clock), so the engine automates that cure as a CLOSED-LOOP
+  replica of the manual sequence. Every step waits for libvlc's own state
+  confirmation instead of racing it with wall-clock timers — an open-loop
+  pause → sleep → play provably lost that race on slow connections (the
+  timed play was processed before the pause, which then confirmed
+  afterwards and stranded the player paused). Phases: pause issued → wait
+  for the `.paused` event → gap (~100 ms, pure headroom, tunable via the
+  `vlcAudioReviveGapMs` user default, clamped 40–1000 ms) → play issued
+  (plus the post-resume video-output refresh the manual path schedules) →
+  wait for the `.playing` event; a stray late pause confirmation is
+  re-played (bounded enforcer). The only timers are failsafes whose expiry
+  action is safe and idempotent in every ordering (issue/repeat play, or
+  surface reality and stop masking). Confirmed on device (2026-07-06) to
+  restore audio exactly like the manual cure:
   - once per audio-output disturbance — media open, stall recovery, and
     each seek burst (every seek flushes the output) — on iOS/iPadOS only.
     Two independent triggers, first to succeed wins, and the arm survives
@@ -314,13 +320,19 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
        which completes before unbuffering). Far seeks that refill emit a
        buffering→playing transition, so they hit this hook too. Skipped
        while a seek is in flight.
-    2. time-tick fallback: the first advancing accepted time update after
-       the disturbance (buffering-immune; the old
-       consecutive-unbuffered-ticks trigger never fired on network streams).
-    The revive is ordered before automatic track selection so an ES switch
-    never interleaves with it. A real user pause→resume before that point
-    consumes the revive, since it already ran the same cure natively.
-    Rate limit: 1.5 s between revives.
+    2. time-tick fallback: an advancing accepted time update after the
+       disturbance (buffering-immune; covers near/cached seeks that settle
+       without any state transition, and any missed event).
+    On initial bring-up (load and stall recovery, not seeks) the engine
+    masks the whole warmup as `.loading`: the user-facing state first
+    becomes `.playing` only when the revive has completed and audio is
+    guaranteed, so the pause→resume is absorbed into perceived load time
+    and the UI never sees a play→pause→play flap at any connection speed.
+    User pause/stop/error/end always tear the machinery down (user intent
+    and reality win; the mask can never stick). The revive is ordered
+    before automatic track selection so an ES switch never interleaves
+    with it. A real user pause→resume consumes a pending arm, since it
+    already ran the same cure natively. Rate limit: 1.5 s between revives.
   - whenever an audio-session interruption `began` is not followed by an
     `ended` within 2.5 s while the engine still reports playing (nothing
     paused us, so the user expects sound). If `ended` does arrive, the
