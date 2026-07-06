@@ -17,6 +17,16 @@ extension PlayerViewModel {
         showBufferingIndicator && playbackError == nil
     }
 
+    /// True until playback has genuinely started: covers the load itself and
+    /// the VLCKit audio warmup, which masks the whole bring-up (including
+    /// the pause→resume audio cure) as `.loading`. The player controls show
+    /// a spinner instead of the center play/pause button while this holds,
+    /// so the button never appears in a state it would immediately flip out
+    /// of.
+    var isAwaitingPlaybackStart: Bool {
+        (state == .idle || state == .loading) && playbackError == nil
+    }
+
     var shouldDisableIdleTimer: Bool {
         guard playbackError == nil else { return false }
 

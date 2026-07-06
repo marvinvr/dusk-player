@@ -558,7 +558,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, a gear menu for playback info, quality, and track
   selection, sheets for quality/audio/subtitle choices, and double-tap seek
-  zones when enabled.
+  zones when enabled. The center play/pause button is replaced by a spinner
+  while `PlayerViewModel.isAwaitingPlaybackStart` (engine `.idle`/`.loading`,
+  which includes the VLCKit audio warmup), so startup never flashes a play
+  icon that immediately flips to pause.
 - The iOS/iPadOS controls expose a round zoom button at the top-right that
   toggles `PlayerViewModel.aspectFillEnabled` and calls
   `PlaybackEngine.setVideoFillEnabled(_:)`. Fill zooms the picture to cover the
