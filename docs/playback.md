@@ -238,6 +238,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   rendering-capability notifications.
 
 ### Audio silence latches (vlc-patches 0015/0016) and session ownership
+
+> Full history, root-cause analysis, false leads, and diagnostic tooling for
+> the silent-audio failures live in `docs/audio-silence-postmortem.md`.
+> Read it before changing anything in this section.
 - Stock libvlc's iOS AudioUnit output has three states in which it keeps
   accepting buffers and reporting success to the core while rendering pure
   silence, so no recovery machinery (decoder reload, output restart) ever
@@ -290,25 +294,22 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   some Bluetooth handoffs never send it), and a started-but-dead render
   unit. Both are cured by exactly what a manual pause→play does
   (AudioOutputUnitStop → session reactivation → AudioOutputUnitStart →
-  render unlatch, a fresh render-callback timing report that re-syncs the
-  master clock, and a clock shift equal to the pause duration), so the
-  engine automates that cure as an exact replica of the manual sequence: a
-  1.2 s pause→resume "revive" (including the post-resume video-output
-  refresh the manual path schedules) that reports `.playing` throughout (no
-  HUD/Now Playing flash; a user pause during the window always wins). The
-  gap is deliberately human-scale — pause→resume shifts every playback
-  clock forward by the pause duration, so the cure must pause long enough
-  to cover whatever timing gap keeps the audio silent; a short programmatic
-  blip provably did not cure what a slow manual pause→play cures:
+  render unlatch, and a fresh render-callback timing report that re-syncs
+  the master clock), so the engine automates that cure as a replica of the
+  manual sequence: a ~350 ms pause→resume "revive" (including the
+  post-resume video-output refresh the manual path schedules) that reports
+  `.playing` throughout (no HUD/Now Playing flash; a user pause during the
+  window always wins). Confirmed on device (2026-07-06) to restore audio
+  exactly like the manual cure:
   - once per audio-output disturbance — media open, stall recovery, and
     each seek burst (every seek flushes the output) — on iOS/iPadOS only,
-    fired once reported time has been advancing for ~1 s of wall clock
-    after the disturbance settles (time-based and buffering-immune; the
-    old consecutive-unbuffered-ticks trigger never fired on network
-    streams), ordered before automatic track selection so an ES switch
-    never interleaves with the revive. A real user pause→resume before
-    that point consumes the revive, since it already ran the same cure
-    natively. Revives are rate-limited to one per 3 s.
+    fired at the first advancing time tick after the disturbance settles
+    (buffering-immune; the old consecutive-unbuffered-ticks trigger never
+    fired on network streams), ordered before automatic track selection so
+    an ES switch never interleaves with the revive. A real user
+    pause→resume before that point consumes the revive, since it already
+    ran the same cure natively. Revives are rate-limited (1.5 s); a
+    deferred revive stays armed and retries on the next tick.
   - whenever an audio-session interruption `began` is not followed by an
     `ended` within 2.5 s while the engine still reports playing (nothing
     paused us, so the user expects sound). If `ended` does arrive, the

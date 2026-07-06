@@ -33,6 +33,10 @@ that owns the behavior you are changing.
 - `data-and-plex.md`: `PlexService`, Plex models, requests, images, and API shape.
 - `playback.md`: playback coordinator, resolver, engines, player UI, timeline,
   scrobble, and up next.
+- `audio-silence-postmortem.md`: the 2026-07 VLCKit silent-audio saga — the
+  real bugs, the false leads, the audio revive mitigation, and the on-device
+  diagnostic tooling. MANDATORY reading before touching VLCKit audio,
+  playback recovery, or anything gated on "steady playback".
 - `ui-features.md`: app shell, shared SwiftUI primitives, home, libraries, detail,
   search, settings, and platform UI rules.
 - `downloads-and-offline.md`: download queue, local file storage, metadata cache,

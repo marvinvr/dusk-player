@@ -1,0 +1,118 @@
+# Post-mortem: The VLCKit Silent-Audio Saga (2026-07)
+
+Read this BEFORE touching VLCKit audio, playback recovery, or anything gated
+on "steady playback". It documents what was actually broken, what was chased
+for months without being the cause, and the diagnostic tooling that now
+exists so nobody has to re-derive it.
+
+## Symptom
+
+On iOS/iPadOS VLCKit playback (network streams especially): ~90% of sessions
+started with video playing and **no audio at all**; double-tap seeking far
+also killed audio. A manual pause→play always restored it, then playback was
+perfect. No error, warning, or interruption appeared anywhere — the entire
+pipeline (decoder, output bring-up, render callback, clock) reported healthy
+while the speaker emitted silence. Confirmed by unified-log capture of
+failing sessions on device (2026-07-05).
+
+## The three real bugs (in causal order)
+
+1. **The "steady playback" gate could never open on network streams.**
+   `steadyPlaybackTicks` required 4 consecutive advancing time ticks while
+   `!isBuffering`, and was reset on every buffering state event. But libvlc
+   emits buffering state events **continuously** during network playback
+   (cache-level churn) — the counter was mathematically pinned at zero.
+   Everything gated on it silently never ran:
+   - the automatic audio-track-selection safety net
+     (`isReadyForAutomaticAudioSelection`) — never ran on network streams,
+     across its entire history. This is why audio-track behavior always felt
+     haunted and why earlier "deferred selection" fixes changed nothing;
+   - the app-side audio revive (see below) — dead on arrival, which made
+     its first two iterations look ineffective and sent the investigation
+     down false paths ("maybe the pause duration matters").
+   Fix: advancing reported time IS the steadiness signal (a genuine refill
+   freezes the clock and stops the counter by itself). No buffering resets,
+   no `isBuffering` conditions on this path. Commit `19ac086`.
+
+2. **On-device diagnostics were structurally blind.**
+   - VLCKit drops ALL libvlc internal messages unless a logger is attached
+     to `VLCLibrary.loggers`. Nobody had ever seen what the audio output
+     actually did on a failing device. `VLCLibraryLogBridge` (in
+     `VLCKitEngine.swift`) now forwards audio/clock/ES messages plus all
+     warnings/errors into the unified log, category `libvlc`, at `.notice`+
+     so they persist into `log collect` archives and sysdiagnoses. Never
+     remove it while any audio bug is open. `vlcVerboseLogging` user
+     default = full firehose.
+   - App-side state-change logging used `.debug`, which OSLog does NOT
+     persist — invisible in collected archives. Diagnostic breadcrumbs must
+     be `.notice` or higher.
+   Capture procedure: reproduce on device, then
+   `sudo log collect --device --last 30m --output dusk.logarchive` and read
+   with `/usr/bin/log show --archive … --info --predicate 'subsystem ==
+   "com.dusk-player.app"'` (note: zsh has a `log` builtin — use the full
+   path).
+
+3. **Stale VLCKit embeds shipped to devices.**
+   Xcode's framework-embed step silently reused cached pre-patch VLCKit
+   binaries after the vendored frameworks were replaced in-place, so device
+   builds ran old libvlc while the repo contained the patched one. Guards
+   now exist: `scripts/verify_embedded_vlckit.sh` fails the build on a stale
+   embed, and Playback Info shows a runtime "VLCKit Build" row
+   (`VLCKitEngine.vendoredVLCKitAudit`) plus a "VLC Audio Module" row (the
+   `avsamplebuffer` A/B toggle bypasses every audiounit patch). Check these
+   rows FIRST when a device misbehaves.
+
+## The actual silent state and its cure
+
+The failing state renders silence while consuming buffers and reporting
+success — libvlc-side recovery (vendored patches 0015/0016) cannot engage
+because nothing fails, and the app cannot detect it because VLCKit exposes
+no rendered-PCM signal. Its exact libvlc-level identity is still not pinned
+down (candidates: render callback dying without any notification, or PCM
+zeroing between decoder and hardware); what IS proven on device:
+
+- the state occurs right after audio-output bring-up (media open) and after
+  seek-flush churn;
+- **a pause→resume cycle always cures it** (AudioOutputUnitStop → session
+  reactivation → AudioOutputUnitStart → render unlatch → fresh timing
+  report re-syncing the master clock);
+- once cured, playback stays healthy until the next disturbance.
+
+The mitigation is the engine's **settle audio revive**
+(`performAudioRevive`): an exact automated replica of the manual cure
+(`mediaPlayer.pause()` → ~350 ms → `mediaPlayer.play()` + the post-resume
+video refresh), fired at the first advancing time tick after every
+disturbance (open, stall recovery, seek burst), one-shot per disturbance,
+rate-limited, suppressing the transient `.paused` state so the UI never
+flashes. iOS/iPadOS only. Confirmed working on device 2026-07-06. If the
+root cause is ever fixed at the libvlc level, the revive can become a
+dormant safety net — do not remove it based on theory alone; it is the only
+proven cure.
+
+## False leads (do not re-chase these without new evidence)
+
+- Interruption latches, session-activation failures, resume fall-throughs,
+  start-deferral pathologies (vendored patches 0015/0016 cover them; the
+  logged failing sessions showed none firing — deferral was a healthy
+  ~80 ms).
+- Audio-session mode/policy, spatial audio, mix modes, route churn — the
+  failing sessions had zero route/interruption events.
+- `:start-time` as a resume mechanism — it shifts libvlc's whole reported
+  timeline (sub-clip semantics) and would corrupt Plex progress reporting.
+  The resume seek is issued right after `play()` instead (queued before the
+  audio output exists), with a fallback on the first `.playing` state.
+- "The pause duration must cover the timing gap" — untested speculation
+  from the era when the revive never actually fired; 350 ms works.
+
+## Also fixed along the way (keep these)
+
+- One seek command per seek (`applySeek` sets only `time`; the old
+  `position`+`time` pair doubled every flush).
+- Seek-verification retries are skipped while buffering (an accepted far
+  seek that is refilling must not be re-seeked — that multiplied the flush
+  storm that killed audio on far double-taps).
+- VLC network/file caching 8000 ms → 1500 ms (`PlaybackBufferPolicy`):
+  libvlc caching is the input pts_delay and scales every clock window; 8 s
+  was far outside field-proven territory (VLC-iOS ships 999 ms).
+- The coordinator logs the audio preselect decision with a per-stream
+  summary; `:audio-track` preselect misses are diagnosable from logs now.

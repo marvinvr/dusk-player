@@ -241,10 +241,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// that re-syncs the master clock), so the engine performs it once per
     /// disturbance, at the moment the pipeline is demonstrably stable.
     private var needsSettleAudioRevive = false
-    /// Timestamp of the first advancing time update after the last
-    /// disturbance; the settle revive fires once ~1 s of wall time has
-    /// passed since then (time-based, buffering-immune).
-    private var audioReviveFirstProgressAt: Date?
     private var isPerformingAudioRevive = false
     private var lastAudioReviveAt: Date?
     @ObservationIgnored nonisolated(unsafe) private var audioReviveResumeTask: Task<Void, Never>?
@@ -502,7 +498,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         mediaPlayer.pause()
         state = .paused
         steadyPlaybackTicks = 0
-        audioReviveFirstProgressAt = nil
         syncRendererPlaybackState()
     }
 
@@ -660,7 +655,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingSeekStartedAt = Date()
         currentTime = clampedPosition
         steadyPlaybackTicks = 0
-        audioReviveFirstProgressAt = nil
         // Every seek flushes the audio output; if the flush leaves it in a
         // silent-but-"healthy" state, the settle revive brings it back once
         // playback is steady again (one revive per burst of seeks — arming is
@@ -898,22 +892,19 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             if state == .playing, pendingSeekTarget == nil, updatedTime > currentTime {
                 steadyPlaybackTicks += 1
                 if needsSettleAudioRevive {
-                    // Time-based, buffering-immune trigger: fire the one-shot
-                    // revive once playback has demonstrably been advancing
-                    // for ~1 s of wall time after the last disturbance (open,
-                    // recovery, or seek burst) — the same conditions under
-                    // which a manual pause/resume is reliable. The previous
-                    // consecutive-ticks-while-unbuffered gate could never
+                    // Fire the one-shot revive at the FIRST advancing time
+                    // update after the last disturbance (open, recovery, or
+                    // seek burst): the clock advancing means the pipeline is
+                    // past bring-up, and the sooner the cure runs the sooner
+                    // audio is guaranteed. Buffering-immune on purpose — the
+                    // old consecutive-ticks-while-unbuffered gate could never
                     // open on network streams (buffering-event spam), so the
-                    // revive never actually ran on device.
-                    if let firstProgressAt = audioReviveFirstProgressAt {
-                        if Date().timeIntervalSince(firstProgressAt) >= 1.0 {
-                            needsSettleAudioRevive = false
-                            audioReviveFirstProgressAt = nil
-                            performAudioRevive(reason: "settle-after-disturbance")
-                        }
-                    } else {
-                        audioReviveFirstProgressAt = Date()
+                    // revive never actually ran on device. Only consume the
+                    // arm when the revive actually fires: the rate limiter
+                    // may defer it (rapid seek bursts), in which case the
+                    // next tick retries.
+                    if performAudioRevive(reason: "settle-after-disturbance") {
+                        needsSettleAudioRevive = false
                     }
                 }
             }
@@ -1511,21 +1502,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
-    /// The automated version of the manual "pause, then play" cure, replicated
-    /// EXACTLY: the same `mediaPlayer.pause()` … wait … `mediaPlayer.play()`
-    /// sequence a user produces, including the human-scale gap and the
-    /// post-resume video-output refresh the manual path schedules. The gap
-    /// matters: pause→resume shifts every playback clock forward by the pause
-    /// duration and forces a fresh audio timing report, so a cure must pause
-    /// long enough to cover whatever timing gap is keeping the audio silent —
-    /// a short programmatic blip provably did not cure what a slow human
-    /// pause→play cures. If audio was healthy this is a visible-but-brief
-    /// hold (pause does not flush; playback continues from the same buffers);
-    /// if audio was silently dead, this brings it back without user action.
-    private func performAudioRevive(reason: String) {
-        guard state == .playing, !isPerformingAudioRevive else { return }
-        if let lastAudioReviveAt, Date().timeIntervalSince(lastAudioReviveAt) < 3.0 {
-            return
+    /// The automated version of the manual "pause, then play" cure: the same
+    /// `mediaPlayer.pause()` … wait … `mediaPlayer.play()` sequence a user
+    /// produces, including the post-resume video-output refresh the manual
+    /// path schedules. Confirmed on device to restore audio in the
+    /// silent-but-"healthy" sessions exactly like the manual cure does. The
+    /// gap is tuned short (~350 ms) so the hold reads as normal startup/seek
+    /// latency; if audio was healthy the pause does not flush and playback
+    /// continues from the same buffers. Returns whether the revive actually
+    /// started (the rate limiter may defer it — callers keep the arm and
+    /// retry on the next time tick).
+    @discardableResult
+    private func performAudioRevive(reason: String) -> Bool {
+        guard state == .playing, !isPerformingAudioRevive else { return false }
+        if let lastAudioReviveAt, Date().timeIntervalSince(lastAudioReviveAt) < 1.5 {
+            return false
         }
         lastAudioReviveAt = Date()
         isPerformingAudioRevive = true
@@ -1539,7 +1530,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         mediaPlayer.pause()
         audioReviveResumeTask = Task { @MainActor [weak self] in
             do {
-                try await Task.sleep(for: .milliseconds(1200))
+                try await Task.sleep(for: .milliseconds(350))
             } catch {
                 return
             }
@@ -1553,6 +1544,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             // play (see play()); keep the replica exact.
             self.scheduleVideoOutputRefreshAfterResume()
         }
+        return true
     }
 
     /// Cancels only the revive's timed resume — used when the user pauses,
@@ -1568,7 +1560,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         audioInterruptionWatchdogTask?.cancel()
         audioInterruptionWatchdogTask = nil
         needsSettleAudioRevive = false
-        audioReviveFirstProgressAt = nil
         lastAudioReviveAt = nil
     }
 
