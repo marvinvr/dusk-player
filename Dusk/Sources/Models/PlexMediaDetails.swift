@@ -352,6 +352,14 @@ struct PlexStream: Codable, Sendable, Identifiable {
     let profile: String?
     let level: Int?
 
+    // Dolby Vision fields (video streams). Plex only sends these when the
+    // stream carries a DV layer; `doviProfile` 5 has no HDR10-compatible
+    // base layer, which StreamResolver uses to force a server transcode.
+    let doviPresent: Bool?
+    let doviProfile: Int?
+    let doviLevel: Int?
+    let doviBLCompatID: Int?
+
     // Audio stream fields
     let channels: Int?
     let channelLayout: String?
@@ -372,6 +380,10 @@ struct PlexStream: Codable, Sendable, Identifiable {
         case width, height, bitrate, frameRate, bitDepth
         case colorSpace, colorRange, colorPrimaries, colorTrc
         case chromaSubsampling, profile, level
+        case doviPresent = "DOVIPresent"
+        case doviProfile = "DOVIProfile"
+        case doviLevel = "DOVILevel"
+        case doviBLCompatID = "DOVIBLCompatID"
         case channels, channelLayout, samplingRate
         case isForced = "forced"
         case isHearingImpaired = "hearingImpaired"
@@ -407,6 +419,10 @@ struct PlexStream: Codable, Sendable, Identifiable {
         chromaSubsampling = try container.decodeIfPresent(String.self, forKey: .chromaSubsampling)
         profile = try container.decodeIfPresent(String.self, forKey: .profile)
         level = try container.decodeIfPresent(Int.self, forKey: .level)
+        doviPresent = try Self.decodeBoolish(container: container, key: .doviPresent)
+        doviProfile = try container.decodeIfPresent(Int.self, forKey: .doviProfile)
+        doviLevel = try container.decodeIfPresent(Int.self, forKey: .doviLevel)
+        doviBLCompatID = try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
         channels = try container.decodeIfPresent(Int.self, forKey: .channels)
         channelLayout = try container.decodeIfPresent(String.self, forKey: .channelLayout)
         samplingRate = try container.decodeIfPresent(Int.self, forKey: .samplingRate)

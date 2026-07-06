@@ -1,17 +1,31 @@
 import Foundation
+import VideoToolbox
 
 /// Determines which playback engine to use based on the media's codec profile.
 ///
-/// Decision logic (from SPEC.md §4.2):
-/// - **AVPlayer** when ALL of: container is mp4/mov/m4v, video is h264/hevc/av1,
-///   audio is aac/ac3/eac3/alac/mp3/flac, and all subtitles are either
-///   tx3g/mov_text (embedded) or external text (srt/vtt).
-/// - **VLCKit** for everything else: MKV/AVI/WMV containers, DTS/TrueHD audio,
-///   PGS/ASS/SSA subtitles, or any combination outside the AVPlayer set.
+/// Decision logic (from SPEC.md §4.2, evaluated per stream across ALL parts —
+/// parts without stream metadata fall back to the media-level summary fields):
+/// - **Dolby Vision profile 5** (IPTPQc2 color, no HDR10-compatible base layer)
+///   is flagged `requiresServerTranscode` regardless of container — neither
+///   AVPlayer nor libvlc can tone-map it locally. Profiles 7/8 play through
+///   their HDR10 base layer and follow normal engine selection.
+/// - **AVPlayer** when ALL of: container is mp4/mov/m4v, video is 8-bit h264,
+///   hevc, or av1 with a hardware decoder, audio is aac/ac3/eac3/alac/mp3/flac,
+///   and all subtitles are either tx3g/mov_text (embedded) or external text
+///   (srt/vtt).
+/// - **VLCKit** for everything else: MKV/AVI/WMV containers, 10-bit H.264
+///   (Hi10P), AV1 without hardware decode (libvlc has dav1d software decode),
+///   DTS/TrueHD audio, PGS/ASS/SSA subtitles, or any combination outside the
+///   AVPlayer set.
 enum StreamResolver {
     struct Decision: Sendable {
         let engine: PlaybackEngineType
         let reason: String
+        /// True when neither local engine can render this media correctly
+        /// (e.g. Dolby Vision profile 5, whose IPTPQc2 color neither AVPlayer
+        /// from a remux nor libvlc can tone-map). The coordinator should start
+        /// such media on the server-transcode ladder rung instead of direct play.
+        var requiresServerTranscode: Bool = false
     }
 
     // MARK: - AVPlayer-Compatible Codec Sets
@@ -116,6 +130,13 @@ enum StreamResolver {
             return Decision(engine: .vlcKit, reason: "User preference forced VLCKit")
         }
 
+        // Dolby Vision profile 5 check — before the container check on purpose:
+        // a DV5 MKV must flag the server transcode too, since neither local
+        // engine can tone-map IPTPQc2 color.
+        if let dolbyVisionDecision = dolbyVisionDecision(for: media) {
+            return dolbyVisionDecision
+        }
+
         // Container check
         guard let container = media.container?.lowercased(),
               avContainers.contains(container) else {
@@ -126,32 +147,21 @@ enum StreamResolver {
             )
         }
 
-        // Video codec check
-        guard let videoCodec = media.videoCodec?.lowercased(),
-              avVideoCodecs.contains(videoCodec) else {
-            let unsupportedVideoCodec = media.videoCodec?.uppercased() ?? "unknown"
-            return Decision(
-                engine: .vlcKit,
-                reason: "Video codec \(unsupportedVideoCodec) requires VLCKit"
-            )
+        // Video codec check — per stream across all parts
+        if let videoDecision = videoDecision(for: media) {
+            return videoDecision
         }
 
-        // Audio codec check
-        guard let audioCodec = media.audioCodec?.lowercased(),
-              avAudioCodecs.contains(audioCodec) else {
-            let unsupportedAudioCodec = media.audioCodec?.uppercased() ?? "unknown"
-            return Decision(
-                engine: .vlcKit,
-                reason: "Audio codec \(unsupportedAudioCodec) requires VLCKit"
-            )
+        // Audio codec check — per stream across all parts
+        if let audioDecision = audioDecision(for: media) {
+            return audioDecision
         }
 
-        // Subtitle check — every subtitle stream must be AVPlayer-compatible.
-        // External text subs (srt, vtt) are fine. Embedded bitmap subs (PGS, VOBSUB)
-        // and complex styled subs (ASS/SSA) require VLCKit.
-        if let part = media.parts.first {
-            let subtitleStreams = part.streams.filter { $0.streamType == .subtitle }
-            for stream in subtitleStreams {
+        // Subtitle check — every subtitle stream in every part must be
+        // AVPlayer-compatible. External text subs (srt, vtt) are fine. Embedded
+        // bitmap subs (PGS, VOBSUB) and complex styled subs (ASS/SSA) require VLCKit.
+        for part in media.parts {
+            for stream in part.streams where stream.streamType == .subtitle {
                 guard let codec = stream.codec?.lowercased() else { continue }
                 if !avSubtitleCodecs.contains(codec) {
                     return Decision(
@@ -166,6 +176,140 @@ enum StreamResolver {
             engine: .avPlayer,
             reason: "Container, codecs, and subtitles are AVPlayer-compatible"
         )
+    }
+
+    // MARK: - Per-Stream Checks
+
+    /// Whether this device can hardware-decode AV1 (A17 Pro / M3 and newer).
+    /// Cached so the VideoToolbox query runs once per process, not per decision.
+    private static let hasAV1HardwareDecode: Bool =
+        VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
+
+    /// Dolby Vision profile 5 carries IPTPQc2 color with no HDR10-compatible
+    /// base layer; neither AVPlayer (from a remux) nor libvlc can tone-map it,
+    /// so it must start on the server-transcode ladder rung. Profiles 7/8 (and
+    /// anything with a base-layer compatibility ID) render fine via their HDR10
+    /// base layer, so they stay on normal engine selection.
+    private static func dolbyVisionDecision(for media: PlexMedia) -> Decision? {
+        for part in media.parts {
+            for stream in part.streams where stream.streamType == .video {
+                guard stream.doviPresent == true || stream.doviProfile != nil else { continue }
+                if stream.doviProfile == 5 {
+                    return Decision(
+                        engine: .avPlayer,
+                        reason: "Dolby Vision profile 5 requires server transcode (no local tone mapping)",
+                        requiresServerTranscode: true
+                    )
+                }
+            }
+        }
+        return nil
+    }
+
+    /// Check every video stream in every part; parts without stream metadata
+    /// (tolerated — Plex omits streams on some endpoints) fall back to the
+    /// media-level summary codec. Returns nil when AVPlayer can handle it all.
+    private static func videoDecision(for media: PlexMedia) -> Decision? {
+        var checkedStreamMetadata = false
+
+        for part in media.parts {
+            for stream in part.streams where stream.streamType == .video {
+                checkedStreamMetadata = true
+                if let decision = videoDecision(
+                    codec: stream.codec ?? media.videoCodec,
+                    stream: stream
+                ) {
+                    return decision
+                }
+            }
+        }
+
+        let hasStreamlessPart = media.parts.isEmpty || media.parts.contains { $0.streams.isEmpty }
+        if !checkedStreamMetadata || hasStreamlessPart {
+            return videoDecision(codec: media.videoCodec, stream: nil)
+        }
+        return nil
+    }
+
+    /// Evaluate one video stream (or the media-level summary when `stream` is
+    /// nil). Returns nil when the stream is AVPlayer-compatible.
+    private static func videoDecision(codec rawCodec: String?, stream: PlexStream?) -> Decision? {
+        guard let codec = rawCodec?.lowercased(),
+              avVideoCodecs.contains(codec) else {
+            let unsupportedVideoCodec = rawCodec?.uppercased() ?? "unknown"
+            return Decision(
+                engine: .vlcKit,
+                reason: "Video codec \(unsupportedVideoCodec) requires VLCKit"
+            )
+        }
+
+        switch codec {
+        case "h264":
+            // AVPlayer only hardware-decodes 8-bit H.264; Hi10P anime encodes
+            // would stutter or fail, while libvlc decodes them in software.
+            if let stream, isTenBitH264(stream) {
+                return Decision(
+                    engine: .vlcKit,
+                    reason: "10-bit H.264 (Hi10P) has no hardware decoder and requires VLCKit"
+                )
+            }
+        case "av1":
+            // Only A17 Pro / M3-class chips decode AV1 in hardware; AVPlayer
+            // has no software fallback, but libvlc ships dav1d.
+            if !hasAV1HardwareDecode {
+                return Decision(
+                    engine: .vlcKit,
+                    reason: "AV1 has no hardware decoder on this device and requires VLCKit (dav1d)"
+                )
+            }
+        default:
+            break // hevc needs no extra per-stream checks.
+        }
+        return nil
+    }
+
+    /// Hi10P detection: Plex reports the codec profile as "High 10" and/or a
+    /// bit depth above 8 on the video stream.
+    private static func isTenBitH264(_ stream: PlexStream) -> Bool {
+        if let profile = stream.profile?.lowercased(), profile.contains("high 10") {
+            return true
+        }
+        return (stream.bitDepth ?? 8) > 8
+    }
+
+    /// Check every audio stream in every part; parts without stream metadata
+    /// fall back to the media-level summary codec. Any single incompatible
+    /// track routes to VLCKit so all tracks stay selectable.
+    private static func audioDecision(for media: PlexMedia) -> Decision? {
+        var checkedStreamMetadata = false
+
+        for part in media.parts {
+            for stream in part.streams where stream.streamType == .audio {
+                checkedStreamMetadata = true
+                if let decision = audioDecision(codec: stream.codec ?? media.audioCodec) {
+                    return decision
+                }
+            }
+        }
+
+        let hasStreamlessPart = media.parts.isEmpty || media.parts.contains { $0.streams.isEmpty }
+        if !checkedStreamMetadata || hasStreamlessPart {
+            return audioDecision(codec: media.audioCodec)
+        }
+        return nil
+    }
+
+    /// Evaluate one audio codec. Returns nil when AVPlayer can play it.
+    private static func audioDecision(codec rawCodec: String?) -> Decision? {
+        guard let codec = rawCodec?.lowercased(),
+              avAudioCodecs.contains(codec) else {
+            let unsupportedAudioCodec = rawCodec?.uppercased() ?? "unknown"
+            return Decision(
+                engine: .vlcKit,
+                reason: "Audio codec \(unsupportedAudioCodec) requires VLCKit"
+            )
+        }
+        return nil
     }
 }
 
