@@ -466,3 +466,56 @@ struct UpNextPresentation: Sendable {
     var isStarting = false
     var errorMessage: String?
 }
+
+/// The small bottom-right "next episode" poster shown over the play bar once
+/// the credits marker is reached. It replaces the old "Skip Credits" button and
+/// stays visible until the episode ends (or the user acts on it). Its `mode`
+/// captures how the session should continue, derived once from preferences when
+/// the credits marker is first reached:
+///
+/// - `timedAutoplay`: continuous play + auto-skip credits are both on. A visible
+///   countdown runs from the credits marker; when it ends the next episode plays
+///   immediately, skipping the rest of the credits and never showing the
+///   full-screen Up Next screen.
+/// - `autoAdvanceAtEnd`: continuous play on, auto-skip credits off. No countdown;
+///   the credits play out and the next episode starts at the natural episode end
+///   without the full-screen Up Next screen.
+/// - `manual`: continuous play off, or the passout-protection streak was hit. No
+///   countdown and no automatic advance; the natural episode end shows the
+///   full-screen Up Next screen ("Are You Still Watching?" / "Autoplay Paused").
+///
+/// In every mode, tapping the poster plays the next episode now, and dragging it
+/// down (iOS) / swiping down (tvOS) cancels any timer and opens the full-screen
+/// Up Next screen with no countdown so the user can wait indefinitely.
+struct UpNextPosterPresentation: Sendable {
+    enum Mode: Sendable, Equatable {
+        case timedAutoplay(countdown: Int)
+        case autoAdvanceAtEnd
+        case manual
+    }
+
+    let episode: PlexEpisode
+    let mode: Mode
+    /// Identifies the credits marker that triggered this poster, so repeat
+    /// notifications for the same marker don't re-resolve the next episode.
+    let creditsMarkerID: Int
+    var secondsRemaining: Int?
+    var countdownProgress: Double?
+    var isStarting = false
+
+    var isTimed: Bool {
+        if case .timedAutoplay = mode { return true }
+        return false
+    }
+
+    /// Whether the natural episode end should advance directly to the next
+    /// episode (no full-screen Up Next screen) rather than surfacing it.
+    var autoAdvancesAtEnd: Bool {
+        switch mode {
+        case .timedAutoplay, .autoAdvanceAtEnd:
+            return true
+        case .manual:
+            return false
+        }
+    }
+}

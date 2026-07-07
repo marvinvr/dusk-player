@@ -1,7 +1,7 @@
 import Foundation
 
 extension PlaybackCoordinator {
-    private enum UpNextStartTrigger {
+    enum UpNextStartTrigger {
         case autoplay
         case manual
     }
@@ -9,6 +9,12 @@ extension PlaybackCoordinator {
     func playUpNextNow() {
         Task { @MainActor in
             await startUpNextPlayback(trigger: .manual)
+        }
+    }
+
+    func playUpNextPosterNow() {
+        Task { @MainActor in
+            await startUpNextPosterPlayback(trigger: .manual)
         }
     }
 
@@ -105,20 +111,24 @@ extension PlaybackCoordinator {
         upNextCountdownTask = nil
     }
 
-    func skipCreditsToUpNextIfPossible(
+    // MARK: - Up Next Poster
+
+    /// Resolves the next episode and shows the bottom-right "next episode"
+    /// poster once the credits marker is reached. Called from the player when
+    /// the reached credits marker changes; safe to call repeatedly for the same
+    /// marker (it no-ops once a poster for that marker is up).
+    func presentUpNextPosterIfPossible(
+        creditsMarkerID: Int,
         presentationID expectedPresentationID: UUID,
         ratingKey expectedRatingKey: String?
-    ) async -> Bool {
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else {
-            return true
-        }
-
-        guard upNextPresentation == nil else { return true }
+    ) async {
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return }
+        if let existing = upNextPoster, existing.creditsMarkerID == creditsMarkerID { return }
+        // The full-screen Up Next screen takes precedence over the poster.
+        guard upNextPresentation == nil else { return }
 
         guard let activeItemDetails,
-              activeItemDetails.type == .episode else {
-            return false
-        }
+              activeItemDetails.type == .episode else { return }
 
         let resolvedNextEpisode: PlexEpisode?
         if activePlaybackUsesLocalDownload {
@@ -127,15 +137,200 @@ extension PlaybackCoordinator {
             resolvedNextEpisode = await nextEpisode(after: activeItemDetails)
         }
 
-        guard let nextEpisode = resolvedNextEpisode else { return false }
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else {
-            return true
+        guard let nextEpisode = resolvedNextEpisode else { return }
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return }
+        guard upNextPresentation == nil else { return }
+        // A poster for a newer credits marker was raised while we resolved.
+        if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return }
+
+        let mode = upNextPosterMode()
+        var poster = UpNextPosterPresentation(
+            episode: nextEpisode,
+            mode: mode,
+            creditsMarkerID: creditsMarkerID
+        )
+        if case let .timedAutoplay(countdown) = mode {
+            poster.secondsRemaining = countdown
+            poster.countdownProgress = 0
         }
-        guard upNextPresentation == nil else { return true }
+        upNextPoster = poster
+
+        if poster.isTimed {
+            startUpNextPosterCountdown()
+        }
+    }
+
+    /// Hides the poster (e.g. the user seeked back out of the credits).
+    func dismissUpNextPoster() {
+        cancelUpNextPosterCountdown()
+        upNextPoster = nil
+    }
+
+    /// Drag-down / swipe-down on the poster: cancel any countdown and open the
+    /// full-screen Up Next screen with no timer so the user can wait as long as
+    /// they like before playing the next episode.
+    func expandUpNextPosterToOverlay() {
+        guard let poster = upNextPoster, !poster.isStarting else { return }
+        cancelUpNextPosterCountdown()
+        let episode = poster.episode
+        upNextPoster = nil
+        finalizeCurrentPlaybackSession(markCompleted: true)
+        presentUpNextManual(for: episode, source: .creditsSkipped)
+    }
+
+    /// Plays the poster's next episode immediately — a poster tap or a fired
+    /// countdown. Finalizes the current session first because the poster shows
+    /// while the current episode is still playing, unlike the full-screen Up
+    /// Next screen whose callers finalize before presenting.
+    func startUpNextPosterPlayback(trigger: UpNextStartTrigger) async {
+        guard var poster = upNextPoster, !poster.isStarting else { return }
+
+        cancelUpNextPosterCountdown()
+        poster.isStarting = true
+        poster.secondsRemaining = 0
+        poster.countdownProgress = 1
+        upNextPoster = poster
 
         finalizeCurrentPlaybackSession(markCompleted: true)
-        presentUpNext(for: nextEpisode, source: .creditsSkipped)
-        return true
+
+        let attemptID = UUID()
+        currentPlaybackAttemptID = attemptID
+        let didStart = await startPlaybackSession(
+            ratingKey: poster.episode.ratingKey,
+            startPositionOverride: nil,
+            selectedMediaID: nil,
+            attemptID: attemptID
+        )
+
+        // Superseded by a newer attempt or a dismissal while loading.
+        guard currentPlaybackAttemptID == attemptID else { return }
+
+        if didStart {
+            switch trigger {
+            case .autoplay:
+                continuousPlayEpisodeRunCount += 1
+            case .manual:
+                resetContinuousPlayEpisodeRunCountForCurrentItem()
+            }
+            // `startPlaybackSession` clears `upNextPoster` when the new engine
+            // commits.
+            return
+        }
+
+        // The next episode failed to start — surface the full-screen Up Next
+        // screen with an error instead of leaving a dead poster behind.
+        let episode = poster.episode
+        upNextPoster = nil
+        cancelUpNextCountdown()
+        upNextPresentation = UpNextPresentation(
+            episode: episode,
+            source: .playbackEnded,
+            shouldAutoplay: false,
+            countdownDuration: preferences.continuousPlayCountdown.rawValue,
+            countdownStartedAt: nil,
+            secondsRemaining: nil,
+            autoplayProgress: nil,
+            autoplayBlockedByPassoutProtection: false,
+            passoutProtectionEpisodeLimit: nil,
+            errorMessage: loadError ?? "Could not start the next episode."
+        )
+        loadError = nil
+    }
+
+    func startUpNextPosterCountdown() {
+        guard let poster = upNextPoster,
+              case let .timedAutoplay(countdown) = poster.mode,
+              !poster.isStarting else { return }
+
+        cancelUpNextPosterCountdown()
+
+        let duration = Double(countdown)
+        guard duration > 0 else {
+            upNextPosterCountdownTask = Task { @MainActor [weak self] in
+                await self?.startUpNextPosterPlayback(trigger: .autoplay)
+            }
+            return
+        }
+
+        upNextPosterCountdownTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let startedAt = Date()
+            var pausedAt: Date?
+            var accumulatedPausedTime: TimeInterval = 0
+
+            while true {
+                if Task.isCancelled { return }
+
+                guard var current = self.upNextPoster,
+                      current.isTimed,
+                      !current.isStarting else { return }
+
+                let now = Date()
+                // Freeze the countdown while the user pauses during credits.
+                if self.latestActivePlaybackState == .paused {
+                    pausedAt = pausedAt ?? now
+                    do {
+                        try await Task.sleep(for: .milliseconds(100))
+                    } catch { return }
+                    continue
+                }
+
+                if let pausedAt {
+                    accumulatedPausedTime += now.timeIntervalSince(pausedAt)
+                }
+                pausedAt = nil
+
+                let elapsed = now.timeIntervalSince(startedAt) - accumulatedPausedTime
+                let clampedElapsed = min(max(elapsed, 0), duration)
+                current.secondsRemaining = max(0, Int(ceil(duration - clampedElapsed)))
+                current.countdownProgress = min(max(clampedElapsed / duration, 0), 1)
+                self.upNextPoster = current
+
+                if clampedElapsed >= duration { break }
+
+                do {
+                    try await Task.sleep(for: .milliseconds(100))
+                } catch { return }
+            }
+
+            if Task.isCancelled { return }
+            await self.startUpNextPosterPlayback(trigger: .autoplay)
+        }
+    }
+
+    func cancelUpNextPosterCountdown() {
+        upNextPosterCountdownTask?.cancel()
+        upNextPosterCountdownTask = nil
+    }
+
+    /// Full-screen Up Next screen with autoplay forced off (no countdown). Used
+    /// when the user deliberately opens it from the poster.
+    func presentUpNextManual(for episode: PlexEpisode, source: UpNextPresentation.Source) {
+        cancelUpNextCountdown()
+        upNextPresentation = UpNextPresentation(
+            episode: episode,
+            source: source,
+            shouldAutoplay: false,
+            countdownDuration: preferences.continuousPlayCountdown.rawValue,
+            countdownStartedAt: nil,
+            secondsRemaining: nil,
+            autoplayProgress: nil,
+            autoplayBlockedByPassoutProtection: false,
+            passoutProtectionEpisodeLimit: preferences.continuousPlayPassoutProtectionEpisodeLimit
+        )
+    }
+
+    private func upNextPosterMode() -> UpNextPosterPresentation.Mode {
+        let autoplayBlockedByPassoutProtection = shouldPauseContinuousPlayAutoplay()
+        guard preferences.continuousPlayEnabled,
+              !autoplayBlockedByPassoutProtection else {
+            return .manual
+        }
+
+        if preferences.autoSkipCredits {
+            return .timedAutoplay(countdown: preferences.continuousPlayCountdown.rawValue)
+        }
+        return .autoAdvanceAtEnd
     }
 
     func nextEpisode(after episode: PlexMediaDetails) async -> PlexEpisode? {

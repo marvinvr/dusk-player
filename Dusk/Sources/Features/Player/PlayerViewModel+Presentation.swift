@@ -6,10 +6,27 @@ extension PlayerViewModel {
         isScrubbing ? scrubPosition : currentTime
     }
 
+    /// The actionable intro marker at the current position, surfaced as the
+    /// "Skip Intro" button. Credits are handled by the Up Next poster instead of
+    /// a skip button, so they are deliberately excluded here.
     var activeSkipMarker: PlexMarker? {
         let positionMs = Int(displayPosition * 1000)
         return markers.first {
-            $0.skipButtonTitle != nil && $0.contains(positionMs: positionMs)
+            $0.isIntro && $0.skipButtonTitle != nil && $0.contains(positionMs: positionMs)
+        }
+    }
+
+    /// The credits marker once its start has been reached. Unlike
+    /// `activeSkipMarker` it stays non-nil past the marker's end (through the
+    /// rest of the episode), and only clears if the user seeks back before the
+    /// credits start — matching the Up Next poster's "appears at the credits and
+    /// stays until the episode ends" lifetime. Based on actual playback time so
+    /// scrubbing previews don't flicker it.
+    var reachedCreditsMarker: PlexMarker? {
+        guard duration > 0 else { return nil }
+        let positionMs = Int(currentTime * 1000)
+        return markers.first {
+            $0.isCredits && positionMs >= $0.startTimeOffset
         }
     }
 

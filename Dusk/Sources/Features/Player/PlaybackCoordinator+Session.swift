@@ -207,8 +207,10 @@ extension PlaybackCoordinator {
             pendingPictureInPictureRestoreCompletion = nil
             hasScrobbled = false
             // The next attempt is now live: tear down the Up Next overlay (kept
-            // visible during the load so it doubled as the loading state).
+            // visible during the load so it doubled as the loading state) and
+            // the credits poster.
             upNextPresentation = nil
+            upNextPoster = nil
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
@@ -675,6 +677,24 @@ extension PlaybackCoordinator {
         isHandlingPlaybackEnded = true
         defer { isHandlingPlaybackEnded = false }
 
+        // The credits poster is up: its mode already decided how the episode
+        // should end when it was raised.
+        if let poster = upNextPoster {
+            if poster.autoAdvancesAtEnd {
+                // Continue straight into the next episode with no full-screen
+                // Up Next screen — the poster already gave the heads-up.
+                await startUpNextPosterPlayback(trigger: .autoplay)
+            } else {
+                // Manual mode (continuous play off / passout protection): fall
+                // back to the full-screen "Are You Still Watching?" screen.
+                let episode = poster.episode
+                dismissUpNextPoster()
+                finalizeCurrentPlaybackSession(markCompleted: true)
+                presentUpNext(for: episode)
+            }
+            return
+        }
+
         if let activeItemDetails,
            activeItemDetails.type == .episode,
            let nextEpisode = await nextEpisode(after: activeItemDetails) {
@@ -769,8 +789,10 @@ extension PlaybackCoordinator {
         timelineTimer?.invalidate()
         timelineTimer = nil
         cancelUpNextCountdown()
+        cancelUpNextPosterCountdown()
         cancelDirectPlayFallbackWatch()
         upNextPresentation = nil
+        upNextPoster = nil
         engine?.onPlaybackEnded = nil
         engine?.setPictureInPictureDelegate(nil)
         nowPlayingController.endSession()

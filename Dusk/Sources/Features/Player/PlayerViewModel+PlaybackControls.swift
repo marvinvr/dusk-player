@@ -70,7 +70,22 @@ extension PlayerViewModel {
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()
         updateAutoSkipState()
+        updateUpNextPosterNotification()
         playbackSnapshotHandler?(state, currentTime, duration)
+    }
+
+    /// Notifies the coordinator when the reached credits marker changes so it
+    /// can raise or dismiss the bottom-right Up Next poster. Debounced by marker
+    /// id so it only fires on genuine transitions, and skipped while scrubbing so
+    /// a preview drag doesn't flap the poster.
+    private func updateUpNextPosterNotification() {
+        guard !isScrubbing else { return }
+
+        let markerID = reachedCreditsMarker?.id
+        guard markerID != lastNotifiedCreditsMarkerID else { return }
+
+        lastNotifiedCreditsMarkerID = markerID
+        upNextPosterHandler?(reachedCreditsMarker)
     }
 
     func togglePlayPause() {
@@ -131,28 +146,12 @@ extension PlayerViewModel {
         seek(to: targetTime, revealControls: true)
     }
 
-    func handleSkipMarker(
-        _ marker: PlexMarker,
-        skipCreditsToUpNext: @escaping @MainActor () async -> Bool
-    ) {
+    /// Handles a tap on the Skip Intro button. Credits no longer route through
+    /// here — they are handled by the bottom-right Up Next poster instead of a
+    /// skip button.
+    func handleSkipMarker(_ marker: PlexMarker) {
         cancelAutoSkipCountdown()
-
-        guard marker.isCredits else {
-            skipActiveMarker()
-            return
-        }
-
-        markerSkipTask?.cancel()
-        markerSkipTask = Task { @MainActor [weak self] in
-            let didPresentUpNext = await skipCreditsToUpNext()
-            guard !Task.isCancelled else { return }
-
-            if !didPresentUpNext {
-                self?.skipActiveMarker()
-            }
-
-            self?.markerSkipTask = nil
-        }
+        skipActiveMarker()
     }
 
     func beginScrub() {
@@ -297,7 +296,7 @@ extension PlayerViewModel {
             return
         }
 
-        let shouldAutoSkip = (marker.isIntro && shouldAutoSkipIntroMarkers) || (marker.isCredits && autoSkipCredits)
+        let shouldAutoSkip = marker.isIntro && shouldAutoSkipIntroMarkers
 
         guard shouldAutoSkip else {
             if autoSkipCountdownMarkerID != nil {

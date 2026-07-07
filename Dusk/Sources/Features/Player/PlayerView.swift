@@ -159,7 +159,7 @@ private struct PlayerSessionView: View {
             PlayerTVRemoteSeekBridge(
                 isEnabled: playback.upNextPresentation == nil && viewModel.playbackError == nil,
                 showsControls: viewModel.showControls,
-                hasActiveSkipMarker: viewModel.activeSkipMarker != nil,
+                hasActiveSkipMarker: hasBottomTrailingFocusControl,
                 backwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
                 forwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
                 onSeek: { offset in viewModel.handleSeekJump(by: offset) },
@@ -222,6 +222,17 @@ private struct PlayerSessionView: View {
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
+                if let poster = playback.upNextPoster,
+                   viewModel.playbackError == nil {
+                    PlayerUpNextPosterView(
+                        presentation: poster,
+                        plexService: plexService,
+                        onPlayNow: { playback.playUpNextPosterNow() },
+                        onExpand: { playback.expandUpNextPosterToOverlay() }
+                    )
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                }
+
                 if viewModel.playbackError == nil,
                    viewModel.showControls {
                     PlayerControlsOverlay(
@@ -229,7 +240,7 @@ private struct PlayerSessionView: View {
                         mediaDetails: mediaDetails,
                         debugInfo: debugInfo,
                         scrubPreviewSource: scrubPreviewSource,
-                        hasActiveSkipMarker: viewModel.activeSkipMarker != nil,
+                        hasActiveSkipMarker: hasBottomTrailingFocusControl,
                         onDismiss: dismissPlayer
                     )
                     .transition(.opacity)
@@ -237,6 +248,7 @@ private struct PlayerSessionView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
+        .animation(.easeInOut(duration: 0.25), value: playback.upNextPoster?.creditsMarkerID)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
         .animation(.easeInOut(duration: 0.2), value: playback.qualitySwitchError)
@@ -268,12 +280,16 @@ private struct PlayerSessionView: View {
             viewModel.autoSkipHandler = { marker in
                 handleSkipMarker(marker)
             }
+            viewModel.upNextPosterHandler = { creditsMarker in
+                handleReachedCreditsMarker(creditsMarker)
+            }
             viewModel.playbackSnapshotHandler = { state, currentTime, duration in
                 playback.nowPlayingController.updatePlaybackState(
                     state: state,
                     currentTime: currentTime,
                     duration: duration
                 )
+                playback.noteActivePlaybackState(state)
             }
             viewModel.transcodeAudioFallbackHandler = { track in
                 Task {
@@ -289,6 +305,7 @@ private struct PlayerSessionView: View {
         }
         .onDisappear {
             viewModel.playbackSnapshotHandler = nil
+            viewModel.upNextPosterHandler = nil
             viewModel.cleanup()
         }
         .onChange(of: scenePhase) { _, newPhase in
@@ -308,7 +325,7 @@ private struct PlayerSessionView: View {
             }
         }
         .onChange(of: viewModel.showControls) { _, isShowing in
-            if !isShowing && viewModel.activeSkipMarker == nil {
+            if !isShowing && viewModel.activeSkipMarker == nil && playback.upNextPoster == nil {
                 Task { @MainActor in
                     backgroundFocused = true
                 }
@@ -633,15 +650,35 @@ private struct PlayerSessionView: View {
 
     @MainActor
     private func handleSkipMarker(_ marker: PlexMarker) {
+        viewModel.handleSkipMarker(marker)
+    }
+
+    /// Called when the reached credits marker changes. Asks the coordinator to
+    /// resolve the next episode and raise the bottom-right Up Next poster (or
+    /// dismiss it when the user seeked back out of the credits).
+    @MainActor
+    private func handleReachedCreditsMarker(_ marker: PlexMarker?) {
+        guard let marker else {
+            playback.dismissUpNextPoster()
+            return
+        }
+
         let presentationID = playback.playerPresentationID
         let ratingKey = playback.ratingKey
-
-        viewModel.handleSkipMarker(marker) {
-            await playback.skipCreditsToUpNextIfPossible(
+        Task {
+            await playback.presentUpNextPosterIfPossible(
+                creditsMarkerID: marker.id,
                 presentationID: presentationID,
                 ratingKey: ratingKey
             )
         }
+    }
+
+    /// Whether a bottom-trailing control (Skip Intro button or Up Next poster)
+    /// is on screen. tvOS uses it to hand remote focus to that control and pause
+    /// its own remote-seek capture so the two don't fight.
+    private var hasBottomTrailingFocusControl: Bool {
+        viewModel.activeSkipMarker != nil || playback.upNextPoster != nil
     }
 }
 

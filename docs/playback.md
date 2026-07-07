@@ -653,8 +653,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
   menus under the shared gear menu.
-- Marker skip buttons come from `PlexMarker.skipButtonTitle`; only intro and
-  credits markers are actionable.
+- Marker skip buttons come from `PlexMarker.skipButtonTitle`. Only the intro
+  marker still renders a skip button (`PlayerViewModel.activeSkipMarker` is
+  intro-only). Credits are handled by the bottom-right Up Next poster instead of
+  a Skip Credits button (see "Timeline, Scrobble, and Up Next").
 
 ## Timeline, Scrobble, and Up Next
 - `PlaybackCoordinator.startTimelineReporting` sends progress every 10 seconds,
@@ -672,16 +674,46 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - Local-download playback does not call Plex directly. It records progress or
   watch state in `OfflinePlaybackSyncManager`, which syncs pending actions when
   the matching server is available.
-- On natural episode end, the coordinator finalizes the current item as
-  completed, resolves the next episode, and shows `PlayerUpNextOverlayView`.
-- Starting the next episode keeps the cover up and the overlay visible as its own
-  loading state (the Play button shows a spinner while `isStarting`); the old,
-  already-finalized engine stays until the new one commits, and
-  `startPlaybackSession` clears `upNextPresentation` only at commit. A failed
-  start restores the overlay with an error message instead of the generic
-  "Couldn't Play" alert.
-- Credits auto-skip can resolve directly to Up Next. If no next episode can be
-  presented, it falls back to seeking past the credits marker.
+- There are two Up Next surfaces: the small bottom-right **poster**
+  (`upNextPoster`, `PlayerUpNextPosterView`) shown over the play bar during the
+  credits, and the full-screen **overlay** (`upNextPresentation`,
+  `PlayerUpNextOverlayView`). They are mutually exclusive; the poster yields to
+  the overlay.
+- Up Next poster (replaces the old Skip Credits button): when the credits marker
+  is reached, `PlayerViewModel.reachedCreditsMarker` changes and the player calls
+  `presentUpNextPosterIfPossible`, which resolves the next episode and raises the
+  poster. `reachedCreditsMarker` stays set from the marker start through the end
+  of the episode (based on actual playback time), and clears if the user seeks
+  back before the credits, which dismisses the poster. The poster's `mode` is
+  computed once from preferences:
+  - `timedAutoplay` (continuous play + auto-skip credits on): a pause-aware
+    countdown of `continuousPlayCountdown` runs; on expiry the next episode plays
+    immediately with no full-screen overlay. The countdown freezes while the user
+    pauses, driven by `noteActivePlaybackState` from the player snapshot handler.
+  - `autoAdvanceAtEnd` (continuous play on, auto-skip credits off): no countdown;
+    the credits play out and the next episode starts at the natural end with no
+    overlay.
+  - `manual` (continuous play off, or the passout-protection streak was hit): no
+    countdown and no automatic advance; the natural end shows the full-screen
+    overlay ("Are You Still Watching?" / "Autoplay Paused").
+- Poster interactions: tapping it (Select on tvOS) plays the next episode now
+  (`playUpNextPosterNow`); dragging it down (iOS) / swiping down (tvOS) cancels
+  any countdown and opens the full-screen overlay with autoplay forced off
+  (`expandUpNextPosterToOverlay` → `presentUpNextManual`) so the user can wait
+  indefinitely. `startUpNextPosterPlayback` finalizes the still-playing session
+  first (the poster shows over live playback), then starts the next episode; on
+  failure it surfaces the full-screen overlay with an error.
+- On natural episode end, `handlePlaybackEnded` branches on the poster: an
+  auto-advancing poster continues straight into the next episode, a `manual`
+  poster falls back to the full-screen overlay, and with no poster (e.g. no
+  credits marker) it keeps the legacy behavior of finalizing and showing
+  `PlayerUpNextOverlayView`.
+- Starting the next episode from the full-screen overlay keeps the cover up and
+  the overlay visible as its own loading state (the Play button shows a spinner
+  while `isStarting`); the old, already-finalized engine stays until the new one
+  commits, and `startPlaybackSession` clears both `upNextPresentation` and
+  `upNextPoster` at commit. A failed start restores the overlay with an error
+  message instead of the generic "Couldn't Play" alert.
 - Continuous play uses `continuousPlayEnabled`, `continuousPlayCountdown`, and
   optional passout protection. The episode run count includes the current item.
 - `PlaybackNowPlayingController` is iOS-only and owns AVAudioSession,

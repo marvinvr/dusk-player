@@ -62,10 +62,15 @@ final class PlayerViewModel {
     var preferredAudioLanguage: String?
     var subtitleForcedOnly = false
     var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
-    var autoSkipCredits = false
     var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
+    /// Fires when the reached credits marker changes (nil when leaving the
+    /// credits, e.g. a seek back before the marker). The player forwards it to
+    /// the coordinator, which resolves the next episode and shows/hides the
+    /// bottom-right Up Next poster.
+    var upNextPosterHandler: (@MainActor (PlexMarker?) -> Void)?
+    @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
     var hasConfiguredAutomaticTrackSelection = false
     var hasAppliedAutomaticAudioSelection = false
     var hasAppliedAutomaticSubtitleSelection = false
@@ -95,7 +100,6 @@ final class PlayerViewModel {
     @ObservationIgnored var suppressSeekPointSelectUntil: Date?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
-    @ObservationIgnored nonisolated(unsafe) var markerSkipTask: Task<Void, Never>?
 
     init(engine: any PlaybackEngine, markers: [PlexMarker] = []) {
         self.engine = engine
@@ -110,7 +114,6 @@ final class PlayerViewModel {
         controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
-        markerSkipTask?.cancel()
     }
 
     func cleanup() {
@@ -118,7 +121,6 @@ final class PlayerViewModel {
         controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
-        markerSkipTask?.cancel()
         syncTimer = nil
         controlsAutoHideTask = nil
         controlsAutoHideDeadline = nil
@@ -127,7 +129,6 @@ final class PlayerViewModel {
         suppressSeekPointSelectUntil = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
-        markerSkipTask = nil
         showBufferingIndicator = false
         showQualityPicker = false
         bufferingStartedAt = nil
@@ -151,7 +152,6 @@ final class PlayerViewModel {
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)
         subtitleForcedOnly = preferences.subtitleForcedOnly
         autoSkipIntroMode = preferences.autoSkipIntroMode
-        autoSkipCredits = preferences.autoSkipCredits
         isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
         hasConfiguredAutomaticTrackSelection = true
         hasAppliedAutomaticAudioSelection = false

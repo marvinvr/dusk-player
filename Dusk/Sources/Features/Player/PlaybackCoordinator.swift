@@ -20,6 +20,11 @@ final class PlaybackCoordinator {
     var playbackSource: PlaybackSource?
     var playerPresentationID = UUID()
     var upNextPresentation: UpNextPresentation?
+    /// The small bottom-right "next episode" poster shown over the play bar once
+    /// the credits marker is reached (replaces the old Skip Credits button). Nil
+    /// when not in credits, when there is no next episode, or while the
+    /// full-screen `upNextPresentation` is showing instead.
+    var upNextPoster: UpNextPosterPresentation?
     var isSwitchingQuality = false
     var qualitySwitchError: String?
     /// True while a Picture in Picture window is showing. The full-screen player
@@ -56,8 +61,14 @@ final class PlaybackCoordinator {
     /// a newer attempt supersedes a slow load instead of committing over it.
     @ObservationIgnored var currentPlaybackAttemptID: UUID?
 
+    /// Latest play/pause state reported by the active session, fed from the
+    /// player's snapshot handler. The Up Next poster countdown reads it so it
+    /// freezes while the user pauses during the credits instead of autoplaying.
+    @ObservationIgnored var latestActivePlaybackState: PlaybackState = .idle
+
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) var upNextPosterCountdownTask: Task<Void, Never>?
     /// One-shot per attempt: observes the engine after an online direct-play
     /// start and swaps the session to the server-stream ladder rung when the
     /// engine fails. Cancelled on finalize/clear/engine swap.
@@ -78,6 +89,7 @@ final class PlaybackCoordinator {
     deinit {
         timelineTimer?.invalidate()
         directPlayFallbackWatchTask?.cancel()
+        upNextPosterCountdownTask?.cancel()
     }
 
     // MARK: - Play an Item
@@ -158,7 +170,9 @@ final class PlaybackCoordinator {
         qualitySwitchError = nil
         loadingPlaceholder = placeholder
         cancelUpNextCountdown()
+        cancelUpNextPosterCountdown()
         upNextPresentation = nil
+        upNextPoster = nil
 
         engine?.onPlaybackEnded = nil
         engine?.setPictureInPictureDelegate(nil)
@@ -202,6 +216,12 @@ final class PlaybackCoordinator {
 
     func resetContinuousPlayEpisodeRunCountForCurrentItem() {
         continuousPlayEpisodeRunCount = activeItemDetails?.type == .episode ? 1 : 0
+    }
+
+    /// Records the live play/pause state so the Up Next poster countdown can
+    /// freeze while the user pauses during the credits.
+    func noteActivePlaybackState(_ state: PlaybackState) {
+        latestActivePlaybackState = state
     }
 }
 
