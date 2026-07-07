@@ -15,6 +15,62 @@ struct PlaybackAttemptContext: Sendable {
     }
 }
 
+/// The little we know about an item at the instant the user presses Play,
+/// used to fill the loading screen before `getMediaDetails` returns. Carries
+/// relative Plex art paths rather than resolved URLs so the loading view can
+/// size them itself via `PlexService.imageURL(for:width:height:)`.
+struct PlaybackPlaceholder: Sendable {
+    let title: String
+    let subtitle: String?
+    let posterPath: String?
+    let backdropPath: String?
+}
+
+extension PlaybackPlaceholder {
+    init(item: PlexItem) {
+        self.init(
+            title: item.continueWatchingDisplayTitle,
+            subtitle: item.standardPosterSubtitle,
+            posterPath: item.preferredPosterPath,
+            backdropPath: item.preferredLandscapePath
+        )
+    }
+
+    init(episode: PlexEpisode) {
+        self.init(
+            title: episode.grandparentTitle ?? episode.title,
+            subtitle: MediaTextFormatter.seasonEpisodeLabel(
+                season: episode.parentIndex,
+                episode: episode.index
+            ) ?? episode.title,
+            posterPath: episode.grandparentThumb ?? episode.thumb ?? episode.art,
+            backdropPath: episode.thumb ?? episode.art ?? episode.grandparentThumb
+        )
+    }
+
+    init(details: PlexMediaDetails) {
+        switch details.type {
+        case .episode:
+            self.init(
+                title: details.grandparentTitle ?? details.title,
+                subtitle: MediaTextFormatter.seasonEpisodeLabel(
+                    season: details.parentIndex,
+                    episode: details.index
+                ) ?? details.title,
+                posterPath: details.grandparentThumb ?? details.parentThumb ?? details.thumb ?? details.art,
+                backdropPath: details.art ?? details.thumb ?? details.grandparentThumb
+            )
+        default:
+            self.init(
+                title: details.title,
+                subtitle: details.year.map(String.init),
+                posterPath: details.thumb ?? details.art,
+                backdropPath: details.art ?? details.thumb
+            )
+        }
+    }
+}
+
 struct PlaybackSource: Sendable {
     let url: URL
     let startPosition: TimeInterval?

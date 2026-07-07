@@ -241,7 +241,7 @@ struct LibraryRecommendationsView: View {
 
     private func play(_ item: PlexItem) {
         Task {
-            await playback.play(ratingKey: item.ratingKey)
+            await playback.play(ratingKey: item.ratingKey, placeholder: PlaybackPlaceholder(item: item))
         }
     }
 

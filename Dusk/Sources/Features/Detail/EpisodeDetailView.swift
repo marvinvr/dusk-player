@@ -301,7 +301,7 @@ struct EpisodeDetailView: View {
     private func playButton(_ details: PlexMediaDetails) -> some View {
         Button {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
-            Task { await playback.play(ratingKey: details.ratingKey) }
+            Task { await playback.play(ratingKey: details.ratingKey, placeholder: PlaybackPlaceholder(details: details)) }
         } label: {
             DetailHeroPrimaryActionButtonLabel(
                 title: "Play Episode",
@@ -314,7 +314,7 @@ struct EpisodeDetailView: View {
         .contextMenu {
             if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
                 PlayVersionContextMenu(versions: details.media) { version in
-                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id) }
+                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id, placeholder: PlaybackPlaceholder(details: details)) }
                 }
             }
         }

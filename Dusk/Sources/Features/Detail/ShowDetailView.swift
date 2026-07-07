@@ -248,7 +248,7 @@ struct ShowDetailView: View {
         if viewModel.nextEpisode != nil {
             Button {
                 if let ep = viewModel.nextEpisode {
-                    Task { await playback.play(ratingKey: ep.ratingKey) }
+                    Task { await playback.play(ratingKey: ep.ratingKey, placeholder: PlaybackPlaceholder(episode: ep)) }
                 }
             } label: {
                 DetailHeroPrimaryActionButtonLabel(
@@ -261,7 +261,7 @@ struct ShowDetailView: View {
             .contextMenu {
                 if let episode = viewModel.nextEpisode {
                     PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
-                        Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id) }
+                        Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id, placeholder: PlaybackPlaceholder(episode: episode)) }
                     }
                 }
 

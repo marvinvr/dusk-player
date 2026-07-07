@@ -10,8 +10,11 @@ import SwiftUI
 @MainActor @Observable
 final class PlaybackCoordinator {
     var showPlayer = false
-    var isLoading = false
     var loadError: String?
+    /// What we know about the item being loaded (title/poster), shown by the
+    /// player cover's loading state until the engine takes over. Nil once a
+    /// session commits or the cover is torn down.
+    var loadingPlaceholder: PlaybackPlaceholder?
     var engine: (any PlaybackEngine)?
     var debugInfo: PlaybackDebugInfo?
     var playbackSource: PlaybackSource?
@@ -48,6 +51,11 @@ final class PlaybackCoordinator {
     /// roughly every 60 seconds while a server transcode session is active.
     @ObservationIgnored var transcodePingTickCounter = 0
 
+    /// Identifies the in-flight playback attempt. Set when an attempt begins
+    /// (fresh Play or Up Next) and checked after every `await` so a dismissal or
+    /// a newer attempt supersedes a slow load instead of committing over it.
+    @ObservationIgnored var currentPlaybackAttemptID: UUID?
+
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
     /// One-shot per attempt: observes the engine after an online direct-play
@@ -74,56 +82,102 @@ final class PlaybackCoordinator {
 
     // MARK: - Play an Item
 
-    /// Full "play an item" flow: fetch details → pick engine → build URL → present.
-    func play(ratingKey: String) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        let didStart = await startPlaybackSession(
+    /// Full "play an item" flow. The player cover is presented immediately on a
+    /// loading placeholder, then metadata is fetched → engine picked → URL built
+    /// → session committed under the already-visible cover. `placeholder` is what
+    /// the caller already knows (title/poster) so the loading screen isn't blank.
+    func play(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
+        await beginPlayback(
             ratingKey: ratingKey,
             startPositionOverride: nil,
             selectedMediaID: nil,
-            presentPlayer: true
+            placeholder: placeholder
         )
-        if didStart {
-            resetContinuousPlayEpisodeRunCountForCurrentItem()
-        } else {
-            continuousPlayEpisodeRunCount = 0
-        }
     }
 
-    func playFromStart(ratingKey: String) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        let didStart = await startPlaybackSession(
+    func playFromStart(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
+        await beginPlayback(
             ratingKey: ratingKey,
             startPositionOverride: 0,
             selectedMediaID: nil,
-            presentPlayer: true
+            placeholder: placeholder
         )
+    }
+
+    func playVersion(ratingKey: String, mediaID: Int, placeholder: PlaybackPlaceholder? = nil) async {
+        await beginPlayback(
+            ratingKey: ratingKey,
+            startPositionOverride: nil,
+            selectedMediaID: mediaID,
+            placeholder: placeholder
+        )
+    }
+
+    /// Present the cover on a loading placeholder first, then prepare the session
+    /// in the background so pressing Play feels instant.
+    private func beginPlayback(
+        ratingKey: String,
+        startPositionOverride: TimeInterval?,
+        selectedMediaID: Int?,
+        placeholder: PlaybackPlaceholder?
+    ) async {
+        let attemptID = UUID()
+        enterLoadingState(placeholder: placeholder, attemptID: attemptID)
+
+        let didStart = await startPlaybackSession(
+            ratingKey: ratingKey,
+            startPositionOverride: startPositionOverride,
+            selectedMediaID: selectedMediaID,
+            attemptID: attemptID
+        )
+
+        // A newer attempt or a dismissal superseded this one while it loaded.
+        guard currentPlaybackAttemptID == attemptID else { return }
+
         if didStart {
             resetContinuousPlayEpisodeRunCountForCurrentItem()
         } else {
+            // `startPlaybackSession` set `loadError`; the cover surfaces it as an
+            // alert (see PlayerView) and stays up on the placeholder until the
+            // user dismisses it.
             continuousPlayEpisodeRunCount = 0
         }
     }
 
-    func playVersion(ratingKey: String, mediaID: Int) async {
-        isLoading = true
-        defer { isLoading = false }
-
-        let didStart = await startPlaybackSession(
-            ratingKey: ratingKey,
-            startPositionOverride: nil,
-            selectedMediaID: mediaID,
-            presentPlayer: true
-        )
-        if didStart {
-            resetContinuousPlayEpisodeRunCountForCurrentItem()
-        } else {
-            continuousPlayEpisodeRunCount = 0
+    /// Opens the player cover on a loading placeholder and marks the start of a
+    /// new playback attempt. Any live session (e.g. a Picture in Picture window)
+    /// is finalized first so it does not leak, then its engine is dropped so the
+    /// loading state shows instead of the outgoing video.
+    private func enterLoadingState(placeholder: PlaybackPlaceholder?, attemptID: UUID) {
+        if engine != nil {
+            finalizeCurrentPlaybackSession(markCompleted: false)
         }
+
+        currentPlaybackAttemptID = attemptID
+        loadError = nil
+        qualitySwitchError = nil
+        loadingPlaceholder = placeholder
+        cancelUpNextCountdown()
+        upNextPresentation = nil
+
+        engine?.onPlaybackEnded = nil
+        engine?.setPictureInPictureDelegate(nil)
+        engine = nil
+        playbackSource = nil
+        debugInfo = nil
+        activeItemDetails = nil
+        ratingKey = nil
+        isPictureInPictureActive = false
+        pendingPictureInPictureRestoreCompletion = nil
+
+        playerPresentationID = UUID()
+        showPlayer = true
+    }
+
+    /// Dismisses the player cover after a load-error alert. Teardown runs through
+    /// the cover's `onDismiss` (`onPlayerDismissed` → `clearPlayerState`).
+    func dismissFailedPlayback() {
+        showPlayer = false
     }
 
     /// Called when the full-screen player cover is dismissed.

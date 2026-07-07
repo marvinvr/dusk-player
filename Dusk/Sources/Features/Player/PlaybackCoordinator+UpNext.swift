@@ -169,13 +169,22 @@ extension PlaybackCoordinator {
         presentation.autoplayProgress = 1
         upNextPresentation = presentation
 
+        // The overlay stays up as the loading state for the next episode (its
+        // Play button shows the spinner) until the new engine commits. The old,
+        // already-finalized engine keeps showing behind it.
+        let attemptID = UUID()
+        currentPlaybackAttemptID = attemptID
         let nextRatingKey = presentation.episode.ratingKey
         let didStart = await startPlaybackSession(
             ratingKey: nextRatingKey,
             startPositionOverride: nil,
             selectedMediaID: nil,
-            presentPlayer: false
+            attemptID: attemptID
         )
+
+        // Superseded by a newer attempt or a dismissal while loading.
+        guard currentPlaybackAttemptID == attemptID else { return }
+
         if didStart {
             switch trigger {
             case .autoplay:

@@ -73,10 +73,42 @@ struct PlayerView: View {
                     debugInfo: playback.debugInfo
                 )
                 .id(playback.playerPresentationID)
+            } else if playback.showPlayer {
+                // Cover is up but no engine yet: we're preparing playback.
+                PlayerLoadingView(
+                    placeholder: playback.loadingPlaceholder,
+                    onCancel: { playback.dismissFailedPlayback() }
+                )
+                #if os(tvOS)
+                .onExitCommand { playback.dismissFailedPlayback() }
+                #endif
             } else {
                 Color.black.ignoresSafeArea()
             }
         }
+        .alert(
+            "Couldn't Play",
+            isPresented: loadErrorPresented,
+            presenting: playback.loadError
+        ) { _ in
+            Button("OK", role: .cancel) { playback.dismissFailedPlayback() }
+        } message: { message in
+            Text(message)
+        }
+    }
+
+    /// Only surfaces pre-playback load failures (no engine yet). Errors during
+    /// an active session use their own in-player surfaces; Up Next failures are
+    /// shown in that overlay while its engine is still around.
+    private var loadErrorPresented: Binding<Bool> {
+        Binding(
+            get: { playback.engine == nil && playback.loadError != nil },
+            set: { isPresented in
+                if !isPresented {
+                    playback.loadError = nil
+                }
+            }
+        )
     }
 }
 

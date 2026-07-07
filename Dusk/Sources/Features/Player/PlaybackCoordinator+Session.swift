@@ -12,13 +12,14 @@ extension PlaybackCoordinator {
         ratingKey: String,
         startPositionOverride: TimeInterval?,
         selectedMediaID: Int?,
-        presentPlayer: Bool
+        attemptID: UUID
     ) async -> Bool {
         loadError = nil
         qualitySwitchError = nil
         cancelUpNextCountdown()
         cancelDirectPlayFallbackWatch()
-        upNextPresentation = nil
+        // Any Up Next overlay stays visible as the loading state for the next
+        // episode; it's cleared when the new engine commits below.
         // Plex session hygiene: a replaced session that was never finalized
         // (e.g. direct restart) must not leave its server transcoder running.
         if let staleTranscodeSessionID = activeTranscodeSessionID {
@@ -42,7 +43,10 @@ extension PlaybackCoordinator {
                     }
                 }
             }
-            let attemptID = UUID()
+
+            // A newer attempt or a dismissal can supersede this one during the
+            // metadata fetch; bail before building any playback state.
+            guard currentPlaybackAttemptID == attemptID else { return false }
 
             let localURL = downloadManager?.localPlaybackURL(
                 for: ratingKey,
@@ -144,6 +148,16 @@ extension PlaybackCoordinator {
                 }
             }
 
+            // The attempt may have been superseded while resolving the stream
+            // (metadata fetch or server-stream decision). Abort and release any
+            // transcode session we started so it doesn't linger on the server.
+            guard currentPlaybackAttemptID == attemptID else {
+                if let transcodeSessionID {
+                    stopTranscodeSessionInBackground(transcodeSessionID)
+                }
+                return false
+            }
+
             let serverID = downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
@@ -192,6 +206,9 @@ extension PlaybackCoordinator {
             isPictureInPictureActive = false
             pendingPictureInPictureRestoreCompletion = nil
             hasScrobbled = false
+            // The next attempt is now live: tear down the Up Next overlay (kept
+            // visible during the load so it doubled as the loading state).
+            upNextPresentation = nil
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
@@ -256,12 +273,10 @@ extension PlaybackCoordinator {
                 startDirectPlayFallbackWatch()
             }
 
-            if presentPlayer {
-                showPlayer = true
-            }
-
             return true
         } catch {
+            // Don't surface an error for a superseded/dismissed attempt.
+            guard currentPlaybackAttemptID == attemptID else { return false }
             playbackSessionLogger.error(
                 "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
@@ -774,6 +789,9 @@ extension PlaybackCoordinator {
         playbackSource = nil
         ratingKey = nil
         qualitySwitchError = nil
+        loadError = nil
+        loadingPlaceholder = nil
+        currentPlaybackAttemptID = nil
         activePlaybackSessionIdentifier = nil
         activeTranscodeSessionID = nil
         hasScrobbled = false

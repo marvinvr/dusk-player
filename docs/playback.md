@@ -13,7 +13,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## End-to-End Play Flow
 1. Detail/list UI asks `PlaybackCoordinator` to play a `ratingKey` through
-   `play`, `playFromStart`, or `playVersion`.
+   `play`, `playFromStart`, or `playVersion`, passing a `PlaybackPlaceholder`
+   (the title/poster art paths the caller already holds). The coordinator
+   presents the player cover IMMEDIATELY on `PlayerLoadingView` (poster + title +
+   spinner) via `enterLoadingState`, stamps a `currentPlaybackAttemptID`, and
+   then loads in the background — pressing Play feels instant instead of blocking
+   on the metadata round-trip. The loading state is cancellable (iOS close
+   button, tvOS Menu → `dismissFailedPlayback`), which supersedes the in-flight
+   attempt so a slow/hung load never pins the user on a spinner.
 2. `startPlaybackSession` gets `PlexMediaDetails` from completed-download cache
    when playable, otherwise from `plexService.getMediaDetails(checkFiles: true)`
    so each part carries accurate `accessible`/`exists` flags.
@@ -29,7 +36,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    `PlaybackEngineFactory.makeEngine` returns an AVPlayer or VLCKit engine,
    reusing a warmed engine when available.
 6. The coordinator creates `PlaybackSource`, `PlaybackAttemptContext`, and
-   `PlaybackDebugInfo`, starts now-playing/timeline work, then presents the UI.
+   `PlaybackDebugInfo`, starts now-playing/timeline work, and commits the engine
+   under the already-visible cover (it no longer presents the cover itself).
+   Every `await` in `startPlaybackSession` is followed by a
+   `currentPlaybackAttemptID` guard, so a dismissal or a newer Play supersedes a
+   slow load instead of committing over it — a transcode session started for the
+   superseded attempt is stopped. A pre-engine failure sets `loadError`, which
+   `PlayerView` surfaces as a "Couldn't Play" alert (only while no engine is
+   live) whose dismissal tears down the cover.
 7. `PlayerSessionView` creates `PlayerViewModel`, configures preferences and
    markers, then calls `engine.load(source:)` once.
 8. The engine validates the URL, loads media, auto-plays, and publishes
@@ -660,6 +674,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   the matching server is available.
 - On natural episode end, the coordinator finalizes the current item as
   completed, resolves the next episode, and shows `PlayerUpNextOverlayView`.
+- Starting the next episode keeps the cover up and the overlay visible as its own
+  loading state (the Play button shows a spinner while `isStarting`); the old,
+  already-finalized engine stays until the new one commits, and
+  `startPlaybackSession` clears `upNextPresentation` only at commit. A failed
+  start restores the overlay with an error message instead of the generic
+  "Couldn't Play" alert.
 - Credits auto-skip can resolve directly to Up Next. If no next episode can be
   presented, it falls back to seeking past the credits marker.
 - Continuous play uses `continuousPlayEnabled`, `continuousPlayCountdown`, and

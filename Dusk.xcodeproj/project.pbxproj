@@ -71,6 +71,7 @@
 		4A29FD0D91661288D837B6C2 /* PlayerSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B1ECE0840EFAA073B10970 /* PlayerSelectionSheet.swift */; };
 		4CB71182E6CE2B1469CA4D87 /* DetailSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348F1B5EF3D8AD8AE52485B2 /* DetailSharedViews.swift */; };
 		4CECA98BAC95F47BFC6E92B5 /* MainTabShells.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FA5AAA4DEC1C24EA84E11DF /* MainTabShells.swift */; };
+		4EFB3C11B5FA8608DA418D02 /* PlayerLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 698227958FBC6E2731431BFC /* PlayerLoadingView.swift */; };
 		500B48872BB5111F6CA1C797 /* HomeCinematicHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E6A19842481580689AEC855 /* HomeCinematicHero.swift */; };
 		50A906D96B140BB70868FAE9 /* ActorDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 286D5629D02733782DC17C24 /* ActorDetailView.swift */; };
 		50D53789B1E9A1A936FA7451 /* VLCKitEnhancedPictureInPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5A4C3672FBD742042FB63E9 /* VLCKitEnhancedPictureInPicture.swift */; };
@@ -196,6 +197,7 @@
 		BB481D2C28D2E8EC78194EEB /* LibraryItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 209C0372A7410DEB5A5FA45C /* LibraryItemsView.swift */; };
 		BCDE21A4079DA49B928448A2 /* SeasonDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC749FF6253BF830C0C6B2E1 /* SeasonDetailView.swift */; };
 		BCE19CADC1AC0939A2E7BFE3 /* AdaptivePosterGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EF2D3ACAB03A87A07EB370 /* AdaptivePosterGrid.swift */; };
+		BCE2AC8B460D78C36C9E8BF8 /* PlayerLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 698227958FBC6E2731431BFC /* PlayerLoadingView.swift */; };
 		BD4E22AA18B76A6C1FEF55B5 /* DuskAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034B25104A3543F57DAB4AFF /* DuskAsyncImage.swift */; };
 		BDA2EE606463EEB0E307FB94 /* DetailSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 348F1B5EF3D8AD8AE52485B2 /* DetailSharedViews.swift */; };
 		BE5CE3614C4F59318DDE5138 /* AdaptivePosterGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74EF2D3ACAB03A87A07EB370 /* AdaptivePosterGrid.swift */; };
@@ -361,6 +363,7 @@
 		639F034A9989DA389277B92E /* HomeRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRecommendationEngine.swift; sourceTree = "<group>"; };
 		67267CA57BCFF55726919B4D /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
 		6751E9DB256A843A177F1492 /* PlexService+Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Images.swift"; sourceTree = "<group>"; };
+		698227958FBC6E2731431BFC /* PlayerLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLoadingView.swift; sourceTree = "<group>"; };
 		6C7F0BB357EE502E0491A0B5 /* HomeIOSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeIOSView.swift; sourceTree = "<group>"; };
 		6E04ECF8E20F247BA70F3250 /* DuskApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuskApp.swift; sourceTree = "<group>"; };
 		6F5FE6EBB8DE49134083E75A /* PlexPlaybackHistoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexPlaybackHistoryEntry.swift; sourceTree = "<group>"; };
@@ -559,6 +562,7 @@
 				F66286B420EBAA2A30936393 /* PlayerControlsSharedViews.swift */,
 				A09EA98DBA7E79D3476F1D39 /* PlayerControlsTVOverlay.swift */,
 				7153AA7BE468FE8A85C79CE5 /* PlayerDebugOverlayView.swift */,
+				698227958FBC6E2731431BFC /* PlayerLoadingView.swift */,
 				48B1ECE0840EFAA073B10970 /* PlayerSelectionSheet.swift */,
 				79F09C85294EBFDDC944AE87 /* PlayerUpNextOverlayView.swift */,
 				7AF76486ADE83626369E565A /* PlayerView.swift */,
@@ -979,6 +983,7 @@
 				973E514A5FCE54C42D8D7249 /* PlayerControlsSharedViews.swift in Sources */,
 				C08FBB1A2183B51F1A3AF24A /* PlayerControlsTVOverlay.swift in Sources */,
 				F486B89EBCB984D8177EEEE6 /* PlayerDebugOverlayView.swift in Sources */,
+				BCE2AC8B460D78C36C9E8BF8 /* PlayerLoadingView.swift in Sources */,
 				A346F0881F8D7C04D8720F8F /* PlayerSelectionSheet.swift in Sources */,
 				F1594FC7CAE49B73C8621432 /* PlayerUpNextOverlayView.swift in Sources */,
 				7D5FB4EA93CF82B4F0F37FCA /* PlayerView.swift in Sources */,
@@ -1116,6 +1121,7 @@
 				B3207EA2CD8682DDA4B2C155 /* PlayerControlsSharedViews.swift in Sources */,
 				A8888D92B66E72F6C406147D /* PlayerControlsTVOverlay.swift in Sources */,
 				B60E67CC425981517ACE5D38 /* PlayerDebugOverlayView.swift in Sources */,
+				4EFB3C11B5FA8608DA418D02 /* PlayerLoadingView.swift in Sources */,
 				4A29FD0D91661288D837B6C2 /* PlayerSelectionSheet.swift in Sources */,
 				DD32CD2536C5003D5418EB53 /* PlayerUpNextOverlayView.swift in Sources */,
 				75C980FFDD7F661558AE46FF /* PlayerView.swift in Sources */,
