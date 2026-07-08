@@ -41,11 +41,31 @@ Flow:
 Discovery behavior to preserve:
 - Connections sort local non-relay, remote non-relay, relay; HTTPS wins within
   a priority. HTTP fallbacks and unreachable-address filtering are built in.
+- `connect(to:)` probes all candidates **concurrently** (`probeConnections`) and
+  commits the highest-priority one that works. The race is priority-preserving:
+  a success is only committed once no higher-priority candidate can still win —
+  either they have all resolved, or `connectionPreferenceGrace` (1.5 s) elapsed
+  after the first success. This keeps local preferred at home without blocking on
+  a hung LAN address when away. Do not regress this back to a sequential loop.
+- The winning connection URI is remembered (`PlexLastGoodConnectionURI`) and
+  floated to the front of *its own priority tier* on the next connect, never
+  across tiers. `resolvedActiveConnection` / `isConnectedRemotely` expose whether
+  the live session is local or remote/relay.
 - Fresh auth has a propagation retry window; missing server tokens or 401s may
   become `.authenticationPending`.
 - A server request 401 tries authorization recovery once; repeated 401 clears
   the selected server.
 - Selected endpoints refresh after network errors or selected 4xx/5xx statuses.
+
+Remote-streaming entitlement (Plex Pass): since April 2025 Plex only allows
+remote playback of personal video media when the server owner (or the streaming
+user) holds an active Plex Pass / Remote Watch Pass; local streaming stays free.
+`PlexService+Entitlement.swift` reads the account's `subscription.active` from
+`/api/v2/user` (cached in `accountSubscriptionActive`) and
+`remoteStreamingRestriction()` returns `.ownerNeedsPlexPass` only for an **owned**
+server reached **remotely** with a positively-inactive subscription. The player's
+online-playback path checks it and shows a clean message instead of failing
+slowly. Unknown/shared cases never pre-empt playback.
 
 ## Request And Decode Helpers
 File: `PlexService+Networking.swift`.

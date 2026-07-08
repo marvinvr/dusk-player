@@ -102,6 +102,20 @@ extension PlaybackCoordinator {
                 playbackDecision = .localDownload
                 usesLocalDownload = true
             } else {
+                // Plex Pass gate: away from the server's LAN, remote playback of
+                // personal media needs an entitlement. Surface a clear message
+                // instead of letting the stream fail slowly. Only fires for owned
+                // servers we positively know lack a subscription; offline
+                // downloads reached the branch above and are never gated.
+                if let restriction = await plexService.remoteStreamingRestriction() {
+                    guard currentPlaybackAttemptID == attemptID else { return false }
+                    playbackSessionLogger.notice(
+                        "Blocking remote playback for ratingKey \(ratingKey, privacy: .public): \(String(describing: restriction), privacy: .public)"
+                    )
+                    loadError = restriction.message
+                    return false
+                }
+
                 guard let directPlayURL = plexService.directPlayURL(for: part) else {
                     playbackSessionLogger.error(
                         "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
