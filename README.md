@@ -54,4 +54,7 @@ CI does this automatically via `ci_scripts/ci_post_clone.sh`, so no binaries liv
 
 ## License
 
-MIT
+Dusk is released under the [MIT License](LICENSE).
+
+Playback is powered by [VLCKit](https://code.videolan.org/videolan/VLCKit)
+(MobileVLCKit/TVVLCKit), which is licensed separately under the LGPL v2.1.
