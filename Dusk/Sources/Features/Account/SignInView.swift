@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SignInView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(\.openURL) private var openURL
     @State private var linkPinCode: String?
     @State private var isSigningIn = false
     @State private var error: String?
@@ -15,7 +16,7 @@ struct SignInView: View {
             signInContent
         }
         #if !os(tvOS)
-        .sheet(isPresented: authSheetPresented, onDismiss: handleAuthSheetDismissal) {
+        .sheet(isPresented: authSheetPresented) {
             if let authURL {
                 DuskSafariView(url: authURL)
             }
@@ -224,9 +225,9 @@ struct SignInView: View {
             guard let url = plexService.authURL(for: browserPin) else {
                 throw PlexServiceError.invalidURL
             }
-            authURL = url
 
             startPolling(primaryPinID: browserPin.id, fallbackPinID: linkPin?.id)
+            openAuthURL(url)
             #endif
         } catch {
             self.error = error.localizedDescription
@@ -240,9 +241,9 @@ struct SignInView: View {
             let fallbackActivationAttempt = 15
 
             for attempt in 0..<120 {
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
                 try? await Task.sleep(for: .seconds(1))
-                guard !Task.isCancelled else { break }
+                guard !Task.isCancelled else { return }
 
                 if let token = try? await plexService.checkPin(primaryPinID) {
                     plexService.setAuthToken(token)
@@ -263,6 +264,9 @@ struct SignInView: View {
                 }
             }
 
+            // Ran the full window without approval — a genuine timeout.
+            // Cancellation (Cancel button, closing the view, restarting sign-in)
+            // returns early above, so aborting never surfaces this message.
             isSigningIn = false
             linkPinCode = nil
             authURL = nil
@@ -288,9 +292,20 @@ struct SignInView: View {
         )
     }
 
-    private func handleAuthSheetDismissal() {
-        guard isSigningIn else { return }
-        cancelSignIn()
+    /// Opens the Plex approval page for the browser PIN.
+    ///
+    /// On iPhone/iPad this presents the in-app `SFSafariViewController` sheet.
+    /// For an iOS app running on macOS ("Designed for iPad") that sheet is
+    /// unreliable — the system hands the URL to the default browser and
+    /// dismisses the sheet immediately — so we open the external browser
+    /// directly there instead. Either path leaves polling running and the
+    /// `plex.tv/link` code on screen as the fallback.
+    private func openAuthURL(_ url: URL) {
+        if ProcessInfo.processInfo.isiOSAppOnMac || ProcessInfo.processInfo.isMacCatalystApp {
+            openURL(url)
+        } else {
+            authURL = url
+        }
     }
     #endif
 }

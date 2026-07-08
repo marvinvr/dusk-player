@@ -29,7 +29,15 @@ Tokens and persisted state:
 
 Flow:
 1. `generatePin(strong:)` posts to `https://plex.tv/api/v2/pins`.
-2. `authURL(for:)` opens Plex's hosted auth page for the PIN.
+2. `authURL(for:)` builds Plex's hosted auth page URL for the PIN. `SignInView`
+   opens it in an in-app `SFSafariViewController` on iPhone/iPad, but for an iOS
+   app on macOS (`isiOSAppOnMac`/`isMacCatalystApp`, where that sheet dismisses
+   itself immediately) it opens the external browser instead. Polling is started
+   before the browser opens and is independent of the browser's lifecycle:
+   closing/dismissing the browser must **not** cancel sign-in — the `plex.tv/link`
+   code stays on screen as the fallback and only the explicit Cancel button (or a
+   real ~120 s poll-window timeout) ends it. Cancellation exits polling silently;
+   the "Sign-in timed out" message is reserved for the full window elapsing.
 3. `checkPin(_:)` polls until `authToken` appears.
 4. `setAuthToken(_:)` stores the token and clears stale server state on account
    change.
