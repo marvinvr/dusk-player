@@ -697,17 +697,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
     countdown and no automatic advance; the natural end shows the full-screen
     overlay ("Are You Still Watching?" / "Autoplay Paused").
 - Poster interactions: tapping it (Select on tvOS) plays the next episode now
-  (`playUpNextPosterNow`); dragging it down (iOS) / swiping down (tvOS) cancels
-  any countdown and opens the full-screen overlay with autoplay forced off
-  (`expandUpNextPosterToOverlay` → `presentUpNextManual`) so the user can wait
-  indefinitely. `startUpNextPosterPlayback` finalizes the still-playing session
-  first (the poster shows over live playback), then starts the next episode; on
-  failure it surfaces the full-screen overlay with an error.
+  (`playUpNextPosterNow`); dragging it down (iOS) / swiping down (tvOS) dismisses
+  the poster and cancels any pending auto-advance (`dismissUpNextPoster`), so the
+  current episode plays out to its end — the full-screen overlay only appears
+  when it actually finishes (via `handlePlaybackEnded`). `startUpNextPosterPlayback`
+  finalizes the still-playing session first (the poster shows over live
+  playback), then starts the next episode; on failure it surfaces the full-screen
+  overlay with an error.
 - On natural episode end, `handlePlaybackEnded` branches on the poster: an
   auto-advancing poster continues straight into the next episode, a `manual`
-  poster falls back to the full-screen overlay, and with no poster (e.g. no
-  credits marker) it keeps the legacy behavior of finalizing and showing
-  `PlayerUpNextOverlayView`.
+  poster falls back to the full-screen overlay, and with no poster (no credits
+  marker, or the user dragged the poster away) it keeps the legacy behavior of
+  finalizing and showing `PlayerUpNextOverlayView`.
 - Starting the next episode from the full-screen overlay keeps the cover up and
   the overlay visible as its own loading state (the Play button shows a spinner
   while `isStarting`); the old, already-finalized engine stays until the new one

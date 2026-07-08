@@ -161,22 +161,13 @@ extension PlaybackCoordinator {
         }
     }
 
-    /// Hides the poster (e.g. the user seeked back out of the credits).
+    /// Hides the poster and cancels any pending auto-advance. Used when the user
+    /// seeks back out of the credits or drags the poster down: the current
+    /// episode keeps playing to its end, and the full-screen Up Next screen only
+    /// appears once it actually finishes (via `handlePlaybackEnded`).
     func dismissUpNextPoster() {
         cancelUpNextPosterCountdown()
         upNextPoster = nil
-    }
-
-    /// Drag-down / swipe-down on the poster: cancel any countdown and open the
-    /// full-screen Up Next screen with no timer so the user can wait as long as
-    /// they like before playing the next episode.
-    func expandUpNextPosterToOverlay() {
-        guard let poster = upNextPoster, !poster.isStarting else { return }
-        cancelUpNextPosterCountdown()
-        let episode = poster.episode
-        upNextPoster = nil
-        finalizeCurrentPlaybackSession(markCompleted: true)
-        presentUpNextManual(for: episode, source: .creditsSkipped)
     }
 
     /// Plays the poster's next episode immediately — a poster tap or a fired
@@ -302,23 +293,6 @@ extension PlaybackCoordinator {
     func cancelUpNextPosterCountdown() {
         upNextPosterCountdownTask?.cancel()
         upNextPosterCountdownTask = nil
-    }
-
-    /// Full-screen Up Next screen with autoplay forced off (no countdown). Used
-    /// when the user deliberately opens it from the poster.
-    func presentUpNextManual(for episode: PlexEpisode, source: UpNextPresentation.Source) {
-        cancelUpNextCountdown()
-        upNextPresentation = UpNextPresentation(
-            episode: episode,
-            source: source,
-            shouldAutoplay: false,
-            countdownDuration: preferences.continuousPlayCountdown.rawValue,
-            countdownStartedAt: nil,
-            secondsRemaining: nil,
-            autoplayProgress: nil,
-            autoplayBlockedByPassoutProtection: false,
-            passoutProtectionEpisodeLimit: preferences.continuousPlayPassoutProtectionEpisodeLimit
-        )
     }
 
     private func upNextPosterMode(estimated: Bool) -> UpNextPosterPresentation.Mode {

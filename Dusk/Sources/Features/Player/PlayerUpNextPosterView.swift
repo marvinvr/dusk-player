@@ -7,14 +7,14 @@ import SwiftUI
 /// - Tapping it (or pressing Select on tvOS) plays the next episode immediately.
 /// - In `timedAutoplay` mode it shows a countdown; when it reaches zero the next
 ///   episode plays automatically without the full-screen Up Next screen.
-/// - Dragging it down (iOS) / swiping down (tvOS) cancels any timer and opens
-///   the full-screen Up Next screen with no countdown, so the user can wait as
-///   long as they like.
+/// - Dragging it down (iOS) / swiping down (tvOS) dismisses the poster and
+///   cancels any pending auto-advance, letting the current episode play out to
+///   its end. The full-screen Up Next screen then appears when it finishes.
 struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
     let plexService: PlexService
     let onPlayNow: () -> Void
-    let onExpand: () -> Void
+    let onDismiss: () -> Void
 
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -51,7 +51,7 @@ struct PlayerUpNextPosterView: View {
         .duskTVOSFocusedScale(isFocused)
         .onMoveCommand { direction in
             if direction == .down {
-                onExpand()
+                onDismiss()
             }
         }
         .onAppear {
@@ -74,14 +74,14 @@ struct PlayerUpNextPosterView: View {
                         let isDownwardDrag = value.translation.height > 64 &&
                             value.translation.height > abs(value.translation.width)
                         if isDownwardDrag {
-                            onExpand()
+                            onDismiss()
                         }
                     }
             )
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Swipe down to see options")
+            .accessibilityHint("Swipe down to dismiss")
         #endif
     }
 
@@ -255,7 +255,7 @@ struct PlayerUpNextPosterView: View {
 
     #if !os(tvOS)
     /// Follows the finger downward (with resistance) while dragging, so the pull
-    /// to open the full-screen Up Next screen feels physical.
+    /// to dismiss the poster feels physical.
     private var liveDragOffset: CGFloat {
         max(0, dragTranslation.height) * 0.55
     }

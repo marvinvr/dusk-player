@@ -228,7 +228,7 @@ private struct PlayerSessionView: View {
                         presentation: poster,
                         plexService: plexService,
                         onPlayNow: { playback.playUpNextPosterNow() },
-                        onExpand: { playback.expandUpNextPosterToOverlay() }
+                        onDismiss: { playback.dismissUpNextPoster() }
                     )
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }

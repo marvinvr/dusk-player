@@ -451,7 +451,6 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
 struct UpNextPresentation: Sendable {
     enum Source: Sendable {
         case playbackEnded
-        case creditsSkipped
     }
 
     let episode: PlexEpisode
