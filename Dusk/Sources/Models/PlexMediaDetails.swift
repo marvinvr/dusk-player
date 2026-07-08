@@ -123,6 +123,18 @@ struct PlexMarker: Codable, Sendable, Identifiable, Equatable {
     let type: String
     let startTimeOffset: Int
     let endTimeOffset: Int
+    /// True for a synthesized fallback marker used when Plex ships no real
+    /// credits marker (see `estimatedCreditsID`). Never decoded from Plex, so it
+    /// is excluded from `CodingKeys` and defaults to false.
+    var isEstimated: Bool = false
+
+    private enum CodingKeys: String, CodingKey {
+        case id, type, startTimeOffset, endTimeOffset
+    }
+
+    /// Sentinel id for the synthesized "estimated credits" marker. Negative so it
+    /// can never collide with a real Plex marker id.
+    static let estimatedCreditsID = -1
 
     var isIntro: Bool {
         type.caseInsensitiveCompare("intro") == .orderedSame

@@ -2,6 +2,14 @@ import Foundation
 import SwiftUI
 
 extension PlayerViewModel {
+    /// Fallback credits estimate tunables (see `estimatedCreditsMarker`). The cap
+    /// is the main guardrail — 3 minutes is about as early as the poster can
+    /// appear before it risks spoiling that the episode is nearly over. Bump
+    /// `estimatedCreditsMaxLeadMs` alone to give more runway.
+    static let estimatedCreditsLeadFraction = 0.10
+    static let estimatedCreditsMinLeadMs: Double = 90_000
+    static let estimatedCreditsMaxLeadMs: Double = 180_000
+
     var displayPosition: TimeInterval {
         isScrubbing ? scrubPosition : currentTime
     }
@@ -25,9 +33,41 @@ extension PlayerViewModel {
     var reachedCreditsMarker: PlexMarker? {
         guard duration > 0 else { return nil }
         let positionMs = Int(currentTime * 1000)
-        return markers.first {
-            $0.isCredits && positionMs >= $0.startTimeOffset
+
+        // Prefer Plex's own credits marker whenever it exists.
+        if let credits = markers.first(where: { $0.isCredits }) {
+            return positionMs >= credits.startTimeOffset ? credits : nil
         }
+
+        // Plex shipped no credits marker for this item. Fall back to an estimated
+        // one so the Up Next poster still appears in the home stretch — flagged
+        // `isEstimated` so it can never auto-skip or auto-advance.
+        guard let estimated = estimatedCreditsMarker,
+              positionMs >= estimated.startTimeOffset else { return nil }
+        return estimated
+    }
+
+    /// Synthesized credits marker for items Plex has no marker for. Tuned
+    /// generous: the poster is a small corner affordance the user can ignore, so
+    /// appearing a little early costs nothing while appearing too late misses the
+    /// point. Spans `duration − clamp(10% of duration, 1.5 min, 3 min)` to the
+    /// end. Never added to `markers`, so it can't surface a "Skip" button (which
+    /// only intros do).
+    private var estimatedCreditsMarker: PlexMarker? {
+        guard duration > 0 else { return nil }
+        let durationMs = duration * 1000
+        let leadMs = min(
+            max(durationMs * Self.estimatedCreditsLeadFraction, Self.estimatedCreditsMinLeadMs),
+            Self.estimatedCreditsMaxLeadMs
+        )
+        let startMs = Int((durationMs - leadMs).rounded())
+        return PlexMarker(
+            id: PlexMarker.estimatedCreditsID,
+            type: "credits",
+            startTimeOffset: startMs,
+            endTimeOffset: Int(durationMs.rounded()),
+            isEstimated: true
+        )
     }
 
     var shouldShowBufferingIndicator: Bool {

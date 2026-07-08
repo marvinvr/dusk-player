@@ -119,6 +119,7 @@ extension PlaybackCoordinator {
     /// marker (it no-ops once a poster for that marker is up).
     func presentUpNextPosterIfPossible(
         creditsMarkerID: Int,
+        isEstimated: Bool,
         presentationID expectedPresentationID: UUID,
         ratingKey expectedRatingKey: String?
     ) async {
@@ -143,7 +144,7 @@ extension PlaybackCoordinator {
         // A poster for a newer credits marker was raised while we resolved.
         if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return }
 
-        let mode = upNextPosterMode()
+        let mode = upNextPosterMode(estimated: isEstimated)
         var poster = UpNextPosterPresentation(
             episode: nextEpisode,
             mode: mode,
@@ -320,7 +321,11 @@ extension PlaybackCoordinator {
         )
     }
 
-    private func upNextPosterMode() -> UpNextPosterPresentation.Mode {
+    private func upNextPosterMode(estimated: Bool) -> UpNextPosterPresentation.Mode {
+        // A guessed credits point (no real Plex marker) must never auto-skip or
+        // auto-advance — only ever a manual poster the user can choose to tap.
+        if estimated { return .manual }
+
         let autoplayBlockedByPassoutProtection = shouldPauseContinuousPlayAutoplay()
         guard preferences.continuousPlayEnabled,
               !autoplayBlockedByPassoutProtection else {

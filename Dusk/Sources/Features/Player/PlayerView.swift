@@ -668,6 +668,7 @@ private struct PlayerSessionView: View {
         Task {
             await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
+                isEstimated: marker.isEstimated,
                 presentationID: presentationID,
                 ratingKey: ratingKey
             )
