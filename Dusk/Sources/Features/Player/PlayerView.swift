@@ -475,7 +475,8 @@ private struct PlayerSessionView: View {
             backwardSeekInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
             forwardSeekInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
             onToggleControls: { viewModel.toggleControls() },
-            onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) }
+            onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) },
+            onPointerMoved: { viewModel.touchControls() }
         )
         .ignoresSafeArea()
         #endif
@@ -929,6 +930,7 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
     var forwardSeekInterval: TimeInterval
     var onToggleControls: () -> Void
     var onDoubleTapSeek: (TimeInterval) -> Void
+    var onPointerMoved: () -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -938,6 +940,18 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
         let view = PlayerTapInteractionView()
         view.backgroundColor = .clear
         view.addGestureRecognizer(context.coordinator.tapRecognizer)
+
+        // Hide the mouse pointer along with the on-screen controls, and bring
+        // both back the instant the pointer moves. Without this the arrow cursor
+        // sits on top of the video while you watch on a Mac (or an iPad with a
+        // trackpad/mouse). The pointer interaction supplies the hidden style; the
+        // hover recognizer detects movement to reveal the HUD again. Touch-only
+        // devices never drive either, so plain iPad playback is unaffected.
+        view.addGestureRecognizer(context.coordinator.hoverRecognizer)
+        let pointerInteraction = UIPointerInteraction(delegate: context.coordinator)
+        view.addInteraction(pointerInteraction)
+        context.coordinator.pointerInteraction = pointerInteraction
+
         context.coordinator.sync(with: self)
         return view
     }
@@ -947,7 +961,7 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
     }
 
     @MainActor
-    final class Coordinator: NSObject {
+    final class Coordinator: NSObject, UIPointerInteractionDelegate {
         private enum TapZone {
             case left
             case right
@@ -964,11 +978,14 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
 
         var parent: PlayerTapInteractionOverlay
         let tapRecognizer = UITapGestureRecognizer()
+        let hoverRecognizer = UIHoverGestureRecognizer()
+        weak var pointerInteraction: UIPointerInteraction?
 
         private var pendingTap: PendingTap?
         private var pendingSingleTapWorkItem: DispatchWorkItem?
         private var suppressSingleTapUntil: CFTimeInterval = 0
         private var controlsAreVisible: Bool
+        private var lastReportedControlsVisible: Bool?
 
         init(parent: PlayerTapInteractionOverlay) {
             self.parent = parent
@@ -977,6 +994,7 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
             tapRecognizer.numberOfTapsRequired = 1
             tapRecognizer.cancelsTouchesInView = false
             tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
+            hoverRecognizer.addTarget(self, action: #selector(handleHover(_:)))
         }
 
         func sync(with parent: PlayerTapInteractionOverlay) {
@@ -989,6 +1007,34 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
                 pendingSingleTapWorkItem = nil
                 suppressSingleTapUntil = 0
             }
+
+            // Re-query the pointer style whenever control visibility flips so the
+            // cursor hides with the HUD and reappears with it.
+            if lastReportedControlsVisible != parent.showsControls {
+                lastReportedControlsVisible = parent.showsControls
+                pointerInteraction?.invalidate()
+            }
+        }
+
+        @objc
+        private func handleHover(_ recognizer: UIHoverGestureRecognizer) {
+            switch recognizer.state {
+            case .began, .changed:
+                parent.onPointerMoved()
+            default:
+                break
+            }
+        }
+
+        // MARK: - UIPointerInteractionDelegate
+
+        func pointerInteraction(
+            _ interaction: UIPointerInteraction,
+            styleFor region: UIPointerRegion
+        ) -> UIPointerStyle? {
+            // While the controls are up the pointer stays visible so it can reach
+            // the buttons; once they auto-hide, hide the pointer too.
+            parent.showsControls ? nil : UIPointerStyle.hidden()
         }
 
         @objc

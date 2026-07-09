@@ -22,6 +22,15 @@ struct PlayerControlsIOSOverlay: View {
                 .padding(.top, 16)
                 .padding(.bottom, 8)
             }
+            // Moving a mouse/trackpad pointer anywhere over the visible controls
+            // keeps them up instead of letting them fade mid-reach. Never reveals
+            // the HUD on its own — `noteControlsInteraction()` is a no-op while the
+            // controls are hidden.
+            .onContinuousHover { phase in
+                if case .active = phase {
+                    viewModel.noteControlsInteraction()
+                }
+            }
         }
     }
 

@@ -639,6 +639,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   activating the focused play bar and pausing playback.
 - Controls auto-hide again only while playback is playing; paused playback may
   keep controls visible until the user hides them manually.
+- With a mouse/trackpad (Mac or iPad), the system pointer hides together with the
+  controls and returns the moment the pointer moves. The non-tvOS
+  `PlayerTapInteractionOverlay` owns this: a `UIPointerInteraction` returns
+  `UIPointerStyle.hidden()` while `showControls` is false (re-queried via
+  `UIPointerInteraction.invalidate()` on every visibility flip), and a
+  `UIHoverGestureRecognizer` reveals the HUD on movement. Moving the pointer over
+  the visible controls keeps them up via `onContinuousHover` →
+  `noteControlsInteraction()`. Touch-only playback never triggers any of it.
 - The player disables the system idle timer while a session is actively loading,
   playing, or buffering, then restores the previous value on pause, stop, error,
   or dismissal. This is required because Video Enhancement can render through a
