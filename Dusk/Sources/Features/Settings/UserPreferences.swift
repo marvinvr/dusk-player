@@ -22,6 +22,8 @@ final class UserPreferences {
         static let playerDoubleTapSeekEnabled = "playerDoubleTapSeekEnabled"
         static let playerDoubleTapForwardInterval = "playerDoubleTapForwardInterval"
         static let playerDoubleTapBackwardInterval = "playerDoubleTapBackwardInterval"
+        static let playerAspectFillPortrait = "playerAspectFillPortrait"
+        static let playerAspectFillLandscape = "playerAspectFillLandscape"
         static let autoSkipIntroMode = "autoSkipIntroMode"
         static let autoSkipIntro = "autoSkipIntro"
         static let autoSkipCredits = "autoSkipCredits"
@@ -98,6 +100,33 @@ final class UserPreferences {
     /// Jump interval for double-tapping the left side of the player.
     var playerDoubleTapBackwardInterval: PlayerSeekInterval {
         didSet { UserDefaults.standard.set(playerDoubleTapBackwardInterval.rawValue, forKey: Keys.playerDoubleTapBackwardInterval) }
+    }
+
+    /// Whether the player's zoom-to-fill control is on while the video area is
+    /// taller than wide (portrait). Stored separately from landscape so each
+    /// orientation remembers its own framing independently.
+    var playerAspectFillPortrait: Bool {
+        didSet { UserDefaults.standard.set(playerAspectFillPortrait, forKey: Keys.playerAspectFillPortrait) }
+    }
+
+    /// Whether the player's zoom-to-fill control is on while the video area is
+    /// wider than tall (landscape).
+    var playerAspectFillLandscape: Bool {
+        didSet { UserDefaults.standard.set(playerAspectFillLandscape, forKey: Keys.playerAspectFillLandscape) }
+    }
+
+    /// Saved zoom-to-fill choice for the given player orientation.
+    func playerAspectFill(isLandscape: Bool) -> Bool {
+        isLandscape ? playerAspectFillLandscape : playerAspectFillPortrait
+    }
+
+    /// Persists the zoom-to-fill choice for the given player orientation.
+    func setPlayerAspectFill(_ enabled: Bool, isLandscape: Bool) {
+        if isLandscape {
+            playerAspectFillLandscape = enabled
+        } else {
+            playerAspectFillPortrait = enabled
+        }
     }
 
     /// Metal-backed video upscaling and adaptive sharpening.
@@ -190,6 +219,10 @@ final class UserPreferences {
             defaults: defaults,
             fallback: .fifteenSeconds
         )
+        // Absent defaults to `false` (letterboxed fit), matching the old
+        // session-scoped behavior where zoom always started off.
+        let playerAspectFillPortrait = defaults.bool(forKey: Keys.playerAspectFillPortrait)
+        let playerAspectFillLandscape = defaults.bool(forKey: Keys.playerAspectFillLandscape)
         let videoEnhancementMode: VideoEnhancementMode
         if let raw = defaults.string(forKey: Keys.videoEnhancementMode),
            let mode = VideoEnhancementMode(rawValue: raw) {
@@ -246,6 +279,8 @@ final class UserPreferences {
         self.playerDoubleTapSeekEnabled = playerDoubleTapSeekEnabled
         self.playerDoubleTapForwardInterval = playerDoubleTapForwardInterval
         self.playerDoubleTapBackwardInterval = playerDoubleTapBackwardInterval
+        self.playerAspectFillPortrait = playerAspectFillPortrait
+        self.playerAspectFillLandscape = playerAspectFillLandscape
         self.videoEnhancementMode = videoEnhancementMode
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit

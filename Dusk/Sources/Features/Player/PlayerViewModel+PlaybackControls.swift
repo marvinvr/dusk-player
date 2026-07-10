@@ -120,7 +120,34 @@ extension PlayerViewModel {
     func toggleAspectFill() {
         aspectFillEnabled.toggle()
         engine.setVideoFillEnabled(aspectFillEnabled)
+        // Remember the choice for the current orientation only; the other
+        // orientation keeps whatever it was last left at.
+        if let isLandscapeVideoOrientation {
+            userPreferences?.setPlayerAspectFill(aspectFillEnabled, isLandscape: isLandscapeVideoOrientation)
+        }
         noteControlsInteraction()
+    }
+
+    /// Records the current player orientation (portrait vs landscape) and
+    /// applies that orientation's saved zoom-to-fill choice. Portrait and
+    /// landscape keep independent settings, so rotating swaps the framing to
+    /// whatever that orientation was last left at. Driven by the player's
+    /// layout size, so it also covers iPad multitasking window shape changes.
+    func updateVideoOrientation(isLandscape: Bool) {
+        guard isLandscapeVideoOrientation != isLandscape else { return }
+        isLandscapeVideoOrientation = isLandscape
+        applyPersistedAspectFill()
+    }
+
+    /// Re-applies the persisted zoom-to-fill choice for the current orientation
+    /// to both the button state and the engine. No-op until both the
+    /// preferences reference and an orientation are known, so it is safe to call
+    /// from `onAppear` and from the first layout pass in either order.
+    func applyPersistedAspectFill() {
+        guard let userPreferences, let isLandscapeVideoOrientation else { return }
+        let enabled = userPreferences.playerAspectFill(isLandscape: isLandscapeVideoOrientation)
+        aspectFillEnabled = enabled
+        engine.setVideoFillEnabled(enabled)
     }
 
     func seek(by offset: TimeInterval, revealControls: Bool = false) {

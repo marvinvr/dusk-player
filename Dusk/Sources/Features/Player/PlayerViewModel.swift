@@ -100,6 +100,12 @@ final class PlayerViewModel {
     @ObservationIgnored var suppressSeekPointSelectUntil: Date?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
+    /// Preferences store used to persist the per-orientation zoom-to-fill
+    /// choice. Set from `configureAutomaticTrackSelection` on appear.
+    @ObservationIgnored var userPreferences: UserPreferences?
+    /// Current player orientation (nil until the first layout pass). Portrait
+    /// and landscape each remember their own zoom-to-fill setting.
+    @ObservationIgnored var isLandscapeVideoOrientation: Bool?
 
     init(engine: any PlaybackEngine, markers: [PlexMarker] = []) {
         self.engine = engine
@@ -147,6 +153,11 @@ final class PlayerViewModel {
         part: PlexMediaPart?,
         mediaDetails: PlexMediaDetails? = nil
     ) {
+        userPreferences = preferences
+        // Apply the saved zoom-to-fill choice now that preferences are known.
+        // Safe to call in any order relative to the first layout pass: it
+        // no-ops until an orientation is also known.
+        applyPersistedAspectFill()
         sourcePart = part
         preferredSubtitleLanguage = Self.normalizedLanguageCode(preferences.defaultSubtitleLanguage)
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)

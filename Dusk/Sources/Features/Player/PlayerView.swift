@@ -247,6 +247,22 @@ private struct PlayerSessionView: View {
                 }
             }
         }
+        #if !os(tvOS)
+        // Track the player's orientation from its own layout size (works on
+        // iPhone rotation and iPad multitasking alike) so the per-orientation
+        // zoom-to-fill preference can be applied and saved. tvOS has no zoom
+        // control and no orientation concept.
+        .background {
+            GeometryReader { proxy in
+                let isLandscape = proxy.size.width > proxy.size.height
+                Color.clear
+                    .onAppear { viewModel.updateVideoOrientation(isLandscape: isLandscape) }
+                    .onChange(of: isLandscape) { _, newValue in
+                        viewModel.updateVideoOrientation(isLandscape: newValue)
+                    }
+            }
+        }
+        #endif
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPoster?.creditsMarkerID)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)

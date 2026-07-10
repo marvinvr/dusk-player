@@ -611,12 +611,21 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - The iOS/iPadOS controls expose a round zoom button at the top-right that
   toggles `PlayerViewModel.aspectFillEnabled` and calls
   `PlaybackEngine.setVideoFillEnabled(_:)`. Fill zooms the picture to cover the
-  drawable (cropping the overflow) instead of letterboxing it; it is
-  session-scoped and starts off. Each rendering path applies it natively:
-  AVPlayer flips `AVPlayerLayer.videoGravity`, VLCKit sets a crop ratio matching
-  the drawable's aspect ratio (re-applied on layout so rotation stays correct),
-  and the Video Enhancement Metal renderer switches its viewport from aspect-fit
-  to aspect-fill. tvOS does not expose the control.
+  drawable (cropping the overflow) instead of letterboxing it. Each rendering
+  path applies it natively: AVPlayer flips `AVPlayerLayer.videoGravity`, VLCKit
+  sets a crop ratio matching the drawable's aspect ratio (re-applied on layout
+  so rotation stays correct), and the Video Enhancement Metal renderer switches
+  its viewport from aspect-fit to aspect-fill. tvOS does not expose the control.
+- The choice is persisted **per orientation** and remembered across sessions via
+  `UserPreferences.playerAspectFill(isLandscape:)` /
+  `setPlayerAspectFill(_:isLandscape:)` (keys `playerAspectFillPortrait` /
+  `playerAspectFillLandscape`, both default off). `PlayerSessionView` derives the
+  orientation from the player's own layout size (so it also tracks iPad
+  multitasking window shape) and feeds it to
+  `PlayerViewModel.updateVideoOrientation(isLandscape:)`, which applies that
+  orientation's saved value; `toggleAspectFill()` writes back only the current
+  orientation. Portrait and landscape are fully independent — rotating swaps the
+  framing to whatever that orientation was last left at.
 - tvOS uses focus-aware overlays, a gear menu for playback info and track
   selection, quality menus, remote seek handling, touch-surface tap reveal/hide,
   and explicit move-command routing.
