@@ -228,7 +228,7 @@ final class UserPreferences {
            let mode = VideoEnhancementMode(rawValue: raw) {
             videoEnhancementMode = mode
         } else {
-            videoEnhancementMode = .automatic
+            videoEnhancementMode = .defaultForPlatform
         }
         let storedForceAVPlayer = defaults.bool(forKey: Keys.forceAVPlayer)
         let storedForceVLCKit = defaults.bool(forKey: Keys.forceVLCKit)

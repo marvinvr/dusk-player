@@ -273,7 +273,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   bypass those setters.
 - `videoEnhancementMode` is a persisted playback preference with Auto, On, and
   Off settings. It affects local rendering only, must not request Plex
-  transcoding, and must not alter startup quality.
+  transcoding, and must not alter startup quality. Its per-platform default
+  lives in `VideoEnhancementMode.defaultForPlatform` — Auto on Apple TV, Off on
+  battery-powered devices.
 - Playback Info exposes Video Enhancement state and detail rows so AVPlayer and
   VLCKit sessions can explain whether enhancement is active, waiting for a
   frame, disabled by preference, or unavailable for a stream/runtime reason.
