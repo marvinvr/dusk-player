@@ -836,6 +836,8 @@ extension PlaybackCoordinator {
         lastReportedTimeMs = 0
         lastReportedDurationMs = 0
         continuousPlayEpisodeRunCount = 0
+        latestActivePlaybackState = .idle
+        isIdleTimerSuppressed = false
     }
 
     private func presentQualitySwitchError(_ message: String) {

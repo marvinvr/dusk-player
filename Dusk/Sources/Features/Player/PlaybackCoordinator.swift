@@ -66,6 +66,15 @@ final class PlaybackCoordinator {
     /// freezes while the user pauses during the credits instead of autoplaying.
     @ObservationIgnored var latestActivePlaybackState: PlaybackState = .idle
 
+    /// Whether the system idle timer (screen saver / auto-lock) should be
+    /// suppressed. Owned here rather than in `PlayerSessionView` because that
+    /// view is rebuilt (fresh `.id`) on every episode transition: two idle-timer
+    /// modifiers would overlap during the swap and the departing one would clear
+    /// the flag the arriving one just set, letting the screen saver appear on the
+    /// next episode. Driven off the continuously-polled playback state so a
+    /// transient wrong value self-corrects on the following tick.
+    var isIdleTimerSuppressed = false
+
     @ObservationIgnored nonisolated(unsafe) var timelineTimer: Timer?
     @ObservationIgnored nonisolated(unsafe) var upNextCountdownTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var upNextPosterCountdownTask: Task<Void, Never>?
@@ -222,6 +231,17 @@ final class PlaybackCoordinator {
     /// freeze while the user pauses during the credits.
     func noteActivePlaybackState(_ state: PlaybackState) {
         latestActivePlaybackState = state
+
+        let shouldSuppress: Bool
+        switch state {
+        case .loading, .playing:
+            shouldSuppress = true
+        case .idle, .paused, .stopped, .error:
+            shouldSuppress = false
+        }
+        if isIdleTimerSuppressed != shouldSuppress {
+            isIdleTimerSuppressed = shouldSuppress
+        }
     }
 }
 

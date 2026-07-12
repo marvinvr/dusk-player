@@ -87,19 +87,6 @@ extension PlayerViewModel {
         (state == .idle || state == .loading) && playbackError == nil
     }
 
-    var shouldDisableIdleTimer: Bool {
-        guard playbackError == nil else { return false }
-
-        switch state {
-        case .idle:
-            return hasLoadedSource
-        case .loading, .playing:
-            return true
-        case .paused, .stopped, .error:
-            return false
-        }
-    }
-
     var selectedAudioTrack: AudioTrack? {
         audioTracks.first { $0.id == selectedAudioTrackID }
     }

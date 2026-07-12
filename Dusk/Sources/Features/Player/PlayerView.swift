@@ -95,6 +95,11 @@ struct PlayerView: View {
         } message: { message in
             Text(message)
         }
+        // Attached here, not in `PlayerSessionView`, so a single idle-timer
+        // modifier survives across episode transitions (the session view is
+        // rebuilt with a fresh `.id` each time). See
+        // `PlaybackCoordinator.isIdleTimerSuppressed`.
+        .playerIdleTimerDisabled(playback.isIdleTimerSuppressed)
     }
 
     /// Only surfaces pre-playback load failures (no engine yet). Errors during
@@ -271,7 +276,6 @@ private struct PlayerSessionView: View {
         .duskCaptureStatusBarAppearance()
         .duskStatusBarHidden(!viewModel.showControls)
         .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
-        .playerIdleTimerDisabled(viewModel.shouldDisableIdleTimer)
         #if os(tvOS)
         .onPlayPauseCommand {
             viewModel.togglePlayPause()
