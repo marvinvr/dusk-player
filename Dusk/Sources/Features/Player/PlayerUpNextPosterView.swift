@@ -18,6 +18,7 @@ struct PlayerUpNextPosterView: View {
 
     #if os(tvOS)
     @FocusState private var isFocused: Bool
+    @State private var isDismissing = false
     #else
     @GestureState private var dragTranslation: CGSize = .zero
     #endif
@@ -48,9 +49,11 @@ struct PlayerUpNextPosterView: View {
         .contentShape(.interaction, cardShape)
         .focusEffectDisabled()
         .duskTVOSFocusedScale(isFocused)
+        .offset(y: isDismissing ? Metrics.dismissDropDistance : 0)
+        .opacity(isDismissing ? 0 : 1)
         .onMoveCommand { direction in
             if direction == .down {
-                onDismiss()
+                dismissWithAnimation()
             }
         }
         .onAppear {
@@ -88,7 +91,7 @@ struct PlayerUpNextPosterView: View {
         HStack(alignment: .center, spacing: Metrics.contentSpacing) {
             thumbnail
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: Metrics.textRowSpacing) {
                 Text("UP NEXT")
                     .font(Metrics.eyebrowFont)
                     .tracking(1.3)
@@ -252,6 +255,20 @@ struct PlayerUpNextPosterView: View {
         RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
     }
 
+    #if os(tvOS)
+    /// Slides the card down and fades it out before it is removed, so a
+    /// swipe-down dismiss reads as an intentional gesture that mirrors the
+    /// direction of the swipe — instead of the card blinking out of existence.
+    private func dismissWithAnimation() {
+        guard !isDismissing else { return }
+        withAnimation(.easeIn(duration: 0.28)) {
+            isDismissing = true
+        } completion: {
+            onDismiss()
+        }
+    }
+    #endif
+
     #if !os(tvOS)
     /// Follows the finger downward (with resistance) while dragging, so the pull
     /// to dismiss the poster feels physical.
@@ -268,18 +285,23 @@ struct PlayerUpNextPosterView: View {
 
 private enum Metrics {
     #if os(tvOS)
-    static let thumbnailWidth: CGFloat = 248
-    static let thumbnailCornerRadius: CGFloat = 18
-    static let cardCornerRadius: CGFloat = 28
+    static let thumbnailWidth: CGFloat = 232
+    static let thumbnailCornerRadius: CGFloat = 16
+    static let cardCornerRadius: CGFloat = 26
     static let cardPadding: CGFloat = 20
     static let contentSpacing: CGFloat = 20
-    static let textColumnWidth: CGFloat = 320
-    static let playSymbolSize: CGFloat = 34
-    static let playSymbolPadding: CGFloat = 18
-    static let playCircleSize: CGFloat = 70
-    static let eyebrowFont: Font = .caption.weight(.bold)
-    static let titleFont: Font = .title3.weight(.semibold)
-    static let metaFont: Font = .subheadline
+    static let textColumnWidth: CGFloat = 300
+    static let textRowSpacing: CGFloat = 6
+    static let dismissDropDistance: CGFloat = 60
+    static let playSymbolSize: CGFloat = 30
+    static let playSymbolPadding: CGFloat = 16
+    static let playCircleSize: CGFloat = 64
+    // Explicit sizes: tvOS's semantic text styles (.title3/.subheadline/…) map
+    // to much larger points than iOS, which made this compact overlay card read
+    // as oversized. These are tuned for the card, not inherited from the scale.
+    static let eyebrowFont: Font = .system(size: 19, weight: .bold)
+    static let titleFont: Font = .system(size: 29, weight: .semibold)
+    static let metaFont: Font = .system(size: 20, weight: .regular)
     #else
     static let thumbnailWidth: CGFloat = 116
     static let thumbnailCornerRadius: CGFloat = 14
@@ -287,6 +309,7 @@ private enum Metrics {
     static let cardPadding: CGFloat = 12
     static let contentSpacing: CGFloat = 12
     static let textColumnWidth: CGFloat = 158
+    static let textRowSpacing: CGFloat = 3
     static let playSymbolSize: CGFloat = 19
     static let playSymbolPadding: CGFloat = 11
     static let playCircleSize: CGFloat = 44
