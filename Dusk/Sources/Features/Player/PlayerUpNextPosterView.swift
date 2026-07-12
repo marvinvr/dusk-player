@@ -43,7 +43,6 @@ struct PlayerUpNextPosterView: View {
         Button(action: onPlayNow) {
             cardContent
         }
-        .buttonStyle(.plain)
         .focused($isFocused)
         .duskSuppressTVOSButtonChrome()
         .contentShape(.interaction, cardShape)
