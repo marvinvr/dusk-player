@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// The small "next episode" poster shown in the bottom-right of the player over
-/// the play bar once the credits marker is reached. It replaces the old "Skip
-/// Credits" button.
+/// The small "next episode" poster shown in the bottom-right of the player once
+/// the credits marker is reached. It rests near the bottom edge while the HUD is
+/// hidden and rises above the play bar when the controls come up. It replaces
+/// the old "Skip Credits" button.
 ///
 /// - Tapping it (or pressing Select on tvOS) plays the next episode immediately.
 /// - In `timedAutoplay` mode it shows a countdown; when it reaches zero the next
@@ -13,6 +14,7 @@ import SwiftUI
 struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
     let plexService: PlexService
+    let controlsVisible: Bool
     let onPlayNow: () -> Void
     let onDismiss: () -> Void
 
@@ -33,7 +35,8 @@ struct PlayerUpNextPosterView: View {
             }
         }
         .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-        .padding(.bottom, max(PlayerOverlayLayout.skipMarkerBottomInset, 24))
+        .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: controlsVisible))
+        .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: controlsVisible)
         .ignoresSafeArea(edges: .bottom)
     }
 
@@ -130,7 +133,9 @@ struct PlayerUpNextPosterView: View {
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
         .clipShape(cardShape)
-        .shadow(color: .black.opacity(0.4), radius: 22, y: 10)
+        // Kept close to the Skip Intro capsule's shadow; anything heavier reads
+        // as a hard black halo over bright video, especially on tvOS.
+        .shadow(color: .black.opacity(0.24), radius: 16, y: 8)
     }
 
     private var thumbnail: some View {

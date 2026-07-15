@@ -692,10 +692,13 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   watch state in `OfflinePlaybackSyncManager`, which syncs pending actions when
   the matching server is available.
 - There are two Up Next surfaces: the small bottom-right **poster**
-  (`upNextPoster`, `PlayerUpNextPosterView`) shown over the play bar during the
-  credits, and the full-screen **overlay** (`upNextPresentation`,
-  `PlayerUpNextOverlayView`). They are mutually exclusive; the poster yields to
-  the overlay.
+  (`upNextPoster`, `PlayerUpNextPosterView`) shown during the credits, and the
+  full-screen **overlay** (`upNextPresentation`, `PlayerUpNextOverlayView`).
+  They are mutually exclusive; the poster yields to the overlay.
+- The poster and the Skip Intro button share
+  `PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible:)`: they rest near
+  the bottom edge while the HUD is hidden and animate up above the play bar when
+  the controls come up.
 - Up Next poster (replaces the old Skip Credits button): when the credits marker
   is reached, `PlayerViewModel.reachedCreditsMarker` changes and the player calls
   `presentUpNextPosterIfPossible`, which resolves the next episode and raises the

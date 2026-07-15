@@ -3,14 +3,26 @@ import UIKit
 
 enum PlayerOverlayLayout {
     static let controlsHorizontalPadding: CGFloat = 16
+    // Bottom-trailing overlays (Skip Intro button, Up Next poster) have two
+    // resting heights: low near the screen edge while the HUD is hidden, and
+    // raised above the play bar while the controls are up. Keep the raised
+    // inset in sync with the controls' bottom bar height.
     #if os(tvOS)
-    static let skipMarkerBottomInset: CGFloat = 184
+    static let skipMarkerRaisedBottomInset: CGFloat = 184
+    static let skipMarkerRestingBottomInset: CGFloat = 60
     #else
-    static let skipMarkerBottomInset: CGFloat = 108
+    static let skipMarkerRaisedBottomInset: CGFloat = 108
+    static let skipMarkerRestingBottomInset: CGFloat = 48
     #endif
     #if os(tvOS)
     static let remoteSeekInterval: TimeInterval = 10
     #endif
+
+    static let skipMarkerRepositionAnimation: Animation = .snappy(duration: 0.35)
+
+    static func skipMarkerBottomInset(controlsVisible: Bool) -> CGFloat {
+        controlsVisible ? skipMarkerRaisedBottomInset : skipMarkerRestingBottomInset
+    }
 }
 
 private struct PlayerSeekFeedbackOverlayView: View {
@@ -232,6 +244,7 @@ private struct PlayerSessionView: View {
                     PlayerUpNextPosterView(
                         presentation: poster,
                         plexService: plexService,
+                        controlsVisible: viewModel.showControls,
                         onPlayNow: { playback.playUpNextPosterNow() },
                         onDismiss: { playback.dismissUpNextPoster() }
                     )
@@ -553,7 +566,8 @@ private struct PlayerSessionView: View {
         }
         #endif
         .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-        .padding(.bottom, max(PlayerOverlayLayout.skipMarkerBottomInset, 24))
+        .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: viewModel.showControls))
+        .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: viewModel.showControls)
         .ignoresSafeArea(edges: .bottom)
     }
 
