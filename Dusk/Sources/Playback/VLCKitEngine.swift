@@ -463,6 +463,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             renderingHost.detach(from: mediaPlayer)
             let frameSink = VLCKitVideoEnhancementFrameSink(renderer: videoEnhancementRenderer)
             rawVideoFrameSink = frameSink
+            // Detach before replacing: a dropped-but-still-attached output keeps
+            // feeding the renderer it was built for.
+            rawVideoOutput?.detach()
             rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
             #if os(iOS)
             configureEnhancedPictureInPicture(frameSink: frameSink)
@@ -594,6 +597,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         let frameSink = VLCKitVideoEnhancementFrameSink(renderer: nil)
         rawVideoFrameSink = frameSink
+        rawVideoOutput?.detach()
         rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
         configureEnhancedPictureInPicture(frameSink: frameSink)
         // The sample-buffer layer is the visible surface in this mode, so the
@@ -626,6 +630,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// bridges its readiness/active/restore events into the engine's observable
     /// PiP state and the coordinator delegate.
     private func configureEnhancedPictureInPicture(frameSink: VLCKitVideoEnhancementFrameSink) {
+        // Any previous output has to be cleared before it is dropped, or its
+        // render queue can outlive it and run `deinit` off the main thread.
+        enhancedPictureInPictureOutput?.clear()
         let output = VLCKitEnhancedPictureInPictureOutput()
         output.playbackDelegate = self
         output.onPictureInPicturePossibleChanged = { [weak self] in

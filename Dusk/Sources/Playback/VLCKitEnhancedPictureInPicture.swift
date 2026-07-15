@@ -125,6 +125,11 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     private let frameLock = NSLock()
     nonisolated(unsafe) private var pendingPixelBuffer: CVPixelBuffer?
     nonisolated(unsafe) private var isDraining = false
+    /// Set by `clear()`. Guarded by `frameLock`, which is also what makes it a
+    /// hard barrier: once it is true no further render-queue work can be
+    /// scheduled, so no background block can be left holding a reference to
+    /// this object. See `clear()`.
+    nonisolated(unsafe) private var isTornDown = false
 
     /// Render-queue-owned conversion state (RGBA source bytes -> true BGRA).
     nonisolated(unsafe) private var conversionPool: CVPixelBufferPool?
@@ -204,14 +209,26 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         pipController?.invalidatePlaybackState()
     }
 
-    /// Stops accepting frames and clears the display layer. Called on teardown.
+    /// Stops accepting frames and clears the display layer. Called on teardown,
+    /// immediately before the owner drops its last reference to this object.
+    ///
+    /// The flush runs synchronously for that reason. An async block would race
+    /// the owner's release: whichever of the two lost would be left holding the
+    /// final reference, and a background block that loses runs `deinit` — and so
+    /// deallocates the display view, its layer and the PiP controller — off the
+    /// main thread. Draining here instead guarantees that no render-queue work
+    /// outlives this call, so the last release is always the owner's.
     func clear() {
         frameLock.lock()
         pendingPixelBuffer = nil
+        isTornDown = true
         frameLock.unlock()
         CMTimebaseSetRate(timebase, rate: 0)
-        renderQueue.async { [weak self] in
-            self?.renderLayer.flushAndRemoveImage()
+        possibleObserver?.invalidate()
+        possibleObserver = nil
+        let layer = renderLayer
+        renderQueue.sync {
+            layer.flushAndRemoveImage()
         }
     }
 
@@ -232,14 +249,14 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         }
 
         frameLock.lock()
+        defer { frameLock.unlock() }
+        guard !isTornDown else { return }
         pendingPixelBuffer = pixelBuffer
-        let shouldSchedule = !isDraining
-        if shouldSchedule {
-            isDraining = true
-        }
-        frameLock.unlock()
-
-        guard shouldSchedule else { return }
+        guard !isDraining else { return }
+        isDraining = true
+        // Scheduled while `frameLock` is held so it cannot slip in behind the
+        // barrier in `clear()`: either this wins the lock and `clear()` then
+        // waits for the drain, or `clear()` wins and `isTornDown` stops us above.
         renderQueue.async { [weak self] in
             self?.drainPendingFrames()
         }
@@ -248,7 +265,7 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     nonisolated private func drainPendingFrames() {
         while true {
             frameLock.lock()
-            let buffer = pendingPixelBuffer
+            let buffer = isTornDown ? nil : pendingPixelBuffer
             pendingPixelBuffer = nil
             if buffer == nil {
                 isDraining = false
