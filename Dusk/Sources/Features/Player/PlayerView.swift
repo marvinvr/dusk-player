@@ -251,17 +251,8 @@ private struct PlayerSessionView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
-                if viewModel.playbackError == nil,
-                   viewModel.showControls {
-                    PlayerControlsOverlay(
-                        viewModel: viewModel,
-                        mediaDetails: mediaDetails,
-                        debugInfo: debugInfo,
-                        scrubPreviewSource: scrubPreviewSource,
-                        hasActiveSkipMarker: hasBottomTrailingFocusControl,
-                        onDismiss: dismissPlayer
-                    )
-                    .transition(.opacity)
+                if viewModel.playbackError == nil {
+                    controlsOverlay
                 }
             }
         }
@@ -474,6 +465,53 @@ private struct PlayerSessionView: View {
             Spacer()
         }
         .padding(.horizontal, 24)
+    }
+
+    /// The HUD, faded symmetrically in and out by
+    /// `PlayerViewModel.controlsVisibilityAnimation`.
+    ///
+    /// iOS keeps the overlay mounted for the whole session and animates
+    /// `opacity` instead of inserting/removing it. A SwiftUI removal transition
+    /// is a lifetime decision the container re-makes on every render pass, and
+    /// this one is re-made constantly: the engine sync timer republishes
+    /// `currentTime` four times a second, which `activeSkipMarker` derives from,
+    /// so `body` re-runs mid-fade with no animation in the transaction and
+    /// finalizes the removal on the spot — the HUD vanishes instead of fading.
+    /// An `opacity` animation is attached to the view itself and rides through
+    /// those passes. Insertion never showed the bug because a fade-in degrades
+    /// into an ordinary attribute animation on an already-live view.
+    ///
+    /// tvOS cannot stay mounted: `PlayerControlsTVOverlay` owns focus state and
+    /// restores focus from `onAppear`, and its buttons remain focusable at zero
+    /// opacity, so the remote would drive an invisible HUD. It keeps the
+    /// conditional mount and binds the curve to the transition so the fade does
+    /// not depend on the ambient transaction.
+    @ViewBuilder
+    private var controlsOverlay: some View {
+        #if os(tvOS)
+        if viewModel.showControls {
+            playerControls
+                .transition(.opacity.animation(PlayerViewModel.controlsVisibilityAnimation))
+        }
+        #else
+        playerControls
+            .opacity(viewModel.showControls ? 1 : 0)
+            .allowsHitTesting(viewModel.showControls)
+            // `allowsHitTesting(false)` does not take the hidden HUD out of the
+            // accessibility tree on its own.
+            .accessibilityHidden(!viewModel.showControls)
+        #endif
+    }
+
+    private var playerControls: some View {
+        PlayerControlsOverlay(
+            viewModel: viewModel,
+            mediaDetails: mediaDetails,
+            debugInfo: debugInfo,
+            scrubPreviewSource: scrubPreviewSource,
+            hasActiveSkipMarker: hasBottomTrailingFocusControl,
+            onDismiss: dismissPlayer
+        )
     }
 
     private var interactionOverlay: some View {

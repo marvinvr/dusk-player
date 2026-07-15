@@ -600,6 +600,19 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   owns one auto-hide deadline/task for the whole session. Sync arms it once
   playback has started, every user reveal resets it, and it keeps retrying
   while temporary blockers such as scrubbing or selection sheets are active.
+- The HUD fades in and out on the same curve
+  (`PlayerViewModel.controlsVisibilityAnimation`), applied by the `withAnimation`
+  around every `showControls` mutation. **On iOS the overlay stays mounted for
+  the whole session** and `PlayerSessionView.controlsOverlay` animates `opacity`
+  (plus `allowsHitTesting` and `accessibilityHidden`). Do not turn this back into
+  a `.transition(.opacity)` on an `if showControls` branch: a removal transition
+  is re-decided on every render pass, and sync republishes `currentTime` 4x/sec —
+  which `activeSkipMarker` derives from and `body` reads — so an unanimated pass
+  lands mid-fade and finalizes the removal, making the HUD vanish instead of fade
+  (fade-in is unaffected, which is what makes the bug look one-sided). tvOS keeps
+  the conditional mount because `PlayerControlsTVOverlay` owns focus state and its
+  buttons stay focusable at zero opacity; it binds the curve to the transition
+  instead.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, a gear menu for playback info, quality, and track

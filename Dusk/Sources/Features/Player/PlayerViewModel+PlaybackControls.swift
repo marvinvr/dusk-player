@@ -2,7 +2,10 @@ import Foundation
 import SwiftUI
 
 extension PlayerViewModel {
-    private static let controlsVisibilityAnimation: Animation = .easeInOut(duration: 0.125)
+    /// The HUD's fade curve. Used for both directions so revealing and hiding
+    /// the controls are mirror images. `PlayerView` reads it too, so it cannot
+    /// be private.
+    static let controlsVisibilityAnimation: Animation = .easeInOut(duration: 0.125)
     private static let playPauseAnimation: Animation = .snappy(duration: 0.1)
     private static let pendingPlaybackStateGracePeriod: TimeInterval = 0.35
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
