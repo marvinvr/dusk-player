@@ -4,12 +4,9 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 
 ![Dusk website](screenshots/dusk_website_screenshot.png)
 
-> **Agents:** read the repo-local [`AGENTS.md`](AGENTS.md) before planning, editing, committing, or pushing. It contains the required workflow and verification rules for this project.
-
 > **Warning:** This project is under very active development. Expect bugs and unexpected behavior. If you run into issues, please [submit an issue](https://github.com/marvinvr/dusk-player/issues).
 
-> **Download:**
-> [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/dusk-for-plex/id6760492635)
+[![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/dusk-for-plex/id6760492635)
 
 ## Features
 
@@ -28,10 +25,15 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 - [x] Offline playback (Downloads)
 - [x] AI Upscaling
 - [ ] Plex Home Integration
+- [ ] SharePlay Integration
 
 ### Later down the line
 - [ ] Jellyfin Support
 - [ ] Live TV Support
+
+### Maybe?
+
+- [ ] Apple Vision Pro App
 
 ## Setup
 
