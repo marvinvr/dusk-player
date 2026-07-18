@@ -133,9 +133,10 @@ struct PlayerUpNextPosterView: View {
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
         .clipShape(cardShape)
-        // Kept close to the Skip Intro capsule's shadow; anything heavier reads
-        // as a hard black halo over bright video, especially on tvOS.
-        .shadow(color: .black.opacity(0.24), radius: 16, y: 8)
+        // Deliberately tight: on tvOS the card also carries the focus glow from
+        // `duskTVOSFocusedScale`, so anything heavier reads as a hard black halo
+        // over bright video.
+        .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
     }
 
     private var thumbnail: some View {

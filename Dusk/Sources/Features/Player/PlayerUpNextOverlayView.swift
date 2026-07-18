@@ -144,7 +144,7 @@ struct PlayerUpNextOverlayView: View {
             RoundedRectangle(cornerRadius: 24, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         }
-        .shadow(color: .black.opacity(0.24), radius: 18, y: 10)
+        .shadow(color: .black.opacity(0.16), radius: 10, y: 5)
     }
 
     private func details(metrics: UpNextLayoutMetrics) -> some View {
