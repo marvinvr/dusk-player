@@ -51,7 +51,11 @@ struct PlayerUpNextPosterView: View {
         .duskSuppressTVOSButtonChrome()
         .contentShape(.interaction, cardShape)
         .focusEffectDisabled()
-        .duskTVOSFocusedScale(isFocused)
+        // No focus glow: the poster grabs focus the moment it appears and holds
+        // it while the HUD is hidden, so the shared white glow renders as a
+        // permanent oversized halo around the card. The 1.05x scale is enough
+        // focus feedback when the HUD is up.
+        .duskTVOSFocusedScale(isFocused, glow: false)
         .offset(y: isDismissing ? Metrics.dismissDropDistance : 0)
         .opacity(isDismissing ? 0 : 1)
         .onMoveCommand { direction in

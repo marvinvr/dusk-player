@@ -92,9 +92,9 @@ extension View {
     }
 
     @ViewBuilder
-    func duskTVOSFocusedScale(_ isFocused: Bool) -> some View {
+    func duskTVOSFocusedScale(_ isFocused: Bool, glow: Bool = true) -> some View {
         #if os(tvOS)
-        modifier(DuskTVFocusedScaleModifier(isFocused: isFocused))
+        modifier(DuskTVFocusedScaleModifier(isFocused: isFocused, glow: glow))
         #else
         self
         #endif
@@ -272,14 +272,17 @@ private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
 
 private struct DuskTVFocusedScaleModifier: ViewModifier {
     let isFocused: Bool
+    var glow: Bool = true
 
     func body(content: Content) -> some View {
+        let glows = glow && isFocused
+
         content
             .scaleEffect(isFocused ? 1.05 : 1.0)
             .shadow(
-                color: isFocused ? Color.white.opacity(0.34) : .clear,
-                radius: isFocused ? 16 : 0,
-                y: isFocused ? 6 : 0
+                color: glows ? Color.white.opacity(0.34) : .clear,
+                radius: glows ? 16 : 0,
+                y: glows ? 6 : 0
             )
             .animation(.easeOut(duration: 0.18), value: isFocused)
     }
