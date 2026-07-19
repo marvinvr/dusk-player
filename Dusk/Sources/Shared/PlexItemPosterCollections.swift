@@ -40,6 +40,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     let title: String
     let items: [PlexItem]
     var posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth
+    var imageAspectRatio: CGFloat = 2.0 / 3.0
     var showAllRoute: AppNavigationRoute? = nil
     var subtitle: (PlexItem) -> String?
     var posterURL: (PlexItem, Int, Int) -> URL?
@@ -48,7 +49,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
 
     var body: some View {
         let imageWidth = Int(posterWidth.rounded(.up))
-        let imageHeight = Int((posterWidth * 1.5).rounded(.up))
+        let imageHeight = Int((posterWidth / imageAspectRatio).rounded(.up))
 
         MediaCarousel(
             title: title,
@@ -65,7 +66,8 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                     title: item.title,
                     subtitle: subtitle(item),
                     progress: progress(item),
-                    width: posterWidth
+                    width: posterWidth,
+                    imageAspectRatio: imageAspectRatio
                 ) {
                     contextMenuContent(item)
                 }
@@ -79,6 +81,7 @@ extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
         title: String,
         items: [PlexItem],
         posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth,
+        imageAspectRatio: CGFloat = 2.0 / 3.0,
         showAllRoute: AppNavigationRoute? = nil,
         subtitle: @escaping (PlexItem) -> String?,
         posterURL: @escaping (PlexItem, Int, Int) -> URL?,
@@ -87,6 +90,7 @@ extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
         self.title = title
         self.items = items
         self.posterWidth = posterWidth
+        self.imageAspectRatio = imageAspectRatio
         self.showAllRoute = showAllRoute
         self.subtitle = subtitle
         self.posterURL = posterURL
@@ -141,6 +145,7 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
     let items: [PlexItem]
     let layout: AdaptivePosterGridLayout
     var rowSpacing: CGFloat = DuskPosterMetrics.detailGridRowSpacing
+    var imageAspectRatio: CGFloat = 2.0 / 3.0
     var posterURL: (PlexItem, Int, Int) -> URL?
     var subtitle: (PlexItem) -> String?
     var progress: (PlexItem) -> Double? = { _ in nil }
@@ -149,7 +154,7 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
 
     var body: some View {
         let imageWidth = Int(layout.posterWidth.rounded(.up))
-        let imageHeight = Int((layout.posterWidth * 1.5).rounded(.up))
+        let imageHeight = Int((layout.posterWidth / imageAspectRatio).rounded(.up))
 
         LazyVGrid(columns: layout.columns, alignment: .leading, spacing: rowSpacing) {
             ForEach(items) { item in
@@ -159,7 +164,8 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
                     title: item.title,
                     subtitle: subtitle(item),
                     progress: progress(item),
-                    width: layout.posterWidth
+                    width: layout.posterWidth,
+                    imageAspectRatio: imageAspectRatio
                 ) {
                     contextMenuContent(item)
                 }
@@ -176,6 +182,7 @@ extension PlexItemPosterGrid where ContextMenuContent == EmptyView {
         items: [PlexItem],
         layout: AdaptivePosterGridLayout,
         rowSpacing: CGFloat = DuskPosterMetrics.detailGridRowSpacing,
+        imageAspectRatio: CGFloat = 2.0 / 3.0,
         posterURL: @escaping (PlexItem, Int, Int) -> URL?,
         subtitle: @escaping (PlexItem) -> String?,
         progress: @escaping (PlexItem) -> Double? = { _ in nil },
@@ -184,6 +191,7 @@ extension PlexItemPosterGrid where ContextMenuContent == EmptyView {
         self.items = items
         self.layout = layout
         self.rowSpacing = rowSpacing
+        self.imageAspectRatio = imageAspectRatio
         self.posterURL = posterURL
         self.subtitle = subtitle
         self.progress = progress

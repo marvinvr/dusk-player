@@ -12,10 +12,24 @@ struct PlexSearchResult: Sendable, Identifiable {
 }
 
 extension PlexSearchResult {
-    /// Create search results from a hub response.
-    init(hub: PlexHub) {
-        self.title = hub.title
-        self.type = hub.type
-        self.items = hub.items
+    /// Create search result groups from a hub response.
+    ///
+    /// Plex groups clips under the movie hub (clips report `type == "movie"`),
+    /// which would force the 2:3 poster layout — and a cropped 2:3 transcode —
+    /// onto 16:9 videos. Mixed hubs are split into the original poster group
+    /// plus a "Videos" group; all-clip hubs are retitled to "Videos".
+    static func results(from hub: PlexHub) -> [PlexSearchResult] {
+        let clips = hub.items.filter(\.isClip)
+        guard !clips.isEmpty else {
+            return [PlexSearchResult(title: hub.title, type: hub.type, items: hub.items)]
+        }
+
+        let posterItems = hub.items.filter { !$0.isClip }
+        var results: [PlexSearchResult] = []
+        if !posterItems.isEmpty {
+            results.append(PlexSearchResult(title: hub.title, type: hub.type, items: posterItems))
+        }
+        results.append(PlexSearchResult(title: "Videos", type: "clip", items: clips))
+        return results
     }
 }

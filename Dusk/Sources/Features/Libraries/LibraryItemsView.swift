@@ -6,22 +6,33 @@ struct LibraryItemsView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
     private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
     private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
-    private let preferredPosterWidth: CGFloat = DuskPosterMetrics.gridPreferredWidth
     private let minimumColumnCount = 2
     private let controlCornerRadius: CGFloat = 18
 
     init(
         library: PlexLibrary,
         plexService: PlexService,
+        collection: PlexLibraryCollection? = nil,
         initialGenre: LibraryGenreOption? = nil,
         preferLocalGenreFiltering: Bool = false
     ) {
         _viewModel = State(initialValue: LibraryItemsViewModel(
             library: library,
             plexService: plexService,
+            collection: collection,
             initialGenre: initialGenre,
             preferLocalGenreFiltering: preferLocalGenreFiltering
         ))
+    }
+
+    /// Video libraries browse in 16:9 clip cards; movie/show grids keep the
+    /// standard 2:3 posters.
+    private var preferredPosterWidth: CGFloat {
+        viewModel.isVideoLibrary ? DuskPosterMetrics.videoGridPreferredWidth : DuskPosterMetrics.gridPreferredWidth
+    }
+
+    private var gridImageAspectRatio: CGFloat {
+        viewModel.isVideoLibrary ? 16.0 / 9.0 : 2.0 / 3.0
     }
 
     var body: some View {
@@ -143,7 +154,7 @@ struct LibraryItemsView: View {
     private var sortMenu: some View {
         Menu {
             Section("Sort") {
-                ForEach(LibrarySortOption.allCases) { sort in
+                ForEach(viewModel.availableSortOptions) { sort in
                     Button {
                         Task { await viewModel.selectSort(sort) }
                     } label: {
@@ -159,7 +170,7 @@ struct LibraryItemsView: View {
             browseControlLabel(
                 value: viewModel.selectedSort.title,
                 systemImage: "arrow.up.arrow.down.circle",
-                isActive: viewModel.selectedSort != .titleAscending
+                isActive: viewModel.selectedSort != viewModel.defaultSortOption
             )
         }
         .duskSuppressTVOSButtonChrome()
@@ -208,6 +219,7 @@ struct LibraryItemsView: View {
             items: viewModel.items,
             layout: layout,
             rowSpacing: gridRowSpacing,
+            imageAspectRatio: gridImageAspectRatio,
             posterURL: { item, width, height in
                 viewModel.posterURL(for: item, width: width, height: height)
             },
@@ -231,7 +243,7 @@ struct LibraryItemsView: View {
 
     private var emptyView: some View {
         FeatureEmptyStateView(
-            systemImage: "film",
+            systemImage: viewModel.isVideoLibrary ? "play.rectangle.fill" : "film",
             title: viewModel.emptyStateTitle,
             message: viewModel.emptyStateMessage
         )

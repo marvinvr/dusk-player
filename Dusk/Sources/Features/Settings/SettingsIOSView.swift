@@ -12,11 +12,10 @@ struct SettingsIOSView: View {
     @State private var confirmsDeletingDownloads = false
     @State private var showsSupporterSheet = false
     @State private var showsIconPicker = false
-    @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
     var body: some View {
-        SettingsContainer(path: $path, viewModel: viewModel) {
+        SettingsContainer(viewModel: viewModel) {
             settingsContent
         }
         .sheet(isPresented: accountSheetPresented) {

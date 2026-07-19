@@ -19,9 +19,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   feature screens.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
-- Available tabs are data-driven: one library type can become a direct Movies/Shows
-  tab, mixed setups use the Libraries hub, and Downloads appears only when visible
-  and populated.
+- Available tabs are data-driven: every present library type (Movies, TV Shows,
+  Videos) gets its own tab, and Downloads appears only when visible and populated.
+- iOS keeps at most five tabs. When the flat set would exceed that, Search and
+  Settings collapse into a trailing More tab (`MoreView`, its own stack + path);
+  if the set still exceeds five, Downloads folds into More as well. tvOS is
+  always flat (no More, no Downloads).
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
   only when multiple features need to navigate to them.
 - Use `NavigationLink(value:)` with `AppNavigationRoute` for media/person/library flows.
@@ -46,7 +49,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Partial progress still renders the bar (`DuskPosterMetrics.posterProgressBarHeight`).
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
   `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
-  progress, and route creation.
+  progress, and route creation. Both take `imageAspectRatio` (default 2:3); pass
+  `16.0/9.0` for clip content so the requested transcode size matches the display
+  aspect — a 2:3 request would be cropped server-side.
+- Clip rendering is item-driven: `PlexItem.isClip` (item `subtype == "clip"`) and
+  the `Collection.isAllClips` helper decide when a row/grid renders 16:9 with
+  `DuskPosterMetrics.videoCarouselWidth`/`videoGridPreferredWidth`. Clip card
+  subtitles show compact duration via the clip-aware `standardPosterSubtitle`.
 - Context menus for partially watched playable items should expose both watch-state
   endpoints: mark watched and mark unwatched. Do not collapse partial progress into
   a single toggle action.
@@ -149,23 +158,33 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`
   drops the item optimistically, then reloads to reconcile.
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
-  view model and uses the shared poster grid.
+  view model and uses the shared poster grid; all-clip hubs render it 16:9.
+- Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
+  `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where
+  an all-clip hub (`isVideoHub`) renders as a 16:9 carousel.
 
 ## Libraries
 
 - `LibrariesViewModel` loads Plex libraries once and groups by `PlexLibraryType`.
 - `MainTabView` reuses a single `LibrariesViewModel` to decide tabs and feed library
   screens. Avoid each tab independently discovering libraries.
-- `LibrariesHubView` is the combined Libraries tab; it lists available media types and
-  navigates to library recommendations or a library picker.
-- `LibrariesView` is the direct Movies/Shows tab wrapper. If exactly one matching
-  library exists, it goes straight to `LibraryRecommendationsView`.
+- `LibrariesView` is the direct Movies/Shows/Videos tab wrapper. If exactly one
+  matching library exists, it goes straight to `LibraryRecommendationsView`. (The old
+  combined `LibrariesHubView` tab is retired; every type gets its own tab.)
 - `LibraryRecommendationsViewModel` is the library-scoped home equivalent:
   `getLibraryHubs(...)`, continue-watching hub extraction, recently-added expansion,
   and personalized shelves from `LibraryRecommendationEngine`.
-- `LibraryItemsView` is the browse grid for a concrete library or genre route.
-- `LibraryItemsViewModel` handles pagination, sort, genre selection, and optional local
-  genre filtering.
+- `.video` libraries never run the genre engine. Their shelves come from
+  `LibraryVideoShelfLoader`: per-channel rows (first ~6 collections via
+  `getLibraryCollections`, items sorted by release date) and a day-seeded
+  "Rediscover" row of unwatched items. Row order: Continue Watching, prioritized
+  hubs, secondary hubs, channel rows, Rediscover — all 16:9.
+- `LibraryItemsView` is the browse grid for a concrete library, genre, or collection
+  route; `.video` libraries use the 16:9 grid metrics.
+- `LibraryItemsViewModel` handles pagination, sort, genre selection, optional local
+  genre filtering, and optional collection scoping (`LibraryCollectionItemsView`
+  delegates to it). Sort options are per-kind via `LibrarySortOption.options(for:)`;
+  video libraries default to Release Date (newest).
 - Use `LibraryGenreSupport` for Plex genre filter discovery, normalization, URL
   parameter extraction, and fallback matching. Do not compare genre strings ad hoc.
 - `LibraryItemsViewModel` uses a `queryGeneration` guard so stale async page loads do
@@ -175,8 +194,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 ## Detail Screens
 
-- Detail entry is split by domain: movie, show, season, episode, and actor detail
-  views each have their own `@Observable` model.
+- Detail entry is split by domain: movie, show, season, episode, video (clip), and
+  actor detail views each have their own `@Observable` model.
+- Clips route to `VideoDetailView` via `.video`/`.downloadedVideo` routes
+  (`AppNavigationRoute.destination(for:)` branches on `item.isClip`) — never to
+  `MovieDetailView`. It is a trimmed movie page: hero metadata line is
+  "channel · upload date · duration", no cast/ratings sections, plus a
+  "More from {channel}" 16:9 row resolved from the item's first Collection tag.
 - Detail views own screen layout; detail view models own Plex fetches, offline fallback,
   watch-state mutations, image URL selection, and computed display state.
 - Shared detail UI lives in `DetailSharedViews.swift` only when reused across detail
@@ -249,7 +273,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 ## Search And Settings
 
-- `SearchView` owns a tab `NavigationStack` and lazy-creates `SearchViewModel`.
+- `SearchView` is a thin tab-root wrapper (`NavigationStack` + destinations) around
+  `SearchRootContent`, which owns the view model, searchable field, and results; the
+  split lets `MoreView` push search without a nested stack. Settings and Downloads
+  follow the same wrapper/`*RootContent` pattern. All-clip result groups render 16:9.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
 - Presentation is platform-adaptive so search feels native everywhere. tvOS and iPad

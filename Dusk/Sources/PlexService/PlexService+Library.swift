@@ -65,6 +65,17 @@ extension PlexService {
         try await fetchDirectories(path: path)
     }
 
+    /// Lists the collections defined in a library section (video libraries
+    /// have one per channel) via the section's `collection` filter values.
+    /// Each returned `key` plugs directly into
+    /// `getLibraryItems(sectionId:filters: ["collection": key])`.
+    func getLibraryCollections(sectionId: String) async throws -> [PlexLibraryCollection] {
+        let values: [PlexLibraryFilterValue] = try await fetchDirectories(
+            path: "/library/sections/\(sectionId)/collection"
+        )
+        return values.compactMap(PlexLibraryCollection.init(filterValue:))
+    }
+
     func getLibraryHubs(sectionId: String, count: Int = 12) async throws -> [PlexHub] {
         try await fetchHubs(
             path: "/hubs/sections/\(sectionId)",
@@ -163,7 +174,7 @@ extension PlexService {
 
         return hubs
             .filter { !$0.items.isEmpty }
-            .map { PlexSearchResult(hub: $0) }
+            .flatMap { PlexSearchResult.results(from: $0) }
     }
 
     func getMediaDetails(ratingKey: String, checkFiles: Bool = false) async throws -> PlexMediaDetails {

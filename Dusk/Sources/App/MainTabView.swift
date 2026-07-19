@@ -9,10 +9,11 @@ struct MainTabView: View {
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
     @State private var showsPath = NavigationPath()
-    @State private var librariesPath = NavigationPath()
+    @State private var videosPath = NavigationPath()
     @State private var downloadsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var settingsPath = NavigationPath()
+    @State private var morePath = NavigationPath()
     @State private var librariesViewModel: LibrariesViewModel?
 
     var body: some View {
@@ -26,7 +27,17 @@ struct MainTabView: View {
                 await librariesViewModel?.loadLibraries()
             }
             .onChange(of: availableTabs) { _, newTabs in
-                if !newTabs.contains(selectedTab) {
+                guard !newTabs.contains(selectedTab) else { return }
+                // Tabs can fold into (or out of) More while the user is on
+                // them, e.g. queuing the first download replaces Search and
+                // Settings with More. Follow the fold instead of yanking the
+                // user back to Home.
+                switch selectedTab {
+                case .search, .settings, .downloads:
+                    selectedTab = newTabs.contains(.more) ? .more : .home
+                case .more:
+                    selectedTab = newTabs.contains(.search) ? .search : .home
+                default:
                     selectedTab = .home
                 }
             }
@@ -59,28 +70,38 @@ struct MainTabView: View {
         #endif
     }
 
+    private var hasDownloads: Bool {
+        DownloadsFeature.isVisible && !downloadManager.records.isEmpty
+    }
+
     private var availableTabs: [MainTabItem] {
-        let libraryTypes = librariesViewModel?.availableLibraryTypes ?? PlexLibraryType.allCases
-        let hasDownloads = DownloadsFeature.isVisible && !downloadManager.records.isEmpty
+        let libraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
+        let baseTabs: [MainTabItem] = [.home] + libraryTypes.map(MainTabItem.library)
 
-        var tabs: [MainTabItem] = [.home]
-
-        if libraryTypes.count == 1, let only = libraryTypes.first {
-            tabs.append(.library(only))
-        } else if libraryTypes.count == 2, !hasDownloads {
-            tabs += libraryTypes.map(MainTabItem.library)
-        } else if !libraryTypes.isEmpty {
-            tabs.append(.libraries)
-        }
-
-        tabs.append(.search)
-
+        #if os(tvOS)
+        return baseTabs + [.search, .settings]
+        #else
+        var trailingTabs: [MainTabItem] = [.search]
         if hasDownloads {
-            tabs.append(.downloads)
+            trailingTabs.append(.downloads)
+        }
+        trailingTabs.append(.settings)
+
+        if baseTabs.count + trailingTabs.count > 5 {
+            trailingTabs = hasDownloads ? [.downloads, .more] : [.more]
+        }
+        if baseTabs.count + trailingTabs.count > 5 {
+            trailingTabs = [.more]
         }
 
-        tabs.append(.settings)
-        return tabs
+        return baseTabs + trailingTabs
+        #endif
+    }
+
+    /// Downloads folds into the More tab whenever it no longer fits as its own
+    /// tab; the More list only shows a Downloads row in that case.
+    private var moreTabIncludesDownloads: Bool {
+        hasDownloads && !availableTabs.contains(.downloads)
     }
 
     @ViewBuilder
@@ -103,17 +124,14 @@ struct MainTabView: View {
                     }
                 }
             }
-        case .libraries:
-            LibrariesHubView(
-                viewModel: librariesViewModel,
-                path: $librariesPath
-            )
         case .downloads:
             DownloadsView(path: $downloadsPath)
         case .search:
             SearchView(path: $searchPath)
         case .settings:
             SettingsView(path: $settingsPath)
+        case .more:
+            MoreView(path: $morePath, showsDownloads: moreTabIncludesDownloads)
         }
     }
 
@@ -142,14 +160,16 @@ struct MainTabView: View {
             moviesPath
         case .library(.show):
             showsPath
-        case .libraries:
-            librariesPath
+        case .library(.video):
+            videosPath
         case .downloads:
             downloadsPath
         case .search:
             searchPath
         case .settings:
             settingsPath
+        case .more:
+            morePath
         }
     }
 
@@ -161,14 +181,16 @@ struct MainTabView: View {
             moviesPath = path
         case .library(.show):
             showsPath = path
-        case .libraries:
-            librariesPath = path
+        case .library(.video):
+            videosPath = path
         case .downloads:
             downloadsPath = path
         case .search:
             searchPath = path
         case .settings:
             settingsPath = path
+        case .more:
+            morePath = path
         }
     }
 
@@ -178,6 +200,8 @@ struct MainTabView: View {
             $moviesPath
         case .show:
             $showsPath
+        case .video:
+            $videosPath
         }
     }
 }

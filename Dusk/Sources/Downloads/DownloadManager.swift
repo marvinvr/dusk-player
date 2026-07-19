@@ -131,7 +131,7 @@ final class DownloadManager {
 
     var downloadedMovies: [DownloadedMediaRecord] {
         records
-            .filter { $0.type == .movie && $0.status == .completed }
+            .filter { ($0.type == .movie || $0.type == .clip) && $0.status == .completed }
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
@@ -290,11 +290,11 @@ final class DownloadManager {
         Set(downloadedEpisodes.filter { $0.parentRatingKey == seasonKey }.map(\.ratingKey))
     }
 
-    func queueDownload(ratingKey: String, type: PlexMediaType) async {
+    func queueDownload(ratingKey: String, type: PlexMediaType, isClip: Bool = false) async {
         do {
             switch type {
-            case .movie, .episode:
-                try await queueSingleDownload(ratingKey: ratingKey, type: type)
+            case .movie, .episode, .clip:
+                try await queueSingleDownload(ratingKey: ratingKey, type: type, isClip: isClip)
             case .season:
                 try await queueSeasonDownload(seasonKey: ratingKey)
             case .show:
@@ -305,7 +305,7 @@ final class DownloadManager {
             removeAggregatePlaceholder(for: DownloadScope(ratingKey: ratingKey, type: type))
             processQueueIfNeeded()
         } catch {
-            upsertFailedPlaceholder(ratingKey: ratingKey, type: type, error: error)
+            upsertFailedPlaceholder(ratingKey: ratingKey, type: type, isClip: isClip, error: error)
         }
     }
 
@@ -590,8 +590,8 @@ final class DownloadManager {
         plexService.connectedServer?.name
     }
 
-    private func queueSingleDownload(ratingKey: String, type: PlexMediaType) async throws {
-        guard type == .movie || type == .episode else { return }
+    private func queueSingleDownload(ratingKey: String, type: PlexMediaType, isClip: Bool = false) async throws {
+        guard type == .movie || type == .episode || type == .clip else { return }
         guard let serverID = currentServerID else {
             throw PlexServiceError.noServerConnected
         }
@@ -607,6 +607,7 @@ final class DownloadManager {
             serverName: currentServerName,
             ratingKey: ratingKey,
             type: cachedDetails?.type ?? type,
+            isClip: isClip || type == .clip || cachedDetails?.isClip == true,
             title: cachedDetails?.title ?? "Download",
             subtitle: cachedDetails.flatMap(subtitle),
             parentRatingKey: cachedDetails?.parentRatingKey,
@@ -749,8 +750,8 @@ final class DownloadManager {
                 details = try await fetchAndCacheDetails(ratingKey: record.ratingKey)
             }
 
-            guard details.type == .movie || details.type == .episode else {
-                throw PlexServiceError.decodingError("Downloads are only supported for movies and episodes.")
+            guard details.type == .movie || details.type == .episode || details.type == .clip else {
+                throw PlexServiceError.decodingError("Downloads are only supported for movies, episodes, and videos.")
             }
 
             if details.type == .episode {
@@ -776,6 +777,7 @@ final class DownloadManager {
 
             update(globalKey: record.globalKey) { item in
                 item.title = details.title
+                item.isClip = item.isClip || details.isClip
                 item.subtitle = subtitle(for: details)
                 item.parentRatingKey = details.parentRatingKey
                 item.grandparentRatingKey = details.grandparentRatingKey
@@ -942,6 +944,17 @@ final class DownloadManager {
     }
 
     private func cacheArtwork(for details: PlexMediaDetails) async {
+        // A clip's thumb and art are 16:9 frame grabs; requesting the poster
+        // box would crop them server-side before they ever reach the cache.
+        if details.isClip {
+            await cacheArtwork(
+                paths: [details.thumb, details.art].compactMap { $0 },
+                width: 1280,
+                height: 720
+            )
+            return
+        }
+
         var paths = [
             details.thumb,
             details.art,
@@ -977,11 +990,11 @@ final class DownloadManager {
         })
     }
 
-    private func cacheArtwork(paths: [String]) async {
+    private func cacheArtwork(paths: [String], width: Int = 900, height: Int = 1350) async {
         for path in Set(paths) {
             guard let targetURL = fileStore.artworkURL(for: path),
                   !FileManager.default.fileExists(atPath: targetURL.path),
-                  let sourceURL = plexService.imageURL(for: path, width: 900, height: 1350) else {
+                  let sourceURL = plexService.imageURL(for: path, width: width, height: height) else {
                 continue
             }
 
@@ -1098,6 +1111,11 @@ final class DownloadManager {
     }
 
     private func subtitle(for details: PlexMediaDetails) -> String? {
+        if details.isClip {
+            return MediaTextFormatter.compactDuration(milliseconds: details.duration)
+                ?? details.year.map(String.init)
+        }
+
         switch details.type {
         case .episode:
             return MediaTextFormatter.seasonEpisodeLabel(
@@ -1429,13 +1447,14 @@ final class DownloadManager {
         return error.localizedDescription
     }
 
-    private func upsertFailedPlaceholder(ratingKey: String, type: PlexMediaType, error: Error) {
+    private func upsertFailedPlaceholder(ratingKey: String, type: PlexMediaType, isClip: Bool = false, error: Error) {
         guard let serverID = currentServerID else { return }
         let placeholder = DownloadedMediaRecord(
             serverID: serverID,
             serverName: currentServerName,
             ratingKey: ratingKey,
             type: type,
+            isClip: isClip || type == .clip,
             title: cachedMediaDetails(ratingKey: ratingKey)?.title ?? "Download",
             subtitle: nil,
             parentRatingKey: nil,

@@ -4,12 +4,11 @@ struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore
-    @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
     @State private var showsSupporterSheet = false
 
     var body: some View {
-        SettingsContainer(path: $path, viewModel: viewModel) {
+        SettingsContainer(viewModel: viewModel) {
             settingsContent
         }
         .sheet(isPresented: $showsSupporterSheet) {

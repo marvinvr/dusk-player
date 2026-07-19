@@ -4,25 +4,34 @@ import UIKit
 #endif
 
 struct SearchView: View {
-    @Environment(PlexService.self) private var plexService
     @Binding var path: NavigationPath
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            SearchRootContent()
+                .duskAppNavigationDestinations()
+        }
+    }
+}
+
+/// The search screen without its own `NavigationStack`, usable both as the
+/// Search tab's root and as a destination pushed from the More tab.
+struct SearchRootContent: View {
+    @Environment(PlexService.self) private var plexService
     @State private var viewModel: SearchViewModel?
 
     private let searchPrompt = "Movies, Shows, Actors..."
 
     var body: some View {
-        NavigationStack(path: $path) {
-            ZStack {
-                Color.duskBackground.ignoresSafeArea()
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
 
-                if let viewModel {
-                    searchContent(viewModel)
-                }
+            if let viewModel {
+                searchContent(viewModel)
             }
-            .duskNavigationTitle("Search")
-            .duskNavigationBarTitleDisplayModeLarge()
-            .duskAppNavigationDestinations()
         }
+        .duskNavigationTitle("Search")
+        .duskNavigationBarTitleDisplayModeLarge()
         .onAppear {
             if viewModel == nil {
                 viewModel = SearchViewModel(plexService: plexService)
@@ -68,7 +77,7 @@ struct SearchView: View {
 
 // MARK: - Shared Results
 
-private extension SearchView {
+private extension SearchRootContent {
     /// Wraps the populated results with the shared loading / error / empty states
     /// so every platform reports state the same way.
     @ViewBuilder
@@ -108,10 +117,15 @@ private extension SearchView {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
                     ForEach(vm.results) { group in
+                        let isVideoGroup = group.items.isAllClips
+
                         PlexItemPosterCarouselSection(
                             title: group.title,
                             items: group.items,
-                            posterWidth: DuskPosterMetrics.carouselPosterWidth,
+                            posterWidth: isVideoGroup
+                                ? DuskPosterMetrics.videoCarouselWidth
+                                : DuskPosterMetrics.carouselPosterWidth,
+                            imageAspectRatio: isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0,
                             subtitle: { $0.standardPosterSubtitle },
                             posterURL: { item, width, height in
                                 vm.imageURL(for: item.preferredPosterPath, width: width, height: height)
@@ -138,7 +152,7 @@ private extension SearchView {
 // MARK: - iPhone Grid Results
 
 #if os(iOS)
-private extension SearchView {
+private extension SearchRootContent {
     /// Poster grid, one titled section per search hub. Used on iPhone, where a
     /// grid reads more naturally than carousels on a narrow screen and matches
     /// the library grid.
@@ -153,10 +167,21 @@ private extension SearchView {
                     preferredPosterWidth: DuskPosterMetrics.gridPreferredWidth,
                     minimumColumnCount: 3
                 )
+                // All-clip groups use the wider 16:9 video layout that matches
+                // the video library grid (~2 columns on iPhone).
+                let videoLayout = AdaptivePosterGridLayout.make(
+                    containerWidth: geometry.size.width,
+                    horizontalPadding: DuskPosterMetrics.gridHorizontalPadding,
+                    gridSpacing: DuskPosterMetrics.gridSpacing,
+                    preferredPosterWidth: DuskPosterMetrics.videoGridPreferredWidth,
+                    minimumColumnCount: 2
+                )
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(vm.results) { group in
+                            let isVideoGroup = group.items.isAllClips
+
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(group.title)
                                     .font(.title3.bold())
@@ -165,8 +190,9 @@ private extension SearchView {
 
                                 PlexItemPosterGrid(
                                     items: group.items,
-                                    layout: layout,
+                                    layout: isVideoGroup ? videoLayout : layout,
                                     rowSpacing: DuskPosterMetrics.gridRowSpacing,
+                                    imageAspectRatio: isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0,
                                     posterURL: { item, width, height in
                                         vm.imageURL(for: item.preferredPosterPath, width: width, height: height)
                                     },

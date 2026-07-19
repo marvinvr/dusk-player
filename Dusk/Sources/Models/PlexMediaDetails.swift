@@ -9,6 +9,11 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let ratingKey: String
     let key: String
     let type: PlexMediaType
+    /// Plex marks video clips with `subtype == "clip"` even when `type` is `movie`.
+    let subtype: String?
+    /// The library section the item belongs to, as a string key usable with the
+    /// `/library/sections/{id}/...` endpoints. Plex serializes it as a number.
+    let librarySectionID: String?
     let title: String
     let summary: String?
     let year: Int?
@@ -47,6 +52,9 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let directors: [PlexTag]?
     let writers: [PlexTag]?
     let roles: [PlexRole]?
+    /// Collections the item belongs to. Video clip libraries carry one per
+    /// channel, which drives the "More from this channel" row.
+    let collections: [PlexTag]?
     let markers: [PlexMarker]
 
     /// The media versions for this item. A single item can have multiple
@@ -54,7 +62,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let media: [PlexMedia]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, title, summary, year
+        case ratingKey, key, type, subtype, librarySectionID, title, summary, year
         case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating
         case rating, audienceRating, studio, originallyAvailableAt
         case childCount, leafCount, viewedLeafCount
@@ -63,6 +71,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         case directors = "Director"
         case writers = "Writer"
         case roles = "Role"
+        case collections = "Collection"
         case markers = "Marker"
         case media = "Media"
         case images = "Image"
@@ -73,6 +82,13 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(PlexMediaType.self, forKey: .type)
+        subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
+        // Plex serializes librarySectionID as a number; tolerate strings too.
+        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .librarySectionID) {
+            librarySectionID = String(numericSectionID)
+        } else {
+            librarySectionID = (try? container.decodeIfPresent(String.self, forKey: .librarySectionID)) ?? nil
+        }
         title = try container.decode(String.self, forKey: .title)
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
         year = try container.decodeIfPresent(Int.self, forKey: .year)
@@ -101,9 +117,18 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
         writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
+        collections = try container.decodeIfPresent([PlexTag].self, forKey: .collections)
         markers = (try container.decodeIfPresent([PlexMarker].self, forKey: .markers) ?? [])
             .sorted { $0.startTimeOffset < $1.startTimeOffset }
         media = try container.decodeIfPresent([PlexMedia].self, forKey: .media) ?? []
+    }
+}
+
+extension PlexMediaDetails {
+    /// Whether the item is a video clip (e.g. from an "Other Videos" library).
+    /// Mirrors `PlexItem.isClip`.
+    var isClip: Bool {
+        subtype == "clip" || type == .clip
     }
 }
 

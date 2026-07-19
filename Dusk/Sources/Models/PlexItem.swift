@@ -9,6 +9,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     let ratingKey: String
     let key: String
     let type: PlexMediaType
+    let subtype: String?
     let title: String
 
     let summary: String?
@@ -60,7 +61,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     let roles: [PlexRole]?
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, title
+        case ratingKey, key, type, subtype, title
         case summary, studio, contentRating, year, originallyAvailableAt
         case thumb, art, banner, clearLogo
         case rating, audienceRating
@@ -83,6 +84,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(PlexMediaType.self, forKey: .type)
+        subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
         title = try container.decode(String.self, forKey: .title)
 
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
@@ -160,6 +162,12 @@ private extension KeyedDecodingContainer where Key == PlexItem.CodingKeys {
 // MARK: - Convenience
 
 extension PlexItem {
+    /// Whether the item is a video clip (e.g. from an "Other Videos" library).
+    /// Plex marks clips with `subtype == "clip"` even when `type` is `movie`.
+    var isClip: Bool {
+        subtype == "clip" || type == .clip
+    }
+
     /// Whether the item has been partially watched.
     var isPartiallyWatched: Bool {
         guard let offset = viewOffset, offset > 0 else { return false }
@@ -172,7 +180,9 @@ extension PlexItem {
         return count > 0
     }
 
-    /// Best available portrait-style image path for compact cards and rows.
+    /// Best available primary image path for compact cards and rows.
+    /// Usually portrait-style; for clips the default branch is intentionally
+    /// thumb-first because a clip's `thumb` is its 16:9 frame grab.
     var preferredPosterPath: String? {
         switch type {
         case .episode:

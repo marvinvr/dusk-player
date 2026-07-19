@@ -14,6 +14,9 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
     case titleDescending
     case yearDescending
     case yearAscending
+    case releaseDateDescending
+    case addedAtDescending
+    case durationDescending
 
     var id: String { rawValue }
 
@@ -27,6 +30,12 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
             "Year Newest"
         case .yearAscending:
             "Year Oldest"
+        case .releaseDateDescending:
+            "Release Date Newest"
+        case .addedAtDescending:
+            "Date Added Newest"
+        case .durationDescending:
+            "Duration Longest"
         }
     }
 
@@ -40,7 +49,29 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
             "year:desc"
         case .yearAscending:
             "year"
+        case .releaseDateDescending:
+            "originallyAvailableAt:desc"
+        case .addedAtDescending:
+            "addedAt:desc"
+        case .durationDescending:
+            "duration:desc"
         }
+    }
+
+    /// The sort choices offered for a library of the given type. Video
+    /// libraries lead with upload-date sorts (year is meaningless for clips);
+    /// movie/show libraries keep their original options untouched.
+    static func options(for libraryType: PlexLibraryType?) -> [LibrarySortOption] {
+        switch libraryType {
+        case .video:
+            [.releaseDateDescending, .addedAtDescending, .titleAscending, .titleDescending, .durationDescending]
+        default:
+            [.titleAscending, .titleDescending, .yearDescending, .yearAscending]
+        }
+    }
+
+    static func defaultOption(for libraryType: PlexLibraryType?) -> LibrarySortOption {
+        libraryType == .video ? .releaseDateDescending : .titleAscending
     }
 }
 
@@ -54,6 +85,9 @@ private struct LibraryItemsQuery: Hashable {
 final class LibraryItemsViewModel {
     private let plexService: PlexService
     let library: PlexLibrary
+    /// When set, every fetch is scoped to this collection (used for the
+    /// per-channel grids of video libraries).
+    private let collection: PlexLibraryCollection?
     private let preferredInitialGenre: LibraryGenreOption?
     private let preferLocalGenreFiltering: Bool
 
@@ -74,18 +108,37 @@ final class LibraryItemsViewModel {
     init(
         library: PlexLibrary,
         plexService: PlexService,
+        collection: PlexLibraryCollection? = nil,
         initialGenre: LibraryGenreOption? = nil,
         preferLocalGenreFiltering: Bool = false
     ) {
         self.library = library
         self.plexService = plexService
+        self.collection = collection
         self.preferredInitialGenre = initialGenre
         self.preferLocalGenreFiltering = preferLocalGenreFiltering
         self.selectedGenre = initialGenre ?? .all
+        self.selectedSort = LibrarySortOption.defaultOption(for: library.libraryType)
+    }
+
+    var isVideoLibrary: Bool {
+        library.libraryType == .video
+    }
+
+    var availableSortOptions: [LibrarySortOption] {
+        LibrarySortOption.options(for: library.libraryType)
+    }
+
+    var defaultSortOption: LibrarySortOption {
+        LibrarySortOption.defaultOption(for: library.libraryType)
     }
 
     var navigationTitle: String {
-        selectedGenre == .all ? library.title : selectedGenre.title
+        if let collection {
+            return collection.title
+        }
+
+        return selectedGenre == .all ? library.title : selectedGenre.title
     }
 
     var showsBrowseControls: Bool {
@@ -93,7 +146,8 @@ final class LibraryItemsViewModel {
     }
 
     var emptyStateTitle: String {
-        selectedGenre == .all ? "This library is empty" : "No matching titles"
+        guard selectedGenre == .all else { return "No matching titles" }
+        return collection == nil ? "This library is empty" : "This collection is empty"
     }
 
     var emptyStateMessage: String? {
@@ -212,8 +266,14 @@ final class LibraryItemsViewModel {
         return try await fetchServerFilteredItems(start: start, query: query)
     }
 
+    /// Filters that apply to every fetch on this screen (collection scoping).
+    private var baseFilters: [String: String] {
+        guard let collection else { return [:] }
+        return ["collection": collection.key]
+    }
+
     private func fetchServerFilteredItems(start: Int, query: LibraryItemsQuery) async throws -> [PlexItem] {
-        var filters: [String: String] = [:]
+        var filters = baseFilters
 
         if let genreValue = query.genreValue {
             filters["genre"] = genreValue
@@ -233,7 +293,10 @@ final class LibraryItemsViewModel {
         query: LibraryItemsQuery,
         genre: LibraryGenreOption
     ) async throws -> [PlexItem] {
-        let totalCount = try await plexService.getLibraryItemCount(sectionId: library.key)
+        let totalCount = try await plexService.getLibraryItemCount(
+            sectionId: library.key,
+            filters: baseFilters
+        )
         guard totalCount > 0 else { return [] }
 
         var matchedItems: [PlexItem] = []
@@ -248,7 +311,8 @@ final class LibraryItemsViewModel {
                 sectionId: library.key,
                 start: page * serverPageSize,
                 size: serverPageSize,
-                sort: query.sort.plexValue
+                sort: query.sort.plexValue,
+                filters: baseFilters
             )
 
             guard !fetchedItems.isEmpty else { break }

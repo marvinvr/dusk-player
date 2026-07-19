@@ -5,49 +5,60 @@ import UIKit
 #endif
 
 struct DownloadsView: View {
+    @Binding var path: NavigationPath
+
+    var body: some View {
+        NavigationStack(path: $path) {
+            DownloadsRootContent(path: $path)
+                .duskAppNavigationDestinations()
+        }
+    }
+}
+
+/// The downloads screen without its own `NavigationStack`, usable both as the
+/// Downloads tab's root and as a destination pushed from the More tab. `path`
+/// is the enclosing stack's path, used to push routes from the queue sheet.
+struct DownloadsRootContent: View {
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
     @Binding var path: NavigationPath
     @State private var isShowingQueue = false
 
     var body: some View {
-        NavigationStack(path: $path) {
-            ZStack {
-                Color.duskBackground.ignoresSafeArea()
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
 
-                VStack(spacing: 16) {
-                    if downloadedItems.isEmpty {
-                        if offlinePlaybackSyncManager.pendingSyncCount > 0 {
-                            pendingSyncBanner
-                        }
+            VStack(spacing: 16) {
+                if downloadedItems.isEmpty {
+                    if offlinePlaybackSyncManager.pendingSyncCount > 0 {
+                        pendingSyncBanner
+                    }
 
-                        emptyDownloadsState
-                    } else {
-                        downloadsGrid
-                    }
-                }
-                .padding(.top, 12)
-            }
-            .navigationTitle("Downloads")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        isShowingQueue = true
-                    } label: {
-                        DownloadQueueToolbarButton(
-                            progress: aggregateQueueProgress,
-                            queuedCount: downloadManager.queuedRecords.count,
-                            isActive: downloadManager.activeDownloadCount > 0
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Open download queue")
+                    emptyDownloadsState
+                } else {
+                    downloadsGrid
                 }
             }
-            .sheet(isPresented: $isShowingQueue) {
-                queueSheet
+            .padding(.top, 12)
+        }
+        .navigationTitle("Downloads")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    isShowingQueue = true
+                } label: {
+                    DownloadQueueToolbarButton(
+                        progress: aggregateQueueProgress,
+                        queuedCount: downloadManager.queuedRecords.count,
+                        isActive: downloadManager.activeDownloadCount > 0
+                    )
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open download queue")
             }
-            .duskAppNavigationDestinations()
+        }
+        .sheet(isPresented: $isShowingQueue) {
+            queueSheet
         }
     }
 
@@ -71,6 +82,7 @@ struct DownloadsView: View {
                 title: item.title,
                 subtitle: item.subtitle,
                 width: width,
+                imageAspectRatio: item.imageAspectRatio,
                 availabilityBadge: state.isDeleting ? "Deleting" : nil,
                 isDimmed: state.isDeleting
             ) {
@@ -93,7 +105,7 @@ struct DownloadsView: View {
                     systemImage: "arrow.down.circle",
                     title: "No Downloads Yet",
                     message: downloadManager.queuedRecords.isEmpty
-                        ? "Movies and shows saved for offline playback will appear here."
+                        ? "Movies, shows, and videos saved for offline playback will appear here."
                         : "Your saved downloads will appear here once the queue finishes."
                 )
                 .padding(.horizontal, 32)
@@ -233,7 +245,7 @@ struct DownloadsView: View {
                     .font(.headline.weight(.semibold))
                     .foregroundStyle(Color.duskTextPrimary)
 
-                Text("Start downloading a movie or episode and it will show up here with progress, pause, and retry controls.")
+                Text("Start downloading a movie, episode, or video and it will show up here with progress, pause, and retry controls.")
                     .font(.subheadline)
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
@@ -336,16 +348,28 @@ private enum DownloadedLibraryItem: Identifiable {
     var route: AppNavigationRoute {
         switch self {
         case .movie(let record):
-            return .downloadedMedia(type: .movie, ratingKey: record.ratingKey)
+            return record.isClip
+                ? .downloadedVideo(ratingKey: record.ratingKey)
+                : .downloadedMedia(type: .movie, ratingKey: record.ratingKey)
         case .show(let show):
             return .downloadedMedia(type: .show, ratingKey: show.ratingKey)
+        }
+    }
+
+    /// Clip artwork is a 16:9 frame grab; everything else stays 2:3.
+    var imageAspectRatio: CGFloat {
+        switch self {
+        case .movie(let record):
+            return record.isClip ? 16.0 / 9.0 : 2.0 / 3.0
+        case .show:
+            return 2.0 / 3.0
         }
     }
 
     var scope: DownloadScope {
         switch self {
         case .movie(let record):
-            return DownloadScope(ratingKey: record.ratingKey, type: .movie)
+            return DownloadScope(ratingKey: record.ratingKey, type: record.type)
         case .show(let show):
             return DownloadScope(ratingKey: show.ratingKey, type: .show)
         }
@@ -468,14 +492,18 @@ private struct DownloadQueueRow: View {
 
     var body: some View {
         Button {
-            onOpen(.downloadedMedia(type: record.type, ratingKey: record.ratingKey))
+            onOpen(
+                record.isClip
+                    ? .downloadedVideo(ratingKey: record.ratingKey)
+                    : .downloadedMedia(type: record.type, ratingKey: record.ratingKey)
+            )
         } label: {
             HStack(spacing: 12) {
                 PosterArtwork(
                     imageURL: downloadManager.localArtworkURL(for: record.thumbPath),
                     progress: record.status == .downloading ? record.progress : nil,
                     width: 72,
-                    imageAspectRatio: record.type == .episode ? 16.0 / 9.0 : 2.0 / 3.0,
+                    imageAspectRatio: record.type == .episode || record.isClip ? 16.0 / 9.0 : 2.0 / 3.0,
                     cornerRadius: 8
                 )
 

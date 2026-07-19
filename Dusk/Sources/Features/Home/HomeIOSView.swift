@@ -88,15 +88,18 @@ struct HomeIOSView: View {
                             )
 
                             if !items.isEmpty {
+                                let isVideoHub = viewModel.isVideoHub(hub)
+
                                 PlexItemPosterCarouselSection(
                                     title: hub.title,
                                     items: items,
-                                    posterWidth: 130,
+                                    posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : 130,
+                                    imageAspectRatio: isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0,
                                     showAllRoute: viewModel.shouldShowAll(
                                         for: hub,
                                         maxRecentlyAddedItems: recentlyAddedInlineItemLimit
                                     ) ? AppNavigationRoute.hub(hub) : nil,
-                                    subtitle: { $0.year.map(String.init) },
+                                    subtitle: { isVideoHub ? $0.standardPosterSubtitle : $0.year.map(String.init) },
                                     posterURL: { item, width, height in
                                         viewModel.posterURL(for: item, width: width, height: height)
                                     }

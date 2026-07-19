@@ -119,6 +119,11 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     let serverName: String?
     let ratingKey: String
     let type: PlexMediaType
+    /// Whether the item is a video clip (Plex reports clips as `type == "movie"`
+    /// with `subtype == "clip"`). Drives 16:9 artwork and the `.downloadedVideo`
+    /// route. Defaults to false so records persisted before the flag existed
+    /// still decode.
+    var isClip: Bool = false
     var title: String
     var subtitle: String?
     var parentRatingKey: String?
@@ -140,6 +145,18 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var addedAt: Date
     var updatedAt: Date
 
+    enum CodingKeys: String, CodingKey {
+        case serverID, serverName, ratingKey, type, isClip
+        case title, subtitle
+        case parentRatingKey, parentTitle
+        case grandparentRatingKey, grandparentTitle
+        case thumbPath, artPath
+        case mediaID, partID
+        case relativeVideoPath, resumeDataPath, downloadTaskIdentifier
+        case status, progress, downloadedBytes, totalBytes
+        case errorMessage, addedAt, updatedAt
+    }
+
     var globalKey: String {
         Self.globalKey(serverID: serverID, ratingKey: ratingKey)
     }
@@ -153,6 +170,40 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
 
     static func globalKey(serverID: String, ratingKey: String) -> String {
         "\(serverID):\(ratingKey)"
+    }
+}
+
+extension DownloadedMediaRecord {
+    /// Custom decoding (kept in an extension so the memberwise initializer
+    /// survives) solely so `isClip` can default to false for snapshots written
+    /// before the flag existed. Encoding stays synthesized.
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        serverID = try container.decode(String.self, forKey: .serverID)
+        serverName = try container.decodeIfPresent(String.self, forKey: .serverName)
+        ratingKey = try container.decode(String.self, forKey: .ratingKey)
+        type = try container.decode(PlexMediaType.self, forKey: .type)
+        isClip = try container.decodeIfPresent(Bool.self, forKey: .isClip) ?? false
+        title = try container.decode(String.self, forKey: .title)
+        subtitle = try container.decodeIfPresent(String.self, forKey: .subtitle)
+        parentRatingKey = try container.decodeIfPresent(String.self, forKey: .parentRatingKey)
+        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
+        grandparentRatingKey = try container.decodeIfPresent(String.self, forKey: .grandparentRatingKey)
+        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
+        thumbPath = try container.decodeIfPresent(String.self, forKey: .thumbPath)
+        artPath = try container.decodeIfPresent(String.self, forKey: .artPath)
+        mediaID = try container.decodeIfPresent(Int.self, forKey: .mediaID)
+        partID = try container.decodeIfPresent(Int.self, forKey: .partID)
+        relativeVideoPath = try container.decodeIfPresent(String.self, forKey: .relativeVideoPath)
+        resumeDataPath = try container.decodeIfPresent(String.self, forKey: .resumeDataPath)
+        downloadTaskIdentifier = try container.decodeIfPresent(Int.self, forKey: .downloadTaskIdentifier)
+        status = try container.decode(DownloadStatus.self, forKey: .status)
+        progress = try container.decode(Double.self, forKey: .progress)
+        downloadedBytes = try container.decode(Int64.self, forKey: .downloadedBytes)
+        totalBytes = try container.decodeIfPresent(Int64.self, forKey: .totalBytes)
+        errorMessage = try container.decodeIfPresent(String.self, forKey: .errorMessage)
+        addedAt = try container.decode(Date.self, forKey: .addedAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
     }
 }
 

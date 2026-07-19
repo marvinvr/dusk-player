@@ -37,6 +37,20 @@ enum MediaTextFormatter {
         return "\(totalMinutes) min"
     }
 
+    /// YouTube-style compact duration for video clip cards: "12 min", "1 h 4 min".
+    static func compactDuration(milliseconds: Int?) -> String? {
+        guard let milliseconds, milliseconds > 0 else { return nil }
+        let totalMinutes = max(1, milliseconds / 60_000)
+        let hours = totalMinutes / 60
+        let minutes = totalMinutes % 60
+
+        if hours > 0 {
+            return minutes > 0 ? "\(hours) h \(minutes) min" : "\(hours) h"
+        }
+
+        return "\(minutes) min"
+    }
+
     static func playbackDuration(milliseconds: Int?) -> String? {
         guard let milliseconds, milliseconds > 0 else { return nil }
         let totalMinutes = milliseconds / 60_000

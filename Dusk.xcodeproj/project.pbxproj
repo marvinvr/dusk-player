@@ -22,8 +22,8 @@
 		0F1909EC64E6C2C91B0D6303 /* PlexService+Networking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF6018BD333E33114E37C9C /* PlexService+Networking.swift */; };
 		0FDB7BCDCEBE80B02E5B062A /* VideoEnhancementShaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = 454D16527A6597376006EFF2 /* VideoEnhancementShaders.metal */; };
 		1098B36EBEF537CB19CA3216 /* DuskIconDawn.icon in Resources */ = {isa = PBXBuildFile; fileRef = 66CB45494E49E1F876C6E2B2 /* DuskIconDawn.icon */; };
+		1162A7B5847FC0E33C364FFB /* PlexLibraryCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9365E3E7C263F42FE01371 /* PlexLibraryCollection.swift */; };
 		11B061988C67C20AB6A6B0EB /* DownloadModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97C6B97A04442883529CFA20 /* DownloadModels.swift */; };
-		127C45793381442CE1D68580 /* LibrariesHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32145C09A8EB4C8ECF6C3E36 /* LibrariesHubView.swift */; };
 		1398C03EF94F617CC809E985 /* SeasonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D3DFD09891C72BA03E6F9D /* SeasonDetailViewModel.swift */; };
 		14DD3ABCB546921384B3218B /* ShowDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FBE9B40CB6E7F23A88BAA00 /* ShowDetailViewModel.swift */; };
 		14E190A902F59C65163E62CF /* VLCKitRendererTVOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A904B86FC535FC7ADFADE196 /* VLCKitRendererTVOS.swift */; };
@@ -54,6 +54,7 @@
 		30C61B9C7A0A7E9ADF0B8A8B /* SubtitleTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5493BC8E9828A5875E7700D0 /* SubtitleTrack.swift */; };
 		3195C8AD54C3182FD5E87687 /* PlexService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F130EA9B63C28644580E81B6 /* PlexService.swift */; };
 		322B5C37B4ADA2B9654FD7B9 /* MovieDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = B58A13BD2862BF9B3DDC398E /* MovieDetailViewModel.swift */; };
+		32A915A01285F96F5030FFB6 /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF112C2CD6A3121CE87B5DF9 /* MoreView.swift */; };
 		3346368034A50A6C51AAE845 /* PlatformPosterCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191C2E24B88A2F60782E9E21 /* PlatformPosterCard.swift */; };
 		33C81F5261C3E8E351ECD2D9 /* PlaybackPresentationModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7831CB35A3233D634CBDF627 /* PlaybackPresentationModels.swift */; };
 		39A8E92988FD99DDC133C744 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 28D81792E63C82C8F090AFB1 /* Assets.xcassets */; };
@@ -70,6 +71,7 @@
 		42154E1A4748F9B0A9E7AD10 /* EpisodeDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFB62797314A3D853B52051 /* EpisodeDetailViewModel.swift */; };
 		432620BF900C45349933D3CA /* PlexServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B42A00C8A899B9036425B3E /* PlexServer.swift */; };
 		43EE97E3C774ADB658885B66 /* EpisodeDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCFB62797314A3D853B52051 /* EpisodeDetailViewModel.swift */; };
+		44ED26F4DC956942562DEDD0 /* LibraryCollectionItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA2FE8E2D877EBCA235DBB9 /* LibraryCollectionItemsView.swift */; };
 		469CB9AD6D196D0339D9123C /* PlexService+People.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CBED87D1B9D75585F4DD189 /* PlexService+People.swift */; };
 		4713FAE724DCD5EA9F4EF86B /* DuskApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E04ECF8E20F247BA70F3250 /* DuskApp.swift */; };
 		471B694988DE289D70C10D02 /* PlexHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9771A4F964C286E6DA9AB6A /* PlexHub.swift */; };
@@ -86,6 +88,7 @@
 		51CDA7EF644BA8EBD3495EA3 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693F697A72ECEE11C60FDD7 /* HomeViewModel.swift */; };
 		52EFA8018D7B32BC5CD1DCD0 /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36407804ED44963931F20BA /* DownloadTransfer.swift */; };
 		5340E4CA7989E4B20888CD18 /* PlayerViewModel+PlaybackControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFCE74BFF7FA1D80CC5FD1D0 /* PlayerViewModel+PlaybackControls.swift */; };
+		538C3423962B6693DEFAFBDE /* VideoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CADE80B1EC56237BC37F40 /* VideoDetailView.swift */; };
 		549C3A6F28EFE5F21E230C63 /* SettingsTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3821AD42F46ABA0789C0ABE1 /* SettingsTVView.swift */; };
 		55CA5271C47ABE84E7082F57 /* PlexPlaybackHistoryEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F5FE6EBB8DE49134083E75A /* PlexPlaybackHistoryEntry.swift */; };
 		57000B53E50ADEAEA44AFD06 /* VLCKitRendererTVOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = A904B86FC535FC7ADFADE196 /* VLCKitRendererTVOS.swift */; };
@@ -121,7 +124,9 @@
 		6F2E32CFADA86AA4043AFAE7 /* ShowDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88E0CEE228B108E654D2D3FD /* ShowDetailView.swift */; };
 		70901DE1773E59D728603A70 /* HomePersonalizedShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36DF102703ED6209EECB5E4B /* HomePersonalizedShelf.swift */; };
 		7273C1137B4A4946EB645283 /* PlexItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97C0F3FABBE04C2708A7342 /* PlexItem.swift */; };
+		73CA985412D1610FFA746F45 /* PlexLibraryCollection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C9365E3E7C263F42FE01371 /* PlexLibraryCollection.swift */; };
 		743D04AE4E0C4D0D4EE05C91 /* SignInView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 327DB919DE34BC4DF0DF6171 /* SignInView.swift */; };
+		74498FE9FB87DAA7B8BA72FF /* VideoDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */; };
 		74A6F8AAE94C574D65D60DD0 /* PlexMediaDetails.swift in Sources */ = {isa = PBXBuildFile; fileRef = 573F74A2D1ECED28B04F69D2 /* PlexMediaDetails.swift */; };
 		7542C3A78D6D7E78721A8FF9 /* ActorDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574F738358EC4E558EB21467 /* ActorDetailViewModel.swift */; };
 		7572C4AA0974CB7974C7C3FA /* PlaybackCoordinator+Timeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215D686AF085421BB487A99B /* PlaybackCoordinator+Timeline.swift */; };
@@ -152,7 +157,6 @@
 		88ABC60E89D3BE6979DDA9A6 /* PlaybackNowPlayingController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1F9A43D09E5C5AD680E39C /* PlaybackNowPlayingController.swift */; };
 		88EBDA8BD30C023D2FE3D5EA /* PlexMediaType.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86559A01E84EC686EBEEDECB /* PlexMediaType.swift */; };
 		8B58F17B03B0655F1DB24A37 /* UserPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67267CA57BCFF55726919B4D /* UserPreferences.swift */; };
-		8BB61CD42F463910A8604BB0 /* LibrariesHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32145C09A8EB4C8ECF6C3E36 /* LibrariesHubView.swift */; };
 		8C3DB20C1AD6E8A757A762FC /* VideoEnhancementRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DF050C007C8205042A9E6B /* VideoEnhancementRenderer.swift */; };
 		8C8A078A0C29E27639377D0F /* ActorDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574F738358EC4E558EB21467 /* ActorDetailViewModel.swift */; };
 		8C90BB9AA36F60BF87DB025D /* VLCKitRendererIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058C7E86E87AED03DB7C58CE /* VLCKitRendererIOS.swift */; };
@@ -161,6 +165,7 @@
 		914C1F81E0C0109ADE6C2A9A /* DuskVLCRawVideoOutput.m in Sources */ = {isa = PBXBuildFile; fileRef = 3975EBC9E9E7D0BF6E3C56E3 /* DuskVLCRawVideoOutput.m */; };
 		919C375B874A4A1FCF6EEDD3 /* LibraryRecommendationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846D1F8D464341A56DADD6C5 /* LibraryRecommendationsViewModel.swift */; };
 		91C30FBA614B5BEF68A8DB61 /* MediaCarousel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E84406C8C1C0E18B6BD4D32 /* MediaCarousel.swift */; };
+		92351E313C8EBF1B8708C18B /* LibraryVideoShelfLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39904EDD7105D765C08B457C /* LibraryVideoShelfLoader.swift */; };
 		9384B301EFE8189B46AF198B /* DuskAppIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = D763CD34F6263BF773B3EE00 /* DuskAppIcon.swift */; };
 		94795F75B488C797EFEE1E93 /* PlaybackCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A8C5D8503032DFB2DDEC895 /* PlaybackCoordinator.swift */; };
 		973E514A5FCE54C42D8D7249 /* PlayerControlsSharedViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F66286B420EBAA2A30936393 /* PlayerControlsSharedViews.swift */; };
@@ -176,6 +181,7 @@
 		9D4237E5AE1EB9B6C6731103 /* PlexService+Images.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6751E9DB256A843A177F1492 /* PlexService+Images.swift */; };
 		9DF9958B1EA93A662CD33B34 /* SupporterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F845F23072AE640CA393F779 /* SupporterView.swift */; };
 		9E116995C31AF13B4F4AF4F5 /* PlexService+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EA6CCEA23C3304F38B78D7 /* PlexService+Library.swift */; };
+		9E47FF219DB02A8E62548292 /* LibraryCollectionItemsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AEA2FE8E2D877EBCA235DBB9 /* LibraryCollectionItemsView.swift */; };
 		9E8D4CC4A8E04B9652317D2B /* LibrariesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1465A76C131A58D985D6EF8B /* LibrariesView.swift */; };
 		9F1EAB5B8FDFBCF7F8525D9F /* DownloadTransfer.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36407804ED44963931F20BA /* DownloadTransfer.swift */; };
 		A044A3A01A60CFCEF89BEEB6 /* PlayerViewModel+PlaybackControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFCE74BFF7FA1D80CC5FD1D0 /* PlayerViewModel+PlaybackControls.swift */; };
@@ -252,6 +258,7 @@
 		D7FB0B3ABA76D5483CA40A26 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09AC36CE538549470497AF52 /* SettingsView.swift */; };
 		D81213E65DFBCCF15B4B396C /* HomeHubItemsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E67CCF87D1380B6C91B5B282 /* HomeHubItemsViewModel.swift */; };
 		D86DC926C0D965156A52029C /* ServerPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 124D4F0CD015D34571A61801 /* ServerPickerView.swift */; };
+		D9AE0B6C4F081A75FE98299D /* LibraryVideoShelfLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39904EDD7105D765C08B457C /* LibraryVideoShelfLoader.swift */; };
 		DAB1283F9031389FAF60E807 /* MobileVLCKit.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 95F9E42CD3371CAA984F60B3 /* MobileVLCKit.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		DB8A8ABC3546C8C0F380CB9F /* SupporterStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 992B63A04A0FDC9B113C2B74 /* SupporterStore.swift */; };
 		DBBFA2144BEA4B9FC3946DFB /* DuskVLCRawVideoOutput.m in Sources */ = {isa = PBXBuildFile; fileRef = 3975EBC9E9E7D0BF6E3C56E3 /* DuskVLCRawVideoOutput.m */; };
@@ -263,6 +270,7 @@
 		E22917934B8E15266CE15D01 /* PlexItemPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A89E443868DAF39327CCFA46 /* PlexItemPresentation.swift */; };
 		E324428A98DFE88799726167 /* VideoEnhancementRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DF050C007C8205042A9E6B /* VideoEnhancementRenderer.swift */; };
 		E56F8EA27538C2A446B729E4 /* PlexSeason.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93D7902D253875230F093358 /* PlexSeason.swift */; };
+		E66281F0BAABF45F2772686B /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF112C2CD6A3121CE87B5DF9 /* MoreView.swift */; };
 		E67E6360EBB5863036B5B541 /* LibraryRecommendationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C0D6A670C2ABA47CDBE6A2 /* LibraryRecommendationEngine.swift */; };
 		E6F1C33B56A1E529C3EC5E25 /* AppNavigation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0978713893F45F1E3F6E9467 /* AppNavigation.swift */; };
 		E78EB2C60D0F5056A10C2996 /* MovieDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADD418AFDBF7E708D7555CFD /* MovieDetailView.swift */; };
@@ -279,7 +287,9 @@
 		ED7B20CD1390A019E27E4C29 /* LibraryPersonalizedShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89E61A1C972203BFF3B9887 /* LibraryPersonalizedShelf.swift */; };
 		F1594FC7CAE49B73C8621432 /* PlayerUpNextOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79F09C85294EBFDDC944AE87 /* PlayerUpNextOverlayView.swift */; };
 		F1951FADAA3E90CC284F1449 /* EpisodeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2264D3998C09B3EF242902BC /* EpisodeRowView.swift */; };
+		F2730A8DB481BF0F43DC1AC3 /* VideoDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8CADE80B1EC56237BC37F40 /* VideoDetailView.swift */; };
 		F2F3E22F061AD1964A5EA00E /* DuskAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 034B25104A3543F57DAB4AFF /* DuskAsyncImage.swift */; };
+		F30C34478475DA728B649CBC /* VideoDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */; };
 		F3F7A07F98C8FA42E194B6D4 /* PlexSearchResult.swift in Sources */ = {isa = PBXBuildFile; fileRef = 427AA5081B3109208B05E693 /* PlexSearchResult.swift */; };
 		F486B89EBCB984D8177EEEE6 /* PlayerDebugOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7153AA7BE468FE8A85C79CE5 /* PlayerDebugOverlayView.swift */; };
 		F57A4C33589F7DA227C55CE0 /* VLCKitEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0FBDD990F75DBE769A45421 /* VLCKitEngine.swift */; };
@@ -352,7 +362,6 @@
 		28D03B8FC015FCE4E57F2315 /* DuskIconMidnight.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconMidnight.icon; sourceTree = "<group>"; };
 		28D81792E63C82C8F090AFB1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2D376ADA86C86B4C9AD6D918 /* PlaybackCoordinator+Session.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlaybackCoordinator+Session.swift"; sourceTree = "<group>"; };
-		32145C09A8EB4C8ECF6C3E36 /* LibrariesHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrariesHubView.swift; sourceTree = "<group>"; };
 		327DB919DE34BC4DF0DF6171 /* SignInView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignInView.swift; sourceTree = "<group>"; };
 		348F1B5EF3D8AD8AE52485B2 /* DetailSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailSharedViews.swift; sourceTree = "<group>"; };
 		356E30FE6F72B592D5145C9A /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
@@ -362,6 +371,7 @@
 		390DED2ED4295016D527E610 /* MediaDetailDestinationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaDetailDestinationView.swift; sourceTree = "<group>"; };
 		3975EBC9E9E7D0BF6E3C56E3 /* DuskVLCRawVideoOutput.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = DuskVLCRawVideoOutput.m; sourceTree = "<group>"; };
 		39877981AC8629CC236D441D /* TVSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVSettingsComponents.swift; sourceTree = "<group>"; };
+		39904EDD7105D765C08B457C /* LibraryVideoShelfLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryVideoShelfLoader.swift; sourceTree = "<group>"; };
 		3C68CA978011CAF008C84676 /* PlexService+History.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+History.swift"; sourceTree = "<group>"; };
 		3C89C8715BE06C6898AC032B /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		3E84406C8C1C0E18B6BD4D32 /* MediaCarousel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCarousel.swift; sourceTree = "<group>"; };
@@ -385,6 +395,7 @@
 		5E9C4C3EA697829CF0C5F13F /* DuskIconAurora.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconAurora.icon; sourceTree = "<group>"; };
 		5F88EDFF5A8CACCF0DD74331 /* PlexService+Entitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Entitlement.swift"; sourceTree = "<group>"; };
 		5FABA212CEF54442E338EF5F /* MediaFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFormatting.swift; sourceTree = "<group>"; };
+		626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDetailViewModel.swift; sourceTree = "<group>"; };
 		639F034A9989DA389277B92E /* HomeRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRecommendationEngine.swift; sourceTree = "<group>"; };
 		66CB45494E49E1F876C6E2B2 /* DuskIconDawn.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconDawn.icon; sourceTree = "<group>"; };
 		67267CA57BCFF55726919B4D /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
@@ -421,6 +432,7 @@
 		992B63A04A0FDC9B113C2B74 /* SupporterStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupporterStore.swift; sourceTree = "<group>"; };
 		9A5D35CEE6AC31BD13C6A72D /* PlaybackEngineFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackEngineFactory.swift; sourceTree = "<group>"; };
 		9A8C5D8503032DFB2DDEC895 /* PlaybackCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackCoordinator.swift; sourceTree = "<group>"; };
+		9C9365E3E7C263F42FE01371 /* PlexLibraryCollection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexLibraryCollection.swift; sourceTree = "<group>"; };
 		9E6A19842481580689AEC855 /* HomeCinematicHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeCinematicHero.swift; sourceTree = "<group>"; };
 		A09EA98DBA7E79D3476F1D39 /* PlayerControlsTVOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlsTVOverlay.swift; sourceTree = "<group>"; };
 		A3658E173CAB9A21489A636A /* Dusk-tvOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = "Dusk-tvOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -431,6 +443,7 @@
 		ACFFB965A834EEB6A4372345 /* PlaybackEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackEngine.swift; sourceTree = "<group>"; };
 		ADD418AFDBF7E708D7555CFD /* MovieDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailView.swift; sourceTree = "<group>"; };
 		AE6F7FECDE3C11C2D1CCA214 /* SettingsContainer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsContainer.swift; sourceTree = "<group>"; };
+		AEA2FE8E2D877EBCA235DBB9 /* LibraryCollectionItemsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCollectionItemsView.swift; sourceTree = "<group>"; };
 		B4EC987E87318E2BFA93ADA0 /* LibrariesViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrariesViewModel.swift; sourceTree = "<group>"; };
 		B55733DDE10DDD70B9E80AFD /* OfflinePlaybackSyncStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OfflinePlaybackSyncStore.swift; sourceTree = "<group>"; };
 		B58A13BD2862BF9B3DDC398E /* MovieDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MovieDetailViewModel.swift; sourceTree = "<group>"; };
@@ -443,6 +456,7 @@
 		CB9484196E903B651E4E88F1 /* SearchViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchViewModel.swift; sourceTree = "<group>"; };
 		CC728F5DE92EFB0707BBE997 /* DownloadFileStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadFileStore.swift; sourceTree = "<group>"; };
 		CCFB62797314A3D853B52051 /* EpisodeDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeDetailViewModel.swift; sourceTree = "<group>"; };
+		CF112C2CD6A3121CE87B5DF9 /* MoreView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoreView.swift; sourceTree = "<group>"; };
 		CFCE74BFF7FA1D80CC5FD1D0 /* PlayerViewModel+PlaybackControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerViewModel+PlaybackControls.swift"; sourceTree = "<group>"; };
 		D0FBDD990F75DBE769A45421 /* VLCKitEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLCKitEngine.swift; sourceTree = "<group>"; };
 		D1E38D5DFEC2C3D4DEA908C7 /* LibraryGenreSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryGenreSupport.swift; sourceTree = "<group>"; };
@@ -460,6 +474,7 @@
 		E633961171327398791E552E /* PlexService+Playback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Playback.swift"; sourceTree = "<group>"; };
 		E67CCF87D1380B6C91B5B282 /* HomeHubItemsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHubItemsViewModel.swift; sourceTree = "<group>"; };
 		E89E61A1C972203BFF3B9887 /* LibraryPersonalizedShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryPersonalizedShelf.swift; sourceTree = "<group>"; };
+		E8CADE80B1EC56237BC37F40 /* VideoDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDetailView.swift; sourceTree = "<group>"; };
 		EC07DAEED42C6DF6C3F87FA7 /* PlexServiceError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexServiceError.swift; sourceTree = "<group>"; };
 		EC749FF6253BF830C0C6B2E1 /* SeasonDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeasonDetailView.swift; sourceTree = "<group>"; };
 		EFA5D54D8E9EED23579806F1 /* PlexPin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexPin.swift; sourceTree = "<group>"; };
@@ -567,9 +582,9 @@
 		3704401D9C7DFA5FDF5C891A /* Libraries */ = {
 			isa = PBXGroup;
 			children = (
-				32145C09A8EB4C8ECF6C3E36 /* LibrariesHubView.swift */,
 				1465A76C131A58D985D6EF8B /* LibrariesView.swift */,
 				B4EC987E87318E2BFA93ADA0 /* LibrariesViewModel.swift */,
+				AEA2FE8E2D877EBCA235DBB9 /* LibraryCollectionItemsView.swift */,
 				D1E38D5DFEC2C3D4DEA908C7 /* LibraryGenreSupport.swift */,
 				209C0372A7410DEB5A5FA45C /* LibraryItemsView.swift */,
 				1381933827E832D2448FF0DB /* LibraryItemsViewModel.swift */,
@@ -577,6 +592,7 @@
 				52C0D6A670C2ABA47CDBE6A2 /* LibraryRecommendationEngine.swift */,
 				C4AF71FF1066CE67045FF1A6 /* LibraryRecommendationsView.swift */,
 				846D1F8D464341A56DADD6C5 /* LibraryRecommendationsViewModel.swift */,
+				39904EDD7105D765C08B457C /* LibraryVideoShelfLoader.swift */,
 			);
 			path = Libraries;
 			sourceTree = "<group>";
@@ -690,6 +706,7 @@
 				F9771A4F964C286E6DA9AB6A /* PlexHub.swift */,
 				D97C0F3FABBE04C2708A7342 /* PlexItem.swift */,
 				FCC7B1185FAF95EDBB76EDBA /* PlexLibrary.swift */,
+				9C9365E3E7C263F42FE01371 /* PlexLibraryCollection.swift */,
 				573F74A2D1ECED28B04F69D2 /* PlexMediaDetails.swift */,
 				86559A01E84EC686EBEEDECB /* PlexMediaType.swift */,
 				EFA5D54D8E9EED23579806F1 /* PlexPin.swift */,
@@ -730,6 +747,7 @@
 				6E04ECF8E20F247BA70F3250 /* DuskApp.swift */,
 				4FA5AAA4DEC1C24EA84E11DF /* MainTabShells.swift */,
 				7544739258CFA8FA07B61B54 /* MainTabView.swift */,
+				CF112C2CD6A3121CE87B5DF9 /* MoreView.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -760,6 +778,8 @@
 				59D3DFD09891C72BA03E6F9D /* SeasonDetailViewModel.swift */,
 				88E0CEE228B108E654D2D3FD /* ShowDetailView.swift */,
 				0FBE9B40CB6E7F23A88BAA00 /* ShowDetailViewModel.swift */,
+				E8CADE80B1EC56237BC37F40 /* VideoDetailView.swift */,
+				626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */,
 			);
 			path = Detail;
 			sourceTree = "<group>";
@@ -1009,9 +1029,9 @@
 				C45AD8910DC0A123DC0E5F2E /* HomeView.swift in Sources */,
 				EAEB3E862EE90F8C106EB566 /* HomeViewModel.swift in Sources */,
 				789BEDF7C3E478F9C988362A /* KeychainHelper.swift in Sources */,
-				127C45793381442CE1D68580 /* LibrariesHubView.swift in Sources */,
 				642A1E7EAC8350D56BA15243 /* LibrariesView.swift in Sources */,
 				8127F4D4447EBB68AFBE68B3 /* LibrariesViewModel.swift in Sources */,
+				44ED26F4DC956942562DEDD0 /* LibraryCollectionItemsView.swift in Sources */,
 				51067C4AE0230027EAA8E6FE /* LibraryGenreSupport.swift in Sources */,
 				BB481D2C28D2E8EC78194EEB /* LibraryItemsView.swift in Sources */,
 				0C9687177AE365CE96E2119B /* LibraryItemsViewModel.swift in Sources */,
@@ -1019,11 +1039,13 @@
 				5D5412E0665FB5E5B80E8ACB /* LibraryRecommendationEngine.swift in Sources */,
 				E14291BCDE457FA9755C1502 /* LibraryRecommendationsView.swift in Sources */,
 				919C375B874A4A1FCF6EEDD3 /* LibraryRecommendationsViewModel.swift in Sources */,
+				92351E313C8EBF1B8708C18B /* LibraryVideoShelfLoader.swift in Sources */,
 				CEF59520FAF7BDF676941B1C /* MainTabShells.swift in Sources */,
 				276C601ECCA1260FF437B060 /* MainTabView.swift in Sources */,
 				A0739BC0AECBAEAA4493CA29 /* MediaCarousel.swift in Sources */,
 				E9968304272BFA8A38216038 /* MediaDetailDestinationView.swift in Sources */,
 				0C8AAE808560045BD3405F48 /* MediaFormatting.swift in Sources */,
+				32A915A01285F96F5030FFB6 /* MoreView.swift in Sources */,
 				E78EB2C60D0F5056A10C2996 /* MovieDetailView.swift in Sources */,
 				322B5C37B4ADA2B9654FD7B9 /* MovieDetailViewModel.swift in Sources */,
 				3AC527EF9D6B4F6BA46F1C76 /* OfflinePlaybackSyncManager.swift in Sources */,
@@ -1060,6 +1082,7 @@
 				272227012DAD23544B49041E /* PlexItemPosterCollections.swift in Sources */,
 				C719C20E2162CCF02684073A /* PlexItemPresentation.swift in Sources */,
 				192B596729A4B8CA90D1544B /* PlexLibrary.swift in Sources */,
+				73CA985412D1610FFA746F45 /* PlexLibraryCollection.swift in Sources */,
 				74A6F8AAE94C574D65D60DD0 /* PlexMediaDetails.swift in Sources */,
 				88EBDA8BD30C023D2FE3D5EA /* PlexMediaType.swift in Sources */,
 				D0930E9E0BEC4B91A93A5A40 /* PlexMetadataCache.swift in Sources */,
@@ -1108,6 +1131,8 @@
 				083F34C8D75235F2EA7004EF /* VLCKitEnhancedPictureInPicture.swift in Sources */,
 				8C90BB9AA36F60BF87DB025D /* VLCKitRendererIOS.swift in Sources */,
 				14E190A902F59C65163E62CF /* VLCKitRendererTVOS.swift in Sources */,
+				538C3423962B6693DEFAFBDE /* VideoDetailView.swift in Sources */,
+				74498FE9FB87DAA7B8BA72FF /* VideoDetailViewModel.swift in Sources */,
 				30C280A37E619C93EF431992 /* VideoEnhancement.swift in Sources */,
 				8C3DB20C1AD6E8A757A762FC /* VideoEnhancementRenderer.swift in Sources */,
 				FD094D66CDDA0BD9079DEDCA /* VideoEnhancementShaders.metal in Sources */,
@@ -1154,9 +1179,9 @@
 				5716AC625828ACE9A4E2E226 /* HomeView.swift in Sources */,
 				51CDA7EF644BA8EBD3495EA3 /* HomeViewModel.swift in Sources */,
 				3F7BABC078A82BFFEAE1E85D /* KeychainHelper.swift in Sources */,
-				8BB61CD42F463910A8604BB0 /* LibrariesHubView.swift in Sources */,
 				9E8D4CC4A8E04B9652317D2B /* LibrariesView.swift in Sources */,
 				69F356B54ED9EB3D3882F12B /* LibrariesViewModel.swift in Sources */,
+				9E47FF219DB02A8E62548292 /* LibraryCollectionItemsView.swift in Sources */,
 				BAF9EB7802BBCC880D1F4635 /* LibraryGenreSupport.swift in Sources */,
 				0F16E1EB29F95C57D4CD9A36 /* LibraryItemsView.swift in Sources */,
 				2415589AC77E76FB81D4FB5C /* LibraryItemsViewModel.swift in Sources */,
@@ -1164,11 +1189,13 @@
 				E67E6360EBB5863036B5B541 /* LibraryRecommendationEngine.swift in Sources */,
 				C3344C955F7BFD92A35EE6E4 /* LibraryRecommendationsView.swift in Sources */,
 				84CAA0EAF8EA626F4869C6B2 /* LibraryRecommendationsViewModel.swift in Sources */,
+				D9AE0B6C4F081A75FE98299D /* LibraryVideoShelfLoader.swift in Sources */,
 				4CECA98BAC95F47BFC6E92B5 /* MainTabShells.swift in Sources */,
 				FFF916BA397ADDA6F8F402BF /* MainTabView.swift in Sources */,
 				91C30FBA614B5BEF68A8DB61 /* MediaCarousel.swift in Sources */,
 				FDED3D0842AFE704BE1A4692 /* MediaDetailDestinationView.swift in Sources */,
 				2FCADD6A7F12299BE72B4BF2 /* MediaFormatting.swift in Sources */,
+				E66281F0BAABF45F2772686B /* MoreView.swift in Sources */,
 				A22E8B744D14DC4EF752EE54 /* MovieDetailView.swift in Sources */,
 				D01EE1426A3D7DE2EED23180 /* MovieDetailViewModel.swift in Sources */,
 				99240D98C8EABA15B86FEEAE /* OfflinePlaybackSyncManager.swift in Sources */,
@@ -1205,6 +1232,7 @@
 				FAA937A923DFACF02174C116 /* PlexItemPosterCollections.swift in Sources */,
 				E22917934B8E15266CE15D01 /* PlexItemPresentation.swift in Sources */,
 				F7E09A8F3F09533B84FD6C37 /* PlexLibrary.swift in Sources */,
+				1162A7B5847FC0E33C364FFB /* PlexLibraryCollection.swift in Sources */,
 				679D21365EA68E287D6C737B /* PlexMediaDetails.swift in Sources */,
 				3D41B2F539E3877866299C4B /* PlexMediaType.swift in Sources */,
 				E7C15377CE16BE8D0F17F945 /* PlexMetadataCache.swift in Sources */,
@@ -1253,6 +1281,8 @@
 				50D53789B1E9A1A936FA7451 /* VLCKitEnhancedPictureInPicture.swift in Sources */,
 				A75C125DE10FC430D7D30211 /* VLCKitRendererIOS.swift in Sources */,
 				57000B53E50ADEAEA44AFD06 /* VLCKitRendererTVOS.swift in Sources */,
+				F2730A8DB481BF0F43DC1AC3 /* VideoDetailView.swift in Sources */,
+				F30C34478475DA728B649CBC /* VideoDetailViewModel.swift in Sources */,
 				A6A278D5558446C28C57C476 /* VideoEnhancement.swift in Sources */,
 				E324428A98DFE88799726167 /* VideoEnhancementRenderer.swift in Sources */,
 				0FDB7BCDCEBE80B02E5B062A /* VideoEnhancementShaders.metal in Sources */,
@@ -1336,7 +1366,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.3.4;
+				MARKETING_VERSION = 1.4.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -1426,7 +1456,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
-				MARKETING_VERSION = 1.3.4;
+				MARKETING_VERSION = 1.4.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;

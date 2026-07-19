@@ -3,15 +3,24 @@ import SwiftUI
 enum AppNavigationRoute: Hashable {
     case library(PlexLibrary)
     case libraryGenre(library: PlexLibrary, genre: LibraryGenreOption)
+    case libraryCollection(library: PlexLibrary, collection: PlexLibraryCollection)
     case libraryRecommendations(PlexLibrary)
     case hub(PlexHub)
     case media(type: PlexMediaType, ratingKey: String)
     case downloadedMedia(type: PlexMediaType, ratingKey: String)
+    case video(ratingKey: String)
+    case downloadedVideo(ratingKey: String)
     case person(PlexPersonReference)
 
     static func destination(for item: PlexItem) -> Self {
         if let person = PlexPersonReference(item: item) {
             return .person(person)
+        }
+
+        // Clips report `type == "movie"` with `subtype == "clip"`, so they must
+        // never fall through to the movie detail flow.
+        if item.isClip {
+            return .video(ratingKey: item.ratingKey)
         }
 
         return .media(type: item.type, ratingKey: item.ratingKey)
@@ -37,6 +46,8 @@ struct AppNavigationDestinationView: View {
                 initialGenre: genre,
                 preferLocalGenreFiltering: true
             )
+        case .libraryCollection(let library, let collection):
+            LibraryCollectionItemsView(library: library, collection: collection)
         case .libraryRecommendations(let library):
             LibraryRecommendationsView(
                 library: library,
@@ -61,6 +72,20 @@ struct AppNavigationDestinationView: View {
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 prefersOfflineAvailability: DownloadsFeature.isVisible
+            )
+        case let .video(ratingKey):
+            VideoDetailView(
+                ratingKey: ratingKey,
+                plexService: plexService,
+                downloadManager: downloadManager,
+                offlinePlaybackSyncManager: offlinePlaybackSyncManager
+            )
+        case let .downloadedVideo(ratingKey):
+            VideoDetailView(
+                ratingKey: ratingKey,
+                plexService: plexService,
+                downloadManager: downloadManager,
+                offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
         case .person(let person):
             ActorDetailView(person: person, plexService: plexService)

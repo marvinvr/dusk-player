@@ -17,6 +17,10 @@ struct DownloadActionButton: View {
 
     let ratingKey: String
     let type: PlexMediaType
+    /// True for video clips (Plex `type == "movie"` + `subtype == "clip"`), so
+    /// the queued download record carries the flag for 16:9 artwork and
+    /// `.downloadedVideo` routing.
+    var isClip = false
     var fillsWidth = false
     /// Icon-only rendering for the iOS detail hero secondary row (the state icon
     /// already conveys download status, so the text label is dropped).
@@ -188,7 +192,11 @@ struct DownloadActionButton: View {
     }
 
     private var deleteConfirmationTitle: String {
-        switch type {
+        if isClip {
+            return "Delete Video Download?"
+        }
+
+        return switch type {
         case .episode:
             "Delete Episode Download?"
         case .movie:
@@ -203,7 +211,11 @@ struct DownloadActionButton: View {
     }
 
     private var deleteConfirmationMessage: String {
-        switch type {
+        if isClip {
+            return "Remove this video from this device?"
+        }
+
+        return switch type {
         case .episode:
             "Remove this episode from this device?"
         case .movie:
@@ -220,7 +232,7 @@ struct DownloadActionButton: View {
     private func startDownload() {
         isStartingDownload = true
         Task {
-            await downloadManager.queueDownload(ratingKey: ratingKey, type: type)
+            await downloadManager.queueDownload(ratingKey: ratingKey, type: type, isClip: isClip)
             isStartingDownload = false
         }
     }

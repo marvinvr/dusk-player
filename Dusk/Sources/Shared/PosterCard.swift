@@ -99,7 +99,7 @@ struct PosterArtwork: View {
         artworkShape
             .fill(Color.duskSurface)
             .overlay {
-                Image(systemName: "film")
+                Image(systemName: isHorizontalArtwork ? "play.rectangle" : "film")
                     .font(.title2)
                     .foregroundStyle(Color.duskTextSecondary)
             }

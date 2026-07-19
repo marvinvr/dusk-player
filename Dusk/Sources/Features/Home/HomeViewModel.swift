@@ -145,7 +145,10 @@ final class HomeViewModel {
     }
 
     func heroItems() -> [PlexItem] {
-        continueWatching
+        // In-progress clips stay out of the cinematic hero rotation: their 16:9
+        // frame grabs read poorly as full-bleed backdrops. They still surface in
+        // the Videos tab's Continue Watching row.
+        continueWatching.filter { !$0.isClip }
     }
 
     func heroEpisodeTitle(for item: PlexItem) -> String? {
@@ -248,13 +251,19 @@ final class HomeViewModel {
             (hub.size ?? 0) > maxRecentlyAddedItems
     }
 
+    /// A hub renders as a 16:9 video carousel when every visible item in it is
+    /// a clip. Mixed or non-clip hubs keep the standard 2:3 poster layout.
+    func isVideoHub(_ hub: PlexHub) -> Bool {
+        visibleItems(in: hub).isAllClips
+    }
+
     func isRecentlyAddedHub(_ hub: PlexHub) -> Bool {
         let normalizedTitle = hub.title.lowercased()
 
         guard normalizedTitle.contains("recently added") else { return false }
 
         let itemTypes = Set(visibleItems(in: hub).map(\.type))
-        return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode])
+        return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode, .clip])
     }
 
     func showAllRoute(for shelf: HomePersonalizedShelf) -> AppNavigationRoute? {

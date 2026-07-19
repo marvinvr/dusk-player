@@ -62,6 +62,15 @@ struct MediaDetailDestinationView: View {
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
+        case .clip:
+            // Clips normally route through `.video`; this catches legacy
+            // `.media(type: .clip, ...)` paths so they never open MovieDetailView.
+            VideoDetailView(
+                ratingKey: ratingKey,
+                plexService: plexService,
+                downloadManager: downloadManager,
+                offlinePlaybackSyncManager: offlinePlaybackSyncManager
+            )
         default:
             MovieDetailView(
                 ratingKey: ratingKey,

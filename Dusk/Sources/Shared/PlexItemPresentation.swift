@@ -13,13 +13,24 @@ extension PlexItem {
     }
 
     var continueWatchingDisplaySubtitle: String? {
+        if isClip {
+            return clipPosterSubtitle
+        }
         if type == .episode {
             return MediaTextFormatter.seasonEpisodeLabel(season: parentIndex, episode: index) ?? title
         }
         return year.map(String.init)
     }
 
+    /// Clip cards show a compact duration instead of a year.
+    var clipPosterSubtitle: String? {
+        MediaTextFormatter.compactDuration(milliseconds: duration) ?? year.map(String.init)
+    }
+
     var standardPosterSubtitle: String? {
+        if isClip {
+            return clipPosterSubtitle
+        }
         switch type {
         case .movie:
             return year.map(String.init)
@@ -60,5 +71,15 @@ extension PlexItem {
     @MainActor
     func landscapeImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
         plexService.imageURL(for: preferredLandscapePath, width: width, height: height)
+    }
+}
+
+/// Shared "video row" decision for hub-shaped rows (Home hubs, search result
+/// groups, hub item grids): a non-empty row consisting entirely of clips
+/// renders as a 16:9 carousel/grid; anything mixed or non-clip keeps the 2:3
+/// poster layout.
+extension Collection where Element == PlexItem {
+    var isAllClips: Bool {
+        !isEmpty && allSatisfy(\.isClip)
     }
 }

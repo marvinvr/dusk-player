@@ -31,9 +31,7 @@ struct LibraryRecommendationsView: View {
 
             if !viewModel.hasLoadedOnce,
                viewModel.error == nil,
-               viewModel.hubs.isEmpty,
-               viewModel.personalizedShelves.isEmpty,
-               viewModel.continueWatching.isEmpty {
+               !viewModel.hasAnyContent {
                 FeatureLoadingView()
             } else {
                 contentView
@@ -76,16 +74,12 @@ struct LibraryRecommendationsView: View {
                 #endif
 
                 if let error = viewModel.error,
-                   viewModel.hubs.isEmpty,
-                   viewModel.personalizedShelves.isEmpty,
-                   viewModel.continueWatching.isEmpty {
+                   !viewModel.hasAnyContent {
                     FeatureErrorView(message: error) {
                         Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                     }
                     .padding(.top, 40)
-                } else if viewModel.hubs.isEmpty,
-                          viewModel.personalizedShelves.isEmpty,
-                          viewModel.continueWatching.isEmpty {
+                } else if !viewModel.hasAnyContent {
                     emptyView
                         .padding(.top, 40)
                 } else {
@@ -102,17 +96,37 @@ struct LibraryRecommendationsView: View {
                             }
                         }
 
-                        ForEach(viewModel.personalizedShelves) { shelf in
-                            if !shelf.items.isEmpty {
-                                personalizedShelfSection(shelf)
+                        if viewModel.isVideoLibrary {
+                            ForEach(viewModel.secondaryHubs) { hub in
+                                let items = viewModel.inlineItems(in: hub)
+
+                                if !items.isEmpty {
+                                    hubSection(hub, items: items)
+                                }
                             }
-                        }
 
-                        ForEach(viewModel.secondaryHubs) { hub in
-                            let items = viewModel.inlineItems(in: hub)
+                            ForEach(viewModel.channelShelves) { shelf in
+                                if !shelf.items.isEmpty {
+                                    channelShelfSection(shelf)
+                                }
+                            }
 
-                            if !items.isEmpty {
-                                hubSection(hub, items: items)
+                            if !viewModel.rediscoverItems.isEmpty {
+                                rediscoverSection
+                            }
+                        } else {
+                            ForEach(viewModel.personalizedShelves) { shelf in
+                                if !shelf.items.isEmpty {
+                                    personalizedShelfSection(shelf)
+                                }
+                            }
+
+                            ForEach(viewModel.secondaryHubs) { hub in
+                                let items = viewModel.inlineItems(in: hub)
+
+                                if !items.isEmpty {
+                                    hubSection(hub, items: items)
+                                }
                             }
                         }
                     }
@@ -206,6 +220,8 @@ struct LibraryRecommendationsView: View {
         PlexItemPosterCarouselSection(
             title: viewModel.normalizedTitle(for: hub),
             items: items,
+            posterWidth: shelfPosterWidth,
+            imageAspectRatio: shelfImageAspectRatio,
             showAllRoute: showsShowAll ? AppNavigationRoute.hub(hub) : nil,
             subtitle: { viewModel.subtitle(for: $0) },
             posterURL: { item, width, height in
@@ -222,6 +238,67 @@ struct LibraryRecommendationsView: View {
                 }
             )
         }
+    }
+
+    @ViewBuilder
+    private func channelShelfSection(_ shelf: LibraryVideoChannelShelf) -> some View {
+        PlexItemPosterCarouselSection(
+            title: shelf.collection.title,
+            items: shelf.items,
+            posterWidth: shelfPosterWidth,
+            imageAspectRatio: shelfImageAspectRatio,
+            showAllRoute: AppNavigationRoute.libraryCollection(
+                library: viewModel.library,
+                collection: shelf.collection
+            ),
+            subtitle: { viewModel.subtitle(for: $0) },
+            posterURL: { item, width, height in
+                viewModel.posterURL(for: item, width: width, height: height)
+            }
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
+                }
+            )
+        }
+    }
+
+    private var rediscoverSection: some View {
+        PlexItemPosterCarouselSection(
+            title: "Rediscover",
+            items: viewModel.rediscoverItems,
+            posterWidth: shelfPosterWidth,
+            imageAspectRatio: shelfImageAspectRatio,
+            subtitle: { viewModel.subtitle(for: $0) },
+            posterURL: { item, width, height in
+                viewModel.posterURL(for: item, width: width, height: height)
+            }
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
+                }
+            )
+        }
+    }
+
+    /// Video-library shelves render 16:9 clip cards; movie/show shelves keep
+    /// the standard 2:3 posters.
+    private var shelfPosterWidth: CGFloat {
+        viewModel.isVideoLibrary ? DuskPosterMetrics.videoCarouselWidth : DuskPosterMetrics.carouselPosterWidth
+    }
+
+    private var shelfImageAspectRatio: CGFloat {
+        viewModel.isVideoLibrary ? 16.0 / 9.0 : 2.0 / 3.0
     }
 
     private var emptyView: some View {
@@ -246,13 +323,17 @@ struct LibraryRecommendationsView: View {
     }
 
     private func detailsLabel(for item: PlexItem) -> String {
+        if item.isClip {
+            return "Go to Video"
+        }
+
         switch item.type {
         case .episode:
-            "Go to Episode"
+            return "Go to Episode"
         case .movie:
-            "Go to Movie"
+            return "Go to Movie"
         default:
-            "View Details"
+            return "View Details"
         }
     }
 }

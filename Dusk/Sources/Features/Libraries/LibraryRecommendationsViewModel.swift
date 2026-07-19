@@ -16,6 +16,8 @@ final class LibraryRecommendationsViewModel {
 
     private(set) var hubs: [PlexHub] = []
     private(set) var personalizedShelves: [LibraryPersonalizedShelf] = []
+    private(set) var channelShelves: [LibraryVideoChannelShelf] = []
+    private(set) var rediscoverItems: [PlexItem] = []
     private(set) var continueWatching: [PlexItem] = []
     private(set) var continueWatchingTitle = "Continue Watching"
     private(set) var isLoading = false
@@ -24,6 +26,7 @@ final class LibraryRecommendationsViewModel {
 
     private let plexService: PlexService
     private let recommendationEngine: LibraryRecommendationEngine
+    private let videoShelfLoader: LibraryVideoShelfLoader
 
     init(library: PlexLibrary, plexService: PlexService) {
         self.library = library
@@ -32,6 +35,22 @@ final class LibraryRecommendationsViewModel {
             library: library,
             plexService: plexService
         )
+        self.videoShelfLoader = LibraryVideoShelfLoader(
+            library: library,
+            plexService: plexService
+        )
+    }
+
+    var isVideoLibrary: Bool {
+        library.libraryType == .video
+    }
+
+    var hasAnyContent: Bool {
+        !hubs.isEmpty ||
+        !personalizedShelves.isEmpty ||
+        !channelShelves.isEmpty ||
+        !rediscoverItems.isEmpty ||
+        !continueWatching.isEmpty
     }
 
     func load(maxRecentlyAddedItems: Int? = nil) async {
@@ -39,7 +58,7 @@ final class LibraryRecommendationsViewModel {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
-        let isInitialLoad = hubs.isEmpty && continueWatching.isEmpty && personalizedShelves.isEmpty
+        let isInitialLoad = !hasAnyContent
 
         if isInitialLoad {
             isLoading = true
@@ -47,57 +66,10 @@ final class LibraryRecommendationsViewModel {
         }
 
         do {
-            let hubCount = max(self.maxRecentlyAddedItems, 12)
-
-            async let fetchedHubsTask = plexService.getLibraryHubs(
-                sectionId: library.key,
-                count: hubCount
-            )
-            async let personalizedShelvesTask = recommendationEngine.loadResult(
-                itemsPerShelf: self.maxRecentlyAddedItems
-            )
-
-            let fetchedHubs = try await fetchedHubsTask
-            let baseHubs = fetchedHubs.filter { !shouldHideHub($0) }
-            let expandedHubs = try await expandedRecentlyAddedHubs(from: baseHubs)
-            let recommendationResult = (try? await personalizedShelvesTask)
-                ?? LibraryRecommendationLoadResult(
-                    shelves: [],
-                    diagnostics: LibraryRecommendationDiagnostics(
-                        candidateGenreCount: 0,
-                        historyCount: 0,
-                        historyGenreCount: 0,
-                        fallbackViewedCount: 0,
-                        fallbackGenreCount: 0,
-                        shelfCount: 0
-                    )
-                )
-
-            let continueWatchingHub = expandedHubs.first(where: isContinueWatchingHub)
-            let recommendationHubs = expandedHubs.filter { !isContinueWatchingHub($0) }
-            let continueWatchingItems = continueWatchingHub.map(visibleItems(in:)) ?? []
-            let continueWatchingTitle = continueWatchingHub.map(normalizedContinueWatchingTitle(for:)) ?? "Continue Watching"
-            let filteredPersonalizedShelves = filterPersonalizedShelves(
-                recommendationResult.shelves,
-                excluding: continueWatchingItems
-            )
-
-            if filteredPersonalizedShelves.isEmpty {
-                libraryRecommendationsLogger.debug("\(recommendationResult.diagnostics.summary, privacy: .public)")
-            }
-
-            if isInitialLoad {
-                self.hubs = recommendationHubs
-                self.personalizedShelves = filteredPersonalizedShelves
-                self.continueWatching = continueWatchingItems
-                self.continueWatchingTitle = continueWatchingTitle
+            if isVideoLibrary {
+                try await loadVideoLibraryContent(isInitialLoad: isInitialLoad)
             } else {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    self.hubs = recommendationHubs
-                    self.personalizedShelves = filteredPersonalizedShelves
-                    self.continueWatching = continueWatchingItems
-                    self.continueWatchingTitle = continueWatchingTitle
-                }
+                try await loadStandardLibraryContent(isInitialLoad: isInitialLoad)
             }
 
             error = nil
@@ -109,6 +81,88 @@ final class LibraryRecommendationsViewModel {
 
         hasLoadedOnce = true
         isLoading = false
+    }
+
+    /// Movie/show libraries: Plex hubs plus genre-engine personalized shelves.
+    private func loadStandardLibraryContent(isInitialLoad: Bool) async throws {
+        async let fetchedHubsTask = plexService.getLibraryHubs(
+            sectionId: library.key,
+            count: hubFetchCount
+        )
+        async let personalizedShelvesTask = recommendationEngine.loadResult(
+            itemsPerShelf: maxRecentlyAddedItems
+        )
+
+        let fetchedHubs = try await fetchedHubsTask
+        let processedHubs = try await processHubs(fetchedHubs)
+        let recommendationResult = (try? await personalizedShelvesTask) ?? .empty
+        let filteredPersonalizedShelves = filterPersonalizedShelves(
+            recommendationResult.shelves,
+            excluding: processedHubs.continueWatching
+        )
+
+        if filteredPersonalizedShelves.isEmpty {
+            libraryRecommendationsLogger.debug("\(recommendationResult.diagnostics.summary, privacy: .public)")
+        }
+
+        apply(isInitialLoad: isInitialLoad) {
+            self.hubs = processedHubs.hubs
+            self.personalizedShelves = filteredPersonalizedShelves
+            self.channelShelves = []
+            self.rediscoverItems = []
+            self.continueWatching = processedHubs.continueWatching
+            self.continueWatchingTitle = processedHubs.continueWatchingTitle
+        }
+    }
+
+    /// Video libraries skip the genre recommendation engine entirely (its
+    /// history/genre scoring is expensive and meaningless for clips) and load
+    /// channel rows plus a seeded Rediscover row instead.
+    private func loadVideoLibraryContent(isInitialLoad: Bool) async throws {
+        async let fetchedHubsTask = plexService.getLibraryHubs(
+            sectionId: library.key,
+            count: hubFetchCount
+        )
+        async let videoShelvesTask = videoShelfLoader.load()
+
+        let fetchedHubs = try await fetchedHubsTask
+        let processedHubs = try await processHubs(fetchedHubs)
+        let videoShelves = await videoShelvesTask
+
+        apply(isInitialLoad: isInitialLoad) {
+            self.hubs = processedHubs.hubs
+            self.personalizedShelves = []
+            self.channelShelves = videoShelves.channelShelves
+            self.rediscoverItems = videoShelves.rediscoverItems
+            self.continueWatching = processedHubs.continueWatching
+            self.continueWatchingTitle = processedHubs.continueWatchingTitle
+        }
+    }
+
+    private var hubFetchCount: Int {
+        max(maxRecentlyAddedItems, 12)
+    }
+
+    private func processHubs(
+        _ fetchedHubs: [PlexHub]
+    ) async throws -> (hubs: [PlexHub], continueWatching: [PlexItem], continueWatchingTitle: String) {
+        let baseHubs = fetchedHubs.filter { !shouldHideHub($0) }
+        let expandedHubs = try await expandedRecentlyAddedHubs(from: baseHubs)
+
+        let continueWatchingHub = expandedHubs.first(where: isContinueWatchingHub)
+        let recommendationHubs = expandedHubs.filter { !isContinueWatchingHub($0) }
+        let continueWatchingItems = continueWatchingHub.map(visibleItems(in:)) ?? []
+        let continueWatchingTitle = continueWatchingHub.map(normalizedContinueWatchingTitle(for:)) ?? "Continue Watching"
+
+        return (recommendationHubs, continueWatchingItems, continueWatchingTitle)
+    }
+
+    private func apply(isInitialLoad: Bool, _ updates: () -> Void) {
+        if isInitialLoad {
+            updates()
+        } else {
+            withAnimation(.easeInOut(duration: 0.3), updates)
+        }
     }
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
@@ -250,7 +304,7 @@ final class LibraryRecommendationsViewModel {
         guard normalizedTitle.contains("recently added") else { return false }
 
         let itemTypes = Set(visibleItems(in: hub).map(\.type))
-        return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode])
+        return !itemTypes.isEmpty && itemTypes.isSubset(of: [.movie, .show, .season, .episode, .clip])
     }
 
     private func shouldHideHub(_ hub: PlexHub) -> Bool {
@@ -296,4 +350,18 @@ final class LibraryRecommendationsViewModel {
             )
         }
     }
+}
+
+private extension LibraryRecommendationLoadResult {
+    static let empty = LibraryRecommendationLoadResult(
+        shelves: [],
+        diagnostics: LibraryRecommendationDiagnostics(
+            candidateGenreCount: 0,
+            historyCount: 0,
+            historyGenreCount: 0,
+            fallbackViewedCount: 0,
+            fallbackGenreCount: 0,
+            shelfCount: 0
+        )
+    )
 }

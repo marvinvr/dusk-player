@@ -113,6 +113,9 @@ Library:
   one-item page.
 - `getLibraryFilters(sectionId:)` and `getLibraryFilterValues(path:)` decode
   filter directories.
+- `getLibraryCollections(sectionId:)` -> `/library/sections/{sectionId}/collection`
+  filter values, decoded as `[PlexLibraryCollection]` (key + title). Fetch a
+  collection's items with `getLibraryItems(filters: ["collection": key])`.
 
 Hubs and search:
 - `getHubs()` -> `/hubs`.
@@ -195,6 +198,14 @@ Pitfalls:
 - Most fields are optional because Plex varies by endpoint, media type, agent,
   library, and ownership.
 - `PlexMediaType` decodes unknown raw values to `.unknown`.
+- "Other Videos" (personal media / YouTube) sections report `type="movie"`; the
+  section-level discriminator is `PlexLibrary.libraryType == .video`, classified
+  from section `subtype == "clip"`, the none-agents
+  (`tv.plex.agents.none`/`com.plexapp.agents.none`), or a "Plex Video Files"
+  scanner prefix. Items from those sections are `type="movie"` with item
+  `subtype == "clip"` — `PlexItem.isClip`/`PlexMediaDetails.isClip` is the
+  per-item marker that drives 16:9 rendering and video-detail routing anywhere
+  clips surface (hubs, search, continue watching, downloads).
 - `PlexHub` decodes items lossily because search can return suggestion records
   that are not media-shaped.
 - `PlexStream` decodes selected/default/forced/hearing-impaired as bool-ish

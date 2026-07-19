@@ -549,6 +549,10 @@ struct HomeRecommendationEngine {
             return item.type == .movie
         case .show:
             return item.type == .show
+        case .video:
+            // Video ("Other Videos") libraries never feed the movie/show
+            // recommendation engine.
+            return false
         }
     }
 

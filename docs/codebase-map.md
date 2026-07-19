@@ -17,7 +17,7 @@ Dusk/Sources
     Account/           Sign-in and server picker
     Home/              Home hubs, continue watching, recommendations
     Libraries/         Library list, library item grids, recommendations
-    Detail/            Movie/show/season/episode/person detail flows
+    Detail/            Movie/show/season/episode/video/person detail flows
     Player/            Full-screen playback UI and coordinator
     Downloads/         Downloads screen and download controls
     Search/            Search view and view model
@@ -48,7 +48,9 @@ connected -> MainTabView
 `MainTabView` owns independent `NavigationPath`s per tab and presents
 `PlayerView` as a full-screen cover when `PlaybackCoordinator.showPlayer` is
 true. App-wide routes are declared in `AppNavigationRoute`; new top-level
-destinations should normally be added there.
+destinations should normally be added there. Tabs are per library type (Movies,
+TV Shows, Videos); on iOS an overflow `MoreView` tab absorbs Search/Settings
+(and Downloads if needed) to stay within five tabs, while tvOS stays flat.
 
 ## Shared Boundaries
 
@@ -79,10 +81,13 @@ Home:
 
 Libraries:
 
-- `LibrariesViewModel` loads available Plex libraries.
-- `LibraryItemsViewModel` owns paged item loading, sorting, and genre filtering.
+- `LibrariesViewModel` loads available Plex libraries (movie, show, and video
+  sections; `PlexLibrary.libraryType` classifies "Other Videos" sections).
+- `LibraryItemsViewModel` owns paged item loading, sorting, genre filtering, and
+  optional collection scoping (`LibraryCollectionItemsView`).
 - `LibraryRecommendationsViewModel` and `LibraryRecommendationEngine` own
-  library-scoped personalization.
+  library-scoped personalization; `.video` libraries use `LibraryVideoShelfLoader`
+  (channel/collection rows + seeded Rediscover) instead of the genre engine.
 
 Detail:
 

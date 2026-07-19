@@ -434,6 +434,27 @@ enum DuskPosterMetrics {
         #endif
     }
 
+    /// 16:9 video-card width for library grids. Sized so a video card has a
+    /// visual footprint similar to a 2:3 `gridPreferredWidth` poster
+    /// (~2 columns on iPhone).
+    static var videoGridPreferredWidth: CGFloat {
+        #if os(tvOS)
+        300
+        #else
+        168
+        #endif
+    }
+
+    /// 16:9 video-card width for carousels, the landscape counterpart of
+    /// `carouselPosterWidth`.
+    static var videoCarouselWidth: CGFloat {
+        #if os(tvOS)
+        340
+        #else
+        200
+        #endif
+    }
+
     static var continueWatchingWidth: CGFloat {
         #if os(tvOS)
         420

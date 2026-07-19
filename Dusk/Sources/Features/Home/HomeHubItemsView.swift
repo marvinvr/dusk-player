@@ -6,8 +6,19 @@ struct HomeHubItemsView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
     private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
     private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
-    private let preferredPosterWidth: CGFloat = DuskPosterMetrics.gridPreferredWidth
     private let minimumColumnCount = 2
+
+    private var isVideoHub: Bool {
+        viewModel.items.isAllClips
+    }
+
+    private var preferredPosterWidth: CGFloat {
+        isVideoHub ? DuskPosterMetrics.videoGridPreferredWidth : DuskPosterMetrics.gridPreferredWidth
+    }
+
+    private var imageAspectRatio: CGFloat {
+        isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0
+    }
 
     init(hub: PlexHub, plexService: PlexService) {
         _viewModel = State(initialValue: HomeHubItemsViewModel(
@@ -53,6 +64,7 @@ struct HomeHubItemsView: View {
                     items: viewModel.items,
                     layout: layout,
                     rowSpacing: gridRowSpacing,
+                    imageAspectRatio: imageAspectRatio,
                     posterURL: { item, width, height in
                         viewModel.posterURL(for: item, width: width, height: height)
                     },
