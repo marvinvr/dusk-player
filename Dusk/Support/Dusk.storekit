@@ -1,0 +1,136 @@
+{
+  "identifier" : "D0A1B2C3-D4E5-46F7-A8B9-C0D1E2F3A4B5",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "2.99",
+      "familyShareable" : false,
+      "internalID" : "F1A00001-0001-4001-8001-000000000001",
+      "localizations" : [
+        {
+          "description" : "A little thank-you.",
+          "displayName" : "Coffee Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "tip.coffee",
+      "referenceName" : "Tip — Coffee",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "9.99",
+      "familyShareable" : false,
+      "internalID" : "F1A00002-0002-4002-8002-000000000002",
+      "localizations" : [
+        {
+          "description" : "A generous thank-you.",
+          "displayName" : "Generous Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "tip.generous",
+      "referenceName" : "Tip — Generous",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "19.99",
+      "familyShareable" : false,
+      "internalID" : "F1A00003-0003-4003-8003-000000000003",
+      "localizations" : [
+        {
+          "description" : "You're keeping the lights on.",
+          "displayName" : "Legendary Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "tip.legendary",
+      "referenceName" : "Tip — Legendary",
+      "type" : "Consumable"
+    },
+    {
+      "displayPrice" : "49.99",
+      "familyShareable" : false,
+      "internalID" : "F1A00004-0004-4004-8004-000000000004",
+      "localizations" : [
+        {
+          "description" : "Seriously, thank you.",
+          "displayName" : "Patron Tip",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "tip.patron",
+      "referenceName" : "Tip — Patron",
+      "type" : "Consumable"
+    }
+  ],
+  "settings" : {
+
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "A2B00000-0000-4000-8000-000000000010",
+      "localizations" : [
+
+      ],
+      "name" : "Dusk Supporter",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "1.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A2B00001-0001-4001-8001-000000000011",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Ongoing support, cancel anytime.",
+              "displayName" : "Monthly Supporter",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "supporter.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Monthly Supporter",
+          "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "14.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "A2B00002-0002-4002-8002-000000000012",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Ongoing support, cancel anytime.",
+              "displayName" : "Yearly Supporter",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "supporter.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Yearly Supporter",
+          "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 3,
+    "minor" : 0
+  }
+}

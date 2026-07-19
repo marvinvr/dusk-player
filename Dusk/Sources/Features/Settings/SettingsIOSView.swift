@@ -6,9 +6,12 @@ struct SettingsIOSView: View {
     @Environment(UserPreferences.self) private var preferences
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
+    @Environment(SupporterStore.self) private var supporterStore
     @Environment(\.openURL) private var openURL
     @State private var presentedAccountURL: URL?
     @State private var confirmsDeletingDownloads = false
+    @State private var showsSupporterSheet = false
+    @State private var showsIconPicker = false
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
 
@@ -20,6 +23,12 @@ struct SettingsIOSView: View {
             if let presentedAccountURL {
                 DuskSafariView(url: presentedAccountURL)
             }
+        }
+        .sheet(isPresented: $showsSupporterSheet) {
+            SupporterView(context: .settings)
+        }
+        .sheet(isPresented: $showsIconPicker) {
+            AppIconPickerView()
         }
         .confirmationDialog(
             "Delete all downloads?",
@@ -42,6 +51,23 @@ struct SettingsIOSView: View {
         let subtitleLanguageBinding = SettingsSupport.subtitleLanguageBinding(preferences)
 
         List {
+            Section {
+                Button {
+                    showsSupporterSheet = true
+                } label: {
+                    SettingsAboutRow(
+                        title: supporterStore.isSupporter ? "You're a Supporter" : "Support Dusk",
+                        subtitle: supporterStore.isSupporter
+                            ? "Thank you for making Dusk possible ❤️"
+                            : "Free, no ads, no tracking — chip in if you like it",
+                        systemImage: "heart.fill",
+                        trailingSystemImage: "chevron.right"
+                    )
+                }
+                .duskSuppressTVOSButtonChrome()
+            }
+            .listRowBackground(Color.duskSurface)
+
             Section {
                 Picker("Max Resolution", selection: $preferences.maxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
@@ -301,6 +327,25 @@ struct SettingsIOSView: View {
                     }
                 }
                 .foregroundStyle(Color.duskTextPrimary)
+
+                Button {
+                    showsIconPicker = true
+                } label: {
+                    HStack {
+                        Text("App Icon")
+                            .foregroundStyle(Color.duskTextPrimary)
+
+                        Spacer()
+
+                        Text(DuskAppIcon.current.displayName)
+                            .foregroundStyle(Color.duskTextSecondary)
+
+                        Image(systemName: "chevron.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+                .duskSuppressTVOSButtonChrome()
             } header: {
                 Text("Appearance")
                     .foregroundStyle(Color.duskTextSecondary)
@@ -418,6 +463,7 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
         }
+        .contentMargins(.top, 12, for: .scrollContent)
         .duskScrollContentBackgroundHidden()
     }
 

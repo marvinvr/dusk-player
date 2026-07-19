@@ -85,6 +85,7 @@ struct DuskApp: App {
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
     @State private var userPreferences = UserPreferences()
+    @State private var supporterStore = SupporterStore()
 
     init() {
         AppImageCache.configureSharedCache()
@@ -116,8 +117,12 @@ struct DuskApp: App {
                 .environment(downloadManager)
                 .environment(offlinePlaybackSyncManager)
                 .environment(userPreferences)
+                .environment(supporterStore)
                 .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
                 .tint(Color.duskAccent)
+                .task {
+                    await supporterStore.start()
+                }
                 .task {
                     PlaybackEngineFactory.prewarmIfNeeded()
                     offlinePlaybackSyncManager.startAutomaticSync()

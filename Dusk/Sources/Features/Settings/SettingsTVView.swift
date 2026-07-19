@@ -3,12 +3,17 @@ import SwiftUI
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
+    @Environment(SupporterStore.self) private var supporterStore
     @Binding var path: NavigationPath
     let viewModel: SettingsViewModel
+    @State private var showsSupporterSheet = false
 
     var body: some View {
         SettingsContainer(path: $path, viewModel: viewModel) {
             settingsContent
+        }
+        .sheet(isPresented: $showsSupporterSheet) {
+            SupporterView(context: .settings)
         }
     }
 
@@ -22,6 +27,16 @@ struct SettingsTVView: View {
                     .font(.title.weight(.bold))
                     .foregroundStyle(Color.duskTextPrimary)
                     .padding(.leading, TVSettingsMetrics.contentInset)
+
+                TVSettingsSection(title: "Support", footer: SettingsSupport.supporterFooterText) {
+                    TVSettingsActionRow(
+                        title: supporterStore.isSupporter ? "You're a Supporter ❤️" : "Support Dusk",
+                        tint: Color.duskTextPrimary,
+                        showsChevron: true
+                    ) {
+                        showsSupporterSheet = true
+                    }
+                }
 
                 TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
                     TVSettingsMenuRow(

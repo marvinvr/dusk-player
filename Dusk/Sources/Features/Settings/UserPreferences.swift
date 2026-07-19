@@ -35,6 +35,10 @@ final class UserPreferences {
         static let downloadsWifiOnly = "downloadsWifiOnly"
         static let maximumActiveDownloads = "maximumActiveDownloads"
         static let downloadFreeSpaceReserve = "downloadFreeSpaceReserve"
+        static let firstLaunchDate = "firstLaunchDate"
+        static let usageDayCount = "usageDayCount"
+        static let lastUsageDay = "lastUsageDay"
+        static let supporterPromptShown = "supporterPromptShown"
     }
 
     // MARK: - Properties
@@ -179,6 +183,46 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(downloadFreeSpaceReserve.rawValue, forKey: Keys.downloadFreeSpaceReserve) }
     }
 
+    /// First launch on this device — or, for users who installed before this
+    /// key existed, the first launch after updating. The supporter prompt's
+    /// 7-day clock counts from here.
+    private(set) var firstLaunchDate: Date
+
+    /// Number of distinct calendar days the app has been used, fed by
+    /// `registerUsageDay()`. Gates the supporter prompt so it only reaches
+    /// people who actually use the app.
+    private(set) var usageDayCount: Int {
+        didSet { UserDefaults.standard.set(usageDayCount, forKey: Keys.usageDayCount) }
+    }
+
+    /// Day key ("yyyy-MM-dd") of the last counted usage day.
+    private var lastUsageDay: String {
+        didSet { UserDefaults.standard.set(lastUsageDay, forKey: Keys.lastUsageDay) }
+    }
+
+    /// Whether the one-time supporter prompt has been shown on this device.
+    var supporterPromptShown: Bool {
+        didSet { UserDefaults.standard.set(supporterPromptShown, forKey: Keys.supporterPromptShown) }
+    }
+
+    /// Counts today as a usage day if it hasn't been counted yet.
+    func registerUsageDay(now: Date = .now) {
+        let day = Self.usageDayKey(for: now)
+        guard day != lastUsageDay else { return }
+        lastUsageDay = day
+        usageDayCount += 1
+    }
+
+    private static func usageDayKey(for date: Date) -> String {
+        let components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(
+            format: "%04d-%02d-%02d",
+            components.year ?? 0,
+            components.month ?? 0,
+            components.day ?? 0
+        )
+    }
+
     // MARK: - Init
 
     init() {
@@ -289,6 +333,17 @@ final class UserPreferences {
         self.downloadsWifiOnly = downloadsWifiOnly
         self.maximumActiveDownloads = maximumActiveDownloads
         self.downloadFreeSpaceReserve = downloadFreeSpaceReserve
+
+        if let storedFirstLaunch = defaults.object(forKey: Keys.firstLaunchDate) as? Date {
+            self.firstLaunchDate = storedFirstLaunch
+        } else {
+            let now = Date()
+            defaults.set(now, forKey: Keys.firstLaunchDate)
+            self.firstLaunchDate = now
+        }
+        self.usageDayCount = defaults.integer(forKey: Keys.usageDayCount)
+        self.lastUsageDay = defaults.string(forKey: Keys.lastUsageDay) ?? ""
+        self.supporterPromptShown = defaults.bool(forKey: Keys.supporterPromptShown)
     }
 
     private static func storedSeekInterval(

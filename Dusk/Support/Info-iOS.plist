@@ -33,6 +33,8 @@
 	<string>Dusk uses your local network to connect to Plex servers on your Wi-Fi.</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>SKIncludeConsumableInAppPurchaseHistory</key>
+	<true/>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

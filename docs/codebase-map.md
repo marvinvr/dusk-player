@@ -22,6 +22,7 @@ Dusk/Sources
     Downloads/         Downloads screen and download controls
     Search/            Search view and view model
     Settings/          Preferences and server/account settings
+    Supporter/         Supporter tier: StoreKit store, sheet, prompt, app icons
 ```
 
 ## App Lifetime
@@ -34,6 +35,7 @@ SwiftUI environment:
 - `DownloadManager`
 - `OfflinePlaybackSyncManager`
 - `UserPreferences`
+- `SupporterStore`
 
 `ContentView` gates the app by auth/connection state:
 
@@ -109,6 +111,15 @@ Settings:
 - `UserPreferences` persists settings in `UserDefaults`.
 - `SettingsViewModel` owns settings actions that need services.
 - iOS/tvOS layouts are separate views with shared support helpers.
+
+Supporter:
+
+- `SupporterStore` owns StoreKit 2 state; supporter status is monotonic
+  (any purchase ever, cached in UserDefaults, never downgraded).
+- `SupporterView` is the single pitch/thank-you/prompt sheet;
+  `SupporterPromptPresenter` gates the one-time prompt from `MainTabView`.
+- `DuskAppIcon` + `AppIconPickerView` own the alternate icons (iOS-only).
+- Details and traps: `docs/supporter.md`.
 
 ## Where New Code Goes
 

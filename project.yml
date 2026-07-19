@@ -34,6 +34,7 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-iOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: DuskIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
@@ -57,7 +58,14 @@ targets:
       - path: Dusk/Resources
         buildPhase: resources
         excludes:
+          # Alternate app icons are iOS-only; tvOS would need layered image stacks.
           - DuskIcon.icon
+          - DuskIconDawn.icon
+          - DuskIconMidnight.icon
+          - DuskIconNeon.icon
+          - DuskIconMono.icon
+          - DuskIconAurora.icon
+          - DuskIconGoldenHour.icon
           - LaunchScreen.storyboard
           - LaunchScreen-tvOS.storyboard
     settings:
@@ -82,3 +90,34 @@ targets:
       - script: ./scripts/verify_embedded_vlckit.sh
         name: Verify embedded VLCKit is not stale
         basedOnDependencyAnalysis: false
+
+# Explicit schemes so the StoreKit configuration file is attached to Run;
+# without it the supporter purchases can't be exercised in the simulator.
+schemes:
+  Dusk:
+    build:
+      targets:
+        Dusk: all
+    run:
+      config: Debug
+      storeKitConfiguration: Dusk/Support/Dusk.storekit
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  Dusk-tvOS:
+    build:
+      targets:
+        Dusk-tvOS: all
+    run:
+      config: Debug
+      storeKitConfiguration: Dusk/Support/Dusk.storekit
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

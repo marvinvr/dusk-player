@@ -38,6 +38,7 @@ struct MainTabView: View {
                     .environment(playback)
                     .environment(playback.preferences)
             }
+            .supporterPromptPresenter()
     }
 
     private var tabSelection: Binding<MainTabItem> {

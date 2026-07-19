@@ -15,10 +15,13 @@ enum SettingsSupport {
     static let aboutFooterText = "Dusk is open source. Visit the repository, learn more about Marvin, or send feedback by email."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
+    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you."
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let aboutMeURL = URL(string: "https://marvinvr.ch")!
     static let feedbackURL = URL(string: "mailto:info@getdusk.app")!
     static let plexAccountURL = URL(string: "https://app.plex.tv/desktop/#!/settings/account")!
+    static let privacyPolicyURL = URL(string: "https://getdusk.app/privacy/")!
+    static let termsOfUseURL = URL(string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/")!
 
     static var subtitleLanguageOptions: [String] {
         var options = [""] + CommonLanguage.allCases.map(\.code)
