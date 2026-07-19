@@ -38,7 +38,8 @@ final class UserPreferences {
         static let firstLaunchDate = "firstLaunchDate"
         static let usageDayCount = "usageDayCount"
         static let lastUsageDay = "lastUsageDay"
-        static let supporterPromptShown = "supporterPromptShown"
+        static let supporterPromptCount = "supporterPromptCount"
+        static let supporterLastPromptDate = "supporterLastPromptDate"
     }
 
     // MARK: - Properties
@@ -200,9 +201,22 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(lastUsageDay, forKey: Keys.lastUsageDay) }
     }
 
-    /// Whether the one-time supporter prompt has been shown on this device.
-    var supporterPromptShown: Bool {
-        didSet { UserDefaults.standard.set(supporterPromptShown, forKey: Keys.supporterPromptShown) }
+    /// How many supporter prompts have been shown on this device. Caps out
+    /// at `SupporterPromptGate.milestones.count`, ever.
+    private(set) var supporterPromptCount: Int {
+        didSet { UserDefaults.standard.set(supporterPromptCount, forKey: Keys.supporterPromptCount) }
+    }
+
+    /// When the most recent supporter prompt was shown; spaces the ladder out
+    /// for users whose usage catches up to several milestones at once.
+    private(set) var supporterLastPromptDate: Date? {
+        didSet { UserDefaults.standard.set(supporterLastPromptDate, forKey: Keys.supporterLastPromptDate) }
+    }
+
+    /// Records that a supporter prompt was presented.
+    func registerSupporterPrompt(now: Date = .now) {
+        supporterPromptCount += 1
+        supporterLastPromptDate = now
     }
 
     /// Counts today as a usage day if it hasn't been counted yet.
@@ -343,7 +357,8 @@ final class UserPreferences {
         }
         self.usageDayCount = defaults.integer(forKey: Keys.usageDayCount)
         self.lastUsageDay = defaults.string(forKey: Keys.lastUsageDay) ?? ""
-        self.supporterPromptShown = defaults.bool(forKey: Keys.supporterPromptShown)
+        self.supporterPromptCount = defaults.integer(forKey: Keys.supporterPromptCount)
+        self.supporterLastPromptDate = defaults.object(forKey: Keys.supporterLastPromptDate) as? Date
     }
 
     private static func storedSeekInterval(

@@ -4,9 +4,24 @@ import SwiftUI
 /// Where the supporter sheet was opened from. The prompt variant softens the
 /// headline and adds an equal-weight "Maybe Later" action; content is
 /// otherwise identical so the two never drift apart.
-enum SupporterViewContext {
+enum SupporterViewContext: Equatable {
     case settings
-    case prompt
+    /// 1-based position within `SupporterPromptGate.milestones`.
+    case prompt(number: Int)
+
+    var isPrompt: Bool {
+        if case .prompt = self { return true }
+        return false
+    }
+
+    /// The ladder's last prompt promises to be the last ask — the copy for it
+    /// hangs off this, and the gate keeps the promise.
+    var isFinalPrompt: Bool {
+        if case .prompt(let number) = self {
+            return number >= SupporterPromptGate.milestones.count
+        }
+        return false
+    }
 }
 
 /// The supporter tier sheet: a pitch before any purchase, a thank-you with a
@@ -45,12 +60,20 @@ struct SupporterView: View {
 
                     purchaseSections
 
-                    if context == .prompt {
-                        Button("Maybe Later") {
-                            dismiss()
+                    if context.isPrompt {
+                        VStack(spacing: 10) {
+                            Button("Maybe Later") {
+                                dismiss()
+                            }
+                            .supporterNeutralGlassButtonStyle()
+                            .frame(minWidth: 200)
+
+                            if context.isFinalPrompt {
+                                Text("This is the last time Dusk asks — promise.")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.duskTextSecondary)
+                            }
                         }
-                        .supporterNeutralGlassButtonStyle()
-                        .frame(minWidth: 200)
                     }
 
                     aboutMe
@@ -345,7 +368,7 @@ struct SupporterView: View {
 
                     TVSettingsSection(
                         title: "Manage",
-                        footer: "Everything in Dusk stays free either way. Manage or cancel subscriptions in Settings → Users & Accounts → Subscriptions. Privacy policy at getdusk.app/privacy, terms at Apple's standard EULA."
+                        footer: tvManageFooter
                     ) {
                         TVSettingsActionRow(
                             title: "Restore Purchases",
@@ -356,7 +379,7 @@ struct SupporterView: View {
                         }
                         .disabled(store.isRestoring)
 
-                        if context == .prompt {
+                        if context.isPrompt {
                             tvRowDivider
 
                             TVSettingsActionRow(
@@ -437,11 +460,24 @@ struct SupporterView: View {
 
     // MARK: - Shared copy & formatting
 
+    #if os(tvOS)
+    private var tvManageFooter: String {
+        let footer = "Everything in Dusk stays free either way. Manage or cancel subscriptions in Settings → Users & Accounts → Subscriptions. Privacy policy at getdusk.app/privacy, terms at Apple's standard EULA."
+        guard context.isFinalPrompt else { return footer }
+        return "This is the last time Dusk asks — promise. " + footer
+    }
+    #endif
+
     private var headlineText: String {
         if store.isSupporter {
             return "You're a Supporter ❤️"
         }
-        return context == .prompt ? "Enjoying Dusk?" : "Support Dusk"
+        switch context {
+        case .settings:
+            return "Support Dusk"
+        case .prompt(let number):
+            return number <= 1 ? "Enjoying Dusk?" : "Still enjoying Dusk?"
+        }
     }
 
     private var bodyText: String {

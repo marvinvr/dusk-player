@@ -40,7 +40,7 @@ that owns the behavior you are changing.
 - `ui-features.md`: app shell, shared SwiftUI primitives, home, libraries, detail,
   search, settings, and platform UI rules.
 - `supporter.md`: supporter tier — StoreKit products and status rules, the
-  one-time prompt gating, and alternate app icons.
+  prompt-ladder gating, and alternate app icons.
 - `downloads-and-offline.md`: download queue, local file storage, metadata cache,
   offline playback, and delayed watch-state sync.
 - `development-workflow.md`: setup, project generation, verification, git, and doc

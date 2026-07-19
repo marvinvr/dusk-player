@@ -49,8 +49,8 @@ credentials — only call it from an explicit user action.
 ## UI Surfaces
 
 - `SupporterView` (`Features/Supporter/SupporterView.swift`) is the one sheet
-  for pitch, thank-you, and the prompt (`SupporterViewContext.prompt` adds a
-  "Maybe Later" glass button). iOS renders custom purchase rows; tvOS reuses
+  for pitch, thank-you, and the prompts (`SupporterViewContext.prompt(number:)`
+  adds a "Maybe Later" glass button and adapts the headline per prompt). iOS renders custom purchase rows; tvOS reuses
   `TVSettingsSection`/`TVSettingsActionRow` so focus behavior matches Settings.
   Recurring vs one-time options are labeled sections; the recurring section
   hides while a subscription is active (Manage Subscription appears instead,
@@ -62,22 +62,35 @@ credentials — only call it from an explicit user action.
 - `SupporterIconShowcase` (in `SupporterView.swift`) previews all icons inside
   the sheet; for supporters on iOS it applies icons directly.
 
-## One-Time Prompt
+## Prompt Ladder
 
 `SupporterPromptGate` + `SupporterPromptPresenter`
 (`Features/Supporter/SupporterPrompt.swift`), applied in `MainTabView` so it
-only runs for signed-in sessions. Fires when ALL hold:
+only runs for signed-in sessions. A device sees at most three prompts, ever —
+one per `SupporterPromptGate.milestones` entry:
 
-- ≥ 7 days since `UserPreferences.firstLaunchDate` (set on first run — for
-  pre-existing installs that is the first run after the update, intentionally),
-- ≥ 3 distinct usage days (`UserPreferences.registerUsageDay()`),
-- not already a supporter (StoreKit history syncs per Apple ID, so other
-  devices of a supporter never prompt),
-- player not presented; 2s grace delay after activation.
+| Prompt | Min days since first launch | Min usage days | Min days since previous |
+| ------ | --------------------------- | -------------- | ----------------------- |
+| 1      | 7                           | 3              | —                       |
+| 2      | 30                          | 10             | 14                      |
+| 3      | 90                          | 25             | 30                      |
 
-It sets `supporterPromptShown` the moment it presents and never shows again on
-that device. Do not add more prompts or re-ask logic without an explicit
-product decision — the non-pushy posture is deliberate.
+- Usage days are distinct calendar days (`UserPreferences.registerUsageDay()`).
+  The escalating thresholds mean light users stop qualifying instead of being
+  re-asked; the gap column keeps a returning heavy user from seeing several
+  prompts in quick succession.
+- Never for supporters (StoreKit history syncs per Apple ID, so a supporter's
+  other devices never prompt); never while the player is up; 2s grace delay
+  after activation.
+- `UserPreferences.firstLaunchDate` is set on first run — for pre-existing
+  installs that is the first run after the update, intentionally.
+- `UserPreferences.registerSupporterPrompt()` advances `supporterPromptCount`
+  and stamps `supporterLastPromptDate` the moment a prompt presents; declining
+  ("Maybe Later") does not reset anything.
+- Prompts 2–3 use the "Still enjoying Dusk?" headline; the final prompt says
+  it is the last ask ("This is the last time Dusk asks — promise."). Keep that
+  promise: do not extend the ladder or add re-ask logic without an explicit
+  product decision — the restrained cadence is deliberate.
 
 ## Alternate App Icons (iOS/iPadOS only)
 
