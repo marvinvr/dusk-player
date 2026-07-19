@@ -61,7 +61,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Context menus for partially watched playable items should expose both watch-state
   endpoints: mark watched and mark unwatched. Do not collapse partial progress into
   a single toggle action.
-- Use `MediaCarousel` for generic horizontal sections with optional "Show all" accessory.
+- Use `MediaCarousel` for generic horizontal sections with an optional "Show all"
+  accessory. Its horizontal padding can be overridden when a page needs its shelves
+  to share the system navigation title's leading edge.
 - Use `AdaptivePosterGridLayout.make(...)` for responsive poster grids. Do not hand-roll
   column math in feature files.
 - Use `DuskPosterMetrics` for platform-sensitive poster widths, grid spacing,

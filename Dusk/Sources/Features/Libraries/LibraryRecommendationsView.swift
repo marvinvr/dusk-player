@@ -170,6 +170,7 @@ struct LibraryRecommendationsView: View {
             action: { play($0) },
             posterWidth: continueWatchingCardWidth,
             imageAspectRatio: continueWatchingAspectRatio,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             subtitle: { viewModel.displaySubtitle(for: $0) },
             posterURL: { item, width, height in
                 viewModel.landscapeImageURL(for: item, width: width, height: height)
@@ -195,6 +196,7 @@ struct LibraryRecommendationsView: View {
         PlexItemPosterCarouselSection(
             title: shelf.title,
             items: shelf.items,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             showAllRoute: AppNavigationRoute.libraryGenre(library: viewModel.library, genre: shelf.genre),
             subtitle: { viewModel.subtitle(for: $0) },
             posterURL: { item, width, height in
@@ -222,6 +224,7 @@ struct LibraryRecommendationsView: View {
             items: items,
             posterWidth: shelfPosterWidth,
             imageAspectRatio: shelfImageAspectRatio,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             showAllRoute: showsShowAll ? AppNavigationRoute.hub(hub) : nil,
             subtitle: { viewModel.subtitle(for: $0) },
             posterURL: { item, width, height in
@@ -247,6 +250,7 @@ struct LibraryRecommendationsView: View {
             items: shelf.items,
             posterWidth: shelfPosterWidth,
             imageAspectRatio: shelfImageAspectRatio,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             showAllRoute: AppNavigationRoute.libraryCollection(
                 library: viewModel.library,
                 collection: shelf.collection
@@ -274,6 +278,7 @@ struct LibraryRecommendationsView: View {
             items: viewModel.rediscoverItems,
             posterWidth: shelfPosterWidth,
             imageAspectRatio: shelfImageAspectRatio,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             subtitle: { viewModel.subtitle(for: $0) },
             posterURL: { item, width, height in
                 viewModel.posterURL(for: item, width: width, height: height)

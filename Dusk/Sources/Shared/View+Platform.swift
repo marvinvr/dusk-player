@@ -322,6 +322,14 @@ enum DuskPosterMetrics {
         #endif
     }
 
+    static var libraryPageHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        carouselHorizontalPadding
+        #else
+        20
+        #endif
+    }
+
     static var carouselBottomPadding: CGFloat {
         #if os(tvOS)
         24

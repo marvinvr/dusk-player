@@ -41,6 +41,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     let items: [PlexItem]
     var posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth
     var imageAspectRatio: CGFloat = 2.0 / 3.0
+    var horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding
     var showAllRoute: AppNavigationRoute? = nil
     var subtitle: (PlexItem) -> String?
     var posterURL: (PlexItem, Int, Int) -> URL?
@@ -53,6 +54,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
+            horizontalPadding: horizontalPadding,
             headerAccessory: {
                 if let showAllRoute {
                     ShowAllCarouselLink(route: showAllRoute)
@@ -82,6 +84,7 @@ extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
         items: [PlexItem],
         posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth,
         imageAspectRatio: CGFloat = 2.0 / 3.0,
+        horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding,
         showAllRoute: AppNavigationRoute? = nil,
         subtitle: @escaping (PlexItem) -> String?,
         posterURL: @escaping (PlexItem, Int, Int) -> URL?,
@@ -91,6 +94,7 @@ extension PlexItemPosterCarouselSection where ContextMenuContent == EmptyView {
         self.items = items
         self.posterWidth = posterWidth
         self.imageAspectRatio = imageAspectRatio
+        self.horizontalPadding = horizontalPadding
         self.showAllRoute = showAllRoute
         self.subtitle = subtitle
         self.posterURL = posterURL
@@ -105,6 +109,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
     let action: (PlexItem) -> Void
     var posterWidth: CGFloat
     var imageAspectRatio: CGFloat
+    var horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding
     var showAllRoute: AppNavigationRoute? = nil
     var subtitle: (PlexItem) -> String?
     var posterURL: (PlexItem, Int, Int) -> URL?
@@ -117,6 +122,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
+            horizontalPadding: horizontalPadding,
             headerAccessory: {
                 if let showAllRoute {
                     ShowAllCarouselLink(route: showAllRoute)
