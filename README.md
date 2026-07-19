@@ -26,6 +26,7 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 - [x] AI Upscaling
 - [ ] Plex Home Integration
 - [ ] SharePlay Integration
+- [ ] Seer Integration
 
 ### Later down the line
 - [ ] Jellyfin Support
