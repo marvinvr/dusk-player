@@ -22,9 +22,14 @@ extension PlexItem {
         return year.map(String.init)
     }
 
-    /// Clip cards show a compact duration instead of a year.
+    /// Clip cards show their full upload date plus compact duration. Videos
+    /// from the last week also include relative date context.
     var clipPosterSubtitle: String? {
-        MediaTextFormatter.compactDuration(milliseconds: duration) ?? year.map(String.init)
+        MediaTextFormatter.clipCardSubtitle(
+            originallyAvailableAt: originallyAvailableAt,
+            duration: duration,
+            fallbackYear: year
+        )
     }
 
     var standardPosterSubtitle: String? {

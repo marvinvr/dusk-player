@@ -1112,8 +1112,11 @@ final class DownloadManager {
 
     private func subtitle(for details: PlexMediaDetails) -> String? {
         if details.isClip {
-            return MediaTextFormatter.compactDuration(milliseconds: details.duration)
-                ?? details.year.map(String.init)
+            return MediaTextFormatter.clipCardSubtitle(
+                originallyAvailableAt: details.originallyAvailableAt,
+                duration: details.duration,
+                fallbackYear: details.year
+            )
         }
 
         switch details.type {

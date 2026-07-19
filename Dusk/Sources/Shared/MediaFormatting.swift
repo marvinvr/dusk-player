@@ -77,6 +77,49 @@ enum MediaTextFormatter {
         return localizedAirDateFormatter.string(from: date)
     }
 
+    /// A full localized upload date, prefixed with relative context for videos
+    /// released within the last week: "2 days ago · 17 Jul 2026".
+    static func localizedVideoDate(
+        _ value: String?,
+        relativeTo referenceDate: Date = Date()
+    ) -> String? {
+        guard let trimmedValue = value?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !trimmedValue.isEmpty else {
+            return nil
+        }
+
+        guard let date = plexAirDateFormatter.date(from: trimmedValue) else {
+            return trimmedValue
+        }
+
+        let fullDate = localizedAirDateFormatter.string(from: date)
+        let elapsed = referenceDate.timeIntervalSince(date)
+        guard elapsed >= 0, elapsed <= 7 * 24 * 60 * 60 else {
+            return fullDate
+        }
+
+        let relativeFormatter = RelativeDateTimeFormatter()
+        relativeFormatter.locale = .autoupdatingCurrent
+        relativeFormatter.unitsStyle = .full
+        let relativeDate = relativeFormatter.localizedString(
+            for: date,
+            relativeTo: referenceDate
+        )
+        return "\(relativeDate) · \(fullDate)"
+    }
+
+    static func clipCardSubtitle(
+        originallyAvailableAt: String?,
+        duration: Int?,
+        fallbackYear: Int? = nil
+    ) -> String? {
+        let date = localizedVideoDate(originallyAvailableAt) ?? fallbackYear.map(String.init)
+        return [date, compactDuration(milliseconds: duration)]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+            .nilIfEmpty
+    }
+
     static func progress(durationMs: Int?, offsetMs: Int?) -> Double? {
         guard let durationMs,
               let offsetMs,
@@ -199,4 +242,5 @@ enum MediaTextFormatter {
         formatter.setLocalizedDateFormatFromTemplate("d MMM y")
         return formatter
     }()
+
 }

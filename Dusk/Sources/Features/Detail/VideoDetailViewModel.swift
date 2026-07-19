@@ -152,7 +152,7 @@ final class VideoDetailViewModel {
     var metadataLine: String? {
         let parts = [
             channelName,
-            MediaTextFormatter.localizedAirDate(details?.originallyAvailableAt),
+            MediaTextFormatter.localizedVideoDate(details?.originallyAvailableAt),
             MediaTextFormatter.compactDuration(milliseconds: details?.duration),
         ].compactMap { $0 }
 

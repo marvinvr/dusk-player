@@ -55,7 +55,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Clip rendering is item-driven: `PlexItem.isClip` (item `subtype == "clip"`) and
   the `Collection.isAllClips` helper decide when a row/grid renders 16:9 with
   `DuskPosterMetrics.videoCarouselWidth`/`videoGridPreferredWidth`. Clip card
-  subtitles show compact duration via the clip-aware `standardPosterSubtitle`.
+  subtitles show the full localized upload date and compact duration via the
+  clip-aware `standardPosterSubtitle`; uploads from the last week also prefix
+  relative context (for example, `2 days ago · 17 Jul 2026 · 12 min`).
 - Context menus for partially watched playable items should expose both watch-state
   endpoints: mark watched and mark unwatched. Do not collapse partial progress into
   a single toggle action.
