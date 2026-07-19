@@ -84,6 +84,11 @@ struct PlaybackSource: Sendable {
     /// until a manual pause/resume — pre-selecting removes the switch
     /// entirely. `nil` leaves the container/libvlc default untouched.
     var preferredAudioTrackPosition: Int? = nil
+    /// Where the bytes come from (downloaded file / LAN server / remote
+    /// server), resolved by the coordinator. VLCKit sizes its protective
+    /// caching — and with it the audible start/seek latency — from this.
+    /// Remote is the safe default for callers that cannot tell.
+    var locality: PlaybackSourceLocality = .remoteNetwork
 }
 
 struct PlaybackDebugInfo: Sendable {

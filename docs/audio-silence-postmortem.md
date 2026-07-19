@@ -151,6 +151,9 @@ proven cure.
   storm that killed audio on far double-taps).
 - VLC network/file caching 8000 ms → 1500 ms (`PlaybackBufferPolicy`):
   libvlc caching is the input pts_delay and scales every clock window; 8 s
-  was far outside field-proven territory (VLC-iOS ships 999 ms).
+  was far outside field-proven territory (VLC-iOS ships 999 ms). Since
+  2026-07-19 the value is tiered by source locality (file/LAN/remote) —
+  even 1500 ms was a perceptible silent lead-in on every start; see
+  `docs/playback.md`.
 - The coordinator logs the audio preselect decision with a per-stream
   summary; `:audio-track` preselect misses are diagnosable from logs now.

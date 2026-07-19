@@ -1090,10 +1090,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         media.addOption(":freetype-shadow-distance=1")
     }
 
-    private func applyNetworkBufferingOptions(to media: VLCMedia) {
-        media.addOption(":network-caching=\(PlaybackBufferPolicy.vlcNetworkCachingMilliseconds)")
-        media.addOption(":file-caching=\(PlaybackBufferPolicy.vlcFileCachingMilliseconds)")
+    private func applyNetworkBufferingOptions(to media: VLCMedia, locality: PlaybackSourceLocality) {
+        // One tiered value feeds both option names; libvlc reads the one
+        // matching the access module (file:// → file-caching, http(s) →
+        // network-caching). The caching IS the audio start deferral after
+        // open/seek — see PlaybackBufferPolicy.
+        let cachingMilliseconds = PlaybackBufferPolicy.vlcCachingMilliseconds(for: locality)
+        media.addOption(":network-caching=\(cachingMilliseconds)")
+        media.addOption(":file-caching=\(cachingMilliseconds)")
         media.addOption(":http-reconnect")
+        vlcKitEngineLogger.notice(
+            "VLC caching \(cachingMilliseconds, privacy: .public) ms (locality \(String(describing: locality), privacy: .public))"
+        )
     }
 
     private func applySeek(to position: TimeInterval) {
@@ -1227,7 +1235,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let media = VLCMedia(url: source.url)
 
         applySubtitleStyling(to: media)
-        applyNetworkBufferingOptions(to: media)
+        applyNetworkBufferingOptions(to: media, locality: source.locality)
         if let audioTrackPosition = source.preferredAudioTrackPosition {
             // Open directly on the automatically preferred audio track
             // (position among the audio ESes, computed from Plex metadata).
@@ -1564,6 +1572,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Module",
                 value: "audiounit (libvlc 3 default)"
+            ),
+            PlaybackEngineDiagnostic(
+                label: "VLC Caching",
+                value: currentSource.map {
+                    "\(PlaybackBufferPolicy.vlcCachingMilliseconds(for: $0.locality)) ms (\(String(describing: $0.locality)))"
+                } ?? "Unknown"
             ),
             PlaybackEngineDiagnostic(
                 label: "VLC Audio Track",

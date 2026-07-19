@@ -261,7 +261,8 @@ extension PlaybackCoordinator {
                 url: playbackURL,
                 startPosition: startPosition,
                 context: attemptContext,
-                preferredAudioTrackPosition: preferredAudioTrackPosition
+                preferredAudioTrackPosition: preferredAudioTrackPosition,
+                locality: sourceLocality(for: playbackURL)
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -522,7 +523,8 @@ extension PlaybackCoordinator {
             url: playbackURL,
             startPosition: startPosition,
             context: attemptContext,
-            preferredAudioTrackPosition: preferredAudioTrackPosition
+            preferredAudioTrackPosition: preferredAudioTrackPosition,
+            locality: sourceLocality(for: playbackURL)
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -548,6 +550,15 @@ extension PlaybackCoordinator {
             // Returning to Original direct play re-arms the ladder watch.
             startDirectPlayFallbackWatch()
         }
+    }
+
+    /// Downloads play from disk; everything else inherits the locality of the
+    /// session's server connection (LAN vs remote/relay). VLCKit sizes its
+    /// protective caching — and with it the silent stretch before audio joins
+    /// at start and after seeks — from this.
+    private func sourceLocality(for url: URL) -> PlaybackSourceLocality {
+        if url.isFileURL { return .localFile }
+        return plexService.isConnectedViaLocalNetwork ? .localNetwork : .remoteNetwork
     }
 
     // MARK: - Automatic delivery-ladder fallback

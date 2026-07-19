@@ -279,6 +279,15 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   (a signature of the resolved config gates every player/session write) and
   observes only `routeChangeNotification` — never the spatial- or
   rendering-capability notifications.
+- libvlc caching (`PlaybackBufferPolicy.vlcCachingMilliseconds(for:)`) is the
+  input's pts_delay, which IS the audio output's start deferral: every start
+  and every seek renders video for ~the caching duration before sound joins.
+  It is therefore tiered by `PlaybackSource.locality` (resolved by the
+  coordinator: downloaded file 300 ms / LAN server 600 ms / remote 1500 ms)
+  instead of a flat value — a flat 1500 ms opened every session with ~1.5 s
+  of silent video. Playback Info shows the applied value ("VLC Caching").
+  Lowering a tier trades rebuffer risk for start latency; raise the LAN tier
+  before suspecting playback code if LAN sessions start rebuffering.
 
 ### Audio revive machinery (dormant) and session ownership
 

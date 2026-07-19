@@ -9,21 +9,40 @@ enum PlaybackEngineType: Sendable {
     case vlcKit
 }
 
+/// Where a playback source's bytes actually come from, resolved by the
+/// coordinator when the source is built. Drives how much protective buffering
+/// the engine needs: a downloaded file has no jitter at all, a LAN Plex
+/// server very little, and only a remote/relay stream needs real headroom.
+enum PlaybackSourceLocality: Sendable {
+    case localFile
+    case localNetwork
+    case remoteNetwork
+}
+
 enum PlaybackBufferPolicy {
     static let avPlayerForwardBufferDuration: TimeInterval = 20
 
     /// libvlc caching is NOT just a network buffer: it becomes the input's
     /// pts_delay, which scales every clock window in the pipeline — the
     /// initial dejitter offset, the audio output's start deferral after
-    /// open/seek/flush, and the late/early drift thresholds. At 8000 ms these
-    /// windows stretched to many seconds: audio could sit "deferred"/"late"
-    /// (silent, no error anywhere) for seconds after every start and every
-    /// seek, while a pause of a few seconds happened to shift the clocks past
-    /// the gap — which is why a manual pause→play "cured" it. VLC-iOS ships
-    /// 999 ms by default on the same stack; 1500 ms keeps some headroom while
-    /// keeping every sync window comfortably sub-perceptual.
-    static let vlcNetworkCachingMilliseconds = 1_500
-    static let vlcFileCachingMilliseconds = 1_500
+    /// open/seek/flush, and the late/early drift thresholds. In practice the
+    /// caching value IS the stretch of silent video that opens every session
+    /// and follows every seek: the first picture renders right away while the
+    /// audio output sits in its deferred start for ~the caching duration (at
+    /// the old flat 1500 ms, every start played ~1.5 s of video before any
+    /// sound; at the pre-migration 8000 ms it was many seconds). So the value
+    /// is tiered by how much jitter the transport can actually produce, and
+    /// each tier sits as low as that transport safely allows: a downloaded
+    /// file has none (300 ms is VLC's own file-access default), a LAN server
+    /// very little, and only remote/relay streams keep the protective
+    /// headroom (VLC-iOS ships 999 ms as its blanket network default).
+    static func vlcCachingMilliseconds(for locality: PlaybackSourceLocality) -> Int {
+        switch locality {
+        case .localFile: 300
+        case .localNetwork: 600
+        case .remoteNetwork: 1_500
+        }
+    }
 }
 
 struct PlaybackEngineDiagnostic: Sendable, Identifiable {
