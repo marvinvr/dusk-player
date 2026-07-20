@@ -58,16 +58,18 @@ credentials — only call it from an explicit user action.
 - Settings entry points: a supporter row at the very top of
   `SettingsIOSView`/`SettingsTVView` (flips to a thank-you state for
   supporters) and an "App Icon" row in the iOS Appearance section that opens
-  `AppIconPickerView`.
+  `AppIconPickerView`. tvOS keeps purchases available from this explicit
+  Settings entry point but never presents automatic supporter prompts.
 - `SupporterIconShowcase` (in `SupporterView.swift`) previews all icons inside
   the sheet; for supporters on iOS it applies icons directly.
 
 ## Prompt Ladder
 
 `SupporterPromptGate` + `SupporterPromptPresenter`
-(`Features/Supporter/SupporterPrompt.swift`), applied in `MainTabView` so it
-only runs for signed-in sessions. A device sees at most three prompts, ever —
-one per `SupporterPromptGate.milestones` entry:
+(`Features/Supporter/SupporterPrompt.swift`), applied in `MainTabView` on iOS
+and iPadOS so it only runs for signed-in sessions. Apple TV does not apply the
+presenter. An iPhone or iPad sees at most three prompts, ever — one per
+`SupporterPromptGate.milestones` entry:
 
 | Prompt | Min days since first launch | Min usage days | Min days since previous |
 | ------ | --------------------------- | -------------- | ----------------------- |

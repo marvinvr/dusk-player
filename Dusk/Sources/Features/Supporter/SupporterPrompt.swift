@@ -61,9 +61,10 @@ enum SupporterPromptGate {
     }
 }
 
-/// Presents the supporter prompts over the main tab shell. Applied in
-/// `MainTabView` so it only runs once the user is signed in and connected —
-/// usage days are only counted for real sessions.
+/// Presents the supporter prompts over the main tab shell on iOS and iPadOS.
+/// Applied in `MainTabView` so it only runs once the user is signed in and
+/// connected — usage days are only counted for real sessions. Apple TV keeps
+/// support discoverable in Settings without presenting automatic prompts.
 struct SupporterPromptPresenter: ViewModifier {
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore

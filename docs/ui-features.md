@@ -313,8 +313,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SettingsSupport` owns shared settings copy, URLs, language options, and bindings.
 - Both settings pages lead with a supporter row (thank-you state for supporters), and
   the iOS Appearance section has an App Icon row opening `AppIconPickerView`. The
-  supporter tier itself (StoreKit products, status rules, one-time prompt, alternate
-  icons) is documented in `supporter.md`.
+  supporter tier itself (StoreKit products, status rules, the iOS/iPadOS prompt
+  ladder, alternate icons) is documented in `supporter.md`; tvOS only exposes
+  supporter purchases through Settings.
 - Player Quality lives in the in-player gear menu, not global Settings. It is a
   per-session manual action and must not create a persisted default that starts
   future sessions transcoded.

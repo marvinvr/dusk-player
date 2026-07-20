@@ -15,7 +15,11 @@ enum SettingsSupport {
     static let aboutFooterText = "Dusk is open source. Visit the repository, learn more about Marvin, or send feedback by email."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
+    #if os(tvOS)
+    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons on iPhone and iPad as a thank-you."
+    #else
     static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you."
+    #endif
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let aboutMeURL = URL(string: "https://marvinvr.ch")!
     static let feedbackURL = URL(string: "mailto:info@getdusk.app")!

@@ -122,7 +122,8 @@ Supporter:
 - `SupporterStore` owns StoreKit 2 state; supporter status is monotonic
   (any purchase ever, cached in UserDefaults, never downgraded).
 - `SupporterView` is the single pitch/thank-you/prompt sheet;
-  `SupporterPromptPresenter` gates the three-prompt ladder from `MainTabView`.
+  `SupporterPromptPresenter` gates the iOS/iPadOS three-prompt ladder from
+  `MainTabView`, while tvOS support remains available explicitly in Settings.
 - `DuskAppIcon` + `AppIconPickerView` own the alternate icons (iOS-only).
 - Details and traps: `docs/supporter.md`.
 

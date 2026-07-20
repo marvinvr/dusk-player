@@ -49,7 +49,9 @@ struct MainTabView: View {
                     .environment(playback)
                     .environment(playback.preferences)
             }
+            #if !os(tvOS)
             .supporterPromptPresenter()
+            #endif
     }
 
     private var tabSelection: Binding<MainTabItem> {
