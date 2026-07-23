@@ -129,7 +129,7 @@ struct HomeUserPickerView: View {
                 pickerHeader(titleSize: 50, iconSize: 82)
 
                 LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 220, maximum: 260), spacing: 34)],
+                    columns: tvProfileColumns,
                     spacing: 34
                 ) {
                     ForEach(users, id: \.stableProfileID) { user in
@@ -144,10 +144,10 @@ struct HomeUserPickerView: View {
                         }
                     }
                 }
-                .frame(maxWidth: 1120)
+                .frame(width: tvProfileGridWidth)
 
                 selectionOptions
-                    .frame(maxWidth: 1120)
+                    .frame(width: tvProfileGridWidth)
 
                 bottomActions
             }
@@ -156,6 +156,18 @@ struct HomeUserPickerView: View {
             .padding(.top, 58)
             .padding(.bottom, 80)
         }
+    }
+
+    private var tvProfileColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.fixed(250), spacing: 34),
+            count: min(max(users.count, 1), 4)
+        )
+    }
+
+    private var tvProfileGridWidth: CGFloat {
+        let columnCount = CGFloat(min(max(users.count, 1), 4))
+        return (columnCount * 250) + (max(columnCount - 1, 0) * 34)
     }
     #endif
 
