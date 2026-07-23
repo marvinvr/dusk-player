@@ -485,7 +485,7 @@ private struct IOSHomeUserPINView: View {
 
                 if let error {
                     Text(error)
-                        .font(.callout)
+                        .font(.footnote)
                         .foregroundStyle(.red)
                         .multilineTextAlignment(.center)
                 }
@@ -553,7 +553,7 @@ private struct TVHomeUserPINView: View {
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text("Enter the four-digit Plex Home PIN for \(user.displayName).")
-                        .font(.title2)
+                        .font(.body)
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -574,7 +574,7 @@ private struct TVHomeUserPINView: View {
                 ZStack {
                     if let error {
                         Text(error)
-                            .font(.title3.weight(.medium))
+                            .font(.body.weight(.medium))
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
