@@ -8,6 +8,7 @@ struct HomeIOSView: View {
     let viewModel: HomeViewModel
     let serverName: String?
     let recentlyAddedInlineItemLimit: Int
+    let heroSelectionResetRevision: Int
     let play: (PlexItem) -> Void
 
     var body: some View {
@@ -29,6 +30,7 @@ struct HomeIOSView: View {
                             layout: .ios,
                             autoRotates: true,
                             supportsDragNavigation: true,
+                            selectionResetRevision: heroSelectionResetRevision,
                             primaryAction: { item, callbacks in
                                 AnyView(
                                     Button {

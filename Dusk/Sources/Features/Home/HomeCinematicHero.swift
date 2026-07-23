@@ -73,6 +73,7 @@ struct HomeCinematicHero: View {
     var layout: HomeCinematicHeroLayout = .ios
     var autoRotates = true
     var supportsDragNavigation = false
+    let selectionResetRevision: Int
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
@@ -162,24 +163,16 @@ struct HomeCinematicHero: View {
         .frame(maxWidth: .infinity)
         .clipped()
         .contentShape(Rectangle())
-        .onChange(of: heroItemIDs) { previousIDs, ids in
+        .onChange(of: heroItemIDs) { _, ids in
             guard !ids.isEmpty else {
-                resetHeroSlideState()
-                resetHeroDragState()
-                currentHeroIndex = 0
+                resetHeroSelection(restartRotation: false)
                 return
             }
 
-            if previousIDs.indices.contains(currentHeroIndex),
-               let updatedIndex = ids.firstIndex(of: previousIDs[currentHeroIndex]) {
-                currentHeroIndex = updatedIndex
-            } else if currentHeroIndex >= ids.count {
-                currentHeroIndex = max(ids.count - 1, 0)
-            }
-
-            resetHeroSlideState()
-            resetHeroDragState()
-            restartHeroRotation()
+            resetHeroSelection()
+        }
+        .onChange(of: selectionResetRevision) { _, _ in
+            resetHeroSelection()
         }
         .onChange(of: playback.showPlayer) { _, isShowing in
             // The player presents as a full-screen cover, which does not change
@@ -743,6 +736,16 @@ struct HomeCinematicHero: View {
         heroDragOffset = 0
         heroDragTargetIndex = nil
         isHeroDragging = false
+    }
+
+    private func resetHeroSelection(restartRotation: Bool = true) {
+        resetHeroSlideState()
+        resetHeroDragState()
+        currentHeroIndex = 0
+
+        if restartRotation {
+            restartHeroRotation()
+        }
     }
 
     private func heroBackdropPrefetchSeed(width: Int, height: Int) -> String {

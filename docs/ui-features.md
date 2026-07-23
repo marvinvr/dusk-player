@@ -114,6 +114,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeView` is the tab root. It owns `HomeViewModel`, handles loading/error state,
   refreshes on appear, scene activation, and player dismissal, then delegates layout to
   `HomeIOSView` or `HomeTVView`.
+- The cinematic hero always resets to its first item after player dismissal, app
+  activation, Home-tab re-entry, or a change to the hero item order. Keep the explicit
+  reset revision flowing from `HomeView` through both platform shells so a Plex refresh
+  cannot preserve a stale selection after Continue Watching reorders.
 - `HomeViewModel` is the only home object that calls `PlexService`.
 - Home data combines global hubs from `getHubs()`, continue watching from
   `getContinueWatching()`, and personalized shelves from `HomeRecommendationEngine`.

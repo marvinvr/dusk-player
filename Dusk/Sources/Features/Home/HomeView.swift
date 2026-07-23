@@ -8,7 +8,9 @@ struct HomeView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.scenePhase) private var scenePhase
     @Binding var path: NavigationPath
+    let isSelected: Bool
     @State private var viewModel: HomeViewModel?
+    @State private var heroSelectionResetRevision = 0
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -45,12 +47,18 @@ struct HomeView: View {
             }
             .onChange(of: playback.showPlayer) { _, isShowing in
                 if !isShowing {
+                    resetHeroSelection()
                     Task { await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                 }
             }
             .onChange(of: scenePhase) { _, newPhase in
                 guard newPhase == .active, viewModel != nil else { return }
+                resetHeroSelection()
                 Task { await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
+            }
+            .onChange(of: isSelected) { _, isSelected in
+                guard isSelected else { return }
+                resetHeroSelection()
             }
             .refreshable {
                 await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
@@ -67,6 +75,7 @@ struct HomeView: View {
             viewModel: viewModel,
             serverName: plexService.connectedServer?.name,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
+            heroSelectionResetRevision: heroSelectionResetRevision,
             play: play
         )
         #else
@@ -75,6 +84,7 @@ struct HomeView: View {
             viewModel: viewModel,
             serverName: plexService.connectedServer?.name,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
+            heroSelectionResetRevision: heroSelectionResetRevision,
             play: play
         )
         #endif
@@ -92,5 +102,9 @@ struct HomeView: View {
         Task {
             await playback.play(ratingKey: item.ratingKey, placeholder: PlaybackPlaceholder(item: item))
         }
+    }
+
+    private func resetHeroSelection() {
+        heroSelectionResetRevision += 1
     }
 }

@@ -15,6 +15,7 @@ struct HomeTVView: View {
     let viewModel: HomeViewModel
     let serverName: String?
     let recentlyAddedInlineItemLimit: Int
+    let heroSelectionResetRevision: Int
     let play: (PlexItem) -> Void
 
     private enum FocusTarget: Hashable {
@@ -59,6 +60,7 @@ struct HomeTVView: View {
                             // nothing is selectable). iOS has no focus engine and keeps it on.
                             autoRotates: false,
                             supportsDragNavigation: false,
+                            selectionResetRevision: heroSelectionResetRevision,
                             primaryAction: { item, callbacks in
                                 AnyView(
                                     Button {

@@ -110,7 +110,10 @@ struct MainTabView: View {
     private func tabRootView(for tab: MainTabItem) -> some View {
         switch tab {
         case .home:
-            HomeView(path: $homePath)
+            HomeView(
+                path: $homePath,
+                isSelected: selectedTab == .home
+            )
         case .library(let libraryType):
             if let librariesViewModel {
                 LibrariesView(
