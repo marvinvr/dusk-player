@@ -67,7 +67,6 @@ targets:
           - DuskIconAurora.icon
           - DuskIconGoldenHour.icon
           - LaunchScreen.storyboard
-          - LaunchScreen-tvOS.storyboard
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
