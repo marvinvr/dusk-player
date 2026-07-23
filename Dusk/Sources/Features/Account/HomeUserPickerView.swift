@@ -147,7 +147,7 @@ struct HomeUserPickerView: View {
                 .frame(width: tvProfileGridWidth)
 
                 selectionOptions
-                    .frame(width: tvProfileGridWidth)
+                    .frame(maxWidth: 1120)
 
                 bottomActions
             }
@@ -536,7 +536,7 @@ private struct TVHomeUserPINView: View {
         ["1", "2", "3"],
         ["4", "5", "6"],
         ["7", "8", "9"],
-        ["delete.left", "0", "checkmark"],
+        ["", "0", "delete.left"],
     ]
 
     var body: some View {
@@ -588,11 +588,16 @@ private struct TVHomeUserPINView: View {
                 ForEach(Array(keypadRows.enumerated()), id: \.offset) { _, row in
                     HStack(spacing: 18) {
                         ForEach(row, id: \.self) { key in
-                            TVPINKey(
-                                key: key,
-                                isEnabled: keyEnabled(key),
-                                action: { activate(key) }
-                            )
+                            if key.isEmpty {
+                                Color.clear
+                                    .frame(width: 92, height: 72)
+                            } else {
+                                TVPINKey(
+                                    key: key,
+                                    isEnabled: keyEnabled(key),
+                                    action: { activate(key) }
+                                )
+                            }
                         }
                     }
                 }
@@ -614,9 +619,6 @@ private struct TVHomeUserPINView: View {
         if key == "delete.left" {
             return !pin.isEmpty
         }
-        if key == "checkmark" {
-            return pin.count == 4
-        }
         return pin.count < 4
     }
 
@@ -626,12 +628,12 @@ private struct TVHomeUserPINView: View {
             if !pin.isEmpty {
                 pin.removeLast()
             }
-        case "checkmark":
-            guard pin.count == 4 else { return }
-            onSubmit()
         default:
             guard pin.count < 4 else { return }
             pin.append(key)
+            if pin.count == 4 {
+                onSubmit()
+            }
         }
     }
 }
@@ -646,7 +648,7 @@ private struct TVPINKey: View {
     var body: some View {
         Button(action: action) {
             Group {
-                if key == "delete.left" || key == "checkmark" {
+                if key == "delete.left" {
                     Image(systemName: key)
                 } else {
                     Text(key)
