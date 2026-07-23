@@ -484,9 +484,21 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     func play() {
         let wasPaused = state == .paused
         if wasPaused {
+            // Stock VLC 3.x's Apple AudioUnit output flushes its queued audio
+            // when pausing because it cannot recover the output delay after
+            // AudioOutputUnitStop. Its own source notes that this loses 1–2 s
+            // of audio on resume. Re-seeking to the paused timestamp rebuilds
+            // both decoder queues before unpausing, so audio rejoins through
+            // the same locality-sized cache used at startup instead of waiting
+            // for the discarded audio window to pass.
+            let observedTime = observedPlayerTime
+            let resumePosition = observedTime > 0 ? observedTime : currentTime
+            seek(to: resumePosition)
+
             // A real pause→resume already re-runs the session-activation +
             // AudioOutputUnitStart sequence — the exact cure the pending
-            // revive would perform — so a second cycle is redundant.
+            // revive would perform — so a second cycle is redundant. Clear
+            // the arm after the refill seek above has had a chance to set it.
             needsSettleAudioRevive = false
             isInitialAudioWarmup = false
         }

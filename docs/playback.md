@@ -288,6 +288,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   of silent video. Playback Info shows the applied value ("VLC Caching").
   Lowering a tier trades rebuffer risk for start latency; raise the LAN tier
   before suspecting playback code if LAN sessions start rebuffering.
+- Pause/resume has a separate stock-VLC latency source: stable 3.x's Apple
+  AudioUnit output flushes its queued audio when pausing because it cannot
+  recover the previous output delay after `AudioOutputUnitStop`; the upstream
+  source notes that this otherwise loses roughly 1–2 seconds of audio after
+  resume. `VLCKitEngine.play()` therefore re-seeks to the paused timestamp
+  before unpausing. That rebuilds the audio and video decoder queues together,
+  making resume use the same locality-sized 300/600/1500 ms cache window as
+  startup and seeks instead of waiting through the discarded audio window.
 
 ### Audio revive machinery (dormant) and session ownership
 
