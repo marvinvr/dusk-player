@@ -43,25 +43,25 @@ struct SettingsTVView: View {
                         footer: "When off, Dusk asks who’s watching whenever it starts."
                     ) {
                         HStack(spacing: 22) {
-                            PlexHomeUserAvatar(user: activeUser, size: 66)
+                            PlexHomeUserAvatar(user: activeUser, size: 76)
 
-                            VStack(alignment: .leading, spacing: 7) {
+                            VStack(alignment: .leading, spacing: 2) {
                                 Text("Current User")
-                                    .font(.footnote.weight(.semibold))
+                                    .font(.caption.weight(.semibold))
                                     .textCase(.uppercase)
                                     .tracking(0.5)
                                     .foregroundStyle(Color.duskTextSecondary)
 
                                 Text(activeUser.displayName)
-                                    .font(.title3.weight(.semibold))
+                                    .font(.headline.weight(.semibold))
                                     .foregroundStyle(Color.duskTextPrimary)
                                     .lineLimit(1)
                             }
 
                             Spacer()
                         }
-                        .frame(minHeight: 96)
-                        .padding(.vertical, 10)
+                        .frame(minHeight: 112)
+                        .padding(.vertical, 16)
 
                         tvRowDivider
 
