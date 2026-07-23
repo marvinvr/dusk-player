@@ -31,11 +31,11 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 
 ### Later down the line
 - [ ] Jellyfin Support
-- [ ] Live TV Support
 
 ### Maybe?
 
 - [ ] Apple Vision Pro App
+- [ ] Live TV Support
 
 ## Setup
 
