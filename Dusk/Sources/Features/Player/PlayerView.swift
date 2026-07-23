@@ -142,12 +142,11 @@ struct PlayerView: View {
 
     private var showsSessionLoadingIndicator: Bool {
         guard let engine = playback.engine else { return false }
+        let hasAutomaticFallback = playback.isAutomaticDirectPlayFallbackAvailable ||
+            playback.isAutomaticDirectPlayFallbackActive
 
         if case .directPlay? = playback.debugInfo?.decision,
-           (
-               playback.isAutomaticDirectPlayFallbackAvailable ||
-                playback.isAutomaticDirectPlayFallbackActive
-           ),
+           hasAutomaticFallback,
            engine.state == .error || engine.error != nil {
             return true
         }
