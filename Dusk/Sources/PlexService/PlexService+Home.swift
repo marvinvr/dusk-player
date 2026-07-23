@@ -101,7 +101,7 @@ extension PlexService {
         do {
             responseData = try await rawPlexTVRequest(
                 method: "POST",
-                path: "/api/v2/home/users/\(user.id)/switch",
+                path: "/api/home/users/\(user.id)/switch",
                 queryItems: normalizedPIN.map { [URLQueryItem(name: "pin", value: $0)] },
                 accountToken: primaryAccountToken,
                 retriesFreshAuthentication: false
@@ -319,10 +319,15 @@ extension PlexService {
     }
 
     private func switchToken(from data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) else {
-            return nil
+        if let object = try? JSONSerialization.jsonObject(with: data),
+           let token = Self.switchToken(in: object) {
+            return token
         }
-        return Self.switchToken(in: object)
+
+        let parserDelegate = PlexHomeSwitchTokenParser()
+        let parser = XMLParser(data: data)
+        parser.delegate = parserDelegate
+        return parser.parse() ? parserDelegate.token : nil
     }
 
     private static func switchToken(in object: Any) -> String? {
@@ -375,5 +380,21 @@ extension PlexService {
             )
             return true
         }
+    }
+}
+
+private final class PlexHomeSwitchTokenParser: NSObject, XMLParserDelegate {
+    private(set) var token: String?
+
+    func parser(
+        _ parser: XMLParser,
+        didStartElement elementName: String,
+        namespaceURI: String?,
+        qualifiedName qName: String?,
+        attributes attributeDict: [String: String] = [:]
+    ) {
+        guard token == nil else { return }
+        token = attributeDict["authenticationToken"]?.nilIfEmpty
+            ?? attributeDict["authToken"]?.nilIfEmpty
     }
 }

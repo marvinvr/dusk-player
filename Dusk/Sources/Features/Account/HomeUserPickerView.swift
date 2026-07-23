@@ -46,9 +46,24 @@ struct HomeUserPickerView: View {
                     profileSelection
                 }
             }
+            .overlay(alignment: .topLeading) {
+                if pendingUser != nil {
+                    HomeUserBackButton(
+                        isDisabled: switchingProfileID != nil,
+                        action: leavePINEntry
+                    )
+                    #if os(tvOS)
+                    .padding(.leading, 70)
+                    .padding(.top, 48)
+                    #else
+                    .padding(.leading, 20)
+                    .padding(.top, 16)
+                    #endif
+                }
+            }
             #if !os(tvOS)
             .toolbar {
-                if let onCancel {
+                if pendingUser == nil, let onCancel {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel", action: onCancel)
                             .tint(Color.duskTextSecondary)
@@ -94,7 +109,7 @@ struct HomeUserPickerView: View {
                 .frame(maxWidth: 680)
 
                 selectionOptions
-                    .frame(maxWidth: 620)
+                    .frame(maxWidth: 680)
 
                 bottomActions
             }
@@ -132,7 +147,7 @@ struct HomeUserPickerView: View {
                 .frame(maxWidth: 1120)
 
                 selectionOptions
-                    .frame(maxWidth: 760)
+                    .frame(maxWidth: 1120)
 
                 bottomActions
             }
@@ -166,30 +181,29 @@ struct HomeUserPickerView: View {
     }
 
     private var selectionOptions: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Toggle(isOn: $rememberSelection) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Automatically Sign In")
+        Toggle(isOn: $rememberSelection) {
+            HStack(spacing: 15) {
+                Image(systemName: "person.crop.circle.badge.checkmark")
+                    .font(.title2.weight(.semibold))
+                    .foregroundStyle(Color.duskAccent)
+                    .frame(width: 44, height: 44)
+                    .background(Color.duskAccent.opacity(0.12), in: Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Remember This User")
                         .font(.headline)
                         .foregroundStyle(Color.duskTextPrimary)
 
-                    Text(
-                        rememberSelection
-                            ? "Open Dusk as the selected user on this device."
-                            : "Choose who’s watching whenever Dusk starts."
-                    )
+                    Text("Open Dusk with this profile next time. You can change this anytime in Settings.")
                     .font(.subheadline)
                     .foregroundStyle(Color.duskTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .tint(Color.duskAccent)
-
-            Text("You can change this later in Settings.")
-                .font(.footnote)
-                .foregroundStyle(Color.duskTextSecondary)
         }
+        .tint(Color.duskAccent)
         .padding(22)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
     }
 
@@ -239,8 +253,7 @@ struct HomeUserPickerView: View {
             pin: $pin,
             isSubmitting: switchingProfileID != nil,
             error: switchError,
-            onSubmit: { switchTo(user, pin: pin) },
-            onBack: { leavePINEntry() }
+            onSubmit: { switchTo(user, pin: pin) }
         )
         #else
         IOSHomeUserPINView(
@@ -248,8 +261,7 @@ struct HomeUserPickerView: View {
             pin: $pin,
             isSubmitting: switchingProfileID != nil,
             error: switchError,
-            onSubmit: { switchTo(user, pin: pin) },
-            onBack: { leavePINEntry() }
+            onSubmit: { switchTo(user, pin: pin) }
         )
         #endif
     }
@@ -293,6 +305,62 @@ struct HomeUserPickerView: View {
                 self.pin = ""
             }
         }
+    }
+}
+
+private struct HomeUserBackButton: View {
+    let isDisabled: Bool
+    let action: () -> Void
+
+    #if os(tvOS)
+    @FocusState private var isFocused: Bool
+    #endif
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: "chevron.left")
+                .font(.system(size: iconSize, weight: .semibold))
+                .foregroundStyle(Color.duskTextPrimary)
+                .frame(width: buttonSize, height: buttonSize)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle()
+                        .stroke(Color.primary.opacity(borderOpacity), lineWidth: 1)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .opacity(isDisabled ? 0.45 : 1)
+        .duskSuppressTVOSButtonChrome()
+        #if os(tvOS)
+        .focused($isFocused)
+        .duskTVOSFocusedScale(isFocused)
+        #endif
+        .accessibilityLabel("Back")
+    }
+
+    private var buttonSize: CGFloat {
+        #if os(tvOS)
+        68
+        #else
+        46
+        #endif
+    }
+
+    private var iconSize: CGFloat {
+        #if os(tvOS)
+        26
+        #else
+        17
+        #endif
+    }
+
+    private var borderOpacity: Double {
+        #if os(tvOS)
+        isFocused ? 0.22 : 0.08
+        #else
+        0.08
+        #endif
     }
 }
 
@@ -404,7 +472,6 @@ private struct IOSHomeUserPINView: View {
     let isSubmitting: Bool
     let error: String?
     let onSubmit: () -> Void
-    let onBack: () -> Void
 
     @FocusState private var pinIsFocused: Bool
 
@@ -464,10 +531,6 @@ private struct IOSHomeUserPINView: View {
                 .opacity(pin.count == 4 ? 1 : 0.45)
                 .frame(maxWidth: 360)
 
-                Button("Back", action: onBack)
-                    .foregroundStyle(Color.duskTextSecondary)
-                    .disabled(isSubmitting)
-
                 Button("Forgot PIN?") {
                     openURL(SettingsSupport.plexAccountURL)
                 }
@@ -494,7 +557,6 @@ private struct TVHomeUserPINView: View {
     let isSubmitting: Bool
     let error: String?
     let onSubmit: () -> Void
-    let onBack: () -> Void
 
     private let keypadRows = [
         ["1", "2", "3"],
@@ -545,13 +607,6 @@ private struct TVHomeUserPINView: View {
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 520)
-
-                HomeUserTextButton(
-                    title: "Back",
-                    tint: Color.duskTextSecondary,
-                    action: onBack
-                )
-                .disabled(isSubmitting)
             }
             .frame(maxWidth: 600)
 

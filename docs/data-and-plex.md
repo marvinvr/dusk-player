@@ -48,10 +48,11 @@ Flow:
 3. `checkPin(_:)` polls until `authToken` appears.
 4. `setAuthToken(_:)` stores the primary token and clears stale account/server
    state on account change.
-5. Account bootstrap fetches Plex Home users. Zero or one usable member keeps
-   the legacy flow; multiple members require a user selection unless a
-   remembered active Home session is valid. Protected members are switched with
-   a transient PIN; Dusk never stores the PIN.
+5. Account bootstrap fetches Plex Home users from `/api/v2/home/users`. Zero or
+   one usable member keeps the legacy flow; multiple members require a user
+   selection unless a remembered active Home session is valid. Fast user
+   switching uses the separate legacy `/api/home/users/<id>/switch` route.
+   Protected members send a transient PIN; Dusk never stores it.
 6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
    HTTPS/relay and keeps
    resources whose `provides` contains `server`.
