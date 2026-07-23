@@ -48,8 +48,11 @@ struct HomeUserPickerView: View {
             }
             #if os(tvOS)
             .onExitCommand {
-                guard pendingUser != nil else { return }
-                leavePINEntry()
+                if pendingUser != nil {
+                    leavePINEntry()
+                } else {
+                    onCancel?()
+                }
             }
             #else
             .overlay(alignment: .topLeading) {
@@ -222,10 +225,7 @@ struct HomeUserPickerView: View {
         }
 
         #if os(tvOS)
-        if let onCancel {
-            HomeUserTextButton(title: "Cancel", tint: Color.duskTextSecondary, action: onCancel)
-                .disabled(switchingProfileID != nil)
-        } else if let onSignOut {
+        if onCancel == nil, let onSignOut {
             HomeUserTextButton(title: "Sign Out", tint: .red, role: .destructive, action: onSignOut)
                 .disabled(switchingProfileID != nil)
         }
@@ -411,10 +411,13 @@ private struct HomeUserCard: View {
                     }
                 }
 
-                if isSwitching {
-                    ProgressView()
-                        .tint(Color.duskAccent)
+                ZStack {
+                    if isSwitching {
+                        ProgressView()
+                            .tint(Color.duskAccent)
+                    }
                 }
+                .frame(height: 24)
             }
             .frame(maxWidth: .infinity)
             .padding(.horizontal, 14)
@@ -540,17 +543,17 @@ private struct TVHomeUserPINView: View {
     ]
 
     var body: some View {
-        HStack(spacing: 88) {
-            VStack(spacing: 24) {
-                PlexHomeUserAvatar(user: user, size: 148)
+        HStack(spacing: 120) {
+            VStack(spacing: 28) {
+                PlexHomeUserAvatar(user: user, size: 176)
 
-                VStack(spacing: 9) {
+                VStack(spacing: 12) {
                     Text("Enter PIN")
-                        .font(.system(size: 48, weight: .bold, design: .rounded))
+                        .font(.system(size: 56, weight: .bold, design: .rounded))
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text("Enter the four-digit Plex Home PIN for \(user.displayName).")
-                        .font(.title3)
+                        .font(.title2)
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -559,7 +562,7 @@ private struct TVHomeUserPINView: View {
                     ForEach(0..<4, id: \.self) { index in
                         Circle()
                             .fill(index < pin.count ? Color.duskAccent : Color.duskSurface)
-                            .frame(width: 22, height: 22)
+                            .frame(width: 25, height: 25)
                             .overlay {
                                 Circle()
                                     .stroke(Color.duskTextSecondary.opacity(0.35), lineWidth: 1)
@@ -568,29 +571,33 @@ private struct TVHomeUserPINView: View {
                 }
                 .padding(.vertical, 8)
 
-                if let error {
-                    Text(error)
-                        .font(.body)
-                        .foregroundStyle(.red)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 520)
+                ZStack {
+                    if let error {
+                        Text(error)
+                            .font(.title3.weight(.medium))
+                            .foregroundStyle(.red)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(2)
+                            .frame(maxWidth: 620)
+                    }
                 }
+                .frame(height: 68)
 
                 Text("Forgot your PIN? Manage Plex Home from your Plex account on another device.")
-                    .font(.footnote)
+                    .font(.callout)
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
-                    .frame(maxWidth: 520)
+                    .frame(maxWidth: 620)
             }
-            .frame(maxWidth: 600)
+            .frame(width: 650)
 
-            VStack(spacing: 18) {
+            VStack(spacing: 22) {
                 ForEach(Array(keypadRows.enumerated()), id: \.offset) { _, row in
-                    HStack(spacing: 18) {
+                    HStack(spacing: 22) {
                         ForEach(row, id: \.self) { key in
                             if key.isEmpty {
                                 Color.clear
-                                    .frame(width: 92, height: 72)
+                                    .frame(width: 112, height: 82)
                             } else {
                                 TVPINKey(
                                     key: key,
@@ -602,16 +609,19 @@ private struct TVHomeUserPINView: View {
                     }
                 }
 
-                if isSubmitting {
-                    ProgressView()
-                        .tint(Color.duskAccent)
-                        .padding(.top, 8)
+                ZStack {
+                    if isSubmitting {
+                        ProgressView()
+                            .tint(Color.duskAccent)
+                    }
                 }
+                .frame(height: 32)
+                .padding(.top, 4)
             }
         }
-        .frame(maxWidth: 1180)
-        .padding(.horizontal, 70)
-        .padding(.vertical, 60)
+        .frame(maxWidth: 1420)
+        .padding(.horizontal, 80)
+        .padding(.vertical, 72)
     }
 
     private func keyEnabled(_ key: String) -> Bool {
@@ -656,7 +666,7 @@ private struct TVPINKey: View {
             }
             .font(.title2.weight(.semibold))
             .foregroundStyle(Color.duskTextPrimary)
-            .frame(width: 92, height: 72)
+            .frame(width: 112, height: 82)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .disabled(!isEnabled)

@@ -349,9 +349,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   system focus effect, leaving no indicator on its own).
 - When the signed-in account has multiple Plex Home members, both settings
   platforms show a Plex Home section with the current user, `Switch User`, and
-  `Automatically Sign In`. The switch action reuses the startup picker. The
-  toggle is device-local: turning it off removes the persisted active-session
-  token but keeps the current in-memory session until the app ends.
+  `Automatically Sign In`. The switch action reuses the startup picker as a
+  sheet on iOS and a full-screen flow on tvOS. The toggle is device-local:
+  turning it off removes the persisted active-session token but keeps the
+  current in-memory session until the app ends.
 
 ## Platform Differences
 

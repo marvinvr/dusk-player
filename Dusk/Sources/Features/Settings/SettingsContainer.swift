@@ -25,23 +25,33 @@ struct SettingsContainer<Content: View>: View {
                 viewModel.showServerPicker = false
             }
         }
-        .sheet(isPresented: homeUserPickerPresented) {
-            HomeUserPickerView(
-                users: plexService.homeUsers,
-                rememberSelection: plexService.automaticHomeSignIn,
-                onComplete: {
-                    viewModel.showHomeUserPicker = false
-                },
-                onCancel: {
-                    viewModel.showHomeUserPicker = false
-                }
-            )
+        #if os(tvOS)
+        .fullScreenCover(isPresented: homeUserPickerPresented) {
+            homeUserPicker
         }
+        #else
+        .sheet(isPresented: homeUserPickerPresented) {
+            homeUserPicker
+        }
+        #endif
         .task {
             await viewModel.refreshAvailableServers(using: plexService)
         }
         .duskNavigationTitle("Settings")
         .duskNavigationBarTitleDisplayModeLarge()
+    }
+
+    private var homeUserPicker: some View {
+        HomeUserPickerView(
+            users: plexService.homeUsers,
+            rememberSelection: plexService.automaticHomeSignIn,
+            onComplete: {
+                viewModel.showHomeUserPicker = false
+            },
+            onCancel: {
+                viewModel.showHomeUserPicker = false
+            }
+        )
     }
 
     private var serverPickerPresented: Binding<Bool> {

@@ -69,21 +69,25 @@ struct SettingsIOSView: View {
 
             if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
                 Section {
-                    HStack(spacing: 14) {
-                        PlexHomeUserAvatar(user: activeUser, size: 42)
+                    HStack(spacing: 16) {
+                        PlexHomeUserAvatar(user: activeUser, size: 48)
 
-                        VStack(alignment: .leading, spacing: 3) {
+                        VStack(alignment: .leading, spacing: 4) {
                             Text("Current User")
-                                .font(.caption)
+                                .font(.caption.weight(.semibold))
+                                .textCase(.uppercase)
+                                .tracking(0.4)
                                 .foregroundStyle(Color.duskTextSecondary)
 
                             Text(activeUser.displayName)
+                                .font(.body.weight(.medium))
                                 .foregroundStyle(Color.duskTextPrimary)
                                 .lineLimit(1)
                         }
 
                         Spacer()
                     }
+                    .padding(.vertical, 6)
 
                     Button {
                         viewModel.showHomeUserPicker = true
