@@ -21,9 +21,9 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
         case .movie:
             "film"
         case .show:
-            "tv.fill"
+            "tv"
         case .video:
-            "play.rectangle.fill"
+            "play.rectangle"
         }
     }
 }

@@ -87,6 +87,7 @@ struct HomeCinematicHero: View {
     @State private var heroSlideProgress: CGFloat = 1
     @State private var heroSlideRevision = 0
     @State private var heroTransitionDirection: HeroTransitionDirection = .forward
+    @State private var pendingHeroTransition: PendingHeroTransition?
     @State private var heroDragOffset: CGFloat = 0
     @State private var heroDragTargetIndex: Int?
     @State private var heroDragRevision = 0
@@ -727,6 +728,7 @@ struct HomeCinematicHero: View {
 
     private func resetHeroSlideState() {
         heroSlideRevision += 1
+        pendingHeroTransition = nil
         transitioningHeroIndex = nil
         heroSlideProgress = 1
     }
@@ -779,13 +781,11 @@ struct HomeCinematicHero: View {
 
         guard !backdropRequests.isEmpty else { return }
 
-        var loadedImages: [String: UIImage] = [:]
-
         await withTaskGroup(of: (String, UIImage?).self) { group in
             for (ratingKey, url) in backdropRequests {
                 group.addTask {
                     do {
-                        let image = try await DuskImageLoader.shared.image(for: url)
+                        let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
                         return (ratingKey, image)
                     } catch {
                         return (ratingKey, nil)
@@ -794,18 +794,13 @@ struct HomeCinematicHero: View {
             }
 
             for await (ratingKey, image) in group {
-                if let image {
-                    loadedImages[ratingKey] = image
+                guard let image else { continue }
+
+                await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    guard validKeys.contains(ratingKey) else { return }
+                    preloadedHeroBackdropImages[ratingKey] = image
                 }
-            }
-        }
-
-        guard !loadedImages.isEmpty else { return }
-
-        await MainActor.run {
-            for (ratingKey, image) in loadedImages {
-                guard validKeys.contains(ratingKey) else { continue }
-                preloadedHeroBackdropImages[ratingKey] = image
             }
         }
         #endif
@@ -832,9 +827,6 @@ struct HomeCinematicHero: View {
 
         guard !titleRequests.isEmpty else { return }
 
-        var loadedImages: [String: UIImage] = [:]
-        var failedKeys: Set<String> = []
-
         await withTaskGroup(of: (String, UIImage?, Bool).self) { group in
             for (ratingKey, url) in titleRequests {
                 group.addTask {
@@ -848,23 +840,17 @@ struct HomeCinematicHero: View {
             }
 
             for await (ratingKey, image, didFail) in group {
-                if let image {
-                    loadedImages[ratingKey] = image
-                } else if didFail {
-                    failedKeys.insert(ratingKey)
+                await MainActor.run {
+                    guard !Task.isCancelled else { return }
+                    guard validKeys.contains(ratingKey) else { return }
+
+                    if let image {
+                        preloadedHeroTitleImages[ratingKey] = image
+                        failedHeroTitleImageKeys.remove(ratingKey)
+                    } else if didFail {
+                        failedHeroTitleImageKeys.insert(ratingKey)
+                    }
                 }
-            }
-        }
-
-        await MainActor.run {
-            for (ratingKey, image) in loadedImages {
-                guard validKeys.contains(ratingKey) else { continue }
-                preloadedHeroTitleImages[ratingKey] = image
-                failedHeroTitleImageKeys.remove(ratingKey)
-            }
-
-            for ratingKey in failedKeys where validKeys.contains(ratingKey) {
-                failedHeroTitleImageKeys.insert(ratingKey)
             }
         }
         #endif
@@ -934,6 +920,17 @@ struct HomeCinematicHero: View {
     }
 
     private func moveHero(to index: Int, direction: HeroTransitionDirection, duration: TimeInterval) {
+        guard items.indices.contains(index), index != currentHeroIndex else { return }
+
+        if transitioningHeroIndex != nil {
+            pendingHeroTransition = PendingHeroTransition(
+                index: index,
+                direction: direction,
+                duration: duration
+            )
+            return
+        }
+
         resetHeroDragState()
 
         let previousIndex = currentHeroIndex
@@ -945,19 +942,34 @@ struct HomeCinematicHero: View {
         currentHeroIndex = index
         heroSlideProgress = 0
 
-        withAnimation(.easeInOut(duration: duration)) {
-            heroSlideProgress = 1
-        }
+        Task { @MainActor in
+            // Give SwiftUI a transaction to mount the incoming slide at its
+            // off-screen offset before animating it. Without this boundary tvOS
+            // can coalesce progress 0 and 1, making the artwork appear to pop in
+            // from behind the outgoing slide.
+            await Task.yield()
+            guard heroSlideRevision == slideRevision else { return }
 
-        Task {
+            withAnimation(.easeInOut(duration: duration)) {
+                heroSlideProgress = 1
+            }
+
             try? await Task.sleep(
                 nanoseconds: UInt64((duration * 1_000_000_000).rounded())
             )
 
-            await MainActor.run {
-                guard heroSlideRevision == slideRevision else { return }
-                transitioningHeroIndex = nil
-                heroSlideProgress = 1
+            guard heroSlideRevision == slideRevision else { return }
+            let pendingTransition = pendingHeroTransition
+            pendingHeroTransition = nil
+            transitioningHeroIndex = nil
+            heroSlideProgress = 1
+
+            if let pendingTransition {
+                moveHero(
+                    to: pendingTransition.index,
+                    direction: pendingTransition.direction,
+                    duration: pendingTransition.duration
+                )
             }
         }
     }
@@ -1102,6 +1114,12 @@ struct HomeCinematicHero: View {
 private enum HeroTransitionDirection {
     case forward
     case backward
+}
+
+private struct PendingHeroTransition {
+    let index: Int
+    let direction: HeroTransitionDirection
+    let duration: TimeInterval
 }
 
 private enum HeroSlideRole {

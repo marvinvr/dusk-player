@@ -30,11 +30,11 @@ enum MainTabItem: Hashable, Identifiable {
     var systemImage: String {
         switch self {
         case .home:
-            "house.fill"
+            "house"
         case .library(let libraryType):
             libraryType.systemImage
         case .downloads:
-            "arrow.down.circle.fill"
+            "arrow.down.circle"
         case .search:
             "magnifyingglass"
         case .settings:
@@ -53,12 +53,14 @@ struct MainTabIOSShell<Content: View>: View {
     var body: some View {
         TabView(selection: selection) {
             ForEach(tabs) { tab in
-                content(tab)
-                    .tint(Color.duskAccent)
-                    .tag(tab)
-                    .tabItem {
-                        Label(tab.title, systemImage: tab.systemImage)
-                    }
+                Tab(
+                    tab.title,
+                    systemImage: tab.systemImage,
+                    value: tab
+                ) {
+                    content(tab)
+                        .tint(Color.duskAccent)
+                }
             }
         }
         .tint(.primary)

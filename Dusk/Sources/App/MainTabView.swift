@@ -29,9 +29,9 @@ struct MainTabView: View {
             .onChange(of: availableTabs) { _, newTabs in
                 guard !newTabs.contains(selectedTab) else { return }
                 // Tabs can fold into (or out of) More while the user is on
-                // them, e.g. queuing the first download replaces Search and
-                // Settings with More. Follow the fold instead of yanking the
-                // user back to Home.
+                // them, e.g. with three libraries, queuing the first download
+                // replaces Downloads and Settings with More. Follow the fold
+                // instead of yanking the user back to Home.
                 switch selectedTab {
                 case .search, .settings, .downloads:
                     selectedTab = newTabs.contains(.more) ? .more : .home
@@ -83,15 +83,21 @@ struct MainTabView: View {
         #if os(tvOS)
         return baseTabs + [.search, .settings]
         #else
-        var trailingTabs: [MainTabItem] = [.search]
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            var trailingTabs: [MainTabItem] = []
+            if hasDownloads {
+                trailingTabs.append(.downloads)
+            }
+            trailingTabs.append(.settings)
+            return baseTabs + trailingTabs
+        }
+
+        var trailingTabs: [MainTabItem] = []
         if hasDownloads {
             trailingTabs.append(.downloads)
         }
         trailingTabs.append(.settings)
 
-        if baseTabs.count + trailingTabs.count > 5 {
-            trailingTabs = hasDownloads ? [.downloads, .more] : [.more]
-        }
         if baseTabs.count + trailingTabs.count > 5 {
             trailingTabs = [.more]
         }

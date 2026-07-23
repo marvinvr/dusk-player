@@ -51,7 +51,9 @@ struct LibraryRecommendationsView: View {
         }
         #if os(iOS)
         .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                SearchToolbarLink()
+
                 browseLibraryButton(labelText: "Browse Library")
             }
         }

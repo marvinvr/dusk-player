@@ -25,10 +25,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Re-selecting the active tab pops that tab to root.
 - Available tabs are data-driven: every present library type (Movies, TV Shows,
   Videos) gets its own tab, and Downloads appears only when visible and populated.
-- iOS keeps at most five tabs. When the flat set would exceed that, Search and
-  Settings collapse into a trailing More tab (`MoreView`, its own stack + path);
-  if the set still exceeds five, Downloads folds into More as well. tvOS is
-  always flat (no More, no Downloads).
+- iOS/iPadOS use the modern native `Tab` API with SF Symbols and open Search
+  from a circular trailing toolbar action on Home and immediately before Browse
+  on each library root, leaving Search out of the tab bar. iPadOS keeps every
+  remaining destination flat. On iPhone, if three libraries and Downloads are
+  present, Downloads and Settings fold into `MoreView` so the tab bar stays at
+  five items. tvOS remains flat with a Search tab and no Downloads tab.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
   only when multiple features need to navigate to them.
 - Use `NavigationLink(value:)` with `AppNavigationRoute` for media/person/library flows.
@@ -148,6 +150,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   returning to Home and pressing down from the tab bar drops focus into nothing (the
   cursor vanishes and nothing is selectable). Do not re-enable tvOS rotation without
   first moving the play button to a stable focusable view outside the sliding slides.
+  Discrete hero moves must mount the incoming slide at its off-screen offset before
+  advancing animation progress, and overlapping remote commands are queued instead of
+  replacing an in-flight slide. Publish prefetched artwork as each request completes;
+  waiting for the entire batch lets one slow image make other slides pop in late.
   Extend it carefully; it is stateful and timing-sensitive.
 - On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic
   range to standard to avoid real-device HDR/SDR seams between the backdrop fade and
@@ -287,8 +293,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 - `SearchView` is a thin tab-root wrapper (`NavigationStack` + destinations) around
   `SearchRootContent`, which owns the view model, searchable field, and results; the
-  split lets `MoreView` push search without a nested stack. Settings and Downloads
-  follow the same wrapper/`*RootContent` pattern. All-clip result groups render 16:9.
+  split lets iPhone/iPad toolbar actions push Search without a nested stack.
+  Settings and Downloads follow the same wrapper/`*RootContent` pattern.
+  All-clip result groups render 16:9.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
 - Presentation is platform-adaptive so search feels native everywhere. tvOS and iPad

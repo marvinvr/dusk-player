@@ -13,6 +13,11 @@ struct HomeIOSView: View {
 
     var body: some View {
         applyNavigationChrome(to: content, showsHero: showsCinematicHero)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    SearchToolbarLink()
+                }
+            }
     }
 
     private var content: some View {

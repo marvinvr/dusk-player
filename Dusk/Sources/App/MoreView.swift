@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// The trailing "More" tab shown on iOS when the tab bar would otherwise
-/// exceed five tabs. Hosts Search, optionally Downloads (when it no longer
-/// fits as its own tab), and Settings as pushed destinations.
+/// The trailing "More" tab shown on iPhone when the tab bar would otherwise
+/// exceed five tabs. Hosts Downloads and Settings as pushed destinations.
 struct MoreView: View {
     @Binding var path: NavigationPath
     let showsDownloads: Bool
@@ -25,10 +24,6 @@ struct MoreView: View {
     private var moreList: some View {
         List {
             Section {
-                NavigationLink(value: MoreRoute.search) {
-                    MoreRow(title: "Search", systemImage: "magnifyingglass")
-                }
-
                 if showsDownloads {
                     NavigationLink(value: MoreRoute.downloads) {
                         MoreRow(title: "Downloads", systemImage: "arrow.down.circle.fill")
@@ -48,8 +43,6 @@ struct MoreView: View {
     @ViewBuilder
     private func destinationView(for route: MoreRoute) -> some View {
         switch route {
-        case .search:
-            SearchRootContent()
         case .downloads:
             DownloadsRootContent(path: $path)
         case .settings:
@@ -59,7 +52,6 @@ struct MoreView: View {
 }
 
 private enum MoreRoute: Hashable {
-    case search
     case downloads
     case settings
 }

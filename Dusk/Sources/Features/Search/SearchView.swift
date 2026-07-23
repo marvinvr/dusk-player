@@ -15,7 +15,7 @@ struct SearchView: View {
 }
 
 /// The search screen without its own `NavigationStack`, usable both as the
-/// Search tab's root and as a destination pushed from the More tab.
+/// tvOS Search tab root and as an iPhone/iPad toolbar destination.
 struct SearchRootContent: View {
     @Environment(PlexService.self) private var plexService
     @State private var viewModel: SearchViewModel?
@@ -72,6 +72,18 @@ struct SearchRootContent: View {
                 .searchable(text: $vm.query, prompt: searchPrompt)
         }
         #endif
+    }
+}
+
+struct SearchToolbarLink: View {
+    var body: some View {
+        NavigationLink(value: AppNavigationRoute.search) {
+            Image(systemName: "magnifyingglass")
+                .symbolRenderingMode(.monochrome)
+                .foregroundStyle(Color.primary)
+        }
+        .tint(Color.primary)
+        .accessibilityLabel("Search")
     }
 }
 

@@ -1,6 +1,7 @@
 import SwiftUI
 
 enum AppNavigationRoute: Hashable {
+    case search
     case library(PlexLibrary)
     case libraryGenre(library: PlexLibrary, genre: LibraryGenreOption)
     case libraryCollection(library: PlexLibrary, collection: PlexLibraryCollection)
@@ -37,6 +38,8 @@ struct AppNavigationDestinationView: View {
     @ViewBuilder
     var body: some View {
         switch route {
+        case .search:
+            SearchRootContent()
         case .library(let library):
             LibraryItemsView(library: library, plexService: plexService)
         case .libraryGenre(let library, let genre):
