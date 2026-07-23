@@ -586,7 +586,10 @@ private struct PlayerSessionView: View {
                 .duskSuppressTVOSButtonChrome()
                 .contentShape(.interaction, skipMarkerButtonShape)
                 .focusEffectDisabled()
-                .duskTVOSFocusedScale(skipMarkerFocused)
+                // Like the Up Next poster, this control owns focus while the
+                // HUD is hidden. Keep the focus scale without the persistent
+                // white halo behind Skip Intro / Skip Credits.
+                .duskTVOSFocusedScale(skipMarkerFocused, glow: false)
                 #else
                 .buttonStyle(.plain)
                 #endif
@@ -657,7 +660,7 @@ private struct PlayerSessionView: View {
     // Skip Intro / Skip Credits uses the same translucent native styling on
     // every platform. tvOS used to render a heavy black fill with an
     // accent-colored countdown, which read as flat and non-native next to the
-    // iPad capsule; the focus lift comes from `duskTVOSFocusedScale` instead.
+    // iPad capsule; tvOS keeps the shared focus scale without its glow.
     private var skipMarkerButtonBackgroundColor: Color {
         .white.opacity(0.08)
     }
