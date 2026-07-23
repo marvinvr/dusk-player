@@ -37,6 +37,9 @@ struct SettingsContainer<Content: View>: View {
                 }
             )
         }
+        .task {
+            await viewModel.refreshAvailableServers(using: plexService)
+        }
         .duskNavigationTitle("Settings")
         .duskNavigationBarTitleDisplayModeLarge()
     }

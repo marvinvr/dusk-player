@@ -303,9 +303,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   shows, seasons, and episodes stay consistent with the rest of the app.
 - `SettingsView` selects the platform shell. Shared sheet/navigation chrome is in
   `SettingsContainer`.
-- `SettingsViewModel` is for transient settings UI state: server picker, server load
-  errors, Home-user picker presentation, image cache status, app version, and
-  server/user switching.
+- `SettingsViewModel` is for transient settings UI state: the silently refreshed
+  server list, server picker, Home-user picker presentation, image cache status,
+  app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.
   Add new user-facing preferences there with a key, default loading, and persistence.
@@ -320,11 +320,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   VLCKit sessions can explain whether enhancement is active, waiting for a
   frame, disabled by preference, or unavailable for a stream/runtime reason.
 - `SettingsSupport` owns shared settings copy, URLs, language options, and bindings.
-- Both settings pages lead with a supporter row (thank-you state for supporters), and
-  the iOS Appearance section has an App Icon row opening `AppIconPickerView`. The
-  supporter tier itself (StoreKit products, status rules, the iOS/iPadOS prompt
-  ladder, alternate icons) is documented in `supporter.md`; tvOS only exposes
-  supporter purchases through Settings.
+- Both settings pages lead with a supporter row (thank-you state for supporters),
+  followed by Plex Home when applicable and Plex Server when the active user can
+  access multiple servers. Opening Settings refreshes the server list silently;
+  the existing app-start connection refresh remains separate. Everyday playback
+  and appearance settings follow, while engine overrides, storage, About, and
+  Account stay lower on the page. AI Upscaling is a normal Playback Default;
+  Playback Advanced is reserved for forced engine selection. The iOS Appearance
+  section has an App Icon row opening `AppIconPickerView`. The supporter tier
+  itself (StoreKit products, status rules, the iOS/iPadOS prompt ladder, alternate
+  icons) is documented in `supporter.md`; tvOS only exposes supporter purchases
+  through Settings.
 - Player Quality lives in the in-player gear menu, not global Settings. It is a
   per-session manual action and must not create a persisted default that starts
   future sessions transcoded.

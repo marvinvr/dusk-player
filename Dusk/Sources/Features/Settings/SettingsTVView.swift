@@ -37,6 +37,88 @@ struct SettingsTVView: View {
                     }
                 }
 
+                if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+                    TVSettingsSection(
+                        title: "Plex Home",
+                        footer: "When off, Dusk asks who’s watching whenever it starts."
+                    ) {
+                        HStack(spacing: 20) {
+                            PlexHomeUserAvatar(user: activeUser, size: 58)
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Current User")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.duskTextSecondary)
+
+                                Text(activeUser.displayName)
+                                    .font(.headline)
+                                    .foregroundStyle(Color.duskTextPrimary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+                        }
+                        .frame(minHeight: 78)
+
+                        tvRowDivider
+
+                        TVSettingsActionRow(
+                            title: "Switch User",
+                            tint: Color.duskAccent,
+                            showsChevron: true
+                        ) {
+                            viewModel.showHomeUserPicker = true
+                        }
+
+                        tvRowDivider
+
+                        TVSettingsToggleRow(
+                            title: "Automatically Sign In",
+                            isOn: automaticHomeSignInBinding
+                        )
+                    }
+                }
+
+                if viewModel.hasMultipleServers {
+                    TVSettingsSection(title: "Plex Server") {
+                        HStack(spacing: 20) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Current Server")
+                                    .font(.headline)
+                                    .foregroundStyle(Color.duskTextPrimary)
+
+                                if let server = plexService.connectedServer {
+                                    Text(server.name)
+                                        .foregroundStyle(Color.duskTextPrimary)
+                                    Text(viewModel.connectionType)
+                                        .font(.caption)
+                                        .foregroundStyle(Color.duskTextSecondary)
+                                } else {
+                                    Text("Not connected")
+                                        .foregroundStyle(Color.duskTextSecondary)
+                                }
+                            }
+
+                            Spacer()
+
+                            Circle()
+                                .fill(plexService.connectedServer == nil ? Color.duskTextSecondary : Color.duskAccent)
+                                .frame(width: 10, height: 10)
+                        }
+                        .frame(minHeight: 72)
+
+                        tvRowDivider
+
+                        TVSettingsActionRow(
+                            title: "Change Server",
+                            tint: Color.duskAccent,
+                            showsChevron: true
+                        ) {
+                            viewModel.showServerPicker = true
+                        }
+                    }
+                }
+
                 TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
                     TVSettingsMenuRow(
                         title: "Max Resolution",
@@ -66,6 +148,15 @@ struct SettingsTVView: View {
                         selection: $preferences.defaultAudioLanguage,
                         selectedTitle: SettingsSupport.languageDisplayName(for: preferences.defaultAudioLanguage)
                     ) { SettingsSupport.languageDisplayName(for: $0) }
+
+                    tvRowDivider
+
+                    TVSettingsMenuRow(
+                        title: "AI Upscaling",
+                        options: VideoEnhancementMode.allCases,
+                        selection: $preferences.videoEnhancementMode,
+                        selectedTitle: preferences.videoEnhancementMode.displayName
+                    ) { $0.displayName }
                 }
 
                 TVSettingsSection(title: "Playback Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
@@ -109,105 +200,6 @@ struct SettingsTVView: View {
                     }
                 }
 
-                TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
-                    TVSettingsMenuRow(
-                        title: "AI Upscaling",
-                        options: VideoEnhancementMode.allCases,
-                        selection: $preferences.videoEnhancementMode,
-                        selectedTitle: preferences.videoEnhancementMode.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
-                }
-
-                if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
-                    TVSettingsSection(
-                        title: "Plex Home",
-                        footer: "When off, Dusk asks who’s watching whenever it starts."
-                    ) {
-                        HStack(spacing: 20) {
-                            PlexHomeUserAvatar(user: activeUser, size: 58)
-
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("Current User")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.duskTextSecondary)
-
-                                Text(activeUser.displayName)
-                                    .font(.headline)
-                                    .foregroundStyle(Color.duskTextPrimary)
-                                    .lineLimit(1)
-                            }
-
-                            Spacer()
-                        }
-                        .frame(minHeight: 78)
-
-                        tvRowDivider
-
-                        TVSettingsActionRow(
-                            title: "Switch User",
-                            tint: Color.duskAccent,
-                            showsChevron: true
-                        ) {
-                            viewModel.showHomeUserPicker = true
-                        }
-
-                        tvRowDivider
-
-                        TVSettingsToggleRow(
-                            title: "Automatically Sign In",
-                            isOn: automaticHomeSignInBinding
-                        )
-                    }
-                }
-
-                TVSettingsSection(title: "Server", footer: viewModel.serverError, footerColor: .red) {
-                    HStack(spacing: 20) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("Current Server")
-                                .font(.headline)
-                                .foregroundStyle(Color.duskTextPrimary)
-
-                            if let server = plexService.connectedServer {
-                                Text(server.name)
-                                    .foregroundStyle(Color.duskTextPrimary)
-                                Text(viewModel.connectionType)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.duskTextSecondary)
-                            } else {
-                                Text("Not connected")
-                                    .foregroundStyle(Color.duskTextSecondary)
-                            }
-                        }
-
-                        Spacer()
-
-                        Circle()
-                            .fill(plexService.connectedServer == nil ? Color.duskTextSecondary : Color.duskAccent)
-                            .frame(width: 10, height: 10)
-                    }
-                    .frame(minHeight: 72)
-
-                    tvRowDivider
-
-                    TVSettingsActionRow(
-                        title: "Change Server",
-                        tint: Color.duskAccent,
-                        showsChevron: true,
-                        isLoading: viewModel.isLoadingServers
-                    ) {
-                        Task { await viewModel.loadServers(using: plexService) }
-                    }
-                    .disabled(viewModel.isLoadingServers)
-                }
-
                 TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {
                     TVSettingsMenuRow(
                         title: "Appearance",
@@ -215,6 +207,14 @@ struct SettingsTVView: View {
                         selection: $preferences.appearanceMode,
                         selectedTitle: preferences.appearanceMode.displayName
                     ) { $0.displayName }
+                }
+
+                TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
+                    TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
+
+                    tvRowDivider
+
+                    TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
                 }
 
                 TVSettingsSection(title: "Storage", footer: viewModel.storageFooterText) {

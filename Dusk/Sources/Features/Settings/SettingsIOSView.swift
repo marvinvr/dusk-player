@@ -67,6 +67,94 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
 
+            if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+                Section {
+                    HStack(spacing: 14) {
+                        PlexHomeUserAvatar(user: activeUser, size: 42)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Current User")
+                                .font(.caption)
+                                .foregroundStyle(Color.duskTextSecondary)
+
+                            Text(activeUser.displayName)
+                                .foregroundStyle(Color.duskTextPrimary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+                    }
+
+                    Button {
+                        viewModel.showHomeUserPicker = true
+                    } label: {
+                        HStack {
+                            Text("Switch User")
+                                .foregroundStyle(Color.duskAccent)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.duskTextSecondary)
+                        }
+                    }
+                    .duskSuppressTVOSButtonChrome()
+
+                    Toggle("Automatically Sign In", isOn: automaticHomeSignInBinding)
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .tint(Color.duskAccent)
+                } header: {
+                    Text("Plex Home")
+                        .foregroundStyle(Color.duskTextSecondary)
+                } footer: {
+                    Text("When off, Dusk asks who’s watching whenever it starts.")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+                .listRowBackground(Color.duskSurface)
+            }
+
+            if viewModel.hasMultipleServers {
+                Section {
+                    if let server = plexService.connectedServer {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(server.name)
+                                    .foregroundStyle(Color.duskTextPrimary)
+                                Text(viewModel.connectionType)
+                                    .font(.caption)
+                                    .foregroundStyle(Color.duskTextSecondary)
+                            }
+
+                            Spacer()
+
+                            Circle()
+                                .fill(Color.duskAccent)
+                                .frame(width: 8, height: 8)
+                        }
+                    } else {
+                        Text("Not connected")
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+
+                    Button {
+                        viewModel.showServerPicker = true
+                    } label: {
+                        HStack {
+                            Text("Change Server")
+                                .foregroundStyle(Color.duskAccent)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.duskTextSecondary)
+                        }
+                    }
+                    .duskSuppressTVOSButtonChrome()
+                } header: {
+                    Text("Plex Server")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+                .listRowBackground(Color.duskSurface)
+            }
+
             Section {
                 Picker("Max Resolution", selection: $preferences.maxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
@@ -89,6 +177,13 @@ struct SettingsIOSView: View {
                 Picker("Audio", selection: $preferences.defaultAudioLanguage) {
                     ForEach(CommonLanguage.allCases) { language in
                         Text(language.displayName).tag(language.code)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Picker("AI Upscaling", selection: $preferences.videoEnhancementMode) {
+                    ForEach(VideoEnhancementMode.allCases) { mode in
+                        Text(mode.displayName).tag(mode)
                     }
                 }
                 .foregroundStyle(Color.duskTextPrimary)
@@ -161,30 +256,6 @@ struct SettingsIOSView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
                 Text(SettingsSupport.playbackBehaviorFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Picker("AI Upscaling", selection: $preferences.videoEnhancementMode) {
-                    ForEach(VideoEnhancementMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .tint(Color.duskAccent)
-
-                Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .tint(Color.duskAccent)
-            } header: {
-                Text("Playback Advanced")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.playbackAdvancedFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
@@ -271,99 +342,6 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
 
-            if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
-                Section {
-                    HStack(spacing: 14) {
-                        PlexHomeUserAvatar(user: activeUser, size: 42)
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Current User")
-                                .font(.caption)
-                                .foregroundStyle(Color.duskTextSecondary)
-
-                            Text(activeUser.displayName)
-                                .foregroundStyle(Color.duskTextPrimary)
-                                .lineLimit(1)
-                        }
-
-                        Spacer()
-                    }
-
-                    Button {
-                        viewModel.showHomeUserPicker = true
-                    } label: {
-                        HStack {
-                            Text("Switch User")
-                                .foregroundStyle(Color.duskAccent)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-                    }
-                    .duskSuppressTVOSButtonChrome()
-
-                    Toggle("Automatically Sign In", isOn: automaticHomeSignInBinding)
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .tint(Color.duskAccent)
-                } header: {
-                    Text("Plex Home")
-                        .foregroundStyle(Color.duskTextSecondary)
-                } footer: {
-                    Text("When off, Dusk asks who’s watching whenever it starts.")
-                        .foregroundStyle(Color.duskTextSecondary)
-                }
-                .listRowBackground(Color.duskSurface)
-            }
-
-            Section {
-                if let server = plexService.connectedServer {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(server.name)
-                                .foregroundStyle(Color.duskTextPrimary)
-                            Text(viewModel.connectionType)
-                                .font(.caption)
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-
-                        Spacer()
-
-                        Circle()
-                            .fill(Color.duskAccent)
-                            .frame(width: 8, height: 8)
-                    }
-                } else {
-                    Text("Not connected")
-                        .foregroundStyle(Color.duskTextSecondary)
-                }
-
-                Button {
-                    Task { await viewModel.loadServers(using: plexService) }
-                } label: {
-                    HStack {
-                        Text("Change Server")
-                            .foregroundStyle(Color.duskAccent)
-                        Spacer()
-                        if viewModel.isLoadingServers {
-                            ProgressView()
-                                .tint(Color.duskAccent)
-                        }
-                    }
-                }
-                .disabled(viewModel.isLoadingServers)
-                .duskSuppressTVOSButtonChrome()
-            } header: {
-                Text("Server")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                if let error = viewModel.serverError {
-                    Text(error)
-                        .foregroundStyle(.red)
-                }
-            }
-            .listRowBackground(Color.duskSurface)
-
             Section {
                 Picker("Appearance", selection: $preferences.appearanceMode) {
                     ForEach(AppearanceMode.allCases) { mode in
@@ -395,6 +373,23 @@ struct SettingsIOSView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
                 Text(SettingsSupport.appearanceFooterText)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
+                Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .tint(Color.duskAccent)
+
+                Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .tint(Color.duskAccent)
+            } header: {
+                Text("Playback Advanced")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.playbackAdvancedFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)

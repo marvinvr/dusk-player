@@ -6,10 +6,13 @@ final class SettingsViewModel {
     var showServerPicker = false
     var showHomeUserPicker = false
     private(set) var availableServers: [PlexServer] = []
-    private(set) var isLoadingServers = false
-    private(set) var serverError: String?
+    private var isRefreshingServers = false
     private(set) var imageCacheClearedAt: Date?
     private(set) var imageCacheSize: Int = AppImageCache.shared.currentDiskUsage
+
+    var hasMultipleServers: Bool {
+        availableServers.count > 1
+    }
 
     var appVersion: String {
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
@@ -38,28 +41,21 @@ final class SettingsViewModel {
         imageCacheSize = AppImageCache.shared.currentDiskUsage
     }
 
-    func loadServers(using plexService: PlexService) async {
-        isLoadingServers = true
-        serverError = nil
+    func refreshAvailableServers(using plexService: PlexService) async {
+        guard !isRefreshingServers else { return }
+        isRefreshingServers = true
+        defer { isRefreshingServers = false }
 
         do {
-            let servers = try await plexService.discoverServers()
-            if servers.isEmpty {
-                serverError = "No servers found."
-            } else {
-                availableServers = servers
-                showServerPicker = true
-            }
+            availableServers = try await plexService.discoverServers()
         } catch {
-            serverError = error.localizedDescription
+            // Discovery here only controls whether server switching is relevant.
+            // Keep the last known list and avoid surfacing transient refresh errors.
         }
-
-        isLoadingServers = false
     }
 
     func connect(to server: PlexServer, using plexService: PlexService) async throws {
         try await plexService.connect(to: server)
         showServerPicker = false
-        availableServers = []
     }
 }
