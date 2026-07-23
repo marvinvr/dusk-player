@@ -571,6 +571,7 @@ extension PlaybackCoordinator {
     /// armed for local downloads or server streams/transcodes.
     func startDirectPlayFallbackWatch() {
         cancelDirectPlayFallbackWatch()
+        isAutomaticDirectPlayFallbackAvailable = true
 
         let expectedPresentationID = playerPresentationID
         directPlayFallbackWatchTask = Task { @MainActor [weak self] in
@@ -588,6 +589,7 @@ extension PlaybackCoordinator {
                 // One-shot: consume the watch before attempting the swap so a
                 // failed fallback leaves the normal error surface alone.
                 self.directPlayFallbackWatchTask = nil
+                self.isAutomaticDirectPlayFallbackActive = true
                 await self.performDirectPlayServerStreamFallback()
                 return
             }
@@ -597,6 +599,8 @@ extension PlaybackCoordinator {
     func cancelDirectPlayFallbackWatch() {
         directPlayFallbackWatchTask?.cancel()
         directPlayFallbackWatchTask = nil
+        isAutomaticDirectPlayFallbackAvailable = false
+        isAutomaticDirectPlayFallbackActive = false
     }
 
     /// One-shot delivery-ladder fallback: an online direct-play attempt died
@@ -604,6 +608,11 @@ extension PlaybackCoordinator {
     /// stream (direct-stream/remux). If this attempt itself fails, the normal
     /// error surface stays in place — there is no rung below this one.
     func performDirectPlayServerStreamFallback() async {
+        defer {
+            isAutomaticDirectPlayFallbackAvailable = false
+            isAutomaticDirectPlayFallbackActive = false
+        }
+
         guard !didFinalizeCurrentSession,
               !activePlaybackUsesLocalDownload,
               !isSwitchingQuality,
@@ -678,9 +687,6 @@ extension PlaybackCoordinator {
                 videoEnhancementRequest: .disabled,
                 startPosition: resumePosition
             )
-            // Informational note through the toast surface the player already
-            // renders for quality-switch messages.
-            presentQualitySwitchError("Direct play failed — switched to converted stream")
         } catch {
             playbackSessionLogger.error(
                 "Server-stream fallback failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"

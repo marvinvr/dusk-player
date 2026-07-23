@@ -66,9 +66,13 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `.manualTranscode` semantics (forced re-encode at the chosen bitrate).
 - The coordinator's failure watch (`directPlayFallbackWatchTask`, ~500 ms
   cadence, one-shot per session) detects `engine.state == .error`, snapshots
-  the position, swaps engine/source through the same helper `switchQuality`
-  uses, and surfaces a toast. A failed fallback leaves the normal error
-  overlay in place.
+  the position, and swaps engine/source through the same helper `switchQuality`
+  uses. Automatic recovery is silent: the failed direct-play engine's transient
+  error overlay stays hidden while Plex prepares the replacement stream, while
+  the startup spinner and player controls remain visible across the handoff.
+  The startup spinner is owned above the replaceable player-session identity,
+  so its native animation phase does not restart when the engine swaps. A failed
+  fallback reveals the normal error overlay.
 - Transcode/server-stream sessions are now closed on the server:
   `stopTranscodeSession` fires on finalize, on quality switches (only after
   the replacement decision succeeded), and when a fallback replaces a

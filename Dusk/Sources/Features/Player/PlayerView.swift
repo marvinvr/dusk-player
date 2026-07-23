@@ -75,28 +75,40 @@ struct PlayerView: View {
     @Environment(PlaybackCoordinator.self) private var playback
 
     var body: some View {
-        Group {
-            if let engine = playback.engine,
-               let playbackSource = playback.playbackSource {
-                PlayerSessionView(
-                    engine: engine,
-                    playbackSource: playbackSource,
-                    mediaDetails: playback.activeItemDetails,
-                    debugInfo: playback.debugInfo
-                )
-                .id(playback.playerPresentationID)
-            } else if playback.showPlayer {
-                // Cover is up but no engine yet: we're preparing playback.
-                PlayerLoadingView(
-                    placeholder: playback.loadingPlaceholder,
-                    onCancel: { playback.dismissFailedPlayback() }
-                )
-                #if os(tvOS)
-                .onExitCommand { playback.dismissFailedPlayback() }
-                #endif
-            } else {
-                Color.black.ignoresSafeArea()
+        ZStack {
+            Group {
+                if let engine = playback.engine,
+                   let playbackSource = playback.playbackSource {
+                    PlayerSessionView(
+                        engine: engine,
+                        playbackSource: playbackSource,
+                        mediaDetails: playback.activeItemDetails,
+                        debugInfo: playback.debugInfo
+                    )
+                    .id(playback.playerPresentationID)
+                } else if playback.showPlayer {
+                    // Cover is up but no engine yet: we're preparing playback.
+                    PlayerLoadingView(
+                        placeholder: playback.loadingPlaceholder,
+                        onCancel: { playback.dismissFailedPlayback() }
+                    )
+                    #if os(tvOS)
+                    .onExitCommand { playback.dismissFailedPlayback() }
+                    #endif
+                } else {
+                    Color.black.ignoresSafeArea()
+                }
             }
+
+            // This instance deliberately lives above the replaceable session
+            // identity. It keeps animating while transparent, so swapping from
+            // direct play to the Plex server stream cannot restart its phase.
+            ProgressView()
+                .scaleEffect(1.5)
+                .tint(.white)
+                .opacity(showsSessionLoadingIndicator ? 1 : 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(!showsSessionLoadingIndicator)
         }
         .alert(
             "Couldn't Play",
@@ -126,6 +138,21 @@ struct PlayerView: View {
                 }
             }
         )
+    }
+
+    private var showsSessionLoadingIndicator: Bool {
+        guard let engine = playback.engine else { return false }
+
+        if case .directPlay? = playback.debugInfo?.decision,
+           (
+               playback.isAutomaticDirectPlayFallbackAvailable ||
+                playback.isAutomaticDirectPlayFallbackActive
+           ),
+           engine.state == .error || engine.error != nil {
+            return true
+        }
+
+        return engine.state == .idle || engine.state == .loading
     }
 }
 
@@ -218,13 +245,17 @@ private struct PlayerSessionView: View {
                         .transition(.opacity)
                 }
 
-                if viewModel.shouldShowBufferingIndicator {
+                // Startup is handled by PlayerView's stable spinner so its
+                // animation survives engine/session replacement. This local
+                // spinner is only for delayed mid-play buffering.
+                if viewModel.showBufferingIndicator {
                     ProgressView()
                         .scaleEffect(1.5)
                         .tint(.white)
                 }
 
-                if let error = viewModel.playbackError {
+                if let error = viewModel.playbackError,
+                   hasVisiblePlaybackError {
                     errorOverlay(error)
                 }
 
@@ -251,7 +282,7 @@ private struct PlayerSessionView: View {
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
 
-                if viewModel.playbackError == nil {
+                if !hasVisiblePlaybackError {
                     controlsOverlay
                 }
             }
@@ -559,6 +590,15 @@ private struct PlayerSessionView: View {
         #else
         true
         #endif
+    }
+
+    /// A failed direct-play engine is only an intermediate state while the
+    /// automatic Plex server-stream replacement is active. Keep the existing
+    /// loading presentation and controls alive until recovery succeeds or this
+    /// becomes the final error the user needs to act on.
+    private var hasVisiblePlaybackError: Bool {
+        viewModel.playbackError != nil &&
+            !playback.isAutomaticDirectPlayFallbackAvailable
     }
 
     private var scrubPreviewPartID: Int? {

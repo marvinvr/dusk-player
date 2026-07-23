@@ -24,7 +24,7 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 - [x] App Store Release
 - [x] Offline playback (Downloads)
 - [x] AI Upscaling
-- [ ] Plex Home Integration
+- [x] Plex Home Integration
 - [ ] SharePlay Integration
 - [ ] Translation of the UI
 - [ ] Seer Integration

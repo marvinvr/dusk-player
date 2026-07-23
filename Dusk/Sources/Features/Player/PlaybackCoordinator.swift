@@ -27,6 +27,13 @@ final class PlaybackCoordinator {
     var upNextPoster: UpNextPosterPresentation?
     var isSwitchingQuality = false
     var qualitySwitchError: String?
+    /// True while an online direct-play attempt still has its one-shot Plex
+    /// server-stream fallback available. Used to keep a transient engine error
+    /// hidden until that recovery attempt succeeds or definitively fails.
+    var isAutomaticDirectPlayFallbackAvailable = false
+    /// True only after direct play has failed and Plex is preparing the
+    /// replacement server stream. Drives the continuous loading presentation.
+    var isAutomaticDirectPlayFallbackActive = false
     /// True while a Picture in Picture window is showing. The full-screen player
     /// cover is dropped while this is set, so the engine must outlive the cover's
     /// dismissal (see `onPlayerDismissed`).

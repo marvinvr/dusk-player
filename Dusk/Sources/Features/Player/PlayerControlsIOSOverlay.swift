@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct PlayerControlsIOSOverlay: View {
+    @Environment(PlaybackCoordinator.self) private var playback
+
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
     let scrubPreviewSource: PlexScrubPreviewSource?
@@ -98,7 +100,8 @@ struct PlayerControlsIOSOverlay: View {
             // video is already moving and then flip the moment the warmup
             // completes. The standard buffering spinner in PlayerView covers
             // the loading presentation instead.
-            if !viewModel.isAwaitingPlaybackStart {
+            if !viewModel.isAwaitingPlaybackStart &&
+                !isAutomaticFallbackPresentationActive {
                 Button { viewModel.togglePlayPause() } label: {
                     Image(systemName: isPlaying ? "pause.fill" : "play.fill")
                         .font(.system(size: 44))
@@ -110,6 +113,14 @@ struct PlayerControlsIOSOverlay: View {
             }
             Spacer()
         }
+    }
+
+    private var isAutomaticFallbackPresentationActive: Bool {
+        playback.isAutomaticDirectPlayFallbackActive ||
+            (
+                playback.isAutomaticDirectPlayFallbackAvailable &&
+                    viewModel.playbackError != nil
+            )
     }
 
     private var bottomBar: some View {
