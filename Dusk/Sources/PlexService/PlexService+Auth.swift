@@ -7,29 +7,37 @@ enum AuthenticationBootstrapError: Error {
 
 extension PlexService {
     func setAuthToken(_ token: String) {
-        if authToken != token {
-            clearServer()
+        let normalizedToken = token.nilIfEmpty
+        if primaryAccountToken != normalizedToken {
+            clearServer(forgetSelection: true)
             currentUser = nil
             accountSubscriptionActive = nil
+            resetHomeSession(clearPreference: true)
         }
-        authToken = token.nilIfEmpty
+        primaryAccountToken = normalizedToken
+        activeAccountToken = normalizedToken
         authTokenUpdatedAt = Date()
 
         plexAuthLogger.notice("Stored new Plex auth token and opened bootstrap retry window")
 
-        if let authToken {
-            KeychainHelper.save(key: Self.keychainTokenKey, data: Data(authToken.utf8))
+        if let primaryAccountToken {
+            KeychainHelper.save(
+                key: Self.keychainTokenKey,
+                data: Data(primaryAccountToken.utf8)
+            )
         } else {
             KeychainHelper.delete(key: Self.keychainTokenKey)
         }
     }
 
     func clearAuthToken() {
-        authToken = nil
+        primaryAccountToken = nil
+        activeAccountToken = nil
         authTokenUpdatedAt = nil
         currentUser = nil
         accountSubscriptionActive = nil
         KeychainHelper.delete(key: Self.keychainTokenKey)
+        resetHomeSession(clearPreference: true)
         plexAuthLogger.notice("Cleared Plex auth token")
     }
 
@@ -47,8 +55,8 @@ extension PlexService {
     }
 
     func signOut() {
+        clearServer(forgetSelection: true)
         clearAuthToken()
-        clearServer()
     }
 
     func authURL(for pin: PlexPin) -> URL? {
@@ -109,6 +117,23 @@ extension PlexService {
             return true
         default:
             return false
+        }
+    }
+
+    private func resetHomeSession(clearPreference: Bool) {
+        homeUsers = []
+        activeHomeUser = nil
+        primaryProfileID = nil
+        homeBootstrapCompleted = false
+        homeSelectionRequested = false
+        hasRememberedHomeUserToken = false
+        KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
+        UserDefaults.standard.removeObject(forKey: Self.defaultsActiveHomeUserDataKey)
+        UserDefaults.standard.removeObject(forKey: Self.defaultsHomeMigrationCompletedKey)
+        UserDefaults.standard.removeObject(forKey: Self.defaultsPrimaryProfileIDKey)
+        if clearPreference {
+            automaticHomeSignIn = true
+            UserDefaults.standard.removeObject(forKey: Self.defaultsAutomaticHomeSignInKey)
         }
     }
 }

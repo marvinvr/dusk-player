@@ -21,9 +21,16 @@ Files: `PlexService.swift` for shared state and persisted bootstrap;
 server-token recovery; `KeychainHelper.swift` for token storage.
 
 Tokens and persisted state:
-- `authToken`: Plex account token from `plex.tv`, saved as `PlexAuthToken`.
-- `serverAuthToken`: selected server token, saved as `PlexServerAuthToken`.
-- `connectedServer`: encoded `PlexServer` in UserDefaults.
+- `primaryAccountToken`: the full Plex account token established by device-link
+  sign-in. It is the durable authority for listing and switching Plex Home
+  members and is stored in Keychain.
+- `activeAccountToken`: the identity used for account/resource requests. With no
+  multi-user Plex Home it is the primary token; after a Home switch it is the
+  switched user's token. It is persisted only when automatic Home sign-in is on.
+- `serverAuthToken`: selected-server token discovered for the active identity,
+  saved in Keychain and cleared whenever that identity changes.
+- `connectedServer`: tokenless encoded server metadata in UserDefaults. Never
+  restore an access token from this payload.
 - `serverBaseURL`: selected connection URI in UserDefaults.
 - `clientIdentifier`: stable UUID sent on every Plex request.
 
@@ -39,12 +46,30 @@ Flow:
    real ~120 s poll-window timeout) ends it. Cancellation exits polling silently;
    the "Sign-in timed out" message is reserved for the full window elapsing.
 3. `checkPin(_:)` polls until `authToken` appears.
-4. `setAuthToken(_:)` stores the token and clears stale server state on account
-   change.
-5. `discoverServers()` fetches `/api/v2/resources` with HTTPS/relay and keeps
+4. `setAuthToken(_:)` stores the primary token and clears stale account/server
+   state on account change.
+5. Account bootstrap fetches Plex Home users. Zero or one usable member keeps
+   the legacy flow; multiple members require a user selection unless a
+   remembered active Home session is valid. Protected members are switched with
+   a transient PIN; Dusk never stores the PIN.
+6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
+   HTTPS/relay and keeps
    resources whose `provides` contains `server`.
-6. `connect(to:)` probes candidates, validates `/library/sections`, and calls
+7. `connect(to:)` probes candidates, validates `/library/sections`, and calls
    `setServer(...)`.
+
+Plex Home invariants:
+- Home membership and switching use the primary token. Server discovery,
+  current-user lookup, metadata, history, and playback use the active token.
+- Select the Home identity before discovering servers; members can have
+  different server/library access.
+- A switch invalidates current-user, entitlement, and server authorization
+  caches. Reconnect to the previous server identifier only if it appears in the
+  new identity's resources.
+- Automatic sign-in remembers the switched session token in Keychain, not the
+  Home PIN. With automatic sign-in off, a cold Home switch requires internet.
+- `activeProfileID` is the local persistence boundary for downloads, cached
+  offline metadata, and delayed watch-state actions.
 
 Discovery behavior to preserve:
 - Connections sort local non-relay, remote non-relay, relay; HTTPS wins within
@@ -93,9 +118,9 @@ File: `PlexService+Networking.swift`.
 
 Pitfalls:
 - `rawServerRequest` requires `serverBaseURL` plus a usable server token.
-- Keep account-token and server-token usage distinct. `plex.tv` resources use
-  the account token; selected server APIs should use the server token when
-  available.
+- Keep primary-account, active-account, and server-token usage distinct. Home
+  membership/switch calls use the primary account, `plex.tv` resources use the
+  active account, and selected-server APIs use the server token.
 - Plex is inconsistent: optional fields, int-or-bool flags, unknown media types,
   and multiple person id shapes are normal.
 - Do not log token-bearing URLs. Use sanitized playback URL logging where it

@@ -18,8 +18,29 @@ extension PlexService {
         method: String = "GET",
         path: String,
         queryItems: [URLQueryItem]? = nil,
-        formBody: [String: String]? = nil
+        formBody: [String: String]? = nil,
+        accountToken: String? = nil,
+        retriesFreshAuthentication: Bool = true
     ) async throws -> T {
+        let data = try await rawPlexTVRequest(
+            method: method,
+            path: path,
+            queryItems: queryItems,
+            formBody: formBody,
+            accountToken: accountToken,
+            retriesFreshAuthentication: retriesFreshAuthentication
+        )
+        return try decodeJSON(T.self, from: data)
+    }
+
+    func rawPlexTVRequest(
+        method: String = "GET",
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        formBody: [String: String]? = nil,
+        accountToken: String? = nil,
+        retriesFreshAuthentication: Bool = true
+    ) async throws -> Data {
         guard let url = buildURL(base: Self.plexTVBase, path: path, queryItems: queryItems) else {
             throw PlexServiceError.invalidURL
         }
@@ -27,7 +48,7 @@ extension PlexService {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
-        applyHeaders(to: &request, token: authToken)
+        applyHeaders(to: &request, token: accountToken ?? activeAccountToken)
 
         if let formBody {
             request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
@@ -36,8 +57,10 @@ extension PlexService {
             request.httpBody = components.query?.data(using: .utf8)
         }
 
-        let data = try await executeRequest(request)
-        return try decodeJSON(T.self, from: data)
+        return try await executeRequest(
+            request,
+            retriesFreshAuthentication: retriesFreshAuthentication
+        )
     }
 
     func rawServerRequest(
@@ -95,9 +118,9 @@ extension PlexService {
     private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
         switch error {
         case .networkError(_):
-            return authToken != nil && currentServerIdentifier != nil
+            return activeAccountToken != nil && currentServerIdentifier != nil
         case .httpError(let statusCode):
-            return authToken != nil
+            return activeAccountToken != nil
                 && currentServerIdentifier != nil
                 && [404, 408, 421, 502, 503, 504].contains(statusCode)
         default:
@@ -106,7 +129,7 @@ extension PlexService {
     }
 
     func recoverServerAuthorizationIfPossible() async throws {
-        guard authToken != nil else {
+        guard !needsHomeUserSelection, activeAccountToken != nil else {
             throw PlexServiceError.unauthorized
         }
 
@@ -162,13 +185,16 @@ extension PlexService {
         }
     }
 
-    func executeRequest(_ request: URLRequest) async throws -> Data {
-        try await retryAfterFreshAuthentication {
+    func executeRequest(
+        _ request: URLRequest,
+        retriesFreshAuthentication: Bool = true
+    ) async throws -> Data {
+        let operation: () async throws -> Data = {
             let data: Data
             let response: URLResponse
 
             do {
-                (data, response) = try await session.data(for: request)
+                (data, response) = try await self.session.data(for: request)
             } catch {
                 throw PlexServiceError.networkError(error.localizedDescription)
             }
@@ -186,6 +212,11 @@ extension PlexService {
                 throw PlexServiceError.httpError(statusCode: http.statusCode)
             }
         }
+
+        if retriesFreshAuthentication {
+            return try await retryAfterFreshAuthentication(operation)
+        }
+        return try await operation()
     }
 
     func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {

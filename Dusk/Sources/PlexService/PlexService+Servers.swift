@@ -3,7 +3,9 @@ import OSLog
 
 extension PlexService {
     func discoverServers() async throws -> [PlexServer] {
-        guard authToken != nil else { throw PlexServiceError.notAuthenticated }
+        guard !needsHomeUserSelection, let activeAccountToken else {
+            throw PlexServiceError.notAuthenticated
+        }
 
         return try await retryAfterFreshAuthentication {
             guard let url = buildURL(
@@ -17,7 +19,7 @@ extension PlexService {
 
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
-            applyHeaders(to: &request, token: authToken)
+            applyHeaders(to: &request, token: activeAccountToken)
             let data = try await executeRequest(request)
 
             guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
@@ -245,7 +247,7 @@ extension PlexService {
     }
 
     func refreshConnectedServerConnection() async throws {
-        guard authToken != nil else { throw PlexServiceError.notAuthenticated }
+        guard activeAccountToken != nil else { throw PlexServiceError.notAuthenticated }
         guard isConnected || connectedServer != nil else { throw PlexServiceError.noServerConnected }
 
         let currentServerID = connectedServer?.clientIdentifier.nilIfEmpty

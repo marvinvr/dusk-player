@@ -73,7 +73,7 @@ final class DownloadManager {
     private let fileStore: DownloadFileStore
     private let metadataCache: PlexMetadataCache
 
-    private(set) var records: [DownloadedMediaRecord] = []
+    private(set) var storedRecords: [DownloadedMediaRecord] = []
     private(set) var isProcessingQueue = false
     private(set) var isQueuePaused = false
     private(set) var deletingDownloadIDs: Set<String> = []
@@ -81,6 +81,10 @@ final class DownloadManager {
     private(set) var isNetworkConstrained = false
 
     @ObservationIgnored private var isNetworkPaused = false
+    @ObservationIgnored private var isProfileSwitching = false
+    @ObservationIgnored private var isReconcilingTransfers = true
+    @ObservationIgnored private var hasDeferredProfileActivation = false
+    @ObservationIgnored private var pendingProfileSuspensionTaskIDs: Set<Int> = []
     @ObservationIgnored private var networkMonitor: NWPathMonitor?
     @ObservationIgnored private var networkMonitorQueue = DispatchQueue(label: "com.dusk.networkMonitor")
     @ObservationIgnored private var queueTask: Task<Void, Never>?
@@ -102,13 +106,19 @@ final class DownloadManager {
         self.fileStore = fileStore
         self.metadataCache = PlexMetadataCache(fileStore: fileStore)
         try? fileStore.prepareRootDirectory()
-        records = fileStore.loadSnapshot().records
+        storedRecords = fileStore.loadSnapshot().records
         reconcileCompletedFiles()
         _ = transferController
         startNetworkMonitoring()
         Task { [weak self] in
             await self?.reconcileExistingTransfers()
         }
+    }
+
+    /// The active Plex Home profile's downloads. Other profiles remain
+    /// persisted but are deliberately invisible to UI and playback lookups.
+    var records: [DownloadedMediaRecord] {
+        storedRecords.filter { $0.accountProfileID == plexService.activeProfileID }
     }
 
     var queuedRecords: [DownloadedMediaRecord] {
@@ -154,9 +164,16 @@ final class DownloadManager {
         }
 
         return grouped.compactMap { showKey, episodes -> DownloadedShowSummary? in
-            guard let first = episodes.first else { return nil }
+            guard let first = episodes.first,
+                  let accountProfileID = first.accountProfileID else {
+                return nil
+            }
             let serverID = first.serverID
-            let cachedShow = metadataCache.mediaDetails(serverID: serverID, ratingKey: showKey)
+            let cachedShow = metadataCache.mediaDetails(
+                accountProfileID: accountProfileID,
+                serverID: serverID,
+                ratingKey: showKey
+            )
             let title = cachedShow?.title ?? first.grandparentTitle ?? "TV Show"
             return DownloadedShowSummary(
                 serverID: serverID,
@@ -305,6 +322,7 @@ final class DownloadManager {
             removeAggregatePlaceholder(for: DownloadScope(ratingKey: ratingKey, type: type))
             processQueueIfNeeded()
         } catch {
+            guard !(error is CancellationError) else { return }
             upsertFailedPlaceholder(ratingKey: ratingKey, type: type, isClip: isClip, error: error)
         }
     }
@@ -314,40 +332,131 @@ final class DownloadManager {
             try await queueEpisodeDownload(episode)
             processQueueIfNeeded()
         } catch {
+            guard !(error is CancellationError) else { return }
             upsertFailedPlaceholder(ratingKey: episode.ratingKey, type: .episode, error: error)
         }
     }
 
+    /// Pauses the outgoing profile before PlexService replaces its credentials.
+    /// Call this before changing `activeProfileID`.
+    func prepareForProfileSwitch() {
+        isProfileSwitching = true
+        isQueuePaused = true
+        queueTask?.cancel()
+        queueTask = nil
+        isProcessingQueue = false
+
+        for record in records where record.status.canPause {
+            pauseDownload(ratingKey: record.ratingKey, forProfileSwitch: true)
+        }
+    }
+
+    /// Refreshes queue ownership after PlexService has installed a profile.
+    /// Legacy adoption must only be requested for the original pre-Plex-Home
+    /// account, never for an arbitrary user selected from the Home picker.
+    func activateProfile() {
+        if plexService.shouldAdoptLegacyProfileData,
+           let primaryProfileID = plexService.primaryProfileID?.nilIfEmpty {
+            let legacyServerIDs = Set(
+                storedRecords
+                    .filter { $0.accountProfileID == nil }
+                    .map(\.serverID)
+            )
+            var changed = false
+            for index in storedRecords.indices where storedRecords[index].accountProfileID == nil {
+                storedRecords[index].accountProfileID = primaryProfileID
+                changed = true
+            }
+            if changed {
+                fileStore.adoptLegacyMetadata(
+                    accountProfileID: primaryProfileID,
+                    serverIDs: legacyServerIDs
+                )
+                persist()
+            }
+        }
+
+        guard !isReconcilingTransfers,
+              pendingProfileSuspensionTaskIDs.isEmpty else {
+            hasDeferredProfileActivation = true
+            return
+        }
+        completeProfileActivation()
+    }
+
+    private func completeProfileActivation() {
+        hasDeferredProfileActivation = false
+        lastProgressPersistDates.removeAll()
+        speedEstimates.removeAll()
+        let activeProfileID = plexService.activeProfileID
+        var resumedProfileQueue = false
+        for index in storedRecords.indices
+        where storedRecords[index].accountProfileID == activeProfileID
+            && storedRecords[index].wasPausedForProfileSwitch {
+            storedRecords[index].wasPausedForProfileSwitch = false
+            storedRecords[index].status = .queued
+            storedRecords[index].downloadTaskIdentifier = nil
+            storedRecords[index].errorMessage = nil
+            storedRecords[index].updatedAt = .now
+            resumedProfileQueue = true
+        }
+        if resumedProfileQueue {
+            persist()
+        }
+        isProfileSwitching = false
+        isQueuePaused = false
+        evaluateNetworkConstraints()
+        processQueueIfNeeded()
+    }
+
+    private func completeDeferredProfileActivationIfPossible() {
+        guard hasDeferredProfileActivation,
+              !isReconcilingTransfers,
+              pendingProfileSuspensionTaskIDs.isEmpty else {
+            return
+        }
+        completeProfileActivation()
+    }
+
     func retryDownload(ratingKey: String) {
-        guard let index = records.firstIndex(where: { $0.ratingKey == ratingKey }) else { return }
-        fileStore.deleteResumeData(relativePath: records[index].resumeDataPath)
-        records[index].status = .queued
-        records[index].progress = 0
-        records[index].downloadedBytes = 0
-        records[index].resumeDataPath = nil
-        records[index].downloadTaskIdentifier = nil
-        records[index].errorMessage = nil
-        records[index].updatedAt = .now
-        speedEstimates.removeValue(forKey: records[index].globalKey)
+        guard let index = activeRecordIndex(ratingKey: ratingKey) else { return }
+        fileStore.deleteResumeData(relativePath: storedRecords[index].resumeDataPath)
+        storedRecords[index].status = .queued
+        storedRecords[index].progress = 0
+        storedRecords[index].downloadedBytes = 0
+        storedRecords[index].resumeDataPath = nil
+        storedRecords[index].downloadTaskIdentifier = nil
+        storedRecords[index].wasPausedForProfileSwitch = false
+        storedRecords[index].errorMessage = nil
+        storedRecords[index].updatedAt = .now
+        speedEstimates.removeValue(forKey: storedRecords[index].globalKey)
         persist()
         processQueueIfNeeded()
     }
 
     func pauseDownload(ratingKey: String) {
-        guard let index = records.firstIndex(where: { $0.ratingKey == ratingKey }),
-              records[index].status.canPause else {
+        pauseDownload(ratingKey: ratingKey, forProfileSwitch: false)
+    }
+
+    private func pauseDownload(ratingKey: String, forProfileSwitch: Bool) {
+        guard let index = activeRecordIndex(ratingKey: ratingKey),
+              storedRecords[index].status.canPause else {
             return
         }
 
-        if let taskIdentifier = records[index].downloadTaskIdentifier {
-            records[index].status = .paused
-            records[index].updatedAt = .now
+        storedRecords[index].wasPausedForProfileSwitch = forProfileSwitch
+        if let taskIdentifier = storedRecords[index].downloadTaskIdentifier {
+            if forProfileSwitch {
+                pendingProfileSuspensionTaskIDs.insert(taskIdentifier)
+            }
+            storedRecords[index].status = .paused
+            storedRecords[index].updatedAt = .now
             persist()
             transferController.pause(taskIdentifier: taskIdentifier)
         } else {
-            records[index].status = .paused
-            records[index].downloadTaskIdentifier = nil
-            records[index].updatedAt = .now
+            storedRecords[index].status = .paused
+            storedRecords[index].downloadTaskIdentifier = nil
+            storedRecords[index].updatedAt = .now
             persist()
             processQueueIfNeeded()
         }
@@ -365,14 +474,15 @@ final class DownloadManager {
     }
 
     func resumeDownload(ratingKey: String) {
-        guard let index = records.firstIndex(where: { $0.ratingKey == ratingKey }),
-              records[index].status.canResume else {
+        guard let index = activeRecordIndex(ratingKey: ratingKey),
+              storedRecords[index].status.canResume else {
             return
         }
-        records[index].status = .queued
-        records[index].downloadTaskIdentifier = nil
-        records[index].errorMessage = nil
-        records[index].updatedAt = .now
+        storedRecords[index].status = .queued
+        storedRecords[index].wasPausedForProfileSwitch = false
+        storedRecords[index].downloadTaskIdentifier = nil
+        storedRecords[index].errorMessage = nil
+        storedRecords[index].updatedAt = .now
         persist()
         processQueueIfNeeded()
     }
@@ -419,11 +529,16 @@ final class DownloadManager {
     func resumeAllDownloads() {
         isQueuePaused = false
         var changed = false
-        for index in records.indices where records[index].status == .paused && !deletingDownloadIDs.contains(records[index].globalKey) {
-            records[index].status = .queued
-            records[index].downloadTaskIdentifier = nil
-            records[index].errorMessage = nil
-            records[index].updatedAt = .now
+        let activeProfileID = plexService.activeProfileID
+        for index in storedRecords.indices
+        where storedRecords[index].accountProfileID == activeProfileID
+            && storedRecords[index].status == .paused
+            && !deletingDownloadIDs.contains(storedRecords[index].globalKey) {
+            storedRecords[index].status = .queued
+            storedRecords[index].wasPausedForProfileSwitch = false
+            storedRecords[index].downloadTaskIdentifier = nil
+            storedRecords[index].errorMessage = nil
+            storedRecords[index].updatedAt = .now
             changed = true
         }
         if changed {
@@ -466,18 +581,7 @@ final class DownloadManager {
     }
 
     func deleteAllDownloads() {
-        let taskIdentifiers = records.compactMap(\.downloadTaskIdentifier)
-        for taskIdentifier in taskIdentifiers {
-            transferController.cancel(taskIdentifier: taskIdentifier)
-        }
-
-        records.removeAll()
-        lastProgressPersistDates.removeAll()
-        speedEstimates.removeAll()
-        deletingDownloadIDs.removeAll()
-        isQueuePaused = false
-        fileStore.deleteAllStoredData()
-        persist()
+        deleteRecords(records)
     }
 
     func localPlaybackURL(for ratingKey: String, selectedMediaID: Int? = nil) -> URL? {
@@ -507,15 +611,30 @@ final class DownloadManager {
     }
 
     func cachedMediaDetails(ratingKey: String) -> PlexMediaDetails? {
-        metadataCache.firstCachedMediaDetails(ratingKey: ratingKey, serverIDs: preferredServerIDs)
+        guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
+        return metadataCache.firstCachedMediaDetails(
+            accountProfileID: accountProfileID,
+            ratingKey: ratingKey,
+            serverIDs: preferredServerIDs
+        )
     }
 
     func cachedSeasons(showKey: String) -> [PlexSeason]? {
-        metadataCache.firstCachedSeasons(showKey: showKey, serverIDs: preferredServerIDs)
+        guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
+        return metadataCache.firstCachedSeasons(
+            accountProfileID: accountProfileID,
+            showKey: showKey,
+            serverIDs: preferredServerIDs
+        )
     }
 
     func cachedEpisodes(seasonKey: String) -> [PlexEpisode]? {
-        metadataCache.firstCachedEpisodes(seasonKey: seasonKey, serverIDs: preferredServerIDs)
+        guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
+        return metadataCache.firstCachedEpisodes(
+            accountProfileID: accountProfileID,
+            seasonKey: seasonKey,
+            serverIDs: preferredServerIDs
+        )
     }
 
     func cachedNextDownloadedEpisode(after episode: PlexMediaDetails) -> PlexEpisode? {
@@ -592,6 +711,11 @@ final class DownloadManager {
 
     private func queueSingleDownload(ratingKey: String, type: PlexMediaType, isClip: Bool = false) async throws {
         guard type == .movie || type == .episode || type == .clip else { return }
+        guard !isProfileSwitching,
+              plexService.isSessionReady,
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
+            throw PlexServiceError.notAuthenticated
+        }
         guard let serverID = currentServerID else {
             throw PlexServiceError.noServerConnected
         }
@@ -601,8 +725,13 @@ final class DownloadManager {
             return
         }
 
-        let cachedDetails = metadataCache.mediaDetails(serverID: serverID, ratingKey: ratingKey)
+        let cachedDetails = metadataCache.mediaDetails(
+            accountProfileID: accountProfileID,
+            serverID: serverID,
+            ratingKey: ratingKey
+        )
         let record = DownloadedMediaRecord(
+            accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: currentServerName,
             ratingKey: ratingKey,
@@ -634,6 +763,11 @@ final class DownloadManager {
     }
 
     private func queueEpisodeDownload(_ episode: PlexEpisode) async throws {
+        guard !isProfileSwitching,
+              plexService.isSessionReady,
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
+            throw PlexServiceError.notAuthenticated
+        }
         guard let serverID = currentServerID else {
             throw PlexServiceError.noServerConnected
         }
@@ -643,8 +777,13 @@ final class DownloadManager {
             return
         }
 
-        let cachedDetails = metadataCache.mediaDetails(serverID: serverID, ratingKey: episode.ratingKey)
+        let cachedDetails = metadataCache.mediaDetails(
+            accountProfileID: accountProfileID,
+            serverID: serverID,
+            ratingKey: episode.ratingKey
+        )
         let record = DownloadedMediaRecord(
+            accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: currentServerName,
             ratingKey: episode.ratingKey,
@@ -723,12 +862,19 @@ final class DownloadManager {
             queueTask = nil
         }
 
-        guard !isQueuePaused,
+        guard plexService.isSessionReady,
+              plexService.isConnected,
+              plexService.activeProfileID?.nilIfEmpty != nil,
+              !isProfileSwitching,
+              !isQueuePaused,
               activeDownloadCount < preferences.maximumActiveDownloads.rawValue else {
             return
         }
 
-        while !isQueuePaused,
+        while plexService.isSessionReady,
+              plexService.isConnected,
+              !isProfileSwitching,
+              !isQueuePaused,
               activeDownloadCount < preferences.maximumActiveDownloads.rawValue,
               let next = records.first(where: { $0.status == .queued && !deletingDownloadIDs.contains($0.globalKey) }) {
             await startDownload(record: next)
@@ -736,6 +882,12 @@ final class DownloadManager {
     }
 
     private func startDownload(record: DownloadedMediaRecord) async {
+        guard !Task.isCancelled,
+              record.accountProfileID == plexService.activeProfileID,
+              plexService.isSessionReady,
+              plexService.isConnected else {
+            return
+        }
         update(globalKey: record.globalKey) { item in
             item.status = .preparing
             item.errorMessage = nil
@@ -744,10 +896,27 @@ final class DownloadManager {
 
         do {
             let details: PlexMediaDetails
-            if let cachedDetails = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) {
+            if let accountProfileID = record.accountProfileID,
+               let cachedDetails = metadataCache.mediaDetails(
+                    accountProfileID: accountProfileID,
+                    serverID: record.serverID,
+                    ratingKey: record.ratingKey
+               ) {
                 details = cachedDetails
             } else {
                 details = try await fetchAndCacheDetails(ratingKey: record.ratingKey)
+            }
+
+            guard !Task.isCancelled,
+                  record.accountProfileID == plexService.activeProfileID,
+                  plexService.isSessionReady,
+                  plexService.isConnected else {
+                update(globalKey: record.globalKey) { item in
+                    item.status = .queued
+                    item.downloadTaskIdentifier = nil
+                    item.updatedAt = .now
+                }
+                return
             }
 
             guard details.type == .movie || details.type == .episode || details.type == .clip else {
@@ -756,6 +925,14 @@ final class DownloadManager {
 
             if details.type == .episode {
                 try await cacheEpisodeContext(details)
+            }
+
+            guard !Task.isCancelled,
+                  !isProfileSwitching,
+                  record.accountProfileID == plexService.activeProfileID,
+                  plexService.isSessionReady,
+                  plexService.isConnected else {
+                throw CancellationError()
             }
 
             let media = details.media.first(where: { $0.id == record.mediaID })
@@ -790,7 +967,14 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
 
-            _ = try fileStore.targetVideoURL(for: details, part: part)
+            guard let accountProfileID = record.accountProfileID else {
+                throw PlexServiceError.notAuthenticated
+            }
+            _ = try fileStore.targetVideoURL(
+                accountProfileID: accountProfileID,
+                for: details,
+                part: part
+            )
             var request = URLRequest(url: sourceURL)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
@@ -817,6 +1001,16 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
         } catch {
+            if error is CancellationError
+                || isProfileSwitching
+                || record.accountProfileID != plexService.activeProfileID {
+                update(globalKey: record.globalKey) { item in
+                    item.status = .queued
+                    item.downloadTaskIdentifier = nil
+                    item.updatedAt = .now
+                }
+                return
+            }
             update(globalKey: record.globalKey) { item in
                 item.status = .failed
                 item.downloadTaskIdentifier = nil
@@ -839,7 +1033,12 @@ final class DownloadManager {
         }
 
         do {
-            guard let details = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) else {
+            guard let accountProfileID = record.accountProfileID,
+                  let details = metadataCache.mediaDetails(
+                    accountProfileID: accountProfileID,
+                    serverID: record.serverID,
+                    ratingKey: record.ratingKey
+                  ) else {
                 throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
             }
 
@@ -850,7 +1049,11 @@ final class DownloadManager {
                 throw PlexServiceError.decodingError("Cached media part missing for \(record.title)")
             }
 
-            let targetURL = try fileStore.targetVideoURL(for: details, part: part)
+            let targetURL = try fileStore.targetVideoURL(
+                accountProfileID: accountProfileID,
+                for: details,
+                part: part
+            )
             try validateDownloadedFile(
                 at: temporaryURL,
                 response: response,
@@ -859,7 +1062,10 @@ final class DownloadManager {
             try? FileManager.default.removeItem(at: targetURL)
             try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
             fileStore.deleteResumeData(relativePath: record.resumeDataPath)
-            await cacheArtwork(for: details)
+            if record.accountProfileID == plexService.activeProfileID,
+               plexService.isSessionReady {
+                await cacheArtwork(for: details)
+            }
 
             update(globalKey: globalKey) { item in
                 item.status = .completed
@@ -888,13 +1094,21 @@ final class DownloadManager {
     }
 
     private func fetchAndCacheDetails(ratingKey: String) async throws -> PlexMediaDetails {
-        guard let serverID = currentServerID else {
+        guard !isProfileSwitching,
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
+              let serverID = currentServerID else {
             throw PlexServiceError.noServerConnected
         }
 
         let data = try await plexService.getMediaDetailsPayload(ratingKey: ratingKey)
+        guard !Task.isCancelled,
+              !isProfileSwitching,
+              plexService.activeProfileID == accountProfileID else {
+            throw CancellationError()
+        }
         try metadataCache.storePayload(
             data,
+            accountProfileID: accountProfileID,
             serverID: serverID,
             endpoint: PlexMetadataCache.metadataEndpoint(ratingKey)
         )
@@ -908,13 +1122,21 @@ final class DownloadManager {
 
     @discardableResult
     private func fetchAndCacheChildren(ratingKey: String) async throws -> Data {
-        guard let serverID = currentServerID else {
+        guard !isProfileSwitching,
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
+              let serverID = currentServerID else {
             throw PlexServiceError.noServerConnected
         }
 
         let data = try await plexService.getChildrenPayload(ratingKey: ratingKey)
+        guard !Task.isCancelled,
+              !isProfileSwitching,
+              plexService.activeProfileID == accountProfileID else {
+            throw CancellationError()
+        }
         try metadataCache.storePayload(
             data,
+            accountProfileID: accountProfileID,
             serverID: serverID,
             endpoint: PlexMetadataCache.childrenEndpoint(ratingKey)
         )
@@ -944,13 +1166,15 @@ final class DownloadManager {
     }
 
     private func cacheArtwork(for details: PlexMediaDetails) async {
+        let expectedProfileID = plexService.activeProfileID
         // A clip's thumb and art are 16:9 frame grabs; requesting the poster
         // box would crop them server-side before they ever reach the cache.
         if details.isClip {
             await cacheArtwork(
                 paths: [details.thumb, details.art].compactMap { $0 },
                 width: 1280,
-                height: 720
+                height: 720,
+                expectedProfileID: expectedProfileID
             )
             return
         }
@@ -967,32 +1191,44 @@ final class DownloadManager {
             paths.append(contentsOf: roles.map(\.thumb))
         }
 
-        await cacheArtwork(paths: paths.compactMap { $0 })
+        await cacheArtwork(
+            paths: paths.compactMap { $0 },
+            expectedProfileID: expectedProfileID
+        )
     }
 
     private func cacheArtwork(for seasons: [PlexSeason]) async {
+        let expectedProfileID = plexService.activeProfileID
         await cacheArtwork(paths: seasons.flatMap { season in
             [
                 season.thumb,
                 season.art,
                 season.parentThumb,
             ].compactMap { $0 }
-        })
+        }, expectedProfileID: expectedProfileID)
     }
 
     private func cacheArtwork(for episodes: [PlexEpisode]) async {
+        let expectedProfileID = plexService.activeProfileID
         await cacheArtwork(paths: episodes.flatMap { episode in
             [
                 episode.thumb,
                 episode.art,
                 episode.grandparentThumb,
             ].compactMap { $0 }
-        })
+        }, expectedProfileID: expectedProfileID)
     }
 
-    private func cacheArtwork(paths: [String], width: Int = 900, height: Int = 1350) async {
+    private func cacheArtwork(
+        paths: [String],
+        width: Int = 900,
+        height: Int = 1350,
+        expectedProfileID: String?
+    ) async {
         for path in Set(paths) {
-            guard let targetURL = fileStore.artworkURL(for: path),
+            guard !isProfileSwitching,
+                  plexService.activeProfileID == expectedProfileID,
+                  let targetURL = fileStore.artworkURL(for: path),
                   !FileManager.default.fileExists(atPath: targetURL.path),
                   let sourceURL = plexService.imageURL(for: path, width: width, height: height) else {
                 continue
@@ -1000,6 +1236,10 @@ final class DownloadManager {
 
             do {
                 let data = try await plexService.imageData(for: sourceURL)
+                guard !isProfileSwitching,
+                      plexService.activeProfileID == expectedProfileID else {
+                    return
+                }
                 try FileManager.default.createDirectory(
                     at: targetURL.deletingLastPathComponent(),
                     withIntermediateDirectories: true
@@ -1184,27 +1424,36 @@ final class DownloadManager {
     }
 
     private func upsert(_ record: DownloadedMediaRecord) {
-        if let index = records.firstIndex(where: { $0.globalKey == record.globalKey }) {
-            records[index] = record
+        if let index = storedRecords.firstIndex(where: { $0.globalKey == record.globalKey }) {
+            storedRecords[index] = record
         } else {
-            records.append(record)
+            storedRecords.append(record)
         }
         persist()
     }
 
     private func record(globalKey: String) -> DownloadedMediaRecord? {
-        records.first { $0.globalKey == globalKey }
+        storedRecords.first { $0.globalKey == globalKey }
+    }
+
+    private func activeRecordIndex(ratingKey: String) -> Int? {
+        let activeProfileID = plexService.activeProfileID
+        return storedRecords.firstIndex {
+            $0.accountProfileID == activeProfileID && $0.ratingKey == ratingKey
+        }
     }
 
     private func update(_ ratingKey: String, mutate: (inout DownloadedMediaRecord) -> Void) {
-        guard let index = records.firstIndex(where: { $0.ratingKey == ratingKey }) else { return }
-        mutate(&records[index])
+        guard let index = activeRecordIndex(ratingKey: ratingKey) else { return }
+        mutate(&storedRecords[index])
         persist()
     }
 
     private func update(globalKey: String, persist shouldPersist: Bool = true, mutate: (inout DownloadedMediaRecord) -> Void) {
-        guard let index = records.firstIndex(where: { $0.globalKey == globalKey }) else { return }
-        mutate(&records[index])
+        guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }) else {
+            return
+        }
+        mutate(&storedRecords[index])
         if shouldPersist {
             persist()
         }
@@ -1226,8 +1475,14 @@ final class DownloadManager {
                 item.updatedAt = .now
             }
         case let .paused(taskIdentifier, globalKey, resumeData):
-            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
-            guard !deletingDownloadIDs.contains(globalKey) else { return }
+            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
+            guard !deletingDownloadIDs.contains(globalKey) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
             let resumeDataPath = resumeData.flatMap { try? fileStore.saveResumeData($0, globalKey: globalKey) }
             update(globalKey: globalKey) { item in
                 item.status = .paused
@@ -1240,10 +1495,17 @@ final class DownloadManager {
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
             speedEstimates.removeValue(forKey: globalKey)
+            finishProfileSuspension(taskIdentifier: taskIdentifier)
             processQueueIfNeeded()
         case let .cancelled(taskIdentifier, globalKey):
-            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
-            guard !deletingDownloadIDs.contains(globalKey) else { return }
+            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
+            guard !deletingDownloadIDs.contains(globalKey) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
             update(globalKey: globalKey) { item in
                 item.status = .cancelled
                 item.resumeDataPath = nil
@@ -1253,14 +1515,17 @@ final class DownloadManager {
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
             speedEstimates.removeValue(forKey: globalKey)
+            finishProfileSuspension(taskIdentifier: taskIdentifier)
             processQueueIfNeeded()
         case let .finished(taskIdentifier, globalKey, temporaryURL, response):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
                 try? FileManager.default.removeItem(at: temporaryURL)
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
                 return
             }
             guard !deletingDownloadIDs.contains(globalKey) else {
                 try? FileManager.default.removeItem(at: temporaryURL)
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
                 return
             }
             Task {
@@ -1270,11 +1535,19 @@ final class DownloadManager {
                     temporaryURL: temporaryURL,
                     response: response
                 )
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
             }
         case let .failed(taskIdentifier, globalKey, error):
-            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
-            guard !deletingDownloadIDs.contains(globalKey) else { return }
+            guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
+            guard !deletingDownloadIDs.contains(globalKey) else {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
             if record(globalKey: globalKey)?.status == .paused {
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
                 return
             }
             update(globalKey: globalKey) { item in
@@ -1286,8 +1559,14 @@ final class DownloadManager {
             }
             lastProgressPersistDates.removeValue(forKey: globalKey)
             speedEstimates.removeValue(forKey: globalKey)
+            finishProfileSuspension(taskIdentifier: taskIdentifier)
             processQueueIfNeeded()
         }
+    }
+
+    private func finishProfileSuspension(taskIdentifier: Int) {
+        pendingProfileSuspensionTaskIDs.remove(taskIdentifier)
+        completeDeferredProfileActivationIfPossible()
     }
 
     private func remainingBytes(for record: DownloadedMediaRecord) -> Int64 {
@@ -1326,31 +1605,93 @@ final class DownloadManager {
     }
 
     private func resolvedGlobalKey(_ globalKey: String?, taskIdentifier: Int) -> String? {
-        if let globalKey {
-            return globalKey
+        if let globalKey,
+           let record = storedRecords.first(where: { $0.globalKey == globalKey }) {
+            return record.globalKey
         }
-        return records.first { $0.downloadTaskIdentifier == taskIdentifier }?.globalKey
+        if let record = storedRecords.first(where: { $0.downloadTaskIdentifier == taskIdentifier }) {
+            return record.globalKey
+        }
+        if let globalKey {
+            let legacyMatches = storedRecords.filter {
+                $0.legacyGlobalKey == globalKey
+                    && ($0.status == .preparing || $0.status == .downloading || $0.status == .paused)
+            }
+            if legacyMatches.count == 1 {
+                return legacyMatches[0].globalKey
+            }
+        }
+        return nil
     }
 
     private func reconcileExistingTransfers() async {
+        defer {
+            isReconcilingTransfers = false
+            completeDeferredProfileActivationIfPossible()
+        }
         let activeTasks = await transferController.existingTasks()
-        let taskByGlobalKey = Dictionary(
-            uniqueKeysWithValues: activeTasks.compactMap { task -> (String, Int)? in
-                guard let globalKey = task.globalKey else { return nil }
-                return (globalKey, task.identifier)
-            }
-        )
-
+        let activeProfileID = plexService.activeProfileID
+        var matchedRecordKeys: Set<String> = []
         var changed = false
-        for index in records.indices where records[index].status == .preparing || records[index].status == .downloading {
-            if let taskIdentifier = taskByGlobalKey[records[index].globalKey] {
-                records[index].status = .downloading
-                records[index].downloadTaskIdentifier = taskIdentifier
+
+        for task in activeTasks {
+            let recordIndex: Int?
+            if let globalKey = task.globalKey,
+               let exactIndex = storedRecords.firstIndex(where: { $0.globalKey == globalKey }) {
+                recordIndex = exactIndex
+            } else if let taskIndex = storedRecords.firstIndex(where: {
+                $0.downloadTaskIdentifier == task.identifier
+            }) {
+                recordIndex = taskIndex
+            } else if let globalKey = task.globalKey {
+                let legacyIndices = storedRecords.indices.filter {
+                    storedRecords[$0].legacyGlobalKey == globalKey
+                        && (storedRecords[$0].status == .preparing
+                            || storedRecords[$0].status == .downloading
+                            || storedRecords[$0].status == .paused)
+                }
+                recordIndex = legacyIndices.count == 1 ? legacyIndices[0] : nil
             } else {
-                records[index].status = .queued
-                records[index].downloadTaskIdentifier = nil
+                recordIndex = nil
             }
-            records[index].updatedAt = .now
+
+            guard let recordIndex else {
+                transferController.cancel(taskIdentifier: task.identifier)
+                continue
+            }
+
+            matchedRecordKeys.insert(storedRecords[recordIndex].globalKey)
+            storedRecords[recordIndex].downloadTaskIdentifier = task.identifier
+            storedRecords[recordIndex].updatedAt = .now
+
+            if storedRecords[recordIndex].accountProfileID == activeProfileID,
+               plexService.isSessionReady {
+                storedRecords[recordIndex].status = .downloading
+            } else {
+                storedRecords[recordIndex].status = .paused
+                storedRecords[recordIndex].wasPausedForProfileSwitch = true
+                pendingProfileSuspensionTaskIDs.insert(task.identifier)
+                transferController.pause(taskIdentifier: task.identifier)
+            }
+            changed = true
+        }
+
+        for index in storedRecords.indices
+        where storedRecords[index].status == .preparing || storedRecords[index].status == .downloading {
+            if matchedRecordKeys.contains(storedRecords[index].globalKey) {
+                continue
+            }
+
+            if storedRecords[index].accountProfileID == activeProfileID,
+               plexService.isSessionReady {
+                storedRecords[index].status = .queued
+                storedRecords[index].wasPausedForProfileSwitch = false
+            } else {
+                storedRecords[index].status = .paused
+                storedRecords[index].wasPausedForProfileSwitch = true
+            }
+            storedRecords[index].downloadTaskIdentifier = nil
+            storedRecords[index].updatedAt = .now
             changed = true
         }
 
@@ -1364,7 +1705,7 @@ final class DownloadManager {
         var changed = false
         var reconciledRecords: [DownloadedMediaRecord] = []
 
-        for var record in records {
+        for var record in storedRecords {
             guard record.status == .completed else {
                 reconciledRecords.append(record)
                 continue
@@ -1393,13 +1734,18 @@ final class DownloadManager {
         }
 
         if changed {
-            records = reconciledRecords
+            storedRecords = reconciledRecords
             persist()
         }
     }
 
     private func expectedVideoSize(for record: DownloadedMediaRecord) -> Int64? {
-        guard let details = metadataCache.mediaDetails(serverID: record.serverID, ratingKey: record.ratingKey) else {
+        guard let accountProfileID = record.accountProfileID,
+              let details = metadataCache.mediaDetails(
+                accountProfileID: accountProfileID,
+                serverID: record.serverID,
+                ratingKey: record.ratingKey
+              ) else {
             return record.totalBytes
         }
 
@@ -1451,8 +1797,12 @@ final class DownloadManager {
     }
 
     private func upsertFailedPlaceholder(ratingKey: String, type: PlexMediaType, isClip: Bool = false, error: Error) {
-        guard let serverID = currentServerID else { return }
+        guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
+              let serverID = currentServerID else {
+            return
+        }
         let placeholder = DownloadedMediaRecord(
+            accountProfileID: accountProfileID,
             serverID: serverID,
             serverName: currentServerName,
             ratingKey: ratingKey,
@@ -1502,14 +1852,16 @@ final class DownloadManager {
 
     private func removeAggregatePlaceholder(for scope: DownloadScope) {
         guard scope.type == .season || scope.type == .show else { return }
-        let originalCount = records.count
-        records.removeAll {
-            $0.ratingKey == scope.ratingKey
+        let activeProfileID = plexService.activeProfileID
+        let originalCount = storedRecords.count
+        storedRecords.removeAll {
+            $0.accountProfileID == activeProfileID
+                && $0.ratingKey == scope.ratingKey
                 && $0.type == scope.type
                 && $0.mediaID == nil
                 && $0.partID == nil
         }
-        if records.count != originalCount {
+        if storedRecords.count != originalCount {
             persist()
         }
     }
@@ -1536,7 +1888,7 @@ final class DownloadManager {
     }
 
     private func finishDeleting(globalKeys: Set<String>) {
-        records.removeAll { globalKeys.contains($0.globalKey) }
+        storedRecords.removeAll { globalKeys.contains($0.globalKey) }
         for globalKey in globalKeys {
             lastProgressPersistDates.removeValue(forKey: globalKey)
             speedEstimates.removeValue(forKey: globalKey)
@@ -1547,6 +1899,6 @@ final class DownloadManager {
     }
 
     private func persist() {
-        try? fileStore.saveSnapshot(DownloadStoreSnapshot(records: records))
+        try? fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords))
     }
 }

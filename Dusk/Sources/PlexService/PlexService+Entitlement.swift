@@ -35,7 +35,7 @@ extension PlexService {
     /// throws: on failure the state stays `nil` (unknown) so we never wrongly
     /// block playback on a transient plex.tv hiccup.
     func loadAccountEntitlementIfNeeded() async {
-        guard accountSubscriptionActive == nil, authToken != nil else { return }
+        guard accountSubscriptionActive == nil, activeAccountToken != nil else { return }
 
         do {
             let account: AccountEntitlementResponse = try await plexTVRequest(path: "/api/v2/user")
@@ -57,7 +57,8 @@ extension PlexService {
     func remoteStreamingRestriction() async -> RemoteStreamingRestriction? {
         guard isConnectedRemotely,
               let server = connectedServer,
-              server.owned else {
+              server.owned,
+              activeHomeUser?.isRestricted != true else {
             return nil
         }
 

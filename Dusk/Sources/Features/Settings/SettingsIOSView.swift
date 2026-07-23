@@ -271,6 +271,51 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
 
+            if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+                Section {
+                    HStack(spacing: 14) {
+                        PlexHomeUserAvatar(user: activeUser, size: 42)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Current User")
+                                .font(.caption)
+                                .foregroundStyle(Color.duskTextSecondary)
+
+                            Text(activeUser.displayName)
+                                .foregroundStyle(Color.duskTextPrimary)
+                                .lineLimit(1)
+                        }
+
+                        Spacer()
+                    }
+
+                    Button {
+                        viewModel.showHomeUserPicker = true
+                    } label: {
+                        HStack {
+                            Text("Switch User")
+                                .foregroundStyle(Color.duskAccent)
+                            Spacer()
+                            Image(systemName: "chevron.right")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color.duskTextSecondary)
+                        }
+                    }
+                    .duskSuppressTVOSButtonChrome()
+
+                    Toggle("Automatically Sign In", isOn: automaticHomeSignInBinding)
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .tint(Color.duskAccent)
+                } header: {
+                    Text("Plex Home")
+                        .foregroundStyle(Color.duskTextSecondary)
+                } footer: {
+                    Text("When off, Dusk asks who’s watching whenever it starts.")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+                .listRowBackground(Color.duskSurface)
+            }
+
             Section {
                 if let server = plexService.connectedServer {
                     HStack {
@@ -473,6 +518,13 @@ struct SettingsIOSView: View {
                 guard !$0 else { return }
                 presentedAccountURL = nil
             }
+        )
+    }
+
+    private var automaticHomeSignInBinding: Binding<Bool> {
+        Binding(
+            get: { plexService.automaticHomeSignIn },
+            set: { plexService.automaticHomeSignIn = $0 }
         )
     }
 

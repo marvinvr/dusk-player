@@ -12,11 +12,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `Color.duskAccent`, except iOS/iPadOS tab bar selection stays monochrome with
   the native `.primary` color role so the floating iPad tab bar can adapt over both
   artwork and light content backgrounds.
-- `ContentView` is the authenticated root gate: unauthenticated users see
-  `SignInView`, disconnected users discover/pick servers, and connected users enter
-  `MainTabView`.
+- `ContentView` is the account-bootstrap root gate: unauthenticated users see
+  `SignInView`; signed-in Plex Home accounts are checked and, when needed, show
+  `HomeUserPickerView`; only an active Home identity can discover/pick servers
+  and enter `MainTabView`.
 - Server discovery/refresh lives in `ContentView`; do not move connection logic into
   feature screens.
+- Home selection precedes server selection because each Home identity can expose
+  a different resource list. A successful switch reconstructs the main shell so
+  navigation paths and feature view models cannot retain the previous user's data.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
 - Available tabs are data-driven: every present library type (Movies, TV Shows,
@@ -300,7 +304,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SettingsView` selects the platform shell. Shared sheet/navigation chrome is in
   `SettingsContainer`.
 - `SettingsViewModel` is for transient settings UI state: server picker, server load
-  errors, image cache status, app version, and server switching.
+  errors, Home-user picker presentation, image cache status, app version, and
+  server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.
   Add new user-facing preferences there with a key, default loading, and persistence.
@@ -336,6 +341,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   they sit inside a shared card). Any new tvOS settings row must carry that band, or
   it will be invisible when focused (`.duskSuppressTVOSButtonChrome()` strips the
   system focus effect, leaving no indicator on its own).
+- When the signed-in account has multiple Plex Home members, both settings
+  platforms show a Plex Home section with the current user, `Switch User`, and
+  `Automatically Sign In`. The switch action reuses the startup picker. The
+  toggle is device-local: turning it off removes the persisted active-session
+  token but keeps the current in-memory session until the app ends.
 
 ## Platform Differences
 

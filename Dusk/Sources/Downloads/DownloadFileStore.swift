@@ -60,10 +60,46 @@ struct DownloadFileStore: Sendable {
         try data.write(to: stateFileURL, options: [.atomic])
     }
 
-    func metadataURL(serverID: String, endpoint: String) -> URL {
-        metadataDirectory
+    func metadataURL(accountProfileID: String?, serverID: String, endpoint: String) -> URL {
+        let profileDirectory: URL
+        if let accountProfileID = accountProfileID?.nilIfEmpty {
+            profileDirectory = metadataDirectory
+                .appendingPathComponent("Profiles", isDirectory: true)
+                .appendingPathComponent(safeFileComponent(accountProfileID), isDirectory: true)
+        } else {
+            profileDirectory = metadataDirectory
+        }
+
+        return profileDirectory
             .appendingPathComponent(safeFileComponent(serverID), isDirectory: true)
             .appendingPathComponent("\(Self.hash(endpoint)).json")
+    }
+
+    func adoptLegacyMetadata(accountProfileID: String, serverIDs: Set<String>) {
+        for serverID in serverIDs {
+            let legacyDirectory = metadataDirectory
+                .appendingPathComponent(safeFileComponent(serverID), isDirectory: true)
+            let destinationDirectory = metadataDirectory
+                .appendingPathComponent("Profiles", isDirectory: true)
+                .appendingPathComponent(safeFileComponent(accountProfileID), isDirectory: true)
+                .appendingPathComponent(safeFileComponent(serverID), isDirectory: true)
+
+            guard FileManager.default.fileExists(atPath: legacyDirectory.path) else { continue }
+            try? FileManager.default.createDirectory(
+                at: destinationDirectory,
+                withIntermediateDirectories: true
+            )
+
+            let files = (try? FileManager.default.contentsOfDirectory(
+                at: legacyDirectory,
+                includingPropertiesForKeys: nil
+            )) ?? []
+            for sourceURL in files {
+                let destinationURL = destinationDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+                guard !FileManager.default.fileExists(atPath: destinationURL.path) else { continue }
+                try? FileManager.default.copyItem(at: sourceURL, to: destinationURL)
+            }
+        }
     }
 
     func artworkURL(for path: String?) -> URL? {
@@ -71,8 +107,16 @@ struct DownloadFileStore: Sendable {
         return artworkDirectory.appendingPathComponent("\(Self.hash(path)).jpg")
     }
 
-    func targetVideoURL(for details: PlexMediaDetails, part: PlexMediaPart) throws -> URL {
-        let relativePath = relativeVideoPath(for: details, part: part)
+    func targetVideoURL(
+        accountProfileID: String,
+        for details: PlexMediaDetails,
+        part: PlexMediaPart
+    ) throws -> URL {
+        let relativePath = relativeVideoPath(
+            accountProfileID: accountProfileID,
+            for: details,
+            part: part
+        )
         let url = rootDirectory.appendingPathComponent(relativePath)
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         return url
@@ -154,8 +198,13 @@ struct DownloadFileStore: Sendable {
         try? prepareRootDirectory()
     }
 
-    private func relativeVideoPath(for details: PlexMediaDetails, part: PlexMediaPart) -> String {
+    private func relativeVideoPath(
+        accountProfileID: String,
+        for details: PlexMediaDetails,
+        part: PlexMediaPart
+    ) -> String {
         let ext = preferredExtension(for: details, part: part)
+        let profileComponents = ["Profiles", sanitized(accountProfileID)]
 
         switch details.type {
         case .episode:
@@ -165,13 +214,13 @@ struct DownloadFileStore: Sendable {
             let seasonFolder = "Season \(String(format: "%02d", seasonNumber))"
             let episodeTitle = sanitized(details.title)
             let filename = "S\(String(format: "%02d", seasonNumber))E\(String(format: "%02d", episodeNumber)) - \(episodeTitle).\(ext)"
-            return ["TV Shows", show, seasonFolder, filename].joined(separator: "/")
+            return (profileComponents + ["TV Shows", show, seasonFolder, filename]).joined(separator: "/")
         case .movie:
             let title = sanitized(details.year.map { "\(details.title) (\($0))" } ?? details.title)
-            return ["Movies", title, "\(title).\(ext)"].joined(separator: "/")
+            return (profileComponents + ["Movies", title, "\(title).\(ext)"]).joined(separator: "/")
         default:
             let title = sanitized(details.title)
-            return ["Other", title, "\(title).\(ext)"].joined(separator: "/")
+            return (profileComponents + ["Other", title, "\(title).\(ext)"]).joined(separator: "/")
         }
     }
 

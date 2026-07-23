@@ -125,11 +125,32 @@ struct DuskApp: App {
                 }
                 .task {
                     PlaybackEngineFactory.prewarmIfNeeded()
+                }
+                .task(
+                    id: "\(plexService.homeBootstrapCompleted):"
+                        + "\(plexService.activeProfileID ?? "none"):"
+                        + "\(plexService.currentServerIdentifier ?? "none"):"
+                        + "\(plexService.isConnected)"
+                ) {
+                    guard plexService.homeBootstrapCompleted else {
+                        offlinePlaybackSyncManager.stopAutomaticSync()
+                        return
+                    }
+
+                    downloadManager.activateProfile()
+                    offlinePlaybackSyncManager.activateProfile()
+
+                    guard plexService.isSessionReady else {
+                        offlinePlaybackSyncManager.stopAutomaticSync()
+                        return
+                    }
+
                     offlinePlaybackSyncManager.startAutomaticSync()
                     await offlinePlaybackSyncManager.syncPendingActions(force: true)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .active {
+                    if newPhase == .active,
+                       plexService.isSessionReady {
                         offlinePlaybackSyncManager.startAutomaticSync()
                         Task {
                             await offlinePlaybackSyncManager.syncPendingActions(force: true)

@@ -11,10 +11,11 @@ final class OfflinePlaybackSyncManager {
     private let plexService: PlexService
     private let store: OfflinePlaybackSyncStore
 
-    private(set) var actions: [OfflinePlaybackSyncAction] = []
+    private(set) var storedActions: [OfflinePlaybackSyncAction] = []
     private(set) var isSyncing = false
     private(set) var isNetworkAvailable = false
     @ObservationIgnored private var lastSyncAttemptAt: Date?
+    @ObservationIgnored private var isPreparingProfileSwitch = false
     @ObservationIgnored private var networkMonitor: NWPathMonitor?
     @ObservationIgnored private let networkMonitorQueue = DispatchQueue(label: "com.dusk.offlinePlaybackSync.networkMonitor")
     @ObservationIgnored private var retryLoopTask: Task<Void, Never>?
@@ -25,13 +26,17 @@ final class OfflinePlaybackSyncManager {
     ) {
         self.plexService = plexService
         self.store = store
-        actions = store.loadSnapshot().actions
+        storedActions = store.loadSnapshot().actions
         startNetworkMonitoring()
     }
 
     deinit {
         networkMonitor?.cancel()
         retryLoopTask?.cancel()
+    }
+
+    var actions: [OfflinePlaybackSyncAction] {
+        storedActions.filter { $0.accountProfileID == plexService.activeProfileID }
     }
 
     var pendingSyncCount: Int {
@@ -72,8 +77,45 @@ final class OfflinePlaybackSyncManager {
     }
 
     func deleteAllLocalState() {
-        actions.removeAll()
+        let activeProfileID = plexService.activeProfileID
+        storedActions.removeAll { $0.accountProfileID == activeProfileID }
         persist()
+    }
+
+    /// Flushes the outgoing profile while its Plex token and server are still
+    /// active, then stops retries so a later callback cannot use another
+    /// profile's credentials.
+    func prepareForProfileSwitch() async {
+        isPreparingProfileSwitch = true
+        stopAutomaticSync()
+        while isSyncing {
+            do {
+                try await Task.sleep(for: .milliseconds(50))
+            } catch {
+                return
+            }
+        }
+        await syncPendingActions(force: true)
+    }
+
+    /// Refreshes profile-scoped state after PlexService has installed the new
+    /// identity. Legacy adoption must only be requested for the original
+    /// pre-Plex-Home account.
+    func activateProfile() {
+        if plexService.shouldAdoptLegacyProfileData,
+           let primaryProfileID = plexService.primaryProfileID?.nilIfEmpty {
+            var changed = false
+            for index in storedActions.indices where storedActions[index].accountProfileID == nil {
+                storedActions[index].accountProfileID = primaryProfileID
+                changed = true
+            }
+            if changed {
+                persist()
+            }
+        }
+        lastSyncAttemptAt = nil
+        isPreparingProfileSwitch = false
+        startAutomaticSync()
     }
 
     func effectiveViewOffsetMs(serverID: String?, ratingKey: String, fallback: Int?) -> Int? {
@@ -103,13 +145,17 @@ final class OfflinePlaybackSyncManager {
 
     func syncPendingActions(force: Bool = false) async {
         guard !isSyncing else { return }
+        guard force || !isPreparingProfileSwitch else { return }
         guard force || isNetworkAvailable else { return }
+        guard plexService.isSessionReady else { return }
+        guard let activeProfileID = plexService.activeProfileID?.nilIfEmpty else { return }
         guard let currentServerID = plexService.currentServerIdentifier else { return }
 
         let now = Date()
-        let pendingActions = actions
+        let pendingActions = storedActions
             .filter { action in
                 action.needsSync &&
+                    action.accountProfileID == activeProfileID &&
                     action.serverID == currentServerID &&
                     (force || shouldAttemptSync(action, now: now))
             }
@@ -182,8 +228,12 @@ final class OfflinePlaybackSyncManager {
 
     private func action(serverID: String?, ratingKey: String) -> OfflinePlaybackSyncAction? {
         guard let serverID = serverID?.nilIfEmpty else { return nil }
-        let globalKey = DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
-        return actions.first { $0.globalKey == globalKey }
+        let globalKey = DownloadedMediaRecord.globalKey(
+            accountProfileID: plexService.activeProfileID,
+            serverID: serverID,
+            ratingKey: ratingKey
+        )
+        return storedActions.first { $0.globalKey == globalKey }
     }
 
     private func upsertAction(
@@ -195,17 +245,27 @@ final class OfflinePlaybackSyncManager {
         shouldMarkWatched: Bool,
         plexState: String?
     ) {
-        let globalKey = DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
-        if let index = actions.firstIndex(where: { $0.globalKey == globalKey }) {
-            actions[index].kind = kind
-            actions[index].viewOffsetMs = viewOffsetMs
-            actions[index].durationMs = durationMs
-            actions[index].shouldMarkWatched = shouldMarkWatched
-            actions[index].plexState = plexState
-            actions[index].needsSync = true
-            actions[index].updatedAt = .now
+        guard !isPreparingProfileSwitch,
+              plexService.isSessionReady,
+              let activeProfileID = plexService.activeProfileID?.nilIfEmpty else {
+            return
+        }
+        let globalKey = DownloadedMediaRecord.globalKey(
+            accountProfileID: activeProfileID,
+            serverID: serverID,
+            ratingKey: ratingKey
+        )
+        if let index = storedActions.firstIndex(where: { $0.globalKey == globalKey }) {
+            storedActions[index].kind = kind
+            storedActions[index].viewOffsetMs = viewOffsetMs
+            storedActions[index].durationMs = durationMs
+            storedActions[index].shouldMarkWatched = shouldMarkWatched
+            storedActions[index].plexState = plexState
+            storedActions[index].needsSync = true
+            storedActions[index].updatedAt = .now
         } else {
-            actions.append(OfflinePlaybackSyncAction(
+            storedActions.append(OfflinePlaybackSyncAction(
+                accountProfileID: activeProfileID,
                 serverID: serverID,
                 ratingKey: ratingKey,
                 kind: kind,
@@ -224,31 +284,37 @@ final class OfflinePlaybackSyncManager {
     }
 
     private func markSynced(_ action: OfflinePlaybackSyncAction) {
-        guard let index = actions.firstIndex(where: { $0.globalKey == action.globalKey }) else { return }
-        guard actions[index].updatedAt == action.updatedAt,
-              actions[index].kind == action.kind,
-              actions[index].viewOffsetMs == action.viewOffsetMs,
-              actions[index].durationMs == action.durationMs,
-              actions[index].plexState == action.plexState else {
+        guard action.accountProfileID == plexService.activeProfileID,
+              let index = storedActions.firstIndex(where: { $0.globalKey == action.globalKey }) else {
             return
         }
-        actions[index].needsSync = false
-        actions[index].attemptCount = 0
-        actions[index].lastAttemptAt = .now
-        actions[index].updatedAt = .now
+        guard storedActions[index].updatedAt == action.updatedAt,
+              storedActions[index].kind == action.kind,
+              storedActions[index].viewOffsetMs == action.viewOffsetMs,
+              storedActions[index].durationMs == action.durationMs,
+              storedActions[index].plexState == action.plexState else {
+            return
+        }
+        storedActions[index].needsSync = false
+        storedActions[index].attemptCount = 0
+        storedActions[index].lastAttemptAt = .now
+        storedActions[index].updatedAt = .now
         persist()
     }
 
     private func markAttemptFailed(_ action: OfflinePlaybackSyncAction) {
-        guard let index = actions.firstIndex(where: { $0.globalKey == action.globalKey }) else { return }
-        actions[index].attemptCount += 1
-        actions[index].lastAttemptAt = .now
-        actions[index].updatedAt = .now
+        guard action.accountProfileID == plexService.activeProfileID,
+              let index = storedActions.firstIndex(where: { $0.globalKey == action.globalKey }) else {
+            return
+        }
+        storedActions[index].attemptCount += 1
+        storedActions[index].lastAttemptAt = .now
+        storedActions[index].updatedAt = .now
         persist()
     }
 
     private func persist() {
-        try? store.saveSnapshot(OfflinePlaybackSyncSnapshot(actions: actions))
+        try? store.saveSnapshot(OfflinePlaybackSyncSnapshot(actions: storedActions))
     }
 
     private func shouldAttemptSync(_ action: OfflinePlaybackSyncAction, now: Date) -> Bool {

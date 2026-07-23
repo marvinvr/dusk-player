@@ -25,6 +25,18 @@ struct SettingsContainer<Content: View>: View {
                 viewModel.showServerPicker = false
             }
         }
+        .sheet(isPresented: homeUserPickerPresented) {
+            HomeUserPickerView(
+                users: plexService.homeUsers,
+                rememberSelection: plexService.automaticHomeSignIn,
+                onComplete: {
+                    viewModel.showHomeUserPicker = false
+                },
+                onCancel: {
+                    viewModel.showHomeUserPicker = false
+                }
+            )
+        }
         .duskNavigationTitle("Settings")
         .duskNavigationBarTitleDisplayModeLarge()
     }
@@ -33,6 +45,13 @@ struct SettingsContainer<Content: View>: View {
         Binding(
             get: { viewModel.showServerPicker && !viewModel.availableServers.isEmpty },
             set: { viewModel.showServerPicker = $0 }
+        )
+    }
+
+    private var homeUserPickerPresented: Binding<Bool> {
+        Binding(
+            get: { viewModel.showHomeUserPicker && plexService.homeUsers.count > 1 },
+            set: { viewModel.showHomeUserPicker = $0 }
         )
     }
 }

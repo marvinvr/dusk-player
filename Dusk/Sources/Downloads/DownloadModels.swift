@@ -115,6 +115,9 @@ struct DownloadControlState: Hashable, Sendable {
 struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var id: String { globalKey }
 
+    /// Stable Plex Home identity that owns this download. A nil value is a
+    /// pre-Plex-Home record awaiting one-time adoption by the original account.
+    var accountProfileID: String? = nil
     let serverID: String
     let serverName: String?
     let ratingKey: String
@@ -137,6 +140,9 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var relativeVideoPath: String?
     var resumeDataPath: String?
     var downloadTaskIdentifier: Int?
+    /// Distinguishes an automatic Home-user suspension from a user-requested
+    /// pause so the queue can resume when its owning profile becomes active.
+    var wasPausedForProfileSwitch: Bool = false
     var status: DownloadStatus
     var progress: Double
     var downloadedBytes: Int64
@@ -146,19 +152,23 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var updatedAt: Date
 
     enum CodingKeys: String, CodingKey {
-        case serverID, serverName, ratingKey, type, isClip
+        case accountProfileID, serverID, serverName, ratingKey, type, isClip
         case title, subtitle
         case parentRatingKey, parentTitle
         case grandparentRatingKey, grandparentTitle
         case thumbPath, artPath
         case mediaID, partID
-        case relativeVideoPath, resumeDataPath, downloadTaskIdentifier
+        case relativeVideoPath, resumeDataPath, downloadTaskIdentifier, wasPausedForProfileSwitch
         case status, progress, downloadedBytes, totalBytes
         case errorMessage, addedAt, updatedAt
     }
 
     var globalKey: String {
-        Self.globalKey(serverID: serverID, ratingKey: ratingKey)
+        Self.globalKey(
+            accountProfileID: accountProfileID,
+            serverID: serverID,
+            ratingKey: ratingKey
+        )
     }
 
     var displayTitle: String {
@@ -169,7 +179,18 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     }
 
     static func globalKey(serverID: String, ratingKey: String) -> String {
-        "\(serverID):\(ratingKey)"
+        globalKey(accountProfileID: nil, serverID: serverID, ratingKey: ratingKey)
+    }
+
+    static func globalKey(accountProfileID: String?, serverID: String, ratingKey: String) -> String {
+        if let accountProfileID = accountProfileID?.nilIfEmpty {
+            return "\(accountProfileID):\(serverID):\(ratingKey)"
+        }
+        return "\(serverID):\(ratingKey)"
+    }
+
+    var legacyGlobalKey: String {
+        Self.globalKey(serverID: serverID, ratingKey: ratingKey)
     }
 }
 
@@ -179,6 +200,7 @@ extension DownloadedMediaRecord {
     /// before the flag existed. Encoding stays synthesized.
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        accountProfileID = try container.decodeIfPresent(String.self, forKey: .accountProfileID)
         serverID = try container.decode(String.self, forKey: .serverID)
         serverName = try container.decodeIfPresent(String.self, forKey: .serverName)
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
@@ -197,6 +219,10 @@ extension DownloadedMediaRecord {
         relativeVideoPath = try container.decodeIfPresent(String.self, forKey: .relativeVideoPath)
         resumeDataPath = try container.decodeIfPresent(String.self, forKey: .resumeDataPath)
         downloadTaskIdentifier = try container.decodeIfPresent(Int.self, forKey: .downloadTaskIdentifier)
+        wasPausedForProfileSwitch = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .wasPausedForProfileSwitch
+        ) ?? false
         status = try container.decode(DownloadStatus.self, forKey: .status)
         progress = try container.decode(Double.self, forKey: .progress)
         downloadedBytes = try container.decode(Int64.self, forKey: .downloadedBytes)

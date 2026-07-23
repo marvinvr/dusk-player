@@ -17,6 +17,34 @@ struct PlexServer: Codable, Sendable, Identifiable {
     let sourceTitle: String?
     let connections: [PlexConnection]
 
+    private init(
+        name: String,
+        clientIdentifier: String,
+        product: String?,
+        productVersion: String?,
+        platform: String?,
+        platformVersion: String?,
+        provides: String?,
+        owned: Bool,
+        presence: Bool,
+        accessToken: String?,
+        sourceTitle: String?,
+        connections: [PlexConnection]
+    ) {
+        self.name = name
+        self.clientIdentifier = clientIdentifier
+        self.product = product
+        self.productVersion = productVersion
+        self.platform = platform
+        self.platformVersion = platformVersion
+        self.provides = provides
+        self.owned = owned
+        self.presence = presence
+        self.accessToken = accessToken
+        self.sourceTitle = sourceTitle
+        self.connections = connections
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
@@ -50,6 +78,26 @@ struct PlexServer: Codable, Sendable, Identifiable {
 
     var usableAccessToken: String? {
         accessToken?.nilIfEmpty
+    }
+
+    /// Server snapshots live in UserDefaults, while credentials belong only in
+    /// Keychain. Older Dusk versions persisted `accessToken` as part of this
+    /// model; bootstrap migrates that token once and rewrites a tokenless copy.
+    var withoutAccessToken: PlexServer {
+        PlexServer(
+            name: name,
+            clientIdentifier: clientIdentifier,
+            product: product,
+            productVersion: productVersion,
+            platform: platform,
+            platformVersion: platformVersion,
+            provides: provides,
+            owned: owned,
+            presence: presence,
+            accessToken: nil,
+            sourceTitle: sourceTitle,
+            connections: connections
+        )
     }
 }
 

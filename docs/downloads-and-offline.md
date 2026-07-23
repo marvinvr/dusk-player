@@ -12,7 +12,8 @@ and `DownloadsFeature.isVisible` hides downloads on tvOS.
 ## DownloadManager Responsibilities
 
 `DownloadManager` is the public facade for download behavior. It loads and
-persists `DownloadedMediaRecord` values; queues movie, episode, season, and show
+persists profile-scoped `DownloadedMediaRecord` values; queues movie, episode,
+season, and show
 downloads; expands seasons/shows into episode records; aggregates state;
 controls transfer lifecycle; selects the download media version through
 `StreamResolver`; validates free-space reserve; caches Plex metadata/artwork;
@@ -30,12 +31,12 @@ wired into `DownloadActionButton`, `DownloadsView`, or settings.
 Application Support/Dusk/Downloads/
   downloads.json
   playback-sync.json
-  Metadata/<server-id>/<endpoint-hash>.json
+  Metadata/Profiles/<profile-id>/<server-id>/<endpoint-hash>.json
   Artwork/<path-hash>.jpg
   ResumeData/<global-key-hash>.resume
-  Movies/<Title>/<Title>.<ext>
-  TV Shows/<Show>/Season NN/S<season>E<episode> - <Episode>.<ext>
-  Other/<Title>/<Title>.<ext>
+  Profiles/<profile-id>/Movies/<Title>/<Title>.<ext>
+  Profiles/<profile-id>/TV Shows/<Show>/Season NN/S<season>E<episode> - <Episode>.<ext>
+  Profiles/<profile-id>/Other/<Title>/<Title>.<ext>
 ```
 
 Invariants: the root is excluded from backup; video paths in records are
@@ -111,9 +112,15 @@ Artwork is separate: `DownloadManager.cacheArtwork` fetches image bytes through
 `PlexService` and stores hashed jpgs. Detail view models call
 `localArtworkURL(for:)` first, then fall back to Plex image URLs.
 
-Pitfall: cached metadata is server-scoped. Use `serverID(for:)`,
-`currentServerIdentifier`, or `preferredServerIDs`; do not assume a rating key is
-unique across servers.
+Pitfall: cached metadata is profile- and server-scoped. Use the active profile
+with `serverID(for:)`, `currentServerIdentifier`, or `preferredServerIDs`; do
+not assume a rating key is unique across profiles or servers. Legacy cache/video
+paths remain readable and are adopted only by the originally linked profile.
+
+Plex Home adds a second identity boundary: downloaded records, offline metadata
+lookups, playback-sync actions, and their global keys include `activeProfileID`
+in addition to server id and rating key. A profile must never see or mutate
+another profile's records merely because both can access the same server.
 
 ## Offline Playback Route
 
@@ -145,10 +152,16 @@ sync. Finalization records stopped progress; crossing 90 percent queues a
 watched/scrobble effect. Detail watch/unwatch actions also queue locally when
 using cached data or a local file.
 
-Sync only considers actions for `plexService.currentServerIdentifier`. It starts
+Sync only considers actions for both `plexService.activeProfileID` and
+`plexService.currentServerIdentifier`. It starts
 on launch and active scene phase, stops its retry loop outside active phase, and
 uses per-action backoff. `markSynced` preserves newer local edits when an older
 sync attempt completes late.
+
+Actions recorded before Plex Home support are adopted by the original linked
+profile during the one-time migration; they must not be left as unscoped
+actions. Switching users pauses the outgoing profile's queue and leaves failed
+sync actions attached to that profile until it becomes active again.
 
 ## UI Hooks
 
@@ -182,7 +195,8 @@ offline playback behavior: `PlaybackCoordinator+Session` or
 
 ## Pitfalls
 
-Do not key persisted records by rating key alone; use `serverID:ratingKey`. Do
+Do not key persisted records by rating key alone; use
+`profileID:serverID:ratingKey`. Do
 not casually delete shared metadata/artwork; show/season browsing and up-next may
 reuse it. Do not trust `downloadTaskIdentifier` across relaunch. Do not report
 Plex timeline directly for local downloads. Do not make Downloads always visible

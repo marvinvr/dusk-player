@@ -126,6 +126,48 @@ struct SettingsTVView: View {
                     TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
                 }
 
+                if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+                    TVSettingsSection(
+                        title: "Plex Home",
+                        footer: "When off, Dusk asks who’s watching whenever it starts."
+                    ) {
+                        HStack(spacing: 20) {
+                            PlexHomeUserAvatar(user: activeUser, size: 58)
+
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Current User")
+                                    .font(.caption)
+                                    .foregroundStyle(Color.duskTextSecondary)
+
+                                Text(activeUser.displayName)
+                                    .font(.headline)
+                                    .foregroundStyle(Color.duskTextPrimary)
+                                    .lineLimit(1)
+                            }
+
+                            Spacer()
+                        }
+                        .frame(minHeight: 78)
+
+                        tvRowDivider
+
+                        TVSettingsActionRow(
+                            title: "Switch User",
+                            tint: Color.duskAccent,
+                            showsChevron: true
+                        ) {
+                            viewModel.showHomeUserPicker = true
+                        }
+
+                        tvRowDivider
+
+                        TVSettingsToggleRow(
+                            title: "Automatically Sign In",
+                            isOn: automaticHomeSignInBinding
+                        )
+                    }
+                }
+
                 TVSettingsSection(title: "Server", footer: viewModel.serverError, footerColor: .red) {
                     HStack(spacing: 20) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -241,5 +283,12 @@ struct SettingsTVView: View {
         Rectangle()
             .fill(Color.duskTextSecondary.opacity(0.16))
             .frame(height: 1)
+    }
+
+    private var automaticHomeSignInBinding: Binding<Bool> {
+        Binding(
+            get: { plexService.automaticHomeSignIn },
+            set: { plexService.automaticHomeSignIn = $0 }
+        )
     }
 }

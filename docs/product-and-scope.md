@@ -53,7 +53,7 @@ Current product pillars:
   continuous playback, and passout protection.
 - Offline downloads and delayed watch-state sync.
 
-Future ideas such as Jellyfin, Live TV, managed users, collections, playlists,
+Future ideas such as Jellyfin, Live TV, collections, playlists,
 native macOS work, or broader provider abstractions are not current architecture
 requirements. Do not shape today's code around them without an explicit task.
 

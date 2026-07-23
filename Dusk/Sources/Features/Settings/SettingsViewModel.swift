@@ -4,6 +4,7 @@ import Foundation
 @Observable
 final class SettingsViewModel {
     var showServerPicker = false
+    var showHomeUserPicker = false
     private(set) var availableServers: [PlexServer] = []
     private(set) var isLoadingServers = false
     private(set) var serverError: String?
