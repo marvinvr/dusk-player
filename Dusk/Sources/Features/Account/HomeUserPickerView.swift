@@ -46,22 +46,22 @@ struct HomeUserPickerView: View {
                     profileSelection
                 }
             }
+            #if os(tvOS)
+            .onExitCommand {
+                guard pendingUser != nil else { return }
+                leavePINEntry()
+            }
+            #else
             .overlay(alignment: .topLeading) {
                 if pendingUser != nil {
                     HomeUserBackButton(
                         isDisabled: switchingProfileID != nil,
                         action: leavePINEntry
                     )
-                    #if os(tvOS)
-                    .padding(.leading, 70)
-                    .padding(.top, 48)
-                    #else
                     .padding(.leading, 20)
                     .padding(.top, 16)
-                    #endif
                 }
             }
-            #if !os(tvOS)
             .toolbar {
                 if pendingUser == nil, let onCancel {
                     ToolbarItem(placement: .cancellationAction) {
@@ -312,61 +312,31 @@ struct HomeUserPickerView: View {
     }
 }
 
+#if !os(tvOS)
 private struct HomeUserBackButton: View {
     let isDisabled: Bool
     let action: () -> Void
 
-    #if os(tvOS)
-    @FocusState private var isFocused: Bool
-    #endif
-
     var body: some View {
         Button(action: action) {
             Image(systemName: "chevron.left")
-                .font(.system(size: iconSize, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(Color.duskTextPrimary)
-                .frame(width: buttonSize, height: buttonSize)
+                .frame(width: 46, height: 46)
                 .background(.ultraThinMaterial, in: Circle())
                 .overlay {
                     Circle()
-                        .stroke(Color.primary.opacity(borderOpacity), lineWidth: 1)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
                 }
         }
         .buttonStyle(.plain)
         .disabled(isDisabled)
         .opacity(isDisabled ? 0.45 : 1)
         .duskSuppressTVOSButtonChrome()
-        #if os(tvOS)
-        .focused($isFocused)
-        .duskTVOSFocusedScale(isFocused)
-        #endif
         .accessibilityLabel("Back")
     }
-
-    private var buttonSize: CGFloat {
-        #if os(tvOS)
-        68
-        #else
-        46
-        #endif
-    }
-
-    private var iconSize: CGFloat {
-        #if os(tvOS)
-        26
-        #else
-        17
-        #endif
-    }
-
-    private var borderOpacity: Double {
-        #if os(tvOS)
-        isFocused ? 0.22 : 0.08
-        #else
-        0.08
-        #endif
-    }
 }
+#endif
 
 // MARK: - Shared profile artwork
 
