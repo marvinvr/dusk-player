@@ -84,7 +84,7 @@ extension PlexService {
         remember: Bool
     ) async throws {
         guard homeUsers.contains(where: { $0.id == user.id }) else {
-            throw PlexServiceError.networkError("That Plex Home user is no longer available.")
+            throw PlexServiceError.homeUserUnavailable
         }
         guard let primaryAccountToken else {
             throw PlexServiceError.notAuthenticated
@@ -94,7 +94,7 @@ extension PlexService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .nilIfEmpty
         if user.isProtected, normalizedPIN == nil {
-            throw PlexServiceError.networkError("Enter this user's Plex Home PIN.")
+            throw PlexServiceError.homePINRequired
         }
 
         let responseData: Data
@@ -109,7 +109,7 @@ extension PlexService {
         } catch let error as PlexServiceError {
             if user.isProtected,
                error == .unauthorized || error == .httpError(statusCode: 403) {
-                throw PlexServiceError.networkError("That Plex Home PIN is incorrect.")
+                throw PlexServiceError.homePINIncorrect
             }
             throw error
         }

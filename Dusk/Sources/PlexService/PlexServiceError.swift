@@ -7,6 +7,9 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
     case invalidURL
     case authenticationPending
     case unauthorized
+    case homeUserUnavailable
+    case homePINRequired
+    case homePINIncorrect
     case httpError(statusCode: Int)
     case decodingError(String)
     case networkError(String)
@@ -25,6 +28,12 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
             "Finishing Plex sign-in. Please wait a moment and try again."
         case .unauthorized:
             "Authentication expired. Please sign in again."
+        case .homeUserUnavailable:
+            "That Plex Home user is no longer available."
+        case .homePINRequired:
+            "Enter this user’s Plex Home PIN."
+        case .homePINIncorrect:
+            "That Plex Home PIN is incorrect."
         case .httpError(let code):
             "Server returned HTTP \(code)."
         case .decodingError(let detail):

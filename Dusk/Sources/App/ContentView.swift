@@ -33,6 +33,7 @@ struct ContentView: View {
                 connectionRefreshView
             } else if plexService.isConnected {
                 MainTabView()
+                    .id(plexService.activeProfileID)
             } else if let servers = discoveredServers, servers.count > 1 {
                 ServerPickerView(servers: servers) { server in
                     try await plexService.connect(to: server)
@@ -80,7 +81,7 @@ struct ContentView: View {
                         .font(.largeTitle)
                         .foregroundStyle(Color.duskTextSecondary)
 
-                    Text("Couldn’t check your Plex Home")
+                    Text("Couldn’t load Plex")
                         .font(.headline)
                         .foregroundStyle(Color.duskTextPrimary)
 
@@ -118,7 +119,7 @@ struct ContentView: View {
                     ProgressView()
                         .tint(Color.duskAccent)
 
-                    Text("Checking your Plex Home…")
+                    Text("Loading…")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }

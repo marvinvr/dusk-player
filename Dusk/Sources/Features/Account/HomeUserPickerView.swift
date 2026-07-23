@@ -182,23 +182,15 @@ struct HomeUserPickerView: View {
 
     private var selectionOptions: some View {
         Toggle(isOn: $rememberSelection) {
-            HStack(spacing: 15) {
-                Image(systemName: "person.crop.circle.badge.checkmark")
-                    .font(.title2.weight(.semibold))
-                    .foregroundStyle(Color.duskAccent)
-                    .frame(width: 44, height: 44)
-                    .background(Color.duskAccent.opacity(0.12), in: Circle())
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Remember This User")
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextPrimary)
 
-                VStack(alignment: .leading, spacing: 5) {
-                    Text("Remember This User")
-                        .font(.headline)
-                        .foregroundStyle(Color.duskTextPrimary)
-
-                    Text("Open Dusk with this profile next time. You can change this anytime in Settings.")
+                Text("Open Dusk with this profile next time. You can change this anytime in Settings.")
                     .font(.subheadline)
                     .foregroundStyle(Color.duskTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
-                }
             }
         }
         .tint(Color.duskAccent)
