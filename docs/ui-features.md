@@ -31,6 +31,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   remaining destination flat. On iPhone, if three libraries and Downloads are
   present, Downloads and Settings fold into `MoreView` so the tab bar stays at
   five items. tvOS remains flat with a Search tab and no Downloads tab.
+- The tvOS tab shell forces monochrome symbols and a dark focus tint in Dark mode so
+  icons remain visible on the system's light navigation focus plate.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
   only when multiple features need to navigate to them.
 - Use `NavigationLink(value:)` with `AppNavigationRoute` for media/person/library flows.
@@ -68,8 +70,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   endpoints: mark watched and mark unwatched. Do not collapse partial progress into
   a single toggle action.
 - Use `MediaCarousel` for generic horizontal sections with an optional "Show all"
-  accessory. Its horizontal padding can be overridden when a page needs its shelves
-  to share the system navigation title's leading edge.
+  destination. `PlexItemPosterCarouselSection` keeps that destination in the header
+  on iOS and renders it as a distinct dashed action tile at the end of the shelf on
+  tvOS. Its horizontal padding can be overridden when a page needs its shelves to
+  share the system navigation title's leading edge.
 - Use `AdaptivePosterGridLayout.make(...)` for responsive poster grids. Do not hand-roll
   column math in feature files.
 - Use `DuskPosterMetrics` for platform-sensitive poster widths, grid spacing,

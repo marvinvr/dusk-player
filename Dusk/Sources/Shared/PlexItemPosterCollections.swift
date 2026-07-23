@@ -15,6 +15,52 @@ struct ShowAllCarouselLink: View {
     }
 }
 
+#if os(tvOS)
+private struct ShowAllCarouselTile: View {
+    let route: AppNavigationRoute
+    let width: CGFloat
+    let imageAspectRatio: CGFloat
+
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
+        let height = width / imageAspectRatio
+
+        NavigationLink(value: route) {
+            VStack(spacing: imageAspectRatio > 1 ? 12 : 18) {
+                Image(systemName: "square.grid.2x2")
+                    .font(.system(size: min(width * 0.16, 54), weight: .medium))
+
+                Text("Show all")
+                    .font(.headline.weight(.semibold))
+            }
+            .foregroundStyle(isFocused ? Color.duskBackground : Color.duskTextPrimary)
+            .frame(width: width, height: height)
+            .background {
+                shape
+                    .fill(isFocused ? Color.duskTextPrimary : Color.duskSurface)
+
+                shape
+                    .strokeBorder(
+                        isFocused
+                            ? Color.duskTextPrimary
+                            : Color.duskTextSecondary.opacity(0.5),
+                        style: StrokeStyle(lineWidth: 2, dash: [10, 8])
+                    )
+            }
+        }
+        .duskSuppressTVOSButtonChrome()
+        .focused($isFocused)
+        .duskTVOSFocusEffectShape(shape, scales: false)
+        .frame(width: width, alignment: .topLeading)
+        .duskTVOSFocusedScale(isFocused)
+        .zIndex(isFocused ? 1 : 0)
+        .accessibilityLabel("Show all")
+    }
+}
+#endif
+
 private extension View {
     @ViewBuilder
     func showAllCarouselButtonStyle() -> some View {
@@ -56,9 +102,11 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
             title: title,
             horizontalPadding: horizontalPadding,
             headerAccessory: {
+                #if !os(tvOS)
                 if let showAllRoute {
                     ShowAllCarouselLink(route: showAllRoute)
                 }
+                #endif
             }
         ) {
             ForEach(items) { item in
@@ -74,6 +122,16 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                     contextMenuContent(item)
                 }
             }
+
+            #if os(tvOS)
+            if let showAllRoute {
+                ShowAllCarouselTile(
+                    route: showAllRoute,
+                    width: posterWidth,
+                    imageAspectRatio: imageAspectRatio
+                )
+            }
+            #endif
         }
     }
 }
@@ -124,9 +182,11 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
             title: title,
             horizontalPadding: horizontalPadding,
             headerAccessory: {
+                #if !os(tvOS)
                 if let showAllRoute {
                     ShowAllCarouselLink(route: showAllRoute)
                 }
+                #endif
             }
         ) {
             ForEach(items) { item in
@@ -143,6 +203,16 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                     contextMenuContent(item)
                 }
             }
+
+            #if os(tvOS)
+            if let showAllRoute {
+                ShowAllCarouselTile(
+                    route: showAllRoute,
+                    width: posterWidth,
+                    imageAspectRatio: imageAspectRatio
+                )
+            }
+            #endif
         }
     }
 }

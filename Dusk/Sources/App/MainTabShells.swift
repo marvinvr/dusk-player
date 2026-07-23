@@ -68,6 +68,8 @@ struct MainTabIOSShell<Content: View>: View {
 }
 
 struct MainTabTVShell<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let tabs: [MainTabItem]
     let selection: Binding<MainTabItem>
     let content: (MainTabItem) -> Content
@@ -79,9 +81,11 @@ struct MainTabTVShell<Content: View>: View {
                     .tag(tab)
                     .tabItem {
                         Label(tab.title, systemImage: tab.systemImage)
+                            .symbolRenderingMode(.monochrome)
                     }
             }
         }
+        .tint(colorScheme == .dark ? Color.duskBackground : Color.primary)
         .background(Color.duskBackground.ignoresSafeArea())
     }
 }
