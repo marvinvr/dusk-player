@@ -18,6 +18,7 @@ struct SearchView: View {
 /// tvOS Search tab root and as an iPhone/iPad toolbar destination.
 struct SearchRootContent: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: SearchViewModel?
 
     private let searchPrompt = "Movies, Shows, Actors..."
@@ -34,7 +35,10 @@ struct SearchRootContent: View {
         .duskNavigationBarTitleDisplayModeLarge()
         .onAppear {
             if viewModel == nil {
-                viewModel = SearchViewModel(plexService: plexService)
+                viewModel = SearchViewModel(
+                    plexService: plexService,
+                    seerrService: seerrService
+                )
             }
         }
     }
@@ -129,21 +133,30 @@ private extension SearchRootContent {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
                     ForEach(vm.results) { group in
-                        let isVideoGroup = group.items.isAllClips
+                        let isVideoGroup = group.isAllClips
+                        let width = isVideoGroup
+                            ? DuskPosterMetrics.videoCarouselWidth
+                            : DuskPosterMetrics.carouselPosterWidth
+                        let aspectRatio = isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0
 
-                        PlexItemPosterCarouselSection(
-                            title: group.title,
-                            items: group.items,
-                            posterWidth: isVideoGroup
-                                ? DuskPosterMetrics.videoCarouselWidth
-                                : DuskPosterMetrics.carouselPosterWidth,
-                            imageAspectRatio: isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0,
-                            subtitle: { $0.standardPosterSubtitle },
-                            posterURL: { item, width, height in
-                                vm.imageURL(for: item.preferredPosterPath, width: width, height: height)
-                            },
-                            progress: { $0.posterProgress }
-                        )
+                        MediaCarousel(title: group.title) {
+                            ForEach(group.items) { item in
+                                PosterNavigationCard(
+                                    route: item.route,
+                                    imageURL: vm.imageURL(
+                                        for: item,
+                                        width: Int(width * 2),
+                                        height: Int(width / aspectRatio * 2)
+                                    ),
+                                    title: item.title,
+                                    subtitle: item.subtitle,
+                                    progress: item.progress,
+                                    width: width,
+                                    imageAspectRatio: aspectRatio,
+                                    availabilityBadge: vm.availabilityBadge(for: item)
+                                )
+                            }
+                        }
                     }
                 }
                 .padding(.top, DuskPosterMetrics.pageSectionSpacing)
@@ -192,7 +205,7 @@ private extension SearchRootContent {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ForEach(vm.results) { group in
-                            let isVideoGroup = group.items.isAllClips
+                            let isVideoGroup = group.isAllClips
 
                             VStack(alignment: .leading, spacing: 12) {
                                 Text(group.title)
@@ -200,17 +213,31 @@ private extension SearchRootContent {
                                     .foregroundStyle(Color.primary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
 
-                                PlexItemPosterGrid(
-                                    items: group.items,
-                                    layout: isVideoGroup ? videoLayout : layout,
-                                    rowSpacing: DuskPosterMetrics.gridRowSpacing,
-                                    imageAspectRatio: isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0,
-                                    posterURL: { item, width, height in
-                                        vm.imageURL(for: item.preferredPosterPath, width: width, height: height)
-                                    },
-                                    subtitle: { $0.standardPosterSubtitle },
-                                    progress: { $0.posterProgress }
-                                )
+                                let activeLayout = isVideoGroup ? videoLayout : layout
+                                let aspectRatio = isVideoGroup ? 16.0 / 9.0 : 2.0 / 3.0
+
+                                LazyVGrid(
+                                    columns: activeLayout.columns,
+                                    alignment: .leading,
+                                    spacing: DuskPosterMetrics.gridRowSpacing
+                                ) {
+                                    ForEach(group.items) { item in
+                                        PosterNavigationCard(
+                                            route: item.route,
+                                            imageURL: vm.imageURL(
+                                                for: item,
+                                                width: Int(activeLayout.posterWidth * 2),
+                                                height: Int(activeLayout.posterWidth / aspectRatio * 2)
+                                            ),
+                                            title: item.title,
+                                            subtitle: item.subtitle,
+                                            progress: item.progress,
+                                            width: activeLayout.posterWidth,
+                                            imageAspectRatio: aspectRatio,
+                                            availabilityBadge: vm.availabilityBadge(for: item)
+                                        )
+                                    }
+                                }
                             }
                             .padding(.horizontal, DuskPosterMetrics.gridHorizontalPadding)
                         }

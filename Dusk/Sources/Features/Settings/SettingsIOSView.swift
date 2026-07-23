@@ -3,6 +3,7 @@ import SwiftUI
 #if !os(tvOS)
 struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(SeerrService.self) private var seerrService
     @Environment(UserPreferences.self) private var preferences
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
@@ -158,6 +159,27 @@ struct SettingsIOSView: View {
                 }
                 .listRowBackground(Color.duskSurface)
             }
+
+            Section {
+                NavigationLink {
+                    SeerrSettingsView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Seerr")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Text(seerrService.connectionSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+            } header: {
+                Text("Integrations")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text("Optionally add requestable movies and shows to search.")
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
 
             Section {
                 Picker("Max Resolution", selection: $preferences.maxResolution) {

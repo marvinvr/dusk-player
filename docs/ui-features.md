@@ -7,7 +7,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 - `DuskApp` creates the long-lived app services and injects them into the SwiftUI
   environment: `PlexService`, `PlaybackCoordinator`, `DownloadManager`,
-  `OfflinePlaybackSyncManager`, and `UserPreferences`.
+  `OfflinePlaybackSyncManager`, `SeerrService`, and `UserPreferences`.
 - App-wide color scheme comes from `UserPreferences.appearanceMode`; app tint is
   `Color.duskAccent`, except iOS/iPadOS tab bar selection stays monochrome with
   the native `.primary` color role so the floating iPad tab bar can adapt over both
@@ -125,6 +125,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   reset revision flowing from `HomeView` through both platform shells so a Plex refresh
   cannot preserve a stale selection after Continue Watching reorders.
 - `HomeViewModel` is the only home object that calls `PlexService`.
+- `HomeView` keys its load context by both the active Plex Home profile and server,
+  and installs a fresh `HomeViewModel` whenever that context task starts. Keep the
+  profile in this identity: Home users commonly share a server ID, and retaining
+  the outgoing model can let its in-flight load suppress the incoming user's load.
 - Home data combines global hubs from `getHubs()`, continue watching from
   `getContinueWatching()`, and personalized shelves from `HomeRecommendationEngine`.
 - Home publishes the base hub and continue-watching payload first, then expands
@@ -298,6 +302,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   All-clip result groups render 16:9.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
+- When Seerr is connected, search also performs an additive Seerr discovery
+  request. Plex groups publish first; external movies/shows are deduplicated and
+  appended with request-state badges. A Seerr failure stays silent and never
+  breaks Plex search.
 - Presentation is platform-adaptive so search feels native everywhere. tvOS and iPad
   (`userInterfaceIdiom == .pad`) render each result group as a
   `PlexItemPosterCarouselSection` (the same poster carousels Home uses for hubs); iPhone
@@ -308,8 +316,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   states through one `searchResults(_:content:)` wrapper, so state reporting stays uniform.
 - Search results route through `AppNavigationRoute.destination(for:)` so people, movies,
   shows, seasons, and episodes stay consistent with the rest of the app.
+- Seerr cards instead use dedicated request-only routes. Never put them through
+  Plex detail routes, playback, downloads, or watch-state actions.
 - `SettingsView` selects the platform shell. Shared sheet/navigation chrome is in
   `SettingsContainer`.
+- The Integrations section links to `SeerrSettingsView`. Both platforms accept
+  only a server URL and connect using the active Plex identity; tvOS uses native
+  keyboard/Remote input rather than a browser login.
 - `SettingsViewModel` is for transient settings UI state: the silently refreshed
   server list, server picker, Home-user picker presentation, image cache status,
   app version, and server/user switching.

@@ -10,6 +10,7 @@ Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes
   Models/              Plex response models and app-facing media structs
   PlexService/         Plex auth, server discovery, API calls, images, playback URLs
+  SeerrService/        Optional Seerr auth sessions, API calls, and request state
   Playback/            PlaybackEngine protocol, AVPlayer/VLCKit engines, resolver
   Downloads/           Queue, file store, metadata cache, offline sync
   Shared/              Reusable UI, formatting, image loading, recommendation helpers
@@ -18,6 +19,7 @@ Dusk/Sources
     Home/              Home hubs, continue watching, recommendations
     Libraries/         Library list, library item grids, recommendations
     Detail/            Movie/show/season/episode/video/person detail flows
+    Seerr/             Request-only external movie/show/season detail flows
     Player/            Full-screen playback UI and coordinator
     Downloads/         Downloads screen and download controls
     Search/            Search view and view model
@@ -31,6 +33,7 @@ Dusk/Sources
 SwiftUI environment:
 
 - `PlexService`
+- `SeerrService`
 - `PlaybackCoordinator`
 - `DownloadManager`
 - `OfflinePlaybackSyncManager`
@@ -119,6 +122,15 @@ Settings:
 - `SettingsViewModel` owns settings actions that need services.
 - iOS/tvOS layouts are separate views with shared support helpers.
 
+Search and Seerr:
+
+- `SearchViewModel` owns the additive Plex/Seerr merge. Plex results publish
+  first and remain usable if Seerr fails.
+- `SearchMediaResult` keeps external cards out of Plex playback/download paths.
+- `Features/Seerr` contains request-only details and must never expose playback.
+- `ShowDetailViewModel` enriches missing seasons only through exact Plex TMDB
+  GUIDs. Details and traps: `docs/seerr-integration.md`.
+
 Supporter:
 
 - `SupporterStore` owns StoreKit 2 state; supporter status is monotonic
@@ -132,6 +144,8 @@ Supporter:
 ## Where New Code Goes
 
 - New Plex endpoint: matching `PlexService+*.swift` file.
+- New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
+  a generic provider protocol.
 - New Plex response shape: `Models/`, with optional fields where Plex varies by
   media type.
 - New playback format decision: `StreamResolver`.
@@ -162,8 +176,8 @@ piece has a clear name and owner.
 
 - Views do not call Plex directly unless they are small account/setup views;
   feature views should go through `@Observable` view models.
-- `PlexService` is intentionally Plex-specific. Do not add generic provider
-  protocols without a real second backend.
+- `PlexService` is intentionally Plex-specific. Seerr is an optional request
+  companion, not a playback provider; do not add a generic provider protocol.
 - The app is stateless beyond Keychain auth, UserDefaults preferences, and
   download/offline files.
 - Direct play is the startup playback model. Manual transcoding is only a

@@ -35,11 +35,10 @@ struct HomeView: View {
                     FeatureLoadingView()
                 }
             }
-            .task(id: plexService.connectedServer?.clientIdentifier) {
-                if viewModel == nil {
-                    viewModel = HomeViewModel(plexService: plexService)
-                }
-                await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
+            .task(id: loadContext) {
+                let newViewModel = HomeViewModel(plexService: plexService)
+                viewModel = newViewModel
+                await newViewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
             }
             .onAppear {
                 guard viewModel != nil else { return }
@@ -107,4 +106,16 @@ struct HomeView: View {
     private func resetHeroSelection() {
         heroSelectionResetRevision += 1
     }
+
+    private var loadContext: HomeLoadContext {
+        HomeLoadContext(
+            profileID: plexService.activeProfileID,
+            serverID: plexService.currentServerIdentifier
+        )
+    }
+}
+
+private struct HomeLoadContext: Hashable {
+    let profileID: String?
+    let serverID: String?
 }

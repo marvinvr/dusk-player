@@ -12,6 +12,8 @@ enum AppNavigationRoute: Hashable {
     case video(ratingKey: String)
     case downloadedVideo(ratingKey: String)
     case person(PlexPersonReference)
+    case seerrMedia(type: SeerrMediaType, id: Int)
+    case seerrSeason(tvID: Int, seasonNumber: Int)
 
     static func destination(for item: PlexItem) -> Self {
         if let person = PlexPersonReference(item: item) {
@@ -32,6 +34,7 @@ struct AppNavigationDestinationView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
+    @Environment(SeerrService.self) private var seerrService
 
     let route: AppNavigationRoute
 
@@ -64,6 +67,7 @@ struct AppNavigationDestinationView: View {
                 type: type,
                 ratingKey: ratingKey,
                 plexService: plexService,
+                seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
@@ -72,6 +76,7 @@ struct AppNavigationDestinationView: View {
                 type: type,
                 ratingKey: ratingKey,
                 plexService: plexService,
+                seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 prefersOfflineAvailability: DownloadsFeature.isVisible
@@ -92,6 +97,14 @@ struct AppNavigationDestinationView: View {
             )
         case .person(let person):
             ActorDetailView(person: person, plexService: plexService)
+        case let .seerrMedia(type, id):
+            SeerrMediaDetailView(mediaType: type, mediaID: id, service: seerrService)
+        case let .seerrSeason(tvID, seasonNumber):
+            SeerrSeasonDetailView(
+                tvID: tvID,
+                seasonNumber: seasonNumber,
+                service: seerrService
+            )
         }
     }
 }

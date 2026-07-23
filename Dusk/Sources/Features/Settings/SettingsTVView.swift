@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(SeerrService.self) private var seerrService
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore
     let viewModel: SettingsViewModel
@@ -119,6 +120,18 @@ struct SettingsTVView: View {
                         ) {
                             viewModel.showServerPicker = true
                         }
+                    }
+                }
+
+                TVSettingsSection(
+                    title: "Integrations",
+                    footer: "Optionally add requestable movies and shows to search."
+                ) {
+                    TVSettingsNavigationRow(
+                        title: "Seerr",
+                        detail: seerrService.connectionSubtitle
+                    ) {
+                        SeerrSettingsView()
                     }
                 }
 

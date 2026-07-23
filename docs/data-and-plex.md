@@ -1,8 +1,9 @@
 # Dusk Plex Data Layer
 
-Agent-facing map for Dusk's Plex data layer. Plex is the only backend; views
-call view models, view models call `PlexService`, and `PlexService` is the
-network boundary.
+Agent-facing map for Dusk's Plex data layer. Plex is the only media/playback
+backend; views call view models, view models call `PlexService`, and
+`PlexService` is the Plex network boundary. The optional Seerr request companion
+has a separate boundary documented in `docs/seerr-integration.md`.
 
 ## Responsibilities
 - `PlexService/` owns auth, discovery, request helpers, endpoints, playback
@@ -11,8 +12,8 @@ network boundary.
 - `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
   offline/download support.
-- No generic provider abstraction. Add focused Plex methods in the existing
-  same-type extension files.
+- No generic provider abstraction. Seerr is not a media provider. Add focused
+  Plex methods in the existing same-type extension files.
 
 ## Auth And Server Discovery
 Files: `PlexService.swift` for shared state and persisted bootstrap;
@@ -150,12 +151,13 @@ Hubs and search:
 - `getContinueWatching()` -> `/hubs/continueWatching`, flattened from hubs.
 - `getHubItems(hubKey:start:size:)` follows the hub key and merges `Metadata`
   plus `Directory`.
-- `search(query:)` -> `/hubs/search` with `limit=10`, no collections, wrapped
-  as `[PlexSearchResult]`.
+- `search(query:)` -> `/hubs/search` with `limit=10`, no collections, and GUIDs,
+  wrapped as `[PlexSearchResult]`.
 
 Detail and hierarchy:
-- `getMediaDetails(ratingKey:)` -> `/library/metadata/{ratingKey}` with
-  `includeMarkers=1`; this feeds detail screens and playback resolution.
+- `getMediaDetails(ratingKey:)` -> `/library/metadata/{ratingKey}` with markers
+  and GUIDs; this feeds detail screens, exact Seerr matching, and playback
+  resolution.
 - `getSeasons(showKey:)` and `getEpisodes(seasonKey:)` use
   `/library/metadata/{ratingKey}/children`.
 - `getNextEpisode(after:)` walks current season episodes, then later seasons.

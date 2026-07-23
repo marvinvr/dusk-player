@@ -59,6 +59,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     let directors: [PlexTag]?
     let writers: [PlexTag]?
     let roles: [PlexRole]?
+    let guids: [PlexGuid]
 
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, subtype, title
@@ -75,6 +76,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         case directors = "Director"
         case writers = "Writer"
         case roles = "Role"
+        case guids = "Guid"
         case images = "Image"
     }
 
@@ -127,6 +129,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
         writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
+        guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
     }
 }
 
@@ -212,6 +215,16 @@ extension PlexItem {
 /// A simple key-value tag used for genres, directors, writers, etc.
 struct PlexTag: Codable, Sendable, Hashable {
     let tag: String
+}
+
+struct PlexGuid: Codable, Sendable, Hashable {
+    let id: String
+
+    func value(for provider: String) -> String? {
+        let prefix = "\(provider)://"
+        guard id.lowercased().hasPrefix(prefix) else { return nil }
+        return String(id.dropFirst(prefix.count)).nilIfEmpty
+    }
 }
 
 /// A cast/crew member with role information.

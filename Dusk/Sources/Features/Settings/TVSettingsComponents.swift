@@ -204,6 +204,50 @@ struct TVSettingsActionRow: View {
     }
 }
 
+struct TVSettingsNavigationRow<Destination: View>: View {
+    let title: String
+    let detail: String?
+    private let destination: () -> Destination
+    @FocusState private var isFocused: Bool
+
+    init(
+        title: String,
+        detail: String? = nil,
+        @ViewBuilder destination: @escaping () -> Destination
+    ) {
+        self.title = title
+        self.detail = detail
+        self.destination = destination
+    }
+
+    var body: some View {
+        NavigationLink(destination: destination) {
+            HStack(spacing: 20) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Spacer()
+
+                if let detail {
+                    Text(detail)
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(1)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .frame(minHeight: 72)
+            .contentShape(Rectangle())
+        }
+        .duskSuppressTVOSButtonChrome()
+        .focused($isFocused)
+        .tvSettingsRowFocusHighlight(isFocused)
+    }
+}
+
 struct TVSettingsExternalLinkRow: View {
     let title: String
     let subtitle: String
@@ -236,6 +280,53 @@ struct TVSettingsExternalLinkRow: View {
         }
         .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
         .accessibilityElement(children: .combine)
+    }
+}
+
+struct TVSettingsURLFieldRow: View {
+    let prompt: String
+    @Binding var text: String
+    let isDisabled: Bool
+    @FocusState private var isFocused: Bool
+    @State private var draft = ""
+    @State private var showsEditor = false
+
+    var body: some View {
+        Button {
+            draft = text
+            showsEditor = true
+        } label: {
+            HStack(spacing: 20) {
+                Text(prompt)
+                    .font(.headline)
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Spacer(minLength: 24)
+
+                Text(text.isEmpty ? "Not set" : text)
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .contentShape(Rectangle())
+        }
+        .duskSuppressTVOSButtonChrome()
+        .focused($isFocused)
+        .tvSettingsRowFocusHighlight(isFocused)
+        .disabled(isDisabled)
+        .alert("Seerr Server URL", isPresented: $showsEditor) {
+            TextField(prompt, text: $draft)
+                .textContentType(.URL)
+                .autocorrectionDisabled()
+            Button("Save") {
+                text = draft
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Enter the address you use for Seerr.")
+        }
     }
 }
 

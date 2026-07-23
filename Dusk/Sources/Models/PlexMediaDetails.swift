@@ -55,6 +55,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     /// Collections the item belongs to. Video clip libraries carry one per
     /// channel, which drives the "More from this channel" row.
     let collections: [PlexTag]?
+    let guids: [PlexGuid]
     let markers: [PlexMarker]
 
     /// The media versions for this item. A single item can have multiple
@@ -72,6 +73,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         case writers = "Writer"
         case roles = "Role"
         case collections = "Collection"
+        case guids = "Guid"
         case markers = "Marker"
         case media = "Media"
         case images = "Image"
@@ -118,6 +120,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
         collections = try container.decodeIfPresent([PlexTag].self, forKey: .collections)
+        guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
         markers = (try container.decodeIfPresent([PlexMarker].self, forKey: .markers) ?? [])
             .sorted { $0.startTimeOffset < $1.startTimeOffset }
         media = try container.decodeIfPresent([PlexMedia].self, forKey: .media) ?? []

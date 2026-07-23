@@ -81,6 +81,7 @@ struct DuskApp: App {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var plexService: PlexService
+    @State private var seerrService: SeerrService
     @State private var playbackCoordinator: PlaybackCoordinator
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
@@ -90,10 +91,12 @@ struct DuskApp: App {
     init() {
         AppImageCache.configureSharedCache()
         let service = PlexService()
+        let seerr = SeerrService(plexService: service)
         let prefs = UserPreferences()
         let downloads = DownloadManager(plexService: service, preferences: prefs)
         let playbackSync = OfflinePlaybackSyncManager(plexService: service)
         _plexService = State(initialValue: service)
+        _seerrService = State(initialValue: seerr)
         _downloadManager = State(initialValue: downloads)
         _offlinePlaybackSyncManager = State(initialValue: playbackSync)
         _playbackCoordinator = State(initialValue: PlaybackCoordinator(
@@ -113,6 +116,7 @@ struct DuskApp: App {
         WindowGroup {
             ContentView()
                 .environment(plexService)
+                .environment(seerrService)
                 .environment(playbackCoordinator)
                 .environment(downloadManager)
                 .environment(offlinePlaybackSyncManager)
@@ -127,10 +131,12 @@ struct DuskApp: App {
                     PlaybackEngineFactory.prewarmIfNeeded()
                 }
                 .task(
-                    id: "\(plexService.homeBootstrapCompleted):"
-                        + "\(plexService.activeProfileID ?? "none"):"
-                        + "\(plexService.currentServerIdentifier ?? "none"):"
-                        + "\(plexService.isConnected)"
+                    id: seerrContextID
+                ) {
+                    await seerrService.contextDidChange()
+                }
+                .task(
+                    id: offlineContextID
                 ) {
                     guard plexService.homeBootstrapCompleted else {
                         offlinePlaybackSyncManager.stopAutomaticSync()
@@ -167,6 +173,23 @@ struct DuskApp: App {
 }
 
 private extension DuskApp {
+    var seerrContextID: String {
+        [
+            plexService.activeProfileID ?? "none",
+            plexService.currentServerIdentifier ?? "none",
+            String(plexService.isAuthenticated),
+        ].joined(separator: ":")
+    }
+
+    var offlineContextID: String {
+        [
+            String(plexService.homeBootstrapCompleted),
+            plexService.activeProfileID ?? "none",
+            plexService.currentServerIdentifier ?? "none",
+            String(plexService.isConnected),
+        ].joined(separator: ":")
+    }
+
     static func configurePlaybackAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()
 

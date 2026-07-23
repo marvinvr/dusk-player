@@ -3,7 +3,27 @@ import Foundation
 @MainActor
 @Observable
 final class ShowDetailViewModel {
+    enum SeasonItem: Identifiable {
+        case plex(PlexSeason)
+        case seerr(tvID: Int, season: SeerrSeasonSummary)
+
+        var id: String {
+            switch self {
+            case .plex(let season): "plex:\(season.ratingKey)"
+            case .seerr(let tvID, let season): "seerr:\(tvID):\(season.seasonNumber)"
+            }
+        }
+
+        var seasonNumber: Int {
+            switch self {
+            case .plex(let season): season.index
+            case .seerr(_, let season): season.seasonNumber
+            }
+        }
+    }
+
     private let plexService: PlexService
+    private let seerrService: SeerrService?
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     private let prefersOfflineAvailability: Bool
@@ -11,6 +31,9 @@ final class ShowDetailViewModel {
 
     private(set) var details: PlexMediaDetails?
     private(set) var seasons: [PlexSeason] = []
+    private(set) var missingSeerrSeasons: [SeerrSeasonSummary] = []
+    private(set) var seerrTVID: Int?
+    private(set) var seerrMediaInfo: SeerrMediaInfo?
     private(set) var nextEpisode: PlexEpisode?
     private(set) var nextEpisodeDetails: PlexMediaDetails?
     private(set) var isLoading = false
@@ -21,19 +44,24 @@ final class ShowDetailViewModel {
     init(
         ratingKey: String,
         plexService: PlexService,
+        seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
     ) {
         self.ratingKey = ratingKey
         self.plexService = plexService
+        self.seerrService = seerrService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
         self.prefersOfflineAvailability = prefersOfflineAvailability
     }
 
     func load() async {
-        guard details == nil else { return }
+        if details != nil {
+            await loadMissingSeerrSeasons()
+            return
+        }
         await refresh()
     }
 
@@ -83,6 +111,9 @@ final class ShowDetailViewModel {
     }
 
     var seasonCountText: String? {
+        if !missingSeerrSeasons.isEmpty {
+            return MediaTextFormatter.seasonCount(seasonItems.count)
+        }
         if let count = details?.childCount, count > 0 {
             return MediaTextFormatter.seasonCount(count)
         }
@@ -100,6 +131,15 @@ final class ShowDetailViewModel {
     var visibleSeasons: [PlexSeason] {
         guard DownloadsFeature.isVisible, isUsingCachedData, let downloadManager else { return seasons }
         return seasons.filter { downloadManager.hasDownloadedEpisodes(seasonKey: $0.ratingKey) }
+    }
+
+    var seasonItems: [SeasonItem] {
+        let plexItems = visibleSeasons.map(SeasonItem.plex)
+        guard let seerrTVID else { return plexItems }
+        return (plexItems + missingSeerrSeasons.map {
+            .seerr(tvID: seerrTVID, season: $0)
+        })
+        .sorted { $0.seasonNumber < $1.seasonNumber }
     }
 
     var showsOfflineAvailability: Bool {
@@ -125,6 +165,17 @@ final class ShowDetailViewModel {
         let path = season.thumb ?? season.parentThumb ?? season.art
         return downloadManager?.localArtworkURL(for: path)
             ?? plexService.imageURL(for: path, width: width, height: height)
+    }
+
+    func seasonPosterURL(_ season: SeerrSeasonSummary, width: Int) -> URL? {
+        seerrService?.posterURL(path: season.posterPath, width: width)
+    }
+
+    func seasonRequestState(_ season: SeerrSeasonSummary) -> SeerrRequestState {
+        seerrService?.requestState(
+            mediaInfo: seerrMediaInfo,
+            seasonNumber: season.seasonNumber
+        ) ?? .requestable
     }
 
     func seasonSubtitle(_ season: PlexSeason) -> String? {
@@ -277,12 +328,49 @@ final class ShowDetailViewModel {
             details = loadedDetails
             seasons = loadedSeasons.sorted { $0.index < $1.index }
             isUsingCachedData = false
+            await loadMissingSeerrSeasons()
         } catch {
             if details == nil && seasons.isEmpty {
                 throw error
             }
         }
         await resolveNextEpisode()
+    }
+
+    private func loadMissingSeerrSeasons() async {
+        missingSeerrSeasons = []
+        seerrTVID = nil
+        seerrMediaInfo = nil
+
+        guard !isUsingCachedData,
+              let details,
+              let service = seerrService,
+              service.isAvailableForCurrentContext,
+              let tmdbID = details.guids
+                .compactMap({ $0.value(for: "tmdb") })
+                .compactMap(Int.init)
+                .first else {
+            return
+        }
+
+        do {
+            let seerrDetails = try await service.tvDetails(id: tmdbID)
+            let existingNumbers = Set(seasons.map(\.index))
+            missingSeerrSeasons = seerrDetails.seasons.filter {
+                let state = service.requestState(
+                    mediaInfo: seerrDetails.mediaInfo,
+                    seasonNumber: $0.seasonNumber
+                )
+                let shouldDisplay = ![.available, .completed, .blocklisted].contains(state)
+                return !existingNumbers.contains($0.seasonNumber) &&
+                    ($0.seasonNumber > 0 || service.publicSettings?.enableSpecialEpisodes == true) &&
+                    shouldDisplay
+            }
+            seerrTVID = tmdbID
+            seerrMediaInfo = seerrDetails.mediaInfo
+        } catch {
+            // Seerr is additive; its failure must never disturb Plex show details.
+        }
     }
 
     private func resolveNextEpisode() async {

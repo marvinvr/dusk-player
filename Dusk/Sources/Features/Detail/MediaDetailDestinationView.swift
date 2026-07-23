@@ -4,6 +4,7 @@ struct MediaDetailDestinationView: View {
     let type: PlexMediaType
     let ratingKey: String
     let plexService: PlexService
+    let seerrService: SeerrService?
     let downloadManager: DownloadManager?
     let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     let prefersOfflineAvailability: Bool
@@ -12,6 +13,7 @@ struct MediaDetailDestinationView: View {
         type: PlexMediaType,
         ratingKey: String,
         plexService: PlexService,
+        seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
@@ -19,6 +21,7 @@ struct MediaDetailDestinationView: View {
         self.type = type
         self.ratingKey = ratingKey
         self.plexService = plexService
+        self.seerrService = seerrService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
         self.prefersOfflineAvailability = prefersOfflineAvailability
@@ -38,6 +41,7 @@ struct MediaDetailDestinationView: View {
             ShowDetailView(
                 ratingKey: ratingKey,
                 plexService: plexService,
+                seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 prefersOfflineAvailability: prefersOfflineAvailability

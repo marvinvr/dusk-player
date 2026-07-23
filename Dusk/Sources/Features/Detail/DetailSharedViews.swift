@@ -558,6 +558,35 @@ struct DetailHeroPrimaryActionButtonLabel: View {
     }
 }
 
+struct DetailHeroStatusActionLabel: View {
+    let title: String
+    let systemImage: String
+    var fillsWidth: Bool = false
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Image(systemName: systemImage)
+                .font(.headline.weight(.semibold))
+
+            Text(title)
+                .font(.headline)
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.duskTextPrimary)
+        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 34)
+        #if os(tvOS)
+        .frame(minWidth: 260)
+        #endif
+        .padding(.horizontal, 20)
+        .padding(.vertical, 5)
+        .background(Color.duskSurface.opacity(0.86), in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color.duskTextSecondary.opacity(0.18), lineWidth: 1)
+        }
+    }
+}
+
 extension View {
     @ViewBuilder
     func detailHeroNativePrimaryButtonStyle() -> some View {

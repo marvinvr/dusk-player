@@ -16,6 +16,7 @@ struct ShowDetailView: View {
     init(
         ratingKey: String,
         plexService: PlexService,
+        seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
@@ -23,6 +24,7 @@ struct ShowDetailView: View {
         _viewModel = State(initialValue: ShowDetailViewModel(
             ratingKey: ratingKey,
             plexService: plexService,
+            seerrService: seerrService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
             prefersOfflineAvailability: prefersOfflineAvailability
@@ -314,7 +316,7 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func seasonsSection(width: CGFloat) -> some View {
-        if !viewModel.visibleSeasons.isEmpty {
+        if !viewModel.seasonItems.isEmpty {
             let layout = AdaptivePosterGridLayout.make(
                 containerWidth: width,
                 horizontalPadding: horizontalPadding,
@@ -332,19 +334,39 @@ struct ShowDetailView: View {
                     .padding(.horizontal, horizontalPadding)
 
                 LazyVGrid(columns: layout.columns, alignment: .leading, spacing: DuskPosterMetrics.detailGridRowSpacing) {
-                    ForEach(viewModel.visibleSeasons) { season in
-                        PosterNavigationCard(
-                            route: viewModel.detailRoute(type: .season, ratingKey: season.ratingKey),
-                            imageURL: viewModel.seasonPosterURL(season, width: imageWidth, height: imageHeight),
-                            title: season.title,
-                            subtitle: viewModel.seasonSubtitle(season),
-                            progress: viewModel.seasonProgress(season),
-                            width: layout.posterWidth,
-                            availabilityBadge: viewModel.seasonAvailabilityBadge(season),
-                            isDimmed: viewModel.isSeasonUnavailableOffline(season),
-                            isWatched: season.isFullyWatched
-                        ) {
-                            seasonContextMenu(season)
+                    ForEach(viewModel.seasonItems) { item in
+                        switch item {
+                        case .plex(let season):
+                            PosterNavigationCard(
+                                route: viewModel.detailRoute(type: .season, ratingKey: season.ratingKey),
+                                imageURL: viewModel.seasonPosterURL(season, width: imageWidth, height: imageHeight),
+                                title: season.title,
+                                subtitle: viewModel.seasonSubtitle(season),
+                                progress: viewModel.seasonProgress(season),
+                                width: layout.posterWidth,
+                                availabilityBadge: viewModel.seasonAvailabilityBadge(season),
+                                isDimmed: viewModel.isSeasonUnavailableOffline(season),
+                                isWatched: season.isFullyWatched
+                            ) {
+                                seasonContextMenu(season)
+                            }
+                        case .seerr(let tvID, let season):
+                            PosterNavigationCard(
+                                route: .seerrSeason(
+                                    tvID: tvID,
+                                    seasonNumber: season.seasonNumber
+                                ),
+                                imageURL: viewModel.seasonPosterURL(
+                                    season,
+                                    width: imageWidth
+                                ),
+                                title: season.name,
+                                subtitle: season.episodeCount.map {
+                                    $0 == 1 ? "1 episode" : "\($0) episodes"
+                                },
+                                width: layout.posterWidth,
+                                availabilityBadge: viewModel.seasonRequestState(season).badgeTitle
+                            )
                         }
                     }
                 }
