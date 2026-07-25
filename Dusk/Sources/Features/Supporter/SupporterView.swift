@@ -6,7 +6,7 @@ import SwiftUI
 /// otherwise identical so the two never drift apart.
 enum SupporterViewContext: Equatable {
     case settings
-    /// 1-based position within `SupporterPromptGate.milestones`.
+    /// 1-based position in the device's supporter prompt sequence.
     case prompt(number: Int)
 
     var isPrompt: Bool {
@@ -14,14 +14,6 @@ enum SupporterViewContext: Equatable {
         return false
     }
 
-    /// The ladder's last prompt promises to be the last ask — the copy for it
-    /// hangs off this, and the gate keeps the promise.
-    var isFinalPrompt: Bool {
-        if case .prompt(let number) = self {
-            return number >= SupporterPromptGate.milestones.count
-        }
-        return false
-    }
 }
 
 /// The supporter tier sheet: a pitch before any purchase, a thank-you with a
@@ -61,19 +53,11 @@ struct SupporterView: View {
                     purchaseSections
 
                     if context.isPrompt {
-                        VStack(spacing: 10) {
-                            Button("Maybe Later") {
-                                dismiss()
-                            }
-                            .supporterNeutralGlassButtonStyle()
-                            .frame(minWidth: 200)
-
-                            if context.isFinalPrompt {
-                                Text("This is the last time Dusk asks — promise.")
-                                    .font(.caption)
-                                    .foregroundStyle(Color.duskTextSecondary)
-                            }
+                        Button("Maybe Later") {
+                            dismiss()
                         }
+                        .supporterNeutralGlassButtonStyle()
+                        .frame(minWidth: 200)
                     }
 
                     aboutMe
@@ -462,9 +446,7 @@ struct SupporterView: View {
 
     #if os(tvOS)
     private var tvManageFooter: String {
-        let footer = "Everything in Dusk stays free either way. Manage or cancel subscriptions in Settings → Users & Accounts → Subscriptions. Privacy policy at getdusk.app/privacy, terms at Apple's standard EULA."
-        guard context.isFinalPrompt else { return footer }
-        return "This is the last time Dusk asks — promise. " + footer
+        "Everything in Dusk stays free either way. Manage or cancel subscriptions in Settings → Users & Accounts → Subscriptions. Privacy policy at getdusk.app/privacy, terms at Apple's standard EULA."
     }
     #endif
 

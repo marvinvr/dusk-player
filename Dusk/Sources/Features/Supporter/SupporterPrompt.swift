@@ -1,11 +1,9 @@
 import SwiftUI
 
-/// Gating rules for the supporter prompt ladder. Deliberately conservative:
-/// a device sees at most `milestones.count` prompts, ever, months apart, and
-/// only while the user's usage keeps growing — light users stop qualifying
-/// instead of getting nagged. Existing users have no recorded install date,
-/// so their clock starts with the first launch of the release that ships
-/// this feature — which is the intended behavior.
+/// Gating rules for supporter prompts. The initial ladder is deliberately
+/// conservative, followed by at most one prompt per year for people who keep
+/// using Dusk. Existing users have no recorded install date, so their clock
+/// starts with the first launch of the release that ships this feature.
 enum SupporterPromptGate {
     struct Milestone {
         /// Days since first launch before this prompt may fire.
@@ -17,15 +15,16 @@ enum SupporterPromptGate {
         let minDaysSincePreviousPrompt: Int
     }
 
-    /// One entry per prompt a device may ever see; the ladder ends for good
-    /// after the last entry. The final prompt tells the user it is the last
-    /// ask — keep that promise: do not extend the ladder without an explicit
-    /// product decision (docs/supporter.md).
-    static let milestones: [Milestone] = [
+    static let initialMilestones: [Milestone] = [
         Milestone(minDaysSinceFirstLaunch: 7, minUsageDays: 3, minDaysSincePreviousPrompt: 0),
         Milestone(minDaysSinceFirstLaunch: 30, minUsageDays: 10, minDaysSincePreviousPrompt: 14),
         Milestone(minDaysSinceFirstLaunch: 90, minUsageDays: 25, minDaysSincePreviousPrompt: 30),
     ]
+
+    private static let annualStartDays = 365
+    private static let firstAnnualPromptGapDays = 180
+    private static let annualPromptGapDays = 365
+    private static let annualUsageDaysSincePreviousPrompt = 12
 
     @MainActor
     static func shouldShow(
@@ -33,18 +32,25 @@ enum SupporterPromptGate {
         store: SupporterStore,
         now: Date = .now
     ) -> Bool {
-        guard preferences.supporterPromptCount < milestones.count else { return false }
         // Checked against StoreKit history, which syncs across devices on the
         // same Apple ID — a supporter's other devices never prompt.
         guard !store.isSupporter else { return false }
-
-        let milestone = milestones[preferences.supporterPromptCount]
 
         let daysSinceFirstLaunch = Calendar.current.dateComponents(
             [.day],
             from: preferences.firstLaunchDate,
             to: now
         ).day ?? 0
+
+        if preferences.supporterPromptCount >= initialMilestones.count {
+            return shouldShowAnnualPrompt(
+                preferences: preferences,
+                daysSinceFirstLaunch: daysSinceFirstLaunch,
+                now: now
+            )
+        }
+
+        let milestone = initialMilestones[preferences.supporterPromptCount]
         guard daysSinceFirstLaunch >= milestone.minDaysSinceFirstLaunch else { return false }
         guard preferences.usageDayCount >= milestone.minUsageDays else { return false }
 
@@ -58,6 +64,29 @@ enum SupporterPromptGate {
         }
 
         return true
+    }
+
+    @MainActor
+    private static func shouldShowAnnualPrompt(
+        preferences: UserPreferences,
+        daysSinceFirstLaunch: Int,
+        now: Date
+    ) -> Bool {
+        guard daysSinceFirstLaunch >= annualStartDays else { return false }
+        guard let lastPrompt = preferences.supporterLastPromptDate else { return false }
+
+        let daysSinceLastPrompt = Calendar.current.dateComponents(
+            [.day],
+            from: lastPrompt,
+            to: now
+        ).day ?? 0
+        let isFirstAnnualPrompt = preferences.supporterPromptCount == initialMilestones.count
+        let requiredGap = isFirstAnnualPrompt ? firstAnnualPromptGapDays : annualPromptGapDays
+        guard daysSinceLastPrompt >= requiredGap else { return false }
+
+        let usageDaysSinceLastPrompt =
+            preferences.usageDayCount - preferences.supporterLastPromptUsageDayCount
+        return usageDaysSinceLastPrompt >= annualUsageDaysSincePreviousPrompt
     }
 }
 

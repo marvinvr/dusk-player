@@ -40,6 +40,7 @@ final class UserPreferences {
         static let lastUsageDay = "lastUsageDay"
         static let supporterPromptCount = "supporterPromptCount"
         static let supporterLastPromptDate = "supporterLastPromptDate"
+        static let supporterLastPromptUsageDayCount = "supporterLastPromptUsageDayCount"
     }
 
     // MARK: - Properties
@@ -201,8 +202,7 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(lastUsageDay, forKey: Keys.lastUsageDay) }
     }
 
-    /// How many supporter prompts have been shown on this device. Caps out
-    /// at `SupporterPromptGate.milestones.count`, ever.
+    /// How many supporter prompts have been shown on this device.
     private(set) var supporterPromptCount: Int {
         didSet { UserDefaults.standard.set(supporterPromptCount, forKey: Keys.supporterPromptCount) }
     }
@@ -213,10 +213,22 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(supporterLastPromptDate, forKey: Keys.supporterLastPromptDate) }
     }
 
+    /// Usage-day count when the most recent supporter prompt was shown. Annual
+    /// prompts use the delta to avoid asking people who barely use the app.
+    private(set) var supporterLastPromptUsageDayCount: Int {
+        didSet {
+            UserDefaults.standard.set(
+                supporterLastPromptUsageDayCount,
+                forKey: Keys.supporterLastPromptUsageDayCount
+            )
+        }
+    }
+
     /// Records that a supporter prompt was presented.
     func registerSupporterPrompt(now: Date = .now) {
         supporterPromptCount += 1
         supporterLastPromptDate = now
+        supporterLastPromptUsageDayCount = usageDayCount
     }
 
     /// Counts today as a usage day if it hasn't been counted yet.
@@ -359,6 +371,21 @@ final class UserPreferences {
         self.lastUsageDay = defaults.string(forKey: Keys.lastUsageDay) ?? ""
         self.supporterPromptCount = defaults.integer(forKey: Keys.supporterPromptCount)
         self.supporterLastPromptDate = defaults.object(forKey: Keys.supporterLastPromptDate) as? Date
+        if defaults.object(forKey: Keys.supporterLastPromptUsageDayCount) != nil {
+            self.supporterLastPromptUsageDayCount = defaults.integer(
+                forKey: Keys.supporterLastPromptUsageDayCount
+            )
+        } else {
+            // Existing installs have no historical usage snapshot. Start from
+            // today's total so the first annual prompt still requires 12 new
+            // usage days instead of treating all past activity as recent.
+            let currentUsageDayCount = defaults.integer(forKey: Keys.usageDayCount)
+            self.supporterLastPromptUsageDayCount = currentUsageDayCount
+            defaults.set(
+                currentUsageDayCount,
+                forKey: Keys.supporterLastPromptUsageDayCount
+            )
+        }
     }
 
     private static func storedSeekInterval(

@@ -68,8 +68,7 @@ credentials — only call it from an explicit user action.
 `SupporterPromptGate` + `SupporterPromptPresenter`
 (`Features/Supporter/SupporterPrompt.swift`), applied in `MainTabView` on iOS
 and iPadOS so it only runs for signed-in sessions. Apple TV does not apply the
-presenter. An iPhone or iPad sees at most three prompts, ever — one per
-`SupporterPromptGate.milestones` entry:
+presenter. The initial phase has three prompts:
 
 | Prompt | Min days since first launch | Min usage days | Min days since previous |
 | ------ | --------------------------- | -------------- | ----------------------- |
@@ -81,18 +80,21 @@ presenter. An iPhone or iPad sees at most three prompts, ever — one per
   The escalating thresholds mean light users stop qualifying instead of being
   re-asked; the gap column keeps a returning heavy user from seeing several
   prompts in quick succession.
+- After the initial phase, an annual prompt becomes eligible beginning 365 days
+  after first launch. The first annual prompt also requires 180 days since the
+  third initial prompt; subsequent annual prompts require 365 days since the
+  previous prompt. Every annual prompt requires at least 12 distinct usage days
+  since the previous prompt.
 - Never for supporters (StoreKit history syncs per Apple ID, so a supporter's
   other devices never prompt); never while the player is up; 2s grace delay
   after activation.
 - `UserPreferences.firstLaunchDate` is set on first run — for pre-existing
   installs that is the first run after the update, intentionally.
 - `UserPreferences.registerSupporterPrompt()` advances `supporterPromptCount`
-  and stamps `supporterLastPromptDate` the moment a prompt presents; declining
-  ("Maybe Later") does not reset anything.
-- Prompts 2–3 use the "Still enjoying Dusk?" headline; the final prompt says
-  it is the last ask ("This is the last time Dusk asks — promise."). Keep that
-  promise: do not extend the ladder or add re-ask logic without an explicit
-  product decision — the restrained cadence is deliberate.
+  and stamps `supporterLastPromptDate` plus the current usage-day count the
+  moment a prompt presents; declining ("Maybe Later") does not reset anything.
+- Prompt 2 onward uses the neutral "Still enjoying Dusk?" headline. The sheet
+  does not describe the cadence or promise that a prompt is the final ask.
 
 ## Alternate App Icons (iOS/iPadOS only)
 
