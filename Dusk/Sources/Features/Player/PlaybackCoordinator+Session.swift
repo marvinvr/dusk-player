@@ -625,9 +625,14 @@ extension PlaybackCoordinator {
         }
 
         let failureDescription = engine.error?.errorDescription ?? "engine reported state .error"
-        // The engine's clock may have died at 0; timeline reports carry the
-        // last position Plex saw, so resume from whichever is further.
-        let resumePosition = max(engine.currentTime, TimeInterval(lastReportedTimeMs) / 1000.0)
+        // The engine's clock may die before its initial resume seek lands and
+        // before the first timeline tick. Preserve the source's saved Plex
+        // offset as well as any position the engine or timeline reached.
+        let resumePosition = max(
+            engine.currentTime,
+            TimeInterval(lastReportedTimeMs) / 1000.0,
+            playbackSource?.startPosition ?? 0
+        )
 
         playbackSessionLogger.error(
             "Playback attempt \(debugInfo.attemptLabel, privacy: .public) direct play failed for ratingKey \(ratingKey, privacy: .public): \(failureDescription, privacy: .public); attempting server-stream fallback from \(resumePosition, privacy: .public)s"
