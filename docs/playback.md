@@ -197,7 +197,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   decoders only); audio `aac`, `ac3`, `eac3`, `alac`, `mp3`, `flac`;
   subtitles `tx3g`, `mov_text`, `srt`, `subrip`, `vtt`, `webvtt`.
 - AVPlayer uses `AVPlayerLayer`, KVO, media-selection groups, and text style
-  rules. VLCKit uses `VLCMediaPlayer`, delegate callbacks, track APIs, media
+  rules. Its initial exact resume seek must finish before autoplay begins; do
+  not clear the pending offset or call `play()` merely because the item became
+  ready. VLCKit uses `VLCMediaPlayer`, delegate callbacks, track APIs, media
   options, and renderer hosts split by platform.
 - Automatic audio selection keeps the user's preferred language (with no
   language preference configured it re-ranks only within the default track's

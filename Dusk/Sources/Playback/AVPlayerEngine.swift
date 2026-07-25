@@ -432,13 +432,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer item ready"
                 )
             }
-            Task {
-                await loadDurationAndTracks()
-                if let start = pendingStartPosition, start > 0 {
-                    seek(to: start)
-                    pendingStartPosition = nil
-                }
-                player.play()
+            guard let attemptID = currentAttemptContext?.attemptID,
+                  let item = player.currentItem else { return }
+            Task { [weak self] in
+                await self?.prepareReadyItemForPlayback(item, attemptID: attemptID)
             }
         case .failed:
             let playbackError = PlaybackError.fromPlaybackFailure(
@@ -516,6 +513,41 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         @unknown default:
             break
         }
+    }
+
+    private func prepareReadyItemForPlayback(
+        _ item: AVPlayerItem,
+        attemptID: UUID
+    ) async {
+        await loadDurationAndTracks()
+        guard currentAttemptContext?.attemptID == attemptID,
+              player.currentItem === item else { return }
+
+        if let start = pendingStartPosition, start > 0 {
+            let target = CMTime(seconds: start, preferredTimescale: 1000)
+            let finished = await player.seek(
+                to: target,
+                toleranceBefore: .zero,
+                toleranceAfter: .zero
+            )
+            guard currentAttemptContext?.attemptID == attemptID,
+                  player.currentItem === item else { return }
+            guard finished else {
+                avPlayerEngineLogger.error(
+                    "Playback attempt \(self.currentAttemptContext?.attemptLabel ?? "unknown", privacy: .public) AVPlayer resume seek was interrupted at \(start, privacy: .public)s"
+                )
+                error = .unknown("Couldn’t resume playback at the saved position.")
+                state = .error
+                isBuffering = false
+                return
+            }
+            pendingStartPosition = nil
+            avPlayerEngineLogger.notice(
+                "Playback attempt \(self.currentAttemptContext?.attemptLabel ?? "unknown", privacy: .public) AVPlayer resumed at \(start, privacy: .public)s"
+            )
+        }
+
+        player.play()
     }
 
     // MARK: - Private: Time Observer
