@@ -8,6 +8,7 @@ struct PlayerControlsOverlay: View {
     let debugInfo: PlaybackDebugInfo?
     let scrubPreviewSource: PlexScrubPreviewSource?
     let hasActiveSkipMarker: Bool
+    let controlsTopSafeAreaInset: CGFloat
     let onDismiss: () -> Void
 
     var body: some View {
@@ -23,6 +24,7 @@ struct PlayerControlsOverlay: View {
             viewModel: viewModel,
             context: context,
             scrubPreviewSource: scrubPreviewSource,
+            controlsTopSafeAreaInset: controlsTopSafeAreaInset,
             onDismiss: onDismiss
         )
         #endif

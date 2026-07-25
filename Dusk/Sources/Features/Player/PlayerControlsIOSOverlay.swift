@@ -6,6 +6,7 @@ struct PlayerControlsIOSOverlay: View {
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
     let scrubPreviewSource: PlexScrubPreviewSource?
+    let controlsTopSafeAreaInset: CGFloat
     let onDismiss: () -> Void
 
     var body: some View {
@@ -21,7 +22,7 @@ struct PlayerControlsIOSOverlay: View {
                     bottomBar
                 }
                 .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-                .padding(.top, 16)
+                .padding(.top, controlsTopSafeAreaInset + 16)
                 .padding(.bottom, 8)
             }
             // Moving a mouse/trackpad pointer anywhere over the visible controls

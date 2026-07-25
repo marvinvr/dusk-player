@@ -646,6 +646,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   the conditional mount because `PlayerControlsTVOverlay` owns focus state and its
   buttons stay focusable at zero opacity; it binds the curve to the transition
   instead.
+- On iPad the player session always extends through the top status-bar safe
+  area, while the HUD reserves the captured status-bar inset itself. Keep this
+  separation when changing system-overlay visibility: otherwise the status-bar
+  fade changes the session's proposed height and makes the video and centered
+  overlays jump independently of the HUD fade.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, a gear menu for playback info, quality, and track

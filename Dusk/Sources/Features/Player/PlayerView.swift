@@ -200,6 +200,7 @@ private struct PlayerSessionView: View {
     private let playbackSource: PlaybackSource
     private let mediaDetails: PlexMediaDetails?
     private let debugInfo: PlaybackDebugInfo?
+    private let controlsTopSafeAreaInset: CGFloat
 
     init(
         engine: any PlaybackEngine,
@@ -216,6 +217,7 @@ private struct PlayerSessionView: View {
         self.playbackSource = playbackSource
         self.mediaDetails = mediaDetails
         self.debugInfo = debugInfo
+        self.controlsTopSafeAreaInset = Self.initialControlsTopSafeAreaInset
     }
 
     var body: some View {
@@ -322,6 +324,14 @@ private struct PlayerSessionView: View {
                 }
             }
         }
+        // On iPad, showing or hiding the status bar changes the system-provided
+        // top safe area. Keep the session rooted in the same full-height region
+        // and let the HUD reserve the captured inset itself, so neither the
+        // video nor centered overlays jump while the two fades run.
+        .ignoresSafeArea(
+            .container,
+            edges: controlsTopSafeAreaInset > 0 ? .top : []
+        )
         #if !os(tvOS)
         // Track the player's orientation from its own layout size (works on
         // iPhone rotation and iPad multitasking alike) so the per-orientation
@@ -577,8 +587,30 @@ private struct PlayerSessionView: View {
             debugInfo: debugInfo,
             scrubPreviewSource: scrubPreviewSource,
             hasActiveSkipMarker: hasBottomTrailingFocusControl,
+            controlsTopSafeAreaInset: controlsTopSafeAreaInset,
             onDismiss: dismissPlayer
         )
+    }
+
+    private static var initialControlsTopSafeAreaInset: CGFloat {
+        #if os(iOS)
+        guard UIDevice.current.userInterfaceIdiom == .pad else { return 0 }
+
+        let statusBarHeight = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter {
+                $0.activationState == .foregroundActive ||
+                    $0.activationState == .foregroundInactive
+            }
+            .compactMap { $0.statusBarManager?.statusBarFrame.height }
+            .max() ?? 0
+
+        // The session may be rebuilt during an engine handoff while its status
+        // bar is hidden, in which case UIKit can temporarily report zero.
+        return max(statusBarHeight, 24)
+        #else
+        return 0
+        #endif
     }
 
     private var interactionOverlay: some View {
