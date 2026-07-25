@@ -71,6 +71,35 @@ private struct PlayerSeekFeedbackOverlayView: View {
     }
 }
 
+private struct PlayerSpeedBoostOverlayView: View {
+    var body: some View {
+        VStack {
+            HStack(spacing: 8) {
+                Image(systemName: "forward.fill")
+                    .font(.caption.weight(.semibold))
+
+                Text("2× Speed")
+                    .font(.subheadline.weight(.semibold))
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .background(.ultraThinMaterial, in: Capsule())
+            .overlay {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.28), radius: 18, y: 8)
+            .padding(.top, 28)
+
+            Spacer()
+        }
+        .padding(.horizontal, 24)
+        .allowsHitTesting(false)
+        .accessibilityLabel("Playback speed 2x")
+    }
+}
+
 struct PlayerView: View {
     @Environment(PlaybackCoordinator.self) private var playback
 
@@ -238,6 +267,13 @@ private struct PlayerSessionView: View {
             } else {
                 interactionOverlay
 
+                #if !os(tvOS)
+                if viewModel.isSpeedBoostActive {
+                    PlayerSpeedBoostOverlayView()
+                        .transition(.scale(scale: 0.9).combined(with: .opacity))
+                }
+                #endif
+
                 if let seekFeedback = viewModel.seekFeedback,
                    shouldShowGlobalSeekFeedback {
                     PlayerSeekFeedbackOverlayView(presentation: seekFeedback)
@@ -305,6 +341,7 @@ private struct PlayerSessionView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.activeSkipMarker?.id)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPoster?.creditsMarkerID)
         .animation(.easeOut(duration: 0.14), value: viewModel.seekFeedback?.trigger)
+        .animation(.easeInOut(duration: 0.15), value: viewModel.isSpeedBoostActive)
         .animation(.easeInOut(duration: 0.25), value: playback.upNextPresentation?.episode.ratingKey)
         .animation(.easeInOut(duration: 0.2), value: playback.qualitySwitchError)
         .duskCaptureStatusBarAppearance()
@@ -577,6 +614,8 @@ private struct PlayerSessionView: View {
             forwardSeekInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
             onToggleControls: { viewModel.toggleControls() },
             onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) },
+            onSpeedBoostBegan: { viewModel.beginSpeedBoost() },
+            onSpeedBoostEnded: { viewModel.endSpeedBoost() },
             onPointerMoved: { viewModel.touchControls() }
         )
         .ignoresSafeArea()
@@ -1044,6 +1083,8 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
     var forwardSeekInterval: TimeInterval
     var onToggleControls: () -> Void
     var onDoubleTapSeek: (TimeInterval) -> Void
+    var onSpeedBoostBegan: () -> Bool
+    var onSpeedBoostEnded: () -> Void
     var onPointerMoved: () -> Void
 
     func makeCoordinator() -> Coordinator {
@@ -1054,6 +1095,7 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
         let view = PlayerTapInteractionView()
         view.backgroundColor = .clear
         view.addGestureRecognizer(context.coordinator.tapRecognizer)
+        view.addGestureRecognizer(context.coordinator.longPressRecognizer)
 
         // Hide the mouse pointer along with the on-screen controls, and bring
         // both back the instant the pointer moves. Without this the arrow cursor
@@ -1092,6 +1134,7 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
 
         var parent: PlayerTapInteractionOverlay
         let tapRecognizer = UITapGestureRecognizer()
+        let longPressRecognizer = UILongPressGestureRecognizer()
         let hoverRecognizer = UIHoverGestureRecognizer()
         weak var pointerInteraction: UIPointerInteraction?
 
@@ -1108,6 +1151,11 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
             tapRecognizer.numberOfTapsRequired = 1
             tapRecognizer.cancelsTouchesInView = false
             tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
+            longPressRecognizer.minimumPressDuration = 0.5
+            longPressRecognizer.allowableMovement = 24
+            longPressRecognizer.cancelsTouchesInView = false
+            longPressRecognizer.addTarget(self, action: #selector(handleLongPress(_:)))
+            tapRecognizer.require(toFail: longPressRecognizer)
             hoverRecognizer.addTarget(self, action: #selector(handleHover(_:)))
         }
 
@@ -1135,6 +1183,19 @@ private struct PlayerTapInteractionOverlay: UIViewRepresentable {
             switch recognizer.state {
             case .began, .changed:
                 parent.onPointerMoved()
+            default:
+                break
+            }
+        }
+
+        @objc
+        private func handleLongPress(_ recognizer: UILongPressGestureRecognizer) {
+            switch recognizer.state {
+            case .began:
+                guard parent.onSpeedBoostBegan() else { return }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            case .ended, .cancelled:
+                parent.onSpeedBoostEnded()
             default:
                 break
             }

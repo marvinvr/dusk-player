@@ -48,6 +48,7 @@ final class PlayerViewModel {
     var scrubPosition: TimeInterval = 0
     var seekFeedback: PlayerSeekFeedbackPresentation?
     var autoSkipCountdownProgress: Double?
+    var isSpeedBoostActive = false
 
     let engine: any PlaybackEngine
     /// The engine's rendering view. Refreshed from `sync()` when the engine
@@ -139,6 +140,7 @@ final class PlayerViewModel {
         showQualityPicker = false
         bufferingStartedAt = nil
         stalledPlaybackStartedAt = nil
+        endSpeedBoost()
         // Pause (not stop) so the coordinator can read final position
         // for timeline reporting before tearing down the engine. While a PiP
         // window is showing, the cover is dismissed but playback must keep

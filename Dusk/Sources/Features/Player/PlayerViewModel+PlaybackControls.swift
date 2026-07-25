@@ -92,6 +92,10 @@ extension PlayerViewModel {
     }
 
     func togglePlayPause() {
+        if isSpeedBoostActive {
+            endSpeedBoost()
+        }
+
         let targetState: PlaybackState = state == .playing ? .paused : .playing
         pendingPlaybackState = targetState
         pendingPlaybackStateExpiration = Date().addingTimeInterval(Self.pendingPlaybackStateGracePeriod)
@@ -109,6 +113,30 @@ extension PlayerViewModel {
             break
         }
         touchControls()
+    }
+
+    @discardableResult
+    func beginSpeedBoost() -> Bool {
+        guard state == .playing,
+              playbackError == nil,
+              !isSpeedBoostActive else {
+            return false
+        }
+
+        engine.setPlaybackRate(2)
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isSpeedBoostActive = true
+        }
+        return true
+    }
+
+    func endSpeedBoost() {
+        guard isSpeedBoostActive else { return }
+
+        engine.setPlaybackRate(1)
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isSpeedBoostActive = false
+        }
     }
 
     func togglePictureInPicture() {

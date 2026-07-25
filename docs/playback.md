@@ -140,7 +140,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 ## PlaybackEngine Contract
 - `PlaybackEngine` is `@MainActor` and implementations are `@Observable`.
 - Required lifecycle: `load(source:)`, `play`, `pause`, `stop`, `seek`,
-  `recoverFromStall`, and `handleReturnToForeground`.
+  `setPlaybackRate`, `recoverFromStall`, and `handleReturnToForeground`.
 - Required state: `state`, `currentTime`, `duration`, `isBuffering`, `error`,
   audio/subtitle track arrays, and selected track IDs.
 - `onPlaybackEnded` is owned by the coordinator. Engines call it once for a
@@ -175,6 +175,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 - `playerViewGeneration` is bumped when an engine replaces its rendering view
   mid-session (VLCKit entering PiP support mode); `PlayerViewModel.sync()`
   re-calls `makePlayerView()` when it changes.
+
+## iOS/iPadOS Hold-to-Speed
+- Holding the unobstructed player surface for 0.5 seconds temporarily switches
+  active playback to 2x. Lifting the finger or cancelling the gesture restores
+  1x; a short tap remains the normal controls gesture.
+- `PlayerTapInteractionOverlay` owns the UIKit long-press recognizer so begin,
+  end, movement cancellation, and competition with the existing single/double
+  taps are explicit. tvOS does not install this interaction.
+- `PlayerViewModel` owns the transient UI state and always restores 1x during
+  cleanup or before a play/pause toggle. Concrete rate changes stay behind
+  `PlaybackEngine`, with both AVPlayer and VLCKit resetting to 1x for a new or
+  stopped session so the temporary rate cannot leak across playback sessions.
 
 ## AVPlayer and VLCKit Split
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible

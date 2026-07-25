@@ -83,6 +83,10 @@ protocol PlaybackEngine: AnyObject {
     func pause()
     func stop()
     func seek(to position: TimeInterval)
+    /// Changes the rate of active playback without changing the paused/playing
+    /// state. The player UI uses this for its temporary iOS/iPadOS hold-to-2x
+    /// interaction and restores the normal `1` rate when the hold ends.
+    func setPlaybackRate(_ rate: Float)
 
     /// Seek with a precision hint. `precise: false` lets the engine trade
     /// frame accuracy for speed (e.g. AVPlayer snapping to a nearby keyframe

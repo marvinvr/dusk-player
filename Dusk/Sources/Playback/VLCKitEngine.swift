@@ -393,6 +393,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
+        mediaPlayer.rate = 1
         cancelAudioRevive()
         armSettleAudioRevive(initialBringUp: true)
         vlcReportedPlaying = false
@@ -529,6 +530,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         syncRendererPlaybackState()
     }
 
+    func setPlaybackRate(_ rate: Float) {
+        mediaPlayer.rate = max(rate, 0.1)
+    }
+
     func stop() {
         loadValidationTask?.cancel()
         loadValidationTask = nil
@@ -538,6 +543,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         clearPendingSeek()
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = false
+        mediaPlayer.rate = 1
         mediaPlayer.stop()
         rawVideoOutput?.detach()
         #if os(iOS)

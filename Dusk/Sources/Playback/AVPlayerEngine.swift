@@ -126,6 +126,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         removeTimeObserver()
         removePlaybackEndedObserver()
         removePlaybackStalledObserver()
+        player.defaultRate = 1
 
         currentAttemptContext = source.context
         currentSource = source
@@ -189,11 +190,24 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         state = .paused
     }
 
+    func setPlaybackRate(_ rate: Float) {
+        let resolvedRate = max(rate, 0.1)
+        player.defaultRate = resolvedRate
+
+        // Writing a non-zero current rate also starts a paused AVPlayer. Keep
+        // rate changes transport-neutral so releasing a hold cannot undo a
+        // pause delivered by another control in the meantime.
+        if player.timeControlStatus != .paused {
+            player.rate = resolvedRate
+        }
+    }
+
     func stop() {
         loadValidationTask?.cancel()
         loadValidationTask = nil
         removeEnhancedVideoOutput()
         player.pause()
+        player.defaultRate = 1
         removeTimeObserver()
         removePlaybackEndedObserver()
         removePlaybackStalledObserver()
