@@ -35,10 +35,9 @@ struct MainTabView: View {
             }
             .onChange(of: availableTabs) { _, newTabs in
                 guard !newTabs.contains(selectedTab) else { return }
-                // Tabs can fold into (or out of) More while the user is on
-                // them, e.g. with three libraries, queuing the first download
-                // replaces Downloads and Settings with More. Follow the fold
-                // instead of yanking the user back to Home.
+                // Active iPhone tabs are normally retained while the shell
+                // folds into or out of More. This remains the fallback for a
+                // destination that genuinely disappears with server state.
                 switch selectedTab {
                 case .search, .settings, .downloads:
                     selectedTab = newTabs.contains(.more) ? .more : .home
@@ -84,6 +83,38 @@ struct MainTabView: View {
     }
 
     private var availableTabs: [MainTabItem] {
+        let desiredTabs = desiredAvailableTabs
+
+        #if os(tvOS)
+        return desiredTabs
+        #else
+        guard UIDevice.current.userInterfaceIdiom != .pad else {
+            return desiredTabs
+        }
+
+        // Never tear down the selected tab just because a visibility change
+        // crosses the iPhone's five-tab limit. Replacing a selected More tab
+        // with Settings (or the reverse) destroys its NavigationStack while a
+        // pushed settings destination is still active. Keep that container
+        // mounted until the user selects a different tab; the desired layout
+        // takes effect immediately after the selection changes.
+        if selectedTab == .more, !desiredTabs.contains(.more) {
+            let trailingTabs: Set<MainTabItem> = [.downloads, .settings]
+            return desiredTabs.filter { !trailingTabs.contains($0) } + [.more]
+        }
+
+        if !desiredTabs.contains(selectedTab),
+           let moreIndex = desiredTabs.firstIndex(of: .more) {
+            var retainedTabs = desiredTabs
+            retainedTabs[moreIndex] = selectedTab
+            return retainedTabs
+        }
+
+        return desiredTabs
+        #endif
+    }
+
+    private var desiredAvailableTabs: [MainTabItem] {
         let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
         let availableTypes = availableLibraryTypes + (liveTVViewModel?.isAvailable == true ? [.liveTV] : [])
         let contentTabs = preferences.visibleLibraryTabs(from: availableTypes).map { type in
@@ -197,6 +228,9 @@ struct MainTabView: View {
             return
         }
 
+        if !desiredAvailableTabs.contains(selectedTab) {
+            setPath(NavigationPath(), for: selectedTab)
+        }
         selectedTab = tab
     }
 

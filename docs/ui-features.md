@@ -36,6 +36,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   content destinations stay flat and overflow content, Downloads, and Settings
   move into `MoreView` so the tab bar stays at five items. tvOS remains flat
   with a Search tab and no Downloads tab.
+- If a preference or availability change crosses the iPhone five-tab limit,
+  keep the currently selected flat destination or `MoreView` mounted until the
+  user selects another tab. Replacing the active container immediately tears
+  down its `NavigationStack` mid-push; defer the new flat/folded layout and clear
+  the retired path when leaving it.
 - The tvOS tab shell forces monochrome symbols and a dark focus tint in Dark mode so
   icons remain visible on the system's light navigation focus plate.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
