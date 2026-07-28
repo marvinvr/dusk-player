@@ -58,7 +58,17 @@ extension PlexService {
         channel: PlexLiveChannel
     ) async throws -> PlexLiveTuneResult {
         let path = "/livetv/dvrs/\(provider.dvrID)/channels/\(channel.tuneIdentifier)/tune"
-        let data = try await rawServerRequest(method: "POST", path: path)
+        let playbackSessionIdentifier = UUID().uuidString
+        let data = try await rawServerRequest(
+            method: "POST",
+            path: path,
+            queryItems: [
+                URLQueryItem(
+                    name: "X-Plex-Session-Identifier",
+                    value: playbackSessionIdentifier
+                ),
+            ]
+        )
         let response = try decodeJSON(PlexLiveTuneResponse.self, from: data)
         guard let tuned = response.MediaContainer.tunedSession,
               let sessionID = tuned.sessionID else {
@@ -88,6 +98,7 @@ extension PlexService {
 
         return PlexLiveTuneResult(
             sessionID: sessionID,
+            playbackSessionIdentifier: playbackSessionIdentifier,
             playbackURL: playbackURL,
             media: media,
             part: part

@@ -248,7 +248,7 @@ final class PlaybackCoordinator {
             ratingKey = program?.ratingKey ?? tune.sessionID
             activePlaybackServerID = plexService.currentServerIdentifier
             activePlaybackUsesLocalDownload = false
-            activePlaybackSessionIdentifier = tune.sessionID
+            activePlaybackSessionIdentifier = tune.playbackSessionIdentifier
             activeTranscodeSessionID = nil
             activeItemDetails = nil
             activeLiveTVContext = liveContext

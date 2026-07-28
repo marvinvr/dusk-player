@@ -29,7 +29,10 @@ struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
     let language: String?
 
     var tuneIdentifier: String {
-        vcn?.nilIfEmpty ?? id
+        // `id` is Plex's DVR ChannelMapping.channelKey. `vcn` is only the
+        // human-facing virtual channel number (for example "7.1") and is not
+        // a valid tune target on current cloud/XMLTV lineups.
+        id
     }
 
     var displayTitle: String {
@@ -46,8 +49,10 @@ struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = Self.decodeString(container, key: .id) ?? UUID().uuidString
-        gridKey = Self.decodeString(container, key: .gridKey) ?? id
+        let decodedID = Self.decodeString(container, key: .id)
+        let decodedGridKey = Self.decodeString(container, key: .gridKey)
+        id = decodedID ?? decodedGridKey ?? UUID().uuidString
+        gridKey = decodedGridKey ?? decodedID ?? id
         vcn = Self.decodeString(container, key: .vcn)
         isHD = Self.decodeBool(container, key: .isHD) ?? false
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
@@ -321,6 +326,7 @@ struct PlexLivePlaybackContext: Sendable, Hashable {
 
 struct PlexLiveTuneResult: Sendable {
     let sessionID: String
+    let playbackSessionIdentifier: String
     let playbackURL: URL
     let media: PlexMedia
     let part: PlexMediaPart

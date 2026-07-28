@@ -184,7 +184,10 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 - Date guide requests use the advertised grid key with repeated
   `channelGridKey` values plus `date=yyyy-MM-dd`. `getLiveTVGuide` batches
   station keys to keep URLs bounded.
-- Tuning is `POST /livetv/dvrs/{dvrID}/channels/{vcn-or-id}/tune`. Plex server
+- Tuning is `POST /livetv/dvrs/{dvrID}/channels/{channel-id}/tune`. The channel
+  `id` from the lineup is Plex's internal DVR mapping key; never substitute the
+  display-only `vcn` value. Send a distinct `X-Plex-Session-Identifier` with the
+  tune request and reuse it for timeline keepalives. Plex server
   versions return playable media under direct Metadata or nested
   `MediaSubscription > MediaGrabOperation > Metadata/Video`; nodes can be
   objects or arrays, so decoding must tolerate every form.
