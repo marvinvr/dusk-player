@@ -216,6 +216,26 @@ extension PlexService {
         )
     }
 
+    /// Starts a Plex HLS consumer for an already-tuned Live TV session.
+    /// Live session paths are virtual resources, so they must go through the
+    /// universal endpoint rather than direct-play URL validation for files.
+    func liveTVStreamURL(
+        sessionPath: String,
+        sessionIdentifier: String,
+        transcodeSessionID: String
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        try await transcodeLadderURL(
+            ratingKey: sessionPath,
+            mediaIndex: 0,
+            sourcePath: sessionPath,
+            mode: .directStreamFallback,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: nil,
+            subtitleStreamID: nil
+        )
+    }
+
     /// Plex session hygiene: tells the server to reap the transcoder for a
     /// finished session so it stops burning CPU/disk on the server. Errors are
     /// logged, never thrown — this call is best-effort by design.
@@ -265,6 +285,7 @@ private extension PlexService {
     func transcodeLadderURL(
         ratingKey: String,
         mediaIndex: Int,
+        sourcePath: String? = nil,
         mode: TranscodeDeliveryMode,
         sessionIdentifier: String,
         transcodeSessionID: String,
@@ -278,6 +299,7 @@ private extension PlexService {
         let queryItems = transcodeQueryItems(
             ratingKey: ratingKey,
             mediaIndex: mediaIndex,
+            sourcePath: sourcePath,
             mode: mode,
             sessionIdentifier: sessionIdentifier,
             transcodeSessionID: transcodeSessionID,
@@ -315,6 +337,7 @@ private extension PlexService {
     func transcodeQueryItems(
         ratingKey: String,
         mediaIndex: Int,
+        sourcePath: String?,
         mode: TranscodeDeliveryMode,
         sessionIdentifier: String,
         transcodeSessionID: String,
@@ -323,6 +346,8 @@ private extension PlexService {
         includeToken: Bool
     ) -> [URLQueryItem] {
         let clientProfileExtra = transcodeClientProfileExtra(for: mode)
+        let resolvedSourcePath = sourcePath ?? "/library/metadata/\(ratingKey)"
+        let isLiveTVSource = resolvedSourcePath.hasPrefix("/livetv/sessions/")
 
         // Manual transcodes force a full re-encode; the direct-stream fallback
         // lets the server copy the original tracks into HLS when it can.
@@ -334,7 +359,7 @@ private extension PlexService {
 
         var items: [URLQueryItem] = [
             URLQueryItem(name: "hasMDE", value: "1"),
-            URLQueryItem(name: "path", value: "/library/metadata/\(ratingKey)"),
+            URLQueryItem(name: "path", value: resolvedSourcePath),
             URLQueryItem(name: "mediaIndex", value: String(mediaIndex)),
             URLQueryItem(name: "partIndex", value: "0"),
             URLQueryItem(name: "protocol", value: "hls"),
@@ -350,7 +375,7 @@ private extension PlexService {
             URLQueryItem(name: "mediaBufferSize", value: "102400"),
             URLQueryItem(name: "session", value: transcodeSessionID),
             URLQueryItem(name: "transcodeSessionId", value: transcodeSessionID),
-            URLQueryItem(name: "copyts", value: "1"),
+            URLQueryItem(name: "copyts", value: isLiveTVSource ? "0" : "1"),
             URLQueryItem(name: "Accept-Language", value: "en"),
             URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier),
             URLQueryItem(name: "X-Plex-Client-Profile-Extra", value: clientProfileExtra),
@@ -368,6 +393,10 @@ private extension PlexService {
             URLQueryItem(name: "X-Plex-Platform-Version", value: Self.transcodeClientPlatformVersion),
             URLQueryItem(name: "X-Plex-Device", value: Self.transcodeClientDevice),
         ]
+
+        if isLiveTVSource {
+            items.append(URLQueryItem(name: "offset", value: "-1"))
+        }
 
         if let subtitleStreamID {
             items.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))

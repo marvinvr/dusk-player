@@ -54,10 +54,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## Live TV Play Flow
 
-- `PlaybackCoordinator.playLiveTV` presents the same cancellable loading cover,
-  asks `PlexService.tuneLiveTV` for a DVR session, and plays its consumer HLS
-  URL. `StreamResolver.evaluateLiveTV` ignores the source-file container because
-  Plex already packaged HLS, while retaining codec and force-engine rules.
+- `PlaybackCoordinator.playLiveTV` presents the same cancellable loading cover
+  and asks `PlexService.tuneLiveTV` for a DVR session. The tuned session path
+  goes through Plex's universal HLS endpoint with direct stream enabled; it is
+  not validated as a library file. `StreamResolver.evaluateLiveTV` ignores the
+  source-file container because Plex already packaged HLS, while retaining
+  codec and force-engine rules.
 - `PlaybackSource.liveTVContext` carries the lineup, channel/program, and
   session ID into the player. The header and gear menu use it for identity and
   channel switching by finalizing and re-tuning.

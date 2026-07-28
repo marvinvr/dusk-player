@@ -83,22 +83,45 @@ extension PlexService {
         guard let part = media.firstAvailablePart else {
             throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")
         }
-        let streamPath = tuned.playbackPath
-            ?? "\(sessionPath)/\(clientIdentifier)/index.m3u8"
-        guard let baseURL = serverBaseURL,
-              let playbackURL = buildURL(
-                base: baseURL.absoluteString,
-                path: streamPath,
-                queryItems: preferredServerToken.map {
-                    [URLQueryItem(name: "X-Plex-Token", value: $0)]
-                }
-              ) else {
-            throw PlexServiceError.invalidURL
+
+        let requestedTranscodeSessionID = UUID().uuidString
+        let liveStream = try await liveTVStreamURL(
+            sessionPath: sessionPath,
+            sessionIdentifier: playbackSessionIdentifier,
+            transcodeSessionID: requestedTranscodeSessionID
+        )
+
+        let playbackURL: URL
+        let transcodeSessionID: String?
+        switch liveStream.outcome {
+        case .transcodeAvailable:
+            playbackURL = liveStream.url
+            transcodeSessionID = requestedTranscodeSessionID
+        case .directPlayOnly:
+            let streamPath = tuned.playbackPath
+                ?? "\(sessionPath)/\(clientIdentifier)/index.m3u8"
+            guard let baseURL = serverBaseURL,
+                  let directURL = buildURL(
+                    base: baseURL.absoluteString,
+                    path: streamPath,
+                    queryItems: preferredServerToken.map {
+                        [URLQueryItem(name: "X-Plex-Token", value: $0)]
+                    }
+                  ) else {
+                throw PlexServiceError.invalidURL
+            }
+            playbackURL = directURL
+            transcodeSessionID = nil
+        case .failed(let message):
+            throw PlexServiceError.decodingError(
+                message?.nilIfEmpty ?? "Plex could not create a Live TV stream."
+            )
         }
 
         return PlexLiveTuneResult(
             sessionID: sessionID,
             playbackSessionIdentifier: playbackSessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
             playbackURL: playbackURL,
             media: media,
             part: part

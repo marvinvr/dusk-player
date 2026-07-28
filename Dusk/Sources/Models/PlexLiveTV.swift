@@ -327,6 +327,7 @@ struct PlexLivePlaybackContext: Sendable, Hashable {
 struct PlexLiveTuneResult: Sendable {
     let sessionID: String
     let playbackSessionIdentifier: String
+    let transcodeSessionID: String?
     let playbackURL: URL
     let media: PlexMedia
     let part: PlexMediaPart

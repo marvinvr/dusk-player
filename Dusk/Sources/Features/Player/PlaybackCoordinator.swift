@@ -249,7 +249,7 @@ final class PlaybackCoordinator {
             activePlaybackServerID = plexService.currentServerIdentifier
             activePlaybackUsesLocalDownload = false
             activePlaybackSessionIdentifier = tune.playbackSessionIdentifier
-            activeTranscodeSessionID = nil
+            activeTranscodeSessionID = tune.transcodeSessionID
             activeItemDetails = nil
             activeLiveTVContext = liveContext
             engine = newEngine
