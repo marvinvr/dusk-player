@@ -185,11 +185,13 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   `channelGridKey` values plus `date=yyyy-MM-dd`. `getLiveTVGuide` batches
   station keys to keep URLs bounded.
 - Tuning is `POST /livetv/dvrs/{dvrID}/channels/{vcn-or-id}/tune`. Plex server
-  versions return either direct Metadata media or the older nested
-  MediaSubscription shape, so decoding must tolerate both.
-- Playback consumes
-  `/livetv/sessions/{sessionID}/{clientIdentifier}/index.m3u8`, with the server
-  token in the URL because engines make media requests directly.
+  versions return playable media under direct Metadata or nested
+  `MediaSubscription > MediaGrabOperation > Metadata/Video`; nodes can be
+  objects or arrays, so decoding must tolerate every form.
+- Prefer the server-returned live-session `Part.key` for playback because it can
+  include a consumer path and live-edge offset. Fall back to
+  `/livetv/sessions/{sessionID}/{clientIdentifier}/index.m3u8`; in both cases,
+  include the server token because engines make media requests directly.
 - Program-guide history is metadata, not a recording catalogue. A tuned HLS
   session can seek only inside Plex's sliding time-shift window; never imply
   that an arbitrary past guide item is playable.

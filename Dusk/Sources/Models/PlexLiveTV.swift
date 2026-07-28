@@ -415,31 +415,128 @@ struct PlexLiveTuneResponse: Decodable {
     let MediaContainer: Container
 
     struct Container: Decodable {
-        let Metadata: [Metadata]?
-        let MediaSubscription: [MediaSubscription]?
+        let Metadata: [PlayableMetadata]
+        let MediaSubscription: [MediaSubscription]
+        let Video: [PlayableMetadata]
+        let message: String?
 
-        var tunedMedia: TuneMedia? {
-            Metadata?.lazy.compactMap { $0.Media?.first }.first
-                ?? MediaSubscription?.lazy
-                    .compactMap { $0.MediaGrabOperation?.first?.Video?.first?.Media?.first }
-                    .first
+        private enum CodingKeys: String, CodingKey {
+            case Metadata, MediaSubscription, Video, message
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            Metadata = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Metadata)
+            MediaSubscription = container.decodeOneOrMany(
+                PlexLiveTuneResponse.MediaSubscription.self,
+                forKey: .MediaSubscription
+            )
+            Video = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Video)
+            message = try container.decodeIfPresent(String.self, forKey: .message)
+        }
+
+        var tunedSession: TunedSession? {
+            for subscription in MediaSubscription {
+                for operation in subscription.MediaGrabOperation {
+                    if let session = operation.Metadata.lazy.compactMap(\.tunedSession).first {
+                        return session
+                    }
+                    if let session = operation.Video.lazy.compactMap(\.tunedSession).first {
+                        return session
+                    }
+                }
+            }
+
+            return Metadata.lazy.compactMap(\.tunedSession).first
+                ?? Video.lazy.compactMap(\.tunedSession).first
         }
     }
 
-    struct Metadata: Decodable {
-        let Media: [TuneMedia]?
+    struct PlayableMetadata: Decodable {
+        let key: String?
+        let Media: [TuneMedia]
+
+        private enum CodingKeys: String, CodingKey {
+            case key, Media
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            key = try container.decodeIfPresent(String.self, forKey: .key)
+            Media = container.decodeOneOrMany(TuneMedia.self, forKey: .Media)
+        }
+
+        var tunedSession: TunedSession? {
+            let media = Media.first
+            guard let sessionPath = Self.liveSessionPath(from: key)
+                    ?? media?.sessionPath else {
+                return nil
+            }
+            return TunedSession(
+                sessionPath: sessionPath,
+                playbackPath: media?.playbackPath,
+                media: media
+            )
+        }
+
+        static func liveSessionPath(from value: String?) -> String? {
+            guard let value,
+                  let range = value.range(of: "/livetv/sessions/") else {
+                return nil
+            }
+            let livePath = value[range.lowerBound...]
+            let components = livePath
+                .split(separator: "?", maxSplits: 1)
+                .first?
+                .split(separator: "/", omittingEmptySubsequences: true)
+            guard let components, components.count >= 3 else { return nil }
+            return "/" + components.prefix(3).joined(separator: "/")
+        }
     }
 
     struct MediaSubscription: Decodable {
-        let MediaGrabOperation: [MediaGrabOperation]?
+        let MediaGrabOperation: [MediaGrabOperation]
+
+        private enum CodingKeys: String, CodingKey {
+            case MediaGrabOperation
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            MediaGrabOperation = container.decodeOneOrMany(
+                PlexLiveTuneResponse.MediaGrabOperation.self,
+                forKey: .MediaGrabOperation
+            )
+        }
     }
 
     struct MediaGrabOperation: Decodable {
-        let Video: [Video]?
+        let Metadata: [PlayableMetadata]
+        let Video: [PlayableMetadata]
+
+        private enum CodingKeys: String, CodingKey {
+            case Metadata, Video
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            Metadata = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Metadata)
+            Video = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Video)
+        }
     }
 
-    struct Video: Decodable {
-        let Media: [TuneMedia]?
+    struct TunedSession {
+        let sessionPath: String
+        let playbackPath: String?
+        let media: TuneMedia?
+
+        var sessionID: String? {
+            sessionPath
+                .split(separator: "/", omittingEmptySubsequences: true)
+                .last
+                .map(String.init)?
+                .nilIfEmpty
+        }
     }
 
     struct TuneMedia: Decodable {
@@ -455,6 +552,22 @@ struct PlexLiveTuneResponse: Decodable {
         let bitrate: Int?
         let duration: Int?
         let Part: [TunePart]?
+
+        var sessionPath: String? {
+            if let uuid = uuid?.nilIfEmpty {
+                return "/livetv/sessions/\(uuid)"
+            }
+            return Part?.lazy
+                .compactMap(\.key)
+                .compactMap(PlayableMetadata.liveSessionPath)
+                .first
+        }
+
+        var playbackPath: String? {
+            Part?.lazy
+                .compactMap(\.key)
+                .first { $0.contains("/livetv/sessions/") }
+        }
 
         func makeMedia(sessionPath: String) -> PlexMedia {
             let convertedParts = (Part ?? []).enumerated().map { index, part in
@@ -575,5 +688,20 @@ struct PlexLiveTuneResponse: Decodable {
                 key: nil
             )
         }
+    }
+}
+
+private extension KeyedDecodingContainer {
+    func decodeOneOrMany<T: Decodable>(
+        _ type: T.Type,
+        forKey key: Key
+    ) -> [T] {
+        if let values = try? decode([T].self, forKey: key) {
+            return values
+        }
+        if let value = try? decode(T.self, forKey: key) {
+            return [value]
+        }
+        return []
     }
 }

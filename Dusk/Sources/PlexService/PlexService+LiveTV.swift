@@ -60,17 +60,21 @@ extension PlexService {
         let path = "/livetv/dvrs/\(provider.dvrID)/channels/\(channel.tuneIdentifier)/tune"
         let data = try await rawServerRequest(method: "POST", path: path)
         let response = try decodeJSON(PlexLiveTuneResponse.self, from: data)
-        guard let tuned = response.MediaContainer.tunedMedia,
-              let sessionID = tuned.uuid?.nilIfEmpty else {
-            throw PlexServiceError.decodingError("Plex did not return a Live TV session.")
+        guard let tuned = response.MediaContainer.tunedSession,
+              let sessionID = tuned.sessionID else {
+            let message = response.MediaContainer.message?.nilIfEmpty
+                ?? "Plex did not return a Live TV session."
+            throw PlexServiceError.decodingError(message)
         }
 
-        let sessionPath = "/livetv/sessions/\(sessionID)"
-        let media = tuned.makeMedia(sessionPath: sessionPath)
+        let sessionPath = tuned.sessionPath
+        let media = tuned.media?.makeMedia(sessionPath: sessionPath)
+            ?? makeFallbackLiveTVMedia(sessionPath: sessionPath)
         guard let part = media.firstAvailablePart else {
             throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")
         }
-        let streamPath = "\(sessionPath)/\(clientIdentifier)/index.m3u8"
+        let streamPath = tuned.playbackPath
+            ?? "\(sessionPath)/\(clientIdentifier)/index.m3u8"
         guard let baseURL = serverBaseURL,
               let playbackURL = buildURL(
                 base: baseURL.absoluteString,
@@ -87,6 +91,38 @@ extension PlexService {
             playbackURL: playbackURL,
             media: media,
             part: part
+        )
+    }
+
+    private func makeFallbackLiveTVMedia(sessionPath: String) -> PlexMedia {
+        let part = PlexMediaPart(
+            id: 0,
+            key: sessionPath,
+            file: nil,
+            size: nil,
+            container: "mpegts",
+            duration: nil,
+            videoProfile: nil,
+            audioProfile: nil,
+            accessible: true,
+            exists: true,
+            streams: []
+        )
+        return PlexMedia(
+            id: 0,
+            container: "hls",
+            videoCodec: nil,
+            audioCodec: nil,
+            videoResolution: nil,
+            videoProfile: nil,
+            audioProfile: nil,
+            audioChannels: nil,
+            width: nil,
+            height: nil,
+            bitrate: nil,
+            duration: nil,
+            optimizedForStreaming: nil,
+            parts: [part]
         )
     }
 
