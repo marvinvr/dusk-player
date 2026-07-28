@@ -52,7 +52,8 @@ connected -> MainTabView
 `PlayerView` as a full-screen cover when `PlaybackCoordinator.showPlayer` is
 true. App-wide routes are declared in `AppNavigationRoute`; new top-level
 destinations should normally be added there. Tabs are per library type (Movies,
-TV Shows, Videos); iOS/iPadOS expose Search from Home/library toolbars, while
+TV Shows, Videos), with visibility and order supplied by `UserPreferences`;
+iOS/iPadOS expose Search from Home/library toolbars, while
 tvOS keeps it as a flat destination. iPadOS keeps every remaining destination
 flat. If three libraries and Downloads are present on iPhone, `MoreView` absorbs
 Downloads and Settings to stay within five tabs.

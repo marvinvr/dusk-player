@@ -135,6 +135,18 @@ struct SettingsTVView: View {
                     }
                 }
 
+                TVSettingsSection(
+                    title: "Navigation",
+                    footer: SettingsSupport.libraryTabsFooterText
+                ) {
+                    TVSettingsNavigationRow(
+                        title: "Library Tabs",
+                        detail: SettingsSupport.libraryTabsSummary(preferences)
+                    ) {
+                        LibraryTabSettingsView()
+                    }
+                }
+
                 TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
                     TVSettingsMenuRow(
                         title: "Max Resolution",

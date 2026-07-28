@@ -31,6 +31,8 @@ final class UserPreferences {
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
         static let appearanceMode = "appearanceMode"
+        static let libraryTabOrder = "libraryTabOrder"
+        static let hiddenLibraryTabs = "hiddenLibraryTabs"
         static let downloadMaxResolution = "downloadMaxResolution"
         static let downloadsWifiOnly = "downloadsWifiOnly"
         static let maximumActiveDownloads = "maximumActiveDownloads"
@@ -163,6 +165,61 @@ final class UserPreferences {
     /// App-wide appearance override.
     var appearanceMode: AppearanceMode {
         didSet { UserDefaults.standard.set(appearanceMode.rawValue, forKey: Keys.appearanceMode) }
+    }
+
+    /// The preferred order of library destinations in the main tab bar.
+    /// All supported types remain in this array, including hidden ones, so a
+    /// library returns to its previous position when it is shown again.
+    private(set) var libraryTabOrder: [PlexLibraryType] {
+        didSet {
+            UserDefaults.standard.set(
+                libraryTabOrder.map(\.rawValue),
+                forKey: Keys.libraryTabOrder
+            )
+        }
+    }
+
+    /// Library destinations excluded from the main tab bar.
+    private var hiddenLibraryTabs: Set<PlexLibraryType> {
+        didSet {
+            UserDefaults.standard.set(
+                hiddenLibraryTabs.map(\.rawValue).sorted(),
+                forKey: Keys.hiddenLibraryTabs
+            )
+        }
+    }
+
+    func visibleLibraryTabs(from availableTypes: [PlexLibraryType]) -> [PlexLibraryType] {
+        let availableTypes = Set(availableTypes)
+        return libraryTabOrder.filter {
+            availableTypes.contains($0) && !hiddenLibraryTabs.contains($0)
+        }
+    }
+
+    func isLibraryTabVisible(_ libraryType: PlexLibraryType) -> Bool {
+        !hiddenLibraryTabs.contains(libraryType)
+    }
+
+    func setLibraryTabVisible(_ isVisible: Bool, for libraryType: PlexLibraryType) {
+        if isVisible {
+            hiddenLibraryTabs.remove(libraryType)
+        } else {
+            hiddenLibraryTabs.insert(libraryType)
+        }
+    }
+
+    func moveLibraryTabs(fromOffsets: IndexSet, toOffset: Int) {
+        libraryTabOrder.move(fromOffsets: fromOffsets, toOffset: toOffset)
+    }
+
+    func moveLibraryTab(_ libraryType: PlexLibraryType, to destinationIndex: Int) {
+        guard let sourceIndex = libraryTabOrder.firstIndex(of: libraryType) else { return }
+
+        var reorderedTabs = libraryTabOrder
+        let movedTab = reorderedTabs.remove(at: sourceIndex)
+        let clampedIndex = min(max(destinationIndex, 0), reorderedTabs.count)
+        reorderedTabs.insert(movedTab, at: clampedIndex)
+        libraryTabOrder = reorderedTabs
     }
 
     /// Maximum version quality selected for downloads.
@@ -336,6 +393,8 @@ final class UserPreferences {
             appearanceMode = .system
             #endif
         }
+        let libraryTabOrder = Self.storedLibraryTabOrder(defaults: defaults)
+        let hiddenLibraryTabs = Self.storedHiddenLibraryTabs(defaults: defaults)
 
         self.maxResolution = maxResolution
         self.defaultSubtitleLanguage = defaultSubtitleLanguage
@@ -355,6 +414,8 @@ final class UserPreferences {
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit
         self.appearanceMode = appearanceMode
+        self.libraryTabOrder = libraryTabOrder
+        self.hiddenLibraryTabs = hiddenLibraryTabs
         self.downloadMaxResolution = downloadMaxResolution
         self.downloadsWifiOnly = downloadsWifiOnly
         self.maximumActiveDownloads = maximumActiveDownloads
@@ -395,6 +456,25 @@ final class UserPreferences {
     ) -> PlayerSeekInterval {
         guard defaults.object(forKey: key) != nil else { return fallback }
         return PlayerSeekInterval(rawValue: defaults.integer(forKey: key)) ?? fallback
+    }
+
+    private static func storedLibraryTabOrder(defaults: UserDefaults) -> [PlexLibraryType] {
+        let storedTypes = (defaults.stringArray(forKey: Keys.libraryTabOrder) ?? [])
+            .compactMap(PlexLibraryType.init(rawValue:))
+
+        var normalizedTypes: [PlexLibraryType] = []
+        for libraryType in storedTypes + PlexLibraryType.allCases
+        where !normalizedTypes.contains(libraryType) {
+            normalizedTypes.append(libraryType)
+        }
+        return normalizedTypes
+    }
+
+    private static func storedHiddenLibraryTabs(defaults: UserDefaults) -> Set<PlexLibraryType> {
+        Set(
+            (defaults.stringArray(forKey: Keys.hiddenLibraryTabs) ?? [])
+                .compactMap(PlexLibraryType.init(rawValue:))
+        )
     }
 
     private static func storedContinuousPlayCountdown(

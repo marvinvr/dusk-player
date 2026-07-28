@@ -23,8 +23,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   navigation paths and feature view models cannot retain the previous user's data.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
-- Available tabs are data-driven: every present library type (Movies, TV Shows,
-  Videos) gets its own tab, and Downloads appears only when visible and populated.
+- Available tabs are data-driven: every present and user-visible library type
+  (Movies, TV Shows, Videos) gets its own tab in the user's preferred order, and
+  Downloads appears only when visible and populated. Library-tab visibility and
+  order are local `UserPreferences`; missing preferences preserve the original
+  all-visible Movies / TV Shows / Videos order.
 - iOS/iPadOS use the modern native `Tab` API with SF Symbols and open Search
   from a circular trailing toolbar action on Home and immediately before Browse
   on each library root, leaving Search out of the tab bar. iPadOS keeps every
@@ -331,6 +334,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server list, server picker, Home-user picker presentation, image cache status,
   app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
+- Settings → Navigation → Library Tabs controls the visibility and order of the
+  Movies, TV Shows, and Videos destinations on every platform. iOS/iPadOS use
+  native list editing for order; tvOS uses position menus. Hidden types stay in
+  the saved order so restoring one puts it back where the user placed it.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.
   Add new user-facing preferences there with a key, default loading, and persistence.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in `UserPreferences`; do not

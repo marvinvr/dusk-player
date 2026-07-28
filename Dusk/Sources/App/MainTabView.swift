@@ -5,6 +5,7 @@ struct MainTabView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(UserPreferences.self) private var preferences
     @State private var selectedTab: MainTabItem = .home
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
@@ -36,7 +37,7 @@ struct MainTabView: View {
                 case .search, .settings, .downloads:
                     selectedTab = newTabs.contains(.more) ? .more : .home
                 case .more:
-                    selectedTab = newTabs.contains(.search) ? .search : .home
+                    selectedTab = newTabs.contains(.settings) ? .settings : .home
                 default:
                     selectedTab = .home
                 }
@@ -77,7 +78,8 @@ struct MainTabView: View {
     }
 
     private var availableTabs: [MainTabItem] {
-        let libraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
+        let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
+        let libraryTypes = preferences.visibleLibraryTabs(from: availableLibraryTypes)
         let baseTabs: [MainTabItem] = [.home] + libraryTypes.map(MainTabItem.library)
 
         #if os(tvOS)

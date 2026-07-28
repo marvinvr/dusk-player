@@ -11,6 +11,7 @@ enum SettingsSupport {
 
     static let playbackAdvancedFooterText = "Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
     static let downloadsFooterText = "Download Quality selects which Plex media version is saved. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
+    static let libraryTabsFooterText = "Choose which library destinations appear in the navigation bar and the order they use."
     static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app."
     static let aboutFooterText = "Dusk is open source. Visit the repository, learn more about Marvin, or send feedback by email."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
@@ -44,6 +45,18 @@ enum SettingsSupport {
 
     static var passoutProtectionEpisodeOptions: [Int?] {
         [nil] + Array(1...10).map(Optional.some)
+    }
+
+    @MainActor
+    static func libraryTabsSummary(_ preferences: UserPreferences) -> String {
+        let visibleCount = preferences.libraryTabOrder.filter {
+            preferences.isLibraryTabVisible($0)
+        }.count
+
+        if visibleCount == preferences.libraryTabOrder.count {
+            return "All Visible"
+        }
+        return "\(visibleCount) Visible"
     }
 
     @MainActor

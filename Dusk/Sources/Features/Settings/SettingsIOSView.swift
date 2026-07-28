@@ -182,6 +182,29 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
+                NavigationLink {
+                    LibraryTabSettingsView()
+                } label: {
+                    HStack {
+                        Text("Library Tabs")
+                            .foregroundStyle(Color.duskTextPrimary)
+
+                        Spacer()
+
+                        Text(SettingsSupport.libraryTabsSummary(preferences))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+            } header: {
+                Text("Navigation")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.libraryTabsFooterText)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
                 Picker("Max Resolution", selection: $preferences.maxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
                         Text(resolution.displayName).tag(resolution)
