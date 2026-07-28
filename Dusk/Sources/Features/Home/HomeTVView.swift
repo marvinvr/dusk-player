@@ -16,6 +16,8 @@ struct HomeTVView: View {
     let serverName: String?
     let recentlyAddedInlineItemLimit: Int
     let heroSelectionResetRevision: Int
+    let liveTVViewModel: LiveTVViewModel
+    let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
     let play: (PlexItem) -> Void
 
     private enum FocusTarget: Hashable {
@@ -125,6 +127,8 @@ struct HomeTVView: View {
                     }
 
                     LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
+                        LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
+
                         ForEach(viewModel.hubs) { hub in
                             let items = viewModel.inlineItems(
                                 in: hub,
@@ -213,6 +217,9 @@ struct HomeTVView: View {
             .defaultFocus($focusedTarget, .heroPrimaryAction)
             .task(id: heroItemIDs) {
                 await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
+            }
+            .task {
+                await liveTVViewModel.loadNowPlaying(force: true)
             }
         }
     }

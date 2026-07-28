@@ -172,6 +172,28 @@ Where to edit:
   `PlexService+Playback.swift`.
 - New response shapes: `Dusk/Sources/Models/`, near the closest model.
 
+## Live TV And Guide Endpoints
+
+Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
+
+- Discover the selected server's EPG provider through `/media/providers`.
+  The provider advertises its grid path and DVR identifier; do not hard-code
+  `tv.plex.providers.epg.*` identifiers.
+- Load stations from the provider's `/lineups/dvr/channels` path and currently
+  airing programs from `/watchnow/all`.
+- Date guide requests use the advertised grid key with repeated
+  `channelGridKey` values plus `date=yyyy-MM-dd`. `getLiveTVGuide` batches
+  station keys to keep URLs bounded.
+- Tuning is `POST /livetv/dvrs/{dvrID}/channels/{vcn-or-id}/tune`. Plex server
+  versions return either direct Metadata media or the older nested
+  MediaSubscription shape, so decoding must tolerate both.
+- Playback consumes
+  `/livetv/sessions/{sessionID}/{clientIdentifier}/index.m3u8`, with the server
+  token in the URL because engines make media requests directly.
+- Program-guide history is metadata, not a recording catalogue. A tuned HLS
+  session can seek only inside Plex's sliding time-shift window; never imply
+  that an arbitrary past guide item is playable.
+
 ## Playback URL Handling
 File: `PlexService+Playback.swift`.
 - Direct play uses `{serverBaseURL}{part.key}` plus `X-Plex-Token` in the URL

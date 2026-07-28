@@ -78,7 +78,8 @@ extension PlaybackCoordinator {
             durationMs: durationMs
         )
 
-        if !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
+        if activeLiveTVContext == nil,
+           !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
             hasScrobbled = true
             if activePlaybackUsesLocalDownload {
                 offlinePlaybackSyncManager?.recordProgress(
@@ -118,9 +119,11 @@ extension PlaybackCoordinator {
             }
         } else {
             let sessionIdentifier = activePlaybackSessionIdentifier
+            let timelineKey = activeLiveTVContext?.sessionPath
             Task {
                 await plexService.reportTimeline(
                     ratingKey: ratingKey,
+                    key: timelineKey,
                     state: state,
                     timeMs: timeMs,
                     durationMs: durationMs,

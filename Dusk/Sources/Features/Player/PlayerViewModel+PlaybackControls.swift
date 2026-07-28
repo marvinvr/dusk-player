@@ -57,6 +57,7 @@ extension PlayerViewModel {
             currentTime = engine.currentTime
         }
         duration = engine.duration
+        seekableRange = engine.seekableTimeRange
         isBuffering = engine.isBuffering
         playbackError = engine.error
         videoEnhancementStatus = engine.videoEnhancementStatus
@@ -117,7 +118,8 @@ extension PlayerViewModel {
 
     @discardableResult
     func beginSpeedBoost() -> Bool {
-        guard state == .playing,
+        guard liveTVContext == nil,
+              state == .playing,
               playbackError == nil,
               !isSpeedBoostActive else {
             return false
@@ -219,7 +221,7 @@ extension PlayerViewModel {
     }
 
     func updateScrub(to position: TimeInterval) {
-        scrubPosition = max(0, min(position, duration))
+        scrubPosition = clampedSeekPosition(position)
     }
 
     func endScrub() {
@@ -326,12 +328,7 @@ extension PlayerViewModel {
     /// skips, tvOS preview commits); `seek(by:)` opts transient double-tap and
     /// remote skip jumps into the engine's fast keyframe-tolerant path.
     func seek(to position: TimeInterval, revealControls: Bool, precise: Bool = true) {
-        let clampedPosition: TimeInterval
-        if duration > 0 {
-            clampedPosition = min(max(position, 0), duration)
-        } else {
-            clampedPosition = max(position, 0)
-        }
+        let clampedPosition = clampedSeekPosition(position)
 
         engine.seek(to: clampedPosition, precise: precise)
 
@@ -340,6 +337,21 @@ extension PlayerViewModel {
         } else if showControls {
             scheduleHide()
         }
+    }
+
+    func clampedSeekPosition(_ position: TimeInterval) -> TimeInterval {
+        if let seekableRange {
+            return min(max(position, seekableRange.lowerBound), seekableRange.upperBound)
+        }
+        if duration > 0 {
+            return min(max(position, 0), duration)
+        }
+        return max(position, 0)
+    }
+
+    func goLive() {
+        guard let seekableRange else { return }
+        seek(to: max(seekableRange.lowerBound, seekableRange.upperBound - 1), revealControls: true)
     }
 
     // MARK: - Auto-Skip

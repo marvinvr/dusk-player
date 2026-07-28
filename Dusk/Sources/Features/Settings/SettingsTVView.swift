@@ -140,7 +140,7 @@ struct SettingsTVView: View {
                     footer: SettingsSupport.libraryTabsFooterText
                 ) {
                     TVSettingsNavigationRow(
-                        title: "Library Tabs",
+                        title: "Navigation Tabs",
                         detail: SettingsSupport.libraryTabsSummary(preferences)
                     ) {
                         LibraryTabSettingsView()

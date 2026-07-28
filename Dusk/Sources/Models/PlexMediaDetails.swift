@@ -259,6 +259,38 @@ struct PlexMedia: Codable, Sendable, Identifiable {
         case parts = "Part"
     }
 
+    init(
+        id: Int,
+        container: String?,
+        videoCodec: String?,
+        audioCodec: String?,
+        videoResolution: String?,
+        videoProfile: String?,
+        audioProfile: String?,
+        audioChannels: Int?,
+        width: Int?,
+        height: Int?,
+        bitrate: Int?,
+        duration: Int?,
+        optimizedForStreaming: Int?,
+        parts: [PlexMediaPart]
+    ) {
+        self.id = id
+        self.container = container
+        self.videoCodec = videoCodec
+        self.audioCodec = audioCodec
+        self.videoResolution = videoResolution
+        self.videoProfile = videoProfile
+        self.audioProfile = audioProfile
+        self.audioChannels = audioChannels
+        self.width = width
+        self.height = height
+        self.bitrate = bitrate
+        self.duration = duration
+        self.optimizedForStreaming = optimizedForStreaming
+        self.parts = parts
+    }
+
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decode(Int.self, forKey: .id)
@@ -315,6 +347,32 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
         case id, key, file, size, container, duration
         case videoProfile, audioProfile, accessible, exists
         case streams = "Stream"
+    }
+
+    init(
+        id: Int,
+        key: String,
+        file: String?,
+        size: Int?,
+        container: String?,
+        duration: Int?,
+        videoProfile: String?,
+        audioProfile: String?,
+        accessible: Bool?,
+        exists: Bool?,
+        streams: [PlexStream]
+    ) {
+        self.id = id
+        self.key = key
+        self.file = file
+        self.size = size
+        self.container = container
+        self.duration = duration
+        self.videoProfile = videoProfile
+        self.audioProfile = audioProfile
+        self.accessible = accessible
+        self.exists = exists
+        self.streams = streams
     }
 
     init(from decoder: Decoder) throws {
@@ -428,6 +486,74 @@ struct PlexStream: Codable, Sendable, Identifiable {
         case isForced = "forced"
         case isHearingImpaired = "hearingImpaired"
         case key
+    }
+
+    init(
+        id: Int,
+        streamType: PlexStreamType,
+        codec: String?,
+        displayTitle: String?,
+        extendedDisplayTitle: String?,
+        language: String?,
+        languageCode: String?,
+        languageTag: String?,
+        isSelected: Bool?,
+        isDefault: Bool?,
+        width: Int?,
+        height: Int?,
+        bitrate: Int?,
+        frameRate: Double?,
+        bitDepth: Int?,
+        colorSpace: String?,
+        colorRange: String?,
+        colorPrimaries: String?,
+        colorTrc: String?,
+        chromaSubsampling: String?,
+        profile: String?,
+        level: Int?,
+        doviPresent: Bool?,
+        doviProfile: Int?,
+        doviLevel: Int?,
+        doviBLCompatID: Int?,
+        channels: Int?,
+        channelLayout: String?,
+        samplingRate: Int?,
+        isForced: Bool?,
+        isHearingImpaired: Bool?,
+        key: String?
+    ) {
+        self.id = id
+        self.streamType = streamType
+        self.codec = codec
+        self.displayTitle = displayTitle
+        self.extendedDisplayTitle = extendedDisplayTitle
+        self.language = language
+        self.languageCode = languageCode
+        self.languageTag = languageTag
+        self.isSelected = isSelected
+        self.isDefault = isDefault
+        self.width = width
+        self.height = height
+        self.bitrate = bitrate
+        self.frameRate = frameRate
+        self.bitDepth = bitDepth
+        self.colorSpace = colorSpace
+        self.colorRange = colorRange
+        self.colorPrimaries = colorPrimaries
+        self.colorTrc = colorTrc
+        self.chromaSubsampling = chromaSubsampling
+        self.profile = profile
+        self.level = level
+        self.doviPresent = doviPresent
+        self.doviProfile = doviProfile
+        self.doviLevel = doviLevel
+        self.doviBLCompatID = doviBLCompatID
+        self.channels = channels
+        self.channelLayout = channelLayout
+        self.samplingRate = samplingRate
+        self.isForced = isForced
+        self.isHearingImpaired = isHearingImpaired
+        self.key = key
     }
 
     init(from decoder: Decoder) throws {

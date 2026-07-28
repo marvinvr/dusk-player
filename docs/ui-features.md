@@ -24,16 +24,18 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
 - Available tabs are data-driven: every present and user-visible library type
-  (Movies, TV Shows, Videos) gets its own tab in the user's preferred order, and
+  (Movies, TV Shows, Videos) plus Live TV when discovered gets its own tab in
+  the user's preferred order, and
   Downloads appears only when visible and populated. Library-tab visibility and
   order are local `UserPreferences`; missing preferences preserve the original
-  all-visible Movies / TV Shows / Videos order.
+  all-visible Movies / TV Shows / Videos / Live TV order.
 - iOS/iPadOS use the modern native `Tab` API with SF Symbols and open Search
   from a circular trailing toolbar action on Home and immediately before Browse
   on each library root, leaving Search out of the tab bar. iPadOS keeps every
-  remaining destination flat. On iPhone, if three libraries and Downloads are
-  present, Downloads and Settings fold into `MoreView` so the tab bar stays at
-  five items. tvOS remains flat with a Search tab and no Downloads tab.
+  remaining destination flat. On iPhone, Home plus the first three visible
+  content destinations stay flat and overflow content, Downloads, and Settings
+  move into `MoreView` so the tab bar stays at five items. tvOS remains flat
+  with a Search tab and no Downloads tab.
 - The tvOS tab shell forces monochrome symbols and a dark focus tint in Dark mode so
   icons remain visible on the system's light navigation focus plate.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
@@ -131,13 +133,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   activation, Home-tab re-entry, or a change to the hero item order. Keep the explicit
   reset revision flowing from `HomeView` through both platform shells so a Plex refresh
   cannot preserve a stale selection after Continue Watching reorders.
-- `HomeViewModel` is the only home object that calls `PlexService`.
+- `HomeViewModel` owns ordinary Plex Home calls. The separate shared
+  `LiveTVViewModel` owns the optional, non-blocking Live TV Home shelf.
 - `HomeView` keys its load context by both the active Plex Home profile and server,
   and installs a fresh `HomeViewModel` whenever that context task starts. Keep the
   profile in this identity: Home users commonly share a server ID, and retaining
   the outgoing model can let its in-flight load suppress the incoming user's load.
 - Home data combines global hubs from `getHubs()`, continue watching from
   `getContinueWatching()`, and personalized shelves from `HomeRecommendationEngine`.
+- `LiveTVHomeShelf` adds currently airing channels when Live TV is available.
+  Its discovery/load failure must not replace or delay normal Home content.
 - Home publishes the base hub and continue-watching payload first, then expands
   Recently Added hubs and loads personalized shelves through cancellable follow-up
   tasks. Keep this two-phase behavior so expensive recommendation work does not block
@@ -300,6 +305,19 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   during transient context-menu navigation lifetimes. Do not "optimize" it back to
   `async let` without reproducing that scenario.
 
+## Live TV
+
+- `MainTabView` owns one shared `LiveTVViewModel` for availability, the tab,
+  `MoreView`, and the Home shelf. Do not discover providers independently per
+  surface.
+- `LiveTVView` offers yesterday through seven days ahead, channel/program
+  artwork, current-program progress, schedule details, and Watch actions only
+  for currently airing programs. Past entries remain inspectable but are not
+  presented as recordings.
+- The player gear menu exposes channel switching on iOS/iPadOS and tvOS. The
+  live seek bar shows LIVE or the time behind live and provides Go Live; all
+  forward movement is clamped to the HLS edge.
+
 ## Search And Settings
 
 - `SearchView` is a thin tab-root wrapper (`NavigationStack` + destinations) around
@@ -334,8 +352,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server list, server picker, Home-user picker presentation, image cache status,
   app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
-- Settings → Navigation → Library Tabs controls the visibility and order of the
-  Movies, TV Shows, and Videos destinations on every platform. iOS/iPadOS use
+- Settings → Navigation → Navigation Tabs controls the visibility and order of
+  Movies, TV Shows, Videos, and Live TV on every platform. iOS/iPadOS use
   native list editing for order; tvOS uses position menus. Hidden types stay in
   the saved order so restoring one puts it back where the user placed it.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.

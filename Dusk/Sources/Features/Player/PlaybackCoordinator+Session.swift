@@ -243,7 +243,7 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 )
-            case .transcode, .serverStream:
+            case .transcode, .serverStream, .liveTV:
                 // HLS rewrites the stream layout; positions no longer apply.
                 nil
             }
@@ -515,7 +515,7 @@ extension PlaybackCoordinator {
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             )
-        case .transcode, .serverStream:
+        case .transcode, .serverStream, .liveTV:
             // HLS rewrites the stream layout; positions no longer apply.
             nil
         }
@@ -556,7 +556,7 @@ extension PlaybackCoordinator {
     /// session's server connection (LAN vs remote/relay). VLCKit sizes its
     /// protective caching — and with it the silent stretch before audio joins
     /// at start and after seeks — from this.
-    private func sourceLocality(for url: URL) -> PlaybackSourceLocality {
+    func sourceLocality(for url: URL) -> PlaybackSourceLocality {
         if url.isFileURL { return .localFile }
         return plexService.isConnectedViaLocalNetwork ? .localNetwork : .remoteNetwork
     }
@@ -769,7 +769,8 @@ extension PlaybackCoordinator {
                 durationMs: snapshot.durationMs
             )
 
-            if !hasScrobbled,
+            if activeLiveTVContext == nil,
+               !hasScrobbled,
                snapshot.durationMs > 0,
                snapshot.timeMs > Int(Double(snapshot.durationMs) * 0.9) {
                 hasScrobbled = true
@@ -812,7 +813,7 @@ extension PlaybackCoordinator {
         let durationMs = max(lastReportedDurationMs, engineDurationMs)
         var timeMs = max(lastReportedTimeMs, engineTimeMs)
 
-        if markCompleted, durationMs > 0 {
+        if markCompleted, durationMs > 0, activeLiveTVContext == nil {
             timeMs = durationMs
         } else if durationMs > 0 {
             timeMs = min(timeMs, durationMs)
@@ -841,6 +842,7 @@ extension PlaybackCoordinator {
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil
         activeItemDetails = nil
+        activeLiveTVContext = nil
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
         debugInfo = nil

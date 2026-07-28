@@ -178,6 +178,43 @@ enum StreamResolver {
         )
     }
 
+    /// Live TV is already packaged by Plex as HLS, so the source file's
+    /// container is irrelevant. Codec and subtitle capabilities still decide
+    /// whether the native HLS path or VLCKit is the safer renderer.
+    static func evaluateLiveTV(
+        media: PlexMedia,
+        forceAVPlayer: Bool = false,
+        forceVLCKit: Bool = false
+    ) -> Decision {
+        if forceAVPlayer {
+            return Decision(engine: .avPlayer, reason: "User preference forced AVPlayer")
+        }
+        if forceVLCKit {
+            return Decision(engine: .vlcKit, reason: "User preference forced VLCKit")
+        }
+        if let decision = dolbyVisionDecision(for: media) {
+            return decision
+        }
+        if let decision = videoDecision(for: media) {
+            return decision
+        }
+        if let decision = audioDecision(for: media) {
+            return decision
+        }
+        for part in media.parts {
+            for stream in part.streams where stream.streamType == .subtitle {
+                guard let codec = stream.codec?.lowercased() else { continue }
+                if !avSubtitleCodecs.contains(codec) {
+                    return Decision(
+                        engine: .vlcKit,
+                        reason: "Live subtitle codec \(codec.uppercased()) requires VLCKit"
+                    )
+                }
+            }
+        }
+        return Decision(engine: .avPlayer, reason: "Plex Live HLS is AVPlayer-compatible")
+    }
+
     // MARK: - Per-Stream Checks
 
     /// Whether this device can hardware-decode AV1 (A17 Pro / M3 and newer).

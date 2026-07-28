@@ -12,7 +12,7 @@ struct LibraryTabSettingsView: View {
             #endif
         }
         .background(Color.duskBackground.ignoresSafeArea())
-        .duskNavigationTitle("Library Tabs")
+        .duskNavigationTitle("Navigation Tabs")
     }
 
     #if !os(tvOS)
@@ -30,10 +30,10 @@ struct LibraryTabSettingsView: View {
                 }
                 .onMove(perform: preferences.moveLibraryTabs)
             } header: {
-                Text("Library Tabs")
+                Text("Navigation Tabs")
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
-                Text("Turn off a library to remove it from the navigation bar. Tap Edit, then drag to change the order.")
+                Text("Turn off a destination to remove it from the navigation bar. Tap Edit, then drag to change the order.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
@@ -52,7 +52,7 @@ struct LibraryTabSettingsView: View {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 TVSettingsSection(
                     title: "Visibility",
-                    footer: "Turn off a library to remove it from the navigation bar."
+                    footer: "Turn off a destination to remove it from the navigation bar."
                 ) {
                     ForEach(Array(preferences.libraryTabOrder.enumerated()), id: \.element) { index, libraryType in
                         if index > 0 {
@@ -68,7 +68,7 @@ struct LibraryTabSettingsView: View {
 
                 TVSettingsSection(
                     title: "Order",
-                    footer: "Choose the position of each library in the navigation bar."
+                    footer: "Choose the position of each destination in the navigation bar."
                 ) {
                     ForEach(Array(preferences.libraryTabOrder.enumerated()), id: \.element) { index, libraryType in
                         if index > 0 {
@@ -113,7 +113,7 @@ struct LibraryTabSettingsView: View {
         case 1:
             "Second"
         default:
-            "Third"
+            index == 2 ? "Third" : "Fourth"
         }
     }
     #endif

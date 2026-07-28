@@ -186,7 +186,7 @@ struct SettingsIOSView: View {
                     LibraryTabSettingsView()
                 } label: {
                     HStack {
-                        Text("Library Tabs")
+                        Text("Navigation Tabs")
                             .foregroundStyle(Color.duskTextPrimary)
 
                         Spacer()

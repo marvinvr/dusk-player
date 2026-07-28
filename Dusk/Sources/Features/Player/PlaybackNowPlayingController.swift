@@ -65,6 +65,42 @@ final class PlaybackNowPlayingController {
         #endif
     }
 
+    func beginLiveSession(
+        title: String,
+        channelTitle: String,
+        artworkPath: String?,
+        engine: any PlaybackEngine,
+        plexService: PlexService,
+        skipBackwardInterval: TimeInterval,
+        skipForwardInterval: TimeInterval
+    ) {
+        #if os(iOS)
+        endSession(deactivateAudioSession: false)
+        self.engine = engine
+        self.plexService = plexService
+        self.skipBackwardInterval = skipBackwardInterval
+        self.skipForwardInterval = skipForwardInterval
+
+        configureAndActivateAudioSession()
+        configureRemoteCommands()
+        registerAudioSessionObservers()
+        nowPlayingInfo = [
+            MPMediaItemPropertyTitle: title,
+            MPMediaItemPropertyArtist: channelTitle,
+            MPMediaItemPropertyAlbumTitle: "Live TV",
+            MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.video.rawValue,
+            MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
+            MPNowPlayingInfoPropertyPlaybackRate: 0.0,
+            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyExcludeFromSuggestions: false,
+        ]
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        MPNowPlayingInfoCenter.default().playbackState = .paused
+        loadLiveArtwork(path: artworkPath, using: plexService)
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+        #endif
+    }
+
     func updatePlaybackState(
         state: PlaybackState,
         currentTime: TimeInterval,
@@ -72,7 +108,7 @@ final class PlaybackNowPlayingController {
         force: Bool = false
     ) {
         #if os(iOS)
-        guard details != nil else { return }
+        guard engine != nil else { return }
         guard shouldPublish(state: state, currentTime: currentTime, duration: duration, force: force) else {
             return
         }
@@ -289,6 +325,23 @@ private extension PlaybackNowPlayingController {
         }
     }
 
+    func loadLiveArtwork(path: String?, using plexService: PlexService) {
+        guard let artworkURL = plexService.imageURL(for: path, width: 640, height: 360) else {
+            return
+        }
+        artworkTask = Task { @MainActor [weak self, weak plexService] in
+            guard let self, let plexService else { return }
+            guard let image = try? await DuskImageLoader.shared.image(for: artworkURL, using: plexService),
+                  !Task.isCancelled,
+                  let imageData = image.jpegData(compressionQuality: 0.9) else { return }
+            nowPlayingInfo[MPMediaItemPropertyArtwork] = makeNowPlayingArtwork(
+                imageData: imageData,
+                imageSize: image.size
+            )
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        }
+    }
+
     func configureRemoteCommands() {
         removeRemoteCommandTargets()
 
@@ -364,18 +417,22 @@ private extension PlaybackNowPlayingController {
     func seek(by offset: TimeInterval) {
         guard let engine else { return }
 
-        let upperBound = engine.duration > 0 ? engine.duration : .greatestFiniteMagnitude
-        let target = min(max(engine.currentTime + offset, 0), upperBound)
+        let range = engine.seekableTimeRange
+            ?? (engine.duration > 0 ? 0...engine.duration : 0...(.greatestFiniteMagnitude))
+        let target = min(max(engine.currentTime + offset, range.lowerBound), range.upperBound)
         seek(to: target)
     }
 
     func seek(to position: TimeInterval) {
         guard let engine else { return }
 
-        engine.seek(to: position)
+        let range = engine.seekableTimeRange
+            ?? (engine.duration > 0 ? 0...engine.duration : 0...(.greatestFiniteMagnitude))
+        let clampedPosition = min(max(position, range.lowerBound), range.upperBound)
+        engine.seek(to: clampedPosition)
         publishPlaybackState(
             state: engine.state,
-            currentTime: position,
+            currentTime: clampedPosition,
             duration: engine.duration
         )
     }

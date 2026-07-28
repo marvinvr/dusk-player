@@ -23,6 +23,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
     private(set) var duration: TimeInterval = 0
+    private(set) var seekableTimeRange: ClosedRange<TimeInterval>?
     private(set) var isBuffering = false
     private(set) var error: PlaybackError?
     private(set) var availableSubtitleTracks: [SubtitleTrack] = []
@@ -135,6 +136,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         isBuffering = true
         currentTime = 0
         duration = 0
+        seekableTimeRange = nil
         availableAudioTracks = []
         availableSubtitleTracks = []
         audioOptionsByID = [:]
@@ -217,6 +219,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         isBuffering = false
         currentTime = 0
         duration = 0
+        seekableTimeRange = nil
         availableAudioTracks = []
         availableSubtitleTracks = []
         audioOptionsByID = [:]
@@ -560,8 +563,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         ) { [weak self] time in
             let seconds = CMTimeGetSeconds(time)
             guard seconds.isFinite else { return }
+            let seekableRange = self?.player.currentItem?.seekableTimeRanges.last?.timeRangeValue
             Task { @MainActor [weak self] in
                 self?.currentTime = seconds
+                if let seekableRange {
+                    let start = CMTimeGetSeconds(seekableRange.start)
+                    let end = CMTimeGetSeconds(CMTimeRangeGetEnd(seekableRange))
+                    if start.isFinite, end.isFinite, end >= start {
+                        self?.seekableTimeRange = start...end
+                    }
+                }
             }
         }
     }

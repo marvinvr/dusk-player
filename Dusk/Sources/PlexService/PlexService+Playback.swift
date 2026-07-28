@@ -37,6 +37,7 @@ extension PlexService {
 
     func reportTimeline(
         ratingKey: String,
+        key: String? = nil,
         state: PlaybackState,
         timeMs: Int,
         durationMs: Int,
@@ -44,6 +45,7 @@ extension PlexService {
     ) async {
         try? await submitTimeline(
             ratingKey: ratingKey,
+            key: key,
             state: state,
             timeMs: timeMs,
             durationMs: durationMs,
@@ -53,6 +55,7 @@ extension PlexService {
 
     func submitTimeline(
         ratingKey: String,
+        key: String? = nil,
         state: PlaybackState,
         timeMs: Int,
         durationMs: Int,
@@ -75,7 +78,7 @@ extension PlexService {
 
         var queryItems: [URLQueryItem] = [
             URLQueryItem(name: "ratingKey", value: ratingKey),
-            URLQueryItem(name: "key", value: "/library/metadata/\(ratingKey)"),
+            URLQueryItem(name: "key", value: key ?? "/library/metadata/\(ratingKey)"),
             URLQueryItem(name: "state", value: stateString),
             URLQueryItem(name: "time", value: String(timeMs)),
             URLQueryItem(name: "duration", value: String(durationMs)),

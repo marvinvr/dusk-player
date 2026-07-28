@@ -39,13 +39,25 @@ struct PlayerControlsOverlay: View {
             selectedQualityPreset: debugInfo?.qualityPreset ?? .original,
             availableQualityPresets: debugInfo?.availableQualityPresets ?? [.original],
             hasPlaybackInfo: debugInfo != nil,
-            hasQualityControl: debugInfo != nil,
+            hasQualityControl: debugInfo != nil && !viewModel.isLiveTV,
             canSelectQuality: debugInfo?.canSelectPlaybackQuality == true,
-            isChangingQuality: playback.isSwitchingQuality
+            isChangingQuality: playback.isSwitchingQuality,
+            liveTVContext: viewModel.liveTVContext
         )
     }
 
     private var mediaHeader: PlayerMediaHeader? {
+        if let liveTVContext = viewModel.liveTVContext {
+            return PlayerMediaHeader(
+                title: liveTVContext.program?.displayTitle ?? liveTVContext.channel.displayTitle,
+                secondaryTitle: nil,
+                subtitle: [liveTVContext.channel.displayNumber, liveTVContext.channel.displayTitle]
+                    .compactMap { $0 }
+                    .joined(separator: " · "),
+                usesCompactTitleOnTV: true
+            )
+        }
+
         guard let mediaDetails else { return nil }
 
         if mediaDetails.type == .episode {
@@ -91,7 +103,7 @@ struct PlayerControlsOverlay: View {
     private var qualityControlTitle: String {
         guard let debugInfo else { return "Unavailable" }
         if !debugInfo.canSelectPlaybackQuality {
-            return "Unavailable Offline"
+            return viewModel.isLiveTV ? "Live" : "Unavailable Offline"
         }
         return debugInfo.qualityPreset.displayName
     }
@@ -108,6 +120,7 @@ struct PlayerControlsContext {
     let hasQualityControl: Bool
     let canSelectQuality: Bool
     let isChangingQuality: Bool
+    let liveTVContext: PlexLivePlaybackContext?
 }
 
 struct PlayerMediaHeader {

@@ -52,6 +52,25 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    watch; an engine error swaps the session onto a Plex server stream at the
    same position instead of dead-ending (see "Delivery Ladder").
 
+## Live TV Play Flow
+
+- `PlaybackCoordinator.playLiveTV` presents the same cancellable loading cover,
+  asks `PlexService.tuneLiveTV` for a DVR session, and plays its consumer HLS
+  URL. `StreamResolver.evaluateLiveTV` ignores the source-file container because
+  Plex already packaged HLS, while retaining codec and force-engine rules.
+- `PlaybackSource.liveTVContext` carries the lineup, channel/program, and
+  session ID into the player. The header and gear menu use it for identity and
+  channel switching by finalizing and re-tuning.
+- AVPlayer publishes `seekableTimeRanges` as
+  `PlaybackEngine.seekableTimeRange`. Gestures, iOS scrubbing, tvOS scrubbing,
+  remote commands, and Go Live clamp to that range, so seeking cannot move into
+  the future. Pause/rewind reach only as far back as Plex retains the tuned
+  session's sliding window.
+- Live playback disables 2× hold, manual Quality, scrub thumbnails, markers,
+  Up Next, completion scrobbling, and offline progress. Now Playing marks the
+  item live. Timeline reports use `/livetv/sessions/{sessionID}` as their key
+  and still send stopped so Plex can release the consumer.
+
 ## Delivery Ladder and Session Hygiene
 
 - The ladder is: direct play → server stream (HLS with `directStream=1`,
@@ -745,6 +764,8 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   to refresh rendering when the app becomes active.
 - Finalization sends a stopped timeline, updates now-playing, stops the engine,
   and ends the now-playing session.
+- Live TV finalization sends stopped but never marks a program watched or
+  scrobbles it; its HLS clock is a sliding window rather than item progress.
 - Scrobble happens once when progress exceeds 90 percent of duration, either
   during periodic reporting or during finalization.
 - Local-download playback does not call Plex directly. It records progress or

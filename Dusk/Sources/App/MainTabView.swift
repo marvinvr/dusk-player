@@ -11,11 +11,13 @@ struct MainTabView: View {
     @State private var moviesPath = NavigationPath()
     @State private var showsPath = NavigationPath()
     @State private var videosPath = NavigationPath()
+    @State private var liveTVPath = NavigationPath()
     @State private var downloadsPath = NavigationPath()
     @State private var searchPath = NavigationPath()
     @State private var settingsPath = NavigationPath()
     @State private var morePath = NavigationPath()
     @State private var librariesViewModel: LibrariesViewModel?
+    @State private var liveTVViewModel: LiveTVViewModel?
 
     var body: some View {
         @Bindable var bindablePlayback = playback
@@ -25,7 +27,11 @@ struct MainTabView: View {
                 if librariesViewModel == nil {
                     librariesViewModel = LibrariesViewModel(plexService: plexService)
                 }
+                if liveTVViewModel == nil {
+                    liveTVViewModel = LiveTVViewModel(plexService: plexService)
+                }
                 await librariesViewModel?.loadLibraries()
+                await liveTVViewModel?.discover()
             }
             .onChange(of: availableTabs) { _, newTabs in
                 guard !newTabs.contains(selectedTab) else { return }
@@ -79,8 +85,11 @@ struct MainTabView: View {
 
     private var availableTabs: [MainTabItem] {
         let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
-        let libraryTypes = preferences.visibleLibraryTabs(from: availableLibraryTypes)
-        let baseTabs: [MainTabItem] = [.home] + libraryTypes.map(MainTabItem.library)
+        let availableTypes = availableLibraryTypes + (liveTVViewModel?.isAvailable == true ? [.liveTV] : [])
+        let contentTabs = preferences.visibleLibraryTabs(from: availableTypes).map { type in
+            type == .liveTV ? MainTabItem.liveTV : MainTabItem.library(type)
+        }
+        let baseTabs: [MainTabItem] = [.home] + contentTabs
 
         #if os(tvOS)
         return baseTabs + [.search, .settings]
@@ -101,7 +110,7 @@ struct MainTabView: View {
         trailingTabs.append(.settings)
 
         if baseTabs.count + trailingTabs.count > 5 {
-            trailingTabs = [.more]
+            return [.home] + Array(contentTabs.prefix(3)) + [.more]
         }
 
         return baseTabs + trailingTabs
@@ -114,13 +123,29 @@ struct MainTabView: View {
         hasDownloads && !availableTabs.contains(.downloads)
     }
 
+    private var moreTabContentTypes: [PlexLibraryType] {
+        guard availableTabs.contains(.more) else { return [] }
+        let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? []
+        let availableTypes = availableLibraryTypes + (liveTVViewModel?.isAvailable == true ? [.liveTV] : [])
+        let visibleTypes = preferences.visibleLibraryTabs(from: availableTypes)
+        let flatTypes = availableTabs.compactMap { tab -> PlexLibraryType? in
+            switch tab {
+            case .library(let type): type
+            case .liveTV: .liveTV
+            default: nil
+            }
+        }
+        return visibleTypes.filter { !flatTypes.contains($0) }
+    }
+
     @ViewBuilder
     private func tabRootView(for tab: MainTabItem) -> some View {
         switch tab {
         case .home:
             HomeView(
                 path: $homePath,
-                isSelected: selectedTab == .home
+                isSelected: selectedTab == .home,
+                liveTVViewModel: resolvedLiveTVViewModel
             )
         case .library(let libraryType):
             if let librariesViewModel {
@@ -137,6 +162,8 @@ struct MainTabView: View {
                     }
                 }
             }
+        case .liveTV:
+            LiveTVView(viewModel: resolvedLiveTVViewModel, path: $liveTVPath)
         case .downloads:
             DownloadsView(path: $downloadsPath)
         case .search:
@@ -144,8 +171,24 @@ struct MainTabView: View {
         case .settings:
             SettingsView(path: $settingsPath)
         case .more:
-            MoreView(path: $morePath, showsDownloads: moreTabIncludesDownloads)
+            if let librariesViewModel {
+                MoreView(
+                    path: $morePath,
+                    showsDownloads: moreTabIncludesDownloads,
+                    contentTypes: moreTabContentTypes,
+                    librariesViewModel: librariesViewModel,
+                    liveTVViewModel: resolvedLiveTVViewModel
+                )
+            }
         }
+    }
+
+    private var resolvedLiveTVViewModel: LiveTVViewModel {
+        if let liveTVViewModel {
+            return liveTVViewModel
+        }
+        let viewModel = LiveTVViewModel(plexService: plexService)
+        return viewModel
     }
 
     private func activate(_ tab: MainTabItem) {
@@ -175,6 +218,8 @@ struct MainTabView: View {
             showsPath
         case .library(.video):
             videosPath
+        case .library(.liveTV), .liveTV:
+            liveTVPath
         case .downloads:
             downloadsPath
         case .search:
@@ -196,6 +241,8 @@ struct MainTabView: View {
             showsPath = path
         case .library(.video):
             videosPath = path
+        case .library(.liveTV), .liveTV:
+            liveTVPath = path
         case .downloads:
             downloadsPath = path
         case .search:
@@ -215,6 +262,8 @@ struct MainTabView: View {
             $showsPath
         case .video:
             $videosPath
+        case .liveTV:
+            $liveTVPath
         }
     }
 }

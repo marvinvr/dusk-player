@@ -89,6 +89,9 @@ struct PlaybackSource: Sendable {
     /// caching — and with it the audible start/seek latency — from this.
     /// Remote is the safe default for callers that cannot tell.
     var locality: PlaybackSourceLocality = .remoteNetwork
+    /// Present only for a tuned Plex Live TV session. The player uses it for
+    /// channel identity, channel switching, and live-window seek semantics.
+    var liveTVContext: PlexLivePlaybackContext? = nil
 }
 
 struct PlaybackDebugInfo: Sendable {
@@ -116,6 +119,8 @@ struct PlaybackDebugInfo: Sendable {
             preset.displayName
         case .serverStream:
             "Direct Stream (HLS)"
+        case .liveTV:
+            "Live HLS"
         }
     }
 
@@ -125,7 +130,7 @@ struct PlaybackDebugInfo: Sendable {
             "Yes"
         case .localDownload:
             "Local"
-        case .transcode, .serverStream:
+        case .transcode, .serverStream, .liveTV:
             "No"
         }
     }
@@ -136,12 +141,13 @@ struct PlaybackDebugInfo: Sendable {
         case .localDownload: "Local Download"
         case let .transcode(preset): "Transcode \(preset.displayName)"
         case .serverStream: "Server Stream (HLS)"
+        case .liveTV: "Live TV"
         }
     }
 
     var qualityPreset: PlaybackQualityPreset {
         switch decision {
-        case .directPlay, .localDownload:
+        case .directPlay, .localDownload, .liveTV:
             .original
         case let .transcode(preset):
             preset
@@ -158,7 +164,7 @@ struct PlaybackDebugInfo: Sendable {
 
     var canSelectPlaybackQuality: Bool {
         switch decision {
-        case .localDownload:
+        case .localDownload, .liveTV:
             false
         case .directPlay, .transcode, .serverStream:
             true
@@ -167,7 +173,7 @@ struct PlaybackDebugInfo: Sendable {
 
     var canLoadScrubPreviews: Bool {
         switch decision {
-        case .localDownload:
+        case .localDownload, .liveTV:
             false
         case .directPlay, .transcode, .serverStream:
             true
@@ -270,6 +276,8 @@ enum PlaybackDecision: Sendable {
     /// re-encoded when it must be). No quality preset applies — the video
     /// quality stays the original's.
     case serverStream
+    /// Plex DVR tune session delivered as a sliding HLS time-shift window.
+    case liveTV
 }
 
 enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {

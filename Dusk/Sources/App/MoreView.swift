@@ -5,6 +5,9 @@ import SwiftUI
 struct MoreView: View {
     @Binding var path: NavigationPath
     let showsDownloads: Bool
+    let contentTypes: [PlexLibraryType]
+    let librariesViewModel: LibrariesViewModel
+    let liveTVViewModel: LiveTVViewModel
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -24,6 +27,12 @@ struct MoreView: View {
     private var moreList: some View {
         List {
             Section {
+                ForEach(contentTypes, id: \.self) { contentType in
+                    NavigationLink(value: MoreRoute.content(contentType)) {
+                        MoreRow(title: contentType.tabTitle, systemImage: contentType.systemImage)
+                    }
+                }
+
                 if showsDownloads {
                     NavigationLink(value: MoreRoute.downloads) {
                         MoreRow(title: "Downloads", systemImage: "arrow.down.circle.fill")
@@ -43,6 +52,10 @@ struct MoreView: View {
     @ViewBuilder
     private func destinationView(for route: MoreRoute) -> some View {
         switch route {
+        case .content(.liveTV):
+            LiveTVRootContent(viewModel: liveTVViewModel)
+        case .content(let libraryType):
+            LibrariesRootContent(libraryType: libraryType, viewModel: librariesViewModel)
         case .downloads:
             DownloadsRootContent(path: $path)
         case .settings:
@@ -52,6 +65,7 @@ struct MoreView: View {
 }
 
 private enum MoreRoute: Hashable {
+    case content(PlexLibraryType)
     case downloads
     case settings
 }

@@ -9,6 +9,8 @@ struct HomeIOSView: View {
     let serverName: String?
     let recentlyAddedInlineItemLimit: Int
     let heroSelectionResetRevision: Int
+    let liveTVViewModel: LiveTVViewModel
+    let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
     let play: (PlexItem) -> Void
 
     var body: some View {
@@ -88,6 +90,8 @@ struct HomeIOSView: View {
                     }
 
                     LazyVStack(alignment: .leading, spacing: 18) {
+                        LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
+
                         ForEach(viewModel.hubs) { hub in
                             let items = viewModel.inlineItems(
                                 in: hub,
@@ -161,6 +165,9 @@ struct HomeIOSView: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: 88)
+        }
+        .task {
+            await liveTVViewModel.loadNowPlaying(force: true)
         }
     }
 

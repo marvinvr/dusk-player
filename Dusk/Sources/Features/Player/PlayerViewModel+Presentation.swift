@@ -14,6 +14,50 @@ extension PlayerViewModel {
         isScrubbing ? scrubPosition : currentTime
     }
 
+    var isLiveTV: Bool {
+        liveTVContext != nil
+    }
+
+    var timelineRange: ClosedRange<TimeInterval> {
+        if let seekableRange {
+            return seekableRange
+        }
+        return 0...max(duration, 0)
+    }
+
+    var timelineProgress: Double {
+        timelineProgress(for: displayPosition)
+    }
+
+    func timelineProgress(for position: TimeInterval) -> Double {
+        let range = timelineRange
+        let span = range.upperBound - range.lowerBound
+        guard span > 0 else { return 0 }
+        return min(max((position - range.lowerBound) / span, 0), 1)
+    }
+
+    func timelinePosition(for progress: Double) -> TimeInterval {
+        let range = timelineRange
+        return range.lowerBound + (range.upperBound - range.lowerBound) * min(max(progress, 0), 1)
+    }
+
+    var isAtLiveEdge: Bool {
+        guard isLiveTV, let seekableRange else { return false }
+        return seekableRange.upperBound - displayPosition < 8
+    }
+
+    var formattedLiveOffset: String {
+        guard let seekableRange else { return "LIVE" }
+        let secondsBehind = max(0, Int((seekableRange.upperBound - displayPosition).rounded()))
+        guard secondsBehind >= 8 else { return "LIVE" }
+        let hours = secondsBehind / 3600
+        let minutes = (secondsBehind % 3600) / 60
+        let seconds = secondsBehind % 60
+        return hours > 0
+            ? String(format: "−%d:%02d:%02d", hours, minutes, seconds)
+            : String(format: "−%d:%02d", minutes, seconds)
+    }
+
     /// The actionable intro marker at the current position, surfaced as the
     /// "Skip Intro" button. Credits are handled by the Up Next poster instead of
     /// a skip button, so they are deliberately excluded here.

@@ -107,7 +107,7 @@ struct PlayerControlsTVOverlay: View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let cursorPosition = tvScrubCursorPosition ?? viewModel.currentTime
-            let cursorProgress = viewModel.duration > 0 ? cursorPosition / viewModel.duration : 0
+            let cursorProgress = viewModel.timelineProgress(for: cursorPosition)
             let clampedCursorProgress = max(0, min(cursorProgress, 1))
             let thumbX = max(15, min(width - 15, width * clampedCursorProgress))
             let isFocused = focusedControl == .seekPoint
@@ -248,12 +248,13 @@ struct PlayerControlsTVOverlay: View {
 
     private func updateTVScrub(deltaWidth: CGFloat) {
         guard focusedControl == .seekPoint,
-              viewModel.duration > 0 else {
+              viewModel.timelineRange.upperBound > viewModel.timelineRange.lowerBound else {
             return
         }
 
         let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
-        let secondsPerPoint = max(minimumScrubSecondsPerPoint, viewModel.duration / scrubFullDurationTouchPoints)
+        let timelineDuration = viewModel.timelineRange.upperBound - viewModel.timelineRange.lowerBound
+        let secondsPerPoint = max(minimumScrubSecondsPerPoint, timelineDuration / scrubFullDurationTouchPoints)
         tvScrubCursorPosition = clampedPosition(startPosition + TimeInterval(deltaWidth) * secondsPerPoint)
         viewModel.scheduleHide()
     }
@@ -295,11 +296,7 @@ struct PlayerControlsTVOverlay: View {
     }
 
     private func clampedPosition(_ position: TimeInterval) -> TimeInterval {
-        guard viewModel.duration > 0 else {
-            return max(0, position)
-        }
-
-        return min(max(position, 0), viewModel.duration)
+        viewModel.clampedSeekPosition(position)
     }
 
     private func restoreSeekFocus(reset: Bool = true) {

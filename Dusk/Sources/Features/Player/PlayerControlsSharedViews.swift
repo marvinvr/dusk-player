@@ -88,6 +88,22 @@ struct PlayerTimeStatusView: View {
 
     var body: some View {
         HStack(spacing: 6) {
+            if viewModel.isLiveTV {
+                Button {
+                    viewModel.goLive()
+                } label: {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(viewModel.isAtLiveEdge ? Color.red : Color.white.opacity(0.5))
+                            .frame(width: 7, height: 7)
+                        Text(viewModel.formattedLiveOffset)
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.white.opacity(0.9))
+                .disabled(viewModel.isAtLiveEdge)
+            } else {
             Text(formattedPosition)
                 .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
@@ -99,6 +115,7 @@ struct PlayerTimeStatusView: View {
             Text(viewModel.formattedDuration)
                 .font(.subheadline.weight(.medium).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
+            }
         }
     }
 
@@ -147,7 +164,7 @@ struct PlayerSeekBar: View {
         GeometryReader { geometry in
             let width = geometry.size.width
             let progressBase = progressPosition ?? viewModel.displayPosition
-            let progress = viewModel.duration > 0 ? progressBase / viewModel.duration : 0
+            let progress = viewModel.timelineProgress(for: progressBase)
             let playedWidth = playedTrackWidth(for: progress, totalWidth: width)
             let clampedProgress = max(0, min(progress, 1))
             let scrubX = width * clampedProgress
@@ -165,7 +182,7 @@ struct PlayerSeekBar: View {
                                     viewModel.beginScrub()
                                 }
                                 let fraction = max(0, min(1, value.location.x / width))
-                                viewModel.updateScrub(to: fraction * viewModel.duration)
+                                viewModel.updateScrub(to: viewModel.timelinePosition(for: fraction))
                             }
                             .onEnded { _ in
                                 viewModel.endScrub()
@@ -334,6 +351,7 @@ struct PlayerTrackSettingsMenu: View {
     private var hasAvailableSettings: Bool {
         context.hasPlaybackInfo ||
             context.hasQualityControl ||
+            context.liveTVContext != nil ||
             !viewModel.audioTracks.isEmpty ||
             !viewModel.subtitleTracks.isEmpty
     }
@@ -351,7 +369,10 @@ struct PlayerTrackSettingsMenu: View {
         Menu {
             Group {
                 playbackInfoButton
-                qualityMenu
+                channelMenu
+                if context.hasQualityControl {
+                    qualityMenu
+                }
                 subtitleTracksMenu
                 audioTracksMenu
             }
@@ -397,6 +418,40 @@ struct PlayerTrackSettingsMenu: View {
             Label("Quality", systemImage: "rectangle.compress.vertical")
         }
         .disabled(!context.canSelectQuality || context.isChangingQuality)
+    }
+
+    @ViewBuilder
+    private var channelMenu: some View {
+        if let live = context.liveTVContext {
+            Menu {
+                ForEach(live.lineup.channels) { channel in
+                    Button {
+                        guard channel.id != live.channel.id else { return }
+                        viewModel.endAllControlsInteractionHolds()
+                        let program = live.lineup.guide(for: channel)?.currentProgram()
+                        Task {
+                            await playback.playLiveTV(
+                                channel: channel,
+                                program: program,
+                                lineup: live.lineup
+                            )
+                        }
+                    } label: {
+                        Label(
+                            [channel.displayNumber, channel.displayTitle]
+                                .compactMap { $0 }
+                                .joined(separator: " · "),
+                            systemImage: channel.id == live.channel.id
+                                ? "checkmark"
+                                : "dot.radiowaves.left.and.right"
+                        )
+                    }
+                    .disabled(channel.id == live.channel.id)
+                }
+            } label: {
+                Label("Channel", systemImage: "list.number")
+            }
+        }
     }
 
     private var subtitleTracksMenu: some View {
@@ -488,6 +543,36 @@ struct PlayerTrackSettingsMenu: View {
     #else
     private var iOSMenu: some View {
         Menu {
+            if let live = context.liveTVContext {
+                Menu {
+                    ForEach(live.lineup.channels) { channel in
+                        Button {
+                            guard channel.id != live.channel.id else { return }
+                            let program = live.lineup.guide(for: channel)?.currentProgram()
+                            Task {
+                                await playback.playLiveTV(
+                                    channel: channel,
+                                    program: program,
+                                    lineup: live.lineup
+                                )
+                            }
+                        } label: {
+                            Label(
+                                [channel.displayNumber, channel.displayTitle]
+                                    .compactMap { $0 }
+                                    .joined(separator: " · "),
+                                systemImage: channel.id == live.channel.id
+                                    ? "checkmark"
+                                    : "dot.radiowaves.left.and.right"
+                            )
+                        }
+                        .disabled(channel.id == live.channel.id)
+                    }
+                } label: {
+                    Label("Channel", systemImage: "list.number")
+                }
+            }
+
             if context.hasPlaybackInfo {
                 Button {
                     viewModel.showPlaybackInfo = true
@@ -496,16 +581,18 @@ struct PlayerTrackSettingsMenu: View {
                 }
             }
 
-            Button {
-                viewModel.showQualityPicker = true
-            } label: {
-                settingsMenuItem(
-                    title: "Quality",
-                    subtitle: context.qualityControlTitle,
-                    icon: "rectangle.compress.vertical"
-                )
+            if context.hasQualityControl {
+                Button {
+                    viewModel.showQualityPicker = true
+                } label: {
+                    settingsMenuItem(
+                        title: "Quality",
+                        subtitle: context.qualityControlTitle,
+                        icon: "rectangle.compress.vertical"
+                    )
+                }
+                .disabled(!context.canSelectQuality || context.isChangingQuality)
             }
-            .disabled(!context.canSelectQuality || context.isChangingQuality)
 
             Button {
                 viewModel.showAudioPicker = true

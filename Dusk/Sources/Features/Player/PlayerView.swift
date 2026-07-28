@@ -218,7 +218,8 @@ private struct PlayerSessionView: View {
         _viewModel = State(
             initialValue: PlayerViewModel(
                 engine: engine,
-                markers: mediaDetails?.markers ?? []
+                markers: mediaDetails?.markers ?? [],
+                liveTVContext: playbackSource.liveTVContext
             )
         )
         self.playbackSource = playbackSource

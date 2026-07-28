@@ -28,6 +28,7 @@ final class PlayerViewModel {
     var state: PlaybackState = .idle
     var currentTime: TimeInterval = 0
     var duration: TimeInterval = 0
+    var seekableRange: ClosedRange<TimeInterval>?
     var isBuffering = false
     var hasStartedPlayback = false
     var playbackError: PlaybackError?
@@ -56,6 +57,7 @@ final class PlayerViewModel {
     var engineView: AnyView
     @ObservationIgnored var lastPlayerViewGeneration = 0
     let markers: [PlexMarker]
+    let liveTVContext: PlexLivePlaybackContext?
     var hasLoadedSource = false
     var sourcePart: PlexMediaPart?
     var preferredSubtitleLanguage: String?
@@ -110,11 +112,16 @@ final class PlayerViewModel {
     /// and landscape each remember their own zoom-to-fill setting.
     @ObservationIgnored var isLandscapeVideoOrientation: Bool?
 
-    init(engine: any PlaybackEngine, markers: [PlexMarker] = []) {
+    init(
+        engine: any PlaybackEngine,
+        markers: [PlexMarker] = [],
+        liveTVContext: PlexLivePlaybackContext? = nil
+    ) {
         self.engine = engine
         self.engineView = engine.makePlayerView()
         self.lastPlayerViewGeneration = engine.playerViewGeneration
         self.markers = markers.sorted { $0.startTimeOffset < $1.startTimeOffset }
+        self.liveTVContext = liveTVContext
         startSync()
     }
 

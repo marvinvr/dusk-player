@@ -1,19 +1,28 @@
 import SwiftUI
 
 struct LibrariesView: View {
-    @Environment(PlexService.self) private var plexService
     let libraryType: PlexLibraryType
     let viewModel: LibrariesViewModel
     @Binding var path: NavigationPath
 
     var body: some View {
         NavigationStack(path: $path) {
-            rootContent
-                .task {
-                    await viewModel.loadLibraries()
-                }
+            LibrariesRootContent(libraryType: libraryType, viewModel: viewModel)
                 .duskAppNavigationDestinations()
         }
+    }
+}
+
+struct LibrariesRootContent: View {
+    @Environment(PlexService.self) private var plexService
+    let libraryType: PlexLibraryType
+    let viewModel: LibrariesViewModel
+
+    var body: some View {
+        rootContent
+            .task {
+                await viewModel.loadLibraries()
+            }
     }
 
     @ViewBuilder

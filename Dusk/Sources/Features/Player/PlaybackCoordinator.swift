@@ -66,6 +66,7 @@ final class PlaybackCoordinator {
     var activePlaybackServerID: String?
     var activePlaybackUsesLocalDownload = false
     var activeItemDetails: PlexMediaDetails?
+    var activeLiveTVContext: PlexLivePlaybackContext?
     var hasScrobbled = false
     var didFinalizeCurrentSession = false
     var isHandlingPlaybackEnded = false
@@ -182,6 +183,111 @@ final class PlaybackCoordinator {
         )
     }
 
+    func playLiveTV(
+        channel: PlexLiveChannel,
+        program: PlexLiveProgram?,
+        lineup: PlexLiveTVLineup
+    ) async {
+        let attemptID = UUID()
+        let subtitle = [channel.displayNumber, channel.displayTitle]
+            .compactMap { $0 }
+            .joined(separator: " · ")
+        enterLoadingState(
+            placeholder: PlaybackPlaceholder(
+                title: program?.displayTitle ?? channel.displayTitle,
+                subtitle: subtitle,
+                posterPath: channel.thumb,
+                backdropPath: program?.preferredLandscapePath
+            ),
+            attemptID: attemptID
+        )
+
+        do {
+            let tune = try await plexService.tuneLiveTV(
+                provider: lineup.provider,
+                channel: channel
+            )
+            guard currentPlaybackAttemptID == attemptID else { return }
+
+            let resolver = StreamResolver.evaluateLiveTV(
+                media: tune.media,
+                forceAVPlayer: preferences.forceAVPlayer,
+                forceVLCKit: preferences.forceVLCKit
+            )
+            let newEngine = PlaybackEngineFactory.makeEngine(type: resolver.engine)
+            newEngine.configureVideoEnhancement(.disabled)
+            newEngine.onPlaybackEnded = { [weak self] in
+                Task { @MainActor [weak self] in
+                    await self?.handlePlaybackEnded()
+                }
+            }
+            newEngine.setPictureInPictureDelegate(self)
+
+            let title = program?.displayTitle ?? channel.displayTitle
+            let context = PlaybackAttemptContext(
+                attemptID: attemptID,
+                title: title,
+                ratingKey: program?.ratingKey ?? tune.sessionID,
+                engine: resolver.engine,
+                resolverReason: resolver.reason,
+                mediaID: tune.media.id,
+                partID: tune.part.id,
+                sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: tune.playbackURL)
+            )
+            let liveContext = PlexLivePlaybackContext(
+                lineup: lineup,
+                channel: channel,
+                program: program,
+                sessionID: tune.sessionID
+            )
+
+            hasScrobbled = false
+            didFinalizeCurrentSession = false
+            lastReportedTimeMs = 0
+            lastReportedDurationMs = 0
+            ratingKey = program?.ratingKey ?? tune.sessionID
+            activePlaybackServerID = plexService.currentServerIdentifier
+            activePlaybackUsesLocalDownload = false
+            activePlaybackSessionIdentifier = tune.sessionID
+            activeTranscodeSessionID = nil
+            activeItemDetails = nil
+            activeLiveTVContext = liveContext
+            engine = newEngine
+            playbackSource = PlaybackSource(
+                url: tune.playbackURL,
+                startPosition: nil,
+                context: context,
+                preferredAudioTrackPosition: nil,
+                locality: sourceLocality(for: tune.playbackURL),
+                liveTVContext: liveContext
+            )
+            debugInfo = PlaybackDebugInfo(
+                title: title,
+                engine: resolver.engine,
+                decision: .liveTV,
+                media: tune.media,
+                part: tune.part,
+                attemptID: attemptID,
+                resolverReason: resolver.reason,
+                sanitizedPlaybackURL: context.sanitizedPlaybackURL
+            )
+            playerPresentationID = UUID()
+            nowPlayingController.beginLiveSession(
+                title: title,
+                channelTitle: subtitle,
+                artworkPath: program?.preferredLandscapePath ?? channel.thumb,
+                engine: newEngine,
+                plexService: plexService,
+                skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+                skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+            )
+            startTimelineReporting()
+        } catch {
+            guard currentPlaybackAttemptID == attemptID else { return }
+            loadError = error.localizedDescription
+        }
+    }
+
     func playFromStart(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
         await beginPlayback(
             ratingKey: ratingKey,
@@ -255,6 +361,7 @@ final class PlaybackCoordinator {
         playbackSource = nil
         debugInfo = nil
         activeItemDetails = nil
+        activeLiveTVContext = nil
         ratingKey = nil
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil

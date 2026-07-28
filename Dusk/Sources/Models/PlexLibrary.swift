@@ -4,6 +4,7 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
     case movie
     case show
     case video
+    case liveTV
 
     var tabTitle: String {
         switch self {
@@ -13,6 +14,8 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
             "TV Shows"
         case .video:
             "Videos"
+        case .liveTV:
+            "Live TV"
         }
     }
 
@@ -24,6 +27,8 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
             "tv"
         case .video:
             "play.rectangle"
+        case .liveTV:
+            "dot.radiowaves.left.and.right"
         }
     }
 }

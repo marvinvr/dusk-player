@@ -46,6 +46,7 @@ Current product pillars:
 
 - Plex sign-in, server discovery, and server switching.
 - Home hubs, library browsing, genre filtering, search, and detail screens.
+- Plex Live TV discovery, program guide browsing, and time-shifted playback.
 - Hybrid playback through AVPlayer and VLCKit.
 - Subtitle and audio track selection.
 - Manual player Quality selection for Plex transcoding.
@@ -53,7 +54,7 @@ Current product pillars:
   continuous playback, and passout protection.
 - Offline downloads and delayed watch-state sync.
 
-Future ideas such as Jellyfin, Live TV, collections, playlists,
+Future ideas such as Jellyfin, collections, playlists, DVR scheduling,
 native macOS work, or broader provider abstractions are not current architecture
 requirements. Do not shape today's code around them without an explicit task.
 

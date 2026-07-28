@@ -3,6 +3,7 @@ import SwiftUI
 enum MainTabItem: Hashable, Identifiable {
     case home
     case library(PlexLibraryType)
+    case liveTV
     case downloads
     case search
     case settings
@@ -16,6 +17,8 @@ enum MainTabItem: Hashable, Identifiable {
             "Home"
         case .library(let libraryType):
             libraryType.tabTitle
+        case .liveTV:
+            "Live TV"
         case .downloads:
             "Downloads"
         case .search:
@@ -33,6 +36,8 @@ enum MainTabItem: Hashable, Identifiable {
             "house"
         case .library(let libraryType):
             libraryType.systemImage
+        case .liveTV:
+            "dot.radiowaves.left.and.right"
         case .downloads:
             "arrow.down.circle"
         case .search:

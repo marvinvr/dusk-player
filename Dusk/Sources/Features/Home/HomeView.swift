@@ -9,6 +9,7 @@ struct HomeView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Binding var path: NavigationPath
     let isSelected: Bool
+    let liveTVViewModel: LiveTVViewModel
     @State private var viewModel: HomeViewModel?
     @State private var heroSelectionResetRevision = 0
 
@@ -58,6 +59,7 @@ struct HomeView: View {
             .onChange(of: isSelected) { _, isSelected in
                 guard isSelected else { return }
                 resetHeroSelection()
+                Task { await liveTVViewModel.loadNowPlaying(force: true) }
             }
             .refreshable {
                 await viewModel?.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
@@ -75,6 +77,8 @@ struct HomeView: View {
             serverName: plexService.connectedServer?.name,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
             heroSelectionResetRevision: heroSelectionResetRevision,
+            liveTVViewModel: liveTVViewModel,
+            playLiveTV: playLiveTV,
             play: play
         )
         #else
@@ -84,6 +88,8 @@ struct HomeView: View {
             serverName: plexService.connectedServer?.name,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
             heroSelectionResetRevision: heroSelectionResetRevision,
+            liveTVViewModel: liveTVViewModel,
+            playLiveTV: playLiveTV,
             play: play
         )
         #endif
@@ -100,6 +106,16 @@ struct HomeView: View {
     private func play(_ item: PlexItem) {
         Task {
             await playback.play(ratingKey: item.ratingKey, placeholder: PlaybackPlaceholder(item: item))
+        }
+    }
+
+    private func playLiveTV(
+        _ channel: PlexLiveChannel,
+        _ program: PlexLiveProgram,
+        _ lineup: PlexLiveTVLineup
+    ) {
+        Task {
+            await playback.playLiveTV(channel: channel, program: program, lineup: lineup)
         }
     }
 

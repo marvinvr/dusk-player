@@ -112,6 +112,9 @@ protocol PlaybackEngine: AnyObject {
     var state: PlaybackState { get }
     var currentTime: TimeInterval { get }
     var duration: TimeInterval { get }
+    /// The currently seekable media-time window. Live HLS commonly starts
+    /// above zero and advances at its upper edge as Plex appends segments.
+    var seekableTimeRange: ClosedRange<TimeInterval>? { get }
     var isBuffering: Bool { get }
     var error: PlaybackError? { get }
     var videoEnhancementStatus: VideoEnhancementStatus { get }
@@ -173,6 +176,10 @@ protocol PlaybackEngine: AnyObject {
 }
 
 extension PlaybackEngine {
+    var seekableTimeRange: ClosedRange<TimeInterval>? {
+        duration > 0 ? 0...duration : nil
+    }
+
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
     func setVideoFillEnabled(_ enabled: Bool) {}
 

@@ -18,6 +18,7 @@ Dusk/Sources
     Account/           Sign-in and server picker
     Home/              Home hubs, continue watching, recommendations
     Libraries/         Library list, library item grids, recommendations
+    LiveTV/            Channel guide, on-now Home shelf, Live TV state
     Detail/            Movie/show/season/episode/video/person detail flows
     Seerr/             Request-only external movie/show/season detail flows
     Player/            Full-screen playback UI and coordinator
@@ -51,12 +52,14 @@ connected -> MainTabView
 `MainTabView` owns independent `NavigationPath`s per tab and presents
 `PlayerView` as a full-screen cover when `PlaybackCoordinator.showPlayer` is
 true. App-wide routes are declared in `AppNavigationRoute`; new top-level
-destinations should normally be added there. Tabs are per library type (Movies,
-TV Shows, Videos), with visibility and order supplied by `UserPreferences`;
+destinations should normally be added there. Content tabs cover library types
+(Movies, TV Shows, Videos) and Live TV when the selected server exposes it,
+with visibility and order supplied by `UserPreferences`;
 iOS/iPadOS expose Search from Home/library toolbars, while
 tvOS keeps it as a flat destination. iPadOS keeps every remaining destination
-flat. If three libraries and Downloads are present on iPhone, `MoreView` absorbs
-Downloads and Settings to stay within five tabs.
+flat. On iPhone, content beyond the first three visible destinations and any
+trailing Downloads/Settings destinations are absorbed by `MoreView` to stay
+within five tabs.
 
 ## Shared Boundaries
 
@@ -84,6 +87,17 @@ Home:
 - `HomeViewModel` loads hubs, continue watching, and recommendation shelves.
 - `HomeRecommendationEngine` owns home-specific recommendation orchestration.
 - `HomeCinematicHero` is large and visual; keep reusable poster/list UI outside it.
+- `LiveTVHomeShelf` renders currently airing programs without blocking ordinary
+  Home content when Live TV is absent or unavailable.
+
+Live TV:
+
+- `LiveTVViewModel` discovers the EPG provider, loads channels, and owns the
+  selected date's guide.
+- `LiveTVView` renders current, past, and future schedule metadata. Only an
+  airing program starts playback; arbitrary past guide entries are not recordings.
+- `PlexService+LiveTV` owns provider/channel/grid/tune endpoints and
+  `PlexLiveTV.swift` owns their response shapes.
 
 Libraries:
 
@@ -106,7 +120,8 @@ Detail:
 
 Player:
 
-- `PlaybackCoordinator` starts sessions and owns timeline/scrobble/up-next.
+- `PlaybackCoordinator` starts library and Live TV sessions and owns
+  timeline/scrobble/up-next. Live sessions never scrobble.
 - `PlayerView` and `PlayerViewModel` own on-screen player interaction.
 - Engine-specific work stays in `Playback/`.
 
