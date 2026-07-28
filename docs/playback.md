@@ -71,11 +71,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   engine can fail before its clock advances or the first timeline tick, and the
   replacement must still inherit Plex's saved resume offset. Automatic recovery
   is silent: the failed direct-play engine's transient error overlay stays
-  hidden while Plex prepares the replacement stream, while the startup spinner
-  and player controls remain visible across the handoff.
-  The startup spinner is owned above the replaceable player-session identity,
-  so its native animation phase does not restart when the engine swaps. A failed
-  fallback reveals the normal error overlay.
+  hidden while Plex prepares the replacement stream, while the loading
+  presentation and player controls remain visible across the handoff.
+  `PlaybackCoordinator.playerLoadingState` is the single presentation state for
+  preparation, startup, delayed mid-play buffering, and automatic recovery.
+  `PlayerView` owns its only spinner above the replaceable player-session
+  identity, so loading phases cannot stack indicators and its native animation
+  phase does not restart when the engine swaps. A failed fallback reveals the
+  normal error overlay.
 - Transcode/server-stream sessions are now closed on the server:
   `stopTranscodeSession` fires on finalize, on quality switches (only after
   the replacement decision succeeded), and when a fallback replaces a

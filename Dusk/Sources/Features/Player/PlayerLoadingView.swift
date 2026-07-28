@@ -3,10 +3,10 @@ import SwiftUI
 /// Full-screen "preparing playback" state shown inside the player cover while
 /// the metadata fetch and engine startup run. Presenting this the instant the
 /// user presses Play (before the `getMediaDetails` round-trip) makes playback
-/// feel snappy: the poster and title of the chosen item appear immediately with
-/// a spinner, then the video takes over once the stream is ready. A `nil`
-/// placeholder degrades to a bare spinner (e.g. programmatic playback with no
-/// known metadata).
+/// feel snappy: the poster and title of the chosen item appear immediately,
+/// while `PlayerView` owns the one persistent spinner used by every loading
+/// phase. A `nil` placeholder degrades to the shared bare spinner (e.g.
+/// programmatic playback with no known metadata).
 struct PlayerLoadingView: View {
     @Environment(PlexService.self) private var plexService
 
@@ -64,9 +64,10 @@ struct PlayerLoadingView: View {
                     }
                 }
 
-                ProgressView()
-                    .tint(.white)
-                    .scaleEffect(1.2)
+                // PlayerView draws the actual shared spinner in this reserved
+                // slot so the original poster-led layout stays unchanged.
+                Color.clear
+                    .frame(width: 20, height: 20)
                     .padding(.top, placeholder == nil ? 0 : 6)
             }
             .padding(40)

@@ -111,6 +111,7 @@ struct PlayerView: View {
                     PlayerSessionView(
                         engine: engine,
                         playbackSource: playbackSource,
+                        presentationID: playback.playerPresentationID,
                         mediaDetails: playback.activeItemDetails,
                         debugInfo: playback.debugInfo
                     )
@@ -133,11 +134,12 @@ struct PlayerView: View {
             // identity. It keeps animating while transparent, so swapping from
             // direct play to the Plex server stream cannot restart its phase.
             ProgressView()
-                .scaleEffect(1.5)
+                .scaleEffect(playerLoadingIndicatorScale)
                 .tint(.white)
-                .opacity(showsSessionLoadingIndicator ? 1 : 0)
+                .offset(y: playerLoadingIndicatorVerticalOffset)
+                .opacity(playback.playerLoadingState.isVisible ? 1 : 0)
                 .allowsHitTesting(false)
-                .accessibilityHidden(!showsSessionLoadingIndicator)
+                .accessibilityHidden(!playback.playerLoadingState.isVisible)
         }
         .alert(
             "Couldn't Play",
@@ -169,18 +171,21 @@ struct PlayerView: View {
         )
     }
 
-    private var showsSessionLoadingIndicator: Bool {
-        guard let engine = playback.engine else { return false }
-        let hasAutomaticFallback = playback.isAutomaticDirectPlayFallbackAvailable ||
-            playback.isAutomaticDirectPlayFallbackActive
+    private var playerLoadingIndicatorScale: CGFloat {
+        playback.playerLoadingState == .preparing ? 1.2 : 1.5
+    }
 
-        if case .directPlay? = playback.debugInfo?.decision,
-           hasAutomaticFallback,
-           engine.state == .error || engine.error != nil {
-            return true
+    private var playerLoadingIndicatorVerticalOffset: CGFloat {
+        guard playback.playerLoadingState == .preparing,
+              playback.loadingPlaceholder != nil else {
+            return 0
         }
 
-        return engine.state == .idle || engine.state == .loading
+        #if os(tvOS)
+        return 220
+        #else
+        return 150
+        #endif
     }
 }
 
@@ -198,6 +203,7 @@ private struct PlayerSessionView: View {
     #endif
 
     private let playbackSource: PlaybackSource
+    private let presentationID: UUID
     private let mediaDetails: PlexMediaDetails?
     private let debugInfo: PlaybackDebugInfo?
     private let controlsTopSafeAreaInset: CGFloat
@@ -205,6 +211,7 @@ private struct PlayerSessionView: View {
     init(
         engine: any PlaybackEngine,
         playbackSource: PlaybackSource,
+        presentationID: UUID,
         mediaDetails: PlexMediaDetails? = nil,
         debugInfo: PlaybackDebugInfo? = nil
     ) {
@@ -215,6 +222,7 @@ private struct PlayerSessionView: View {
             )
         )
         self.playbackSource = playbackSource
+        self.presentationID = presentationID
         self.mediaDetails = mediaDetails
         self.debugInfo = debugInfo
         self.controlsTopSafeAreaInset = Self.initialControlsTopSafeAreaInset
@@ -280,15 +288,6 @@ private struct PlayerSessionView: View {
                    shouldShowGlobalSeekFeedback {
                     PlayerSeekFeedbackOverlayView(presentation: seekFeedback)
                         .transition(.opacity)
-                }
-
-                // Startup is handled by PlayerView's stable spinner so its
-                // animation survives engine/session replacement. This local
-                // spinner is only for delayed mid-play buffering.
-                if viewModel.showBufferingIndicator {
-                    ProgressView()
-                        .scaleEffect(1.5)
-                        .tint(.white)
                 }
 
                 if let error = viewModel.playbackError,
@@ -392,6 +391,12 @@ private struct PlayerSessionView: View {
                 )
                 playback.noteActivePlaybackState(state)
             }
+            viewModel.bufferingPresentationHandler = { isVisible in
+                playback.setBufferingPresentationVisible(
+                    isVisible,
+                    for: presentationID
+                )
+            }
             viewModel.transcodeAudioFallbackHandler = { track in
                 Task {
                     await playback.transcodeForUndecodableAudio(track)
@@ -408,6 +413,7 @@ private struct PlayerSessionView: View {
             viewModel.playbackSnapshotHandler = nil
             viewModel.upNextPosterHandler = nil
             viewModel.cleanup()
+            viewModel.bufferingPresentationHandler = nil
         }
         .onChange(of: scenePhase) { _, newPhase in
             playback.flushTimelineForScenePhase(newPhase)

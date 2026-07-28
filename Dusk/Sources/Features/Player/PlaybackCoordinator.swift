@@ -1,6 +1,18 @@
 import Foundation
 import SwiftUI
 
+enum PlayerLoadingState: Equatable {
+    case hidden
+    case preparing
+    case starting
+    case buffering
+    case recovering
+
+    var isVisible: Bool {
+        self != .hidden
+    }
+}
+
 /// Orchestrates the "play an item" flow: fetch metadata → resolve engine →
 /// construct URL → present player → report timeline → scrobble.
 ///
@@ -19,6 +31,9 @@ final class PlaybackCoordinator {
     var debugInfo: PlaybackDebugInfo?
     var playbackSource: PlaybackSource?
     var playerPresentationID = UUID()
+    /// The session whose delayed mid-play buffering presentation is active.
+    /// The id prevents a departing session from clearing its successor's state.
+    private var bufferingPresentationID: UUID?
     var upNextPresentation: UpNextPresentation?
     /// The small bottom-right "next episode" poster shown over the play bar once
     /// the credits marker is reached (replaces the old Skip Credits button). Nil
@@ -106,6 +121,50 @@ final class PlaybackCoordinator {
         timelineTimer?.invalidate()
         directPlayFallbackWatchTask?.cancel()
         upNextPosterCountdownTask?.cancel()
+    }
+
+    /// Single source of truth for the full-screen player loading presentation.
+    /// PlayerView renders exactly one persistent spinner from this state.
+    var playerLoadingState: PlayerLoadingState {
+        guard showPlayer else { return .hidden }
+
+        guard let engine else {
+            return loadError == nil ? .preparing : .hidden
+        }
+
+        let hasAutomaticFallback = isAutomaticDirectPlayFallbackAvailable ||
+            isAutomaticDirectPlayFallbackActive
+        if case .directPlay? = debugInfo?.decision,
+           hasAutomaticFallback,
+           engine.state == .error || engine.error != nil {
+            return .recovering
+        }
+
+        if engine.state == .error || engine.error != nil {
+            return .hidden
+        }
+
+        if engine.state == .idle || engine.state == .loading {
+            return .starting
+        }
+
+        if bufferingPresentationID == playerPresentationID {
+            return .buffering
+        }
+
+        return .hidden
+    }
+
+    func setBufferingPresentationVisible(
+        _ isVisible: Bool,
+        for presentationID: UUID
+    ) {
+        guard presentationID == playerPresentationID else { return }
+
+        let newValue = isVisible ? presentationID : nil
+        if bufferingPresentationID != newValue {
+            bufferingPresentationID = newValue
+        }
     }
 
     // MARK: - Play an Item

@@ -29,7 +29,6 @@ final class PlayerViewModel {
     var currentTime: TimeInterval = 0
     var duration: TimeInterval = 0
     var isBuffering = false
-    var showBufferingIndicator = false
     var hasStartedPlayback = false
     var playbackError: PlaybackError?
     var videoEnhancementStatus: VideoEnhancementStatus = .disabled
@@ -88,6 +87,9 @@ final class PlayerViewModel {
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
+    /// Reports only the debounced mid-play buffering signal. PlaybackCoordinator
+    /// combines it with startup/fallback into the single player loading state.
+    var bufferingPresentationHandler: (@MainActor (Bool) -> Void)?
     var bufferingStartedAt: Date?
     var stalledPlaybackStartedAt: Date?
     var lastProgressAt = Date()
@@ -136,8 +138,8 @@ final class PlayerViewModel {
         suppressSeekPointSelectUntil = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
-        showBufferingIndicator = false
         showQualityPicker = false
+        bufferingPresentationHandler?(false)
         bufferingStartedAt = nil
         stalledPlaybackStartedAt = nil
         endSpeedBoost()

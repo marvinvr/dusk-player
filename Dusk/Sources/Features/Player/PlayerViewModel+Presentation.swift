@@ -70,14 +70,6 @@ extension PlayerViewModel {
         )
     }
 
-    var shouldShowBufferingIndicator: Bool {
-        // The standard spinner also covers the whole startup (load +
-        // VLCKit audio warmup) so the loading presentation lives in one
-        // place; the timed `showBufferingIndicator` handles mid-play
-        // rebuffering as before.
-        (showBufferingIndicator || isAwaitingPlaybackStart) && playbackError == nil
-    }
-
     /// True until playback has genuinely started: covers the load itself and
     /// the VLCKit audio warmup, which masks the whole bring-up (including
     /// the pause→resume audio cure) as `.loading`. The player controls hide

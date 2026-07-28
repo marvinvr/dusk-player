@@ -374,23 +374,19 @@ extension PlayerViewModel {
               playbackError == nil,
               !isPlaybackMakingProgress(now: now) else {
             bufferingStartedAt = nil
-            if showBufferingIndicator {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    showBufferingIndicator = false
-                }
-            }
+            bufferingPresentationHandler?(false)
             return
         }
 
         let startedAt = bufferingStartedAt ?? now
         bufferingStartedAt = startedAt
 
-        guard now.timeIntervalSince(startedAt) >= Self.bufferingIndicatorDelay,
-              !showBufferingIndicator else { return }
-
-        withAnimation(.easeInOut(duration: 0.18)) {
-            showBufferingIndicator = true
+        guard now.timeIntervalSince(startedAt) >= Self.bufferingIndicatorDelay else {
+            bufferingPresentationHandler?(false)
+            return
         }
+
+        bufferingPresentationHandler?(true)
     }
 
     private func updateControlsAutoHide(didStartPlayback: Bool) {
