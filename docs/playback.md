@@ -104,7 +104,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   `PlayerView` owns its only spinner above the replaceable player-session
   identity, so loading phases cannot stack indicators and its native animation
   phase does not restart when the engine swaps. A failed fallback reveals the
-  normal error overlay.
+  normal error overlay. The mid-play buffering leg
+  (`PlayerViewModel.updateBufferingPresentation`, 2 s debounce) never fires
+  while the session is `.paused`: `isBuffering` survives a pause on AVPlayer
+  (pausing out of `waitingToPlayAtSpecifiedRate` leaves the flag set), and the
+  iOS controls hide the play/pause button while the spinner is up, so a user
+  who pauses a stalling stream would otherwise be left with no way to resume.
 - Transcode/server-stream sessions are now closed on the server:
   `stopTranscodeSession` fires on finalize, on quality switches (only after
   the replacement decision succeeded), and when a fallback replaces a
@@ -680,19 +685,33 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   the conditional mount because `PlayerControlsTVOverlay` owns focus state and its
   buttons stay focusable at zero opacity; it binds the curve to the transition
   instead.
-- On iPad the player session always extends through the top status-bar safe
-  area, while the HUD reserves the captured status-bar inset itself. Keep this
-  separation when changing system-overlay visibility: otherwise the status-bar
-  fade changes the session's proposed height and makes the video and centered
-  overlays jump independently of the HUD fade.
+- On iPad the whole player cover — `PlayerView`'s stack, the loading art, the
+  shared spinner, and the session — extends through the top status-bar safe
+  area (`PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges`), while the HUD
+  reserves the captured status-bar inset itself
+  (`PlayerOverlayLayout.capturedStatusBarTopInset`). Keep this separation when
+  changing system-overlay visibility: otherwise the status-bar fade changes the
+  cover's proposed height and makes the video and centered overlays jump
+  independently of the HUD fade. It is not enough for the session alone to
+  ignore the inset — the spinner is centered in `PlayerView`'s stack, so it
+  would still hop by half the status-bar height on every HUD toggle. iPhone is
+  unaffected (its top inset comes from the sensor housing and does not move
+  with the status bar), which is why the symptom is iPad-only.
 - `PlayerViewModel.cleanup()` pauses the engine instead of stopping it so the
   coordinator can still read final time/duration before finalization.
 - iOS uses touch overlays, a gear menu for playback info, quality, and track
   selection, sheets for quality/audio/subtitle choices, and double-tap seek
-  zones when enabled. The center play/pause button is replaced by a spinner
-  while `PlayerViewModel.isAwaitingPlaybackStart` (engine `.idle`/`.loading`,
-  which includes the VLCKit audio warmup), so startup never flashes a play
-  icon that immediately flips to pause.
+  zones when enabled. The center play/pause button is replaced by the shared
+  spinner for as long as that spinner is up
+  (`PlaybackCoordinator.playerLoadingState.isVisible`): startup (engine
+  `.idle`/`.loading`, which includes the VLCKit audio warmup, also covered
+  same-frame by `PlayerViewModel.isAwaitingPlaybackStart`), mid-play
+  buffering, and
+  automatic direct-play recovery. So the two never stack in the center slot,
+  and startup never flashes a play icon that immediately flips to pause. The
+  button stays mounted at zero opacity instead of being removed, for the same
+  reason the HUD does (see the fade note above) and so the HUD's layout does
+  not change when buffering starts.
 - The iOS/iPadOS controls expose a round zoom button at the top-right that
   toggles `PlayerViewModel.aspectFillEnabled` and calls
   `PlaybackEngine.setVideoFillEnabled(_:)`. Fill zooms the picture to cover the

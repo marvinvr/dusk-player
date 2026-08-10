@@ -23,6 +23,50 @@ enum PlayerOverlayLayout {
     static func skipMarkerBottomInset(controlsVisible: Bool) -> CGFloat {
         controlsVisible ? skipMarkerRaisedBottomInset : skipMarkerRestingBottomInset
     }
+
+    /// iPad is the only place where hiding the status bar with the HUD actually
+    /// changes the container's top safe-area inset (iPhone's inset comes from
+    /// the sensor housing and does not move). Everything inside the player cover
+    /// ignores that inset so the video, the loading art, and the shared spinner
+    /// share one stable full-height region; the HUD reserves the captured height
+    /// itself. Without this the spinner is centered in a box that grows and
+    /// shrinks by the status-bar height, so it hops on every HUD toggle.
+    @MainActor
+    static var reservesStatusBarTopInset: Bool {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad
+        #else
+        false
+        #endif
+    }
+
+    @MainActor
+    static var ignoredStatusBarSafeAreaEdges: Edge.Set {
+        reservesStatusBarTopInset ? .top : []
+    }
+
+    /// The status-bar height the HUD re-reserves, captured once per session.
+    /// A session may be rebuilt during an engine handoff while its status bar is
+    /// hidden, in which case UIKit can temporarily report zero.
+    @MainActor
+    static var capturedStatusBarTopInset: CGFloat {
+        #if os(iOS)
+        guard reservesStatusBarTopInset else { return 0 }
+
+        let statusBarHeight = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .filter {
+                $0.activationState == .foregroundActive ||
+                    $0.activationState == .foregroundInactive
+            }
+            .compactMap { $0.statusBarManager?.statusBarFrame.height }
+            .max() ?? 0
+
+        return max(statusBarHeight, 24)
+        #else
+        return 0
+        #endif
+    }
 }
 
 private struct PlayerSeekFeedbackOverlayView: View {
@@ -141,6 +185,12 @@ struct PlayerView: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(!playback.playerLoadingState.isVisible)
         }
+        // The cover's own region must not depend on status-bar visibility: the
+        // session already draws through the top inset, but the spinner is
+        // centered in this stack, so an inset that appears and disappears with
+        // the HUD would move it by half the status-bar height mid-fade. See
+        // `PlayerOverlayLayout.reservesStatusBarTopInset`.
+        .ignoresSafeArea(.container, edges: PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges)
         .alert(
             "Couldn't Play",
             isPresented: loadErrorPresented,
@@ -226,7 +276,7 @@ private struct PlayerSessionView: View {
         self.presentationID = presentationID
         self.mediaDetails = mediaDetails
         self.debugInfo = debugInfo
-        self.controlsTopSafeAreaInset = Self.initialControlsTopSafeAreaInset
+        self.controlsTopSafeAreaInset = PlayerOverlayLayout.capturedStatusBarTopInset
     }
 
     var body: some View {
@@ -327,11 +377,10 @@ private struct PlayerSessionView: View {
         // On iPad, showing or hiding the status bar changes the system-provided
         // top safe area. Keep the session rooted in the same full-height region
         // and let the HUD reserve the captured inset itself, so neither the
-        // video nor centered overlays jump while the two fades run.
-        .ignoresSafeArea(
-            .container,
-            edges: controlsTopSafeAreaInset > 0 ? .top : []
-        )
+        // video nor centered overlays jump while the two fades run. `PlayerView`
+        // already ignores the same edge for the whole cover; this keeps the
+        // session correct on its own terms.
+        .ignoresSafeArea(.container, edges: PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges)
         #if !os(tvOS)
         // Track the player's orientation from its own layout size (works on
         // iPhone rotation and iPad multitasking alike) so the per-orientation
@@ -597,27 +646,6 @@ private struct PlayerSessionView: View {
             controlsTopSafeAreaInset: controlsTopSafeAreaInset,
             onDismiss: dismissPlayer
         )
-    }
-
-    private static var initialControlsTopSafeAreaInset: CGFloat {
-        #if os(iOS)
-        guard UIDevice.current.userInterfaceIdiom == .pad else { return 0 }
-
-        let statusBarHeight = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .filter {
-                $0.activationState == .foregroundActive ||
-                    $0.activationState == .foregroundInactive
-            }
-            .compactMap { $0.statusBarManager?.statusBarFrame.height }
-            .max() ?? 0
-
-        // The session may be rebuilt during an engine handoff while its status
-        // bar is hidden, in which case UIKit can temporarily report zero.
-        return max(statusBarHeight, 24)
-        #else
-        return 0
-        #endif
     }
 
     private var interactionOverlay: some View {

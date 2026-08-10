@@ -93,27 +93,46 @@ struct PlayerControlsIOSOverlay: View {
 
     private var centerControls: some View {
         let isPlaying = viewModel.state == .playing
+        let isSpinnerActive = isLoadingPresentationActive
 
         return HStack {
             Spacer()
-            // Hidden during startup (including the VLCKit audio warmup,
-            // masked as .loading): the button would render "play" while
-            // video is already moving and then flip the moment the warmup
-            // completes. The standard buffering spinner in PlayerView covers
-            // the loading presentation instead.
-            if !viewModel.isAwaitingPlaybackStart &&
-                !isAutomaticFallbackPresentationActive {
-                Button { viewModel.togglePlayPause() } label: {
-                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                        .font(.system(size: 44))
-                        .contentTransition(.symbolEffect(.replace, options: .speed(2)))
-                        .foregroundStyle(.white)
-                        .frame(width: 72, height: 72)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
+            // The center slot belongs to `PlayerView`'s shared spinner whenever
+            // that spinner is up: startup (including the VLCKit audio warmup,
+            // masked as .loading), delayed mid-play buffering, and the automatic
+            // direct-play → server-stream recovery. Stacking the button under it
+            // reads as a double control, and during startup it would render
+            // "play" while video is already moving, then flip the moment the
+            // warmup completes.
+            //
+            // The button stays mounted at zero opacity rather than being removed:
+            // a removal transition here is re-decided on every render pass, and
+            // sync republishes `currentTime` 4x/sec, so it would pop instead of
+            // fade (same trap as the HUD itself, see `PlayerSessionView`).
+            Button { viewModel.togglePlayPause() } label: {
+                Image(systemName: isPlaying ? "pause.fill" : "play.fill")
+                    .font(.system(size: 44))
+                    .contentTransition(.symbolEffect(.replace, options: .speed(2)))
+                    .foregroundStyle(.white)
+                    .frame(width: 72, height: 72)
+                    .background(.ultraThinMaterial, in: Circle())
             }
+            .opacity(isSpinnerActive ? 0 : 1)
+            .allowsHitTesting(!isSpinnerActive)
+            .accessibilityHidden(isSpinnerActive)
+            .animation(.easeInOut(duration: 0.15), value: isSpinnerActive)
             Spacer()
         }
+    }
+
+    /// Mirrors what makes `PlayerView`'s spinner visible. `playerLoadingState` is
+    /// the coordinator's single source of truth for that; the view-model-local
+    /// startup checks stay in as a same-frame guard, since the coordinator reads
+    /// its own engine reference and can lag by a render pass across a handoff.
+    private var isLoadingPresentationActive: Bool {
+        playback.playerLoadingState.isVisible ||
+            viewModel.isAwaitingPlaybackStart ||
+            isAutomaticFallbackPresentationActive
     }
 
     private var isAutomaticFallbackPresentationActive: Bool {

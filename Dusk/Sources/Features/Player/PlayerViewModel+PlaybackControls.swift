@@ -382,7 +382,14 @@ extension PlayerViewModel {
     }
 
     private func updateBufferingPresentation(now: Date) {
+        // A paused session never presents buffering. `isBuffering` survives a
+        // pause on AVPlayer (pausing out of `waitingToPlayAtSpecifiedRate`
+        // leaves the flag set), and the controls hide the play/pause button
+        // while this presentation is up — so without this the user could pause
+        // a stalling stream and be left with a spinner and no way to resume.
+        // The delay restarts on resume if the stream is still refilling.
         guard isBuffering,
+              state != .paused,
               playbackError == nil,
               !isPlaybackMakingProgress(now: now) else {
             bufferingStartedAt = nil
