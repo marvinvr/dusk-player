@@ -1,54 +1,38 @@
 import SwiftUI
 
-struct ShowAllCarouselLink: View {
-    let route: AppNavigationRoute
-    var title = "Show all"
-
-    var body: some View {
-        NavigationLink(value: route) {
-            Text(title)
-                .font(.subheadline.weight(.semibold))
-        }
-        .controlSize(.small)
-        .buttonBorderShape(.capsule)
-        .showAllCarouselButtonStyle()
-    }
-}
-
-#if os(tvOS)
-private struct ShowAllCarouselTile: View {
+/// Trailing shelf affordance that opens the carousel's full list.
+///
+/// Every platform renders it as a dashed card sized like the shelf's artwork and
+/// placed after the last item, so the destination reads as part of the content
+/// instead of a cramped button next to the section title.
+struct ShowAllCarouselTile: View {
     let route: AppNavigationRoute
     let width: CGFloat
-    let imageAspectRatio: CGFloat
+    var imageAspectRatio: CGFloat = 2.0 / 3.0
 
+    #if os(tvOS)
     @FocusState private var isFocused: Bool
+    #endif
 
     var body: some View {
+        #if os(tvOS)
         let shape = RoundedRectangle(cornerRadius: 28, style: .continuous)
-        let height = width / imageAspectRatio
 
         NavigationLink(value: route) {
-            VStack(spacing: imageAspectRatio > 1 ? 12 : 18) {
-                Image(systemName: "square.grid.2x2")
-                    .font(.system(size: min(width * 0.16, 54), weight: .medium))
+            label
+                .foregroundStyle(isFocused ? Color.duskBackground : Color.duskTextPrimary)
+                .background {
+                    shape
+                        .fill(isFocused ? Color.duskTextPrimary : Color.duskSurface)
 
-                Text("Show all")
-                    .font(.headline.weight(.semibold))
-            }
-            .foregroundStyle(isFocused ? Color.duskBackground : Color.duskTextPrimary)
-            .frame(width: width, height: height)
-            .background {
-                shape
-                    .fill(isFocused ? Color.duskTextPrimary : Color.duskSurface)
-
-                shape
-                    .strokeBorder(
-                        isFocused
-                            ? Color.duskTextPrimary
-                            : Color.duskTextSecondary.opacity(0.5),
-                        style: StrokeStyle(lineWidth: 2, dash: [10, 8])
-                    )
-            }
+                    shape
+                        .strokeBorder(
+                            isFocused
+                                ? Color.duskTextPrimary
+                                : Color.duskTextSecondary.opacity(0.5),
+                            style: StrokeStyle(lineWidth: 2, dash: [10, 8])
+                        )
+                }
         }
         .duskSuppressTVOSButtonChrome()
         .focused($isFocused)
@@ -57,27 +41,71 @@ private struct ShowAllCarouselTile: View {
         .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         .accessibilityLabel("Show all")
-    }
-}
-#endif
-
-private extension View {
-    @ViewBuilder
-    func showAllCarouselButtonStyle() -> some View {
-        #if os(tvOS)
-        self
-            .buttonStyle(.glass)
-            .tint(Color.primary)
         #else
-        if #available(iOS 26.0, *) {
-            self
-                .buttonStyle(.glass)
-                .tint(Color.primary)
-        } else {
-            self
-                .buttonStyle(.bordered)
-                .tint(Color.primary)
+        let shape = RoundedRectangle(
+            cornerRadius: PosterArtwork.cornerRadius,
+            style: .continuous
+        )
+
+        NavigationLink(value: route) {
+            label
+                .foregroundStyle(Color.primary)
+                .background {
+                    shape
+                        .fill(Color.duskSurface)
+
+                    shape
+                        .strokeBorder(
+                            Color.duskTextSecondary.opacity(0.45),
+                            style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
+                        )
+                }
+                .contentShape(shape)
         }
+        .buttonStyle(.plain)
+        .frame(width: width, alignment: .topLeading)
+        .accessibilityLabel("Show all")
+        #endif
+    }
+
+    private var label: some View {
+        VStack(spacing: labelSpacing) {
+            Image(systemName: "square.grid.2x2")
+                .font(.system(size: iconSize, weight: .medium))
+
+            Text("Show all")
+                .font(labelFont)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(width: width, height: width / max(imageAspectRatio, 0.01))
+    }
+
+    private var isHorizontalArtwork: Bool {
+        imageAspectRatio > 1
+    }
+
+    private var labelSpacing: CGFloat {
+        #if os(tvOS)
+        isHorizontalArtwork ? 12 : 18
+        #else
+        isHorizontalArtwork ? 6 : 10
+        #endif
+    }
+
+    private var iconSize: CGFloat {
+        #if os(tvOS)
+        min(width * 0.16, 54)
+        #else
+        min(width * 0.18, 34)
+        #endif
+    }
+
+    private var labelFont: Font {
+        #if os(tvOS)
+        .headline.weight(.semibold)
+        #else
+        .subheadline.weight(.semibold)
         #endif
     }
 }
@@ -100,14 +128,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding,
-            headerAccessory: {
-                #if !os(tvOS)
-                if let showAllRoute {
-                    ShowAllCarouselLink(route: showAllRoute)
-                }
-                #endif
-            }
+            horizontalPadding: horizontalPadding
         ) {
             ForEach(items) { item in
                 PosterNavigationCard(
@@ -123,7 +144,6 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                 }
             }
 
-            #if os(tvOS)
             if let showAllRoute {
                 ShowAllCarouselTile(
                     route: showAllRoute,
@@ -131,7 +151,6 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                     imageAspectRatio: imageAspectRatio
                 )
             }
-            #endif
         }
     }
 }
@@ -180,14 +199,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding,
-            headerAccessory: {
-                #if !os(tvOS)
-                if let showAllRoute {
-                    ShowAllCarouselLink(route: showAllRoute)
-                }
-                #endif
-            }
+            horizontalPadding: horizontalPadding
         ) {
             ForEach(items) { item in
                 PosterActionCard(
@@ -204,7 +216,6 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                 }
             }
 
-            #if os(tvOS)
             if let showAllRoute {
                 ShowAllCarouselTile(
                     route: showAllRoute,
@@ -212,7 +223,6 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                     imageAspectRatio: imageAspectRatio
                 )
             }
-            #endif
         }
     }
 }

@@ -152,10 +152,14 @@ struct LibraryRecommendationsView: View {
     @ViewBuilder
     private func browseLibraryButton(labelText: String) -> some View {
         #if os(tvOS)
-        ShowAllCarouselLink(
-            route: AppNavigationRoute.library(viewModel.library),
-            title: labelText
-        )
+        NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
+            Text(labelText)
+                .font(.subheadline.weight(.semibold))
+        }
+        .controlSize(.small)
+        .buttonBorderShape(.capsule)
+        .buttonStyle(.glass)
+        .tint(Color.primary)
         #else
         NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
             Label(labelText, systemImage: "square.grid.2x2")

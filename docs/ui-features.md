@@ -79,11 +79,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Context menus for partially watched playable items should expose both watch-state
   endpoints: mark watched and mark unwatched. Do not collapse partial progress into
   a single toggle action.
-- Use `MediaCarousel` for generic horizontal sections with an optional "Show all"
-  destination. `PlexItemPosterCarouselSection` keeps that destination in the header
-  on iOS and renders it as a distinct dashed action tile at the end of the shelf on
-  tvOS. Its horizontal padding can be overridden when a page needs its shelves to
+- Use `MediaCarousel` for generic horizontal sections. It renders only the section
+  title; it has no header accessory slot, so do not reintroduce buttons beside the
+  title. Its horizontal padding can be overridden when a page needs its shelves to
   share the system navigation title's leading edge.
+- A shelf's "Show all" destination is `ShowAllCarouselTile`, rendered by
+  `PlexItemPosterCarouselSection` / `PlexItemActionCarouselSection` as the **last
+  card** of the shelf on **every** platform — a dashed card sized like the shelf's
+  artwork (`imageAspectRatio` aware), so the destination reads as content instead of
+  a cramped header button. Pass `showAllRoute` only when the shelf is actually
+  truncated; a nil route simply omits the tile.
 - Use `AdaptivePosterGridLayout.make(...)` for responsive poster grids. Do not hand-roll
   column math in feature files.
 - Use `DuskPosterMetrics` for platform-sensitive poster widths, grid spacing,
