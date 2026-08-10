@@ -6,6 +6,7 @@ import UIKit
 struct HomeView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(UserPreferences.self) private var preferences
     @Environment(\.scenePhase) private var scenePhase
     @Binding var path: NavigationPath
     let isSelected: Bool
@@ -19,9 +20,7 @@ struct HomeView: View {
                 Color.duskBackground.ignoresSafeArea()
 
                 if let viewModel {
-                    let hasHomeContent = !viewModel.hubs.isEmpty ||
-                        !viewModel.continueWatching.isEmpty ||
-                        !viewModel.personalizedShelves.isEmpty
+                    let hasHomeContent = viewModel.hasLoadedContent
 
                     if viewModel.isLoading, !hasHomeContent {
                         FeatureLoadingView()
@@ -37,7 +36,14 @@ struct HomeView: View {
                 }
             }
             .task(id: loadContext) {
-                let newViewModel = HomeViewModel(plexService: plexService)
+                let newViewModel = HomeViewModel(
+                    plexService: plexService,
+                    preferences: preferences,
+                    layoutContext: UserPreferences.homeLayoutContext(
+                        serverID: loadContext.serverID,
+                        profileID: loadContext.profileID
+                    )
+                )
                 viewModel = newViewModel
                 await newViewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
             }

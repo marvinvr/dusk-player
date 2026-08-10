@@ -159,7 +159,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the first visible home content.
 - Continue-watching items drive `HomeCinematicHero`.
 - Home filters playlist/music/unknown content and hides Plex "continue watching/on deck"
-  hubs so the custom continue-watching flow is not duplicated.
+  hubs so the custom continue-watching flow is not duplicated. That rule lives in
+  `HomeHubFilter` (`HomeLayout.swift`) because the layout editor has to list exactly
+  the rows Home renders.
+- Row order and visibility come from `HomeViewModel.arrangedRows`, which applies the
+  saved layout to the Live TV shelf, the Plex hubs, and the personalized shelves (one
+  block, since individual shelves are regenerated per load). The cinematic hero is a
+  visibility choice only: it is pinned to the top of Home, so `heroItems()` returns
+  nothing when the featured row is hidden. `HomeIOSView` renders whatever
+  `arrangedRows` returns; do not reintroduce a fixed row sequence there.
+- Rows Plex adds after the user's last edit keep their server order at the end of the
+  list rather than jumping into an arbitrary slot (`HomeLayoutArrangement`).
 - Recently Added hubs are expanded through `getHubItems(...)` so shelf limits are
   intentional and "Show all" can point to `.hub`.
 - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS remote
@@ -203,6 +213,25 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   drops the item optimistically, then reloads to reconcile.
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid; all-clip hubs render it 16:9.
+
+### Home Layout Editor (iOS/iPadOS)
+
+- `Settings › Layout › Home Screen` opens `HomeLayoutSettingsView`. tvOS has no entry
+  point; the screen and its view model are compiled out there.
+- `HomeLayoutSettingsViewModel` prefers Plex over local storage. A row that maps onto a
+  Managed Recommendation is shown/hidden and reordered on the server, so other Plex
+  clients follow the same layout; everything else (Dusk-only rows, the arrangement
+  between libraries, any server the account does not own) falls back to
+  `UserPreferences`. Plex writes are admin-only, so a 403 downgrades that single change
+  to a device-local one and surfaces a footer warning instead of failing the edit.
+- The editor also lists managed hubs Plex is currently hiding from home. They are
+  absent from `GET /hubs`, so listing them is the only way to bring a row back.
+- Layouts are keyed per server *and* per Plex Home member
+  (`UserPreferences.homeLayoutContext`): hub identifiers carry section ids that mean
+  different things on different servers, and Home members see different content.
+- Order pushes only move hubs that are actually on home, so hiding a row never
+  reshuffles a library's Recommended page. Writes are serialized through one task
+  chain so a burst of drags reaches Plex in the order the user made them.
 - Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
   `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where
   an all-clip hub (`isVideoHub`) renders as a 16:9 carousel.
@@ -362,6 +391,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server list, server picker, Home-user picker presentation, image cache status,
   app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
+- Settings → Layout → Home Screen opens the Home layout editor on iOS/iPadOS
+  (see "Home Layout Editor"). It is the one settings screen that writes to Plex
+  rather than only to `UserPreferences`.
 - Settings → Navigation → Navigation Tabs controls the visibility and order of
   Movies, TV Shows, Videos, and Live TV on every platform. iOS/iPadOS use
   native list editing for order; tvOS uses position menus. Hidden types stay in

@@ -33,6 +33,8 @@ final class UserPreferences {
         static let appearanceMode = "appearanceMode"
         static let libraryTabOrder = "libraryTabOrder"
         static let hiddenLibraryTabs = "hiddenLibraryTabs"
+        static let homeRowOrder = "homeRowOrder"
+        static let hiddenHomeRows = "hiddenHomeRows"
         static let downloadMaxResolution = "downloadMaxResolution"
         static let downloadsWifiOnly = "downloadsWifiOnly"
         static let maximumActiveDownloads = "maximumActiveDownloads"
@@ -220,6 +222,76 @@ final class UserPreferences {
         let clampedIndex = min(max(destinationIndex, 0), reorderedTabs.count)
         reorderedTabs.insert(movedTab, at: clampedIndex)
         libraryTabOrder = reorderedTabs
+    }
+
+    // MARK: - Home Layout
+
+    /// Saved Home row order, keyed by server and Plex Home profile. Plex owns as
+    /// much of this layout as its API allows (see `PlexService+Hubs`); what is
+    /// stored here is the remainder: Dusk-only rows, cross-library arrangement,
+    /// and every row belonging to a server the account does not own.
+    private var storedHomeRowOrder: [String: [String]] {
+        didSet { UserDefaults.standard.set(storedHomeRowOrder, forKey: Keys.homeRowOrder) }
+    }
+
+    /// Rows hidden on this device only, keyed the same way. A row Plex can hide
+    /// server-side never lands here.
+    private var storedHiddenHomeRows: [String: [String]] {
+        didSet { UserDefaults.standard.set(storedHiddenHomeRows, forKey: Keys.hiddenHomeRows) }
+    }
+
+    /// Home layouts are per server and per Plex Home member: hub identifiers
+    /// carry section ids that mean different things on different servers, and
+    /// two members of the same Home see different content.
+    static func homeLayoutContext(serverID: String?, profileID: String?) -> String {
+        "\(serverID ?? "no-server")|\(profileID ?? "no-profile")"
+    }
+
+    func homeRowOrder(context: String) -> [String] {
+        storedHomeRowOrder[context] ?? []
+    }
+
+    func setHomeRowOrder(_ order: [String], context: String) {
+        if order.isEmpty {
+            storedHomeRowOrder.removeValue(forKey: context)
+        } else {
+            storedHomeRowOrder[context] = order
+        }
+    }
+
+    func hiddenHomeRows(context: String) -> Set<String> {
+        Set(storedHiddenHomeRows[context] ?? [])
+    }
+
+    func isHomeRowHidden(_ rowID: String, context: String) -> Bool {
+        hiddenHomeRows(context: context).contains(rowID)
+    }
+
+    func setHomeRowHidden(_ isHidden: Bool, rowID: String, context: String) {
+        var rows = hiddenHomeRows(context: context)
+
+        if isHidden {
+            rows.insert(rowID)
+        } else {
+            rows.remove(rowID)
+        }
+
+        if rows.isEmpty {
+            storedHiddenHomeRows.removeValue(forKey: context)
+        } else {
+            storedHiddenHomeRows[context] = rows.sorted()
+        }
+    }
+
+    /// Drops this device's layout so Home falls back to the server's own order
+    /// and visibility.
+    func resetHomeLayout(context: String) {
+        storedHomeRowOrder.removeValue(forKey: context)
+        storedHiddenHomeRows.removeValue(forKey: context)
+    }
+
+    func hasCustomHomeLayout(context: String) -> Bool {
+        !homeRowOrder(context: context).isEmpty || !hiddenHomeRows(context: context).isEmpty
     }
 
     /// Maximum version quality selected for downloads.
@@ -416,6 +488,8 @@ final class UserPreferences {
         self.appearanceMode = appearanceMode
         self.libraryTabOrder = libraryTabOrder
         self.hiddenLibraryTabs = hiddenLibraryTabs
+        self.storedHomeRowOrder = Self.storedStringLists(forKey: Keys.homeRowOrder, defaults: defaults)
+        self.storedHiddenHomeRows = Self.storedStringLists(forKey: Keys.hiddenHomeRows, defaults: defaults)
         self.downloadMaxResolution = downloadMaxResolution
         self.downloadsWifiOnly = downloadsWifiOnly
         self.maximumActiveDownloads = maximumActiveDownloads
@@ -475,6 +549,20 @@ final class UserPreferences {
             (defaults.stringArray(forKey: Keys.hiddenLibraryTabs) ?? [])
                 .compactMap(PlexLibraryType.init(rawValue:))
         )
+    }
+
+    /// Reads a context-keyed list dictionary, dropping anything a foreign write
+    /// left behind in an unexpected shape.
+    private static func storedStringLists(
+        forKey key: String,
+        defaults: UserDefaults
+    ) -> [String: [String]] {
+        guard let stored = defaults.dictionary(forKey: key) else { return [:] }
+
+        return stored.compactMapValues { value in
+            guard let list = value as? [String], !list.isEmpty else { return nil }
+            return list
+        }
     }
 
     private static func storedContinuousPlayCountdown(

@@ -17,11 +17,52 @@ final class HomeViewModel {
     private var personalizedShelvesTask: Task<Void, Never>?
 
     private let plexService: PlexService
+    private let preferences: UserPreferences
     private let recommendationEngine: HomeRecommendationEngine
 
-    init(plexService: PlexService) {
+    /// Identifies whose layout applies. Home is rebuilt per server and Plex Home
+    /// member, and the saved layout follows the same identity.
+    let layoutContext: String
+
+    init(plexService: PlexService, preferences: UserPreferences, layoutContext: String) {
         self.plexService = plexService
+        self.preferences = preferences
+        self.layoutContext = layoutContext
         self.recommendationEngine = HomeRecommendationEngine(plexService: plexService)
+    }
+
+    /// Every Home row in the user's saved order, minus the ones they hid.
+    ///
+    /// The Live TV row is always offered: `LiveTVHomeShelf` renders nothing when
+    /// the server has no Live TV, and keeping the row in the list means its
+    /// saved position survives a server that gains or loses the feature.
+    var arrangedRows: [HomeRow] {
+        var rows: [HomeRow] = [.liveTV]
+        rows.append(contentsOf: hubs.map(HomeRow.hub))
+
+        if !personalizedShelves.isEmpty {
+            rows.append(.suggestions(personalizedShelves))
+        }
+
+        let hiddenRows = preferences.hiddenHomeRows(context: layoutContext)
+
+        return HomeLayoutArrangement.arrange(
+            rows.filter { !hiddenRows.contains($0.id) },
+            id: \.id,
+            preferredOrder: preferences.homeRowOrder(context: layoutContext)
+        )
+    }
+
+    /// True once Plex has returned anything Home could render, regardless of the
+    /// layout the user applied on top of it.
+    var hasLoadedContent: Bool {
+        !hubs.isEmpty || !continueWatching.isEmpty || !personalizedShelves.isEmpty
+    }
+
+    /// Whether the cinematic hero is part of the layout. It is pinned to the top
+    /// of Home, so it is a visibility choice rather than an orderable row.
+    var isFeaturedRowVisible: Bool {
+        !preferences.isHomeRowHidden(HomeLayoutRowID.featured, context: layoutContext)
     }
 
     func load(maxRecentlyAddedItems: Int? = nil) async {
@@ -145,10 +186,12 @@ final class HomeViewModel {
     }
 
     func heroItems() -> [PlexItem] {
+        guard isFeaturedRowVisible else { return [] }
+
         // In-progress clips stay out of the cinematic hero rotation: their 16:9
         // frame grabs read poorly as full-bleed backdrops. They still surface in
         // the Videos tab's Continue Watching row.
-        continueWatching.filter { !$0.isClip }
+        return continueWatching.filter { !$0.isClip }
     }
 
     func heroEpisodeTitle(for item: PlexItem) -> String? {
@@ -364,28 +407,11 @@ final class HomeViewModel {
     }
 
     private func shouldHideHomeHub(_ hub: PlexHub) -> Bool {
-        let fields = [hub.title, hub.key, hub.hubIdentifier]
-            .compactMap { $0?.lowercased() }
-
-        return fields.contains(where: { value in
-            value.contains("continue watching") ||
-            value.contains("continuewatching") ||
-            value.contains("on deck") ||
-            value.contains("ondeck") ||
-            value.contains("playlist") ||
-            value.contains("playlists")
-        })
+        HomeHubFilter.shouldHide(hub: hub)
     }
 
     private func shouldHideHomeItem(_ item: PlexItem) -> Bool {
-        let normalizedKey = item.key.lowercased()
-
-        switch item.type {
-        case .artist, .album, .track, .unknown:
-            return true
-        default:
-            return normalizedKey.contains("/playlists/")
-        }
+        HomeHubFilter.shouldHide(item: item)
     }
 
     private func filterPersonalizedShelves(

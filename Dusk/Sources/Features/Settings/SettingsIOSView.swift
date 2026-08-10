@@ -183,6 +183,29 @@ struct SettingsIOSView: View {
 
             Section {
                 NavigationLink {
+                    HomeLayoutSettingsView()
+                } label: {
+                    HStack {
+                        Text("Home Screen")
+                            .foregroundStyle(Color.duskTextPrimary)
+
+                        Spacer()
+
+                        Text(SettingsSupport.homeLayoutSummary(preferences, context: homeLayoutContext))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+            } header: {
+                Text("Layout")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.homeLayoutFooterText)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
+                NavigationLink {
                     LibraryTabSettingsView()
                 } label: {
                     HStack {
@@ -562,6 +585,13 @@ struct SettingsIOSView: View {
                 guard !$0 else { return }
                 presentedAccountURL = nil
             }
+        )
+    }
+
+    private var homeLayoutContext: String {
+        UserPreferences.homeLayoutContext(
+            serverID: plexService.currentServerIdentifier,
+            profileID: plexService.activeProfileID
         )
     }
 

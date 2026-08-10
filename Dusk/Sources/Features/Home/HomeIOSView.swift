@@ -90,69 +90,23 @@ struct HomeIOSView: View {
                     }
 
                     LazyVStack(alignment: .leading, spacing: 18) {
-                        LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
-
-                        ForEach(viewModel.hubs) { hub in
-                            let items = viewModel.inlineItems(
-                                in: hub,
-                                maxRecentlyAddedItems: recentlyAddedInlineItemLimit
-                            )
-
-                            if !items.isEmpty {
-                                let isVideoHub = viewModel.isVideoHub(hub)
-
-                                PlexItemPosterCarouselSection(
-                                    title: hub.title,
-                                    items: items,
-                                    posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : 130,
-                                    imageAspectRatio: isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0,
-                                    showAllRoute: viewModel.shouldShowAll(
-                                        for: hub,
-                                        maxRecentlyAddedItems: recentlyAddedInlineItemLimit
-                                    ) ? AppNavigationRoute.hub(hub) : nil,
-                                    subtitle: { isVideoHub ? $0.standardPosterSubtitle : $0.year.map(String.init) },
-                                    posterURL: { item, width, height in
-                                        viewModel.posterURL(for: item, width: width, height: height)
-                                    }
-                                ) { item in
-                                    PlexItemContextMenuContent(
-                                        item: item,
-                                        onMarkWatched: {
-                                            Task { await viewModel.setWatched(true, for: item) }
-                                        },
-                                        onMarkUnwatched: {
-                                            Task { await viewModel.setWatched(false, for: item) }
-                                        }
-                                    )
+                        ForEach(viewModel.arrangedRows) { row in
+                            switch row {
+                            case .liveTV:
+                                LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
+                            case .hub(let hub):
+                                hubSection(hub)
+                            case .suggestions(let shelves):
+                                ForEach(shelves) { shelf in
+                                    personalizedSection(shelf)
                                 }
                             }
                         }
 
-                        ForEach(viewModel.personalizedShelves) { shelf in
-                            if !shelf.items.isEmpty {
-                                PlexItemPosterCarouselSection(
-                                    title: shelf.title,
-                                    items: shelf.items,
-                                    posterWidth: 130,
-                                    showAllRoute: viewModel.showAllRoute(for: shelf),
-                                    subtitle: { item in
-                                        viewModel.subtitle(for: item)
-                                    },
-                                    posterURL: { item, width, height in
-                                        viewModel.posterURL(for: item, width: width, height: height)
-                                    }
-                                ) { item in
-                                    PlexItemContextMenuContent(
-                                        item: item,
-                                        onMarkWatched: {
-                                            Task { await viewModel.setWatched(true, for: item) }
-                                        },
-                                        onMarkUnwatched: {
-                                            Task { await viewModel.setWatched(false, for: item) }
-                                        }
-                                    )
-                                }
-                            }
+                        if heroItems.isEmpty, showsEmptyLayoutState {
+                            emptyLayoutState
+                                .frame(maxWidth: .infinity)
+                                .padding(.top, 60)
                         }
                     }
                     .padding(.top, heroItems.isEmpty ? 0 : 24)
@@ -169,6 +123,95 @@ struct HomeIOSView: View {
         .task {
             await liveTVViewModel.loadNowPlaying(force: true)
         }
+    }
+
+    @ViewBuilder
+    private func hubSection(_ hub: PlexHub) -> some View {
+        let items = viewModel.inlineItems(
+            in: hub,
+            maxRecentlyAddedItems: recentlyAddedInlineItemLimit
+        )
+
+        if !items.isEmpty {
+            let isVideoHub = viewModel.isVideoHub(hub)
+
+            PlexItemPosterCarouselSection(
+                title: hub.title,
+                items: items,
+                posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : 130,
+                imageAspectRatio: isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0,
+                showAllRoute: viewModel.shouldShowAll(
+                    for: hub,
+                    maxRecentlyAddedItems: recentlyAddedInlineItemLimit
+                ) ? AppNavigationRoute.hub(hub) : nil,
+                subtitle: { isVideoHub ? $0.standardPosterSubtitle : $0.year.map(String.init) },
+                posterURL: { item, width, height in
+                    viewModel.posterURL(for: item, width: width, height: height)
+                }
+            ) { item in
+                PlexItemContextMenuContent(
+                    item: item,
+                    onMarkWatched: {
+                        Task { await viewModel.setWatched(true, for: item) }
+                    },
+                    onMarkUnwatched: {
+                        Task { await viewModel.setWatched(false, for: item) }
+                    }
+                )
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func personalizedSection(_ shelf: HomePersonalizedShelf) -> some View {
+        if !shelf.items.isEmpty {
+            PlexItemPosterCarouselSection(
+                title: shelf.title,
+                items: shelf.items,
+                posterWidth: 130,
+                showAllRoute: viewModel.showAllRoute(for: shelf),
+                subtitle: { item in
+                    viewModel.subtitle(for: item)
+                },
+                posterURL: { item, width, height in
+                    viewModel.posterURL(for: item, width: width, height: height)
+                }
+            ) { item in
+                PlexItemContextMenuContent(
+                    item: item,
+                    onMarkWatched: {
+                        Task { await viewModel.setWatched(true, for: item) }
+                    },
+                    onMarkUnwatched: {
+                        Task { await viewModel.setWatched(false, for: item) }
+                    }
+                )
+            }
+        }
+    }
+
+    /// Distinguishes "the user turned every row off" from an empty server,
+    /// which `HomeView` already covers with its own loading and error states.
+    /// The Live TV row does not count: it renders nothing on its own.
+    private var showsEmptyLayoutState: Bool {
+        guard !viewModel.isLoading, viewModel.hasLoadedContent else { return false }
+
+        return !viewModel.arrangedRows.contains { row in
+            switch row {
+            case .liveTV:
+                false
+            case .hub, .suggestions:
+                true
+            }
+        }
+    }
+
+    private var emptyLayoutState: some View {
+        FeatureEmptyStateView(
+            systemImage: "rectangle.stack",
+            title: "Nothing on Home",
+            message: "Every row is turned off. Turn some back on in Settings › Home Screen."
+        )
     }
 
     @ViewBuilder

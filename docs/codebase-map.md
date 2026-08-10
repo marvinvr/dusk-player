@@ -89,6 +89,8 @@ Home:
 - `HomeCinematicHero` is large and visual; keep reusable poster/list UI outside it.
 - `LiveTVHomeShelf` renders currently airing programs without blocking ordinary
   Home content when Live TV is absent or unavailable.
+- `HomeLayout` owns the row identities, the saved-order arrangement, and the
+  hub/item filter shared with the Home layout editor in Settings.
 
 Live TV:
 
@@ -139,6 +141,9 @@ Settings:
 - `UserPreferences` persists settings in `UserDefaults`.
 - `SettingsViewModel` owns settings actions that need services.
 - iOS/tvOS layouts are separate views with shared support helpers.
+- `HomeLayoutSettingsView`/`HomeLayoutSettingsViewModel` edit the Home row order
+  and visibility (iOS/iPadOS only). They write through to Plex's managed hubs
+  where the server allows it and fall back to `UserPreferences` otherwise.
 
 Search and Seerr:
 
@@ -162,6 +167,8 @@ Supporter:
 ## Where New Code Goes
 
 - New Plex endpoint: matching `PlexService+*.swift` file.
+- New Home row type: `HomeLayout` identities plus both `HomeViewModel.arrangedRows`
+  and the layout editor, so the two lists cannot drift.
 - New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
   a generic provider protocol.
 - New Plex response shape: `Models/`, with optional fields where Plex varies by

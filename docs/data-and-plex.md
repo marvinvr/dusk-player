@@ -154,6 +154,28 @@ Hubs and search:
 - `search(query:)` -> `/hubs/search` with `limit=10`, no collections, and GUIDs,
   wrapped as `[PlexSearchResult]`.
 
+Managed hubs (`PlexService+Hubs.swift`) — the writable side of the Plex home
+screen, used by the Home layout editor:
+- `getManagedHubs(sectionID:)` -> `/hubs/sections/{sectionId}/manage`, decoded as
+  `[PlexManagedHub]`.
+- `setManagedHubVisibility(...)` -> `PUT /hubs/sections/{sectionId}/manage/{identifier}`.
+  Always send all three `promotedTo*` flags: Plex reads a missing parameter as
+  `false` and would silently demote the hub everywhere else it is promoted.
+- `moveManagedHub(sectionID:identifier:after:)` ->
+  `PUT /hubs/sections/{sectionId}/manage/{identifier}/move?after={identifier}`,
+  omitting `after` to move the hub first. The identifier belongs in the path; the
+  documented `/manage/move?identifier=` form is not implemented by shipping
+  servers.
+- All three are admin-only. Check `PlexService.canManageHubs` (server `owned`)
+  before calling and treat 403 as "this account cannot store the layout",
+  not as an error worth failing a user action over.
+- Identifiers differ between payloads: the manage endpoint calls a hub
+  `movie.topunwatched` while `GET /hubs` returns the same row as
+  `movie.topunwatched.1` (section id appended). Custom collection hubs already
+  carry their section id. Match on both spellings.
+- A hub with `promotedToOwnHome == false` is absent from `GET /hubs` entirely,
+  so the manage payload is the only way to discover a row that can be restored.
+
 Detail and hierarchy:
 - `getMediaDetails(ratingKey:)` -> `/library/metadata/{ratingKey}` with markers
   and GUIDs; this feeds detail screens, exact Seerr matching, and playback
@@ -263,6 +285,8 @@ Pitfalls:
   clips surface (hubs, search, continue watching, downloads).
 - `PlexHub` decodes items lossily because search can return suggestion records
   that are not media-shaped.
+- `PlexManagedHub` decodes its `promotedTo*` flags bool-ish; older servers answer
+  the manage endpoint with `1`/`0`.
 - `PlexStream` decodes selected/default/forced/hearing-impaired as bool-ish
   values because Plex sends both ints and bools.
 - `PlexItem` and `PlexMediaDetails` resolve `clearLogo` from either an explicit
