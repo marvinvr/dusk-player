@@ -44,8 +44,15 @@ struct PlayerLoadingView: View {
 
             VStack(spacing: 20) {
                 if let placeholder {
-                    PosterArtwork(imageURL: posterURL, width: posterWidth)
-                        .shadow(color: .black.opacity(0.4), radius: 24, y: 12)
+                    Group {
+                        switch placeholder.artwork {
+                        case .poster:
+                            PosterArtwork(imageURL: posterURL, width: posterWidth)
+                        case .liveChannel(let logoPath):
+                            channelArtwork(logoPath: logoPath)
+                        }
+                    }
+                    .shadow(color: .black.opacity(0.4), radius: 24, y: 12)
 
                     VStack(spacing: 6) {
                         Text(placeholder.title)
@@ -90,6 +97,60 @@ struct PlayerLoadingView: View {
                 .accessibilityLabel("Cancel")
             }
         }
+        #endif
+    }
+
+    /// Channel logos are wide, square, or anything in between and usually ship
+    /// with their own padding, so they get a centered square tile that fits the
+    /// artwork rather than a poster frame that would crop or letterbox it. The
+    /// tile is drawn whether or not a logo resolves, so a channel without one
+    /// still reads as a channel instead of a blank poster.
+    private func channelArtwork(logoPath: String?) -> some View {
+        RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+            .fill(.white.opacity(0.08))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous))
+            .overlay {
+                if let logoURL = channelLogoURL(for: logoPath) {
+                    DuskAsyncImage(url: logoURL) { phase in
+                        if case let .success(image) = phase {
+                            image
+                                .resizable()
+                                .scaledToFit()
+                        } else {
+                            channelFallbackSymbol
+                        }
+                    }
+                    .padding(channelTileSize * 0.16)
+                } else {
+                    channelFallbackSymbol
+                }
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            }
+            .frame(width: channelTileSize, height: channelTileSize)
+    }
+
+    private var channelFallbackSymbol: some View {
+        Image(systemName: "dot.radiowaves.left.and.right")
+            .font(.system(size: channelTileSize * 0.3, weight: .regular))
+            .foregroundStyle(.white.opacity(0.55))
+    }
+
+    private func channelLogoURL(for path: String?) -> URL? {
+        plexService.imageURL(
+            for: path,
+            width: Int(channelTileSize * 2),
+            height: Int(channelTileSize * 2)
+        )
+    }
+
+    private var channelTileSize: CGFloat {
+        #if os(tvOS)
+        240
+        #else
+        160
         #endif
     }
 

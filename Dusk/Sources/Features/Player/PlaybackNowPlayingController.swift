@@ -101,6 +101,20 @@ final class PlaybackNowPlayingController {
         #endif
     }
 
+    /// Follows the tuned channel's schedule: a live session outlives the
+    /// program it started on, and the lock screen should not still be naming
+    /// the show that ended an hour ago. Title only — the channel artwork stays
+    /// put across program changes.
+    func updateLiveProgramTitle(_ title: String) {
+        #if os(iOS)
+        guard engine != nil,
+              nowPlayingInfo[MPMediaItemPropertyTitle] as? String != title else { return }
+
+        nowPlayingInfo[MPMediaItemPropertyTitle] = title
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        #endif
+    }
+
     func updatePlaybackState(
         state: PlaybackState,
         currentTime: TimeInterval,

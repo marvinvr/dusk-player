@@ -30,6 +30,11 @@ struct LiveTVHomeShelf: View {
                                             for: program.preferredLandscapePath,
                                             width: 640,
                                             height: 360
+                                        ),
+                                        channelLogoURL: viewModel.imageURL(
+                                            for: channel.thumb,
+                                            width: 256,
+                                            height: 256
                                         )
                                     )
                                 }

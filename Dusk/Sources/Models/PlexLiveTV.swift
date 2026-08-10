@@ -322,6 +322,36 @@ struct PlexLivePlaybackContext: Sendable, Hashable {
     var sessionPath: String {
         "/livetv/sessions/\(sessionID)"
     }
+
+    /// The tuned channel's schedule. Refreshed during playback by
+    /// `PlaybackCoordinator`, so it stays valid past the tuned program's end.
+    var channelPrograms: [PlexLiveProgram] {
+        lineup.guide(for: channel)?.programs ?? []
+    }
+
+    func program(at date: Date) -> PlexLiveProgram? {
+        channelPrograms.first { $0.isAiring(at: date) }
+    }
+
+    /// Copy of this context carrying a fresh schedule for the tuned channel.
+    /// Other channels keep their guides so the in-player channel list still
+    /// shows what is on elsewhere.
+    func replacingChannelPrograms(_ programs: [PlexLiveProgram]) -> PlexLivePlaybackContext {
+        var guides = lineup.guides.map { guide in
+            guide.channel.id == channel.id
+                ? PlexLiveChannelGuide(channel: guide.channel, programs: programs)
+                : guide
+        }
+        if !guides.contains(where: { $0.channel.id == channel.id }) {
+            guides.append(PlexLiveChannelGuide(channel: channel, programs: programs))
+        }
+        return PlexLivePlaybackContext(
+            lineup: PlexLiveTVLineup(provider: lineup.provider, guides: guides),
+            channel: channel,
+            program: programs.first { $0.isAiring() } ?? program,
+            sessionID: sessionID
+        )
+    }
 }
 
 struct PlexLiveTuneResult: Sendable {

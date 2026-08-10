@@ -20,10 +20,34 @@ struct PlaybackAttemptContext: Sendable {
 /// relative Plex art paths rather than resolved URLs so the loading view can
 /// size them itself via `PlexService.imageURL(for:width:height:)`.
 struct PlaybackPlaceholder: Sendable {
+    /// How the loading screen leads. Library items lead with their poster;
+    /// Live TV leads with the channel, whose logo is the one image that is
+    /// reliably present — program art frequently is not, and a 2:3 poster
+    /// frame around a missing program image is just an empty rectangle.
+    enum Artwork: Sendable {
+        case poster
+        case liveChannel(logoPath: String?)
+    }
+
     let title: String
     let subtitle: String?
     let posterPath: String?
     let backdropPath: String?
+    let artwork: Artwork
+
+    init(
+        title: String,
+        subtitle: String?,
+        posterPath: String?,
+        backdropPath: String?,
+        artwork: Artwork = .poster
+    ) {
+        self.title = title
+        self.subtitle = subtitle
+        self.posterPath = posterPath
+        self.backdropPath = backdropPath
+        self.artwork = artwork
+    }
 }
 
 extension PlaybackPlaceholder {

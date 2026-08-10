@@ -852,6 +852,7 @@ extension PlaybackCoordinator {
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil
         activeItemDetails = nil
+        cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false

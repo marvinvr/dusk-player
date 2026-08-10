@@ -48,8 +48,11 @@ struct PlayerControlsOverlay: View {
 
     private var mediaHeader: PlayerMediaHeader? {
         if let liveTVContext = viewModel.liveTVContext {
+            // The program the play bar is on, not the one that was airing at
+            // tune time — the schedule rolls over during long sessions, and a
+            // rewind can land in the previous program.
             return PlayerMediaHeader(
-                title: liveTVContext.program?.displayTitle ?? liveTVContext.channel.displayTitle,
+                title: viewModel.liveProgram?.displayTitle ?? liveTVContext.channel.displayTitle,
                 secondaryTitle: nil,
                 subtitle: [liveTVContext.channel.displayNumber, liveTVContext.channel.displayTitle]
                     .compactMap { $0 }

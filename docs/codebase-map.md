@@ -123,6 +123,8 @@ Player:
 - `PlaybackCoordinator` starts library and Live TV sessions and owns
   timeline/scrobble/up-next. Live sessions never scrobble.
 - `PlayerView` and `PlayerViewModel` own on-screen player interaction.
+- `PlayerLiveTimeline.swift` owns the Live TV play bar's wall-clock model
+  (live-edge estimate, program window, behind-live offset).
 - Engine-specific work stays in `Playback/`.
 
 Downloads:

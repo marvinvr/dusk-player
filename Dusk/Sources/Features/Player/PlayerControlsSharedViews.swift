@@ -103,6 +103,17 @@ struct PlayerTimeStatusView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.white.opacity(0.9))
                 .disabled(viewModel.isAtLiveEdge)
+
+                // A live session has no duration to pair the position with, so
+                // the bar's own span — the scheduled program — is the readout
+                // that makes the playhead's place legible.
+                if let programWindow = viewModel.liveProgramWindowLabel {
+                    Text(programWindow)
+                        .font(.subheadline.weight(.medium).monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.55))
+                        .lineLimit(1)
+                        .padding(.leading, 6)
+                }
             } else {
             Text(formattedPosition)
                 .font(.subheadline.weight(.medium).monospacedDigit())
@@ -171,10 +182,10 @@ struct PlayerSeekBar: View {
 
             ZStack(alignment: .topLeading) {
                 #if os(tvOS)
-                seekTrack(playedWidth: playedWidth)
+                seekTrack(playedWidth: playedWidth, totalWidth: width)
                 #else
                 if isInteractive {
-                    seekTrack(playedWidth: playedWidth).gesture(
+                    seekTrack(playedWidth: playedWidth, totalWidth: width).gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
                                 guard width > 0 else { return }
@@ -189,7 +200,7 @@ struct PlayerSeekBar: View {
                             }
                     )
                 } else {
-                    seekTrack(playedWidth: playedWidth)
+                    seekTrack(playedWidth: playedWidth, totalWidth: width)
                 }
 
                 if viewModel.isScrubbing,
@@ -205,6 +216,17 @@ struct PlayerSeekBar: View {
                     )
                     .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
                     .zIndex(2)
+                } else if viewModel.isScrubbing,
+                          let clockLabel = viewModel.liveClockLabel(for: viewModel.displayPosition) {
+                    // Live has no thumbnails to preview, so the useful answer
+                    // while dragging is what time of the broadcast you are on.
+                    PlayerLiveClockBubble(label: clockLabel)
+                        .position(
+                            x: min(max(scrubX, 34), max(width - 34, 34)),
+                            y: PlayerLiveClockBubble.verticalPosition
+                        )
+                        .transition(.scale(scale: 0.96, anchor: .bottom).combined(with: .opacity))
+                        .zIndex(2)
                 }
                 #endif
             }
@@ -212,7 +234,7 @@ struct PlayerSeekBar: View {
         .frame(height: 32)
     }
 
-    private func seekTrack(playedWidth: CGFloat) -> some View {
+    private func seekTrack(playedWidth: CGFloat, totalWidth: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Capsule()
                 #if os(tvOS)
@@ -225,6 +247,23 @@ struct PlayerSeekBar: View {
                         .strokeBorder(trackBorderColor, lineWidth: 0.8)
                 }
                 .frame(height: trackHeight)
+
+            // Live: the stretch of the program the tuned session still holds,
+            // ending at the live edge. Everything outside it is either already
+            // dropped from the DVR window or has not aired yet, which is what
+            // makes a clamped drag read as intentional rather than broken.
+            if let reachable = viewModel.liveReachableTrackRange, totalWidth > 0 {
+                let start = totalWidth * reachable.lowerBound
+                let reachableWidth = totalWidth * (reachable.upperBound - reachable.lowerBound)
+                // Below one capsule width there is nothing meaningful to
+                // rewind into yet, and the shape would render as a blob.
+                if reachableWidth >= trackHeight {
+                    Capsule()
+                        .fill(.white.opacity(0.24))
+                        .frame(width: reachableWidth, height: trackHeight)
+                        .offset(x: start)
+                }
+            }
 
             if playedWidth > 0 {
                 Capsule()
@@ -278,6 +317,37 @@ struct PlayerSeekBar: View {
         }
 
         return min(max(proposedX, halfWidth), totalWidth - halfWidth)
+    }
+}
+
+/// Broadcast time at a point on a live play bar. Stands in for the scrub
+/// preview popup, which needs thumbnails a live session never has.
+struct PlayerLiveClockBubble: View {
+    let label: String
+
+    #if os(tvOS)
+    static let verticalPosition: CGFloat = -6
+    #else
+    static let verticalPosition: CGFloat = -14
+    #endif
+
+    var body: some View {
+        Text(label)
+            .font(.caption.weight(.semibold).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.94))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background {
+                Capsule()
+                    .fill(.white.opacity(0.07))
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .overlay {
+                Capsule()
+                    .strokeBorder(.white.opacity(0.28), lineWidth: 1)
+            }
+            .shadow(color: .black.opacity(0.32), radius: 12, y: 5)
+            .allowsHitTesting(false)
     }
 }
 

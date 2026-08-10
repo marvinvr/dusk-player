@@ -468,6 +468,13 @@ private struct PlayerSessionView: View {
         .onChange(of: scenePhase) { _, newPhase in
             playback.flushTimelineForScenePhase(newPhase)
         }
+        // The coordinator refreshes the tuned channel's schedule during the
+        // session; the play bar and header read it from the view model, which
+        // was seeded with the snapshot taken at tune time.
+        .onChange(of: playback.activeLiveTVContext) { _, context in
+            guard let context, context.sessionID == viewModel.liveTVContext?.sessionID else { return }
+            viewModel.liveTVContext = context
+        }
         .task(id: scrubPreviewPartID) {
             await loadScrubPreviewSource(partID: scrubPreviewPartID)
         }

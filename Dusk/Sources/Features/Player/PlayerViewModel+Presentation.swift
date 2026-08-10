@@ -18,11 +18,29 @@ extension PlayerViewModel {
         liveTVContext != nil
     }
 
+    /// What the play bar spans. A live session shows the scheduled program the
+    /// playhead sits in (mapped onto the engine clock) rather than the HLS
+    /// window, whose bounds slide on every playlist reload — seeking stays
+    /// clamped to what the session can actually reach, see
+    /// `clampedSeekPosition`.
     var timelineRange: ClosedRange<TimeInterval> {
+        if let liveTimeline {
+            return liveTimeline.positionRange
+        }
         if let seekableRange {
             return seekableRange
         }
         return 0...max(duration, 0)
+    }
+
+    /// Fractions of the play bar the tuned session can still be rewound into,
+    /// ending at the live edge. Nil until a live session is under way.
+    var liveReachableTrackRange: ClosedRange<Double>? {
+        guard let liveTimeline, let seekableRange else { return nil }
+        let start = timelineProgress(for: seekableRange.lowerBound)
+        let end = timelineProgress(for: liveTimeline.livePosition)
+        guard end > start else { return nil }
+        return start...end
     }
 
     var timelineProgress: Double {
@@ -41,15 +59,24 @@ extension PlayerViewModel {
         return range.lowerBound + (range.upperBound - range.lowerBound) * min(max(progress, 0), 1)
     }
 
+    /// True while the viewer is watching the live edge. Measured against the
+    /// projected live edge (see `LiveEdgeClock`) rather than the HLS seekable
+    /// bound, which steps by a segment at a time and used to flip this — and
+    /// the readout below — back and forth several times a minute.
     var isAtLiveEdge: Bool {
-        guard isLiveTV, let seekableRange else { return false }
-        return seekableRange.upperBound - displayPosition < 8
+        // A live session that has not produced a snapshot yet is still starting
+        // up, and playback always starts at the edge — reading it as "behind"
+        // would offer a Go Live jump with nowhere to jump to.
+        guard let liveTimeline else { return isLiveTV }
+        return liveTimeline.isAtLiveEdge(atPosition: displayPosition)
     }
 
     var formattedLiveOffset: String {
-        guard let seekableRange else { return "LIVE" }
-        let secondsBehind = max(0, Int((seekableRange.upperBound - displayPosition).rounded()))
-        guard secondsBehind >= 8 else { return "LIVE" }
+        guard let liveTimeline else { return "LIVE" }
+        let behind = liveTimeline.secondsBehindLive(atPosition: displayPosition)
+        guard behind >= LiveTimelineSnapshot.liveEdgeTolerance else { return "LIVE" }
+
+        let secondsBehind = Int(behind.rounded())
         let hours = secondsBehind / 3600
         let minutes = (secondsBehind % 3600) / 60
         let seconds = secondsBehind % 60

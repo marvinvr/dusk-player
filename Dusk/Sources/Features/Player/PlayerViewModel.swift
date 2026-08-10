@@ -57,7 +57,13 @@ final class PlayerViewModel {
     var engineView: AnyView
     @ObservationIgnored var lastPlayerViewGeneration = 0
     let markers: [PlexMarker]
-    let liveTVContext: PlexLivePlaybackContext?
+    /// Refreshed by the coordinator as the tuned channel's schedule rolls over,
+    /// so the play bar and header follow the actual programming.
+    var liveTVContext: PlexLivePlaybackContext?
+    /// Wall-clock view of the live session, rebuilt on every `sync()`. Nil for
+    /// everything except Live TV, and until the engine reports a position.
+    var liveTimeline: LiveTimelineSnapshot?
+    @ObservationIgnored var liveEdgeClock = LiveEdgeClock()
     var hasLoadedSource = false
     var sourcePart: PlexMediaPart?
     var preferredSubtitleLanguage: String?

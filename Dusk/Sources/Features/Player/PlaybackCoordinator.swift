@@ -105,6 +105,9 @@ final class PlaybackCoordinator {
     /// start and swaps the session to the server-stream ladder rung when the
     /// engine fails. Cancelled on finalize/clear/engine swap.
     @ObservationIgnored nonisolated(unsafe) var directPlayFallbackWatchTask: Task<Void, Never>?
+    /// Keeps the tuned Live TV channel's schedule current for the length of the
+    /// session. Cancelled with the session.
+    @ObservationIgnored nonisolated(unsafe) var liveTVScheduleRefreshTask: Task<Void, Never>?
 
     init(
         plexService: PlexService,
@@ -122,6 +125,7 @@ final class PlaybackCoordinator {
         timelineTimer?.invalidate()
         directPlayFallbackWatchTask?.cancel()
         upNextPosterCountdownTask?.cancel()
+        liveTVScheduleRefreshTask?.cancel()
     }
 
     /// Single source of truth for the full-screen player loading presentation.
@@ -201,8 +205,9 @@ final class PlaybackCoordinator {
             placeholder: PlaybackPlaceholder(
                 title: program?.displayTitle ?? channel.displayTitle,
                 subtitle: subtitle,
-                posterPath: channel.thumb,
-                backdropPath: program?.preferredLandscapePath
+                posterPath: nil,
+                backdropPath: program?.preferredLandscapePath ?? channel.thumb,
+                artwork: .liveChannel(logoPath: channel.thumb)
             ),
             attemptID: attemptID
         )
@@ -287,11 +292,110 @@ final class PlaybackCoordinator {
                 skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
             )
             startTimelineReporting()
+            startLiveTVScheduleRefresh()
         } catch {
             guard currentPlaybackAttemptID == attemptID else { return }
             loadError = error.localizedDescription
         }
     }
+
+    // MARK: - Live TV Schedule
+
+    /// Keeps the tuned channel's schedule current for the whole session. The
+    /// lineup handed to `playLiveTV` is a snapshot — the home shelf carries
+    /// only what was airing when it loaded — so without this the play bar and
+    /// the header would still be describing a finished program an hour later.
+    private func startLiveTVScheduleRefresh() {
+        liveTVScheduleRefreshTask?.cancel()
+        guard let sessionID = activeLiveTVContext?.sessionID else { return }
+
+        liveTVScheduleRefreshTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                guard let self, self.activeLiveTVContext?.sessionID == sessionID else { return }
+                await self.refreshLiveTVSchedule()
+                guard !Task.isCancelled,
+                      self.activeLiveTVContext?.sessionID == sessionID else { return }
+                try? await Task.sleep(for: .seconds(self.liveTVScheduleRefreshDelay))
+            }
+        }
+    }
+
+    func cancelLiveTVScheduleRefresh() {
+        liveTVScheduleRefreshTask?.cancel()
+        liveTVScheduleRefreshTask = nil
+    }
+
+    /// Wakes up just after the current program ends so the switchover is
+    /// prompt, and is bounded so a missing or stale schedule still re-checks on
+    /// its own.
+    private var liveTVScheduleRefreshDelay: TimeInterval {
+        let programEnd = activeLiveTVContext?.program(at: .now)?.endsAt
+        let delay = programEnd.map { $0.timeIntervalSinceNow + 5 } ?? 0
+        return min(max(delay, 60), 15 * 60)
+    }
+
+    /// Re-derives the airing program, fetching a fresh grid only once the
+    /// schedule Dusk already holds stops covering the near future.
+    private func refreshLiveTVSchedule() async {
+        guard let context = activeLiveTVContext else { return }
+
+        var programs = context.channelPrograms
+        let coverage = programs.compactMap(\.endsAt).max() ?? .distantPast
+        if coverage < Date.now.addingTimeInterval(Self.liveTVScheduleCoverageHorizon) {
+            let fetched = await fetchLiveTVSchedule(
+                provider: context.lineup.provider,
+                channel: context.channel
+            )
+            guard activeLiveTVContext?.sessionID == context.sessionID else { return }
+            if !fetched.isEmpty {
+                programs = fetched
+            }
+        }
+
+        guard !programs.isEmpty else { return }
+        let refreshed = context.replacingChannelPrograms(programs)
+        guard refreshed != activeLiveTVContext else { return }
+        activeLiveTVContext = refreshed
+
+        if let title = refreshed.program(at: .now)?.displayTitle {
+            nowPlayingController.updateLiveProgramTitle(title)
+        }
+    }
+
+    private func fetchLiveTVSchedule(
+        provider: PlexLiveTVProvider,
+        channel: PlexLiveChannel
+    ) async -> [PlexLiveProgram] {
+        var programs = await liveTVGuidePrograms(provider: provider, channel: channel, date: .now)
+        // Plex's grid is queried a day at a time, so a session running into the
+        // evening outlives today's schedule. Pull tomorrow in as well.
+        let coverage = programs.compactMap(\.endsAt).max() ?? .distantPast
+        if coverage < Date.now.addingTimeInterval(Self.liveTVScheduleCoverageHorizon),
+           let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: .now) {
+            programs += await liveTVGuidePrograms(
+                provider: provider,
+                channel: channel,
+                date: tomorrow
+            )
+        }
+        return programs.sorted { ($0.beginsAt ?? .distantPast) < ($1.beginsAt ?? .distantPast) }
+    }
+
+    private func liveTVGuidePrograms(
+        provider: PlexLiveTVProvider,
+        channel: PlexLiveChannel,
+        date: Date
+    ) async -> [PlexLiveProgram] {
+        let lineup = try? await plexService.getLiveTVGuide(
+            provider: provider,
+            channels: [channel],
+            date: date
+        )
+        return lineup?.guides.first?.programs ?? []
+    }
+
+    /// How far ahead the held schedule must reach before Dusk refetches it.
+    private static let liveTVScheduleCoverageHorizon: TimeInterval = 60 * 60
 
     func playFromStart(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
         await beginPlayback(
@@ -375,6 +479,7 @@ final class PlaybackCoordinator {
         playbackSource = nil
         debugInfo = nil
         activeItemDetails = nil
+        cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         ratingKey = nil
         isPictureInPictureActive = false

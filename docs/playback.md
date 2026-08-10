@@ -67,7 +67,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   codec and force-engine rules.
 - `PlaybackSource.liveTVContext` carries the lineup, channel/program, and
   session ID into the player. The header and gear menu use it for identity and
-  channel switching by finalizing and re-tuning.
+  channel switching by finalizing and re-tuning. The loading cover leads with a
+  centered channel-logo tile (`PlaybackPlaceholder.Artwork.liveChannel`), not a
+  poster frame: program art is frequently absent on live lineups, and the
+  channel logo is the one image that is reliably there.
 - AVPlayer publishes `seekableTimeRanges` as
   `PlaybackEngine.seekableTimeRange`. Gestures, iOS scrubbing, tvOS scrubbing,
   remote commands, and Go Live clamp to that range, so seeking cannot move into
@@ -77,6 +80,39 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   Up Next, completion scrobbling, and offline progress. Now Playing marks the
   item live. Timeline reports use `/livetv/sessions/{sessionID}` as their key
   and still send stopped so Plex can release the consumer.
+
+## Live TV Timeline
+
+`PlayerLiveTimeline.swift` owns everything the live play bar shows.
+`PlayerViewModel.sync()` rebuilds a `LiveTimelineSnapshot` on each 0.25 s tick,
+so the whole live HUD is derived from one instant.
+
+- **Never drive live UI off `seekableTimeRange` directly.** Its upper bound only
+  moves when a segment lands, so a fraction or a "behind live" readout taken
+  from it steps and flickers (the pre-2026-08 bar jumped around and the offset
+  oscillated between LIVE and −0:08). `LiveEdgeClock` instead keeps the highest
+  live position ever seen and projects it forward in real time — a live stream
+  produces one second of content per second of wall clock. It only ratchets
+  *up*, so the edge estimate moves relative to the playhead solely when the
+  viewer pauses, rewinds, or stalls.
+- The snapshot pairs `anchorPosition` (engine clock) with `anchorDate` (wall
+  clock), which is what lets positions and broadcast times convert both ways.
+  `secondsBehindLive` below `LiveTimelineSnapshot.liveEdgeTolerance` reads LIVE.
+- The bar spans the **scheduled program the playhead is inside**, taken from the
+  tuned channel's guide, and falls back to the rewindable session window when
+  the guide has no coverage. `timelineRange` returns that window mapped onto the
+  engine clock, so the shared seek-bar, scrubbing, and tvOS cursor code keeps
+  working in playback positions. Seeks stay clamped to `seekableRange`, and
+  `liveReachableTrackRange` paints the reachable stretch so a clamped drag reads
+  as intentional.
+- `PlaybackCoordinator` refreshes the tuned channel's schedule for the length of
+  the session (`liveTVScheduleRefreshTask`) and republishes
+  `activeLiveTVContext`; `PlayerSessionView` forwards it into the view model.
+  The lineup a caller passes in is a snapshot — the home shelf carries only
+  what was airing when it loaded — so without this the bar and header would
+  still describe a finished program. Programs roll over from the local schedule
+  on the next sync; the network fetch only runs when the held schedule stops
+  covering the next hour (and pulls the next day in at the date boundary).
 
 ## Delivery Ladder and Session Hygiene
 

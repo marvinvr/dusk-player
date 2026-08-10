@@ -17,7 +17,6 @@ struct PlayerControlsTVOverlay: View {
     private let bottomPadding: CGFloat = 2
     private let seekTooltipY: CGFloat = -6
     private let minimumScrubDistance: CGFloat = 2
-    private let minimumScrubSecondsPerPoint: TimeInterval = 45
     private let scrubFullDurationTouchPoints: TimeInterval = 70
 
     private enum FocusTarget: Hashable {
@@ -135,6 +134,14 @@ struct PlayerControlsTVOverlay: View {
                         y: PlayerScrubPreviewPopup.verticalPosition
                     )
                     .transition(seekTooltipTransition)
+                } else if tvScrubCursorPosition != nil || isPaused,
+                          let clockLabel = viewModel.liveClockLabel(for: cursorPosition) {
+                    // Live sessions have no thumbnails, so the cursor answers
+                    // "what time of the broadcast is this" instead — which is
+                    // also what makes a paused live picture readable.
+                    PlayerLiveClockBubble(label: clockLabel)
+                        .position(x: thumbX, y: PlayerLiveClockBubble.verticalPosition)
+                        .transition(seekTooltipTransition)
                 } else if let seekFeedback = viewModel.seekFeedback {
                     seekTooltip(seekFeedback)
                         .position(x: thumbX, y: seekTooltipY)
@@ -248,15 +255,31 @@ struct PlayerControlsTVOverlay: View {
 
     private func updateTVScrub(deltaWidth: CGFloat) {
         guard focusedControl == .seekPoint,
-              viewModel.timelineRange.upperBound > viewModel.timelineRange.lowerBound else {
+              scrubTimelineDuration > 0 else {
             return
         }
 
         let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
-        let timelineDuration = viewModel.timelineRange.upperBound - viewModel.timelineRange.lowerBound
-        let secondsPerPoint = max(minimumScrubSecondsPerPoint, timelineDuration / scrubFullDurationTouchPoints)
+        let secondsPerPoint = max(
+            minimumScrubSecondsPerPoint,
+            scrubTimelineDuration / scrubFullDurationTouchPoints
+        )
         tvScrubCursorPosition = clampedPosition(startPosition + TimeInterval(deltaWidth) * secondsPerPoint)
         viewModel.scheduleHide()
+    }
+
+    /// A live play bar spans a whole scheduled program, but only the part the
+    /// tuned session still holds is reachable — often just minutes. Pacing the
+    /// swipe by the bar would make every touch overshoot the reachable stretch.
+    private var scrubTimelineDuration: TimeInterval {
+        if viewModel.isLiveTV, let seekableRange = viewModel.seekableRange {
+            return seekableRange.upperBound - seekableRange.lowerBound
+        }
+        return viewModel.timelineRange.upperBound - viewModel.timelineRange.lowerBound
+    }
+
+    private var minimumScrubSecondsPerPoint: TimeInterval {
+        viewModel.isLiveTV ? 4 : 45
     }
 
     private func handleSettingsMenuPresentation(isPresented _: Bool) {

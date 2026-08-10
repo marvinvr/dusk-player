@@ -183,7 +183,8 @@ struct LiveTVChannelGuideRow: View {
                             } label: {
                                 LiveTVProgramCard(
                                     program: program,
-                                    imageURL: imageURL(program.preferredLandscapePath, 480, 270)
+                                    imageURL: imageURL(program.preferredLandscapePath, 480, 270),
+                                    channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
                                 )
                             }
                             .buttonStyle(.plain)
@@ -227,6 +228,10 @@ struct LiveTVChannelGuideRow: View {
 struct LiveTVProgramCard: View {
     let program: PlexLiveProgram
     let imageURL: URL?
+    /// Shown when the program carries no artwork of its own, which is common
+    /// on XMLTV and cloud lineups. A centered channel logo says what the card
+    /// is; an empty rectangle says nothing.
+    var channelLogoURL: URL?
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -284,10 +289,27 @@ struct LiveTVProgramCard: View {
 
     private var placeholder: some View {
         Color.duskSurface.overlay {
-            Image(systemName: "tv")
-                .font(.title2)
-                .foregroundStyle(Color.duskTextSecondary)
+            if let channelLogoURL {
+                DuskAsyncImage(url: channelLogoURL) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFit()
+                            .padding(cardHeight * 0.22)
+                    } else {
+                        placeholderSymbol
+                    }
+                }
+            } else {
+                placeholderSymbol
+            }
         }
+    }
+
+    private var placeholderSymbol: some View {
+        Image(systemName: "tv")
+            .font(.title2)
+            .foregroundStyle(Color.duskTextSecondary)
     }
 
     private var cardWidth: CGFloat {
