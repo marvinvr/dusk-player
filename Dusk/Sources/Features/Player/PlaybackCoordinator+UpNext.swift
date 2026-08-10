@@ -190,6 +190,7 @@ extension PlaybackCoordinator {
         let didStart = await startPlaybackSession(
             ratingKey: poster.episode.ratingKey,
             startPositionOverride: nil,
+            resumeOffsetMilliseconds: poster.episode.viewOffset,
             selectedMediaID: nil,
             attemptID: attemptID
         )
@@ -352,6 +353,7 @@ extension PlaybackCoordinator {
         let didStart = await startPlaybackSession(
             ratingKey: nextRatingKey,
             startPositionOverride: nil,
+            resumeOffsetMilliseconds: presentation.episode.viewOffset,
             selectedMediaID: nil,
             attemptID: attemptID
         )

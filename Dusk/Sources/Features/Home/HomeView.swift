@@ -105,7 +105,11 @@ struct HomeView: View {
 
     private func play(_ item: PlexItem) {
         Task {
-            await playback.play(ratingKey: item.ratingKey, placeholder: PlaybackPlaceholder(item: item))
+            await playback.play(
+                ratingKey: item.ratingKey,
+                resumeOffsetMilliseconds: item.viewOffset,
+                placeholder: PlaybackPlaceholder(item: item)
+            )
         }
     }
 

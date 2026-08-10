@@ -186,7 +186,13 @@ struct VideoDetailView: View {
     private func playButton(_ details: PlexMediaDetails) -> some View {
         Button {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
-            Task { await playback.play(ratingKey: details.ratingKey, placeholder: PlaybackPlaceholder(details: details)) }
+            Task {
+                await playback.play(
+                    ratingKey: details.ratingKey,
+                    resumeOffsetMilliseconds: details.viewOffset,
+                    placeholder: PlaybackPlaceholder(details: details)
+                )
+            }
         } label: {
             DetailHeroPrimaryActionButtonLabel(
                 title: viewModel.formattedResume.map { "Resume from \($0)" } ?? "Play",
@@ -199,7 +205,14 @@ struct VideoDetailView: View {
         .contextMenu {
             if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
                 PlayVersionContextMenu(versions: details.media) { version in
-                    Task { await playback.playVersion(ratingKey: details.ratingKey, mediaID: version.id, placeholder: PlaybackPlaceholder(details: details)) }
+                    Task {
+                        await playback.playVersion(
+                            ratingKey: details.ratingKey,
+                            mediaID: version.id,
+                            resumeOffsetMilliseconds: details.viewOffset,
+                            placeholder: PlaybackPlaceholder(details: details)
+                        )
+                    }
                 }
             }
         }

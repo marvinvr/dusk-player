@@ -11,6 +11,7 @@ extension PlaybackCoordinator {
     func startPlaybackSession(
         ratingKey: String,
         startPositionOverride: TimeInterval?,
+        resumeOffsetMilliseconds: Int?,
         selectedMediaID: Int?,
         attemptID: UUID
     ) async -> Bool {
@@ -173,13 +174,22 @@ extension PlaybackCoordinator {
             }
 
             let serverID = downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+            // Hub/list responses can carry the current Plex viewOffset even when
+            // the item-detail response omits it. Keep that initiating offset as
+            // a fallback so tapping a visible "Resume" item cannot silently
+            // become playback from zero. A detail offset still wins when Plex
+            // returns one, and the explicit startPositionOverride used by
+            // "Play From Start" wins below.
+            let detailViewOffset = details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
+            let initiatingViewOffset = resumeOffsetMilliseconds.flatMap { $0 > 0 ? $0 : nil }
+            let serverViewOffset = detailViewOffset ?? initiatingViewOffset
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
                     serverID: serverID,
                     ratingKey: ratingKey,
-                    fallback: details.viewOffset
+                    fallback: serverViewOffset
                   )
-                : details.viewOffset
+                : serverViewOffset
             let startPosition = startPositionOverride ?? effectiveViewOffset.map { TimeInterval($0) / 1000.0 }
             let attemptContext = PlaybackAttemptContext(
                 attemptID: attemptID,

@@ -17,8 +17,8 @@ enum PlayerLoadingState: Equatable {
 /// construct URL → present player → report timeline → scrobble.
 ///
 /// Injected into the environment so any view can trigger playback via
-/// `coordinator.play(ratingKey:)`. The player is presented as a full-screen
-/// cover in MainTabView.
+/// `coordinator.play(ratingKey:resumeOffsetMilliseconds:)`. The player is
+/// presented as a full-screen cover in MainTabView.
 @MainActor @Observable
 final class PlaybackCoordinator {
     var showPlayer = false
@@ -174,10 +174,15 @@ final class PlaybackCoordinator {
     /// loading placeholder, then metadata is fetched → engine picked → URL built
     /// → session committed under the already-visible cover. `placeholder` is what
     /// the caller already knows (title/poster) so the loading screen isn't blank.
-    func play(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
+    func play(
+        ratingKey: String,
+        resumeOffsetMilliseconds: Int?,
+        placeholder: PlaybackPlaceholder? = nil
+    ) async {
         await beginPlayback(
             ratingKey: ratingKey,
             startPositionOverride: nil,
+            resumeOffsetMilliseconds: resumeOffsetMilliseconds,
             selectedMediaID: nil,
             placeholder: placeholder
         )
@@ -292,15 +297,22 @@ final class PlaybackCoordinator {
         await beginPlayback(
             ratingKey: ratingKey,
             startPositionOverride: 0,
+            resumeOffsetMilliseconds: nil,
             selectedMediaID: nil,
             placeholder: placeholder
         )
     }
 
-    func playVersion(ratingKey: String, mediaID: Int, placeholder: PlaybackPlaceholder? = nil) async {
+    func playVersion(
+        ratingKey: String,
+        mediaID: Int,
+        resumeOffsetMilliseconds: Int?,
+        placeholder: PlaybackPlaceholder? = nil
+    ) async {
         await beginPlayback(
             ratingKey: ratingKey,
             startPositionOverride: nil,
+            resumeOffsetMilliseconds: resumeOffsetMilliseconds,
             selectedMediaID: mediaID,
             placeholder: placeholder
         )
@@ -311,6 +323,7 @@ final class PlaybackCoordinator {
     private func beginPlayback(
         ratingKey: String,
         startPositionOverride: TimeInterval?,
+        resumeOffsetMilliseconds: Int?,
         selectedMediaID: Int?,
         placeholder: PlaybackPlaceholder?
     ) async {
@@ -320,6 +333,7 @@ final class PlaybackCoordinator {
         let didStart = await startPlaybackSession(
             ratingKey: ratingKey,
             startPositionOverride: startPositionOverride,
+            resumeOffsetMilliseconds: resumeOffsetMilliseconds,
             selectedMediaID: selectedMediaID,
             attemptID: attemptID
         )

@@ -453,10 +453,23 @@ struct SeasonDetailView: View {
             usesFullWidthActionButtons: fillsActionWidth,
             onPlay: { episode in
                 guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
-                Task { await playback.play(ratingKey: episode.ratingKey, placeholder: PlaybackPlaceholder(episode: episode)) }
+                Task {
+                    await playback.play(
+                        ratingKey: episode.ratingKey,
+                        resumeOffsetMilliseconds: episode.viewOffset,
+                        placeholder: PlaybackPlaceholder(episode: episode)
+                    )
+                }
             },
             onPlayVersion: { episode, version in
-                Task { await playback.playVersion(ratingKey: episode.ratingKey, mediaID: version.id, placeholder: PlaybackPlaceholder(episode: episode)) }
+                Task {
+                    await playback.playVersion(
+                        ratingKey: episode.ratingKey,
+                        mediaID: version.id,
+                        resumeOffsetMilliseconds: episode.viewOffset,
+                        placeholder: PlaybackPlaceholder(episode: episode)
+                    )
+                }
             }
         )
     }
@@ -559,7 +572,13 @@ struct SeasonDetailView: View {
                                 },
                                 onPlay: {
                                     guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
-                                    Task { await playback.play(ratingKey: episode.ratingKey, placeholder: PlaybackPlaceholder(episode: episode)) }
+                                    Task {
+                                        await playback.play(
+                                            ratingKey: episode.ratingKey,
+                                            resumeOffsetMilliseconds: episode.viewOffset,
+                                            placeholder: PlaybackPlaceholder(episode: episode)
+                                        )
+                                    }
                                 }
                             )
                             .id(episode.ratingKey)
@@ -598,7 +617,13 @@ struct SeasonDetailView: View {
                             showsInlineSummary: showsInlineSummary,
                             onPlay: {
                                 guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
-                                Task { await playback.play(ratingKey: episode.ratingKey, placeholder: PlaybackPlaceholder(episode: episode)) }
+                                Task {
+                                    await playback.play(
+                                        ratingKey: episode.ratingKey,
+                                        resumeOffsetMilliseconds: episode.viewOffset,
+                                        placeholder: PlaybackPlaceholder(episode: episode)
+                                    )
+                                }
                             }
                         )
                         .id(episode.ratingKey)

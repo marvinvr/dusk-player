@@ -15,6 +15,11 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 1. Detail/list UI asks `PlaybackCoordinator` to play a `ratingKey` through
    `play`, `playFromStart`, or `playVersion`, passing a `PlaybackPlaceholder`
    (the title/poster art paths the caller already holds). The coordinator
+   also receives the initiating model's `viewOffset` as a resume fallback:
+   freshly fetched item details remain authoritative when they contain a
+   positive offset, but a hub/list offset is preserved when that detail
+   response omits one or reports zero. `playFromStart` always overrides both
+   with zero. The coordinator
    presents the player cover IMMEDIATELY on `PlayerLoadingView` (poster + title +
    spinner) via `enterLoadingState`, stamps a `currentPlaybackAttemptID`, and
    then loads in the background — pressing Play feels instant instead of blocking
