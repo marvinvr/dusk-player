@@ -5,6 +5,7 @@ import Foundation
 ///
 /// These are the only Home rows Plex itself can reorder and show/hide, so they
 /// are the part of Dusk's Home layout that can be written back to the server.
+/// Ordering is limited to other hubs in the same library section.
 /// Reading and writing them requires the server owner's token; shared users get
 /// HTTP 403.
 struct PlexManagedHub: Decodable, Sendable, Hashable, Identifiable {

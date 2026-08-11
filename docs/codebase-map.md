@@ -138,7 +138,8 @@ Downloads:
 
 Settings:
 
-- `UserPreferences` persists settings in `UserDefaults`.
+- `UserPreferences` persists settings in `UserDefaults`; complete Home layouts are
+  additionally mirrored through iCloud key-value storage for Dusk-to-Dusk sync.
 - `SettingsViewModel` owns settings actions that need services.
 - iOS/tvOS layouts are separate views with shared support helpers.
 - `HomeLayoutSettingsView`/`HomeLayoutSettingsViewModel` edit the Home row order
@@ -203,8 +204,8 @@ piece has a clear name and owner.
   feature views should go through `@Observable` view models.
 - `PlexService` is intentionally Plex-specific. Seerr is an optional request
   companion, not a playback provider; do not add a generic provider protocol.
-- The app is stateless beyond Keychain auth, UserDefaults preferences, and
-  download/offline files.
+- The app is stateless beyond Keychain auth, UserDefaults preferences, iCloud-mirrored
+  Home layouts, and download/offline files.
 - Direct play is the startup playback model. Manual transcoding is only a
   per-session player quality action and must not become a persisted default
   that starts future sessions transcoded.

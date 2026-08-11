@@ -17,9 +17,10 @@ boundaries.
 
 - Plex is the source of truth for metadata, watch state, library contents, and
   server identity.
-- Local persistence is limited to auth tokens, user preferences, explicit
+- Persistence is limited to auth tokens, user preferences, explicit
   downloads/offline state, and caches that are documented in the relevant topic
-  doc.
+  doc. Home layout preferences may mirror through Apple's iCloud key-value store
+  so Dusk devices can share row order that Plex cannot represent.
 - Playback starts direct when using Plex-hosted media. Manual transcoding is a
   per-session player Quality action only; no stored quality setting may start
   video transcoding automatically.
@@ -73,8 +74,8 @@ requirements. Do not shape today's code around them without an explicit task.
 
 Dusk should not collect analytics, telemetry, or tracking data. Network traffic
 should be limited to Plex account/server APIs, selected Plex servers, artwork and
-media URLs derived from Plex, and explicitly requested external links such as
-project/license pages.
+media URLs derived from Plex, iCloud key-value sync for Home layout preferences,
+and explicitly requested external links such as project/license pages.
 
 Do not log raw token-bearing URLs. Playback and image URLs often include
 `X-Plex-Token` because AVPlayer and VLCKit load media directly.

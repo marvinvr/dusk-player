@@ -218,20 +218,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 - `Settings › Layout › Home Screen` opens `HomeLayoutSettingsView`. tvOS has no entry
   point; the screen and its view model are compiled out there.
-- `HomeLayoutSettingsViewModel` prefers Plex over local storage. A row that maps onto a
-  Managed Recommendation is shown/hidden and reordered on the server, so other Plex
-  clients follow the same layout; everything else (Dusk-only rows, the arrangement
-  between libraries, any server the account does not own) falls back to
-  `UserPreferences`. Plex writes are admin-only, so a 403 downgrades that single change
-  to a device-local one and surfaces a footer warning instead of failing the edit.
+- `HomeLayoutSettingsViewModel` writes each Managed Recommendation's visibility and
+  same-library order to Plex. Plex cannot represent placement between different library
+  sources or Dusk's Live TV/Suggestions rows: official Plex apps derive that order from
+  each client's local source pins. `UserPreferences` therefore mirrors the complete
+  layout through iCloud key-value storage so it follows the user across Dusk devices.
+  Plex writes are admin-only, so a 403 keeps that part in the synced Dusk layout and
+  surfaces a footer warning instead of failing the edit.
 - The editor also lists managed hubs Plex is currently hiding from home. They are
   absent from `GET /hubs`, so listing them is the only way to bring a row back.
-- Layouts are keyed per server *and* per Plex Home member
+- Synced layouts are keyed per server *and* per Plex Home member
   (`UserPreferences.homeLayoutContext`): hub identifiers carry section ids that mean
   different things on different servers, and Home members see different content.
-- Order pushes only move hubs that are actually on home, so hiding a row never
-  reshuffles a library's Recommended page. Writes are serialized through one task
-  chain so a burst of drags reaches Plex in the order the user made them.
+- Plex order pushes only move hubs that are actually on home and only within their
+  library, so hiding a row never reshuffles its Recommended page. Writes are serialized
+  through one task chain so a burst of drags reaches Plex in the order the user made them.
 - Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
   `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where
   an all-clip hub (`isVideoHub`) renders as a 16:9 carousel.
@@ -392,14 +393,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
 - Settings → Layout → Home Screen opens the Home layout editor on iOS/iPadOS
-  (see "Home Layout Editor"). It is the one settings screen that writes to Plex
-  rather than only to `UserPreferences`.
+  (see "Home Layout Editor"). Managed library rows write to Plex, while the complete
+  layout is kept in `UserPreferences` and mirrored through iCloud for Dusk devices.
 - Settings → Navigation → Navigation Tabs controls the visibility and order of
   Movies, TV Shows, Videos, and Live TV on every platform. iOS/iPadOS use
   native list editing for order; tvOS uses position menus. Hidden types stay in
   the saved order so restoring one puts it back where the user placed it.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.
-  Add new user-facing preferences there with a key, default loading, and persistence.
+  Home layouts additionally mirror through iCloud key-value storage. Add new
+  user-facing preferences there with a key, default loading, and persistence.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in `UserPreferences`; do not
   bypass those setters.
 - `videoEnhancementMode` is a persisted playback preference with Auto, On, and

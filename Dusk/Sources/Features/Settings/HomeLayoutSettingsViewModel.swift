@@ -10,10 +10,10 @@ private let homeLayoutLogger = Logger(
 /// Backs the Home layout editor.
 ///
 /// Plex owns as much of the layout as its API allows: rows that exist as
-/// Managed Recommendations are reordered and shown/hidden on the server, so the
-/// change follows the account to every other Plex client. Everything else —
-/// Dusk's own rows, the arrangement between libraries, and every row on a
-/// server the account does not own — falls back to `UserPreferences`.
+/// Managed Recommendations are reordered and shown/hidden inside their library
+/// on the server. `UserPreferences` keeps the complete arrangement and syncs it
+/// through iCloud so Dusk-only rows and cross-library placement also follow the
+/// user to their other Dusk devices.
 @MainActor @Observable
 final class HomeLayoutSettingsViewModel {
     /// The Plex-side hub a row maps onto. `promotedToRecommended` and
@@ -39,7 +39,7 @@ final class HomeLayoutSettingsViewModel {
     private(set) var isFeaturedVisible = true
     private(set) var isLoading = false
     private(set) var error: String?
-    /// Set when a write to Plex failed and the change was kept on this device.
+    /// Set when a Plex write failed but the change remained in Dusk's synced layout.
     private(set) var syncWarning: String?
     private(set) var isSyncing = false
     /// True when this account can write the layout back to Plex at all.
@@ -176,8 +176,8 @@ final class HomeLayoutSettingsViewModel {
         }
     }
 
-    /// Drops this device's layout. Rows Plex stores stay as they are on the
-    /// server; only the local order and hidden rows are cleared.
+    /// Drops the Dusk layout on this device and its iCloud peers. Rows Plex
+    /// stores stay as they are on the server.
     func resetLayout() async {
         preferences.resetHomeLayout(context: context)
         syncWarning = nil
@@ -237,9 +237,9 @@ final class HomeLayoutSettingsViewModel {
     private static func syncWarningMessage(for error: Error) -> String {
         if let plexError = error as? PlexServiceError,
            plexError == .httpError(statusCode: 403) || plexError == .unauthorized {
-            return "Your Plex account can't change this server's layout, so the change was saved on this device only."
+            return "Your Plex account can't change this server's layout. The change is still saved for your Dusk devices through iCloud."
         }
-        return "Couldn't save the layout to Plex, so the change was saved on this device only."
+        return "Couldn't save the managed row to Plex. The change is still saved for your Dusk devices through iCloud."
     }
 
     // MARK: - Row construction

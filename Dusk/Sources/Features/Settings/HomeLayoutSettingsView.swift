@@ -1,9 +1,8 @@
 import SwiftUI
 
 #if !os(tvOS)
-/// Reorders and hides the rows on Home. Changes go back to Plex whenever the
-/// row is one Plex can manage, so the layout follows the account instead of the
-/// device; see `HomeLayoutSettingsViewModel`.
+/// Reorders and hides the rows on Home. The complete Dusk layout syncs through
+/// iCloud; managed library rows also go back to Plex where its API permits it.
 struct HomeLayoutSettingsView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
@@ -94,7 +93,7 @@ struct HomeLayoutSettingsView: View {
                         confirmsReset = true
                     }
                 } footer: {
-                    Text("Clears this device's row order and hidden rows. Rows stored on Plex keep their server settings.")
+                    Text("Clears the Dusk row order and hidden rows from this device and its iCloud peers. Rows stored on Plex keep their server settings.")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
                 .listRowBackground(Color.duskSurface)
@@ -132,10 +131,10 @@ struct HomeLayoutSettingsView: View {
         let editingHint = "Tap Edit, then drag to change the order."
 
         if viewModel.syncsToPlex {
-            return "\(editingHint) Rows your Plex server manages are saved to Plex, so other Plex apps follow the same layout. Everything else is saved on this device."
+            return "\(editingHint) The complete layout syncs to your Dusk devices through iCloud. Managed rows are also saved within their Plex library."
         }
 
-        return "\(editingHint) This server doesn't let Dusk store the layout, so it is saved on this device."
+        return "\(editingHint) The layout syncs to your Dusk devices through iCloud. This server doesn't allow Plex-managed row changes."
     }
 
     private func featuredBinding(_ viewModel: HomeLayoutSettingsViewModel) -> Binding<Bool> {

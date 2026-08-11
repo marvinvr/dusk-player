@@ -166,6 +166,10 @@ screen, used by the Home layout editor:
   omitting `after` to move the hub first. The identifier belongs in the path; the
   documented `/manage/move?identifier=` form is not implemented by shipping
   servers.
+- Managed-hub order is only meaningful inside one library section. Plex derives
+  cross-library and Live TV source order from each client's local pins, so Dusk
+  mirrors its complete Home layout through iCloud instead of claiming those moves
+  can be reproduced by other Plex clients.
 - All three are admin-only. Check `PlexService.canManageHubs` (server `owned`)
   before calling and treat 403 as "this account cannot store the layout",
   not as an error worth failing a user action over.

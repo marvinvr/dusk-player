@@ -30,6 +30,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
+        CODE_SIGN_ENTITLEMENTS: Dusk/Support/Dusk.entitlements
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: Dusk/Support/Info-iOS.plist
         DEVELOPMENT_TEAM: ""
@@ -70,6 +71,7 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
+        CODE_SIGN_ENTITLEMENTS: Dusk/Support/Dusk.entitlements
         PRODUCT_NAME: Dusk
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: Dusk/Support/Info-tvOS.plist

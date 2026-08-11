@@ -1,8 +1,8 @@
 import Foundation
 
 /// Managed Recommendations: the server-side hub layout behind the Plex home
-/// screen. Dusk uses it so an edited Home layout follows the account to every
-/// other Plex client instead of living only on this device.
+/// screen. Plex can only persist order inside one library; cross-library and
+/// Dusk-only row placement is synced separately by `UserPreferences`.
 ///
 /// Every call here is admin-only on the Plex side. Callers must check
 /// `PlexService.canManageHubs` first and fall back to local preferences,
