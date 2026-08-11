@@ -198,12 +198,10 @@ final class PlaybackCoordinator {
         lineup: PlexLiveTVLineup
     ) async {
         let attemptID = UUID()
-        let subtitle = [channel.displayNumber, channel.displayTitle]
-            .compactMap { $0 }
-            .joined(separator: " · ")
+        let subtitle = channel.displayTitle
         enterLoadingState(
             placeholder: PlaybackPlaceholder(
-                title: program?.displayTitle ?? channel.displayTitle,
+                title: program?.primaryDisplayTitle ?? channel.displayTitle,
                 subtitle: subtitle,
                 posterPath: nil,
                 backdropPath: program?.preferredLandscapePath ?? channel.thumb,
@@ -233,7 +231,7 @@ final class PlaybackCoordinator {
             }
             newEngine.setPictureInPictureDelegate(self)
 
-            let title = program?.displayTitle ?? channel.displayTitle
+            let title = program?.primaryDisplayTitle ?? channel.displayTitle
             let context = PlaybackAttemptContext(
                 attemptID: attemptID,
                 title: title,
@@ -357,7 +355,7 @@ final class PlaybackCoordinator {
         guard refreshed != activeLiveTVContext else { return }
         activeLiveTVContext = refreshed
 
-        if let title = refreshed.program(at: .now)?.displayTitle {
+        if let title = refreshed.program(at: .now)?.primaryDisplayTitle {
             nowPlayingController.updateLiveProgramTitle(title)
         }
     }

@@ -2,16 +2,18 @@ import Foundation
 
 /// Estimates where "live" sits on the engine's clock for a live HLS session.
 ///
-/// AVPlayer only advances `seekableTimeRanges` when a new segment lands, so the
-/// gap between the playhead and that upper bound steps by whole segments and
-/// then shrinks again as playback rolls into them. Anything derived from it
-/// directly — a progress fraction, a "behind live" readout — visibly jitters.
+/// A live stream produces exactly one second of content per second of wall
+/// clock, so the estimate is anchored to the *playhead* and projected forward in
+/// real time. It then only moves relative to the playhead when the viewer moves:
+/// a pause, a rewind, or a stall. That is the only thing "behind live" should
+/// ever mean.
 ///
-/// A live stream instead produces exactly one second of content per second of
-/// wall clock, so this keeps the highest live position ever observed and
-/// projects it forward in real time. The estimate then only moves relative to
-/// the playhead when the *viewer* moves: a pause, a rewind, or a stall. That is
-/// the only thing "behind live" should ever mean.
+/// Deliberately blind to `seekableTimeRange`. Its upper bound is the newest
+/// segment the playlist advertises, which sits a play-out buffer *ahead* of
+/// where any player is actually rendering — feeding it in here pinned the
+/// estimate a segment or two in front of the playhead and produced a standing
+/// "−0:10" that flickered across the LIVE threshold. Seeking still clamps to
+/// that range; only the edge estimate ignores it.
 struct LiveEdgeClock {
     private var anchorEdge: TimeInterval?
     private var anchoredAt: Date?
@@ -19,20 +21,23 @@ struct LiveEdgeClock {
     var isAnchored: Bool { anchorEdge != nil }
 
     /// Folds one engine sample into the estimate and returns the live position
-    /// on the engine clock. The estimate only ratchets upwards: both inputs
-    /// advance in real time while playing at the edge, so a signal that
-    /// overtakes the projection means the projection, not the signal, is stale
-    /// (startup, a Go Live seek, or the engine skipping ahead after a stall).
+    /// on the engine clock.
+    ///
+    /// A playhead that overtakes the projection means the projection is stale
+    /// (startup, a Go Live seek, the engine skipping ahead after a stall), so
+    /// the estimate ratchets up to it. While playback is actually running, any
+    /// residual smaller than the LIVE tolerance is also collapsed away: the
+    /// gap can only have come from buffering hiccups too small to report, and
+    /// without this they accumulate until the readout drifts off LIVE and stays
+    /// there. Real gaps — a pause, a rewind — are larger than the tolerance by
+    /// the time they matter and survive untouched.
     @discardableResult
     mutating func update(
         position: TimeInterval,
-        seekableEnd: TimeInterval?,
+        isPlaying: Bool,
         now: Date
     ) -> TimeInterval {
-        var observed = position.isFinite ? position : 0
-        if let seekableEnd, seekableEnd.isFinite, seekableEnd > observed {
-            observed = seekableEnd
-        }
+        let observed = position.isFinite ? position : 0
 
         guard let anchorEdge, let anchoredAt else {
             self.anchorEdge = observed
@@ -41,7 +46,10 @@ struct LiveEdgeClock {
         }
 
         let projected = anchorEdge + now.timeIntervalSince(anchoredAt)
-        guard observed > projected else { return projected }
+        let residual = projected - observed
+        guard residual <= 0 || (isPlaying && residual < LiveTimelineSnapshot.liveEdgeTolerance) else {
+            return projected
+        }
 
         self.anchorEdge = observed
         self.anchoredAt = now
@@ -70,9 +78,9 @@ struct LiveTimelineSnapshot: Equatable {
     static let liveEdgeTolerance: TimeInterval = 10
     /// Span of the bar when the guide has no program covering the playhead.
     /// Floored so a freshly tuned session (whose rewind window is only seconds
-    /// long) still gets a sanely scaled bar, and capped so a long session does
-    /// not compress the playhead into the last pixel.
-    static let fallbackWindowSpan: TimeInterval = 30 * 60
+    /// long) is not scrubbed by whole minutes per pixel, and capped so a long
+    /// session does not compress the playhead into the last pixel.
+    static let fallbackWindowSpan: TimeInterval = 5 * 60
     static let maximumFallbackWindowSpan: TimeInterval = 4 * 60 * 60
 
     let anchorPosition: TimeInterval
@@ -148,7 +156,15 @@ struct LiveTimelineSnapshot: Equatable {
            let start = program.beginsAt,
            let end = program.endsAt,
            end > start {
-            window = start...end
+            // Start the bar at the oldest instant the session can still reach
+            // rather than at the program's start. A tuner only begins buffering
+            // when the channel is tuned, so the stretch before that is not
+            // recoverable on any client — drawing it just gives the bar a dead
+            // zone where dragging does nothing. Clipped this way every point
+            // left of the playhead is seekable, and the left edge slides back
+            // to the program's start on its own as the session buffers.
+            let lower = max(start, earliestReachableDate ?? start)
+            window = lower...max(end, lower.addingTimeInterval(60))
         } else {
             let reachableSpan = earliestReachableDate.map { now.timeIntervalSince($0) } ?? 0
             let span = min(
@@ -180,19 +196,24 @@ extension PlayerViewModel {
             return
         }
 
+        // Always the engine's own position, never `currentTime`: the latter
+        // freezes at the scrub preview while dragging, and a frozen playhead
+        // would read to the clock as a session falling behind live.
+        let position = engine.currentTime
+
         // Nothing to anchor to until the engine reports a real position; the
         // HUD falls back to a plain LIVE badge until then.
-        guard currentTime > 0 || liveEdgeClock.isAnchored else { return }
+        guard position > 0 || liveEdgeClock.isAnchored else { return }
 
         let liveEdge = liveEdgeClock.update(
-            position: currentTime,
-            seekableEnd: seekableRange?.upperBound,
+            position: position,
+            isPlaying: engine.state == .playing,
             now: now
         )
 
         liveTimeline = .make(
             context: liveTVContext,
-            position: currentTime,
+            position: position,
             liveEdge: liveEdge,
             seekableRange: seekableRange,
             now: now

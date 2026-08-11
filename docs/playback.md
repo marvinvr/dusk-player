@@ -87,24 +87,41 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 `PlayerViewModel.sync()` rebuilds a `LiveTimelineSnapshot` on each 0.25 s tick,
 so the whole live HUD is derived from one instant.
 
-- **Never drive live UI off `seekableTimeRange` directly.** Its upper bound only
-  moves when a segment lands, so a fraction or a "behind live" readout taken
-  from it steps and flickers (the pre-2026-08 bar jumped around and the offset
-  oscillated between LIVE and −0:08). `LiveEdgeClock` instead keeps the highest
-  live position ever seen and projects it forward in real time — a live stream
-  produces one second of content per second of wall clock. It only ratchets
-  *up*, so the edge estimate moves relative to the playhead solely when the
-  viewer pauses, rewinds, or stalls.
+- **Never derive the live edge from `seekableTimeRange`.** Its upper bound is
+  the newest segment the playlist advertises, which sits a play-out buffer
+  *ahead* of what any player is rendering, and it only moves when a segment
+  lands. Both readings of it failed in turn: taking the fraction from the whole
+  range made the bar jump as the window slid, and folding the upper bound into
+  the edge estimate pinned it a segment or two in front of the playhead and left
+  a standing "−0:10" flickering across the LIVE threshold. Seeking still clamps
+  to that range; only the edge estimate ignores it.
+- `LiveEdgeClock` anchors to the **playhead** and projects it forward in real
+  time — a live stream produces one second of content per second of wall clock.
+  It ratchets up when the playhead overtakes the projection (startup, Go Live, a
+  catch-up skip), and while playback is running it collapses any residual under
+  `liveEdgeTolerance`, so buffering hiccups too small to report cannot
+  accumulate into a permanent drift off LIVE. A real pause or rewind is larger
+  than the tolerance and survives untouched. Feed it `engine.currentTime`, never
+  `PlayerViewModel.currentTime`: that one freezes at the scrub preview while
+  dragging, which the clock would read as falling behind live.
 - The snapshot pairs `anchorPosition` (engine clock) with `anchorDate` (wall
   clock), which is what lets positions and broadcast times convert both ways.
   `secondsBehindLive` below `LiveTimelineSnapshot.liveEdgeTolerance` reads LIVE.
 - The bar spans the **scheduled program the playhead is inside**, taken from the
-  tuned channel's guide, and falls back to the rewindable session window when
-  the guide has no coverage. `timelineRange` returns that window mapped onto the
-  engine clock, so the shared seek-bar, scrubbing, and tvOS cursor code keeps
-  working in playback positions. Seeks stay clamped to `seekableRange`, and
-  `liveReachableTrackRange` paints the reachable stretch so a clamped drag reads
-  as intentional.
+  tuned channel's guide, but its left edge is clipped to the oldest instant the
+  session can still reach. A tuner only starts buffering when the channel is
+  tuned, so the part of the program before that is unreachable on any client and
+  drawing it only gives the bar a dead zone. Clipped this way every point left
+  of the playhead is seekable and the bar behaves like an ordinary one; the left
+  edge slides back toward the program's start as the session buffers. With no
+  guide coverage the window is the rewindable session itself, floored at
+  `fallbackWindowSpan`. `timelineRange` returns the window mapped onto the engine
+  clock, so the shared seek-bar, scrubbing, and tvOS cursor code keeps working in
+  playback positions, and seeks stay clamped to `seekableRange`.
+- The header leads with the **series** (`PlexLiveProgram.primaryDisplayTitle`),
+  with the episode below it and the channel name as the subtitle. Guides put the
+  episode name in `title` and the series in `grandparentTitle`, so leading with
+  `displayTitle` showed an episode name that rarely says what is on.
 - `PlaybackCoordinator` refreshes the tuned channel's schedule for the length of
   the session (`liveTVScheduleRefreshTask`) and republishes
   `activeLiveTVContext`; `PlayerSessionView` forwards it into the view model.

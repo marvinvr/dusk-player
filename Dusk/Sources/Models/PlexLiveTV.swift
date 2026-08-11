@@ -144,6 +144,26 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
         return parentTitle?.nilIfEmpty
     }
 
+    /// The series a live program belongs to, when it is an episode of one.
+    /// Guides carry the episode name in `title` and the series in
+    /// `grandparentTitle`, so the series is what a viewer needs to see first —
+    /// an episode title alone rarely says what is on.
+    var seriesTitle: String? {
+        grandparentTitle?.nilIfEmpty
+    }
+
+    /// What to lead with: the series for an episode, the program itself
+    /// otherwise.
+    var primaryDisplayTitle: String {
+        seriesTitle ?? displayTitle
+    }
+
+    /// The episode title, when the series is already leading.
+    var episodeDisplayTitle: String? {
+        guard let seriesTitle, let episodeTitle = title.nilIfEmpty else { return nil }
+        return episodeTitle == seriesTitle ? nil : episodeTitle
+    }
+
     func isAiring(at date: Date = .now) -> Bool {
         guard let beginsAt, let endsAt else { return false }
         return beginsAt <= date && date < endsAt

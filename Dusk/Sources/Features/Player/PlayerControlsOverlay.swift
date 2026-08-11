@@ -50,13 +50,13 @@ struct PlayerControlsOverlay: View {
         if let liveTVContext = viewModel.liveTVContext {
             // The program the play bar is on, not the one that was airing at
             // tune time — the schedule rolls over during long sessions, and a
-            // rewind can land in the previous program.
+            // rewind can land in the previous program. Series lead, so the
+            // header answers "what show is this" before "which episode".
+            let program = viewModel.liveProgram
             return PlayerMediaHeader(
-                title: viewModel.liveProgram?.displayTitle ?? liveTVContext.channel.displayTitle,
-                secondaryTitle: nil,
-                subtitle: [liveTVContext.channel.displayNumber, liveTVContext.channel.displayTitle]
-                    .compactMap { $0 }
-                    .joined(separator: " · "),
+                title: program?.primaryDisplayTitle ?? liveTVContext.channel.displayTitle,
+                secondaryTitle: program?.episodeDisplayTitle,
+                subtitle: liveTVContext.channel.displayTitle,
                 usesCompactTitleOnTV: true
             )
         }
