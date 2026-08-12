@@ -40,7 +40,8 @@ struct PlayerControlsOverlay: View {
             availableQualityPresets: debugInfo?.availableQualityPresets ?? [.original],
             hasPlaybackInfo: debugInfo != nil,
             hasQualityControl: debugInfo != nil && !viewModel.isLiveTV,
-            canSelectQuality: debugInfo?.canSelectPlaybackQuality == true,
+            canSelectQuality: debugInfo?.canSelectPlaybackQuality == true &&
+                !playback.isAirPlayPlaybackActive,
             isChangingQuality: playback.isSwitchingQuality,
             liveTVContext: viewModel.liveTVContext
         )
@@ -105,7 +106,9 @@ struct PlayerControlsOverlay: View {
 
     private var qualityControlTitle: String {
         guard let debugInfo else { return "Unavailable" }
+        if playback.isAirPlayPlaybackActive { return "AirPlay" }
         if !debugInfo.canSelectPlaybackQuality {
+            if case .airPlay = debugInfo.decision { return "AirPlay" }
             return viewModel.isLiveTV ? "Live" : "Unavailable Offline"
         }
         return debugInfo.qualityPreset.displayName

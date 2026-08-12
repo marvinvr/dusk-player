@@ -23,7 +23,9 @@ boundaries.
   so Dusk devices can share row order that Plex cannot represent.
 - Playback starts direct when using Plex-hosted media. Manual transcoding is a
   per-session player Quality action only; no stored quality setting may start
-  video transcoding automatically.
+  video transcoding automatically. An explicitly selected AirPlay route may use
+  Plex HLS to satisfy the receiver's format constraints; this is an output-route
+  requirement, not a persisted playback-quality default.
 - SwiftUI UI should be shared where practical and platform-aware where needed.
 - Plex-specific service code is acceptable. Do not introduce generic provider
   abstractions until a second backend is actually being implemented.
@@ -54,6 +56,8 @@ Current product pillars:
 - Timeline reporting, scrobble/unscrobble, resume, skip intro/credits,
   continuous playback, and passout protection.
 - Offline downloads and delayed watch-state sync.
+- Native AirPlay from iPhone/iPad to AirPlay-enabled receivers, with Dusk
+  retaining playback control, Plex timeline reporting, and continuous playback.
 
 Future ideas such as Jellyfin, collections, playlists, DVR scheduling,
 native macOS work, or broader provider abstractions are not current architecture

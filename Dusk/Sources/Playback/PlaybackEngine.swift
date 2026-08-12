@@ -147,6 +147,15 @@ protocol PlaybackEngine: AnyObject {
     /// unprocessed session. iOS only — consumed by `PlaybackNowPlayingController`.
     var prefersSpatializedAudioSession: Bool { get }
 
+    // MARK: - External playback
+
+    /// Whether the engine can hand video to a system external-playback route.
+    /// AVPlayer supports native AirPlay; VLCKit's renderer remains local.
+    var supportsExternalPlayback: Bool { get }
+
+    /// Whether the engine is currently rendering video on an external route.
+    var isExternalPlaybackActive: Bool { get }
+
     // MARK: - Rendering
 
     /// Returns a platform-specific view that renders the video content.
@@ -199,6 +208,10 @@ extension PlaybackEngine {
 
     // Default: keep the rich movie-playback session. Only VLCKit opts out.
     var prefersSpatializedAudioSession: Bool { true }
+
+    // Native external video playback is AVPlayer-only. Engines opt in.
+    var supportsExternalPlayback: Bool { false }
+    var isExternalPlaybackActive: Bool { false }
 
     // Picture in Picture is iOS-only and opt-in per engine; tvOS engines and
     // the Metal video-enhancement render path fall back to these no-ops.

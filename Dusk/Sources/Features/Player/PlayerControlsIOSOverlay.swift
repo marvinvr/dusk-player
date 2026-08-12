@@ -53,10 +53,28 @@ struct PlayerControlsIOSOverlay: View {
 
             Spacer()
 
-            pictureInPictureButton
-            aspectFillButton
+            #if os(iOS)
+            airPlayButton
+            #endif
+            if !playback.isAirPlayPlaybackActive {
+                pictureInPictureButton
+                aspectFillButton
+            }
         }
     }
+
+    #if os(iOS)
+    private var airPlayButton: some View {
+        PlayerAirPlayRoutePicker(isActive: playback.isAirPlayPlaybackActive)
+            .frame(width: 44, height: 44)
+            .background(.ultraThinMaterial, in: Circle())
+            .overlay {
+                Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .accessibilityLabel(playback.isAirPlayPlaybackActive ? "Change AirPlay Device" : "AirPlay")
+    }
+    #endif
 
     @ViewBuilder
     private var pictureInPictureButton: some View {

@@ -9,6 +9,7 @@ import SwiftUI
 /// programmatic playback with no known metadata).
 struct PlayerLoadingView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(PlaybackCoordinator.self) private var playback
 
     let placeholder: PlaybackPlaceholder?
     /// Backs out of a load before it resolves. On iOS this is the only escape
@@ -81,21 +82,31 @@ struct PlayerLoadingView: View {
         }
         #if !os(tvOS)
         .overlay(alignment: .topTrailing) {
-            if let onCancel {
-                Button(action: onCancel) {
-                    Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 36, height: 36)
-                        .background(.ultraThinMaterial, in: Circle())
-                        .overlay {
-                            Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            HStack(spacing: 12) {
+                PlayerAirPlayRoutePicker(isActive: playback.isAirPlayPlaybackActive)
+                    .frame(width: 36, height: 36)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .overlay {
+                        Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                            .allowsHitTesting(false)
+                    }
+
+                if let onCancel {
+                    Button(action: onCancel) {
+                        Image(systemName: "xmark")
+                            .font(.body.weight(.semibold))
+                            .foregroundStyle(.white)
+                            .frame(width: 36, height: 36)
+                            .background(.ultraThinMaterial, in: Circle())
+                            .overlay {
+                                Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                            }
                         }
+                    .accessibilityLabel("Cancel")
                 }
-                .padding(.top, 12)
-                .padding(.trailing, 16)
-                .accessibilityLabel("Cancel")
             }
+            .padding(.top, 12)
+            .padding(.trailing, 16)
         }
         #endif
     }

@@ -3,14 +3,27 @@ import Foundation
 extension PlayerViewModel {
     func selectSubtitle(_ track: SubtitleTrack?) {
         hasAppliedAutomaticSubtitleSelection = true
+        if usesServerTrackSelection {
+            selectedSubtitleTrackID = track?.id
+            showSubtitlePicker = false
+            plexTrackSelectionHandler?(selectedAudioTrackID, track?.id)
+            return
+        }
         engine.selectSubtitleTrack(track)
         selectedSubtitleTrackID = track?.id
         showSubtitlePicker = false
+        plexTrackSelectionHandler?(selectedAudioTrack?.plexStreamID, track?.plexStreamID)
     }
 
     func selectAudio(_ track: AudioTrack) {
         hasAppliedAutomaticAudioSelection = true
         showAudioPicker = false
+
+        if usesServerTrackSelection {
+            selectedAudioTrackID = track.id
+            plexTrackSelectionHandler?(track.plexStreamID ?? track.id, selectedSubtitleTrackID)
+            return
+        }
 
         guard track.isDecodable else {
             // The local engine cannot decode this codec (e.g. TrueHD on the
@@ -23,9 +36,26 @@ extension PlayerViewModel {
 
         engine.selectAudioTrack(track)
         selectedAudioTrackID = track.id
+        plexTrackSelectionHandler?(track.plexStreamID, selectedSubtitleTrack?.plexStreamID)
     }
 
     func syncTrackLists() {
+        if usesServerTrackSelection {
+            audioTracks = sourcePart?.streams
+                .filter { $0.streamType == .audio }
+                .map(AudioTrack.init(stream:)) ?? []
+            subtitleTracks = sourcePart?.streams
+                .filter { $0.streamType == .subtitle }
+                .map(SubtitleTrack.init(stream:)) ?? []
+            selectedAudioTrackID = serverSelectedAudioStreamID
+                ?? audioTracks.first(where: { track in
+                    sourcePart?.streams.first(where: { $0.id == track.id })?.isSelected ?? false
+                })?.id
+                ?? audioTracks.first?.id
+            selectedSubtitleTrackID = serverSelectedSubtitleStreamID
+            return
+        }
+
         audioTracks = mergeAudioMetadata(into: engine.availableAudioTracks)
         subtitleTracks = mergeSubtitleMetadata(into: engine.availableSubtitleTracks)
         selectedAudioTrackID = resolvedSelectedAudioTrackID()
@@ -34,6 +64,11 @@ extension PlayerViewModel {
 
     func applyAutomaticTrackSelectionIfNeeded() {
         guard hasConfiguredAutomaticTrackSelection else { return }
+        guard !usesServerTrackSelection else {
+            hasAppliedAutomaticAudioSelection = true
+            hasAppliedAutomaticSubtitleSelection = true
+            return
+        }
 
         // Audio waits for steady-state playback (`sync()` retries every tick):
         // switching the audio ES restarts libvlc's audio output, and doing so
@@ -287,6 +322,7 @@ extension PlayerViewModel {
                 isForced: source.isForced ?? track.isForced,
                 isHearingImpaired: source.isHearingImpaired ?? track.isHearingImpaired,
                 isExternal: source.key != nil || track.isExternal,
+                plexStreamID: source.id,
                 externalURL: track.externalURL
             )
         }
@@ -460,6 +496,58 @@ extension PlayerViewModel {
             }
             .first?
             .offset
+    }
+
+    /// Plex stream id matching the same pre-start audio policy used for VLCKit
+    /// preselection. AirPlay HLS pins the server session to an id rather than a
+    /// container-relative elementary-stream position.
+    static func preferredAudioStreamID(
+        inPart part: PlexMediaPart?,
+        preferredLanguage: String?
+    ) -> Int? {
+        guard let part else { return nil }
+        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        if let position = preferredAudioStreamPosition(
+            inPart: part,
+            preferredLanguage: preferredLanguage
+        ), audioStreams.indices.contains(position) {
+            return audioStreams[position].id
+        }
+        return audioStreams.first(where: { $0.isSelected ?? false })?.id
+            ?? audioStreams.first(where: { $0.isDefault ?? false })?.id
+            ?? audioStreams.first?.id
+    }
+
+    /// Initial subtitle stream for server-rendered playback. It mirrors Dusk's
+    /// local automatic subtitle rule closely enough to choose before the HLS
+    /// session exists; Plex burns the result so all AirPlay receivers agree.
+    static func preferredSubtitleStreamID(
+        inPart part: PlexMediaPart?,
+        preferredLanguage rawPreferredLanguage: String?,
+        forcedOnly: Bool
+    ) -> Int? {
+        guard let part else { return nil }
+        let tracks = part.streams
+            .filter { $0.streamType == .subtitle }
+            .map(SubtitleTrack.init(stream:))
+        let preferredLanguage = normalizedLanguageCode(rawPreferredLanguage)
+
+        let candidates: [SubtitleTrack]
+        if forcedOnly {
+            candidates = tracks.filter { $0.isForced || containsForcedMarker($0.displayTitle) }
+        } else if preferredLanguage != nil {
+            candidates = tracks
+        } else {
+            return nil
+        }
+
+        let languageMatches = preferredLanguage.map { language in
+            candidates.filter { normalizedLanguageCode($0.languageCode) == language }
+        } ?? candidates
+        return languageMatches
+            .sorted(by: subtitleOrdering(preferForcedTracks: forcedOnly))
+            .first?
+            .id
     }
 
     func scoreSubtitleMatch(track: SubtitleTrack, stream: PlexStream) -> Int {

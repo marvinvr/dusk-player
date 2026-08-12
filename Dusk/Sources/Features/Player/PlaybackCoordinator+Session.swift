@@ -49,10 +49,16 @@ extension PlaybackCoordinator {
             // metadata fetch; bail before building any playback state.
             guard currentPlaybackAttemptID == attemptID else { return false }
 
-            let localURL = downloadManager?.localPlaybackURL(
+            airPlayController.refreshRoute(notify: false)
+            let wantsAirPlay = airPlayController.isAirPlayRouteSelected
+            let downloadedURL = downloadManager?.localPlaybackURL(
                 for: ratingKey,
                 selectedMediaID: selectedMediaID
             )
+            // AirPlay receivers cannot consume Dusk's private app-container URL.
+            // When the matching Plex server is reachable, ask it for HLS even if
+            // this item also has a completed local download.
+            let localURL = wantsAirPlay ? nil : downloadedURL
             let localMediaVersion = localURL.flatMap { _ in
                 downloadManager?.downloadedMediaVersion(
                     for: ratingKey,
@@ -103,6 +109,10 @@ extension PlaybackCoordinator {
                 playbackDecision = .localDownload
                 usesLocalDownload = true
             } else {
+                if wantsAirPlay, !plexService.isConnected {
+                    loadError = "Connect to the matching Plex server to AirPlay this item."
+                    return false
+                }
                 // Plex Pass gate: away from the server's LAN, remote playback of
                 // personal media needs an entitlement. Surface a clear message
                 // instead of letting the stream fail slowly. Only fires for owned
@@ -129,7 +139,41 @@ extension PlaybackCoordinator {
                 playbackDecision = .directPlay
                 usesLocalDownload = false
 
-                if resolverDecision.requiresServerTranscode {
+                if wantsAirPlay {
+                    let mediaIndex = details.media.firstIndex { $0.id == media.id } ?? 0
+                    let airPlaySessionID = UUID().uuidString
+                    let audioStreamID = PlayerViewModel.preferredAudioStreamID(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultAudioLanguage
+                    )
+                    let subtitleStreamID = PlayerViewModel.preferredSubtitleStreamID(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultSubtitleLanguage,
+                        forcedOnly: preferences.subtitleForcedOnly
+                    )
+                    let result = try await plexService.airPlayStreamURL(
+                        ratingKey: ratingKey,
+                        mediaIndex: mediaIndex,
+                        sessionIdentifier: sessionIdentifier,
+                        transcodeSessionID: airPlaySessionID,
+                        audioStreamID: audioStreamID,
+                        subtitleStreamID: subtitleStreamID
+                    )
+                    guard case .transcodeAvailable = result.outcome else {
+                        stopTranscodeSessionInBackground(airPlaySessionID)
+                        loadError = airPlayUnavailableMessage(for: result.outcome)
+                        return false
+                    }
+
+                    playbackURL = result.url
+                    sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
+                    playbackDecision = .airPlay
+                    transcodeSessionID = airPlaySessionID
+                    engineType = .avPlayer
+                    resolverReason = "AirPlay route selected; Plex receiver-compatible HLS"
+                    activeAudioStreamID = audioStreamID
+                    activeSubtitleStreamID = subtitleStreamID
+                } else if resolverDecision.requiresServerTranscode {
                     // Delivery ladder: neither local engine can render this
                     // media correctly, so skip direct play and start on the
                     // server-stream rung. On any failure or ambiguity fall
@@ -212,6 +256,8 @@ extension PlaybackCoordinator {
             let videoEnhancementRequest: VideoEnhancementRequest
             if case .serverStream = playbackDecision {
                 videoEnhancementRequest = .disabled
+            } else if case .airPlay = playbackDecision {
+                videoEnhancementRequest = .disabled
             } else {
                 videoEnhancementRequest = VideoEnhancementRequest.make(
                     mode: preferences.videoEnhancementMode,
@@ -239,6 +285,17 @@ extension PlaybackCoordinator {
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
             self.ratingKey = ratingKey
+            if !wantsAirPlay {
+                activeAudioStreamID = PlayerViewModel.preferredAudioStreamID(
+                    inPart: part,
+                    preferredLanguage: preferences.defaultAudioLanguage
+                )
+                activeSubtitleStreamID = PlayerViewModel.preferredSubtitleStreamID(
+                    inPart: part,
+                    preferredLanguage: preferences.defaultSubtitleLanguage,
+                    forcedOnly: preferences.subtitleForcedOnly
+                )
+            }
             activePlaybackServerID = serverID
             activePlaybackUsesLocalDownload = usesLocalDownload
             activePlaybackSessionIdentifier = sessionIdentifier
@@ -253,7 +310,7 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 )
-            case .transcode, .serverStream, .liveTV:
+            case .transcode, .serverStream, .airPlay, .liveTV:
                 // HLS rewrites the stream layout; positions no longer apply.
                 nil
             }
@@ -263,7 +320,7 @@ extension PlaybackCoordinator {
                     "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isSelected ?? false)]"
                 }
                 .joined(separator: " ")
-            let preferredLanguageLabel = preferences.defaultAudioLanguage ?? "none"
+            let preferredLanguageLabel = preferences.defaultAudioLanguage
             playbackSessionLogger.notice(
                 "Audio preselect position=\(preferredAudioTrackPosition.map(String.init) ?? "none", privacy: .public) preferredLanguage=\(preferredLanguageLabel, privacy: .public) streams=\(audioStreamSummary, privacy: .public)"
             )
@@ -314,6 +371,10 @@ extension PlaybackCoordinator {
 
     func switchQuality(to preset: PlaybackQualityPreset, audioStreamID: Int? = nil) async {
         guard !isSwitchingQuality else { return }
+        guard !isAirPlayPlaybackActive else {
+            presentQualitySwitchError("Quality changes are unavailable while AirPlay is active.")
+            return
+        }
         guard let details = activeItemDetails,
               let ratingKey,
               let debugInfo,
@@ -468,6 +529,169 @@ extension PlaybackCoordinator {
         await switchQuality(to: preset, audioStreamID: streamID)
     }
 
+    // MARK: - AirPlay delivery
+
+    /// Called by the route observer when the system picker connects or removes
+    /// an AirPlay destination. Disconnecting intentionally keeps the prepared
+    /// HLS source for the rest of the item; reconnecting a direct/local source
+    /// replaces it with receiver-compatible HLS at the same position.
+    func airPlayRouteSelectionDidChange(_ isSelected: Bool) {
+        noteActivePlaybackState(latestActivePlaybackState)
+        guard isSelected else { return }
+        guard engine != nil, playbackSource != nil, !didFinalizeCurrentSession else { return }
+
+        switch debugInfo?.decision {
+        case .airPlay, .transcode, .serverStream, .liveTV:
+            // These are already AVPlayer-compatible HLS unless a debug-only
+            // force-VLCKit preference is active. Ordinary sessions can hand off
+            // immediately without rebuilding the Plex source.
+            if engine?.supportsExternalPlayback == true { return }
+        case .directPlay, .localDownload:
+            break
+        case nil:
+            return
+        }
+
+        scheduleAirPlayTransition()
+    }
+
+    /// Records original Plex stream selections made in the player. While an
+    /// AirPlay HLS session is active, a change requires a new server stream so
+    /// unsupported subtitle formats can remain burned and audio is deterministic
+    /// across third-party receivers.
+    func selectPlexStreamsForPlayback(audioStreamID: Int?, subtitleStreamID: Int?) {
+        let didChange = activeAudioStreamID != audioStreamID ||
+            activeSubtitleStreamID != subtitleStreamID
+        activeAudioStreamID = audioStreamID
+        activeSubtitleStreamID = subtitleStreamID
+
+        guard didChange, isAirPlaySession else { return }
+        scheduleAirPlayTransition(isTrackChange: true)
+    }
+
+    /// Serializes route and track transitions. A rapid second selection cancels
+    /// the in-flight request, waits for its cleanup, then prepares only the most
+    /// recent stream selection.
+    func scheduleAirPlayTransition(isTrackChange: Bool = false) {
+        let previousTask = airPlayTransitionTask
+        previousTask?.cancel()
+        airPlayTransitionTask = Task { @MainActor [weak self] in
+            if let previousTask {
+                await previousTask.value
+            }
+            guard !Task.isCancelled else { return }
+            await self?.prepareCurrentSessionForAirPlay(isTrackChange: isTrackChange)
+        }
+    }
+
+    func prepareCurrentSessionForAirPlay(isTrackChange: Bool = false) async {
+        guard !isPreparingAirPlay, !isSwitchingQuality,
+              let details = activeItemDetails,
+              let ratingKey,
+              let debugInfo,
+              activeLiveTVContext == nil else {
+            if activeLiveTVContext != nil, engine?.supportsExternalPlayback != true {
+                engine?.pause()
+                presentQualitySwitchError("AirPlay requires AVPlayer for Live TV. Disable Force VLCKit and retune the channel.")
+            }
+            return
+        }
+
+        guard plexService.isConnected else {
+            engine?.pause()
+            presentQualitySwitchError("Connect to the matching Plex server to AirPlay this item.")
+            return
+        }
+
+        guard let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }),
+              let part = details.media[mediaIndex].parts.first else {
+            presentQualitySwitchError("Could not resolve the current media version for AirPlay.")
+            return
+        }
+
+        isPreparingAirPlay = true
+        defer { isPreparingAirPlay = false }
+
+        let oldEngine = engine
+        let wasPlaying = oldEngine?.state != .paused
+        let resumePosition = max(
+            oldEngine?.currentTime ?? 0,
+            TimeInterval(lastReportedTimeMs) / 1000.0,
+            playbackSource?.startPosition ?? 0
+        )
+        let playbackSessionID = activePlaybackSessionIdentifier ?? UUID().uuidString
+        activePlaybackSessionIdentifier = playbackSessionID
+        let newTranscodeSessionID = UUID().uuidString
+        let expectedPresentationID = playerPresentationID
+
+        do {
+            let result = try await plexService.airPlayStreamURL(
+                ratingKey: ratingKey,
+                mediaIndex: mediaIndex,
+                sessionIdentifier: playbackSessionID,
+                transcodeSessionID: newTranscodeSessionID,
+                audioStreamID: activeAudioStreamID,
+                subtitleStreamID: activeSubtitleStreamID
+            )
+
+            guard !Task.isCancelled,
+                  !didFinalizeCurrentSession,
+                  playerPresentationID == expectedPresentationID,
+                  self.ratingKey == ratingKey else {
+                stopTranscodeSessionInBackground(newTranscodeSessionID)
+                return
+            }
+            guard case .transcodeAvailable = result.outcome else {
+                stopTranscodeSessionInBackground(newTranscodeSessionID)
+                presentQualitySwitchError(airPlayUnavailableMessage(for: result.outcome))
+                return
+            }
+
+            if let oldTranscodeSessionID = activeTranscodeSessionID {
+                stopTranscodeSessionInBackground(oldTranscodeSessionID)
+            }
+            activeTranscodeSessionID = newTranscodeSessionID
+            activateReplacementAttempt(
+                transitionLabel: isTrackChange
+                    ? "changing AirPlay tracks"
+                    : "moving playback to AirPlay",
+                attemptID: UUID(),
+                details: details,
+                ratingKey: ratingKey,
+                media: debugInfo.media,
+                part: part,
+                playbackURL: result.url,
+                sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
+                playbackDecision: .airPlay,
+                engineType: .avPlayer,
+                resolverReason: isTrackChange
+                    ? "AirPlay HLS rebuilt for selected Plex tracks"
+                    : "AirPlay route selected; Plex receiver-compatible HLS",
+                videoEnhancementRequest: .disabled,
+                startPosition: resumePosition,
+                shouldAutoPlay: wasPlaying
+            )
+        } catch {
+            stopTranscodeSessionInBackground(newTranscodeSessionID)
+            guard !Task.isCancelled else { return }
+            playbackSessionLogger.error(
+                "AirPlay preparation failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            presentQualitySwitchError("Couldn’t prepare AirPlay: \(error.localizedDescription)")
+        }
+    }
+
+    func airPlayUnavailableMessage(for outcome: PlexService.TranscodeDecisionOutcome) -> String {
+        switch outcome {
+        case .transcodeAvailable:
+            "AirPlay is available."
+        case .directPlayOnly:
+            "Plex could not prepare a TV-compatible AirPlay stream for this item."
+        case let .failed(message):
+            message ?? "Plex could not prepare this item for AirPlay."
+        }
+    }
+
     /// Swaps the live session onto a new engine/source without finalizing it:
     /// shared mechanics for quality switches and the automatic direct-play →
     /// server-stream fallback. Keeps timeline reporting, scrobble state, and
@@ -486,7 +710,8 @@ extension PlaybackCoordinator {
         engineType: PlaybackEngineType,
         resolverReason: String,
         videoEnhancementRequest: VideoEnhancementRequest,
-        startPosition: TimeInterval?
+        startPosition: TimeInterval?,
+        shouldAutoPlay: Bool = true
     ) {
         let attemptContext = PlaybackAttemptContext(
             attemptID: attemptID,
@@ -525,13 +750,14 @@ extension PlaybackCoordinator {
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             )
-        case .transcode, .serverStream, .liveTV:
+        case .transcode, .serverStream, .airPlay, .liveTV:
             // HLS rewrites the stream layout; positions no longer apply.
             nil
         }
         playbackSource = PlaybackSource(
             url: playbackURL,
             startPosition: startPosition,
+            shouldAutoPlay: shouldAutoPlay,
             context: attemptContext,
             preferredAudioTrackPosition: preferredAudioTrackPosition,
             locality: sourceLocality(for: playbackURL)
@@ -759,6 +985,9 @@ extension PlaybackCoordinator {
 
         timelineTimer?.invalidate()
         timelineTimer = nil
+        airPlayTransitionTask?.cancel()
+        airPlayTransitionTask = nil
+        isPreparingAirPlay = false
         cancelDirectPlayFallbackWatch()
 
         // Plex session hygiene: release the server transcoder with the session.
@@ -838,6 +1067,9 @@ extension PlaybackCoordinator {
         cancelUpNextCountdown()
         cancelUpNextPosterCountdown()
         cancelDirectPlayFallbackWatch()
+        airPlayTransitionTask?.cancel()
+        airPlayTransitionTask = nil
+        isPreparingAirPlay = false
         upNextPresentation = nil
         upNextPoster = nil
         engine?.onPlaybackEnded = nil
@@ -856,6 +1088,8 @@ extension PlaybackCoordinator {
         activeLiveTVContext = nil
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
+        activeAudioStreamID = nil
+        activeSubtitleStreamID = nil
         debugInfo = nil
         playbackSource = nil
         ratingKey = nil

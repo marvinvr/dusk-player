@@ -42,6 +42,16 @@ final class PlaybackCoordinator {
     var upNextPoster: UpNextPosterPresentation?
     var isSwitchingQuality = false
     var qualitySwitchError: String?
+    /// System AirPlay route state shared by playback preparation and the iOS
+    /// route-picker UI. The selected route itself remains owned by the system.
+    let airPlayController: PlaybackAirPlayController
+    /// True while Plex prepares an AVPlayer HLS replacement after the user
+    /// selects an AirPlay route during an active local session.
+    var isPreparingAirPlay = false
+    /// Plex stream selections that must survive local → AirPlay handoffs. Engine
+    /// ids are implementation-local, so the player maps them back to these ids.
+    var activeAudioStreamID: Int?
+    var activeSubtitleStreamID: Int?
     /// True while an online direct-play attempt still has its one-shot Plex
     /// server-stream fallback available. Used to keep a transient engine error
     /// hidden until that recovery attempt succeeds or definitively fails.
@@ -105,6 +115,7 @@ final class PlaybackCoordinator {
     /// start and swaps the session to the server-stream ladder rung when the
     /// engine fails. Cancelled on finalize/clear/engine swap.
     @ObservationIgnored nonisolated(unsafe) var directPlayFallbackWatchTask: Task<Void, Never>?
+    @ObservationIgnored nonisolated(unsafe) var airPlayTransitionTask: Task<Void, Never>?
     /// Keeps the tuned Live TV channel's schedule current for the length of the
     /// session. Cancelled with the session.
     @ObservationIgnored nonisolated(unsafe) var liveTVScheduleRefreshTask: Task<Void, Never>?
@@ -119,11 +130,17 @@ final class PlaybackCoordinator {
         self.preferences = preferences
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
+        let airPlayController = PlaybackAirPlayController()
+        self.airPlayController = airPlayController
+        airPlayController.routeSelectionDidChange = { [weak self] selected in
+            self?.airPlayRouteSelectionDidChange(selected)
+        }
     }
 
     deinit {
         timelineTimer?.invalidate()
         directPlayFallbackWatchTask?.cancel()
+        airPlayTransitionTask?.cancel()
         upNextPosterCountdownTask?.cancel()
         liveTVScheduleRefreshTask?.cancel()
     }
@@ -135,6 +152,10 @@ final class PlaybackCoordinator {
 
         guard let engine else {
             return loadError == nil ? .preparing : .hidden
+        }
+
+        if isPreparingAirPlay {
+            return .recovering
         }
 
         let hasAutomaticFallback = isAutomaticDirectPlayFallbackAvailable ||
@@ -158,6 +179,22 @@ final class PlaybackCoordinator {
         }
 
         return .hidden
+    }
+
+    /// The current library source was prepared specifically for AirPlay. This
+    /// remains true if the route disconnects mid-item because keeping HLS local
+    /// avoids a second disruptive engine/source handoff.
+    var isAirPlaySession: Bool {
+        if case .airPlay? = debugInfo?.decision { return true }
+        return false
+    }
+
+    /// Drives the phone's remote presentation. Route selection becomes true
+    /// before AVPlayer finishes the handoff; AVPlayer's state covers the brief
+    /// period where the system route is active but the audio-session snapshot
+    /// has not refreshed yet.
+    var isAirPlayPlaybackActive: Bool {
+        airPlayController.isAirPlayRouteSelected || engine?.isExternalPlaybackActive == true
     }
 
     func setBufferingPresentationVisible(
@@ -222,7 +259,14 @@ final class PlaybackCoordinator {
                 forceAVPlayer: preferences.forceAVPlayer,
                 forceVLCKit: preferences.forceVLCKit
             )
-            let newEngine = PlaybackEngineFactory.makeEngine(type: resolver.engine)
+            airPlayController.refreshRoute(notify: false)
+            let engineType: PlaybackEngineType = airPlayController.isAirPlayRouteSelected
+                ? .avPlayer
+                : resolver.engine
+            let resolverReason = airPlayController.isAirPlayRouteSelected
+                ? "AirPlay route selected; Plex Live HLS through AVPlayer"
+                : resolver.reason
+            let newEngine = PlaybackEngineFactory.makeEngine(type: engineType)
             newEngine.configureVideoEnhancement(.disabled)
             newEngine.onPlaybackEnded = { [weak self] in
                 Task { @MainActor [weak self] in
@@ -236,8 +280,8 @@ final class PlaybackCoordinator {
                 attemptID: attemptID,
                 title: title,
                 ratingKey: program?.ratingKey ?? tune.sessionID,
-                engine: resolver.engine,
-                resolverReason: resolver.reason,
+                engine: engineType,
+                resolverReason: resolverReason,
                 mediaID: tune.media.id,
                 partID: tune.part.id,
                 sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: tune.playbackURL)
@@ -271,12 +315,12 @@ final class PlaybackCoordinator {
             )
             debugInfo = PlaybackDebugInfo(
                 title: title,
-                engine: resolver.engine,
+                engine: engineType,
                 decision: .liveTV,
                 media: tune.media,
                 part: tune.part,
                 attemptID: attemptID,
-                resolverReason: resolver.reason,
+                resolverReason: resolverReason,
                 sanitizedPlaybackURL: context.sanitizedPlaybackURL
             )
             playerPresentationID = UUID()
@@ -477,6 +521,8 @@ final class PlaybackCoordinator {
         playbackSource = nil
         debugInfo = nil
         activeItemDetails = nil
+        activeAudioStreamID = nil
+        activeSubtitleStreamID = nil
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         ratingKey = nil
@@ -525,7 +571,7 @@ final class PlaybackCoordinator {
         let shouldSuppress: Bool
         switch state {
         case .loading, .playing:
-            shouldSuppress = true
+            shouldSuppress = !isAirPlayPlaybackActive
         case .idle, .paused, .stopped, .error:
             shouldSuppress = false
         }

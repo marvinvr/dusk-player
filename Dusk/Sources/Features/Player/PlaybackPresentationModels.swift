@@ -98,6 +98,9 @@ extension PlaybackPlaceholder {
 struct PlaybackSource: Sendable {
     let url: URL
     let startPosition: TimeInterval?
+    /// Replacement handoffs normally resume immediately. AirPlay route/track
+    /// changes preserve an explicitly paused session by loading without autoplay.
+    var shouldAutoPlay: Bool = true
     let context: PlaybackAttemptContext
     /// Position of the automatically preferred audio stream among the part's
     /// audio streams (libvlc `:audio-track` semantics), computed from Plex
@@ -143,6 +146,8 @@ struct PlaybackDebugInfo: Sendable {
             preset.displayName
         case .serverStream:
             "Direct Stream (HLS)"
+        case .airPlay:
+            "AirPlay HLS"
         case .liveTV:
             "Live HLS"
         }
@@ -154,7 +159,7 @@ struct PlaybackDebugInfo: Sendable {
             "Yes"
         case .localDownload:
             "Local"
-        case .transcode, .serverStream, .liveTV:
+        case .transcode, .serverStream, .airPlay, .liveTV:
             "No"
         }
     }
@@ -165,13 +170,14 @@ struct PlaybackDebugInfo: Sendable {
         case .localDownload: "Local Download"
         case let .transcode(preset): "Transcode \(preset.displayName)"
         case .serverStream: "Server Stream (HLS)"
+        case .airPlay: "AirPlay (HLS)"
         case .liveTV: "Live TV"
         }
     }
 
     var qualityPreset: PlaybackQualityPreset {
         switch decision {
-        case .directPlay, .localDownload, .liveTV:
+        case .directPlay, .localDownload, .airPlay, .liveTV:
             .original
         case let .transcode(preset):
             preset
@@ -188,7 +194,7 @@ struct PlaybackDebugInfo: Sendable {
 
     var canSelectPlaybackQuality: Bool {
         switch decision {
-        case .localDownload, .liveTV:
+        case .localDownload, .airPlay, .liveTV:
             false
         case .directPlay, .transcode, .serverStream:
             true
@@ -199,7 +205,7 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .localDownload, .liveTV:
             false
-        case .directPlay, .transcode, .serverStream:
+        case .directPlay, .transcode, .serverStream, .airPlay:
             true
         }
     }
@@ -300,6 +306,9 @@ enum PlaybackDecision: Sendable {
     /// re-encoded when it must be). No quality preset applies — the video
     /// quality stays the original's.
     case serverStream
+    /// Explicit external-playback delivery: Plex packages the selected version
+    /// as receiver-compatible HLS and AVPlayer hands it to the AirPlay route.
+    case airPlay
     /// Plex DVR tune session delivered as a sliding HLS time-shift window.
     case liveTV
 }

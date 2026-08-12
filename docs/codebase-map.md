@@ -124,6 +124,9 @@ Player:
 
 - `PlaybackCoordinator` starts library and Live TV sessions and owns
   timeline/scrobble/up-next. Live sessions never scrobble.
+- `PlaybackAirPlayController` observes the iOS system route; AirPlay handoffs
+  stay in the coordinator and use Plex HLS plus AVPlayer, so receivers do not
+  need Dusk installed.
 - `PlayerView` and `PlayerViewModel` own on-screen player interaction.
 - `PlayerLiveTimeline.swift` owns the Live TV play bar's wall-clock model
   (live-edge estimate, program window, behind-live offset).

@@ -239,6 +239,69 @@ struct PlayerView: View {
     }
 }
 
+#if !os(tvOS)
+/// While AVPlayer renders on the receiver its local layer is intentionally
+/// blank. Keep the phone useful as a calm, artwork-led remote rather than
+/// leaving a black canvas behind Dusk's transport and track controls.
+private struct PlayerAirPlayRemoteBackground: View {
+    @Environment(PlexService.self) private var plexService
+
+    let details: PlexMediaDetails?
+    let routeName: String?
+
+    var body: some View {
+        ZStack {
+            if let artworkURL {
+                DuskAsyncImage(url: artworkURL) { phase in
+                    if case let .success(image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .blur(radius: 28)
+                            .opacity(0.32)
+                    } else {
+                        Color.clear
+                    }
+                }
+                .ignoresSafeArea()
+            }
+
+            LinearGradient(
+                colors: [.black.opacity(0.42), .black.opacity(0.86)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 12) {
+                Image(systemName: "airplayvideo")
+                    .font(.system(size: 46, weight: .regular))
+                    .foregroundStyle(.white)
+
+                Text(routeName.map { "Playing on \($0)" } ?? "Playing with AirPlay")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+
+                if let title = details?.title {
+                    Text(title)
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.7))
+                        .lineLimit(1)
+                }
+            }
+            .padding(32)
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+    }
+
+    private var artworkURL: URL? {
+        guard let path = details?.art ?? details?.thumb else { return nil }
+        return plexService.imageURL(for: path, width: 1280, height: 720)
+    }
+}
+#endif
+
 private struct PlayerSessionView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
@@ -287,6 +350,16 @@ private struct PlayerSessionView: View {
 
             viewModel.engineView
                 .ignoresSafeArea()
+
+            #if !os(tvOS)
+            if playback.isAirPlayPlaybackActive {
+                PlayerAirPlayRemoteBackground(
+                    details: mediaDetails,
+                    routeName: playback.airPlayController.routeDisplayName
+                )
+                .transition(.opacity)
+            }
+            #endif
 
             #if os(tvOS)
             PlayerTVRemoteSeekBridge(
@@ -425,7 +498,10 @@ private struct PlayerSessionView: View {
             viewModel.configureAutomaticTrackSelection(
                 preferences: preferences,
                 part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first,
-                mediaDetails: mediaDetails
+                mediaDetails: mediaDetails,
+                usesServerTrackSelection: playback.isAirPlaySession,
+                selectedAudioStreamID: playback.activeAudioStreamID,
+                selectedSubtitleStreamID: playback.activeSubtitleStreamID
             )
             viewModel.autoSkipHandler = { marker in
                 handleSkipMarker(marker)
@@ -452,6 +528,12 @@ private struct PlayerSessionView: View {
                     await playback.transcodeForUndecodableAudio(track)
                 }
             }
+            viewModel.plexTrackSelectionHandler = { audioStreamID, subtitleStreamID in
+                playback.selectPlexStreamsForPlayback(
+                    audioStreamID: audioStreamID,
+                    subtitleStreamID: subtitleStreamID
+                )
+            }
             viewModel.startPlaybackIfNeeded(source: playbackSource)
             #if os(tvOS)
             if viewModel.activeSkipMarker != nil {
@@ -462,6 +544,7 @@ private struct PlayerSessionView: View {
         .onDisappear {
             viewModel.playbackSnapshotHandler = nil
             viewModel.upNextPosterHandler = nil
+            viewModel.plexTrackSelectionHandler = nil
             viewModel.cleanup()
             viewModel.bufferingPresentationHandler = nil
         }

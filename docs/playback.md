@@ -172,6 +172,38 @@ so the whole live HUD is derived from one instant.
   (`X-Plex-Platform` iOS/tvOS, `X-Plex-Device`, `X-Plex-Platform-Version`);
   the capability constraints stay in `X-Plex-Client-Profile-Extra`.
 
+## AirPlay (iOS/iPadOS)
+
+- Dusk is the AirPlay sender and remains the playback coordinator/remote. The
+  receiver needs AirPlay support but never needs Dusk installed. This is native
+  AVPlayer external playback, not screen mirroring and not a Dusk-to-Dusk sync
+  protocol.
+- `PlaybackAirPlayController` observes the system-owned long-form-video route.
+  `PlayerAirPlayRoutePicker` wraps `AVRoutePickerView` and prioritizes video
+  receivers. `Info-iOS.plist` declares `AVInitialRouteSharingPolicy =
+  LongFormVideo`; the existing audio session, background mode, Now Playing
+  metadata, and remote commands keep the phone useful while video is external.
+- Local output remains direct-play first. When an AirPlay route is selected for
+  a direct-play or downloaded source, the coordinator snapshots position/state
+  and asks `PlexService.airPlayStreamURL` for uncapped HLS. Plex may direct-stream
+  compatible tracks but has an H.264/AAC target for receiver-incompatible media;
+  Dusk then swaps to AVPlayer without finalizing timeline/scrobble state.
+- Manual transcodes, automatic server streams, and Live TV are already HLS and
+  hand off directly when they use AVPlayer. AirPlay overrides the debug-only
+  Force VLCKit choice when a new library or Live TV session starts.
+- AirPlay audio/subtitle pickers represent original Plex streams, not the
+  rewritten HLS track list. A selection rebuilds the AirPlay stream at the same
+  position; subtitles are burned by Plex so PGS/ASS and third-party receivers
+  behave consistently.
+- Disconnecting AirPlay keeps the prepared HLS source until the item ends. This
+  avoids a second visible handoff back to direct play/VLCKit. The next item uses
+  the currently selected route normally.
+- Completed downloads require the matching Plex server to be connected for
+  AirPlay. Dusk does not run an on-device transcoder or local HTTP server for
+  offline VLC-only files.
+- `PlaybackCoordinator` continues to own timeline, scrobble, markers, continuous
+  playback, and Up Next. No state is synchronized from a Dusk receiver app.
+
 ## Manual Transcoding
 - Playback never starts with video transcoding because of a stored quality
   preference. `maxResolution` only chooses among existing Plex media versions.

@@ -92,6 +92,13 @@ final class PlayerViewModel {
     /// when a file has no locally decodable audio at all — sound must come
     /// from the server transcoder instead of a dead local decoder.
     var transcodeAudioFallbackHandler: (@MainActor (AudioTrack?) -> Void)?
+    /// AirPlay track pickers represent original Plex streams even though the
+    /// AVPlayer HLS item contains only the server-rendered selection. Changes
+    /// therefore rebuild the Plex stream instead of selecting an engine track.
+    var usesServerTrackSelection = false
+    var serverSelectedAudioStreamID: Int?
+    var serverSelectedSubtitleStreamID: Int?
+    var plexTrackSelectionHandler: (@MainActor (Int?, Int?) -> Void)?
     var pendingPlaybackState: PlaybackState?
     var pendingPlaybackStateExpiration: Date?
     var playbackSnapshotHandler: (@MainActor (PlaybackState, TimeInterval, TimeInterval) -> Void)?
@@ -168,7 +175,10 @@ final class PlayerViewModel {
     func configureAutomaticTrackSelection(
         preferences: UserPreferences,
         part: PlexMediaPart?,
-        mediaDetails: PlexMediaDetails? = nil
+        mediaDetails: PlexMediaDetails? = nil,
+        usesServerTrackSelection: Bool = false,
+        selectedAudioStreamID: Int? = nil,
+        selectedSubtitleStreamID: Int? = nil
     ) {
         userPreferences = preferences
         // Apply the saved zoom-to-fill choice now that preferences are known.
@@ -176,6 +186,9 @@ final class PlayerViewModel {
         // no-ops until an orientation is also known.
         applyPersistedAspectFill()
         sourcePart = part
+        self.usesServerTrackSelection = usesServerTrackSelection
+        serverSelectedAudioStreamID = selectedAudioStreamID
+        serverSelectedSubtitleStreamID = selectedSubtitleStreamID
         preferredSubtitleLanguage = Self.normalizedLanguageCode(preferences.defaultSubtitleLanguage)
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)
         subtitleForcedOnly = preferences.subtitleForcedOnly

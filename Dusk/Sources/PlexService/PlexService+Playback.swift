@@ -26,11 +26,17 @@ extension PlexService {
         /// (directStream=1, directStreamAudio=1) and only re-encodes what it
         /// must. No bitrate/resolution caps are applied.
         case directStreamFallback
+        /// User-selected AirPlay route: package the original as HLS for native
+        /// AVPlayer external playback. Plex may copy compatible tracks, but the
+        /// H.264/AAC target lets it convert receiver-incompatible containers,
+        /// video, audio, and burned subtitles without imposing a quality cap.
+        case airPlay
 
         var logLabel: String {
             switch self {
             case let .manualTranscode(preset): "manual transcode (\(preset.displayName))"
             case .directStreamFallback: "server direct-stream"
+            case .airPlay: "AirPlay stream"
             }
         }
     }
@@ -216,6 +222,29 @@ extension PlexService {
         )
     }
 
+    /// Prepares an AirPlay-safe Plex HLS stream. This is an intentional output
+    /// route decision rather than an automatic quality default: local playback
+    /// remains direct-play first, while an explicitly selected AirPlay receiver
+    /// gets an AVPlayer-compatible stream with no bitrate or resolution cap.
+    func airPlayStreamURL(
+        ratingKey: String,
+        mediaIndex: Int,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: Int? = nil,
+        subtitleStreamID: Int? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        try await transcodeLadderURL(
+            ratingKey: ratingKey,
+            mediaIndex: mediaIndex,
+            mode: .airPlay,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID
+        )
+    }
+
     /// Starts a Plex HLS consumer for an already-tuned Live TV session.
     /// Live session paths are virtual resources, so they must go through the
     /// universal endpoint rather than direct-play URL validation for files.
@@ -354,7 +383,7 @@ private extension PlexService {
         let allowsDirectStream: Bool
         switch mode {
         case .manualTranscode: allowsDirectStream = false
-        case .directStreamFallback: allowsDirectStream = true
+        case .directStreamFallback, .airPlay: allowsDirectStream = true
         }
 
         var items: [URLQueryItem] = [

@@ -42,6 +42,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             : .disabled
     }
     var onPlaybackEnded: (@MainActor () -> Void)?
+    var supportsExternalPlayback: Bool {
+        #if os(iOS)
+        true
+        #else
+        false
+        #endif
+    }
+    #if os(iOS)
+    private(set) var isExternalPlaybackActive = false
+    #endif
 
     // MARK: - AVPlayer
 
@@ -67,6 +77,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var timeControlStatusObserver: NSKeyValueObservation?
     @ObservationIgnored nonisolated(unsafe) private var playbackEndedObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var playbackStalledObserver: NSObjectProtocol?
+    #if os(iOS)
+    @ObservationIgnored nonisolated(unsafe) private var externalPlaybackObserver: NSKeyValueObservation?
+    #endif
 
     // MARK: - Track Mapping
 
@@ -90,6 +103,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         playerLayer.videoGravity = .resizeAspect
         player.appliesMediaSelectionCriteriaAutomatically = false
         player.automaticallyWaitsToMinimizeStalling = true
+        #if os(iOS)
+        player.allowsExternalPlayback = true
+        player.externalPlaybackVideoGravity = .resizeAspect
+        player.audiovisualBackgroundPlaybackPolicy = .continuesIfPossible
+        externalPlaybackObserver = player.observe(
+            \.isExternalPlaybackActive,
+            options: [.initial, .new]
+        ) { [weak self] player, _ in
+            let isActive = player.isExternalPlaybackActive
+            Task { @MainActor [weak self] in
+                self?.isExternalPlaybackActive = isActive
+            }
+        }
+        #endif
         setupKVOObservers()
         #if os(iOS)
         refreshPictureInPictureController()
@@ -99,6 +126,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     deinit {
         loadValidationTask?.cancel()
         #if os(iOS)
+        externalPlaybackObserver?.invalidate()
+        externalPlaybackObserver = nil
         pipPossibleObserver?.invalidate()
         pipPossibleObserver = nil
         #endif
@@ -550,7 +579,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             )
         }
 
-        player.play()
+        if currentSource?.shouldAutoPlay == false {
+            state = .paused
+            isBuffering = false
+        } else {
+            player.play()
+        }
     }
 
     // MARK: - Private: Time Observer

@@ -11,6 +11,9 @@ struct SubtitleTrack: Sendable, Identifiable, Hashable {
     let isForced: Bool
     let isHearingImpaired: Bool
     let isExternal: Bool
+    /// Plex stream id backing this engine track, when metadata matching found
+    /// one. AirPlay uses it to rebuild the server-rendered HLS selection.
+    var plexStreamID: Int? = nil
 
     /// For external (sidecar) subtitle files, the URL to fetch them.
     let externalURL: URL?
@@ -27,6 +30,7 @@ extension SubtitleTrack {
         self.isForced = stream.isForced ?? false
         self.isHearingImpaired = stream.isHearingImpaired ?? false
         self.isExternal = stream.key != nil
+        self.plexStreamID = stream.id
         self.externalURL = nil // Constructed at playback time with server URL + token
     }
 }
