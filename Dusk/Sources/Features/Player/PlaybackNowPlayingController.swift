@@ -22,7 +22,11 @@ final class PlaybackNowPlayingController {
     private var commandTargets: [(command: MPRemoteCommand, target: Any)] = []
     private var notificationObservers: [NSObjectProtocol] = []
     private var artworkTask: Task<Void, Never>?
+    private var backgroundPlaybackRecoveryTask: Task<Void, Never>?
     private var isAudioSessionActive = false
+    private var isAudioSessionInterrupted = false
+    private var isApplicationActive = true
+    private var shouldContinuePlaybackWhenInactive = false
     private var wasPlayingBeforeInterruption = false
     private var skipBackwardInterval: TimeInterval = 10
     private var skipForwardInterval: TimeInterval = 10
@@ -55,6 +59,7 @@ final class PlaybackNowPlayingController {
         self.plexService = plexService
         self.skipBackwardInterval = skipBackwardInterval
         self.skipForwardInterval = skipForwardInterval
+        isApplicationActive = UIApplication.shared.applicationState == .active
 
         configureAndActivateAudioSession()
         configureRemoteCommands()
@@ -80,6 +85,7 @@ final class PlaybackNowPlayingController {
         self.plexService = plexService
         self.skipBackwardInterval = skipBackwardInterval
         self.skipForwardInterval = skipForwardInterval
+        isApplicationActive = UIApplication.shared.applicationState == .active
 
         configureAndActivateAudioSession()
         configureRemoteCommands()
@@ -123,6 +129,7 @@ final class PlaybackNowPlayingController {
     ) {
         #if os(iOS)
         guard engine != nil else { return }
+        updatePlaybackIntent(for: state)
         guard shouldPublish(state: state, currentTime: currentTime, duration: duration, force: force) else {
             return
         }
@@ -135,6 +142,8 @@ final class PlaybackNowPlayingController {
         #if os(iOS)
         artworkTask?.cancel()
         artworkTask = nil
+        backgroundPlaybackRecoveryTask?.cancel()
+        backgroundPlaybackRecoveryTask = nil
         removeRemoteCommandTargets()
         removeAudioSessionObservers()
 
@@ -162,6 +171,9 @@ final class PlaybackNowPlayingController {
         plexService = nil
         details = nil
         nowPlayingInfo = [:]
+        isAudioSessionInterrupted = false
+        isApplicationActive = true
+        shouldContinuePlaybackWhenInactive = false
         wasPlayingBeforeInterruption = false
         lastPublishedState = nil
         lastPublishedElapsedTime = 0
@@ -362,11 +374,13 @@ private extension PlaybackNowPlayingController {
         let commandCenter = MPRemoteCommandCenter.shared()
 
         addTarget(to: commandCenter.playCommand) { [weak self] in
+            self?.shouldContinuePlaybackWhenInactive = true
             self?.engine?.play()
             self?.publishEngineSnapshot(force: true)
         }
 
         addTarget(to: commandCenter.pauseCommand) { [weak self] in
+            self?.shouldContinuePlaybackWhenInactive = false
             self?.engine?.pause()
             self?.publishEngineSnapshot(force: true)
         }
@@ -374,8 +388,10 @@ private extension PlaybackNowPlayingController {
         addTarget(to: commandCenter.togglePlayPauseCommand) { [weak self] in
             guard let self, let engine else { return }
             if engine.state == .playing {
+                shouldContinuePlaybackWhenInactive = false
                 engine.pause()
             } else {
+                shouldContinuePlaybackWhenInactive = true
                 engine.play()
             }
             publishEngineSnapshot(force: true)
@@ -485,6 +501,42 @@ private extension PlaybackNowPlayingController {
 
         notificationObservers.append(
             center.addObserver(
+                forName: UIApplication.willResignActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.handleApplicationWillResignActive()
+                }
+            }
+        )
+
+        notificationObservers.append(
+            center.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.scheduleBackgroundPlaybackRecovery()
+                }
+            }
+        )
+
+        notificationObservers.append(
+            center.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.handleApplicationDidBecomeActive()
+                }
+            }
+        )
+
+        notificationObservers.append(
+            center.addObserver(
                 forName: AVAudioSession.routeChangeNotification,
                 object: AVAudioSession.sharedInstance(),
                 queue: .main
@@ -512,6 +564,7 @@ private extension PlaybackNowPlayingController {
 
         switch type {
         case .began:
+            isAudioSessionInterrupted = true
             let wasPlaying = engine?.state == .playing
             wasPlayingBeforeInterruption = wasPlaying
             // Only pause when actually playing: interruptions delivered
@@ -524,10 +577,14 @@ private extension PlaybackNowPlayingController {
             publishEngineSnapshot(force: true)
         case .ended:
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue ?? 0)
+            isAudioSessionInterrupted = false
             configureAndActivateAudioSession()
 
             if wasPlayingBeforeInterruption, options.contains(.shouldResume) {
+                shouldContinuePlaybackWhenInactive = true
                 engine?.play()
+            } else if wasPlayingBeforeInterruption {
+                shouldContinuePlaybackWhenInactive = false
             }
             wasPlayingBeforeInterruption = false
             publishEngineSnapshot(force: true)
@@ -543,9 +600,75 @@ private extension PlaybackNowPlayingController {
         }
 
         if reason == .oldDeviceUnavailable {
+            shouldContinuePlaybackWhenInactive = false
             engine?.pause()
             publishEngineSnapshot(force: true)
         }
+    }
+
+    func updatePlaybackIntent(for state: PlaybackState) {
+        switch state {
+        case .playing:
+            shouldContinuePlaybackWhenInactive = true
+        case .paused:
+            // A paused engine state alone does not identify who paused it. The
+            // intent is captured from the live engine at resign-active, while
+            // explicit Control Center commands update it directly above.
+            break
+        case .idle, .stopped, .error:
+            shouldContinuePlaybackWhenInactive = false
+        case .loading:
+            break
+        }
+    }
+
+    func handleApplicationWillResignActive() {
+        if isApplicationActive {
+            shouldContinuePlaybackWhenInactive = engine?.state == .playing
+        }
+        isApplicationActive = false
+        scheduleBackgroundPlaybackRecovery()
+    }
+
+    func handleApplicationDidBecomeActive() {
+        backgroundPlaybackRecoveryTask?.cancel()
+        backgroundPlaybackRecoveryTask = nil
+        isApplicationActive = true
+        recoverBackgroundPlaybackIfNeeded()
+    }
+
+    func scheduleBackgroundPlaybackRecovery() {
+        guard shouldContinuePlaybackWhenInactive else { return }
+
+        backgroundPlaybackRecoveryTask?.cancel()
+        backgroundPlaybackRecoveryTask = Task { @MainActor [weak self] in
+            // Some engine/system pause callbacks arrive after resign-active.
+            // Recheck twice so Control Center and a full background transition
+            // are both covered without polling for the lifetime of the session.
+            for delay in [Duration.milliseconds(150), .milliseconds(500)] {
+                do {
+                    try await Task.sleep(for: delay)
+                } catch {
+                    return
+                }
+                guard let self, !Task.isCancelled else { return }
+                self.recoverBackgroundPlaybackIfNeeded()
+            }
+        }
+    }
+
+    func recoverBackgroundPlaybackIfNeeded() {
+        guard shouldContinuePlaybackWhenInactive,
+              !isAudioSessionInterrupted,
+              let engine,
+              engine.state == .paused else {
+            return
+        }
+
+        configureAndActivateAudioSession()
+        nowPlayingLogger.notice("Recovering an unsolicited lifecycle playback pause")
+        engine.play()
+        publishEngineSnapshot(force: true)
     }
 }
 

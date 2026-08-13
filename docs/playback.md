@@ -564,6 +564,12 @@ so the whole live HUD is derived from one instant.
   Bluetooth routes), session activation/deactivation failures log instead
   of asserting, and the interruption handler only pauses the engine when it
   was actually playing (never pokes a loading/buffering player mid-open).
+  The same controller preserves playing transport intent across
+  resign-active/background transitions: if iOS or an engine reports an
+  unsolicited pause after Control Center or backgrounding, it reactivates the
+  session and resumes. Explicit remote Pause commands, genuine audio-session
+  interruptions, and headphone/route removal remain authoritative and are
+  never auto-resumed by this recovery path.
   tvOS sets the `.playback`/`.moviePlayback` category at app launch
   (`DuskApp.configurePlaybackAudioSession`).
 - tvOS drives true multichannel output to the connected receiver over
