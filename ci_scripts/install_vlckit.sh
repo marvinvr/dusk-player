@@ -73,7 +73,20 @@ fetch_archive() {
     if [ -n "${CACHE_DIR}" ] && [ -f "${CACHE_DIR}/${archive_name}" ]; then
         cp "${CACHE_DIR}/${archive_name}" "${destination}"
     else
-        curl -fL --retry 3 -o "${destination}" "${DOWNLOAD_BASE_URL}/${archive_name}"
+        # The two archives are large enough that transient CDN/TLS resets are
+        # common on Xcode Cloud. curl's plain --retry only covers a narrow set
+        # of errors and does not include the observed CURLE_SSL_CONNECT_ERROR.
+        # Retry every transfer failure and resume the partial archive rather
+        # than restarting hundreds of megabytes from zero.
+        curl \
+            --fail \
+            --location \
+            --retry 8 \
+            --retry-all-errors \
+            --retry-delay 3 \
+            --continue-at - \
+            --output "${destination}" \
+            "${DOWNLOAD_BASE_URL}/${archive_name}"
     fi
     verify_sha256 "${destination}" "${expected_sha}"
 }

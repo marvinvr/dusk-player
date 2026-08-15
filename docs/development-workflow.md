@@ -88,6 +88,15 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 - Commit regenerated `Dusk.xcodeproj` only when it changed because of your intentional project/source-file change.
 - If `xcodegen` is unavailable, report the verification gap instead of hand-editing generated project files.
 
+## VLCKit Bootstrap
+
+- Xcode Cloud runs `ci_scripts/ci_post_clone.sh`, which calls
+  `ci_scripts/install_vlckit.sh` to fetch both pinned framework archives before
+  any target builds.
+- The archives are checksum-verified. Network, TLS, and CDN transfer failures
+  are retried, with partial downloads resumed; do not weaken the checksum or
+  replace this with an unverified framework fallback.
+
 ## Verification Commands
 
 After code changes, run compile-only verification. Do not run tests or launch the app/simulator unless asked.
