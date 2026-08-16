@@ -133,11 +133,20 @@ enum DisplayModeMatcher {
     // MARK: - Display manager lookup
 
     private static func currentDisplayManager() -> AVDisplayManager? {
+        #if targetEnvironment(simulator)
+        // The tvOS SDK exposes UIWindow.avDisplayManager to simulator builds,
+        // but the simulator's UIWindow does not implement the selector. Calling
+        // it raises an Objective-C doesNotRecognizeSelector exception. A
+        // simulator cannot switch the host display mode anyway, so keep display
+        // matching device-only.
+        return nil
+        #else
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
         let window = windows.first(where: \.isKeyWindow) ?? windows.first
         return window?.avDisplayManager
+        #endif
     }
 
     // MARK: - Refresh rate
