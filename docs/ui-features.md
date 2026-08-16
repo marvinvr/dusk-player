@@ -59,6 +59,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Prefer shared primitives before adding feature-local copies.
 - Loading, empty, and retry states belong to `FeatureLoadingView`,
   `FeatureEmptyStateView`, and `FeatureErrorView`.
+- `FeatureErrorView` shows Retry for ordinary failures. Messages that mean the
+  Plex account session is dead (`PlexServiceError.unauthorized` /
+  `.notAuthenticated`) replace Retry with Sign In, which calls `signOut()` so
+  `ContentView` presents `SignInView`. Do not add a local retry button for those
+  errors. Successful re-auth is a new session; it does not resume the failed
+  screen or playback.
 - Poster UI is layered: `PosterArtwork`, `PosterCardText`, `PosterCard`,
   `PosterNavigationCard`, and `PosterActionCard`.
 - Fully watched items (e.g. fully watched seasons) pass `isWatched` to the poster

@@ -42,4 +42,15 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
             "Network error: \(detail)"
         }
     }
+
+    /// The stored Plex account session is missing or rejected. Retrying the
+    /// failed request cannot recover it; the user has to sign in again.
+    var requiresReauthentication: Bool {
+        switch self {
+        case .unauthorized, .notAuthenticated:
+            true
+        default:
+            false
+        }
+    }
 }

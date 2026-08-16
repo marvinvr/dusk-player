@@ -32,6 +32,8 @@ struct FeatureEmptyStateView: View {
 }
 
 struct FeatureErrorView: View {
+    @Environment(PlexService.self) private var plexService
+
     let message: String
     let retryTitle: String
     let retryAction: () -> Void
@@ -46,6 +48,10 @@ struct FeatureErrorView: View {
         self.retryAction = retryAction
     }
 
+    private var requiresSignIn: Bool {
+        AuthenticationFailure.requiresReauthentication(message: message)
+    }
+
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
@@ -57,14 +63,40 @@ struct FeatureErrorView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
 
-            Button(retryTitle, action: retryAction)
-                .font(.headline)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 12)
-                .background(Color.duskAccent, in: Capsule())
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
+            Button(requiresSignIn ? "Sign In" : retryTitle) {
+                if requiresSignIn {
+                    AuthenticationFailure.beginReauthentication(plexService: plexService)
+                } else {
+                    retryAction()
+                }
+            }
+            .font(.headline)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 12)
+            .background(Color.duskAccent, in: Capsule())
+            .duskSuppressTVOSButtonChrome()
+            .duskTVOSFocusEffectShape(Capsule())
         }
+    }
+}
+
+/// Shared detection and recovery for a dead Plex account session.
+/// View models store `localizedDescription`, so message matching is the
+/// feature-layer signal; typed errors use `requiresReauthentication` directly.
+enum AuthenticationFailure {
+    static func requiresReauthentication(message: String) -> Bool {
+        message == PlexServiceError.unauthorized.errorDescription
+            || message == PlexServiceError.notAuthenticated.errorDescription
+            || message == PlaybackError.unauthorized.errorDescription
+    }
+
+    @MainActor
+    static func beginReauthentication(
+        plexService: PlexService,
+        playback: PlaybackCoordinator? = nil
+    ) {
+        playback?.onPlayerDismissed()
+        plexService.signOut()
     }
 }

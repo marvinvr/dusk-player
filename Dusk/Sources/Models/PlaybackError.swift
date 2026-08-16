@@ -40,6 +40,12 @@ extension PlaybackError: LocalizedError {
             return message
         }
     }
+
+    /// The stored Plex account session was rejected. Close/retry cannot recover
+    /// playback; the user has to sign in again.
+    var requiresReauthentication: Bool {
+        self == .unauthorized
+    }
 }
 
 extension PlaybackError {

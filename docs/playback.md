@@ -48,7 +48,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    slow load instead of committing over it — a transcode session started for the
    superseded attempt is stopped. A pre-engine failure sets `loadError`, which
    `PlayerView` surfaces as a "Couldn't Play" alert (only while no engine is
-   live) whose dismissal tears down the cover.
+   live) whose dismissal tears down the cover. A `.unauthorized` load error or
+   in-session `PlaybackError.unauthorized` offers Sign In instead of OK/Close;
+   that signs out and returns to `SignInView` instead of retrying with a dead
+   token.
 7. `PlayerSessionView` creates `PlayerViewModel`, configures preferences and
    markers, then calls `engine.load(source:)` once.
 8. The engine validates the URL, loads media, auto-plays, and publishes

@@ -91,6 +91,12 @@ Discovery behavior to preserve:
 - A server request 401 tries authorization recovery once; repeated 401 clears
   the selected server.
 - Selected endpoints refresh after network errors or selected 4xx/5xx statuses.
+- Account-level `.unauthorized` / `.notAuthenticated` are user-facing
+  re-authentication, not retryable request failures. `FeatureErrorView`, the
+  player overlay and load-error alert, and ContentView bootstrap/discovery
+  replace Retry with Sign In. Sign In calls `signOut()` so `ContentView`
+  presents `SignInView`. Successful re-auth runs home bootstrap and server
+  discovery again; it does not resume the failed screen or playback.
 
 Remote-streaming entitlement (Plex Pass): since April 2025 Plex only allows
 remote playback of personal video media when the server owner (or the streaming

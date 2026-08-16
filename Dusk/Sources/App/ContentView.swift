@@ -92,28 +92,41 @@ struct ContentView: View {
                         .frame(maxWidth: 680)
 
                     VStack(spacing: 12) {
-                        Button("Retry") {
-                            Task { await bootstrapHomeIfNeeded(force: true) }
-                        }
-                        .font(.headline)
-                        .foregroundStyle(Color.duskPrimaryActionLabel)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(Color.primary.opacity(0.88), in: Capsule())
-                        .disabled(isBootstrappingHome)
-                        .duskSuppressTVOSButtonChrome()
-                        .duskTVOSFocusEffectShape(Capsule())
+                        if AuthenticationFailure.requiresReauthentication(message: homeBootstrapError) {
+                            Button("Sign In") {
+                                signOut()
+                            }
+                            .font(.headline)
+                            .foregroundStyle(Color.duskPrimaryActionLabel)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(Color.primary.opacity(0.88), in: Capsule())
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
+                        } else {
+                            Button("Retry") {
+                                Task { await bootstrapHomeIfNeeded(force: true) }
+                            }
+                            .font(.headline)
+                            .foregroundStyle(Color.duskPrimaryActionLabel)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(Color.primary.opacity(0.88), in: Capsule())
+                            .disabled(isBootstrappingHome)
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
 
-                        Button("Sign Out", role: .destructive) {
-                            signOut()
+                            Button("Sign Out", role: .destructive) {
+                                signOut()
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
                         }
-                        .font(.headline)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .duskSuppressTVOSButtonChrome()
-                        .duskTVOSFocusEffectShape(Capsule())
                     }
                 } else {
                     ProgressView()
@@ -162,27 +175,40 @@ struct ContentView: View {
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
                     VStack(spacing: 12) {
-                        Button("Retry") {
-                            resetDiscoveryState()
-                        }
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(Color.duskAccent, in: Capsule())
-                        .duskSuppressTVOSButtonChrome()
-                        .duskTVOSFocusEffectShape(Capsule())
+                        if AuthenticationFailure.requiresReauthentication(message: error) {
+                            Button("Sign In") {
+                                signOut()
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(Color.duskAccent, in: Capsule())
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
+                        } else {
+                            Button("Retry") {
+                                resetDiscoveryState()
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(Color.duskAccent, in: Capsule())
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
 
-                        Button("Sign Out", role: .destructive) {
-                            signOut()
+                            Button("Sign Out", role: .destructive) {
+                                signOut()
+                            }
+                            .font(.headline)
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 12)
+                            .background(.ultraThinMaterial, in: Capsule())
+                            .duskSuppressTVOSButtonChrome()
+                            .duskTVOSFocusEffectShape(Capsule())
                         }
-                        .font(.headline)
-                        .foregroundStyle(.red)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(.ultraThinMaterial, in: Capsule())
-                        .duskSuppressTVOSButtonChrome()
-                        .duskTVOSFocusEffectShape(Capsule())
                     }
                 } else {
                     ProgressView()

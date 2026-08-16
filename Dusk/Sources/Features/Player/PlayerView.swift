@@ -145,6 +145,7 @@ private struct PlayerSpeedBoostOverlayView: View {
 }
 
 struct PlayerView: View {
+    @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
 
     var body: some View {
@@ -195,8 +196,17 @@ struct PlayerView: View {
             "Couldn't Play",
             isPresented: loadErrorPresented,
             presenting: playback.loadError
-        ) { _ in
-            Button("OK", role: .cancel) { playback.dismissFailedPlayback() }
+        ) { message in
+            if AuthenticationFailure.requiresReauthentication(message: message) {
+                Button("Sign In") {
+                    AuthenticationFailure.beginReauthentication(
+                        plexService: plexService,
+                        playback: playback
+                    )
+                }
+            } else {
+                Button("OK", role: .cancel) { playback.dismissFailedPlayback() }
+            }
         } message: { message in
             Text(message)
         }
@@ -935,14 +945,24 @@ private struct PlayerSessionView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .multilineTextAlignment(.center)
 
-            Button("Close", action: dismissPlayer)
-                .font(.headline)
-                .foregroundStyle(.white)
-                .padding(.horizontal, 32)
-                .padding(.vertical, 12)
-                .background(Color.duskAccent, in: Capsule())
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
+            Button(error.requiresReauthentication ? "Sign In" : "Close") {
+                if error.requiresReauthentication {
+                    viewModel.cleanup()
+                    AuthenticationFailure.beginReauthentication(
+                        plexService: plexService,
+                        playback: playback
+                    )
+                } else {
+                    dismissPlayer()
+                }
+            }
+            .font(.headline)
+            .foregroundStyle(.white)
+            .padding(.horizontal, 32)
+            .padding(.vertical, 12)
+            .background(Color.duskAccent, in: Capsule())
+            .duskSuppressTVOSButtonChrome()
+            .duskTVOSFocusEffectShape(Capsule())
         }
         .padding(32)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 28))
