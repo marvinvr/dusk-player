@@ -334,6 +334,10 @@ extension PlaybackCoordinator {
                 startPosition: startPosition,
                 context: attemptContext,
                 preferredAudioTrackPosition: preferredAudioTrackPosition,
+                preferredAudioChannelCount: PlayerViewModel.preferredAudioStreamChannelCount(
+                    inPart: part,
+                    preferredLanguage: preferences.defaultAudioLanguage
+                ),
                 locality: sourceLocality(for: playbackURL)
             )
             debugInfo = PlaybackDebugInfo(
@@ -769,6 +773,10 @@ extension PlaybackCoordinator {
             shouldAutoPlay: shouldAutoPlay,
             context: attemptContext,
             preferredAudioTrackPosition: preferredAudioTrackPosition,
+            preferredAudioChannelCount: PlayerViewModel.preferredAudioStreamChannelCount(
+                inPart: part,
+                preferredLanguage: preferences.defaultAudioLanguage
+            ),
             locality: sourceLocality(for: playbackURL)
         )
         debugInfo = PlaybackDebugInfo(

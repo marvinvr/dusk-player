@@ -171,6 +171,16 @@ so the whole live HUD is derived from one instant.
 - Transcode/decision URLs identify the client honestly
   (`X-Plex-Platform` iOS/tvOS, `X-Plex-Device`, `X-Plex-Platform-Version`);
   the capability constraints stay in `X-Plex-Client-Profile-Extra`.
+- That profile declares E-AC-3 and AC-3 as additional HLS transcode-target
+  audio codecs with a 6-channel limitation. With only the Generic profile's
+  lone AAC target, Plex downmixed every 5.1/7.1 source to 2-channel AAC on the
+  server-side rungs — which is what the direct-stream fallback and every
+  TrueHD title (undecodable in the vendored VLCKit, so always routed through
+  the server) received. AVPlayer decodes AC-3/E-AC-3 in HLS/mpegts natively on
+  both platforms. `.airPlay` is deliberately excluded: that rung targets
+  whatever receiver the user picked, which is not necessarily AC-3 capable.
+  There is deliberately no `aac` channel limitation — capping it would fight
+  Plex's decision engine rather than widening what Dusk accepts.
 
 ## AirPlay (iOS/iPadOS)
 
@@ -583,10 +593,38 @@ so the whole live HUD is derived from one instant.
   tvOS sets the `.playback`/`.moviePlayback` category at app launch
   (`DuskApp.configurePlaybackAudioSession`).
 - tvOS drives true multichannel output to the connected receiver over
-  HDMI/eARC at the session level: it opts the audio session into multichannel
-  content and raises the preferred output channel count toward the selected
-  track's layout (clamped to the route). VLCKit 3.x has no mix-mode API;
-  libvlc's audiounit output negotiates the channel layout itself.
+  HDMI/eARC at the session level, and **timing is the whole game**. libvlc 3's
+  `avas_setPreferredNumberOfChannels` reads the route's
+  `maximumOutputNumberOfChannels` exactly once while its audio output starts;
+  if that reads 2 it pins `fmt->i_physical_channels` to stereo and folds
+  5.1/7.1 down in libvlc's own channel mixer for the whole session — an
+  unnormalized `L + 0.7071*(C + Ls)` fold with no headroom, which buries
+  dialogue and clips loud scenes. So:
+  - the multichannel opt-in is **unconditional** on tvOS. It is a capability
+    declaration, not a statement about the current track. Making it
+    conditional on the selected track is what regressed 5.1/7.1 during the
+    VLCKit 4 → 3.7.3 migration: `selectedAudioTrackInfo()` is nil until
+    `tracks-refreshed`, long after libvlc has already committed to stereo.
+  - the expected layout comes from Plex metadata via
+    `PlaybackSource.preferredAudioChannelCount`
+    (`PlayerViewModel.preferredAudioStreamChannelCount`), because the
+    `before-play` call is the only one that can still influence libvlc and the
+    engine has no track list then.
+  - the route ceiling is re-read *after* the opt-in. tvOS reports a
+    stereo-only maximum while the session is declared stereo-only, so
+    measuring first permanently justifies never asking for surround.
+  - libvlc overwrites `supportsMultichannelContent` on every audio-output
+    start (`avas_SetActive` passes its own spatial-audio flag, still false on
+    first bring-up), so `AVPlayerEngine.load` re-asserts it on tvOS. Without
+    that, one VLCKit title leaves every later AVPlayer title in stereo for the
+    rest of the app's lifetime.
+  - passthrough/bitstreaming is impossible on this stack regardless: libvlc 3
+    returns `VLC_EGENERIC` for SPDIF/HDMI formats on Apple platforms. Dusk
+    always software-decodes to PCM; the goal is only that the PCM is discrete
+    multichannel rather than a fold-down.
+  - Playback Info's "Output Channels" row reads
+    `expected=… current=… preferred=… max=…`. `expected>2` with `current=2` is
+    the signature of libvlc folding down in software.
 - iOS/iPadOS does NOT drive surround at all. The output route is effectively
   stereo (built-in speaker, wired, or Bluetooth/AirPods), so the policy lets
   VLCKit downmix to the route on its own; it sets no preferred output channel

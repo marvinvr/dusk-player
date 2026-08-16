@@ -469,6 +469,40 @@ private extension PlexService {
         clauses.append(
             "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)"
         )
+
+        // Surround survival on the server-side rungs. With only the Generic
+        // profile's lone AAC target declared, Plex downmixes every 5.1/7.1
+        // source to 2-channel AAC — which is what the direct-stream fallback
+        // and every TrueHD title (undecodable in the vendored VLCKit, so always
+        // routed through the server) has been getting. AC-3/E-AC-3 in
+        // HLS/mpegts is decoded natively by AVPlayer on tvOS and iOS, so
+        // offering them keeps discrete channels intact instead of handing the
+        // player a pre-folded stereo mix.
+        //
+        // Deliberately NOT applied to `.airPlay`: that rung targets whatever
+        // receiver the user picked, which is not necessarily AC-3 capable, and
+        // its current behaviour is known-good. Deliberately no `aac` channel
+        // limitation either — capping it would fight Plex's own decision
+        // engine rather than simply widening what we accept.
+        let allowsSurroundAudioTargets: Bool
+        switch mode {
+        case .manualTranscode, .directStreamFallback: allowsSurroundAudioTargets = true
+        case .airPlay: allowsSurroundAudioTargets = false
+        }
+        if allowsSurroundAudioTargets {
+            clauses.append(
+                "add-transcode-target-audio-codec(type=videoProfile&context=streaming&protocol=hls&audioCodec=eac3)"
+            )
+            clauses.append(
+                "add-transcode-target-audio-codec(type=videoProfile&context=streaming&protocol=hls&audioCodec=ac3)"
+            )
+            clauses.append(
+                "add-limitation(scope=videoAudioCodec&scopeName=eac3&type=upperBound&name=audio.channels&value=6&replace=true)"
+            )
+            clauses.append(
+                "add-limitation(scope=videoAudioCodec&scopeName=ac3&type=upperBound&name=audio.channels&value=6&replace=true)"
+            )
+        }
         return clauses.joined(separator: "+")
     }
 

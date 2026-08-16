@@ -518,6 +518,28 @@ extension PlayerViewModel {
             ?? audioStreams.first?.id
     }
 
+    /// Channel count of the stream `preferredAudioStreamID` resolves to, used to
+    /// open the tvOS audio session to the right layout before libvlc measures
+    /// the route (`PlaybackSource.preferredAudioChannelCount`). Falls back to the
+    /// richest audio stream in the part when the winning stream carries no
+    /// channel count, so an unlabelled 5.1 track still opens a multichannel
+    /// route rather than silently getting folded to stereo.
+    static func preferredAudioStreamChannelCount(
+        inPart part: PlexMediaPart?,
+        preferredLanguage: String?
+    ) -> Int? {
+        guard let part else { return nil }
+        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        guard !audioStreams.isEmpty else { return nil }
+
+        if let id = preferredAudioStreamID(inPart: part, preferredLanguage: preferredLanguage),
+           let channels = audioStreams.first(where: { $0.id == id })?.channels,
+           channels > 0 {
+            return channels
+        }
+        return audioStreams.compactMap { $0.channels }.filter { $0 > 0 }.max()
+    }
+
     /// Initial subtitle stream for server-rendered playback. It mirrors Dusk's
     /// local automatic subtitle rule closely enough to choose before the HLS
     /// session exists; Plex burns the result so all AirPlay receivers agree.

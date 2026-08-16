@@ -172,6 +172,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         pendingStartPosition = source.startPosition
         hasReportedPlaybackEnded = false
 
+        #if os(tvOS)
+        restoreMultichannelAudioSession()
+        #endif
+
         avPlayerEngineLogger.notice(
             "Playback attempt \(source.context.attemptLabel, privacy: .public) starting in AVPlayer for ratingKey \(source.context.ratingKey, privacy: .public), media \(source.context.mediaID, privacy: .public), part \(source.context.partID, privacy: .public), URL \(source.context.sanitizedPlaybackURL, privacy: .public)"
         )
@@ -194,6 +198,27 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             self.finishValidatedLoad(source: source, attemptID: attemptID)
         }
     }
+
+    #if os(tvOS)
+    /// libvlc switches `supportsMultichannelContent` OFF on the shared audio
+    /// session every time it starts its own audio output — `avas_SetActive`
+    /// passes its own spatial-audio flag, which is still false on the first
+    /// bring-up — and on tvOS nothing ever switches it back on:
+    /// `DuskApp.configurePlaybackAudioSession` runs once at launch and
+    /// `PlaybackNowPlayingController` owns the session on iOS only. Without
+    /// this, one VLCKit title leaves every later AVPlayer title downmixed to
+    /// stereo for the rest of the app's lifetime, even though AVPlayer feeds
+    /// tvOS multichannel AC-3/E-AC-3 natively.
+    private func restoreMultichannelAudioSession() {
+        do {
+            try AVAudioSession.sharedInstance().setSupportsMultichannelContent(true)
+        } catch {
+            avPlayerEngineLogger.debug(
+                "Failed to restore multichannel audio session content support: \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+    #endif
 
     func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
         videoEnhancementRequest = request

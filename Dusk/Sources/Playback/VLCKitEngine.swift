@@ -1508,16 +1508,31 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             outputs.compactMap { $0.channels?.count }.max() ?? 0
         )
         let maximumOutputChannelCount = max(Int(session.maximumOutputNumberOfChannels), outputChannelCount)
+        // What the session should be opened for: the engine's own track info
+        // once it exists, otherwise the Plex-derived count carried on the
+        // source. The fallback is the whole point — at "before-play", which is
+        // the only call that can still influence libvlc, the track list is
+        // empty by construction (`loadSource` just cleared it).
+        let sourceChannels: Int? = currentSource.flatMap { $0.preferredAudioChannelCount }
+        let expectedChannels = selectedChannels ?? sourceChannels?.nonZeroValue
         #if os(tvOS)
         // tvOS drives true multichannel output to the connected receiver over
-        // HDMI/eARC. libvlc 3's audiounit output negotiates the channel layout
-        // itself (VLCKit 3.x has no mix-mode API); we only open the audio
-        // session up to the richest layout the route can render.
-        let preferredOutputChannels: Int? = {
-            guard let selectedChannels, selectedChannels > 2 else { return nil }
-            return min(selectedChannels, max(2, maximumOutputChannelCount))
-        }()
-        let wantsMultichannelOutput = preferredOutputChannels != nil
+        // HDMI/eARC, and the only moment that matters is BEFORE libvlc brings
+        // its audio output up. libvlc 3's `avas_setPreferredNumberOfChannels`
+        // reads the route's `maximumOutputNumberOfChannels` exactly once during
+        // `Start()`; if that reads 2 it pins `fmt->i_physical_channels` to
+        // stereo and folds 5.1/7.1 down in libvlc's own channel mixer for the
+        // rest of the session (an unnormalized `L + 0.7071*(C + Ls)` fold with
+        // no headroom, which buries dialogue and clips loud scenes).
+        //
+        // The opt-in is therefore UNCONDITIONAL: it is a capability
+        // declaration ("this app can play multichannel"), not a statement
+        // about the current track. Do NOT make it conditional on the selected
+        // track again — that is exactly how the VLCKit 4 -> 3.7.3 migration
+        // regressed 5.1/7.1, because `selectedAudioTrackInfo()` is nil until
+        // `tracks-refreshed`, long after libvlc committed to stereo.
+        let wantsMultichannelOutput = true
+        let signatureChannels = expectedChannels ?? 0
         #else
         // iOS/iPadOS: the output route is effectively stereo — built-in speaker,
         // wired, or Bluetooth/AirPods. Deliberately do NOT drive preferred
@@ -1529,8 +1544,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // multichannel-capable iOS route (AirPlay / USB to a receiver) is
         // handled by that same downmix path. Surround is owned by the system
         // audio session here, not forced by us.
-        let preferredOutputChannels: Int? = nil
         let wantsMultichannelOutput = false
+        // Pinned to 0 so the idempotency guard below keeps its original iOS
+        // behaviour: re-apply on an audio-track change and nothing else.
+        let signatureChannels = 0
         #endif
 
         // Idempotency guard. Bluetooth routes — AirPods especially — emit a
@@ -1544,7 +1561,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // actually changes; otherwise this is a no-op and the audio keeps playing.
         let signature = [
             selectedAudioTrackID.map(String.init) ?? "auto",
-            String(preferredOutputChannels ?? 0),
+            String(signatureChannels),
             String(wantsMultichannelOutput),
         ].joined(separator: "|")
 
@@ -1558,14 +1575,31 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 )
             }
 
-            if let preferredOutputChannels,
-               maximumOutputChannelCount >= preferredOutputChannels,
-               session.preferredOutputNumberOfChannels != preferredOutputChannels {
+            // Re-read the ceiling AFTER the opt-in. tvOS reports a stereo-only
+            // maximum while the session is declared stereo-only, so measuring
+            // first would permanently justify never asking for surround.
+            let openedMaximumChannelCount = max(
+                Int(session.maximumOutputNumberOfChannels),
+                maximumOutputChannelCount
+            )
+            let desiredPreferredChannels: Int? = {
+                // Unknown layout: leave the route exactly as it is. libvlc
+                // raises the count itself once it knows the stream, and the
+                // opt-in above is what makes that attempt succeed.
+                guard let expectedChannels else { return nil }
+                // Known stereo: hand the route back to a plain stereo layout
+                // rather than leaving the previous title's 5.1 request
+                // standing (libvlc only resets a request it made itself).
+                guard expectedChannels > 2, openedMaximumChannelCount > 2 else { return 2 }
+                return min(expectedChannels, openedMaximumChannelCount)
+            }()
+            if let desiredPreferredChannels,
+               session.preferredOutputNumberOfChannels != desiredPreferredChannels {
                 do {
-                    try session.setPreferredOutputNumberOfChannels(preferredOutputChannels)
+                    try session.setPreferredOutputNumberOfChannels(desiredPreferredChannels)
                 } catch {
                     vlcKitEngineLogger.debug(
-                        "Failed to set preferred output channel count \(preferredOutputChannels, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                        "Failed to set preferred output channel count \(desiredPreferredChannels, privacy: .public): \(error.localizedDescription, privacy: .public)"
                     )
                 }
             }
@@ -1623,12 +1657,15 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             ),
             PlaybackEngineDiagnostic(
                 label: "Output Channels",
-                value: "current=\(outputChannelCount), preferred=\(session.preferredOutputNumberOfChannels), max=\(maximumOutputChannelCount)"
+                // `expected` is the layout the source should render; `current`
+                // is what the route actually opened. expected>2 with current=2
+                // means libvlc is folding the mix down in software.
+                value: "expected=\(expectedChannels.map(String.init) ?? "unknown"), current=\(outputChannelCount), preferred=\(session.preferredOutputNumberOfChannels), max=\(maximumOutputChannelCount)"
             ),
         ]
 
         vlcKitEngineLogger.notice(
-            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
+            "Applied VLC audio policy reason=\(reason, privacy: .public) selectedTrack=\(selectedTrackLabel, privacy: .public) selectedChannels=\(selectedChannels ?? 0, privacy: .public) expectedChannels=\(expectedChannels ?? 0, privacy: .public) sourceChannels=\(sourceChannels ?? 0, privacy: .public) passthrough=false outputChannels=\(outputChannelCount, privacy: .public) preferredOutputChannels=\(session.preferredOutputNumberOfChannels, privacy: .public) maxOutputChannels=\(maximumOutputChannelCount, privacy: .public) route=[\(routeSummary, privacy: .public)]"
         )
         #endif
     }

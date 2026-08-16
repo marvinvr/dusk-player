@@ -111,6 +111,16 @@ struct PlaybackSource: Sendable {
     /// until a manual pause/resume — pre-selecting removes the switch
     /// entirely. `nil` leaves the container/libvlc default untouched.
     var preferredAudioTrackPosition: Int? = nil
+    /// Channel count of the audio stream playback is expected to open on, from
+    /// Plex metadata, resolved BEFORE the engine sees a single track. tvOS needs
+    /// it that early: libvlc reads the route's `maximumOutputNumberOfChannels`
+    /// while bringing its audio output up, and if the session has not been
+    /// opened to multichannel by then it locks the output to stereo and folds
+    /// 5.1/7.1 down in software for the rest of the session (see
+    /// `VLCKitEngine.configureAudioOutputPolicy`). The engine's own track list
+    /// only arrives after that decision has already been made. `nil` when the
+    /// metadata does not say.
+    var preferredAudioChannelCount: Int? = nil
     /// Where the bytes come from (downloaded file / LAN server / remote
     /// server), resolved by the coordinator. VLCKit sizes its protective
     /// caching — and with it the audible start/seek latency — from this.
