@@ -753,10 +753,66 @@ so the whole live HUD is derived from one instant.
   `Enhancement Detail` with the input/output size plus the technical reason
   (`Metal Lanczos + adaptive sharpening`, `Auto skips HDR`, texture failure,
   and similar). Keep these rows useful for both AVPlayer and VLCKit debugging.
+- The drawable is sized from `UIScreen.nativeScale`, never `scale`. On an Apple
+  TV 4K `scale` is 1.0 (UIKit lays out on a 1920x1080 point grid) while
+  `nativeScale` is 2.0, so reading `scale` silently capped the upscaler's output
+  at 1080p and handed tvOS an image to stretch. Apple's Metal Best Practices
+  guide requires drawables be sized from `nativeScale`/`nativeBounds`.
+- The scale that drives the enhancement decision is source -> *letterboxed
+  viewport*, not source -> full drawable. Deciding from the drawable overstates
+  it on scope content (2.39:1 in a 16:9 drawable reads as 1.35x when the real
+  ratio is ~1.00). `renderToLayer` computes `displayRect` before calling
+  `enhancementDecision` for this reason; keep that order.
+- The Metal layer declares `colorspace` (BT.709 for SDR). A nil `colorspace`
+  means "no colormatching occurs" per `CAMetalLayer`'s header: the rendered
+  values reach the display's context untouched, which is wrong whenever that
+  context is not the space the frames are in — notably an Apple TV pinned to a
+  Dolby Vision/HDR output format, where BT.709 SDR values get consumed as HDR
+  and the picture washes out. libvlc has already converted YUV to full-range
+  BT.709 RGB (`matrix_bt709_tv2full`), so BT.709 is the accurate declaration.
+  HDR sources stay untagged: this path is 8-bit BGRA, so claiming BT.709 for
+  frames libvlc already flattened would be a second wrong answer.
 - When changing this path, verify compile-only builds for iOS and tvOS, then
   manually check one AVPlayer stream, one VLCKit stream, the Off setting,
   Auto on a lower-resolution SDR stream, and player dismissal/teardown on
   device.
+
+## Display Mode Matching (tvOS)
+- `DisplayModeMatcher` asks tvOS to switch the Apple TV's output to the
+  content's native frame rate and dynamic range for the duration of a session.
+  It is renderer-independent and therefore applied for every engine — this is
+  the only fix that reaches VLCKit's native drawable, which is what most of the
+  library actually plays through.
+- Why it matters: without it the box stays in the system UI's mode. 23.976 fps
+  into 60 Hz needs 3:2 pulldown, so frames alternate 2 and 3 refreshes
+  (41.7/83.3 ms) — the judder visible on slow pans. And when the box is pinned
+  to an HDR format, SDR content is carried in an HDR container; AVPlayer's
+  frames are tagged and survive it, but VLCKit renders into an untagged 8-bit
+  RGBA UI-plane surface (libvlc 3.0.x `modules/video_output/ios.m` uses
+  `kEAGLColorFormatRGBA8` and never tags the layer), so BT.709 is treated as
+  sRGB and the picture flattens.
+- `apply` runs *before* `engine = newEngine` at both session-start and
+  replacement-attempt sites, so the mode switch's screen blank overlaps
+  buffering rather than playback. `reset` runs in `clearPlayerState`. A
+  replacement attempt re-evaluates rather than inheriting, because a quality
+  switch can change the delivered dynamic range.
+- Refresh rate comes from the Plex video stream's `frameRate`, passed through
+  unrounded: an exact 23.976 request is what lets a 24000/1001 file play with no
+  cadence correction. NTSC rates are deliberately not snapped to integers. tvOS
+  picks the closest mode the TV supports, so an unsupported request degrades
+  rather than fails.
+- Dynamic range is carried by the `CMVideoFormatDescription`'s color tags, read
+  from the stream's own `colorTrc`/`colorPrimaries`/`colorSpace` (ffmpeg
+  spellings) rather than the looser `isHDRVideo` heuristic, and defaulting to
+  BT.709 so an unrecognized value is never reported as HDR.
+- tvOS gates the switch behind Settings → Video and Audio → Match Content. When
+  the user has it off, `displayCriteriaMatchingEnabled` is false and setting a
+  criteria is a no-op; the matcher leaves any previous criteria alone and
+  reports the reason. `AirPlay` decisions reset instead of applying, since the
+  local box is not the renderer.
+- Playback Info shows a `Display Mode` row (tvOS only) with either the requested
+  mode (`23.976 Hz SDR`) or why nothing was requested. Use it to confirm the
+  feature before diagnosing anything else about picture quality.
 
 ## PlayerViewModel and Overlays
 - `PlayerView` is the full-screen shell. It reads coordinator state and creates
@@ -1025,6 +1081,8 @@ so the whole live HUD is derived from one instant.
   `PlexService+Library.swift` and `PlexMediaDetails.swift`.
 - Session orchestration: `PlaybackCoordinator+Session.swift`; timeline:
   `PlaybackCoordinator+Timeline.swift`; Up Next: `PlaybackCoordinator+UpNext.swift`.
+- Display mode matching (tvOS): `Features/Player/DisplayModeMatcher.swift`,
+  applied and reset from `PlaybackCoordinator+Session.swift`.
 - Player UI: `Features/Player/`; keep platform differences in platform overlays.
 - Preferences: `UserPreferences.swift`, `SettingsSupport.swift`,
   `SettingsIOSView.swift`, and `SettingsTVView.swift`.

@@ -128,9 +128,37 @@ final class VideoEnhancementRenderer {
     }
 
     func makeView() -> VideoEnhancementMetalView {
-        let view = VideoEnhancementMetalView(renderer: self, device: device)
+        let view = VideoEnhancementMetalView(
+            renderer: self,
+            device: device,
+            colorSpace: outputColorSpace
+        )
         metalLayer = view.metalLayer
         return view
+    }
+
+    /// Colorspace to declare on the drawable.
+    ///
+    /// `CAMetalLayer.colorspace` defaults to nil, which per its header means "no
+    /// colormatching occurs" — the rendered values are handed to the display's
+    /// context untouched. That is only harmless when the display context happens
+    /// to be the same space the frames are in. On an Apple TV pinned to a Dolby
+    /// Vision/HDR output format it is not: BT.709 SDR code values get consumed as
+    /// if they were already in the display's HDR space, which lifts the black
+    /// floor and flattens saturation.
+    ///
+    /// libvlc has already converted the stream's YUV to RGB using the BT.709
+    /// matrix with limited->full range expansion (`matrix_bt709_tv2full` in
+    /// `modules/video_output/opengl/fragment_shaders.c`), so BT.709 is an
+    /// accurate declaration and lets CoreAnimation colormatch properly.
+    ///
+    /// HDR sources stay untagged: this path is 8-bit BGRA, so libvlc has already
+    /// flattened any PQ/HLG source into it, and claiming BT.709 for those frames
+    /// would be a second wrong answer rather than a fix. Auto mode skips HDR
+    /// entirely; only an explicit "On" reaches here with HDR.
+    private var outputColorSpace: CGColorSpace? {
+        guard !request.isHDR else { return nil }
+        return CGColorSpace(name: CGColorSpace.itur_709)
     }
 
     // MARK: - Frame intake
@@ -324,7 +352,13 @@ final class VideoEnhancementRenderer {
             width: CVPixelBufferGetWidth(pixelBuffer),
             height: CVPixelBufferGetHeight(pixelBuffer)
         )
-        let decision = enhancementDecision(inputSize: inputSize, outputSize: outputSize)
+        // The scale the upscaler actually performs is source -> letterboxed
+        // viewport, not source -> full drawable. Deciding from the drawable
+        // overstates it badly on scope content: 2.39:1 in a 16:9 drawable reads
+        // as a 1.35x upscale when the real ratio is ~1.00, which picked Lanczos
+        // plus sharpening for what is essentially a 1:1 blit.
+        let viewportRect = displayRect(inputSize: inputSize, outputSize: outputSize, fill: aspectFill)
+        let decision = enhancementDecision(inputSize: inputSize, outputSize: viewportRect.size)
 
         let passDescriptor = MTLRenderPassDescriptor()
         passDescriptor.colorAttachments[0].texture = drawable.texture
@@ -338,7 +372,6 @@ final class VideoEnhancementRenderer {
             return
         }
 
-        let viewportRect = displayRect(inputSize: inputSize, outputSize: outputSize, fill: aspectFill)
         encoder.setViewport(MTLViewport(
             originX: Double(viewportRect.minX),
             originY: Double(viewportRect.minY),
@@ -539,7 +572,7 @@ final class VideoEnhancementMetalView: UIView {
         layer as! CAMetalLayer
     }
 
-    init(renderer: VideoEnhancementRenderer, device: MTLDevice) {
+    init(renderer: VideoEnhancementRenderer, device: MTLDevice, colorSpace: CGColorSpace?) {
         self.renderer = renderer
         super.init(frame: .zero)
         backgroundColor = .black
@@ -547,6 +580,7 @@ final class VideoEnhancementMetalView: UIView {
         metalLayer.device = device
         metalLayer.pixelFormat = .bgra8Unorm
         metalLayer.framebufferOnly = true
+        metalLayer.colorspace = colorSpace
         metalLayer.contentsScale = currentDisplayScale
     }
 
@@ -572,8 +606,15 @@ final class VideoEnhancementMetalView: UIView {
         metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
     }
 
+    /// Pixels-per-point of the physical display, which is what the drawable must
+    /// match. This is `nativeScale`, not `scale`: on an Apple TV 4K `scale` is
+    /// 1.0 (the UI is laid out on a 1920x1080 point grid) while `nativeScale` is
+    /// 2.0, so reading `scale` capped the upscaler's output at 1920x1080 and
+    /// handed tvOS a 1080p image to stretch to the panel. Apple's Metal Best
+    /// Practices guide is explicit that drawables should be sized from
+    /// `nativeScale`/`nativeBounds`.
     private var currentDisplayScale: CGFloat {
-        if let scale = window?.screen.scale, scale > 0 {
+        if let scale = window?.screen.nativeScale, scale > 0 {
             return scale
         }
 
