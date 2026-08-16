@@ -268,6 +268,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// much faster on long-GOP content and fine for transient double-tap/remote
     /// skip jumps.
     func seek(to position: TimeInterval, precise: Bool) {
+        // Publish the target straight away, as VLCKit does. The periodic
+        // observer only reports once the seek resolves, so without this the
+        // play bar (and the marker state derived from it) keeps describing the
+        // pre-seek position while the seek is in flight. A seek that lands
+        // elsewhere corrects itself on the next observer tick.
+        currentTime = clampedPosition(position)
+
         let time = CMTime(seconds: position, preferredTimescale: 1000)
         if precise {
             player.seek(to: time, toleranceBefore: .zero, toleranceAfter: .zero)
@@ -275,6 +282,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             let tolerance = CMTime(seconds: 2, preferredTimescale: 1000)
             player.seek(to: time, toleranceBefore: tolerance, toleranceAfter: tolerance)
         }
+    }
+
+    private func clampedPosition(_ position: TimeInterval) -> TimeInterval {
+        if let seekableTimeRange {
+            return min(max(position, seekableTimeRange.lowerBound), seekableTimeRange.upperBound)
+        }
+        if duration > 0 {
+            return min(max(position, 0), duration)
+        }
+        return max(position, 0)
     }
 
     func recoverFromStall() {

@@ -73,6 +73,15 @@ final class PlayerViewModel {
     var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
+    /// Markers this episode has already skipped once, seeded from the
+    /// coordinator so the record survives a rebuilt player (quality switch,
+    /// Picture in Picture restore). A marker in here never arms another
+    /// auto-skip countdown: seeking back into the intro shows the button again,
+    /// but the jump forward is the viewer's to make.
+    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
+    /// Reports a newly spent auto-skip back to the coordinator, which owns the
+    /// per-episode record.
+    var autoSkipSpentHandler: (@MainActor (Int) -> Void)?
     /// Fires when the reached credits marker changes (nil when leaving the
     /// credits, e.g. a seek back before the marker). The player forwards it to
     /// the coordinator, which resolves the next episode and shows/hides the
@@ -178,7 +187,8 @@ final class PlayerViewModel {
         mediaDetails: PlexMediaDetails? = nil,
         usesServerTrackSelection: Bool = false,
         selectedAudioStreamID: Int? = nil,
-        selectedSubtitleStreamID: Int? = nil
+        selectedSubtitleStreamID: Int? = nil,
+        spentAutoSkipMarkerIDs: Set<Int> = []
     ) {
         userPreferences = preferences
         // Apply the saved zoom-to-fill choice now that preferences are known.
@@ -194,6 +204,7 @@ final class PlayerViewModel {
         subtitleForcedOnly = preferences.subtitleForcedOnly
         autoSkipIntroMode = preferences.autoSkipIntroMode
         isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
+        self.spentAutoSkipMarkerIDs = spentAutoSkipMarkerIDs
         hasConfiguredAutomaticTrackSelection = true
         hasAppliedAutomaticAudioSelection = false
         hasAppliedAutomaticSubtitleSelection = false

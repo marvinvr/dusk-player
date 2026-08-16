@@ -144,7 +144,7 @@ extension PlaybackCoordinator {
         // A poster for a newer credits marker was raised while we resolved.
         if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return }
 
-        let mode = upNextPosterMode(estimated: isEstimated)
+        let mode = upNextPosterMode(creditsMarkerID: creditsMarkerID, estimated: isEstimated)
         var poster = UpNextPosterPresentation(
             episode: nextEpisode,
             mode: mode,
@@ -157,6 +157,10 @@ extension PlaybackCoordinator {
         upNextPoster = poster
 
         if poster.isTimed {
+            // The auto-advance is now armed for this episode's credits; a later
+            // return to them raises a manual poster instead of a fresh
+            // countdown.
+            noteAutoSkipSpent(markerID: creditsMarkerID)
             startUpNextPosterCountdown()
         }
     }
@@ -165,7 +169,15 @@ extension PlaybackCoordinator {
     /// seeks back out of the credits or drags the poster down: the current
     /// episode keeps playing to its end, and the full-screen Up Next screen only
     /// appears once it actually finishes (via `handlePlaybackEnded`).
-    func dismissUpNextPoster() {
+    ///
+    /// `userInitiated` marks the dismissal as the viewer waving the auto-advance
+    /// off. Reaching the credits again (after seeking back before them) may then
+    /// still offer the poster, but only as a manual one — Dusk does not restart
+    /// a countdown the viewer already cancelled.
+    func dismissUpNextPoster(userInitiated: Bool = false) {
+        if userInitiated, let creditsMarkerID = upNextPoster?.creditsMarkerID {
+            noteAutoSkipSpent(markerID: creditsMarkerID)
+        }
         cancelUpNextPosterCountdown()
         upNextPoster = nil
     }
@@ -296,10 +308,15 @@ extension PlaybackCoordinator {
         upNextPosterCountdownTask = nil
     }
 
-    private func upNextPosterMode(estimated: Bool) -> UpNextPosterPresentation.Mode {
+    private func upNextPosterMode(creditsMarkerID: Int, estimated: Bool) -> UpNextPosterPresentation.Mode {
         // A guessed credits point (no real Plex marker) must never auto-skip or
         // auto-advance — only ever a manual poster the user can choose to tap.
         if estimated { return .manual }
+
+        // The auto-advance for these credits already had its turn this episode
+        // (it ran, or the viewer dismissed it). Re-entering the credits offers
+        // the poster again, but the viewer taps it themselves.
+        if spentAutoSkipMarkerIDs.contains(creditsMarkerID) { return .manual }
 
         let autoplayBlockedByPassoutProtection = shouldPauseContinuousPlayAutoplay()
         guard preferences.continuousPlayEnabled,

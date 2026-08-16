@@ -477,6 +477,16 @@ so the whole live HUD is derived from one instant.
     re-seeking mid-refill just multiplied the flush storm. Retries only fire
     when playback runs on at the pre-seek position, i.e. the seek was truly
     ignored.
+  - The seek target is published as `currentTime` immediately, and stale
+    pre-seek time updates are rejected for `pendingSeekStaleUpdateWindow`
+    (1.5 s) — extended to `pendingSeekRefillHoldWindow` (12 s) while the
+    player is buffering, because a refilling player keeps reporting the old
+    time until the new position decodes. Without the extension the play bar,
+    the Skip Intro button, and Now Playing all snapped back to the pre-seek
+    position mid-refill and forward again when it completed. The window is
+    bounded so a seek that never lands cannot freeze the readout (stall
+    recovery takes over at 12 s). `AVPlayerEngine.seek` publishes its target
+    the same way; its periodic observer only reports once the seek resolves.
 - App-side audio revive (`VLCKitEngine`, DORMANT unless `vlcAudioReviveEnabled`
   is set — everything below describes its behavior when armed): it exists for
   silent-render states where nothing observable fails — an interruption
@@ -766,6 +776,20 @@ so the whole live HUD is derived from one instant.
   episode 1 of a season. The episode check comes from the active
   `PlexMediaDetails.index`, so missing episode numbers are treated as not the
   first episode.
+- **Auto-skip fires at most once per marker per playback session.** Skipping a
+  marker — by countdown or by tapping Skip Intro — records its id in
+  `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never
+  arms a countdown for a spent marker again. The button still appears, so the
+  viewer can skip by hand as often as they like. Two failure modes this closes:
+  a post-skip seek that is still buffering leaves the position inside the marker
+  and used to re-arm the countdown immediately, and a deliberate rewind into the
+  intro used to be yanked forward again. The record lives on the coordinator (not
+  the view model) so it survives the engine swaps that rebuild the player —
+  quality switch, delivery-ladder fallback, Picture in Picture restore — and is
+  cleared when the next session commits or the player is torn down, so reopening
+  an episode gets a fresh auto-skip. `PlayerViewModel` is seeded with it in
+  `configureAutomaticTrackSelection` and reports new entries through
+  `autoSkipSpentHandler`.
 - Playback controls start visible for orientation, then `PlayerViewModel`
   owns one auto-hide deadline/task for the whole session. Sync arms it once
   playback has started, every user reveal resets it, and it keeps retrying
@@ -917,12 +941,20 @@ so the whole live HUD is derived from one instant.
   - `autoAdvanceAtEnd` (continuous play on, auto-skip credits off): no countdown;
     the credits play out and the next episode starts at the natural end with no
     overlay.
-  - `manual` (continuous play off, or the passout-protection streak was hit): no
-    countdown and no automatic advance; the natural end shows the full-screen
-    overlay ("Are You Still Watching?" / "Autoplay Paused").
+  - `manual` (continuous play off, the passout-protection streak was hit, or the
+    credits auto-advance was already spent this session): no countdown and no
+    automatic advance; the natural end shows the full-screen overlay ("Are You
+    Still Watching?" / "Autoplay Paused").
+  - Like intro auto-skip, the credits auto-advance gets one turn per session:
+    arming a `timedAutoplay` poster, or dismissing a poster by hand, records the
+    credits marker in `spentAutoSkipMarkerIDs`. Seeking back before the credits
+    and reaching them again therefore raises a `manual` poster instead of
+    restarting a countdown the viewer already saw or waved off.
 - Poster interactions: tapping it (Select on tvOS) plays the next episode now
   (`playUpNextPosterNow`); dragging it down (iOS) / swiping down (tvOS) dismisses
-  the poster and cancels any pending auto-advance (`dismissUpNextPoster`), so the
+  the poster and cancels any pending auto-advance
+  (`dismissUpNextPoster(userInitiated: true)` — the flag is what marks the
+  auto-advance spent; the seek-back-out-of-credits path dismisses without it), so the
   current episode plays out to its end — the full-screen overlay only appears
   when it actually finishes (via `handlePlaybackEnded`). `startUpNextPosterPlayback`
   finalizes the still-playing session first (the poster shows over live

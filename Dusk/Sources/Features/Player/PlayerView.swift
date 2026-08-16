@@ -437,7 +437,7 @@ private struct PlayerSessionView: View {
                         plexService: plexService,
                         controlsVisible: viewModel.showControls,
                         onPlayNow: { playback.playUpNextPosterNow() },
-                        onDismiss: { playback.dismissUpNextPoster() }
+                        onDismiss: { playback.dismissUpNextPoster(userInitiated: true) }
                     )
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
@@ -501,10 +501,14 @@ private struct PlayerSessionView: View {
                 mediaDetails: mediaDetails,
                 usesServerTrackSelection: playback.isAirPlaySession,
                 selectedAudioStreamID: playback.activeAudioStreamID,
-                selectedSubtitleStreamID: playback.activeSubtitleStreamID
+                selectedSubtitleStreamID: playback.activeSubtitleStreamID,
+                spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs
             )
             viewModel.autoSkipHandler = { marker in
                 handleSkipMarker(marker)
+            }
+            viewModel.autoSkipSpentHandler = { markerID in
+                playback.noteAutoSkipSpent(markerID: markerID)
             }
             viewModel.upNextPosterHandler = { creditsMarker in
                 handleReachedCreditsMarker(creditsMarker)

@@ -173,6 +173,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private static let seekRetryDelay: Duration = .milliseconds(450)
     private static let pendingSeekTolerance: TimeInterval = 1.0
     private static let pendingSeekStaleUpdateWindow: TimeInterval = 1.5
+    /// Ceiling on holding the optimistic post-seek position while the player
+    /// refills (see `shouldAcceptUpdatedTime`). A refill this long is no longer
+    /// a seek that is about to land — the stall recovery in `PlayerViewModel`
+    /// owns it from there — so the reported time stops pretending.
+    private static let pendingSeekRefillHoldWindow: TimeInterval = 12.0
 
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
@@ -1181,6 +1186,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         let elapsed = pendingSeekStartedAt.map { Date().timeIntervalSince($0) } ?? .greatestFiniteMagnitude
         if elapsed < Self.pendingSeekStaleUpdateWindow {
+            return false
+        }
+
+        // A buffering player has accepted the seek and is refilling: libvlc
+        // keeps reporting the pre-seek time until the new position decodes, and
+        // over a slow connection that outlasts the stale window by a lot.
+        // Publishing that time would drag the play bar — and everything derived
+        // from it, from the Skip Intro button to the Now Playing position —
+        // back to where the viewer just left, then forward again when the
+        // refill completes. Hold the optimistic target instead, bounded so a
+        // seek that never lands cannot freeze the readout for good.
+        if isBuffering, elapsed < Self.pendingSeekRefillHoldWindow {
             return false
         }
 

@@ -40,6 +40,15 @@ final class PlaybackCoordinator {
     /// when not in credits, when there is no next episode, or while the
     /// full-screen `upNextPresentation` is showing instead.
     var upNextPoster: UpNextPosterPresentation?
+    /// Markers whose one-shot auto-skip has been used up for the item currently
+    /// playing: an intro Dusk (or the viewer) already skipped, and credits whose
+    /// auto-advance countdown already ran or was waved off. Auto-skip is a
+    /// once-per-episode courtesy — seeking back into a marker must never jump
+    /// the viewer forward again on its own. Owned here rather than in
+    /// `PlayerViewModel` so it survives the engine swaps that rebuild the player
+    /// (quality switch, delivery-ladder fallback, Picture in Picture restore);
+    /// cleared when the next item's session commits.
+    @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
     var isSwitchingQuality = false
     var qualitySwitchError: String?
     /// System AirPlay route state shared by playback preparation and the iOS
@@ -561,6 +570,13 @@ final class PlaybackCoordinator {
 
     func resetContinuousPlayEpisodeRunCountForCurrentItem() {
         continuousPlayEpisodeRunCount = activeItemDetails?.type == .episode ? 1 : 0
+    }
+
+    /// Records that a marker's one-shot auto-skip has been used up for the
+    /// item now playing. Called by the player when an intro is skipped and by
+    /// the credits poster when its auto-advance is armed or dismissed.
+    func noteAutoSkipSpent(markerID: Int) {
+        spentAutoSkipMarkerIDs.insert(markerID)
     }
 
     /// Records the live play/pause state so the Up Next poster countdown can

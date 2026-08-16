@@ -202,6 +202,9 @@ extension PlayerViewModel {
     func skipActiveMarker() {
         guard let marker = activeSkipMarker else { return }
         cancelAutoSkipCountdown()
+        // Skipped once, by Dusk or by the viewer: this marker's auto-skip is
+        // spent for the rest of the session.
+        noteAutoSkipSpent(for: marker)
 
         let targetTime = (TimeInterval(marker.endTimeOffset) / 1000.0) + Self.markerSkipPadding
         seek(to: targetTime, revealControls: true)
@@ -373,7 +376,13 @@ extension PlayerViewModel {
             return
         }
 
-        let shouldAutoSkip = marker.isIntro && shouldAutoSkipIntroMarkers
+        // One auto-skip per marker per session. Without this the countdown
+        // re-arms the moment the position lands back inside the marker — which
+        // happens on its own while a post-skip seek is still buffering, and
+        // again whenever the viewer deliberately rewinds into the intro.
+        let shouldAutoSkip = marker.isIntro &&
+            shouldAutoSkipIntroMarkers &&
+            !spentAutoSkipMarkerIDs.contains(marker.id)
 
         guard shouldAutoSkip else {
             if autoSkipCountdownMarkerID != nil {
@@ -638,6 +647,13 @@ extension PlayerViewModel {
 
     private var shouldAutoSkipIntroMarkers: Bool {
         autoSkipIntroMode.shouldAutoSkipIntro(isFirstEpisodeInSeason: isFirstEpisodeInSeason)
+    }
+
+    /// Burns this marker's one-shot auto-skip for the session and tells the
+    /// coordinator, which keeps the record across player rebuilds.
+    private func noteAutoSkipSpent(for marker: PlexMarker) {
+        guard spentAutoSkipMarkerIDs.insert(marker.id).inserted else { return }
+        autoSkipSpentHandler?(marker.id)
     }
 
     func cancelAutoSkipCountdown() {
