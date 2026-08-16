@@ -85,6 +85,9 @@ targets:
         SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
         SWIFT_STRICT_CONCURRENCY: complete
     dependencies:
+      # UIWindow.avDisplayManager is supplied by an Objective-C category in
+      # AVKit. Importing AVKit is not enough to load that category at runtime.
+      - sdk: AVKit.framework
       - framework: Frameworks/TVVLCKit.xcframework
         embed: true
     postBuildScripts:

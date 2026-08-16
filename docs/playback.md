@@ -851,10 +851,12 @@ so the whole live HUD is derived from one instant.
   criteria is a no-op; the matcher leaves any previous criteria alone and
   reports the reason. `AirPlay` decisions reset instead of applying, since the
   local box is not the renderer.
-- Display matching is device-only. Although the tvOS SDK exposes
-  `UIWindow.avDisplayManager` to simulator builds, the simulator window does not
-  implement that selector and cannot switch the host Mac's display mode. The
-  matcher therefore returns no display manager without calling the API there.
+- Display matching is device-only because the simulator cannot switch the host
+  Mac's display mode. `AVKit.framework` must remain an explicit tvOS target
+  dependency: `UIWindow.avDisplayManager` is supplied by an Objective-C category
+  in AVKit, and merely importing the module does not load that category into the
+  app process. The lookup also checks the selector at runtime so a missing
+  category skips matching instead of crashing playback.
 - Playback Info shows a `Display Mode` row (tvOS only) with either the requested
   mode (`23.976 Hz SDR`) or why nothing was requested. Use it to confirm the
   feature before diagnosing anything else about picture quality.

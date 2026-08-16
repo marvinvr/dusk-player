@@ -134,18 +134,27 @@ enum DisplayModeMatcher {
 
     private static func currentDisplayManager() -> AVDisplayManager? {
         #if targetEnvironment(simulator)
-        // The tvOS SDK exposes UIWindow.avDisplayManager to simulator builds,
-        // but the simulator's UIWindow does not implement the selector. Calling
-        // it raises an Objective-C doesNotRecognizeSelector exception. A
-        // simulator cannot switch the host display mode anyway, so keep display
+        // A simulator cannot switch the host display mode, so keep display
         // matching device-only.
         return nil
         #else
         let windows = UIApplication.shared.connectedScenes
             .compactMap { $0 as? UIWindowScene }
             .flatMap(\.windows)
-        let window = windows.first(where: \.isKeyWindow) ?? windows.first
-        return window?.avDisplayManager
+        guard let window = windows.first(where: \.isKeyWindow) ?? windows.first else {
+            return nil
+        }
+
+        // The getter is supplied by an AVKit Objective-C category. AVKit is an
+        // explicit tvOS target dependency, but keep this runtime guard so an OS
+        // or linker regression degrades display matching instead of crashing
+        // playback with doesNotRecognizeSelector.
+        let selector = NSSelectorFromString("avDisplayManager")
+        guard window.responds(to: selector) else {
+            displayModeLogger.error("UIWindow.avDisplayManager is unavailable at runtime")
+            return nil
+        }
+        return window.avDisplayManager
         #endif
     }
 
