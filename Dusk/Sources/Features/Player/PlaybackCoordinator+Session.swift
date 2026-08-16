@@ -303,6 +303,9 @@ extension PlaybackCoordinator {
             activePlaybackSessionIdentifier = sessionIdentifier
             activeTranscodeSessionID = transcodeSessionID
             activeItemDetails = details
+            // Ahead of the engine so the display's mode switch (which blanks the
+            // screen briefly) overlaps buffering instead of playback.
+            DisplayModeMatcher.apply(media: media, part: part, decision: playbackDecision)
             engine = newEngine
             let preferredAudioTrackPosition: Int? = switch playbackDecision {
             case .directPlay, .localDownload:
@@ -745,6 +748,10 @@ extension PlaybackCoordinator {
         newEngine.setPictureInPictureDelegate(self)
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil
+        // A quality/fallback switch can change the delivered dynamic range (a
+        // server transcode of an HDR source lands as SDR), so the criteria is
+        // re-evaluated rather than carried over from the previous attempt.
+        DisplayModeMatcher.apply(media: media, part: part, decision: playbackDecision)
         engine = newEngine
         let preferredAudioTrackPosition: Int? = switch playbackDecision {
         case .directPlay, .localDownload:
@@ -1078,6 +1085,9 @@ extension PlaybackCoordinator {
         engine?.onPlaybackEnded = nil
         engine?.setPictureInPictureDelegate(nil)
         nowPlayingController.endSession()
+        // Hand the display back to the system mode so the UI is not left running
+        // at the content's refresh rate.
+        DisplayModeMatcher.reset()
         engine = nil
         // Normally already stopped by finalize; belt-and-braces for paths
         // that clear without finalizing.

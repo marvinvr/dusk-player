@@ -158,6 +158,7 @@
 		76D040E4BE26F7A9AB14DAD4 /* StreamResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E03BAD6F6D7F3A24BBB7BF /* StreamResolver.swift */; };
 		779B6A75D6A11C326F3B716E /* HomeRecommendationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 639F034A9989DA389277B92E /* HomeRecommendationEngine.swift */; };
 		7810186D4DF8F5FAA898AB2D /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45205D0DD071C6E058DA90B /* DownloadsView.swift */; };
+		785C3BC0B71007112A130B61 /* DisplayModeMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A05A14D40C73B61F77143D8 /* DisplayModeMatcher.swift */; };
 		789BEDF7C3E478F9C988362A /* KeychainHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75C93C23CBF78A0056EBE0D8 /* KeychainHelper.swift */; };
 		78C6C2B409DAFA25AAD29BF6 /* PlexEpisode.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0927BEB89B77166367AFA56 /* PlexEpisode.swift */; };
 		799E2AC97CF30171F5ADA9A9 /* DuskIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 520017CEE2E0064C83BEDBF1 /* DuskIcon.icon */; };
@@ -190,6 +191,7 @@
 		8C3DB20C1AD6E8A757A762FC /* VideoEnhancementRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DF050C007C8205042A9E6B /* VideoEnhancementRenderer.swift */; };
 		8C8A078A0C29E27639377D0F /* ActorDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 574F738358EC4E558EB21467 /* ActorDetailViewModel.swift */; };
 		8C90BB9AA36F60BF87DB025D /* VLCKitRendererIOS.swift in Sources */ = {isa = PBXBuildFile; fileRef = 058C7E86E87AED03DB7C58CE /* VLCKitRendererIOS.swift */; };
+		8C9F867940A0BC02C4B9A62D /* DisplayModeMatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A05A14D40C73B61F77143D8 /* DisplayModeMatcher.swift */; };
 		8DA07452B06EF7B90CAE1984 /* MobileVLCKit.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 95F9E42CD3371CAA984F60B3 /* MobileVLCKit.xcframework */; };
 		8DABD07D33F2449480CB6F1C /* PlexService+Hubs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 258E23D5ABAED75E4EA8E81B /* PlexService+Hubs.swift */; };
 		8FB92F26D505D22DDDE1B367 /* PlayerViewModel+TrackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3EAF2638D0F06CB02215DF /* PlayerViewModel+TrackSelection.swift */; };
@@ -469,6 +471,7 @@
 		67267CA57BCFF55726919B4D /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
 		6751E9DB256A843A177F1492 /* PlexService+Images.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Images.swift"; sourceTree = "<group>"; };
 		698227958FBC6E2731431BFC /* PlayerLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLoadingView.swift; sourceTree = "<group>"; };
+		6A05A14D40C73B61F77143D8 /* DisplayModeMatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayModeMatcher.swift; sourceTree = "<group>"; };
 		6C7F0BB357EE502E0491A0B5 /* HomeIOSView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeIOSView.swift; sourceTree = "<group>"; };
 		6E04ECF8E20F247BA70F3250 /* DuskApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuskApp.swift; sourceTree = "<group>"; };
 		6F5FE6EBB8DE49134083E75A /* PlexPlaybackHistoryEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexPlaybackHistoryEntry.swift; sourceTree = "<group>"; };
@@ -701,6 +704,7 @@
 		40FD5CD01D49F7CE067AE4C5 /* Player */ = {
 			isa = PBXGroup;
 			children = (
+				6A05A14D40C73B61F77143D8 /* DisplayModeMatcher.swift */,
 				AAA99FC8FBAC9A33C54767BB /* PlaybackAirPlayController.swift */,
 				9A8C5D8503032DFB2DDEC895 /* PlaybackCoordinator.swift */,
 				2D376ADA86C86B4C9AD6D918 /* PlaybackCoordinator+Session.swift */,
@@ -1140,6 +1144,7 @@
 				A3BF3529338DEC72CFBEA79F /* CircularProgressView.swift in Sources */,
 				63656964D7D4A9BB93B1E79E /* ContentView.swift in Sources */,
 				4CB71182E6CE2B1469CA4D87 /* DetailSharedViews.swift in Sources */,
+				8C9F867940A0BC02C4B9A62D /* DisplayModeMatcher.swift in Sources */,
 				A60C54B7BE6950E6F56DFEFA /* DownloadActionButton.swift in Sources */,
 				79D4AFF20B4C1CF9666E2B27 /* DownloadFileStore.swift in Sources */,
 				98344625C47F8CFB19C76C8D /* DownloadManager.swift in Sources */,
@@ -1317,6 +1322,7 @@
 				EC08032B694893022D23D11E /* CircularProgressView.swift in Sources */,
 				C5B006A30C352B7EFCA3E3E7 /* ContentView.swift in Sources */,
 				BDA2EE606463EEB0E307FB94 /* DetailSharedViews.swift in Sources */,
+				785C3BC0B71007112A130B61 /* DisplayModeMatcher.swift in Sources */,
 				59AF9428B6F02EF7CC690EAC /* DownloadActionButton.swift in Sources */,
 				3C51469C765A478667CC2425 /* DownloadFileStore.swift in Sources */,
 				D6DCBB00BCC94DE94B3507D0 /* DownloadManager.swift in Sources */,

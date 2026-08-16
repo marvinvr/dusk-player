@@ -162,6 +162,12 @@ struct PlayerPlaybackInfoView: View {
             entries.append(PlaybackInfoEntry(label: "Enhancement Detail", value: enhancementDetail))
         }
 
+        #if os(tvOS)
+        // Reports both the mode Dusk asked for and the reason it could not ask,
+        // so "Match Content is off in tvOS Settings" is self-diagnosing.
+        entries.append(PlaybackInfoEntry(label: "Display Mode", value: DisplayModeMatcher.statusLabel))
+        #endif
+
         entries += [
             PlaybackInfoEntry(label: "File", value: debugInfo.fileSizeLabel),
             PlaybackInfoEntry(label: "Subtitles", value: debugInfo.subtitleLabel),
