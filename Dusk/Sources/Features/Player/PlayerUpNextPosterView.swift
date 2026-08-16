@@ -11,6 +11,12 @@ import SwiftUI
 /// - Dragging it down (iOS) / swiping down (tvOS) dismisses the poster and
 ///   cancels any pending auto-advance, letting the current episode play out to
 ///   its end. The full-screen Up Next screen then appears when it finishes.
+///
+/// Layout notes: the card is built from concentric corners (`cardCornerRadius`
+/// minus `cardPadding` equals `thumbnailCornerRadius`) and a fixed three-row
+/// text column, so its height never changes as the countdown ticks. The
+/// countdown bar spans the card's full inner width beneath both columns rather
+/// than being squeezed into the text column.
 struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
     let plexService: PlexService
@@ -26,26 +32,32 @@ struct PlayerUpNextPosterView: View {
     #endif
 
     var body: some View {
-        VStack {
-            Spacer()
+        // The container width decides how much room the text column can claim:
+        // the card is a fixed-width layout, and on a narrow viewport (iPhone
+        // portrait, an iPad Slide Over pane) a hardcoded column would push the
+        // card past the leading edge.
+        GeometryReader { geometry in
+            VStack(spacing: 0) {
+                Spacer(minLength: 0)
 
-            HStack {
-                Spacer()
-                card
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    card(textColumnWidth: Metrics.textColumnWidth(fitting: geometry.size.width))
+                }
             }
+            .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
+            .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: controlsVisible))
         }
-        .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
-        .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: controlsVisible))
         .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: controlsVisible)
         .ignoresSafeArea(edges: .bottom)
     }
 
     // MARK: - Card
 
-    private var card: some View {
+    private func card(textColumnWidth: CGFloat) -> some View {
         #if os(tvOS)
         Button(action: onPlayNow) {
-            cardContent
+            cardContent(textColumnWidth: textColumnWidth)
         }
         .focused($isFocused)
         .duskSuppressTVOSButtonChrome()
@@ -68,7 +80,7 @@ struct PlayerUpNextPosterView: View {
         }
         .accessibilityLabel(accessibilityLabel)
         #else
-        cardContent
+        cardContent(textColumnWidth: textColumnWidth)
             .contentShape(cardShape)
             .offset(y: liveDragOffset)
             .opacity(dragOpacity)
@@ -94,35 +106,18 @@ struct PlayerUpNextPosterView: View {
         #endif
     }
 
-    private var cardContent: some View {
-        HStack(alignment: .center, spacing: Metrics.contentSpacing) {
-            thumbnail
+    private func cardContent(textColumnWidth: CGFloat) -> some View {
+        VStack(alignment: .leading, spacing: Metrics.countdownSpacing) {
+            HStack(alignment: .center, spacing: Metrics.contentSpacing) {
+                thumbnail
 
-            VStack(alignment: .leading, spacing: Metrics.textRowSpacing) {
-                Text("UP NEXT")
-                    .font(Metrics.eyebrowFont)
-                    .tracking(1.3)
-                    .foregroundStyle(Color.duskAccent)
-
-                Text(presentation.episode.title)
-                    .font(Metrics.titleFont)
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                if let metadata = metadataText {
-                    Text(metadata)
-                        .font(Metrics.metaFont.monospacedDigit())
-                        .foregroundStyle(.white.opacity(0.72))
-                        .lineLimit(1)
-                }
-
-                if presentation.isTimed {
-                    countdownRow
-                        .padding(.top, 2)
-                }
+                textColumn
+                    .frame(width: textColumnWidth, alignment: .leading)
             }
-            .frame(width: Metrics.textColumnWidth, alignment: .leading)
+
+            if presentation.isTimed {
+                countdownBar
+            }
         }
         .padding(Metrics.cardPadding)
         .background {
@@ -143,6 +138,45 @@ struct PlayerUpNextPosterView: View {
         .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
     }
 
+    /// Three fixed rows — eyebrow, title, metadata — so the card keeps one
+    /// height for the poster's whole lifetime. The countdown lives in the
+    /// eyebrow's trailing slot and on the bar below, never as an extra row.
+    private var textColumn: some View {
+        VStack(alignment: .leading, spacing: Metrics.textRowSpacing) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("UP NEXT")
+                    .font(Metrics.eyebrowFont)
+                    .tracking(1.2)
+                    .foregroundStyle(Color.duskAccent)
+                    .lineLimit(1)
+                    .layoutPriority(1)
+
+                Spacer(minLength: 0)
+
+                if let statusText {
+                    Text(statusText)
+                        .font(Metrics.eyebrowFont.monospacedDigit())
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+            }
+
+            Text(presentation.episode.title)
+                .font(Metrics.titleFont)
+                .foregroundStyle(.white)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if let metadataText {
+                Text(metadataText)
+                    .font(Metrics.metaFont.monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.7))
+                    .lineLimit(1)
+            }
+        }
+    }
+
     private var thumbnail: some View {
         ZStack {
             DuskAsyncImage(url: thumbnailURL) { phase in
@@ -157,7 +191,7 @@ struct PlayerUpNextPosterView: View {
             }
 
             LinearGradient(
-                colors: [.clear, .black.opacity(0.32)],
+                colors: [.clear, .black.opacity(0.28)],
                 startPoint: .center,
                 endPoint: .bottom
             )
@@ -183,7 +217,8 @@ struct PlayerUpNextPosterView: View {
                     .tint(.white)
             }
         } else {
-            // Matches the seasons/episode page play icon (`PosterArtwork`).
+            // Matches the seasons/episode page play icon (`PosterArtwork`), sized
+            // to sit inside the still rather than cover it.
             Image(systemName: "play.fill")
                 .font(.system(size: Metrics.playSymbolSize, weight: .semibold))
                 .foregroundStyle(Color.white.opacity(0.92))
@@ -193,7 +228,7 @@ struct PlayerUpNextPosterView: View {
                     Circle()
                         .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                 }
-                .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+                .shadow(color: .black.opacity(0.25), radius: 8, y: 3)
         }
     }
 
@@ -206,30 +241,23 @@ struct PlayerUpNextPosterView: View {
             }
     }
 
-    private var countdownRow: some View {
+    /// Spans the card's full inner width under both columns, so the countdown
+    /// reads as the card draining rather than as a stray hairline in the text.
+    private var countdownBar: some View {
         let progress = min(max(presentation.countdownProgress ?? 0, 0), 1)
 
-        return VStack(alignment: .leading, spacing: 5) {
-            if let secondsRemaining = presentation.secondsRemaining {
-                Text(presentation.isStarting ? "Playing…" : "Plays in \(secondsRemaining)s")
-                    .font(Metrics.metaFont.weight(.semibold))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-            }
+        return GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.16))
 
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.16))
-
-                    Capsule()
-                        .fill(Color.duskAccent)
-                        .frame(width: geometry.size.width * progress)
-                        .animation(.linear(duration: 0.1), value: progress)
-                }
+                Capsule()
+                    .fill(Color.duskAccent)
+                    .frame(width: geometry.size.width * progress)
+                    .animation(.linear(duration: 0.1), value: progress)
             }
-            .frame(height: 4)
         }
+        .frame(height: Metrics.countdownBarHeight)
     }
 
     // MARK: - Data
@@ -255,6 +283,17 @@ struct PlayerUpNextPosterView: View {
         .compactMap { $0 }
         .joined(separator: " · ")
         .nilIfEmpty
+    }
+
+    /// Trailing half of the eyebrow row: the live countdown while one is
+    /// running, or the hand-off state once the next episode is starting.
+    private var statusText: String? {
+        if presentation.isStarting {
+            return "Playing…"
+        }
+
+        guard let secondsRemaining = presentation.secondsRemaining else { return nil }
+        return "\(secondsRemaining)s"
     }
 
     private var accessibilityLabel: String {
@@ -295,17 +334,19 @@ struct PlayerUpNextPosterView: View {
 
 private enum Metrics {
     #if os(tvOS)
-    static let thumbnailWidth: CGFloat = 232
-    static let thumbnailCornerRadius: CGFloat = 16
-    static let cardCornerRadius: CGFloat = 26
-    static let cardPadding: CGFloat = 20
+    static let thumbnailWidth: CGFloat = 240
+    static let cardCornerRadius: CGFloat = 34
+    static let cardPadding: CGFloat = 18
     static let contentSpacing: CGFloat = 20
-    static let textColumnWidth: CGFloat = 300
+    static let preferredTextColumnWidth: CGFloat = 320
+    static let minimumTextColumnWidth: CGFloat = 240
     static let textRowSpacing: CGFloat = 6
+    static let countdownSpacing: CGFloat = 16
+    static let countdownBarHeight: CGFloat = 6
     static let dismissDropDistance: CGFloat = 60
-    static let playSymbolSize: CGFloat = 30
-    static let playSymbolPadding: CGFloat = 16
-    static let playCircleSize: CGFloat = 64
+    static let playSymbolSize: CGFloat = 24
+    static let playSymbolPadding: CGFloat = 14
+    static let playCircleSize: CGFloat = 52
     // Explicit sizes: tvOS's semantic text styles (.title3/.subheadline/…) map
     // to much larger points than iOS, which made this compact overlay card read
     // as oversized. These are tuned for the card, not inherited from the scale.
@@ -313,16 +354,18 @@ private enum Metrics {
     static let titleFont: Font = .system(size: 29, weight: .semibold)
     static let metaFont: Font = .system(size: 20, weight: .regular)
     #else
-    static let thumbnailWidth: CGFloat = 116
-    static let thumbnailCornerRadius: CGFloat = 14
-    static let cardCornerRadius: CGFloat = 22
-    static let cardPadding: CGFloat = 12
+    static let thumbnailWidth: CGFloat = 132
+    static let cardCornerRadius: CGFloat = 24
+    static let cardPadding: CGFloat = 10
     static let contentSpacing: CGFloat = 12
-    static let textColumnWidth: CGFloat = 158
+    static let preferredTextColumnWidth: CGFloat = 168
+    static let minimumTextColumnWidth: CGFloat = 112
     static let textRowSpacing: CGFloat = 3
-    static let playSymbolSize: CGFloat = 19
-    static let playSymbolPadding: CGFloat = 11
-    static let playCircleSize: CGFloat = 44
+    static let countdownSpacing: CGFloat = 10
+    static let countdownBarHeight: CGFloat = 4
+    static let playSymbolSize: CGFloat = 14
+    static let playSymbolPadding: CGFloat = 9
+    static let playCircleSize: CGFloat = 32
     static let eyebrowFont: Font = .caption2.weight(.bold)
     static let titleFont: Font = .subheadline.weight(.semibold)
     static let metaFont: Font = .caption2
@@ -330,5 +373,23 @@ private enum Metrics {
 
     static var thumbnailHeight: CGFloat {
         (thumbnailWidth * 9.0 / 16.0).rounded()
+    }
+
+    /// Concentric corners: the still's radius is the card's radius minus the
+    /// uniform card padding, so both curves share a center.
+    static var thumbnailCornerRadius: CGFloat {
+        cardCornerRadius - cardPadding
+    }
+
+    /// The text column is fixed so the card never resizes mid-countdown, but it
+    /// gives width back when the player itself is narrower than the preferred
+    /// card.
+    static func textColumnWidth(fitting containerWidth: CGFloat) -> CGFloat {
+        let chrome = PlayerOverlayLayout.controlsHorizontalPadding * 2
+            + cardPadding * 2
+            + thumbnailWidth
+            + contentSpacing
+
+        return min(preferredTextColumnWidth, max(minimumTextColumnWidth, containerWidth - chrome))
     }
 }

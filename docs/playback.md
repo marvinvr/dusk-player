@@ -927,6 +927,27 @@ so the whole live HUD is derived from one instant.
   `PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible:)`: they rest near
   the bottom edge while the HUD is hidden and animate up above the play bar when
   the controls come up.
+- Poster layout: concentric corners (the still's radius is
+  `cardCornerRadius - cardPadding`) and a fixed three-row text column — eyebrow,
+  title, metadata — so the card keeps one height for its whole lifetime. The
+  countdown occupies the eyebrow's trailing slot (`8s`, or `Playing…` once
+  starting) plus a bar spanning the card's full inner width beneath both
+  columns; it is never an extra text row. The column width is clamped against
+  the player's own width so the card still fits a narrow viewport.
+- Overlay layout: one vertically centered content block sized from **both** axes
+  (`UpNextLayoutMetrics.previewSize`). The still is the smaller of a share of the
+  width and a share of the height, because the player is watched in landscape as
+  often as portrait; a width-only rule pushed the details off the bottom of an
+  iPhone in landscape. Narrow or portrait containers stack the still over the
+  details, wide ones put them side by side, and tvOS is always side by side. The
+  close button anchors to the screen's top-trailing safe area, not to the content
+  block. The next episode's artwork also backs the screen as a blurred wash.
+- The overlay's forward action is a labeled capsule ("Play Now" while a countdown
+  is running, "Keep Watching" otherwise), not an icon over the still: white glass
+  with a dark label on both platforms, because the screen is near-black whatever
+  the app's appearance mode is. tvOS uses a custom `ButtonStyle` for the same
+  reason `DetailHeroPrimaryTVButtonStyle` exists — the system `.glassProminent`
+  focus highlight would force fill and label both to white.
 - Up Next poster (replaces the old Skip Credits button): when the credits marker
   is reached, `PlayerViewModel.reachedCreditsMarker` changes and the player calls
   `presentUpNextPosterIfPossible`, which resolves the next episode and raises the
