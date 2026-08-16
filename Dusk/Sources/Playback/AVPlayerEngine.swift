@@ -34,12 +34,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         if let videoEnhancementRenderer {
             return videoEnhancementRenderer.status
         }
-        return videoEnhancementRequest.isPotentiallyEnabled
-            ? VideoEnhancementStatus(
-                state: .unavailable,
-                reason: videoEnhancementRequest.preflightUnavailabilityReason ?? "Metal unavailable"
-            )
-            : .disabled
+        return videoEnhancementRequest.nonRenderingStatus
     }
     var onPlaybackEnded: (@MainActor () -> Void)?
     var supportsExternalPlayback: Bool {

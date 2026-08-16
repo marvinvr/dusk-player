@@ -695,6 +695,13 @@ so the whole live HUD is derived from one instant.
   closely. `enabled` still hard-disables streams above 70 fps so high-frame-rate
   playback does not overload the renderer. `disabled` leaves the native engine
   view path in place.
+- Direct-play and downloaded parts with embedded subtitle streams always keep
+  the native engine renderer, even when enhancement is Auto or On. AVPlayer and
+  VLCKit composite subtitles in their native presentation surfaces, while the
+  opaque Metal view receives only raw video frames and would cover every cue.
+  The decision is made before the engine loads because VLCKit 3's custom-memory
+  video callback cannot be detached from a live player. Playback Info reports
+  `Native renderer required for embedded subtitles` when this constraint wins.
 - AVPlayer attaches an `AVPlayerItemVideoOutput` and, from a display link,
   pulls the time-current pixel buffer (`itemTime(forHostTime:)` +
   `hasNewPixelBuffer`) into `VideoEnhancementRenderer.submit`. This path paces

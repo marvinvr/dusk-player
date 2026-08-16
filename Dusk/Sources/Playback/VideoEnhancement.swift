@@ -41,19 +41,22 @@ struct VideoEnhancementRequest: Sendable, Equatable {
     let sourceHeight: Int?
     let frameRate: Double?
     let isHDR: Bool
+    let disabledReason: String?
 
     init(
         mode: VideoEnhancementMode,
         sourceWidth: Int? = nil,
         sourceHeight: Int? = nil,
         frameRate: Double? = nil,
-        isHDR: Bool = false
+        isHDR: Bool = false,
+        disabledReason: String? = nil
     ) {
         self.mode = mode
         self.sourceWidth = sourceWidth
         self.sourceHeight = sourceHeight
         self.frameRate = frameRate
         self.isHDR = isHDR
+        self.disabledReason = disabledReason
     }
 
     var isPotentiallyEnabled: Bool {
@@ -80,6 +83,19 @@ struct VideoEnhancementRequest: Sendable, Equatable {
         return nil
     }
 
+    var nonRenderingStatus: VideoEnhancementStatus {
+        if isPotentiallyEnabled {
+            return VideoEnhancementStatus(
+                state: .unavailable,
+                reason: preflightUnavailabilityReason ?? "Metal unavailable"
+            )
+        }
+        if let disabledReason {
+            return VideoEnhancementStatus(state: .disabled, reason: disabledReason)
+        }
+        return .disabled
+    }
+
     static func make(
         mode: VideoEnhancementMode,
         media: PlexMedia,
@@ -89,12 +105,25 @@ struct VideoEnhancementRequest: Sendable, Equatable {
         let width = media.width ?? videoStream?.width
         let height = media.height ?? videoStream?.height
         let frameRate = videoStream?.frameRate
+        // AVPlayer and VLCKit composite embedded subtitles in their native
+        // presentation surfaces. The Metal enhancement path displays only the
+        // engines' raw video frames above those surfaces, so enabling it would
+        // make a selected subtitle track appear active while hiding every cue.
+        // Choose the native renderer before loading; VLCKit's raw callback
+        // output cannot be detached from a live player without rebuilding it.
+        let hasEmbeddedSubtitles = part.streams.contains {
+            $0.streamType == .subtitle && $0.key == nil
+        }
+        let needsNativeSubtitleRendering = mode.isPotentiallyEnabled && hasEmbeddedSubtitles
         return VideoEnhancementRequest(
-            mode: mode,
+            mode: needsNativeSubtitleRendering ? .disabled : mode,
             sourceWidth: width,
             sourceHeight: height,
             frameRate: frameRate,
-            isHDR: videoStream?.isHDRVideo == true
+            isHDR: videoStream?.isHDRVideo == true,
+            disabledReason: needsNativeSubtitleRendering
+                ? "Native renderer required for embedded subtitles"
+                : nil
         )
     }
 }
