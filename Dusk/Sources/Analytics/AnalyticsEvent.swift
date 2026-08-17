@@ -7,8 +7,7 @@ import Foundation
 /// list — which is what keeps the privacy policy's description of it accurate.
 ///
 /// Only the name and its properties go over the wire. What an event *means* is
-/// documented here and, for whoever is reading a chart later, in the Tally
-/// console; `docs/analytics.md` carries the same table in a paste-ready form.
+/// documented here and in `docs/analytics.md`.
 enum AnalyticsEventName: String, CaseIterable, Sendable {
     /// Dusk was opened or brought to the foreground. Sent at most once per
     /// device per calendar day, so the daily count is an active-device count.
@@ -67,22 +66,36 @@ enum AnalyticsEventName: String, CaseIterable, Sendable {
 
     /// An alternate app icon was applied. Props: `icon`.
     case supporterIconApplied = "supporter_icon_applied"
+
+    /// Sent as a Rybbit pageview rather than a custom event, so the built-in
+    /// users / sessions / retention / countries dashboards are driven by it.
+    /// Everything else is a custom event.
+    var isPageview: Bool { self == .appOpened }
+
+    /// Rybbit groups by path, so each event is attributed to the screen it
+    /// happened on. These are synthetic — the app has no URLs.
+    var path: String {
+        switch self {
+        case .appOpened: "/app"
+        case .supporterIconPickerOpened, .supporterIconApplied: "/supporter/icons"
+        default: "/supporter"
+        }
+    }
 }
 
-/// A property value on an event. Deliberately limited to flat scalars — the
-/// collector rejects nested objects, and that limit is what stops this from
-/// quietly becoming a place where arbitrary user data ends up.
+/// A property value on an event. Rybbit only accepts strings and numbers, with
+/// no nesting and a 2 KB cap on the whole property bag — which doubles as a
+/// useful limit, since it stops this from quietly becoming a place where
+/// arbitrary user data ends up.
 enum AnalyticsValue: Sendable, Encodable {
     case string(String)
     case int(Int)
-    case bool(Bool)
 
     func encode(to encoder: any Encoder) throws {
         var container = encoder.singleValueContainer()
         switch self {
         case .string(let value): try container.encode(value)
         case .int(let value): try container.encode(value)
-        case .bool(let value): try container.encode(value)
         }
     }
 }

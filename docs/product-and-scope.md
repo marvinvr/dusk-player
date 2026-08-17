@@ -79,12 +79,13 @@ requirements. Do not shape today's code around them without an explicit task.
 Dusk must never track users. No advertising identifiers, no third-party
 analytics or crash-reporting SDKs, no profiles, and nothing shared with anyone.
 
-The one exception is the self-hosted anonymous event reporting described in
-`analytics.md`, which is opt-out in Settings and bound by hard rules: a closed
-event vocabulary, no Plex-derived data of any kind, no IP retention, and no
-retry queue on device. Those rules are what keep the published privacy policy
-accurate — treat a change that breaks one of them as a policy change, not a code
-change.
+The one exception is the anonymous event reporting described in `analytics.md`,
+sent to our own self-hosted Rybbit instance. It is opt-out in Settings and bound
+by hard rules: a closed event vocabulary, no Plex-derived data of any kind, an
+app-generated random identifier rather than anything device- or account-derived,
+and no retry queue on device. Those rules are what keep the published privacy
+policy accurate — treat a change that breaks one of them as a policy change, not
+a code change.
 
 Beyond that endpoint, network traffic should be limited to Plex account/server
 APIs, selected Plex servers, artwork and media URLs derived from Plex, iCloud
