@@ -6,6 +6,7 @@ import SwiftUI
 /// applying the icon.
 struct AppIconPickerView: View {
     @Environment(SupporterStore.self) private var store
+    @Environment(AnalyticsClient.self) private var analytics: AnalyticsClient?
     @Environment(\.dismiss) private var dismiss
     @State private var currentIcon: DuskAppIcon = .dusk
     @State private var showsSupporterSheet = false
@@ -36,6 +37,9 @@ struct AppIconPickerView: View {
             }
             .navigationTitle("App Icon")
             .navigationBarTitleDisplayMode(.inline)
+            .task {
+                analytics?.record(AnalyticsEvent(.supporterIconPickerOpened))
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("Done") { dismiss() }
@@ -99,6 +103,9 @@ struct AppIconPickerView: View {
     }
 
     private func apply(_ icon: DuskAppIcon) {
+        analytics?.record(AnalyticsEvent(.supporterIconApplied, [
+            "icon": .string(icon.rawValue)
+        ]))
         Task {
             try? await DuskAppIcon.select(icon)
             currentIcon = DuskAppIcon.current

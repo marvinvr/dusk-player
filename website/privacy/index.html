@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy — Dusk</title>
-  <meta name="description" content="Privacy Policy for Dusk. No analytics, no tracking, no data collection. Your media stays yours.">
+  <meta name="description" content="Privacy Policy for Dusk. No tracking, no ads, no profiles. Your media stays yours.">
   <meta name="author" content="Marvin von Rappard">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#090A0F" media="(prefers-color-scheme: dark)">
@@ -12,7 +12,7 @@
   <link rel="canonical" href="https://getdusk.app/privacy/">
 
   <meta property="og:title" content="Privacy Policy — Dusk">
-  <meta property="og:description" content="No analytics, no tracking, no data collection. Your media stays yours.">
+  <meta property="og:description" content="No tracking, no ads, no profiles. Your media stays yours.">
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://getdusk.app/privacy/">
   <meta property="og:site_name" content="Dusk">
@@ -58,11 +58,12 @@
   <!-- ===== Privacy Policy ===== -->
   <main class="privacy">
     <h1>Privacy Policy</h1>
-    <p class="privacy-updated">Last updated: July 19, 2026</p>
+    <p class="privacy-updated">Last updated: August 17, 2026</p>
 
     <section>
       <h2>Overview</h2>
-      <p>Dusk is a native Plex client for Apple platforms. Your privacy is fundamental to how the app is built. Dusk does not collect, store, or transmit any personal data to us. There are no analytics, no tracking, no telemetry, and no third-party SDKs that phone home.</p>
+      <p>Dusk is a native Plex client for Apple platforms. Your privacy is fundamental to how the app is built. Dusk does not track you: there are no advertising identifiers, no third-party analytics or crash-reporting SDKs, no profiles, and nothing about you is ever shared with or sold to anyone.</p>
+      <p>Dusk does send a small number of anonymous events, including error reports, to its own server. This helps us keep quality consistent and make the app better for everyone. It is described in full below, and you can turn it off in Settings.</p>
     </section>
 
     <section>
@@ -73,6 +74,7 @@
         <li><strong>Client identifier</strong> &mdash; a randomly generated UUID created on first launch. Used by Plex to identify your device as a player. It contains no personally identifiable information.</li>
         <li><strong>User preferences</strong> &mdash; your settings (subtitle language, audio language, playback preferences, appearance) are stored in UserDefaults on your device.</li>
         <li><strong>Image cache</strong> &mdash; poster artwork and backdrops fetched from your Plex server are cached locally for performance. This cache can be cleared by deleting the app.</li>
+        <li><strong>Reporting identifier</strong> &mdash; a randomly generated string created on first launch, used only to avoid counting the same device twice in the anonymous event counts described below. It is not linked to your Plex account, your Apple ID, or anything else. Deleting the app or turning reporting off in Settings discards it permanently.</li>
       </ul>
     </section>
 
@@ -83,18 +85,34 @@
         <li><strong>plex.tv</strong> &mdash; for authentication and server discovery. This is Plex's own service, governed by <a href="https://www.plex.tv/about/privacy-legal/" target="_blank" rel="noopener">Plex's Privacy Policy</a>.</li>
         <li><strong>Your Plex Media Server</strong> &mdash; to browse your library, stream media, and sync playback progress. This is your own server, on your own network or infrastructure.</li>
         <li><strong>Apple's App Store</strong> &mdash; only for the optional supporter purchases described below, handled on-device by Apple's StoreKit and governed by <a href="https://www.apple.com/legal/privacy/" target="_blank" rel="noopener">Apple's Privacy Policy</a>.</li>
+        <li><strong>Our own metrics endpoint</strong> &mdash; for the anonymous event counts described below, when reporting is left enabled. It is a server we run ourselves; no third party is involved, and it stores no IP addresses.</li>
       </ul>
-      <p>Dusk does not communicate with any other servers, APIs, or services. There is no "home" for data to be sent to.</p>
+      <p>Dusk does not communicate with any other servers, APIs, or services.</p>
     </section>
 
     <section>
       <h2>In-app purchases</h2>
-      <p>Dusk offers optional supporter purchases &mdash; one-time tips and a supporter subscription. Payments are processed entirely by Apple; Dusk never sees your name, payment details, or billing information. The app reads your purchase history on-device via Apple's StoreKit, solely to unlock supporter perks and remember your supporter status. Nothing about your purchases is ever sent to us &mdash; there is no server to send it to.</p>
+      <p>Dusk offers optional supporter purchases &mdash; one-time tips and a supporter subscription. Payments are processed entirely by Apple; Dusk never sees your name, payment details, or billing information. The app reads your purchase history on-device via Apple's StoreKit, solely to unlock supporter perks and remember your supporter status.</p>
+      <p>If reporting is enabled, Dusk records that a purchase completed and which product it was, with no identity and no payment information attached &mdash; enough to know whether the supporter screen works at all, and nothing more. Apple, not Dusk, is the source of anything to do with your actual transaction.</p>
     </section>
 
     <section>
       <h2>Analytics and tracking</h2>
-      <p>None. Dusk contains no analytics frameworks, no crash reporting SDKs, no advertising identifiers, and no usage tracking of any kind. We have no idea how you use the app, and we prefer it that way.</p>
+      <p>Dusk does not track you. There are no advertising identifiers, no third-party analytics or crash-reporting SDKs, no cross-app or cross-site tracking, no profiles, and no data is ever shared with or sold to anyone.</p>
+      <p>Dusk does send a small number of anonymous events, including error reports, to a server we run ourselves. This helps us ensure consistency and quality control, and make the experience better for everyone. <strong>You can turn this off in Settings.</strong></p>
+      <p>Concretely, an event is a fixed name from a short list &mdash; for example, that the app was opened today, that the "Support Dusk" screen appeared, or that its purchase options failed to load &mdash; sent with the app version and platform. Alongside it is a random identifier generated on your device, used only so that one device opening the app on five days is not counted as five devices.</p>
+      <p>What is never included:</p>
+      <ul>
+        <li>Anything about your library, your Plex server, or your account.</li>
+        <li>What you watch, browse, download, or search for.</li>
+        <li>Your name, email, IP address, or location. IP addresses are used transiently to rate-limit abuse and are never stored or logged.</li>
+      </ul>
+      <p>The reporting covers the Support Dusk screen and a daily "app was opened" count. Turning it off in Settings stops all of it and discards the random identifier, so switching it back on later starts fresh with a new one.</p>
+    </section>
+
+    <section>
+      <h2>This website</h2>
+      <p>getdusk.app uses <a href="https://www.rybbit.io/" target="_blank" rel="noopener">Rybbit</a>, an open-source, cookieless analytics tool, hosted on our own infrastructure. It records page views without cookies, without cross-site tracking, and without building a profile of you. No data about your visit is shared with any third party.</p>
     </section>
 
     <section>
@@ -107,12 +125,12 @@
 
     <section>
       <h2>Children's privacy</h2>
-      <p>Dusk does not collect any data from anyone, including children. The app requires a Plex account, which is managed entirely by Plex.</p>
+      <p>Dusk collects no personal data from anyone, including children. The anonymous event counts described above contain nothing that identifies a person of any age, and can be turned off in Settings. The app requires a Plex account, which is managed entirely by Plex.</p>
     </section>
 
     <section>
       <h2>Changes to this policy</h2>
-      <p>If this policy changes, the updated version will be posted on this page with a revised date. Since Dusk collects no data, meaningful changes are unlikely.</p>
+      <p>If this policy changes, the updated version will be posted on this page with a revised date. Since Dusk collects no personal data, meaningful changes are unlikely.</p>
     </section>
 
     <section>

@@ -489,6 +489,29 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
+                Toggle("Help Improve Dusk", isOn: $preferences.analyticsEnabled)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .tint(Color.duskAccent)
+
+                Link(destination: SettingsSupport.privacyPolicyURL) {
+                    SettingsAboutRow(
+                        title: "Privacy Policy",
+                        subtitle: "getdusk.app/privacy",
+                        systemImage: "hand.raised",
+                        trailingSystemImage: "arrow.up.right"
+                    )
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+            } header: {
+                Text("Privacy")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.privacyFooterText)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
                 HStack {
                     Text("Version")
                         .foregroundStyle(Color.duskTextPrimary)

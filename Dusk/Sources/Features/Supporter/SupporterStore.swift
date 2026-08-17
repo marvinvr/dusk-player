@@ -75,8 +75,10 @@ final class SupporterStore {
 
     private var updatesTask: Task<Void, Never>?
     private var started = false
+    private let analytics: AnalyticsClient?
 
-    init() {
+    init(analytics: AnalyticsClient? = nil) {
+        self.analytics = analytics
         let defaults = UserDefaults.standard
         isSupporter = defaults.bool(forKey: Keys.isSupporter)
         supporterSince = defaults.object(forKey: Keys.supporterSince) as? Date
@@ -129,13 +131,21 @@ final class SupporterStore {
                 await transaction.finish()
                 await refreshEntitlements()
                 completedPurchaseCount += 1
+                analytics?.record(AnalyticsEvent(.supporterPurchaseCompleted, [
+                    "product": .string(product.id)
+                ]))
             case .userCancelled, .pending:
-                break
+                analytics?.record(AnalyticsEvent(.supporterPurchaseCancelled, [
+                    "product": .string(product.id)
+                ]))
             @unknown default:
                 break
             }
         } catch {
             lastErrorMessage = "The purchase could not be completed. Nothing was charged unless the App Store says otherwise."
+            analytics?.record(AnalyticsEvent(.supporterPurchaseFailed, [
+                "product": .string(product.id)
+            ]))
         }
     }
 

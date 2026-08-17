@@ -15,6 +15,7 @@ enum SettingsSupport {
     static let homeLayoutFooterText = "Reorder or hide the rows on Home. The complete layout syncs between your Dusk devices through iCloud; supported library rows are also saved to Plex."
     static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app."
     static let aboutFooterText = "Dusk is open source. Visit the repository, learn more about Marvin, or send feedback by email."
+    static let privacyFooterText = "Dusk sends a small number of anonymous events, including error reports, to its own server. This helps keep quality consistent and makes the app better for everyone. Nothing about your library, your server, what you watch, or what you search for is ever included."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
     #if os(tvOS)

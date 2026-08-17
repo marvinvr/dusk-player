@@ -267,6 +267,10 @@ struct SettingsTVView: View {
                     }
                 }
 
+                TVSettingsSection(title: "Privacy", footer: SettingsSupport.privacyFooterText) {
+                    TVSettingsToggleRow(title: "Help Improve Dusk", isOn: $preferences.analyticsEnabled)
+                }
+
                 TVSettingsSection(title: "About", footer: SettingsSupport.aboutFooterText) {
                     HStack(spacing: 20) {
                         Text("Version")

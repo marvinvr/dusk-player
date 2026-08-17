@@ -85,20 +85,24 @@ struct DuskApp: App {
     @State private var playbackCoordinator: PlaybackCoordinator
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
-    @State private var userPreferences = UserPreferences()
-    @State private var supporterStore = SupporterStore()
+    @State private var userPreferences: UserPreferences
+    @State private var analytics: AnalyticsClient
+    @State private var supporterStore: SupporterStore
 
     init() {
         AppImageCache.configureSharedCache()
         let service = PlexService()
         let seerr = SeerrService(plexService: service)
         let prefs = UserPreferences()
+        let analyticsClient = AnalyticsClient(preferences: prefs)
         let downloads = DownloadManager(plexService: service, preferences: prefs)
         let playbackSync = OfflinePlaybackSyncManager(plexService: service)
         _plexService = State(initialValue: service)
         _seerrService = State(initialValue: seerr)
         _downloadManager = State(initialValue: downloads)
         _offlinePlaybackSyncManager = State(initialValue: playbackSync)
+        _analytics = State(initialValue: analyticsClient)
+        _supporterStore = State(initialValue: SupporterStore(analytics: analyticsClient))
         _playbackCoordinator = State(initialValue: PlaybackCoordinator(
             plexService: service,
             preferences: prefs,
@@ -122,8 +126,12 @@ struct DuskApp: App {
                 .environment(offlinePlaybackSyncManager)
                 .environment(userPreferences)
                 .environment(supporterStore)
+                .environment(analytics)
                 .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
                 .tint(Color.duskAccent)
+                .task {
+                    analytics.recordAppOpenedIfNeeded()
+                }
                 .task {
                     await supporterStore.start()
                 }
@@ -155,6 +163,10 @@ struct DuskApp: App {
                     await offlinePlaybackSyncManager.syncPendingActions(force: true)
                 }
                 .onChange(of: scenePhase) { _, newPhase in
+                    if newPhase == .active {
+                        analytics.recordAppOpenedIfNeeded()
+                    }
+
                     if newPhase == .active,
                        plexService.isSessionReady {
                         offlinePlaybackSyncManager.startAutomaticSync()
@@ -167,6 +179,9 @@ struct DuskApp: App {
                 }
                 .onChange(of: userPreferences.downloadsWifiOnly) {
                     downloadManager.evaluateNetworkConstraints()
+                }
+                .onChange(of: userPreferences.analyticsEnabled) {
+                    analytics.reportingPreferenceDidChange()
                 }
         }
     }

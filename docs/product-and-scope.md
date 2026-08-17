@@ -76,10 +76,20 @@ requirements. Do not shape today's code around them without an explicit task.
 
 ## Privacy And Network Boundaries
 
-Dusk should not collect analytics, telemetry, or tracking data. Network traffic
-should be limited to Plex account/server APIs, selected Plex servers, artwork and
-media URLs derived from Plex, iCloud key-value sync for Home layout preferences,
-and explicitly requested external links such as project/license pages.
+Dusk must never track users. No advertising identifiers, no third-party
+analytics or crash-reporting SDKs, no profiles, and nothing shared with anyone.
+
+The one exception is the self-hosted anonymous event reporting described in
+`analytics.md`, which is opt-out in Settings and bound by hard rules: a closed
+event vocabulary, no Plex-derived data of any kind, no IP retention, and no
+retry queue on device. Those rules are what keep the published privacy policy
+accurate — treat a change that breaks one of them as a policy change, not a code
+change.
+
+Beyond that endpoint, network traffic should be limited to Plex account/server
+APIs, selected Plex servers, artwork and media URLs derived from Plex, iCloud
+key-value sync for Home layout preferences, and explicitly requested external
+links such as project/license pages.
 
 Do not log raw token-bearing URLs. Playback and image URLs often include
 `X-Plex-Token` because AVPlayer and VLCKit load media directly.

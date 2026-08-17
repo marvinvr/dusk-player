@@ -96,6 +96,21 @@ presenter. The initial phase has three prompts:
 - Prompt 2 onward uses the neutral "Still enjoying Dusk?" headline. The sheet
   does not describe the cadence or promise that a prompt is the final ask.
 
+## Reporting
+
+Every surface in this feature reports anonymous events — see `analytics.md` for
+the rules and the full list. Two pairs are worth knowing about here because they
+exist to catch bugs this feature is prone to:
+
+- `supporter_prompt_triggered` vs `supporter_sheet_shown` (`source=prompt`)
+  catches a ladder that advances `supporterPromptCount` without the sheet ever
+  reaching the screen — the milestone is burned either way, so a silent
+  presentation failure would otherwise be invisible.
+- `supporter_products_unavailable` vs `supporter_sheet_shown` catches App Store
+  products failing to resolve in production. Local runs cannot catch that: both
+  schemes attach `Dusk/Support/Dusk.storekit`, so Xcode always serves products
+  from the local file rather than App Store Connect.
+
 ## Alternate App Icons (iOS/iPadOS only)
 
 - Icon Composer bundles `Dusk/Resources/DuskIcon{Dawn,Midnight,Neon,Mono,Aurora,GoldenHour}.icon`,

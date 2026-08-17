@@ -98,6 +98,7 @@ struct SupporterPromptPresenter: ViewModifier {
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(AnalyticsClient.self) private var analytics: AnalyticsClient?
     @Environment(\.scenePhase) private var scenePhase
     @State private var showsPrompt = false
     @State private var promptNumber = 1
@@ -129,6 +130,12 @@ struct SupporterPromptPresenter: ViewModifier {
         // Advance the ladder the moment it actually presents.
         preferences.registerSupporterPrompt()
         promptNumber = preferences.supporterPromptCount
+        // Reported before presentation, so this can be compared against
+        // `supporter_sheet_shown` to catch a prompt that burns a milestone
+        // without the sheet ever reaching the screen.
+        analytics?.record(AnalyticsEvent(.supporterPromptTriggered, [
+            "milestone": .int(promptNumber)
+        ]))
         showsPrompt = true
     }
 }

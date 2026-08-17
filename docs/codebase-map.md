@@ -8,6 +8,7 @@ ownership and flow, not a full symbol index.
 ```text
 Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes
+  Analytics/           Anonymous event vocabulary and fire-and-forget reporting
   Models/              Plex response models and app-facing media structs
   PlexService/         Plex auth, server discovery, API calls, images, playback URLs
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
@@ -39,6 +40,7 @@ SwiftUI environment:
 - `DownloadManager`
 - `OfflinePlaybackSyncManager`
 - `UserPreferences`
+- `AnalyticsClient`
 - `SupporterStore`
 
 `ContentView` gates the app by auth/connection state:

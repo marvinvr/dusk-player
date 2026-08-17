@@ -47,6 +47,7 @@ final class UserPreferences {
         static let supporterPromptCount = "supporterPromptCount"
         static let supporterLastPromptDate = "supporterLastPromptDate"
         static let supporterLastPromptUsageDayCount = "supporterLastPromptUsageDayCount"
+        static let analyticsEnabled = "analyticsEnabled"
     }
 
     // MARK: - Properties
@@ -364,6 +365,13 @@ final class UserPreferences {
         }
     }
 
+    /// Whether Dusk may report anonymous product events. Defaults to on and is
+    /// turned off in Settings; `AnalyticsClient` checks this before every send
+    /// and drops its install identifier when it flips off.
+    var analyticsEnabled: Bool {
+        didSet { UserDefaults.standard.set(analyticsEnabled, forKey: Keys.analyticsEnabled) }
+    }
+
     /// Records that a supporter prompt was presented.
     func registerSupporterPrompt(now: Date = .now) {
         supporterPromptCount += 1
@@ -516,6 +524,7 @@ final class UserPreferences {
         }
         self.usageDayCount = defaults.integer(forKey: Keys.usageDayCount)
         self.lastUsageDay = defaults.string(forKey: Keys.lastUsageDay) ?? ""
+        self.analyticsEnabled = defaults.object(forKey: Keys.analyticsEnabled) as? Bool ?? true
         self.supporterPromptCount = defaults.integer(forKey: Keys.supporterPromptCount)
         self.supporterLastPromptDate = defaults.object(forKey: Keys.supporterLastPromptDate) as? Date
         if defaults.object(forKey: Keys.supporterLastPromptUsageDayCount) != nil {

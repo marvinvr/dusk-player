@@ -43,6 +43,9 @@ that owns the behavior you are changing.
   search, settings, and platform UI rules.
 - `supporter.md`: supporter tier — StoreKit products and status rules, the
   prompt-ladder gating, and alternate app icons.
+- `analytics.md`: the self-hosted anonymous event reporting — the hard rules
+  that keep the privacy policy accurate, the event list, and how to add one.
+  MANDATORY reading before adding or changing any reported event.
 - `downloads-and-offline.md`: download queue, local file storage, metadata cache,
   offline playback, and delayed watch-state sync.
 - `development-workflow.md`: setup, project generation, verification, git, and doc

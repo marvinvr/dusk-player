@@ -23,18 +23,61 @@ struct SupporterView: View {
     let context: SupporterViewContext
 
     @Environment(SupporterStore.self) private var store
+    // Optional on purpose: reporting must never be able to trap a view that
+    // renders before the client is in the environment.
+    @Environment(AnalyticsClient.self) private var analytics: AnalyticsClient?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
+    @State private var reportedProductsUnavailable = false
     #if os(iOS)
     @State private var showsManageSubscriptions = false
     #endif
 
     var body: some View {
+        platformBody
+            .task {
+                report(.supporterSheetShown)
+                reportProductsUnavailableIfNeeded()
+            }
+            .onChange(of: store.productsUnavailable) { _, _ in
+                reportProductsUnavailableIfNeeded()
+            }
+    }
+
+    @ViewBuilder
+    private var platformBody: some View {
         #if os(tvOS)
         tvBody
         #else
         iosBody
         #endif
+    }
+
+    // MARK: - Reporting
+
+    /// Every event from this sheet carries where it was opened from, so the
+    /// prompt ladder and the Settings entry point can be told apart.
+    private var reportingProperties: [String: AnalyticsValue] {
+        var properties: [String: AnalyticsValue] = [
+            "source": .string(context.isPrompt ? "prompt" : "settings")
+        ]
+        if case .prompt(let number) = context {
+            properties["milestone"] = .int(number)
+        }
+        return properties
+    }
+
+    private func report(_ name: AnalyticsEventName, _ extra: [String: AnalyticsValue] = [:]) {
+        analytics?.record(
+            AnalyticsEvent(name, reportingProperties.merging(extra) { _, new in new })
+        )
+    }
+
+    /// Reported once per appearance: the sheet rendered with nothing to buy.
+    private func reportProductsUnavailableIfNeeded() {
+        guard store.productsUnavailable, !reportedProductsUnavailable else { return }
+        reportedProductsUnavailable = true
+        report(.supporterProductsUnavailable)
     }
 
     // MARK: - iOS / iPadOS
@@ -54,6 +97,7 @@ struct SupporterView: View {
 
                     if context.isPrompt {
                         Button("Maybe Later") {
+                            report(.supporterDismissed, ["control": .string("maybe_later")])
                             dismiss()
                         }
                         .supporterNeutralGlassButtonStyle()
@@ -72,6 +116,7 @@ struct SupporterView: View {
             }
 
             Button {
+                report(.supporterDismissed, ["control": .string("close")])
                 dismiss()
             } label: {
                 Image(systemName: "xmark")
@@ -129,6 +174,7 @@ struct SupporterView: View {
                         .foregroundStyle(Color.duskTextSecondary)
 
                     Button("Try Again") {
+                        report(.supporterProductsRetryTapped)
                         Task { await store.loadProducts() }
                     }
                     .font(.subheadline.weight(.medium))
@@ -184,6 +230,7 @@ struct SupporterView: View {
                         priceSuffix: priceSuffix(for: product),
                         isPurchasing: store.purchasingProductID == product.id
                     ) {
+                        report(.supporterPurchaseTapped, ["product": .string(product.id)])
                         Task { await store.purchase(product) }
                     }
                     .disabled(store.purchasingProductID != nil)
@@ -206,6 +253,7 @@ struct SupporterView: View {
             #if os(iOS)
             if store.hasActiveSubscription {
                 Button("Manage Subscription") {
+                    report(.supporterManageSubscriptionTapped)
                     showsManageSubscriptions = true
                 }
                 .font(.subheadline)
@@ -215,6 +263,7 @@ struct SupporterView: View {
             #endif
 
             Button {
+                report(.supporterRestoreTapped)
                 Task { await store.restorePurchases() }
             } label: {
                 if store.isRestoring {
@@ -231,10 +280,12 @@ struct SupporterView: View {
 
             HStack(spacing: 6) {
                 Button("Privacy Policy") {
+                    report(.supporterLinkTapped, ["link": .string("privacy")])
                     openURL(SettingsSupport.privacyPolicyURL)
                 }
                 Text("·")
                 Button("Terms of Use") {
+                    report(.supporterLinkTapped, ["link": .string("terms")])
                     openURL(SettingsSupport.termsOfUseURL)
                 }
             }
@@ -258,14 +309,16 @@ struct SupporterView: View {
                     title: "About Me",
                     subtitle: "marvinvr.ch",
                     systemImage: "person.crop.circle",
-                    url: SettingsSupport.aboutMeURL
+                    url: SettingsSupport.aboutMeURL,
+                    link: "about_me"
                 )
 
                 aboutLinkRow(
                     title: "GitHub",
                     subtitle: "github.com/marvinvr/dusk-player",
                     systemImage: "chevron.left.forwardslash.chevron.right",
-                    url: SettingsSupport.githubURL
+                    url: SettingsSupport.githubURL,
+                    link: "github"
                 )
             }
         }
@@ -275,9 +328,11 @@ struct SupporterView: View {
         title: String,
         subtitle: String,
         systemImage: String,
-        url: URL
+        url: URL,
+        link: String
     ) -> some View {
         Button {
+            report(.supporterLinkTapped, ["link": .string(link)])
             openURL(url)
         } label: {
             HStack(spacing: 14) {
@@ -359,6 +414,7 @@ struct SupporterView: View {
                             tint: Color.duskAccent,
                             isLoading: store.isRestoring
                         ) {
+                            report(.supporterRestoreTapped)
                             Task { await store.restorePurchases() }
                         }
                         .disabled(store.isRestoring)
@@ -370,6 +426,7 @@ struct SupporterView: View {
                                 title: "Maybe Later",
                                 tint: Color.duskTextSecondary
                             ) {
+                                report(.supporterDismissed, ["control": .string("maybe_later")])
                                 dismiss()
                             }
                         }
@@ -389,6 +446,7 @@ struct SupporterView: View {
             if store.productsUnavailable {
                 TVSettingsSection(title: "Support", footer: "The support options couldn't be loaded right now.") {
                     TVSettingsActionRow(title: "Try Again", tint: Color.duskAccent) {
+                        report(.supporterProductsRetryTapped)
                         Task { await store.loadProducts() }
                     }
                 }
@@ -429,6 +487,7 @@ struct SupporterView: View {
                 isLoading: store.purchasingProductID == product.id,
                 detail: priceText(for: product)
             ) {
+                report(.supporterPurchaseTapped, ["product": .string(product.id)])
                 Task { await store.purchase(product) }
             }
             .disabled(store.purchasingProductID != nil)
