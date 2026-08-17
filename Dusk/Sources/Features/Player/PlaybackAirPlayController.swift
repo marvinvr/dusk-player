@@ -65,21 +65,66 @@ final class PlaybackAirPlayController {
 /// SwiftUI wrapper around Apple's system-owned route picker. The system keeps
 /// discovery, authorization, route naming, and connection UI authoritative;
 /// Dusk only asks it to prioritize video-capable receivers.
+///
+/// The picker is deliberately glyph-less: both tints are clear so it renders
+/// nothing and acts purely as the control surface underneath the symbol
+/// `PlayerAirPlayControl` draws. See that view for why.
 struct PlayerAirPlayRoutePicker: UIViewRepresentable {
     let isActive: Bool
 
     func makeUIView(context: Context) -> AVRoutePickerView {
         let picker = AVRoutePickerView()
         picker.prioritizesVideoDevices = true
-        picker.tintColor = .white
-        picker.activeTintColor = UIColor(Color.duskAccent)
+        picker.backgroundColor = .clear
+        applyAppearance(to: picker)
         return picker
     }
 
     func updateUIView(_ picker: AVRoutePickerView, context: Context) {
-        picker.tintColor = .white
-        picker.activeTintColor = UIColor(Color.duskAccent)
+        applyAppearance(to: picker)
+    }
+
+    /// `AVRoutePickerView` has an intrinsic size of its own. Left to report it,
+    /// the representable can both grow the stack it sits in and end up with a
+    /// touch target that no longer matches the circle Dusk draws around it, so
+    /// take the proposal instead.
+    func sizeThatFits(
+        _ proposal: ProposedViewSize,
+        uiView: AVRoutePickerView,
+        context: Context
+    ) -> CGSize? {
+        proposal.replacingUnspecifiedDimensions(by: CGSize(width: 44, height: 44))
+    }
+
+    private func applyAppearance(to picker: AVRoutePickerView) {
+        picker.tintColor = .clear
+        picker.activeTintColor = .clear
         picker.accessibilityLabel = isActive ? "Change AirPlay Device" : "AirPlay"
+    }
+}
+
+/// Dusk's AirPlay button face: the app's own symbol with the system route
+/// picker invisibly on top, so a tap still opens the system route sheet.
+///
+/// `AVRoutePickerView` lays its glyph out on its own metrics rather than
+/// centering it in whatever size it is given, which leaves the symbol sitting
+/// visibly high in a 44pt circle, at a weight that never matches the Close,
+/// Picture in Picture, and zoom symbols beside it. Drawing the symbol here is
+/// what gets both right, and the system view remains the actual control, so
+/// discovery, route naming, and connection UI all stay Apple's.
+struct PlayerAirPlayControl: View {
+    let isActive: Bool
+    var symbolFont: Font = .title3.weight(.semibold)
+
+    var body: some View {
+        ZStack {
+            Image(systemName: "airplayvideo")
+                .font(symbolFont)
+                .foregroundStyle(isActive ? Color.duskAccent : .white)
+                .accessibilityHidden(true)
+
+            PlayerAirPlayRoutePicker(isActive: isActive)
+        }
     }
 }
 #endif

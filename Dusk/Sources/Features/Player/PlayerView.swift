@@ -253,27 +253,72 @@ struct PlayerView: View {
 /// While AVPlayer renders on the receiver its local layer is intentionally
 /// blank. Keep the phone useful as a calm, artwork-led remote rather than
 /// leaving a black canvas behind Dusk's transport and track controls.
+///
+/// Two layout rules hold this screen together:
+///
+/// * The blurred backdrop is clamped to the proposed size and clipped. A
+///   fill-scaled image reports the *scaled* size, not the proposal, so an
+///   unclamped one grows every ancestor — including `PlayerSessionView`'s
+///   stack, which the HUD then fills — until the top bar and the play bar are
+///   pushed off the screen edges. That is a whole-HUD break, not a cosmetic
+///   one: it took the play bar out of portrait entirely and clipped the top
+///   bar in landscape. `PlayerUpNextOverlayView` clamps its own wash the same
+///   way; keep any full-bleed artwork here in that shape.
+/// * The content deliberately leaves the middle of the safe area empty,
+///   because that is where the HUD keeps its 72pt play/pause button. The
+///   artwork takes the half above it and the route status the half below, both
+///   halves equally flexible, so the split stays on the safe area's center in
+///   every orientation, at every HUD state, and without measuring the HUD.
 private struct PlayerAirPlayRemoteBackground: View {
     @Environment(PlexService.self) private var plexService
 
     let details: PlexMediaDetails?
     let routeName: String?
 
+    /// Vertical space kept clear for the HUD's centered play/pause button. The
+    /// button is 72pt, and it does not sit exactly on the safe area's center:
+    /// the HUD's equal spacers push it up or down by up to ~15pt depending on
+    /// how tall the media header above it grows. The extra margin absorbs that
+    /// drift so neither half can ever meet the button.
+    private static let centerControlReserve: CGFloat = 132
+    private static let maximumArtworkWidth: CGFloat = 150
+    private static let minimumArtworkWidth: CGFloat = 84
+    /// Below this the half above the transport cannot hold artwork, and the
+    /// half below it only has room for the route pill (iPhone landscape).
+    private static let compactHeightThreshold: CGFloat = 480
+
     var body: some View {
         ZStack {
-            if let artworkURL {
-                DuskAsyncImage(url: artworkURL) { phase in
+            backdrop
+            content
+        }
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    // MARK: - Backdrop
+
+    private var backdrop: some View {
+        ZStack {
+            if let backdropURL {
+                DuskAsyncImage(url: backdropURL) { phase in
                     if case let .success(image) = phase {
                         image
                             .resizable()
                             .scaledToFill()
-                            .blur(radius: 28)
-                            .opacity(0.32)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            // `opaque: true` samples the artwork's own edges, so
+                            // the wash reaches the screen edges instead of fading
+                            // to transparent corners.
+                            .blur(radius: 60, opaque: true)
+                            .opacity(0.34)
+                            .transition(.opacity)
                     } else {
                         Color.clear
                     }
                 }
-                .ignoresSafeArea()
             }
 
             LinearGradient(
@@ -281,33 +326,149 @@ private struct PlayerAirPlayRemoteBackground: View {
                 startPoint: .top,
                 endPoint: .bottom
             )
-            .ignoresSafeArea()
-
-            VStack(spacing: 12) {
-                Image(systemName: "airplayvideo")
-                    .font(.system(size: 46, weight: .regular))
-                    .foregroundStyle(.white)
-
-                Text(routeName.map { "Playing on \($0)" } ?? "Playing with AirPlay")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(.white)
-
-                if let title = details?.title {
-                    Text(title)
-                        .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.7))
-                        .lineLimit(1)
-                }
-            }
-            .padding(32)
         }
-        .allowsHitTesting(false)
-        .accessibilityElement(children: .combine)
+        .clipped()
+        .ignoresSafeArea()
     }
 
-    private var artworkURL: URL? {
-        guard let path = details?.art ?? details?.thumb else { return nil }
-        return plexService.imageURL(for: path, width: 1280, height: 720)
+    // MARK: - Content
+
+    private var content: some View {
+        GeometryReader { geometry in
+            let halfHeight = max((geometry.size.height - Self.centerControlReserve) / 2, 0)
+            let isCompact = geometry.size.height < Self.compactHeightThreshold
+
+            VStack(spacing: 0) {
+                artwork(availableHeight: halfHeight)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                    .padding(.bottom, Self.centerControlReserve / 2)
+
+                routeStatus(isCompact: isCompact)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, Self.centerControlReserve / 2)
+            }
+            .padding(.horizontal, 24)
+        }
+    }
+
+    /// The item's poster, sized to the space above the transport button so it
+    /// never has to be clipped, or an AirPlay tile when the session has no
+    /// artwork to lead with (Live TV, or playback started without metadata).
+    @ViewBuilder
+    private func artwork(availableHeight: CGFloat) -> some View {
+        if let width = artworkWidth(availableHeight: availableHeight) {
+            Group {
+                if let posterPath = placeholder?.posterPath {
+                    PosterArtwork(
+                        imageURL: plexService.imageURL(
+                            for: posterPath,
+                            width: Int(width),
+                            height: Int(width * 1.5)
+                        ),
+                        width: width
+                    )
+                } else {
+                    airPlayTile(width: width)
+                }
+            }
+            .shadow(color: .black.opacity(0.4), radius: 24, y: 12)
+        }
+    }
+
+    private func airPlayTile(width: CGFloat) -> some View {
+        RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+            .fill(.white.opacity(0.08))
+            .background(
+                .ultraThinMaterial,
+                in: RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+            )
+            .overlay {
+                Image(systemName: "airplayvideo")
+                    .font(.system(size: width * 0.34, weight: .regular))
+                    .foregroundStyle(.white.opacity(0.7))
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+                    .strokeBorder(.white.opacity(0.14), lineWidth: 1)
+            }
+            .frame(width: width, height: width)
+    }
+
+    private func routeStatus(isCompact: Bool) -> some View {
+        VStack(spacing: 12) {
+            routePill
+
+            if !isCompact, let placeholder {
+                VStack(spacing: 2) {
+                    Text(placeholder.title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white.opacity(0.92))
+                        .lineLimit(1)
+
+                    if let subtitle = placeholder.subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.footnote)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+                .multilineTextAlignment(.center)
+            }
+        }
+    }
+
+    private var routePill: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "airplayvideo")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(Color.duskAccent)
+
+            Text(routeLabel)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.white)
+                .lineLimit(1)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background {
+            Capsule()
+                .fill(.white.opacity(0.07))
+                .background(.ultraThinMaterial, in: Capsule())
+        }
+        .overlay {
+            Capsule()
+                .strokeBorder(.white.opacity(0.16), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.32), radius: 14, y: 6)
+    }
+
+    // MARK: - Derived state
+
+    /// `nil` when the space above the transport button cannot hold artwork at a
+    /// size worth showing, which keeps a short landscape layout to the pill.
+    private func artworkWidth(availableHeight: CGFloat) -> CGFloat? {
+        let artworkHeight = availableHeight - 12
+        guard artworkHeight >= Self.minimumArtworkWidth * 1.5 else { return nil }
+
+        return min(Self.maximumArtworkWidth, artworkHeight * (2.0 / 3.0)).rounded()
+    }
+
+    private var placeholder: PlaybackPlaceholder? {
+        details.map(PlaybackPlaceholder.init(details:))
+    }
+
+    private var backdropURL: URL? {
+        plexService.imageURL(for: placeholder?.backdropPath, width: 1280, height: 720)
+    }
+
+    private var routeLabel: String {
+        routeName.map { "Playing on \($0)" } ?? "Playing with AirPlay"
+    }
+
+    private var accessibilityLabel: String {
+        [routeLabel, placeholder?.title]
+            .compactMap { $0 }
+            .joined(separator: ". ")
     }
 }
 #endif

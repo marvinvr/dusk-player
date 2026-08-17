@@ -27,12 +27,22 @@ struct PlayerLoadingView: View {
                         image
                             .resizable()
                             .scaledToFill()
-                            .blur(radius: 32)
+                            // A fill-scaled image reports the scaled size, so
+                            // without the clamp it makes this stack — and the
+                            // top-trailing overlay measured against it — larger
+                            // than the screen, pushing the AirPlay and Cancel
+                            // buttons off the edge. `opaque: true` samples the
+                            // artwork's own edges so the wash reaches the screen
+                            // edges instead of fading to transparent corners.
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .clipped()
+                            .blur(radius: 60, opaque: true)
                             .opacity(0.35)
                     } else {
                         Color.clear
                     }
                 }
+                .clipped()
                 .ignoresSafeArea()
             }
 
@@ -83,13 +93,16 @@ struct PlayerLoadingView: View {
         #if !os(tvOS)
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 12) {
-                PlayerAirPlayRoutePicker(isActive: playback.isAirPlayPlaybackActive)
-                    .frame(width: 36, height: 36)
-                    .background(.ultraThinMaterial, in: Circle())
-                    .overlay {
-                        Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                            .allowsHitTesting(false)
-                    }
+                PlayerAirPlayControl(
+                    isActive: playback.isAirPlayPlaybackActive,
+                    symbolFont: .body.weight(.semibold)
+                )
+                .frame(width: 36, height: 36)
+                .background(.ultraThinMaterial, in: Circle())
+                .overlay {
+                    Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        .allowsHitTesting(false)
+                }
 
                 if let onCancel {
                     Button(action: onCancel) {
@@ -101,7 +114,7 @@ struct PlayerLoadingView: View {
                             .overlay {
                                 Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
                             }
-                        }
+                    }
                     .accessibilityLabel("Cancel")
                 }
             }

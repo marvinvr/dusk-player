@@ -196,6 +196,27 @@ so the whole live HUD is derived from one instant.
   receivers. `Info-iOS.plist` declares `AVInitialRouteSharingPolicy =
   LongFormVideo`; the existing audio session, background mode, Now Playing
   metadata, and remote commands keep the phone useful while video is external.
+- The route picker is rendered with clear tints and `PlayerAirPlayControl`
+  draws the visible `airplayvideo` symbol on top of it. `AVRoutePickerView`
+  positions its own glyph on its own metrics instead of centering it in the
+  size it is given, so the system glyph sits high in Dusk's 44pt circle and
+  never matches the weight of the buttons beside it. The picker stays the
+  actual control — discovery, route naming, and connection UI remain Apple's —
+  and it also reports the proposed size rather than its intrinsic one so it
+  cannot grow the bar it sits in or take a touch target wider than the circle.
+- `PlayerAirPlayRemoteBackground` is the phone's screen while video is on the
+  receiver: a clamped, clipped, blurred wash of the item's backdrop, the poster
+  in the half above the HUD's centered play/pause button, and a "Playing on
+  <route>" pill in the half below it. Both halves are equally flexible, so the
+  split stays on the transport button in any orientation; short layouts
+  (iPhone landscape) drop the poster and title and keep the pill. **Any
+  full-bleed artwork added here must keep the
+  `.frame(maxWidth:.infinity, maxHeight:.infinity).clipped()` clamp**: a
+  fill-scaled image reports its scaled size, which grows `PlayerSessionView`'s
+  stack past the screen and drags the HUD's top bar and play bar off the edges
+  (portrait lost the play bar entirely, landscape clipped the top bar).
+  `PlayerLoadingView` and `PlayerUpNextOverlayView` clamp their washes the same
+  way.
 - Local output remains direct-play first. When an AirPlay route is selected for
   a direct-play or downloaded source, the coordinator snapshots position/state
   and asks `PlexService.airPlayStreamURL` for uncapped HLS. Plex may direct-stream

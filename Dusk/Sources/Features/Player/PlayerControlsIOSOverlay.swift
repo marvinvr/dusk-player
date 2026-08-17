@@ -64,15 +64,12 @@ struct PlayerControlsIOSOverlay: View {
     }
 
     #if os(iOS)
+    /// Same 44pt glass circle as the buttons beside it — the route picker
+    /// underneath carries the accessibility label and opens the system sheet.
     private var airPlayButton: some View {
-        PlayerAirPlayRoutePicker(isActive: playback.isAirPlayPlaybackActive)
+        PlayerAirPlayControl(isActive: playback.isAirPlayPlaybackActive)
             .frame(width: 44, height: 44)
             .background(.ultraThinMaterial, in: Circle())
-            .overlay {
-                Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                    .allowsHitTesting(false)
-            }
-            .accessibilityLabel(playback.isAirPlayPlaybackActive ? "Change AirPlay Device" : "AirPlay")
     }
     #endif
 
