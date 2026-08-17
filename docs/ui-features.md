@@ -220,10 +220,24 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid; all-clip hubs render it 16:9.
 
-### Home Layout Editor (iOS/iPadOS)
+### Home Layout Editor
 
-- `Settings › Layout › Home Screen` opens `HomeLayoutSettingsView`. tvOS has no entry
-  point; the screen and its view model are compiled out there.
+- `Settings › Layout › Home Screen` opens `HomeLayoutSettingsView` on every platform.
+  That view owns the view model and its loading/error states; the editor itself is
+  per-platform because the input models are (a `List` with `EditButton` +
+  drag-to-reorder on iOS/iPadOS, `HomeLayoutSettingsTVView` on tvOS).
+- The tvOS editor reorders by pick-up: selecting a row's move button lifts it, a swipe
+  walks it one slot, and select or Menu drops it. **The move is driven by focus, not by
+  `onMoveCommand`.** Every row's move button stays focusable while a row is lifted, so a
+  swipe moves focus onto the neighbor; `carryLiftedRow` then moves the lifted row into
+  that neighbor's slot and hands focus back. Do not "simplify" this into an
+  `onMoveCommand` handler with the other rows disabled: directional commands only reach
+  that handler when the focus engine finds no candidate, and the tvOS tab bar sits above
+  this screen, so the row would move down but not up. Focus leaving the row list (the
+  disabled sections above/below, or the tab bar) means an end of the list was reached:
+  the lifted row keeps focus until it is dropped.
+- The tvOS pick-up persists each step locally but pushes to Plex only on drop
+  (`pushOrderToPlex`), so walking a row through ten slots is one write, not ten.
 - `HomeLayoutSettingsViewModel` writes each Managed Recommendation's visibility and
   same-library order to Plex. Plex cannot represent placement between different library
   sources or Dusk's Live TV/Suggestions rows: official Plex apps derive that order from
@@ -239,6 +253,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Plex order pushes only move hubs that are actually on home and only within their
   library, so hiding a row never reshuffles its Recommended page. Writes are serialized
   through one task chain so a burst of drags reaches Plex in the order the user made them.
+- Both editors describe the same syncing behavior through `HomeLayoutSettingsCopy`; keep
+  shared wording there instead of drifting two copies of it.
 - Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
   `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where
   an all-clip hub (`isVideoHub`) renders as a 16:9 carousel.
@@ -398,7 +414,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server list, server picker, Home-user picker presentation, image cache status,
   app version, and server/user switching.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
-- Settings → Layout → Home Screen opens the Home layout editor on iOS/iPadOS
+- Settings → Layout → Home Screen opens the Home layout editor on every platform
   (see "Home Layout Editor"). Managed library rows write to Plex, while the complete
   layout is kept in `UserPreferences` and mirrored through iCloud for Dusk devices.
 - Settings → Navigation → Navigation Tabs controls the visibility and order of

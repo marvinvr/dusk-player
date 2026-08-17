@@ -126,6 +126,7 @@
 		5FA3BE4343D3AF4892825149 /* HomeLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFF05E15A7B69FF2F51DFACD /* HomeLayout.swift */; };
 		5FB64622D3D91A152975D0B4 /* PlexLiveTV.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C143EA5A819A807E8F4592 /* PlexLiveTV.swift */; };
 		60BD4764983A301DAE337DFE /* PlexItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97C0F3FABBE04C2708A7342 /* PlexItem.swift */; };
+		61BB1D047A03E4F10F1EA30D /* HomeLayoutSettingsTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0086A448C3349E390AF258B3 /* HomeLayoutSettingsTVView.swift */; };
 		61DECC5071AC58E20A02B303 /* DuskIconMono.icon in Resources */ = {isa = PBXBuildFile; fileRef = 8084D4E2D4EC7BFEB8A5E6BB /* DuskIconMono.icon */; };
 		6316AEBAA08F0FD1024EBB05 /* PlexService+Entitlement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F88EDFF5A8CACCF0DD74331 /* PlexService+Entitlement.swift */; };
 		63656964D7D4A9BB93B1E79E /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9D6DBE6A638087B8F5C28E9 /* ContentView.swift */; };
@@ -182,6 +183,7 @@
 		82C533CEEAECC860215B8F94 /* PlexService+Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB337983FD00FD7C85386570 /* PlexService+Auth.swift */; };
 		83C3D0E7D45AF1C63B66FE72 /* RecommendationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69C3F67C503DFC3555CBEAE /* RecommendationCore.swift */; };
 		84CAA0EAF8EA626F4869C6B2 /* LibraryRecommendationsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 846D1F8D464341A56DADD6C5 /* LibraryRecommendationsViewModel.swift */; };
+		8787DA96A0026FC8BD4F1EEC /* HomeLayoutSettingsTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0086A448C3349E390AF258B3 /* HomeLayoutSettingsTVView.swift */; };
 		8811C10ADA5E8F1C13DE6CFF /* OfflinePlaybackSyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7052C6383BEE37846CEC1A74 /* OfflinePlaybackSyncModels.swift */; };
 		884491A802A4F63E12CEE776 /* HomeIOSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C7F0BB357EE502E0491A0B5 /* HomeIOSView.swift */; };
 		8898B21F1AB7A56419314D02 /* PlexService+Networking.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AF6018BD333E33114E37C9C /* PlexService+Networking.swift */; };
@@ -393,6 +395,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0086A448C3349E390AF258B3 /* HomeLayoutSettingsTVView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeLayoutSettingsTVView.swift; sourceTree = "<group>"; };
 		00E873624B104DE44EC8453F /* LiveTVHomeShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVHomeShelf.swift; sourceTree = "<group>"; };
 		017021DDFB64BF1FA7637881 /* SeerrSeasonDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerrSeasonDetailViewModel.swift; sourceTree = "<group>"; };
 		02E885C56780E7F4BF4345BB /* HomeLayoutSettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeLayoutSettingsViewModel.swift; sourceTree = "<group>"; };
@@ -651,6 +654,7 @@
 		25401015549A3F126864EF4A /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				0086A448C3349E390AF258B3 /* HomeLayoutSettingsTVView.swift */,
 				5E2560EA479212C8398EEDFF /* HomeLayoutSettingsView.swift */,
 				02E885C56780E7F4BF4345BB /* HomeLayoutSettingsViewModel.swift */,
 				D8A779F6F2C99896F2294D79 /* LibraryTabSettingsView.swift */,
@@ -1168,6 +1172,7 @@
 				D81213E65DFBCCF15B4B396C /* HomeHubItemsViewModel.swift in Sources */,
 				884491A802A4F63E12CEE776 /* HomeIOSView.swift in Sources */,
 				5FA3BE4343D3AF4892825149 /* HomeLayout.swift in Sources */,
+				61BB1D047A03E4F10F1EA30D /* HomeLayoutSettingsTVView.swift in Sources */,
 				96090D6B6CE69952109C014C /* HomeLayoutSettingsView.swift in Sources */,
 				DDB4054AEB6FB21CA29E7367 /* HomeLayoutSettingsViewModel.swift in Sources */,
 				70901DE1773E59D728603A70 /* HomePersonalizedShelf.swift in Sources */,
@@ -1346,6 +1351,7 @@
 				FCB03E78E06360652916B268 /* HomeHubItemsViewModel.swift in Sources */,
 				0702599D6E012EB01CE2117A /* HomeIOSView.swift in Sources */,
 				3B2FB88B89D64C1149C305C1 /* HomeLayout.swift in Sources */,
+				8787DA96A0026FC8BD4F1EEC /* HomeLayoutSettingsTVView.swift in Sources */,
 				DBA6F8A5BD4BA438E22E5068 /* HomeLayoutSettingsView.swift in Sources */,
 				3D7F800725A9153D3591D998 /* HomeLayoutSettingsViewModel.swift in Sources */,
 				B6B2FD7813CB6E7D2A199C83 /* HomePersonalizedShelf.swift in Sources */,

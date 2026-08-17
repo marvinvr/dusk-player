@@ -1,13 +1,18 @@
 import SwiftUI
 
-#if !os(tvOS)
 /// Reorders and hides the rows on Home. The complete Dusk layout syncs through
 /// iCloud; managed library rows also go back to Plex where its API permits it.
+///
+/// This view owns the view model and its loading states for both platforms; the
+/// editors themselves differ because the input models do (drag-to-reorder on
+/// iOS/iPadOS, a remote pick-up in `HomeLayoutSettingsTVView`).
 struct HomeLayoutSettingsView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(UserPreferences.self) private var preferences
     @State private var viewModel: HomeLayoutSettingsViewModel?
+    #if !os(tvOS)
     @State private var confirmsReset = false
+    #endif
 
     var body: some View {
         content
@@ -42,7 +47,17 @@ struct HomeLayoutSettingsView: View {
         }
     }
 
+    @ViewBuilder
     private func editor(_ viewModel: HomeLayoutSettingsViewModel) -> some View {
+        #if os(tvOS)
+        HomeLayoutSettingsTVView(viewModel: viewModel)
+        #else
+        iosEditor(viewModel)
+        #endif
+    }
+
+    #if !os(tvOS)
+    private func iosEditor(_ viewModel: HomeLayoutSettingsViewModel) -> some View {
         List {
             Section {
                 Toggle(isOn: featuredBinding(viewModel)) {
@@ -93,7 +108,7 @@ struct HomeLayoutSettingsView: View {
                         confirmsReset = true
                     }
                 } footer: {
-                    Text("Clears the Dusk row order and hidden rows from this device and its iCloud peers. Rows stored on Plex keep their server settings.")
+                    Text(HomeLayoutSettingsCopy.resetFooter)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
                 .listRowBackground(Color.duskSurface)
@@ -121,7 +136,7 @@ struct HomeLayoutSettingsView: View {
 
     private func footerText(_ viewModel: HomeLayoutSettingsViewModel) -> String {
         if viewModel.isSyncing {
-            return "Saving the layout to Plex…"
+            return HomeLayoutSettingsCopy.syncingFooter
         }
 
         if let syncWarning = viewModel.syncWarning {
@@ -129,12 +144,7 @@ struct HomeLayoutSettingsView: View {
         }
 
         let editingHint = "Tap Edit, then drag to change the order."
-
-        if viewModel.syncsToPlex {
-            return "\(editingHint) The complete layout syncs to your Dusk devices through iCloud. Managed rows are also saved within their Plex library."
-        }
-
-        return "\(editingHint) The layout syncs to your Dusk devices through iCloud. This server doesn't allow Plex-managed row changes."
+        return "\(editingHint) \(HomeLayoutSettingsCopy.syncFooter(syncsToPlex: viewModel.syncsToPlex))"
     }
 
     private func featuredBinding(_ viewModel: HomeLayoutSettingsViewModel) -> Binding<Bool> {
@@ -153,6 +163,7 @@ struct HomeLayoutSettingsView: View {
             set: { viewModel.setVisible($0, rowID: row.id) }
         )
     }
+    #endif
 
     private var layoutContext: String {
         UserPreferences.homeLayoutContext(
@@ -161,4 +172,18 @@ struct HomeLayoutSettingsView: View {
         )
     }
 }
-#endif
+
+/// Copy both platform editors share, so the two screens describe the same
+/// syncing behavior in the same words.
+enum HomeLayoutSettingsCopy {
+    static let featuredFooter = "Continue Watching is the full-width hero pinned to the top of Home."
+    static let syncingFooter = "Saving the layout to Plex…"
+    static let resetFooter = "Clears the Dusk row order and hidden rows from this device and its iCloud peers. Rows stored on Plex keep their server settings."
+
+    static func syncFooter(syncsToPlex: Bool) -> String {
+        if syncsToPlex {
+            return "The complete layout syncs to your Dusk devices through iCloud. Managed rows are also saved within their Plex library."
+        }
+        return "The layout syncs to your Dusk devices through iCloud. This server doesn't allow Plex-managed row changes."
+    }
+}

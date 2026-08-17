@@ -1,7 +1,6 @@
 import Foundation
 import OSLog
 
-#if !os(tvOS)
 private let homeLayoutLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "HomeLayout"
@@ -156,7 +155,33 @@ final class HomeLayoutSettingsViewModel {
     func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         rows.move(fromOffsets: offsets, toOffset: destination)
         preferences.setHomeRowOrder(rows.map(\.id), context: context)
+        pushOrderToPlex()
+    }
 
+    /// Moves one row to an absolute position and saves the Dusk layout, without
+    /// touching Plex.
+    ///
+    /// tvOS walks a row through the list one position at a time, so the Plex write
+    /// waits for `pushOrderToPlex()` when the row is dropped; pushing per step
+    /// would send a request for every remote swipe. Returns whether the row
+    /// actually moved, so a step past either end of the list is a no-op.
+    @discardableResult
+    func moveRow(id rowID: String, toIndex destination: Int) -> Bool {
+        guard let index = rows.firstIndex(where: { $0.id == rowID }),
+              rows.indices.contains(destination),
+              index != destination else {
+            return false
+        }
+
+        let row = rows.remove(at: index)
+        rows.insert(row, at: destination)
+        preferences.setHomeRowOrder(rows.map(\.id), context: context)
+        return true
+    }
+
+    /// Replays the current order onto Plex. Does nothing when the account cannot
+    /// manage hubs or the server-side order already matches.
+    func pushOrderToPlex() {
         guard plexService.canManageHubs else { return }
 
         let sections = Set(rows.compactMap { $0.managed?.sectionID })
@@ -408,4 +433,3 @@ final class HomeLayoutSettingsViewModel {
         (try? await plexService.getLiveTVProvider()) != nil
     }
 }
-#endif

@@ -146,8 +146,10 @@ Settings:
 - `SettingsViewModel` owns settings actions that need services.
 - iOS/tvOS layouts are separate views with shared support helpers.
 - `HomeLayoutSettingsView`/`HomeLayoutSettingsViewModel` edit the Home row order
-  and visibility (iOS/iPadOS only). They write through to Plex's managed hubs
+  and visibility on every platform. They write through to Plex's managed hubs
   where the server allows it and fall back to `UserPreferences` otherwise.
+  `HomeLayoutSettingsTVView` is the tvOS editor: reordering there is a
+  focus-driven pick-up, not drag-and-drop (`docs/ui-features.md`).
 
 Search and Seerr:
 
@@ -171,8 +173,9 @@ Supporter:
 ## Where New Code Goes
 
 - New Plex endpoint: matching `PlexService+*.swift` file.
-- New Home row type: `HomeLayout` identities plus both `HomeViewModel.arrangedRows`
-  and the layout editor, so the two lists cannot drift.
+- New Home row type: `HomeLayout` identities plus `HomeViewModel.arrangedRows` and
+  the layout editor's row construction, so the lists cannot drift. Both platform
+  editors read the same `HomeLayoutSettingsViewModel.rows`.
 - New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
   a generic provider protocol.
 - New Plex response shape: `Models/`, with optional fields where Plex varies by
