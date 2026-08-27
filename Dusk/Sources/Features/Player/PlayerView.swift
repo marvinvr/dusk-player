@@ -946,7 +946,10 @@ private struct PlayerSessionView: View {
             forwardSeekInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
             onToggleControls: { viewModel.toggleControls() },
             onDoubleTapSeek: { offset in viewModel.handleDoubleTapSeek(by: offset) },
-            onSpeedBoostBegan: { viewModel.beginSpeedBoost() },
+            onSpeedBoostBegan: {
+                guard !playback.isSharePlayActive else { return false }
+                return viewModel.beginSpeedBoost()
+            },
             onSpeedBoostEnded: { viewModel.endSpeedBoost() },
             onPointerMoved: { viewModel.touchControls() }
         )

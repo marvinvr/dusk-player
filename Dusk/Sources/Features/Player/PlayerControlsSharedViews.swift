@@ -421,6 +421,7 @@ struct PlayerTrackSettingsMenu: View {
     private var hasAvailableSettings: Bool {
         context.hasPlaybackInfo ||
             context.hasQualityControl ||
+            context.hasSharePlayControl ||
             context.liveTVContext != nil ||
             !viewModel.audioTracks.isEmpty ||
             !viewModel.subtitleTracks.isEmpty
@@ -438,6 +439,7 @@ struct PlayerTrackSettingsMenu: View {
     private var tvOSMenu: some View {
         Menu {
             Group {
+                sharePlayButton
                 playbackInfoButton
                 channelMenu
                 if context.hasQualityControl {
@@ -596,6 +598,25 @@ struct PlayerTrackSettingsMenu: View {
             Label("Audio", systemImage: "speaker.wave.2")
         }
         .disabled(viewModel.audioTracks.isEmpty)
+    }
+
+    @ViewBuilder
+    private var sharePlayButton: some View {
+        if context.hasSharePlayControl {
+            Button {
+                viewModel.noteControlsInteraction()
+                viewModel.endAllControlsInteractionHolds()
+                Task {
+                    await playback.toggleSharePlay()
+                }
+            } label: {
+                Label(
+                    context.isSharePlayActive ? "Leave SharePlay" : "Start SharePlay",
+                    systemImage: "shareplay"
+                )
+            }
+            .disabled(context.isStartingSharePlay)
+        }
     }
 
     @ViewBuilder

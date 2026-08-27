@@ -228,6 +228,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     nonisolated(unsafe) private let mediaPlayer: VLCMediaPlayer
     private let renderingHost: any VLCKitRenderingHost
+    @ObservationIgnored private var delegatingPlaybackCoordinator: AVDelegatingPlaybackCoordinator!
+    @ObservationIgnored nonisolated(unsafe) private var coordinatedItemIdentifier: String?
+    @ObservationIgnored private var coordinatedCommandGeneration = UUID()
 
     private var pendingStartPosition: TimeInterval?
     private var hasAppliedStartPosition = false
@@ -361,6 +364,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         self.renderingHost = renderingHost
         super.init()
 
+        delegatingPlaybackCoordinator = AVDelegatingPlaybackCoordinator(playbackControlDelegate: self)
         player.delegate = self
         renderingHost.attach(to: player, engine: self)
         configureAudioOutputPolicy()
@@ -483,8 +487,16 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func play() {
+        guard coordinatedItemIdentifier == nil else {
+            delegatingPlaybackCoordinator.coordinateRateChange(to: 1, options: [])
+            return
+        }
+        playLocally()
+    }
+
+    private func playLocally(reseekPausedAudio: Bool = true) {
         let wasPaused = state == .paused
-        if wasPaused {
+        if wasPaused, reseekPausedAudio {
             // Stock VLC 3.x's Apple AudioUnit output flushes its queued audio
             // when pausing because it cannot recover the output delay after
             // AudioOutputUnitStop. Its own source notes that this loses 1–2 s
@@ -494,7 +506,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             // for the discarded audio window to pass.
             let observedTime = observedPlayerTime
             let resumePosition = observedTime > 0 ? observedTime : currentTime
-            seek(to: resumePosition)
+            seekLocally(to: resumePosition)
 
             // A real pause→resume already re-runs the session-activation +
             // AudioOutputUnitStart sequence — the exact cure the pending
@@ -516,6 +528,14 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func pause() {
+        guard coordinatedItemIdentifier == nil else {
+            delegatingPlaybackCoordinator.coordinateRateChange(to: 0, options: [])
+            return
+        }
+        pauseLocally()
+    }
+
+    private func pauseLocally() {
         // User intent wins over an in-flight revive: tear its sequence down
         // (without consuming a still-pending arm — the resume on the user's
         // own play() consumes it, having run the same cure natively).
@@ -531,7 +551,64 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func setPlaybackRate(_ rate: Float) {
-        mediaPlayer.rate = max(rate, 0.1)
+        let resolvedRate = max(rate, 0.1)
+        if coordinatedItemIdentifier != nil {
+            delegatingPlaybackCoordinator.coordinateRateChange(to: resolvedRate, options: [])
+        } else {
+            mediaPlayer.rate = resolvedRate
+        }
+    }
+
+    var playbackCoordinator: AVPlaybackCoordinator {
+        delegatingPlaybackCoordinator
+    }
+
+    func configureCoordinatedPlayback(itemIdentifier: String?) {
+        coordinatedCommandGeneration = UUID()
+        coordinatedItemIdentifier = itemIdentifier
+
+        guard let itemIdentifier else {
+            delegatingPlaybackCoordinator.transitionToItem(
+                withIdentifier: nil,
+                proposingInitialTimingBasedOn: nil
+            )
+            return
+        }
+
+        // A freshly created engine is attached to the GroupSession before its
+        // SwiftUI player view calls load(source:). Keep the identity, but do not
+        // announce a current item until libvlc has an input for it.
+        guard currentSource != nil else { return }
+        transitionToCoordinatedItem(
+            itemIdentifier,
+            proposedRate: state == .playing ? Double(max(mediaPlayer.rate, 0.1)) : 0
+        )
+    }
+
+    private func transitionToCoordinatedItem(
+        _ itemIdentifier: String,
+        proposedRate: Double
+    ) {
+        var snapshotTimebase: CMTimebase?
+        let status = CMTimebaseCreateWithSourceClock(
+            allocator: kCFAllocatorDefault,
+            sourceClock: CMClockGetHostTimeClock(),
+            timebaseOut: &snapshotTimebase
+        )
+        if status == noErr, let snapshotTimebase {
+            CMTimebaseSetTime(
+                snapshotTimebase,
+                time: CMTime(seconds: currentTime, preferredTimescale: 1_000)
+            )
+            CMTimebaseSetRate(
+                snapshotTimebase,
+                rate: proposedRate
+            )
+        }
+        delegatingPlaybackCoordinator.transitionToItem(
+            withIdentifier: itemIdentifier,
+            proposingInitialTimingBasedOn: snapshotTimebase
+        )
     }
 
     func stop() {
@@ -695,6 +772,25 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     #endif
 
     func seek(to position: TimeInterval) {
+        let clampedPosition = clampedCoordinatedSeekPosition(position)
+        guard coordinatedItemIdentifier == nil else {
+            delegatingPlaybackCoordinator.coordinateSeek(
+                to: CMTime(seconds: clampedPosition, preferredTimescale: 1_000),
+                options: []
+            )
+            return
+        }
+        seekLocally(to: clampedPosition)
+    }
+
+    private func clampedCoordinatedSeekPosition(_ position: TimeInterval) -> TimeInterval {
+        if duration > 0 {
+            return min(max(position, 0), duration)
+        }
+        return max(position, 0)
+    }
+
+    private func seekLocally(to position: TimeInterval) {
         let clampedPosition: TimeInterval
         if duration > 0 {
             clampedPosition = min(max(position, 0), duration)
@@ -1296,7 +1392,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             // shifts libvlc's whole reported timeline (duration shrinks,
             // seeks become relative), which would corrupt Plex progress
             // reporting.
-            seek(to: start)
+            seekLocally(to: start)
+        }
+        if let coordinatedItemIdentifier {
+            transitionToCoordinatedItem(
+                coordinatedItemIdentifier,
+                proposedRate: source.shouldAutoPlay ? 1 : 0
+            )
         }
         loadValidationTask = nil
     }
@@ -1996,6 +2098,121 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
         audioSessionObservers.append(interruptionObserver)
         #endif
+    }
+}
+
+private struct VLCCoordinatedPlaybackSendableBox<Value>: @unchecked Sendable {
+    let value: Value
+}
+
+// AVDelegatingPlaybackCoordinator turns VLCKit into a first-class coordinated
+// player. Delegate callbacks can arrive outside the main actor; all libvlc work
+// is therefore brought back to the engine's main-actor boundary.
+extension VLCKitEngine: AVPlaybackCoordinatorPlaybackControlDelegate {
+    nonisolated func playbackCoordinator(
+        _ coordinator: AVDelegatingPlaybackCoordinator,
+        didIssue playCommand: AVDelegatingPlaybackCoordinatorPlayCommand,
+        completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let completion = VLCCoordinatedPlaybackSendableBox(value: completionHandler)
+        let expectedIdentifier = playCommand.expectedCurrentItemIdentifier
+        let requestedTime = CMTimeGetSeconds(playCommand.itemTime)
+        let requestedHostTime = playCommand.hostClockTime
+        let requestedRate = playCommand.rate
+
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.coordinatedItemIdentifier == expectedIdentifier else {
+                completion.value()
+                return
+            }
+            let commandGeneration = UUID()
+            self.coordinatedCommandGeneration = commandGeneration
+
+            let currentHostTime = CMClockGetTime(CMClockGetHostTimeClock())
+            let secondsUntilStart = CMTimeGetSeconds(
+                CMTimeSubtract(requestedHostTime, currentHostTime)
+            )
+
+            if requestedTime.isFinite {
+                let target = secondsUntilStart < 0
+                    ? requestedTime + (-secondsUntilStart * Double(requestedRate))
+                    : requestedTime
+                self.seekLocally(to: target)
+            }
+
+            // The custom player has accepted the timing command. When the host
+            // start lies in the future, keep the actual libvlc start scheduled
+            // against that same host clock after telling AVFoundation we're ready.
+            completion.value()
+            if secondsUntilStart > 0 {
+                do {
+                    try await Task.sleep(for: .seconds(secondsUntilStart))
+                } catch {
+                    return
+                }
+                guard self.coordinatedItemIdentifier == expectedIdentifier else { return }
+                guard self.coordinatedCommandGeneration == commandGeneration else { return }
+            }
+
+            self.mediaPlayer.rate = max(requestedRate, 0.1)
+            self.playLocally(reseekPausedAudio: false)
+        }
+    }
+
+    nonisolated func playbackCoordinator(
+        _ coordinator: AVDelegatingPlaybackCoordinator,
+        didIssue pauseCommand: AVDelegatingPlaybackCoordinatorPauseCommand,
+        completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let completion = VLCCoordinatedPlaybackSendableBox(value: completionHandler)
+        let expectedIdentifier = pauseCommand.expectedCurrentItemIdentifier
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.coordinatedItemIdentifier == expectedIdentifier else {
+                completion.value()
+                return
+            }
+            self.coordinatedCommandGeneration = UUID()
+            self.pauseLocally()
+            completion.value()
+        }
+    }
+
+    nonisolated func playbackCoordinator(
+        _ coordinator: AVDelegatingPlaybackCoordinator,
+        didIssue seekCommand: AVDelegatingPlaybackCoordinatorSeekCommand,
+        completionHandler: @escaping @Sendable () -> Void
+    ) {
+        let completion = VLCCoordinatedPlaybackSendableBox(value: completionHandler)
+        let expectedIdentifier = seekCommand.expectedCurrentItemIdentifier
+        let requestedTime = CMTimeGetSeconds(seekCommand.itemTime)
+        Task { @MainActor [weak self] in
+            guard let self,
+                  self.coordinatedItemIdentifier == expectedIdentifier else {
+                completion.value()
+                return
+            }
+            self.coordinatedCommandGeneration = UUID()
+            self.pauseLocally()
+            if requestedTime.isFinite {
+                self.seekLocally(to: requestedTime)
+            }
+            // A later play command resumes the group after every participant
+            // reports that its seek has been accepted.
+            completion.value()
+        }
+    }
+
+    nonisolated func playbackCoordinator(
+        _ coordinator: AVDelegatingPlaybackCoordinator,
+        didIssue bufferingCommand: AVDelegatingPlaybackCoordinatorBufferingCommand,
+        completionHandler: @escaping @Sendable () -> Void
+    ) {
+        // Dusk has already opened the media before it joins a group. libvlc has
+        // no separate paused preroll API, so the currently loaded input is the
+        // best readiness signal available.
+        completionHandler()
     }
 }
 

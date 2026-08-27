@@ -52,6 +52,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     @ObservationIgnored private let player = AVPlayer()
     @ObservationIgnored nonisolated(unsafe) private let playerLayer = AVPlayerLayer()
+    @ObservationIgnored nonisolated(unsafe) private var coordinatedItemIdentifier: String?
     #if os(iOS)
     private(set) var isPictureInPicturePossible = false
     private(set) var isPictureInPictureActive = false
@@ -96,6 +97,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         super.init()
         playerLayer.player = player
         playerLayer.videoGravity = .resizeAspect
+        player.playbackCoordinator.delegate = self
         player.appliesMediaSelectionCriteriaAutomatically = false
         player.automaticallyWaitsToMinimizeStalling = true
         #if os(iOS)
@@ -234,6 +236,14 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     func play() {
         player.play()
+    }
+
+    var playbackCoordinator: AVPlaybackCoordinator {
+        player.playbackCoordinator
+    }
+
+    func configureCoordinatedPlayback(itemIdentifier: String?) {
+        coordinatedItemIdentifier = itemIdentifier
     }
 
     func pause() {
@@ -896,6 +906,18 @@ extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
     }
 }
 #endif
+
+// A Plex item can be delivered from different URLs on each participant (local
+// download, direct play, or a per-user transcode). Give AVFoundation the same
+// explicit identity VLCKit uses so mixed-engine groups still synchronize.
+extension AVPlayerEngine: AVPlayerPlaybackCoordinatorDelegate {
+    nonisolated func playbackCoordinator(
+        _ coordinator: AVPlayerPlaybackCoordinator,
+        identifierFor playerItem: AVPlayerItem
+    ) -> String {
+        coordinatedItemIdentifier ?? playerItem.asset.description
+    }
+}
 
 // MARK: - SwiftUI Bridge
 

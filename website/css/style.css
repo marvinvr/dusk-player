@@ -408,6 +408,11 @@ img {
   gap: 20px;
 }
 
+/* Keep a lone card on the final row centered instead of stranded on the left. */
+.features-grid .feature-card:last-child:nth-child(3n + 1) {
+  grid-column: 2;
+}
+
 .feature-card {
   background: var(--glass-bg);
   backdrop-filter: blur(16px) saturate(150%);
@@ -703,6 +708,14 @@ img {
   .features-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+
+  .features-grid .feature-card:last-child:nth-child(3n + 1) {
+    grid-column: auto;
+  }
+
+  .features-grid .feature-card:last-child:nth-child(2n + 1) {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 640px) {
@@ -722,6 +735,10 @@ img {
   .features-grid {
     grid-template-columns: 1fr;
     gap: 16px;
+  }
+
+  .features-grid .feature-card:last-child:nth-child(2n + 1) {
+    grid-column: auto;
   }
 
   .feature-card {

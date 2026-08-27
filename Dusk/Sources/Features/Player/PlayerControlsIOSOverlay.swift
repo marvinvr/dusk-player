@@ -56,6 +56,7 @@ struct PlayerControlsIOSOverlay: View {
             #if os(iOS)
             airPlayButton
             #endif
+            sharePlayButton
             if !playback.isAirPlayPlaybackActive {
                 pictureInPictureButton
                 aspectFillButton
@@ -72,6 +73,42 @@ struct PlayerControlsIOSOverlay: View {
             .background(.ultraThinMaterial, in: Circle())
     }
     #endif
+
+    @ViewBuilder
+    private var sharePlayButton: some View {
+        if context.hasSharePlayControl {
+            Button {
+                viewModel.noteControlsInteraction()
+                Task {
+                    await playback.toggleSharePlay()
+                }
+            } label: {
+                Group {
+                    if context.isStartingSharePlay {
+                        ProgressView()
+                            .tint(.white)
+                    } else {
+                        Image(systemName: "shareplay")
+                            .font(.title3.weight(.semibold))
+                            .foregroundStyle(context.isSharePlayActive ? Color.duskAccent : .white)
+                    }
+                }
+                .frame(width: 44, height: 44)
+                .background(.ultraThinMaterial, in: Circle())
+            }
+            .disabled(context.isStartingSharePlay)
+            .accessibilityLabel(
+                context.isSharePlayActive
+                    ? "Leave SharePlay"
+                    : "Start SharePlay"
+            )
+            .accessibilityValue(
+                context.isSharePlayActive
+                    ? "\(context.sharePlayParticipantCount) participants"
+                    : "Not active"
+            )
+        }
+    }
 
     @ViewBuilder
     private var pictureInPictureButton: some View {

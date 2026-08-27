@@ -58,6 +58,8 @@ Current product pillars:
 - Offline downloads and delayed watch-state sync.
 - Native AirPlay from iPhone/iPad to AirPlay-enabled receivers, with Dusk
   retaining playback control, Plex timeline reporting, and continuous playback.
+- SharePlay watch-together sessions on iPhone, iPad, and Apple TV for Plex
+  library video, with per-participant local streaming and synchronized transport.
 
 Future ideas such as Jellyfin, collections, playlists, DVR scheduling,
 native macOS work, or broader provider abstractions are not current architecture
@@ -89,8 +91,10 @@ a code change.
 
 Beyond that endpoint, network traffic should be limited to Plex account/server
 APIs, selected Plex servers, artwork and media URLs derived from Plex, iCloud
-key-value sync for Home layout preferences, and explicitly requested external
-links such as project/license pages.
+key-value sync for Home layout preferences, explicitly initiated Apple Group
+Activities sessions (which share only the selected item's server-scoped identity
+and display metadata with participants), and explicitly requested external links
+such as project/license pages.
 
 Do not log raw token-bearing URLs. Playback and image URLs often include
 `X-Plex-Token` because AVPlayer and VLCKit load media directly.

@@ -54,6 +54,8 @@ final class PlaybackCoordinator {
     /// System AirPlay route state shared by playback preparation and the iOS
     /// route-picker UI. The selected route itself remains owned by the system.
     let airPlayController: PlaybackAirPlayController
+    /// Group Activities lifecycle and engine coordination for SharePlay.
+    let sharePlayController: PlaybackSharePlayController
     /// True while Plex prepares an AVPlayer HLS replacement after the user
     /// selects an AirPlay route during an active local session.
     var isPreparingAirPlay = false
@@ -140,10 +142,14 @@ final class PlaybackCoordinator {
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
         let airPlayController = PlaybackAirPlayController()
+        let sharePlayController = PlaybackSharePlayController()
         self.airPlayController = airPlayController
+        self.sharePlayController = sharePlayController
         airPlayController.routeSelectionDidChange = { [weak self] selected in
             self?.airPlayRouteSelectionDidChange(selected)
         }
+        sharePlayController.playbackCoordinator = self
+        sharePlayController.startListening()
     }
 
     deinit {
@@ -198,6 +204,51 @@ final class PlaybackCoordinator {
         return false
     }
 
+    var isSharePlayActive: Bool {
+        sharePlayController.isActive
+    }
+
+    var isSharePlayStarting: Bool {
+        sharePlayController.isStarting
+    }
+
+    var sharePlayParticipantCount: Int {
+        sharePlayController.participantCount
+    }
+
+    var sharePlayError: String? {
+        sharePlayController.errorMessage
+    }
+
+    var canSharePlayCurrentPlayback: Bool {
+        activeItemDetails != nil && activeLiveTVContext == nil && activePlaybackServerID != nil
+    }
+
+    var currentSharePlayActivity: DuskWatchTogetherActivity? {
+        guard let details = activeItemDetails,
+              activeLiveTVContext == nil,
+              let serverIdentifier = activePlaybackServerID else { return nil }
+        let placeholder = PlaybackPlaceholder(details: details)
+        return DuskWatchTogetherActivity(
+            serverIdentifier: serverIdentifier,
+            ratingKey: details.ratingKey,
+            title: placeholder.title,
+            subtitle: placeholder.subtitle
+        )
+    }
+
+    func toggleSharePlay() async {
+        await sharePlayController.toggleForCurrentPlayback()
+    }
+
+    func dismissSharePlayError() {
+        sharePlayController.dismissError()
+    }
+
+    func retryPendingSharePlayActivityIfPossible() async {
+        await sharePlayController.retryPendingActivityIfPossible()
+    }
+
     /// Drives the phone's remote presentation. Route selection becomes true
     /// before AVPlayer finishes the handoff; AVPlayer's state covers the brief
     /// period where the system route is active but the audio-session snapshot
@@ -243,6 +294,9 @@ final class PlaybackCoordinator {
         program: PlexLiveProgram?,
         lineup: PlexLiveTVLineup
     ) async {
+        // Independently tuned Plex Live TV sessions have different sliding DVR
+        // windows, so they cannot share one stable coordinated media timeline.
+        sharePlayController.leave()
         let attemptID = UUID()
         let subtitle = channel.displayTitle
         enterLoadingState(
@@ -557,6 +611,7 @@ final class PlaybackCoordinator {
         if isPictureInPictureActive {
             return
         }
+        sharePlayController.leave()
         cancelUpNextCountdown()
         finalizeCurrentPlaybackSession(markCompleted: false)
         clearPlayerState()
@@ -595,6 +650,59 @@ final class PlaybackCoordinator {
             isIdleTimerSuppressed = shouldSuppress
         }
     }
+
+    /// Resolves an incoming server-scoped activity using this participant's
+    /// Plex account, then prepares the item before the GroupSession joins.
+    func prepareForSharePlay(
+        _ activity: DuskWatchTogetherActivity
+    ) async -> SharePlayPlaybackPreparation {
+        guard plexService.isAuthenticated,
+              plexService.homeBootstrapCompleted,
+              !plexService.needsHomeUserSelection else {
+            return .waitingForAccount("Sign in to Plex to join this SharePlay activity.")
+        }
+
+        if plexService.currentServerIdentifier != activity.serverIdentifier {
+            do {
+                let servers = try await plexService.discoverServers()
+                guard let server = servers.first(where: {
+                    $0.clientIdentifier == activity.serverIdentifier
+                }) else {
+                    return .failed("This Plex account doesn’t have access to the server hosting \(activity.title).")
+                }
+                try await plexService.connect(to: server)
+            } catch {
+                return .failed("Couldn’t connect to the Plex server for SharePlay: \(error.localizedDescription)")
+            }
+        }
+
+        guard plexService.currentServerIdentifier == activity.serverIdentifier else {
+            return .failed("Couldn’t connect to the Plex server hosting \(activity.title).")
+        }
+
+        if ratingKey == activity.ratingKey,
+           activePlaybackServerID == activity.serverIdentifier,
+           engine != nil {
+            return .ready
+        }
+
+        await playFromStart(
+            ratingKey: activity.ratingKey,
+            placeholder: PlaybackPlaceholder(
+                title: activity.title,
+                subtitle: activity.subtitle,
+                posterPath: nil,
+                backdropPath: nil
+            )
+        )
+
+        guard ratingKey == activity.ratingKey,
+              activePlaybackServerID == activity.serverIdentifier,
+              engine != nil else {
+            return .failed(loadError ?? "Couldn’t prepare \(activity.title) for SharePlay.")
+        }
+        return .ready
+    }
 }
 
 // MARK: - Picture in Picture
@@ -622,6 +730,7 @@ extension PlaybackCoordinator: PlaybackPictureInPictureDelegate {
             // requested (e.g. AVKit's close button). Finalize the session as if
             // the player had been dismissed normally.
             cancelUpNextCountdown()
+            sharePlayController.leave()
             finalizeCurrentPlaybackSession(markCompleted: false)
             clearPlayerState()
         }

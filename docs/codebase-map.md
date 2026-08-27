@@ -126,6 +126,9 @@ Player:
 
 - `PlaybackCoordinator` starts library and Live TV sessions and owns
   timeline/scrobble/up-next. Live sessions never scrobble.
+- `PlaybackSharePlayController` owns Group Activities lifecycle and attaches the
+  active AVPlayer or VLCKit engine to coordinated playback; Up Next republishes
+  the server-scoped Plex item through `DuskWatchTogetherActivity`.
 - `PlaybackAirPlayController` observes the iOS system route; AirPlay handoffs
   stay in the coordinator and use Plex HLS plus AVPlayer, so receivers do not
   need Dusk installed.
@@ -185,6 +188,8 @@ Supporter:
 - New playback format decision: `StreamResolver`.
 - New engine behavior: concrete engine in `Playback/`, not player UI.
 - New player overlay/control: `Features/Player/`.
+- New SharePlay activity/session behavior: `Features/Player/`; engine timing
+  adaptation remains behind `PlaybackEngine` in `Playback/`.
 - New reusable poster/list/detail primitive: `Shared/` or `DetailSharedViews.swift`
   depending on reuse scope.
 - New user preference: `UserPreferences`, `SettingsSupport` if display helpers

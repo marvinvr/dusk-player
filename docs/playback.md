@@ -238,6 +238,43 @@ so the whole live HUD is derived from one instant.
 - `PlaybackCoordinator` continues to own timeline, scrobble, markers, continuous
   playback, and Up Next. No state is synchronized from a Dusk receiver app.
 
+## SharePlay (iOS/iPadOS and tvOS)
+
+- SharePlay is coordinated playback, not screen mirroring. Every participant
+  runs Dusk and resolves the shared Plex item with their own Plex account/token;
+  Group Activities carries only the hosting server identifier, rating key, and
+  display metadata. Playback URLs and Plex tokens are never shared.
+- `DuskWatchTogetherActivity` identifies content by server identifier + rating
+  key. That same stable value is the AVFoundation playback-item identifier, so
+  participants may independently use AVPlayer, VLCKit, a completed download,
+  direct play, or a per-user Plex HLS stream without breaking synchronization.
+- `PlaybackSharePlayController` owns the `GroupSession` listener, activation,
+  join/leave lifecycle, participant state, incoming activity handling, and
+  engine attachment. An invitee signed into the same shared Plex server is
+  switched to that server automatically. Missing authentication is retryable
+  after sign-in; an account without server access gets a clear failure.
+- AVPlayer uses its native `AVPlayerPlaybackCoordinator` with an explicit item
+  identifier delegate. VLCKit uses `AVDelegatingPlaybackCoordinator`; local UI
+  play, pause, and seek requests go through the coordinator, while delegate
+  commands apply directly to libvlc and honor the supplied host-clock start.
+  This permits mixed AVPlayer/VLCKit groups.
+- Engine replacements for Quality, AirPlay preparation, and automatic delivery
+  fallback reconnect to the existing group without changing its activity.
+  Normal library item changes and Up Next update `GroupSession.activity`, which
+  makes every participant prepare the next server-scoped rating key before the
+  playback coordinators match its group state.
+- Dismissing playback or reaching the final item leaves the group locally.
+  Leaving SharePlay does not stop local playback. Temporary iOS hold-to-2x is
+  disabled while SharePlay is active because it is a local convenience rather
+  than a group transport command.
+- Plex Live TV is intentionally unavailable to SharePlay. Each independently
+  tuned Plex session owns a different sliding DVR window, so equal engine times
+  do not guarantee equal broadcast moments. A stable shared timeline would
+  require a separate live-specific synchronization design.
+- `Dusk.entitlements` declares `com.apple.developer.group-session`; the app ID
+  and provisioning profiles used for device/archive builds must also have the
+  Group Activities capability enabled in the Apple Developer portal.
+
 ## Manual Transcoding
 - Playback never starts with video transcoding because of a stored quality
   preference. `maxResolution` only chooses among existing Plex media versions.

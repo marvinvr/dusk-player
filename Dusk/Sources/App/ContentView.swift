@@ -4,6 +4,7 @@ import SwiftUI
 /// based on PlexService auth/connection state.
 struct ContentView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(PlaybackCoordinator.self) private var playback
     @State private var discoveredServers: [PlexServer]?
     @State private var connectError: String?
     @State private var refreshedConnectionIdentifier: String?
@@ -57,9 +58,29 @@ struct ContentView: View {
         .task(id: connectionRefreshTaskID) {
             await refreshConnectedServerIfNeeded()
         }
+        .task(id: sharePlayReadinessTaskID) {
+            await playback.retryPendingSharePlayActivityIfPossible()
+        }
         .onChange(of: plexService.activeProfileID) { oldProfileID, newProfileID in
             guard oldProfileID != newProfileID else { return }
             resetForHomeUserChange()
+        }
+        .alert(
+            "SharePlay",
+            isPresented: Binding(
+                get: { playback.sharePlayError != nil },
+                set: { isPresented in
+                    if !isPresented {
+                        playback.dismissSharePlayError()
+                    }
+                }
+            )
+        ) {
+            Button("OK") {
+                playback.dismissSharePlayError()
+            }
+        } message: {
+            Text(playback.sharePlayError ?? "SharePlay is unavailable.")
         }
     }
 
@@ -68,6 +89,15 @@ struct ContentView: View {
             serverIdentifier: plexService.currentServerIdentifier,
             homeBootstrapCompleted: plexService.homeBootstrapCompleted,
             needsHomeUserSelection: plexService.needsHomeUserSelection
+        )
+    }
+
+    private var sharePlayReadinessTaskID: SharePlayReadinessTaskID {
+        SharePlayReadinessTaskID(
+            isAuthenticated: plexService.isAuthenticated,
+            homeBootstrapCompleted: plexService.homeBootstrapCompleted,
+            needsHomeUserSelection: plexService.needsHomeUserSelection,
+            serverIdentifier: plexService.currentServerIdentifier
         )
     }
 
@@ -336,4 +366,11 @@ private struct ConnectionRefreshTaskID: Hashable {
     let serverIdentifier: String?
     let homeBootstrapCompleted: Bool
     let needsHomeUserSelection: Bool
+}
+
+private struct SharePlayReadinessTaskID: Hashable {
+    let isAuthenticated: Bool
+    let homeBootstrapCompleted: Bool
+    let needsHomeUserSelection: Bool
+    let serverIdentifier: String?
 }

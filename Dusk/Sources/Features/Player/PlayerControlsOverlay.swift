@@ -43,6 +43,10 @@ struct PlayerControlsOverlay: View {
             canSelectQuality: debugInfo?.canSelectPlaybackQuality == true &&
                 !playback.isAirPlayPlaybackActive,
             isChangingQuality: playback.isSwitchingQuality,
+            hasSharePlayControl: playback.canSharePlayCurrentPlayback,
+            isSharePlayActive: playback.isSharePlayActive,
+            isStartingSharePlay: playback.isSharePlayStarting,
+            sharePlayParticipantCount: playback.sharePlayParticipantCount,
             liveTVContext: viewModel.liveTVContext
         )
     }
@@ -126,6 +130,10 @@ struct PlayerControlsContext {
     let hasQualityControl: Bool
     let canSelectQuality: Bool
     let isChangingQuality: Bool
+    let hasSharePlayControl: Bool
+    let isSharePlayActive: Bool
+    let isStartingSharePlay: Bool
+    let sharePlayParticipantCount: Int
     let liveTVContext: PlexLivePlaybackContext?
 }
 

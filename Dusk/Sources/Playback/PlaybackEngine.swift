@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -87,6 +88,17 @@ protocol PlaybackEngine: AnyObject {
     /// state. The player UI uses this for its temporary iOS/iPadOS hold-to-2x
     /// interaction and restores the normal `1` rate when the hold ends.
     func setPlaybackRate(_ rate: Float)
+
+    // MARK: - Coordinated playback
+
+    /// Apple's transport coordinator for this engine. AVPlayer supplies one
+    /// natively; VLCKit is adapted through AVDelegatingPlaybackCoordinator.
+    var playbackCoordinator: AVPlaybackCoordinator { get }
+
+    /// Sets the stable server-scoped identity used to match this item with the
+    /// copies loaded by other SharePlay participants. Nil detaches local custom
+    /// playback behavior after leaving the group.
+    func configureCoordinatedPlayback(itemIdentifier: String?)
 
     /// Seek with a precision hint. `precise: false` lets the engine trade
     /// frame accuracy for speed (e.g. AVPlayer snapping to a nearby keyframe

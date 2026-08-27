@@ -359,6 +359,10 @@ extension PlaybackCoordinator {
                 skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
             )
             startTimelineReporting()
+            sharePlayController.playbackItemDidChange(
+                activity: currentSharePlayActivity,
+                engine: newEngine
+            )
 
             if case .directPlay = playbackDecision {
                 // Online direct play gets the automatic delivery-ladder watch:
@@ -798,6 +802,10 @@ extension PlaybackCoordinator {
             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
             skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
         )
+        sharePlayController.playbackItemDidChange(
+            activity: currentSharePlayActivity,
+            engine: newEngine
+        )
 
         if case .directPlay = playbackDecision {
             // Returning to Original direct play re-arms the ladder watch.
@@ -993,6 +1001,7 @@ extension PlaybackCoordinator {
         }
 
         finalizeCurrentPlaybackSession(markCompleted: true)
+        sharePlayController.leave()
         showPlayer = false
     }
 
