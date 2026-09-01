@@ -637,16 +637,30 @@ extension PlayerViewModel {
         return score
     }
 
+    /// Preference pickers store ISO 639-1 codes (`ro`, `en`). Plex `languageCode`
+    /// and VLCKit track language are often ISO 639-2 (`rum`/`ron`, `eng`), so
+    /// matching canonicalizes both sides through Foundation. `no` and `nor`
+    /// collapse to `nb`; that is only safe because this helper is used on every
+    /// compared value.
     static func normalizedLanguageCode(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else {
             return nil
         }
 
-        return value
+        guard let raw = value.split(separator: "-").first.map({ String($0).lowercased() }),
+              !raw.isEmpty else {
+            return nil
+        }
+
+        let canonical = Locale.canonicalLanguageIdentifier(from: raw)
             .split(separator: "-")
-            .first?
-            .lowercased()
+            .first
+            .map { String($0).lowercased() }
+        if let canonical, !canonical.isEmpty {
+            return canonical
+        }
+        return raw
     }
 
     static func normalizedTitle(_ value: String?) -> String? {

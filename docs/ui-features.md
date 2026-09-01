@@ -435,6 +435,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   VLCKit sessions can explain whether enhancement is active, waiting for a
   frame, disabled by preference, or unavailable for a stream/runtime reason.
 - `SettingsSupport` owns shared settings copy, URLs, language options, and bindings.
+  Subtitle and audio pickers share `CommonLanguage`; adding an ISO 639-1 case there
+  is enough for both platforms. Playback matching then canonicalizes Plex/VLCKit
+  ISO 639-2 codes (`rum`/`ron` → `ro`) in `PlayerViewModel.normalizedLanguageCode`.
 - Both settings pages lead with a supporter row (thank-you state for supporters),
   followed by Plex Home when applicable and Plex Server when the active user can
   access multiple servers. Opening Settings refreshes the server list silently;

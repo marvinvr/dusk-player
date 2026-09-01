@@ -400,6 +400,11 @@ so the whole live HUD is derived from one instant.
   count, codec desirability, and non-commentary/non-descriptive titles. This
   prevents a matching-language commentary or stereo downmix from beating a
   theatrical 5.1/7.1/Atmos-style track.
+- Language matching canonicalizes ISO 639-2 Plex/VLCKit codes onto the ISO 639-1
+  values stored in Settings (`rum`/`ron` → `ro`, `eng` → `en`) via
+  `PlayerViewModel.normalizedLanguageCode`. Do not compare raw stream codes to
+  preference codes. Romanian audio and subtitle defaults live in `CommonLanguage`
+  with the other picker languages.
 - Codec desirability is platform-aware (`platformAudioCodecAdjustment`): on
   tvOS lossless bitstreams (TrueHD/MLP, DTS-HD, PCM) rank top — they decode
   to multichannel LPCM over HDMI — while iPhone/iPad demote them below lossy
