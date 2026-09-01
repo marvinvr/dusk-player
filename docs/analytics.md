@@ -59,7 +59,7 @@ knowing, all of them things Rybbit does differently from a normal JSON API:
   hashing IP + User-Agent; passing our own random install identifier means it
   never has to. `app_version`, `platform` and `language` ride along as
   properties on every event.
-- **`user_agent` is sent explicitly** (`Dusk/1.5.1 (iOS 18.0)`) rather than
+- **`user_agent` is sent explicitly** (`Dusk/1.6.0 (iOS 18.0)`) rather than
   letting URLSession's CFNetwork default through, which reads as neither a
   browser nor a known client.
 - **An API key is optional.** Rybbit accepts events from any origin without one.
