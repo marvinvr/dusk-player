@@ -47,7 +47,7 @@ extension PlaybackCoordinator {
 
             // A newer attempt or a dismissal can supersede this one during the
             // metadata fetch; bail before building any playback state.
-            guard currentPlaybackAttemptID == attemptID else { return false }
+            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
 
             airPlayController.refreshRoute(notify: false)
             let wantsAirPlay = airPlayController.isAirPlayRouteSelected
@@ -119,7 +119,7 @@ extension PlaybackCoordinator {
                 // servers we positively know lack a subscription; offline
                 // downloads reached the branch above and are never gated.
                 if let restriction = await plexService.remoteStreamingRestriction() {
-                    guard currentPlaybackAttemptID == attemptID else { return false }
+                    guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
                     playbackSessionLogger.notice(
                         "Blocking remote playback for ratingKey \(ratingKey, privacy: .public): \(String(describing: restriction), privacy: .public)"
                     )
@@ -210,7 +210,7 @@ extension PlaybackCoordinator {
             // The attempt may have been superseded while resolving the stream
             // (metadata fetch or server-stream decision). Abort and release any
             // transcode session we started so it doesn't linger on the server.
-            guard currentPlaybackAttemptID == attemptID else {
+            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else {
                 if let transcodeSessionID {
                     stopTranscodeSessionInBackground(transcodeSessionID)
                 }
@@ -373,7 +373,7 @@ extension PlaybackCoordinator {
             return true
         } catch {
             // Don't surface an error for a superseded/dismissed attempt.
-            guard currentPlaybackAttemptID == attemptID else { return false }
+            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
             playbackSessionLogger.error(
                 "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )

@@ -656,6 +656,7 @@ final class PlaybackCoordinator {
     func prepareForSharePlay(
         _ activity: DuskWatchTogetherActivity
     ) async -> SharePlayPlaybackPreparation {
+        guard !Task.isCancelled else { return .cancelled }
         guard plexService.isAuthenticated,
               plexService.homeBootstrapCompleted,
               !plexService.needsHomeUserSelection else {
@@ -665,6 +666,7 @@ final class PlaybackCoordinator {
         if plexService.currentServerIdentifier != activity.serverIdentifier {
             do {
                 let servers = try await plexService.discoverServers()
+                guard !Task.isCancelled else { return .cancelled }
                 guard let server = servers.first(where: {
                     $0.clientIdentifier == activity.serverIdentifier
                 }) else {
@@ -672,10 +674,12 @@ final class PlaybackCoordinator {
                 }
                 try await plexService.connect(to: server)
             } catch {
+                guard !Task.isCancelled else { return .cancelled }
                 return .failed("Couldn’t connect to the Plex server for SharePlay: \(error.localizedDescription)")
             }
         }
 
+        guard !Task.isCancelled else { return .cancelled }
         guard plexService.currentServerIdentifier == activity.serverIdentifier else {
             return .failed("Couldn’t connect to the Plex server hosting \(activity.title).")
         }
@@ -696,6 +700,7 @@ final class PlaybackCoordinator {
             )
         )
 
+        guard !Task.isCancelled else { return .cancelled }
         guard ratingKey == activity.ratingKey,
               activePlaybackServerID == activity.serverIdentifier,
               engine != nil else {

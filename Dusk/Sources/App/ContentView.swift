@@ -65,23 +65,7 @@ struct ContentView: View {
             guard oldProfileID != newProfileID else { return }
             resetForHomeUserChange()
         }
-        .alert(
-            "SharePlay",
-            isPresented: Binding(
-                get: { playback.sharePlayError != nil },
-                set: { isPresented in
-                    if !isPresented {
-                        playback.dismissSharePlayError()
-                    }
-                }
-            )
-        ) {
-            Button("OK") {
-                playback.dismissSharePlayError()
-            }
-        } message: {
-            Text(playback.sharePlayError ?? "SharePlay is unavailable.")
-        }
+        .playerSharePlayPresentation(isPlayer: false)
     }
 
     private var connectionRefreshTaskID: ConnectionRefreshTaskID {

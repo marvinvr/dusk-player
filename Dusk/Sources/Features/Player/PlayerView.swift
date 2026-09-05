@@ -215,6 +215,7 @@ struct PlayerView: View {
         // rebuilt with a fresh `.id` each time). See
         // `PlaybackCoordinator.isIdleTimerSuppressed`.
         .playerIdleTimerDisabled(playback.isIdleTimerSuppressed)
+        .playerSharePlayPresentation(isPlayer: true)
     }
 
     /// Only surfaces pre-playback load failures (no engine yet). Errors during

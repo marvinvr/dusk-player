@@ -4,6 +4,7 @@ import Foundation
 import GroupActivities
 import Observation
 import OSLog
+import UIKit
 
 private let sharePlayLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
@@ -14,6 +15,7 @@ enum SharePlayPlaybackPreparation {
     case ready
     case waitingForAccount(String)
     case failed(String)
+    case cancelled
 }
 
 /// Owns Group Activities lifecycle and connects the active Dusk playback engine
@@ -21,18 +23,32 @@ enum SharePlayPlaybackPreparation {
 @MainActor @Observable
 final class PlaybackSharePlayController {
     private(set) var isActive = false
-    private(set) var isStarting = false
+    private var isActivating = false
+    private var isJoining = false
     private(set) var participantCount = 0
     var errorMessage: String?
+    #if os(iOS)
+    var invitation: SharePlayInvitation?
+    #endif
 
     @ObservationIgnored weak var playbackCoordinator: PlaybackCoordinator?
+    @ObservationIgnored private let groupStateObserver = GroupStateObserver()
     @ObservationIgnored private var groupSession: GroupSession<DuskWatchTogetherActivity>?
     @ObservationIgnored private var sessionListenerTask: Task<Void, Never>?
     @ObservationIgnored private var activityTask: Task<Void, Never>?
     @ObservationIgnored private var stateTask: Task<Void, Never>?
     @ObservationIgnored private var participantsTask: Task<Void, Never>?
+    @ObservationIgnored private var preparationTask: Task<Void, Never>?
     @ObservationIgnored private var pendingActivity: DuskWatchTogetherActivity?
-    @ObservationIgnored private var isPreparingActivity = false
+    @ObservationIgnored private weak var connectedEngine: (any PlaybackEngine)?
+    @ObservationIgnored private var connectedItemIdentifier: String?
+
+    var isStarting: Bool {
+        #if os(iOS)
+        if invitation != nil { return true }
+        #endif
+        return isActivating || isJoining
+    }
 
     var isSessionAvailable: Bool {
         groupSession != nil
@@ -44,7 +60,7 @@ final class PlaybackSharePlayController {
         sessionListenerTask = Task { @MainActor [weak self] in
             for await session in DuskWatchTogetherActivity.sessions() {
                 guard !Task.isCancelled else { return }
-                await self?.receive(session)
+                self?.receive(session)
             }
         }
     }
@@ -55,24 +71,41 @@ final class PlaybackSharePlayController {
             return
         }
 
-        guard !isStarting,
-              let activity = playbackCoordinator?.currentSharePlayActivity else {
+        guard !isStarting else { return }
+        guard let activity = playbackCoordinator?.currentSharePlayActivity else {
             presentError("SharePlay is unavailable for this playback.")
             return
         }
 
-        isStarting = true
-        defer { isStarting = false }
+        errorMessage = nil
+        isActivating = true
+        defer { isActivating = false }
 
-        // This is an explicit SharePlay-only control, not an ordinary Play
-        // button whose local-vs-group intent needs prepareForActivation().
         do {
-            _ = try await activity.activate()
+            // activate() requires an eligible conversation. Outside a call,
+            // iPhone/iPad must present Apple's participant/invitation picker.
+            guard groupStateObserver.isEligibleForGroupSession else {
+                #if os(iOS)
+                invitation = SharePlayInvitation(
+                    controller: try GroupActivitySharingController(activity)
+                )
+                #else
+                presentError("Start or join a FaceTime call on your Apple TV, or start SharePlay in Dusk on your iPhone or iPad and continue on Apple TV.")
+                #endif
+                return
+            }
+
+            let activated = try await activity.activate()
+            if !activated, groupSession == nil {
+                // false also covers handing the activity off to Apple TV;
+                // it does not necessarily mean activation failed everywhere.
+                presentError("No SharePlay session started on this device. If you moved SharePlay to Apple TV, continue there; otherwise, try again.")
+            }
         } catch {
             sharePlayLogger.error(
                 "SharePlay activation failed: \(error.localizedDescription, privacy: .public)"
             )
-            presentError("Couldn’t start SharePlay. Start or join a FaceTime call and try again.")
+            presentError("Couldn’t start SharePlay: \(error.localizedDescription)")
         }
     }
 
@@ -86,7 +119,11 @@ final class PlaybackSharePlayController {
               let activity,
               let engine else { return }
 
-        if session.activity != activity {
+        // Loading an incoming item must not publish its local metadata back
+        // into the group, especially if a newer activity arrived during load.
+        if preparationTask != nil {
+            guard session.activity.playbackItemIdentifier == activity.playbackItemIdentifier else { return }
+        } else if session.activity != activity {
             session.activity = activity
         }
         connect(engine: engine, activity: activity, session: session)
@@ -94,7 +131,8 @@ final class PlaybackSharePlayController {
 
     func retryPendingActivityIfPossible() async {
         guard pendingActivity != nil else { return }
-        await preparePendingActivity()
+        schedulePreparation()
+        await preparationTask?.value
     }
 
     func leave() {
@@ -106,7 +144,8 @@ final class PlaybackSharePlayController {
         errorMessage = nil
     }
 
-    private func receive(_ session: GroupSession<DuskWatchTogetherActivity>) async {
+    private func receive(_ session: GroupSession<DuskWatchTogetherActivity>) {
+        guard groupSession?.id != session.id else { return }
         if let current = groupSession, current.id != session.id {
             current.leave()
         }
@@ -116,6 +155,7 @@ final class PlaybackSharePlayController {
         pendingActivity = session.activity
         participantCount = session.activeParticipants.count
         isActive = session.state == .joined
+        isJoining = session.state == .waiting
 
         activityTask = Task { @MainActor [weak self, weak session] in
             guard let session else { return }
@@ -123,7 +163,7 @@ final class PlaybackSharePlayController {
                 guard !Task.isCancelled else { return }
                 guard self?.groupSession?.id == session.id else { return }
                 self?.pendingActivity = activity
-                await self?.preparePendingActivity()
+                self?.schedulePreparation()
             }
         }
 
@@ -135,8 +175,10 @@ final class PlaybackSharePlayController {
                 switch state {
                 case .waiting:
                     self?.isActive = false
+                    self?.isJoining = true
                 case .joined:
                     self?.isActive = true
+                    self?.isJoining = false
                 case let .invalidated(reason):
                     sharePlayLogger.notice(
                         "SharePlay session invalidated: \(reason.localizedDescription, privacy: .public)"
@@ -158,28 +200,35 @@ final class PlaybackSharePlayController {
             }
         }
 
-        await preparePendingActivity()
+        schedulePreparation()
+    }
+
+    private func schedulePreparation() {
+        guard preparationTask == nil, pendingActivity != nil,
+              let sessionID = groupSession?.id else { return }
+        preparationTask = Task { @MainActor [weak self] in
+            await self?.preparePendingActivity()
+            // An invalidated/replaced session may already own a new worker.
+            if self?.groupSession?.id == sessionID {
+                self?.preparationTask = nil
+            }
+        }
     }
 
     private func preparePendingActivity() async {
-        guard !isPreparingActivity,
-              playbackCoordinator != nil else { return }
-
-        isPreparingActivity = true
-        defer { isPreparingActivity = false }
-
         // Activity changes can arrive while Plex is still resolving the prior
         // item. Drain the latest pending value before returning so a fast Up
         // Next transition is never consumed by the publisher and then stranded.
-        while let session = groupSession,
+        while !Task.isCancelled,
+              let session = groupSession,
               let activity = pendingActivity,
               let playbackCoordinator {
-            switch await playbackCoordinator.prepareForSharePlay(activity) {
+            let result = await playbackCoordinator.prepareForSharePlay(activity)
+            guard !Task.isCancelled, groupSession?.id == session.id else { return }
+            guard pendingActivity == activity else { continue }
+            switch result {
             case .ready:
-                guard groupSession?.id == session.id else { return }
-                if pendingActivity == activity {
-                    pendingActivity = nil
-                }
+                pendingActivity = nil
                 if let engine = playbackCoordinator.engine {
                     connect(engine: engine, activity: activity, session: session)
                 }
@@ -189,17 +238,19 @@ final class PlaybackSharePlayController {
                 errorMessage = nil
 
             case let .waitingForAccount(message):
-                guard groupSession?.id == session.id else { return }
+                isJoining = false
                 session.requestForegroundPresentation()
                 presentError(message)
                 return
 
             case let .failed(message):
-                guard groupSession?.id == session.id else { return }
                 session.requestForegroundPresentation()
                 presentError(message)
                 session.leave()
                 tearDownSession(leaveCurrentSession: false)
+                return
+
+            case .cancelled:
                 return
             }
         }
@@ -210,8 +261,17 @@ final class PlaybackSharePlayController {
         activity: DuskWatchTogetherActivity,
         session: GroupSession<DuskWatchTogetherActivity>
     ) {
+        // Initial activity publication and playback preparation can both reach
+        // here. Reattaching VLCKit resets its scheduled transport commands.
+        guard connectedEngine !== engine ||
+                connectedItemIdentifier != activity.playbackItemIdentifier else { return }
+        if connectedEngine !== engine {
+            connectedEngine?.configureCoordinatedPlayback(itemIdentifier: nil)
+        }
         engine.configureCoordinatedPlayback(itemIdentifier: activity.playbackItemIdentifier)
         engine.playbackCoordinator.coordinateWithSession(session)
+        connectedEngine = engine
+        connectedItemIdentifier = activity.playbackItemIdentifier
     }
 
     private func tearDownSession(leaveCurrentSession: Bool) {
@@ -224,12 +284,19 @@ final class PlaybackSharePlayController {
         stateTask = nil
         participantsTask?.cancel()
         participantsTask = nil
-        playbackCoordinator?.engine?.configureCoordinatedPlayback(itemIdentifier: nil)
+        preparationTask?.cancel()
+        preparationTask = nil
+        connectedEngine?.configureCoordinatedPlayback(itemIdentifier: nil)
+        connectedEngine = nil
+        connectedItemIdentifier = nil
         groupSession = nil
         pendingActivity = nil
-        isPreparingActivity = false
         isActive = false
-        isStarting = false
+        isJoining = false
+        isActivating = false
+        #if os(iOS)
+        invitation = nil
+        #endif
         participantCount = 0
     }
 
@@ -242,5 +309,6 @@ final class PlaybackSharePlayController {
         activityTask?.cancel()
         stateTask?.cancel()
         participantsTask?.cancel()
+        preparationTask?.cancel()
     }
 }
