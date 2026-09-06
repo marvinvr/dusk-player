@@ -257,14 +257,20 @@ so the whole live HUD is derived from one instant.
   worker resolves Plex playback. It drains the latest activity, never republishes
   an incoming item's local metadata, and cannot commit an engine after its
   session is left/replaced. Repeated attachment of an unchanged session is ignored.
-- The explicit SharePlay button checks `GroupStateObserver`: an eligible
+- SharePlay lives in the player gear menu on iOS/iPadOS and tvOS, using the
+  native menu label/icon layout. The action checks `GroupStateObserver`: an eligible
   conversation uses `activate()`, otherwise iOS/iPadOS presents Apple's
   `GroupActivitySharingController` to invite participants/start a call. tvOS
   explains how to start a call or continue from iPhone/iPad when ineligible.
   Activation errors and a result that creates no local session are surfaced.
   `PlayerSharePlayPresentation` hosts invitations/errors on `PlayerView` while
   its full-screen cover is open, and account-related errors on `ContentView`
-  otherwise. Presenting from the covered root silently hides these controls.
+  otherwise. Invitations are presented directly as UIKit modals from an anchor
+  in the player. Never embed the self-dismissing system controller inside a
+  SwiftUI `.sheet`: cancelling can dismiss the enclosing player cover too.
+  System completion/interactive dismissal clears only the invitation request;
+  receiving a session does not race the system by dismissing the picker again.
+  Presenting errors from the covered root silently hides them.
 - AVPlayer uses its native `AVPlayerPlaybackCoordinator` with an explicit item
   identifier delegate. VLCKit uses `AVDelegatingPlaybackCoordinator`; local UI
   play, pause, and seek requests go through the coordinator, while delegate

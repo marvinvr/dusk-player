@@ -601,25 +601,6 @@ struct PlayerTrackSettingsMenu: View {
     }
 
     @ViewBuilder
-    private var sharePlayButton: some View {
-        if context.hasSharePlayControl {
-            Button {
-                viewModel.noteControlsInteraction()
-                viewModel.endAllControlsInteractionHolds()
-                Task {
-                    await playback.toggleSharePlay()
-                }
-            } label: {
-                Label(
-                    context.isSharePlayActive ? "Leave SharePlay" : "Start SharePlay",
-                    systemImage: "shareplay"
-                )
-            }
-            .disabled(context.isStartingSharePlay)
-        }
-    }
-
-    @ViewBuilder
     private var playbackInfoButton: some View {
         if context.hasPlaybackInfo {
             Button {
@@ -634,6 +615,8 @@ struct PlayerTrackSettingsMenu: View {
     #else
     private var iOSMenu: some View {
         Menu {
+            sharePlayButton
+
             if let live = context.liveTVContext {
                 Menu {
                     ForEach(live.lineup.channels) { channel in
@@ -741,6 +724,32 @@ struct PlayerTrackSettingsMenu: View {
         }
     }
     #endif
+
+    @ViewBuilder
+    private var sharePlayButton: some View {
+        if context.hasSharePlayControl {
+            Button {
+                viewModel.noteControlsInteraction()
+                viewModel.endAllControlsInteractionHolds()
+                Task {
+                    await playback.toggleSharePlay()
+                }
+            } label: {
+                Label(
+                    context.isStartingSharePlay
+                        ? "Starting SharePlay…"
+                        : (context.isSharePlayActive ? "Leave SharePlay" : "Start SharePlay"),
+                    systemImage: "shareplay"
+                )
+            }
+            .disabled(context.isStartingSharePlay)
+            .accessibilityValue(
+                context.isSharePlayActive
+                    ? "\(context.sharePlayParticipantCount) participants"
+                    : "Not active"
+            )
+        }
+    }
 
     private func trackMenuItem(
         title: String,

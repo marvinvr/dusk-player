@@ -136,6 +136,9 @@ final class PlaybackSharePlayController {
     }
 
     func leave() {
+        #if os(iOS)
+        invitation = nil
+        #endif
         groupSession?.leave()
         tearDownSession(leaveCurrentSession: false)
     }
@@ -294,9 +297,8 @@ final class PlaybackSharePlayController {
         isActive = false
         isJoining = false
         isActivating = false
-        #if os(iOS)
-        invitation = nil
-        #endif
+        // Receiving a session can precede the invitation controller's own
+        // dismissal. Let that controller finish instead of dismissing it twice.
         participantCount = 0
     }
 
