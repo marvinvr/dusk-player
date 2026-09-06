@@ -28,7 +28,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private(set) var error: PlaybackError?
     private(set) var availableSubtitleTracks: [SubtitleTrack] = []
     private(set) var availableAudioTracks: [AudioTrack] = []
-    private(set) var selectedSubtitleTrackID: Int?
+    var selectedSubtitleTrackID: Int? {
+        guard let item = player.currentItem, let group = subtitleGroup,
+              let option = item.currentMediaSelection.selectedMediaOption(in: group) else { return nil }
+        return subtitleOptionsByID.first { $0.value == option }?.key
+    }
     private(set) var selectedAudioTrackID: Int?
     var videoEnhancementStatus: VideoEnhancementStatus {
         if let videoEnhancementRenderer {
@@ -84,6 +88,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private var subtitleGroup: AVMediaSelectionGroup?
     private var audioOptionsByID: [Int: AVMediaSelectionOption] = [:]
     private var subtitleOptionsByID: [Int: AVMediaSelectionOption] = [:]
+    /// Preserve an explicit choice (including Off) when recovery replaces the
+    /// item. AVFoundation's property-list identity survives group recreation.
+    private var hasRequestedSubtitleSelection = false
+    private var requestedSubtitleOption: AVMediaSelectionOption?
 
     private var pendingStartPosition: TimeInterval?
     private var hasReportedPlaybackEnded = false
@@ -170,8 +178,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         audioGroup = nil
         subtitleGroup = nil
         selectedAudioTrackID = nil
-        selectedSubtitleTrackID = nil
         pendingStartPosition = source.startPosition
+        hasRequestedSubtitleSelection = false
+        requestedSubtitleOption = nil
         hasReportedPlaybackEnded = false
 
         #if os(tvOS)
@@ -286,10 +295,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         audioGroup = nil
         subtitleGroup = nil
         selectedAudioTrackID = nil
-        selectedSubtitleTrackID = nil
         hasReportedPlaybackEnded = false
         currentAttemptContext = nil
         currentSource = nil
+        hasRequestedSubtitleSelection = false
+        requestedSubtitleOption = nil
     }
 
     func seek(to position: TimeInterval) {
@@ -357,11 +367,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         availableAudioTracks = []
         availableSubtitleTracks = []
         audioOptionsByID = [:]
-        subtitleOptionsByID = [:]
+        // Keep subtitle option identities until discovery replaces them: a
+        // picker already on screen may submit a choice during this rebuild.
         audioGroup = nil
         subtitleGroup = nil
         selectedAudioTrackID = nil
-        selectedSubtitleTrackID = nil
 
         finishValidatedLoad(source: source, attemptID: source.context.attemptID)
     }
@@ -444,15 +454,29 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - Track Selection
 
     func selectSubtitleTrack(_ track: SubtitleTrack?) {
-        guard let item = player.currentItem, let group = subtitleGroup else { return }
-        if let track, let option = subtitleOptionsByID[track.id] {
-            item.select(option, in: group)
-            selectedSubtitleTrackID = track.id
+        if let track {
+            guard let option = subtitleOptionsByID[track.id] else { return }
+            requestedSubtitleOption = option
         } else {
-            // nil disables subtitles
-            item.select(nil, in: group)
-            selectedSubtitleTrackID = nil
+            requestedSubtitleOption = nil
         }
+        hasRequestedSubtitleSelection = true
+        applyRequestedSubtitleSelection()
+    }
+
+    private func applyRequestedSubtitleSelection() {
+        guard hasRequestedSubtitleSelection,
+              let item = player.currentItem, let group = subtitleGroup else { return }
+        let option: AVMediaSelectionOption?
+        if let requestedSubtitleOption {
+            guard let match = group.mediaSelectionOption(
+                withPropertyList: requestedSubtitleOption.propertyList()
+            ) else { return }
+            option = match
+        } else {
+            option = nil
+        }
+        item.select(option, in: group)
     }
 
     func selectAudioTrack(_ track: AudioTrack) {
@@ -598,7 +622,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         _ item: AVPlayerItem,
         attemptID: UUID
     ) async {
-        await loadDurationAndTracks()
+        await loadDurationAndTracks(for: item)
         guard currentAttemptContext?.attemptID == attemptID,
               player.currentItem === item else { return }
 
@@ -626,6 +650,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             )
         }
 
+        applyRequestedSubtitleSelection()
         if currentSource?.shouldAutoPlay == false {
             state = .paused
             isBuffering = false
@@ -782,19 +807,23 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     // MARK: - Private: Duration & Tracks
 
-    private func loadDurationAndTracks() async {
-        guard let item = player.currentItem else { return }
+    private func loadDurationAndTracks(for item: AVPlayerItem) async {
+        guard player.currentItem === item else { return }
         let asset = item.asset
 
         // Duration
         if let dur = try? await asset.load(.duration) {
+            guard player.currentItem === item else { return }
             let secs = CMTimeGetSeconds(dur)
             if secs.isFinite { duration = secs }
         }
 
         // Audio tracks via AVMediaSelectionGroup
         if let group = try? await asset.loadMediaSelectionGroup(for: .audible) {
+            guard player.currentItem === item else { return }
             audioGroup = group
+            availableAudioTracks = []
+            audioOptionsByID = [:]
             for (i, option) in group.options.enumerated() {
                 let langCode = option.locale?.language.languageCode?.identifier
                 let lang = langCode.flatMap { Locale.current.localizedString(forLanguageCode: $0) }
@@ -820,7 +849,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
         // Subtitle tracks via AVMediaSelectionGroup
         if let group = try? await asset.loadMediaSelectionGroup(for: .legible) {
+            guard player.currentItem === item else { return }
             subtitleGroup = group
+            availableSubtitleTracks = []
+            subtitleOptionsByID = [:]
             for (i, option) in group.options.enumerated() {
                 let langCode = option.locale?.language.languageCode?.identifier
                 let lang = langCode.flatMap { Locale.current.localizedString(forLanguageCode: $0) }
@@ -837,11 +869,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 ))
                 subtitleOptionsByID[i] = option
             }
-            if let selectedOption = item.currentMediaSelection.selectedMediaOption(in: group) {
-                selectedSubtitleTrackID = subtitleOptionsByID.first { $0.value === selectedOption }?.key
-            } else {
-                selectedSubtitleTrackID = nil
-            }
+            applyRequestedSubtitleSelection()
         }
     }
 }

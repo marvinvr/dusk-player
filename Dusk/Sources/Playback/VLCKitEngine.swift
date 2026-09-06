@@ -186,7 +186,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var error: PlaybackError?
     private(set) var availableSubtitleTracks: [SubtitleTrack] = []
     private(set) var availableAudioTracks: [AudioTrack] = []
-    private(set) var selectedSubtitleTrackID: Int?
+    var selectedSubtitleTrackID: Int? {
+        guard state == .playing || state == .paused else { return nil }
+        let index = mediaPlayer.currentVideoSubTitleIndex
+        return index >= 0 ? modelIDsByTrackID["spu/\(index)"] : nil
+    }
     private(set) var selectedAudioTrackID: Int?
     private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = []
     var videoEnhancementStatus: VideoEnhancementStatus {
@@ -299,6 +303,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var trackIDsByModelID: [Int: String] = [:]
     private var modelIDsByTrackID: [String: Int] = [:]
     private var nextTrackModelID = 1
+    /// nil means no choice yet; -1 is an explicit Off choice. Keep the intent
+    /// across input rebuilds, separately from the selection VLC reports.
+    private var requestedSubtitleIndex: Int32?
+    private var subtitleSelectionAttempts = 0
+    private var lastSubtitleSelectionAttemptAt: Date?
     /// Metadata for the current audio track list, keyed by ES index. Feeds the
     /// audio-output policy and diagnostics (VLCKit 3 exposes codec/channel data
     /// only through `VLCMedia.tracksInformation`, not on the player).
@@ -423,13 +432,15 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         steadyPlaybackTicks = 0
         availableSubtitleTracks = []
         availableAudioTracks = []
-        selectedSubtitleTrackID = nil
         selectedAudioTrackID = nil
         playbackDiagnostics = []
         lastAppliedAudioConfigSignature = nil
         trackIDsByModelID = [:]
         modelIDsByTrackID = [:]
         nextTrackModelID = 1
+        requestedSubtitleIndex = nil
+        subtitleSelectionAttempts = 0
+        lastSubtitleSelectionAttemptAt = nil
         latestAudioTrackInfosByIndex = [:]
         lastObservedTrackCounts = (-1, -1)
         syncRendererPlaybackState()
@@ -632,6 +643,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         playbackDiagnostics = []
         currentAttemptContext = nil
         currentSource = nil
+        requestedSubtitleIndex = nil
         syncRendererPlaybackState()
     }
 
@@ -854,8 +866,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         hasReportedPlaybackEnded = false
         availableSubtitleTracks = []
         availableAudioTracks = []
-        selectedSubtitleTrackID = nil
         selectedAudioTrackID = nil
+        subtitleSelectionAttempts = 0
+        lastSubtitleSelectionAttemptAt = nil
+        lastObservedTrackCounts = (-1, -1)
         playbackDiagnostics = []
         syncRendererPlaybackState()
 
@@ -863,16 +877,48 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func selectSubtitleTrack(_ track: SubtitleTrack?) {
-        guard let track else {
-            mediaPlayer.currentVideoSubTitleIndex = -1
-            selectedSubtitleTrackID = nil
-            return
+        if let track {
+            guard let index = vlcTrackIndex(forModelID: track.id),
+                  trackIDsByModelID[track.id]?.hasPrefix("spu/") == true else { return }
+            requestedSubtitleIndex = Int32(index)
+        } else {
+            requestedSubtitleIndex = -1
         }
+        subtitleSelectionAttempts = 0
+        lastSubtitleSelectionAttemptAt = nil
+        reconcileSubtitleSelection()
+    }
 
-        if let index = vlcTrackIndex(forModelID: track.id) {
-            mediaPlayer.currentVideoSubTitleIndex = Int32(index)
+    private func reconcileSubtitleSelection() {
+        guard state == .playing || state == .paused else { return }
+        let currentIndex = mediaPlayer.currentVideoSubTitleIndex
+        guard let requestedSubtitleIndex, currentIndex != requestedSubtitleIndex,
+              pendingSeekTarget == nil,
+              (pendingStartPosition ?? 0) <= 0 || hasAppliedStartPosition else { return }
+        // Track discovery precedes decoder bring-up. Retain early requests
+        // until rendering progresses; buffering events alone are not readiness.
+        guard state == .paused || steadyPlaybackTicks >= 4 else { return }
+        guard mediaPlayer.videoSubTitlesIndexes.contains(where: {
+            ($0 as? NSNumber)?.int32Value == requestedSubtitleIndex
+        }) else { return }
+
+        let now = Date()
+        if let lastSubtitleSelectionAttemptAt,
+           now.timeIntervalSince(lastSubtitleSelectionAttemptAt) < 0.5 { return }
+        guard subtitleSelectionAttempts < 5 else { return }
+        subtitleSelectionAttempts += 1
+        lastSubtitleSelectionAttemptAt = now
+        // VLCKit's setter discards libvlc_video_set_spu's failure result and
+        // selection is processed by the input thread. Never publish the request
+        // as confirmed here: later time/state callbacks read it back and retry
+        // a dropped/overridden request, even when track counts are unchanged.
+        mediaPlayer.currentVideoSubTitleIndex = requestedSubtitleIndex
+        vlcKitEngineLogger.notice(
+            "VLCKit requesting subtitle ES \(requestedSubtitleIndex, privacy: .public), observed \(currentIndex, privacy: .public), attempt \(self.subtitleSelectionAttempts, privacy: .public)/5"
+        )
+        if subtitleSelectionAttempts == 5 {
+            vlcKitEngineLogger.notice("VLCKit subtitle selection retry limit reached; continuing to observe selection")
         }
-        selectedSubtitleTrackID = track.id
     }
 
     func selectAudioTrack(_ track: AudioTrack) {
@@ -1153,6 +1199,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             currentTime = updatedTime
         }
         refreshTracksIfCountsChanged()
+        reconcileSubtitleSelection()
         syncRendererPlaybackState()
     }
 
@@ -1487,10 +1534,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 externalURL: nil
             )
         }
-        let currentSubtitleIndex = Int(mediaPlayer.currentVideoSubTitleIndex)
-        selectedSubtitleTrackID = currentSubtitleIndex >= 0
-            ? modelID(forTrackID: "spu/\(currentSubtitleIndex)")
-            : nil
+        reconcileSubtitleSelection()
     }
 
     /// Track lists on VLCKit 3.x are parallel index/name arrays (including a

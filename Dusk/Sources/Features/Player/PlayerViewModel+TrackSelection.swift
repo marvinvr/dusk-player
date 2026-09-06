@@ -10,7 +10,7 @@ extension PlayerViewModel {
             return
         }
         engine.selectSubtitleTrack(track)
-        selectedSubtitleTrackID = track?.id
+        selectedSubtitleTrackID = engine.selectedSubtitleTrackID
         showSubtitlePicker = false
         plexTrackSelectionHandler?(selectedAudioTrack?.plexStreamID, track?.plexStreamID)
     }
@@ -97,7 +97,7 @@ extension PlayerViewModel {
         if !hasAppliedAutomaticSubtitleSelection, !subtitleTracks.isEmpty {
             let preferredSubtitleTrack = preferredSubtitleTrack()
             engine.selectSubtitleTrack(preferredSubtitleTrack)
-            selectedSubtitleTrackID = preferredSubtitleTrack?.id
+            selectedSubtitleTrackID = engine.selectedSubtitleTrackID
             hasAppliedAutomaticSubtitleSelection = true
         }
     }
@@ -222,16 +222,8 @@ extension PlayerViewModel {
             return selectedTrackID
         }
 
-        // Only an embedded Plex-selected stream may imply a selection: if Plex
-        // has an external sidecar (`key != nil`) marked selected, no engine
-        // track corresponds to it, and matching by language would highlight an
-        // embedded track that is not actually rendering.
-        if let sourceStream = sourcePart?.streams.first(where: {
-            $0.streamType == .subtitle && ($0.isSelected ?? false) && $0.key == nil
-        }), let matchedTrack = bestMatchingSubtitleTrack(for: sourceStream) {
-            return matchedTrack.id
-        }
-
+        // Plex's saved selection is metadata, not evidence that the local
+        // decoder selected a track. In particular, nil also means explicit Off.
         return nil
     }
 

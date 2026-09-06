@@ -426,6 +426,24 @@ so the whole live HUD is derived from one instant.
   `PlayerViewModel.normalizedLanguageCode`. Do not compare raw stream codes to
   preference codes. Romanian audio and subtitle defaults live in `CommonLanguage`
   with the other picker languages.
+- Subtitle engines retain the requested selection separately from the reported
+  selection, including an explicit Off choice. Same-source stall recovery must
+  restore that intent: the view model's one-shot automatic selection has already
+  run and will not select again after the engine rebuilds its input/item. A new
+  source or stop clears the intent.
+- VLCKit reconciles subtitle selection on time ticks and track/state refreshes,
+  even when track counts have not changed. Early choices wait for the resume
+  seek to settle and advancing playback (or a paused player); dropped or
+  overridden selections get at most five writes, at least 0.5 s apart, per
+  request/input rebuild. Do not gate this on `isBuffering`, and do not assume
+  the setter succeeded: VLCKit discards libvlc's selection error result.
+- AVPlayer restores subtitles using the option's property-list identity in the
+  replacement item's group, then reapplies after the initial resume seek.
+  Asynchronous track discovery must check the current item before publishing
+  results, so an old item's groups cannot replace the live selection mapping.
+- Local subtitle picker checkmarks come only from the engine's reported
+  selection. Plex's saved `isSelected` flag must not imply a locally active
+  subtitle or override Off. AirPlay keeps its server-owned selection path.
 - Codec desirability is platform-aware (`platformAudioCodecAdjustment`): on
   tvOS lossless bitstreams (TrueHD/MLP, DTS-HD, PCM) rank top — they decode
   to multichannel LPCM over HDMI — while iPhone/iPad demote them below lossy
