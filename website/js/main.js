@@ -54,11 +54,26 @@
 
   if ('IntersectionObserver' in window) {
     var observer = new IntersectionObserver(function (entries) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
+      // Stagger whatever enters together in document order, so a batch of
+      // cards always cascades top-left to bottom-right and a lone card that
+      // scrolls in later shows up right away.
+      var revealed = entries
+        .filter(function (entry) { return entry.isIntersecting; })
+        .map(function (entry) { return entry.target; })
+        .sort(function (a, b) {
+          return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1;
+        });
+
+      revealed.forEach(function (el, i) {
+        observer.unobserve(el);
+        if (i > 0) {
+          el.style.transitionDelay = (i * 0.08) + 's';
+          // Drop the delay once revealed so hover effects aren't held back.
+          el.addEventListener('transitionend', function () {
+            el.style.transitionDelay = '';
+          }, { once: true });
         }
+        el.classList.add('visible');
       });
     }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
 

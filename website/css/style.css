@@ -21,7 +21,6 @@
   --hero-glow: rgba(255, 107, 74, 0.08);
   --card-hover-border: rgba(255, 255, 255, 0.1);
   --badge-bg: rgba(255, 255, 255, 0.06);
-  --badge-text: #8E95A8;
   --switch-bg: rgba(255, 255, 255, 0.08);
   --switch-knob: #F2F2F7;
   --switch-knob-shadow: rgba(0, 0, 0, 0.3);
@@ -48,7 +47,6 @@
   --hero-glow: rgba(255, 107, 74, 0.06);
   --card-hover-border: rgba(0, 0, 0, 0.1);
   --badge-bg: rgba(0, 0, 0, 0.04);
-  --badge-text: #636366;
   --switch-bg: rgba(0, 0, 0, 0.08);
   --switch-knob: #FFFFFF;
   --switch-knob-shadow: rgba(0, 0, 0, 0.12);
@@ -402,15 +400,24 @@ img {
   margin: 0 auto;
 }
 
+/* Six tracks with each card spanning two, so a short final row can sit centered. */
 .features-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 20px;
 }
 
-/* Keep a lone card on the final row centered instead of stranded on the left. */
+.features-grid .feature-card {
+  grid-column: span 2;
+}
+
+/* Keep a short final row centered instead of stranded on the left. */
 .features-grid .feature-card:last-child:nth-child(3n + 1) {
-  grid-column: 2;
+  grid-column: 3 / span 2;
+}
+
+.features-grid .feature-card:nth-last-child(2):nth-child(3n + 1) {
+  grid-column: 2 / span 2;
 }
 
 .feature-card {
@@ -452,33 +459,6 @@ img {
   color: var(--text-secondary);
   font-size: 15px;
   line-height: 1.6;
-}
-
-/* --- Tech Specs --- */
-.specs {
-  padding: 40px 24px 80px;
-  max-width: var(--max-width);
-  margin: 0 auto;
-}
-
-.specs-row {
-  display: flex;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-}
-
-.spec-badge {
-  background: var(--badge-bg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-button);
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--badge-text);
-  letter-spacing: -0.01em;
-  font-family: 'SF Mono', SFMono-Regular, ui-monospace, Menlo, monospace;
-  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
 
 /* --- Open Source --- */
@@ -606,6 +586,10 @@ img {
   line-height: 1.7;
 }
 
+.faq-answer p + p {
+  margin-top: 12px;
+}
+
 .faq-answer a {
   color: var(--accent);
   text-decoration: underline;
@@ -666,16 +650,6 @@ img {
   transform: translateY(0);
 }
 
-/* stagger children */
-.features-grid .feature-card:nth-child(1) { transition-delay: 0.0s; }
-.features-grid .feature-card:nth-child(2) { transition-delay: 0.08s; }
-.features-grid .feature-card:nth-child(3) { transition-delay: 0.16s; }
-.features-grid .feature-card:nth-child(4) { transition-delay: 0.24s; }
-.features-grid .feature-card:nth-child(5) { transition-delay: 0.32s; }
-.features-grid .feature-card:nth-child(6) { transition-delay: 0.40s; }
-.features-grid .feature-card:nth-child(7) { transition-delay: 0.48s; }
-.features-grid .feature-card:nth-child(8) { transition-delay: 0.56s; }
-
 /* --- Responsive --- */
 @media (max-width: 900px) {
   .hero {
@@ -709,7 +683,9 @@ img {
     grid-template-columns: repeat(2, 1fr);
   }
 
-  .features-grid .feature-card:last-child:nth-child(3n + 1) {
+  .features-grid .feature-card,
+  .features-grid .feature-card:last-child:nth-child(3n + 1),
+  .features-grid .feature-card:nth-last-child(2):nth-child(3n + 1) {
     grid-column: auto;
   }
 
@@ -773,15 +749,6 @@ img {
   .open-source-ctas {
     flex-direction: column;
     align-items: center;
-  }
-
-  .specs-row {
-    gap: 8px;
-  }
-
-  .spec-badge {
-    padding: 8px 16px;
-    font-size: 12px;
   }
 
   .theme-switch-label {

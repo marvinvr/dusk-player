@@ -35,3 +35,8 @@ processes:
     args: []
     cwd: .
     autostart: false
+  - name: Website Preview
+    cmd: sh
+    args: ["-c", "HOST=$(tailscale ip -4 2>/dev/null | head -n1); HOST=${HOST:-127.0.0.1}; echo \"Serving on http://$HOST:8080\"; exec python3 -m http.server 8080 --bind \"$HOST\""]
+    cwd: website
+    autostart: false

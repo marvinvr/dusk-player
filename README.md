@@ -26,6 +26,7 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 - [x] AI Upscaling
 - [x] Plex Home Integration
 - [x] SharePlay Integration
+- [x] Live TV Support
 - [ ] Translation of the UI
 - [x] Seerr Integration
 
@@ -35,7 +36,6 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 ### Maybe?
 
 - [ ] Apple Vision Pro App
-- [ ] Live TV Support
 
 ## Setup
 
