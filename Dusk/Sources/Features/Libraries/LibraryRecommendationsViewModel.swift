@@ -55,6 +55,10 @@ final class LibraryRecommendationsViewModel {
     /// publish its older result over the newer one.
     private var loadGeneration = 0
 
+    /// The running load, owned here rather than by whichever view asked for it.
+    /// See `load(maxRecentlyAddedItems:)`.
+    private var loadTask: Task<Void, Never>?
+
     convenience init(library: PlexLibrary, plexService: PlexService) {
         self.init(libraries: [library], plexService: plexService)
     }
@@ -77,6 +81,15 @@ final class LibraryRecommendationsViewModel {
         !continueWatching.isEmpty
     }
 
+    /// The one way this screen loads: first appearance and pull-to-refresh both
+    /// land here.
+    ///
+    /// The work runs in an unstructured task owned by the view model and this
+    /// method only awaits its value, so cancelling the caller never cancels the
+    /// load. `.refreshable` hands its action a task SwiftUI is free to cancel,
+    /// and every fetch below swallows its error (`try?`) — a cancelled load
+    /// would therefore look exactly like "every library answered with nothing"
+    /// and publish a blank screen over good content.
     func load(maxRecentlyAddedItems: Int? = nil) async {
         if let maxRecentlyAddedItems {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
@@ -84,6 +97,17 @@ final class LibraryRecommendationsViewModel {
 
         loadGeneration += 1
         let generation = loadGeneration
+        loadTask?.cancel()
+
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await performLoad(generation: generation)
+        }
+        loadTask = task
+        await task.value
+    }
+
+    private func performLoad(generation: Int) async {
         let isInitialLoad = !hasAnyContent
 
         if isInitialLoad {
@@ -98,10 +122,10 @@ final class LibraryRecommendationsViewModel {
                 try await loadStandardLibraryContent(isInitialLoad: isInitialLoad, generation: generation)
             }
 
-            guard generation == loadGeneration else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             error = nil
         } catch {
-            guard generation == loadGeneration else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
             if isInitialLoad {
                 self.error = error.localizedDescription
             }
@@ -127,7 +151,16 @@ final class LibraryRecommendationsViewModel {
             libraryRecommendationsLogger.debug("\(recommendationResult.diagnostics.summary, privacy: .public)")
         }
 
-        guard generation == loadGeneration else { return }
+        guard !Task.isCancelled, generation == loadGeneration else { return }
+
+        // A refresh that came back with nothing is a failed refresh, not an
+        // emptied library: keep what is on screen rather than blanking it.
+        guard isInitialLoad
+            || !processedHubs.hubs.isEmpty
+            || !processedHubs.continueWatching.isEmpty
+            || !filteredPersonalizedShelves.isEmpty else {
+            return
+        }
 
         apply(isInitialLoad: isInitialLoad) {
             self.hubs = processedHubs.hubs
@@ -149,7 +182,16 @@ final class LibraryRecommendationsViewModel {
         let processedHubs = await processHubs(await fetchedHubsTask)
         let videoShelves = await videoShelvesTask
 
-        guard generation == loadGeneration else { return }
+        guard !Task.isCancelled, generation == loadGeneration else { return }
+
+        // Same rule as above: an empty answer on a refresh keeps the screen.
+        guard isInitialLoad
+            || !processedHubs.hubs.isEmpty
+            || !processedHubs.continueWatching.isEmpty
+            || !videoShelves.channelShelves.isEmpty
+            || !videoShelves.rediscoverItems.isEmpty else {
+            return
+        }
 
         apply(isInitialLoad: isInitialLoad) {
             self.hubs = processedHubs.hubs

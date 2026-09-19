@@ -219,12 +219,29 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `HomeTVView` each render that sequence directly. There is no user-editable Home
   layout; do not reintroduce one.
 - Home is **merged across every connected server**. `HomeViewModel.load()` fans
-  `/hubs` and `/hubs/continueWatching` out to all of them and republishes the merged
-  screen each time a server answers, so a LAN server fills Home while a relayed one is
-  still talking. The merge (`HubMerge`, `ContinueWatchingMerge`) is a pure function of
-  the per-server answers in priority order, so each republish refines the same list.
-  With one server both merges return their input verbatim. Every merge registers its
-  findings in `plexService.alternates` for playback fallback.
+  `/hubs` and `/hubs/continueWatching` out to all of them. While Home has nothing to
+  show it republishes the merged screen each time a server answers, so a LAN server
+  fills Home while a relayed one is still talking. **Once there is content on screen —
+  a tab return, a pull-to-refresh — the merge is published in one go instead.** A merge
+  missing the servers that have not answered yet is a *smaller* screen than the one
+  already there, and swapping between the two is what made pull-to-refresh look like
+  content jumping between servers. The merge (`HubMerge`, `ContinueWatchingMerge`) is a
+  pure function of the per-server answers in priority order, so each publish refines the
+  same list. With one server both merges return their input verbatim. Every merge
+  registers its findings in `plexService.alternates` for playback fallback.
+- Initial load, tab return, scene activation, player dismissal and pull-to-refresh all
+  go through the **same** `load()`. It bumps `loadGeneration`, supersedes the previous
+  load, and runs the work in an unstructured task the view model owns, awaiting only its
+  value. That last part is load-bearing: `.refreshable` runs its action in a task SwiftUI
+  cancels freely, and a load cut off half way would leave Home on the merge of whichever
+  servers answered first — and skip the library-order pass, the Recently Added expansion
+  and the personalized shelves. `LibraryRecommendationsViewModel.load()` is built the
+  same way for the same reason.
+- A server that *fails* a Home request is not a server that answered with nothing.
+  `HomeServerPayload` carries `nil` for a failed request and the view model keeps that
+  server's previous answer (`lastPayloads`, dropped when the server leaves the pool or
+  the Plex Home profile changes), so a timeout during a refresh cannot make one server's
+  rows blink out and back.
 - Home reloads on `plexService.serverContentRevision` (`.task(id:)`), never on a single
   server identifier: the tab shell mounts before anything is connected.
 - Home never labels a row with the server it came from — with every server merged into

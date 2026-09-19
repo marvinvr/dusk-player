@@ -45,6 +45,13 @@ enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
   short-circuits to `.disabled`, and `rawServerRequest` fails fast rather than
   recovering it, so a stray request from a screen that has not reloaded yet
   cannot bring a switched-off server back.
+- A **cancelled request never triggers endpoint recovery**. URLSession reports
+  cancellation as an ordinary transport failure, which `shouldRefreshServerEndpoint`
+  would otherwise read as a dead endpoint, so `rawServerRequest` checks for
+  cancellation before recovering. Without that, a superseded or cancelled screen
+  load re-probes every server it still had in flight, and a probe that then fails
+  marks the server `.offline` — which drops its content out of every merged
+  screen and bumps `serverContentRevision`, reloading them all again.
 - After a *successful* discovery, a server the pool knows about that plex.tv did
   not return is marked `.offline`: discovery sees the whole account, so a
   session restored from the last launch must not keep claiming it is connected.

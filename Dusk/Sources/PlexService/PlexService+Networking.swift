@@ -157,6 +157,12 @@ extension PlexService {
                 throw retryError
             }
         } catch let error as PlexServiceError where shouldRefreshServerEndpoint(after: error) {
+            // A cancelled request is not a broken endpoint. URLSession reports
+            // cancellation as an ordinary transport failure, so without this a
+            // superseded screen load would re-probe every server it still had
+            // in flight — and a probe that then fails marks the server offline,
+            // which drops its content out of every merged screen.
+            try Task.checkCancellation()
             plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
             try await recoverServer(serverID: targetID)
             return try await sendRawServerRequest(

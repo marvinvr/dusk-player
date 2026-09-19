@@ -7,10 +7,25 @@ import SwiftUI
 /// reason is kept so Home can still report an error when *every* server failed.
 /// Declared outside the view model so it stays free of actor isolation and can
 /// cross the fan-out's task boundary.
+///
+/// `nil` is "this request failed", which is deliberately not the same as an
+/// empty list: a server that times out during a refresh keeps the rows it last
+/// gave Home instead of dropping out of the merge for that run.
 private struct HomeServerPayload: Sendable {
-    let hubs: [PlexHub]
-    let continueWatching: [PlexItem]
+    let hubs: [PlexHub]?
+    let continueWatching: [PlexItem]?
     let failure: String?
+
+    /// Fills in whatever this answer is missing from the server's previous one.
+    /// A server that has actually left the pool has no previous answer to keep:
+    /// `HomeViewModel` forgets it before the merge.
+    func merged(onto previous: HomeServerPayload?) -> HomeServerPayload {
+        HomeServerPayload(
+            hubs: hubs ?? previous?.hubs,
+            continueWatching: continueWatching ?? previous?.continueWatching,
+            failure: failure
+        )
+    }
 }
 
 /// Both of Home's requests to one server, run concurrently. The server is only
@@ -34,8 +49,8 @@ private func loadHomePayload(
     }
 
     return HomeServerPayload(
-        hubs: (try? hubsResult.get()) ?? [],
-        continueWatching: (try? continueWatchingResult.get()) ?? [],
+        hubs: try? hubsResult.get(),
+        continueWatching: try? continueWatchingResult.get(),
         failure: failure
     )
 }
@@ -75,6 +90,17 @@ final class HomeViewModel {
     private(set) var error: String?
 
     private var loadGeneration = 0
+    /// The running load, owned here instead of by whichever view asked for it.
+    /// See `load(maxRecentlyAddedItems:)`.
+    private var loadTask: Task<Void, Never>?
+    /// The last answer each connected server gave. A refresh where one server
+    /// times out reuses its entry rather than merging an empty list for it,
+    /// which would make that server's rows blink out and back.
+    private var lastPayloads: [String: HomeServerPayload] = [:]
+    /// The Plex Home profile `lastPayloads` belongs to. A profile switch leaves
+    /// the same servers connected, so the server list alone cannot tell whose
+    /// content is being kept.
+    private var lastPayloadsProfileID: String?
     private var recentlyAddedExpansionTask: Task<Void, Never>?
     private var personalizedShelvesTask: Task<Void, Never>?
 
@@ -91,29 +117,59 @@ final class HomeViewModel {
         !hubs.isEmpty || !continueWatching.isEmpty || !personalizedShelves.isEmpty
     }
 
-    /// Loads Home from every connected server at once.
+    /// The one way Home loads: first mount, tab return, scene activation,
+    /// player dismissal and pull-to-refresh all land here.
     ///
-    /// The screen is published again every time a server answers, so the box on
-    /// the LAN fills Home immediately and a relayed server folds its content in
-    /// when it gets there. The merge is a pure function of the per-server
-    /// answers in priority order, so each republish refines the same list
-    /// rather than re-deriving a different one.
+    /// The work runs in an **unstructured task owned by the view model** and
+    /// this method only awaits its value. Cancelling the caller therefore never
+    /// cancels the load: `.refreshable` hands its action a task SwiftUI is free
+    /// to cancel (a body rebuild, the refresh control going away), and a load
+    /// cut off half way would leave Home showing the merge of whichever servers
+    /// happened to answer first. Awaiting the value still keeps the pull-to-
+    /// refresh spinner up until the merged screen is actually on screen.
+    ///
+    /// A load already running is never a reason to skip this one: the most
+    /// common caller is "another server just connected", and that load has
+    /// already fanned out to the servers it knew about. It is superseded rather
+    /// than joined, and the generation is what keeps it from publishing over
+    /// this one.
     func load(maxRecentlyAddedItems: Int? = nil) async {
         if let maxRecentlyAddedItems {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
-        // A load already running is never a reason to skip this one: the most
-        // common caller is "another server just connected", and that load has
-        // already fanned out to the servers it knew about. The generation below
-        // is what keeps the older one from publishing over this one — it is
-        // usually a cancelled task that has not reached its next checkpoint yet.
         loadGeneration += 1
         let generation = loadGeneration
         let currentMaxRecentlyAddedItems = self.maxRecentlyAddedItems
         recentlyAddedExpansionTask?.cancel()
         personalizedShelvesTask?.cancel()
+        loadTask?.cancel()
 
+        let task = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await performLoad(
+                generation: generation,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+            )
+        }
+        loadTask = task
+        await task.value
+    }
+
+    /// Loads Home from every connected server at once.
+    ///
+    /// While Home has nothing to show the screen is published again every time a
+    /// server answers, so the box on the LAN fills it immediately and a relayed
+    /// server folds its content in when it gets there. Once there *is* content —
+    /// a tab return, a pull-to-refresh — the merge is published in one go
+    /// instead: a merge missing the servers that have not answered yet is a
+    /// smaller screen than the one already there, and swapping between the two
+    /// is what made refreshing look like content jumping between servers.
+    ///
+    /// Either way the merge is a pure function of the per-server answers in
+    /// priority order, so each publish refines the same list rather than
+    /// re-deriving a different one.
+    private func performLoad(generation: Int, maxRecentlyAddedItems currentMaxRecentlyAddedItems: Int) async {
         let isInitialLoad = !hasLoadedContent
 
         if isInitialLoad {
@@ -132,18 +188,28 @@ final class HomeViewModel {
             // The pool is only ever empty before the first connect pass or
             // after a sign-out / Plex Home switch, so anything still on screen
             // belongs to a session that is gone.
+            lastPayloads = [:]
             hubs = []
             continueWatching = []
             personalizedShelves = []
             return
         }
 
+        // Whatever a server that has left the pool contributed goes with it;
+        // only a server still in the pool, for the profile that fetched it, may
+        // keep its last answer.
+        let profileID = plexService.activeProfileID
+        if profileID != lastPayloadsProfileID {
+            lastPayloads = [:]
+            lastPayloadsProfileID = profileID
+        }
+        lastPayloads = lastPayloads.filter { serverIDs.contains($0.key) }
+
         // The account's library order is a nicety, not a requirement: if it
         // cannot be read, Home keeps each server's own hub order.
         async let orderedSections = plexService.ensureLibraryOrderLoaded()
 
-        var hubsByServer = [[PlexHub]](repeating: [], count: serverIDs.count)
-        var continueWatchingByServer = [[PlexItem]](repeating: [], count: serverIDs.count)
+        var payloadsByRank = [HomeServerPayload?](repeating: nil, count: serverIDs.count)
         var answered = 0
         var latestHubs: [PlexHub] = []
         var latestContinueWatching: [PlexItem] = []
@@ -159,31 +225,27 @@ final class HomeViewModel {
                 firstFailure = firstFailure ?? failure
             }
 
-            hubsByServer[result.rank] = result.value.hubs.filter { !shouldHideHomeHub($0) }
-            continueWatchingByServer[result.rank] = result.value.continueWatching
-                .filter { !shouldHideHomeItem($0) }
+            let payload = result.value.merged(onto: lastPayloads[result.serverID])
+            lastPayloads[result.serverID] = payload
+            payloadsByRank[result.rank] = payload
             answered += 1
 
-            let mergedHubs = HubMerge.merge(hubsByServer)
-            let mergedContinueWatching = ContinueWatchingMerge.merge(continueWatchingByServer)
-            plexService.registerAlternates(mergedHubs.alternates)
-            plexService.registerAlternates(mergedContinueWatching.alternates)
+            // A partial merge only ever reaches the screen when there is
+            // nothing on it yet. The full one is published below.
+            guard isInitialLoad else { continue }
 
             // Ordering only settles once the library order is known, but the
             // first server's rows are worth showing before that: they arrive in
-            // the server's own order and are re-arranged on the next republish.
-            let libraryOrder = libraryOrderIdentities()
-            latestHubs = HomeHubArrangement.arrange(
-                hubs: mergedHubs.hubs,
-                libraryOrder: libraryOrder
-            )
-            latestContinueWatching = mergedContinueWatching.items
+            // the server's own order and are re-arranged on the next publish.
+            let merged = mergedScreen(from: payloadsByRank)
+            latestHubs = merged.hubs
+            latestContinueWatching = merged.continueWatching
 
             publish(
                 hubs: latestHubs,
                 continueWatching: latestContinueWatching,
                 maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
-                animated: !isInitialLoad || answered > 1
+                animated: answered > 1
             )
             if hasLoadedContent {
                 error = nil
@@ -200,17 +262,22 @@ final class HomeViewModel {
             return
         }
 
-        // The order may only have landed after the last server answered.
+        // The order may only have landed after the last server answered, and on
+        // a refresh this is the run's only publish.
         _ = try? await orderedSections
-        let libraryOrder = libraryOrderIdentities()
-        if !libraryOrder.isEmpty {
-            latestHubs = HomeHubArrangement.arrange(hubs: latestHubs, libraryOrder: libraryOrder)
-            publish(
-                hubs: latestHubs,
-                continueWatching: latestContinueWatching,
-                maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
-                animated: !isInitialLoad
-            )
+        guard !Task.isCancelled, generation == loadGeneration else { return }
+
+        let merged = mergedScreen(from: payloadsByRank)
+        latestHubs = merged.hubs
+        latestContinueWatching = merged.continueWatching
+        publish(
+            hubs: latestHubs,
+            continueWatching: latestContinueWatching,
+            maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
+            animated: !isInitialLoad
+        )
+        if hasLoadedContent {
+            error = nil
         }
 
         startRecentlyAddedExpansion(
@@ -222,6 +289,38 @@ final class HomeViewModel {
             excluding: latestContinueWatching,
             generation: generation,
             maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+        )
+    }
+
+    /// Folds the answers in hand into the screen, in the account's library
+    /// order. Servers that have not answered contribute nothing, so calling it
+    /// again with one more answer refines the same list.
+    private func mergedScreen(
+        from payloads: [HomeServerPayload?]
+    ) -> (hubs: [PlexHub], continueWatching: [PlexItem]) {
+        var hubsByServer: [[PlexHub]] = []
+        var continueWatchingByServer: [[PlexItem]] = []
+        hubsByServer.reserveCapacity(payloads.count)
+        continueWatchingByServer.reserveCapacity(payloads.count)
+
+        for payload in payloads {
+            hubsByServer.append((payload?.hubs ?? []).filter { !shouldHideHomeHub($0) })
+            continueWatchingByServer.append(
+                (payload?.continueWatching ?? []).filter { !shouldHideHomeItem($0) }
+            )
+        }
+
+        let mergedHubs = HubMerge.merge(hubsByServer)
+        let mergedContinueWatching = ContinueWatchingMerge.merge(continueWatchingByServer)
+        plexService.registerAlternates(mergedHubs.alternates)
+        plexService.registerAlternates(mergedContinueWatching.alternates)
+
+        return (
+            HomeHubArrangement.arrange(
+                hubs: mergedHubs.hubs,
+                libraryOrder: libraryOrderIdentities()
+            ),
+            mergedContinueWatching.items
         )
     }
 
