@@ -4,6 +4,8 @@ import SwiftUI
 @MainActor @Observable
 final class HomeViewModel {
     private var maxRecentlyAddedItems = 10
+    /// Upper bound on cinematic hero slides. tvOS only — see `heroItems()`.
+    private let heroItemLimit = 10
 
     private(set) var hubs: [PlexHub] = []
     private(set) var personalizedShelves: [HomePersonalizedShelf] = []
@@ -158,7 +160,18 @@ final class HomeViewModel {
         // In-progress clips stay out of the cinematic hero rotation: their 16:9
         // frame grabs read poorly as full-bleed backdrops. They still surface in
         // the Videos tab's Continue Watching row.
-        return continueWatching.filter { !$0.isClip }
+        let items = continueWatching.filter { !$0.isClip }
+
+        #if os(tvOS)
+        // The tvOS hero is full-bleed, so every backdrop is fetched and decoded
+        // at the full display resolution (1920×1080) and the whole set is
+        // prefetched eagerly. Cap the rotation so a long continue-watching list
+        // cannot pin dozens of full-screen bitmaps in memory. iOS keeps the
+        // unbounded list — its backdrops are banner-sized.
+        return Array(items.prefix(heroItemLimit))
+        #else
+        return items
+        #endif
     }
 
     func heroEpisodeTitle(for item: PlexItem) -> String? {

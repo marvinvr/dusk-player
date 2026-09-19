@@ -62,8 +62,10 @@
 		290DC207D3890021AED8F342 /* LibraryOrderArrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6C2180734CB773984534F74 /* LibraryOrderArrangement.swift */; };
 		2AAB71868294E34C89220EBC /* SearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB9484196E903B651E4E88F1 /* SearchViewModel.swift */; };
 		2B12F7FA01E3FB58F4EDE20C /* PlatformPosterCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191C2E24B88A2F60782E9E21 /* PlatformPosterCard.swift */; };
+		2B35B5C6A17F253D7D669E89 /* DuskTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6530866DC2A28714731AF8 /* DuskTypography.swift */; };
 		2C6279FE901D8DBCC741597A /* LiveTVHomeShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E873624B104DE44EC8453F /* LiveTVHomeShelf.swift */; };
 		2DF2D6CC1B72CB1A6EF55F60 /* EpisodeRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2264D3998C09B3EF242902BC /* EpisodeRowView.swift */; };
+		2E32384DFEBA1BFB653E6DE7 /* DuskTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6530866DC2A28714731AF8 /* DuskTypography.swift */; };
 		2E427621A1E0CFA4BA5D52FC /* HomeTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A953137995A3B7C019749D /* HomeTVView.swift */; };
 		2F97B03D8C4027BB1125C3B5 /* SeerrMediaDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26765C56DF2C04FD3357E7F3 /* SeerrMediaDetailView.swift */; };
 		2FCADD6A7F12299BE72B4BF2 /* MediaFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FABA212CEF54442E338EF5F /* MediaFormatting.swift */; };
@@ -490,6 +492,7 @@
 		5D31C38374E5081B8E28B646 /* DownloadActionButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadActionButton.swift; sourceTree = "<group>"; };
 		5D7BEC366F6AD222E5CF6905 /* LibraryOrderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryOrderStore.swift; sourceTree = "<group>"; };
 		5D8D699F78FA6910B7E4A587 /* CircularProgressView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
+		5E6530866DC2A28714731AF8 /* DuskTypography.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DuskTypography.swift; sourceTree = "<group>"; };
 		5E9C4C3EA697829CF0C5F13F /* DuskIconAurora.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconAurora.icon; sourceTree = "<group>"; };
 		5F88EDFF5A8CACCF0DD74331 /* PlexService+Entitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Entitlement.swift"; sourceTree = "<group>"; };
 		5FABA212CEF54442E338EF5F /* MediaFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaFormatting.swift; sourceTree = "<group>"; };
@@ -850,6 +853,7 @@
 				74EF2D3ACAB03A87A07EB370 /* AdaptivePosterGrid.swift */,
 				5D8D699F78FA6910B7E4A587 /* CircularProgressView.swift */,
 				034B25104A3543F57DAB4AFF /* DuskAsyncImage.swift */,
+				5E6530866DC2A28714731AF8 /* DuskTypography.swift */,
 				4B2925EAF3C19914BD1A6414 /* FeatureStateViews.swift */,
 				3E84406C8C1C0E18B6BD4D32 /* MediaCarousel.swift */,
 				5FABA212CEF54442E338EF5F /* MediaFormatting.swift */,
@@ -1221,6 +1225,7 @@
 				9384B301EFE8189B46AF198B /* DuskAppIcon.swift in Sources */,
 				BD4E22AA18B76A6C1FEF55B5 /* DuskAsyncImage.swift in Sources */,
 				A66D68D5259AB04D18A6209D /* DuskJSONValue.swift in Sources */,
+				2B35B5C6A17F253D7D669E89 /* DuskTypography.swift in Sources */,
 				DBBFA2144BEA4B9FC3946DFB /* DuskVLCRawVideoOutput.m in Sources */,
 				E21006ECB09BC8D0DA73C4A5 /* DuskWatchTogetherActivity.swift in Sources */,
 				223B486CF59BCB7953A40BC0 /* EpisodeDetailView.swift in Sources */,
@@ -1412,6 +1417,7 @@
 				C8F191515EFB62B36829DD63 /* DuskAppIcon.swift in Sources */,
 				F2F3E22F061AD1964A5EA00E /* DuskAsyncImage.swift in Sources */,
 				116FB931D0CFC5E6EEEE9686 /* DuskJSONValue.swift in Sources */,
+				2E32384DFEBA1BFB653E6DE7 /* DuskTypography.swift in Sources */,
 				914C1F81E0C0109ADE6C2A9A /* DuskVLCRawVideoOutput.m in Sources */,
 				9931B5FE19F2DDB005AD3A5A /* DuskWatchTogetherActivity.swift in Sources */,
 				CA4DC7DF0B8BE1B46453A237 /* EpisodeDetailView.swift in Sources */,

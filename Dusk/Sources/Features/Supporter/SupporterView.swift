@@ -383,18 +383,19 @@ struct SupporterView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 12) {
                         Text(headlineText)
-                            .font(.title.weight(.bold))
+                            .font(DuskFont.TV.pageTitle)
                             .foregroundStyle(Color.duskTextPrimary)
 
                         Text(bodyText)
+                            .font(DuskFont.TV.body)
                             .foregroundStyle(Color.duskTextSecondary)
                             .frame(maxWidth: 780, alignment: .leading)
 
                         if let supporterSinceText {
                             Text(supporterSinceText)
-                                .font(.caption)
+                                .font(DuskFont.TV.caption)
                                 .foregroundStyle(Color.duskTextSecondary)
                         }
                     }
@@ -670,7 +671,7 @@ struct SupporterIconShowcase: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(store.isSupporter ? "Your App Icons" : "Supporter Perk — App Icons")
-                .font(.footnote.weight(.semibold))
+                .font(DuskFont.groupHeader(ios: .footnote.weight(.semibold)))
                 .textCase(.uppercase)
                 .tracking(0.6)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -696,7 +697,7 @@ struct SupporterIconShowcase: View {
             #endif
 
             Text(captionText)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.duskTextSecondary)
         }
         #if os(iOS)
@@ -710,7 +711,7 @@ struct SupporterIconShowcase: View {
             iconArtwork(for: icon)
 
             Text(icon.displayName)
-                .font(.caption2)
+                .font(DuskFont.cardSubtitle(ios: .caption2))
                 .foregroundStyle(Color.duskTextSecondary)
         }
         #if os(iOS)

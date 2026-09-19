@@ -318,8 +318,14 @@ struct SeasonDetailView: View {
         selectedTVEpisodeDetails?.roles ?? []
     }
 
+    // Both bands are fixed so the banner doesn't jump while zapping the episode
+    // row, so they have to be re-derived whenever the type scale moves. With the
+    // reduced tvOS scale the metadata band holds a 25pt meta line + 4pt gap + two
+    // 23pt summary lines (~92pt), and the cast band a 33pt header + 10pt gap + a
+    // 144pt avatar + 14pt gap + two 23pt text lines + 12pt vertical padding
+    // (~288pt). Both used to clip their last line; they now fit it exactly.
     private var tvEpisodeHeroMetadataHeight: CGFloat { 92 }
-    private var tvEpisodeCastSectionHeight: CGFloat { 292 }
+    private var tvEpisodeCastSectionHeight: CGFloat { 288 }
 
     // The focused episode's name, sitting under the show logo. Kept to a single
     // (truncated) line and non-animated so the banner doesn't grow/shrink or
@@ -327,7 +333,7 @@ struct SeasonDetailView: View {
     @ViewBuilder
     private func tvEpisodeTitleView() -> some View {
         Text(focusedTVEpisode?.title ?? "")
-            .font(.title3.weight(.semibold))
+            .font(DuskFont.TV.heroSubtitle)
             .foregroundStyle(Color.duskTextPrimary)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -344,17 +350,17 @@ struct SeasonDetailView: View {
                 // The episode name sits above in the title accessory, so this box
                 // carries the supporting metadata: an "Episode N · 45 min · air
                 // date" tagline (same styling as the rest of the app) and summary.
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     if let metaLine = tvEpisodeMetaLine(episode) {
                         Text(metaLine)
-                            .font(.subheadline.weight(.medium))
+                            .font(DuskFont.TV.metadata)
                             .foregroundStyle(Color.primary.opacity(0.78))
                             .lineLimit(1)
                     }
 
                     if let summary = episode.summary, !summary.isEmpty {
                         Text(summary)
-                            .font(.caption)
+                            .font(DuskFont.TV.caption)
                             .foregroundStyle(Color.primary.opacity(0.76))
                             .lineSpacing(3)
                             .lineLimit(2)
@@ -412,7 +418,7 @@ struct SeasonDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
@@ -554,7 +560,7 @@ struct SeasonDetailView: View {
             #if os(tvOS)
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
-                    .font(.headline)
+                    .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
 
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -594,7 +600,7 @@ struct SeasonDetailView: View {
             #else
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
-                    .font(.headline)
+                    .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
 
                 LazyVStack(alignment: .leading, spacing: 20) {
@@ -1115,13 +1121,13 @@ private struct SeasonEpisodeTextContent: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 if let label, !label.isEmpty {
                     Text(label)
-                        .font(.caption.weight(.semibold))
+                        .font(DuskFont.caption(ios: .caption.weight(.semibold)))
                         .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
                 if isWatched {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.caption)
+                        .font(DuskFont.glyphSmall(ios: .caption))
                         .foregroundStyle(Color.duskAccent)
                 }
 
@@ -1129,14 +1135,14 @@ private struct SeasonEpisodeTextContent: View {
             }
 
             Text(episode.title)
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(isUnavailableOffline ? Color.primary.opacity(0.55) : Color.primary)
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
 
             if let subtitle, !subtitle.isEmpty {
                 Text(subtitle)
-                    .font(.caption)
+                    .font(DuskFont.caption(ios: .caption))
                     .foregroundStyle(Color.primary.opacity(0.76))
             }
 
@@ -1153,15 +1159,15 @@ private struct SeasonEpisodeTextContent: View {
         } else if isPlayableOffline {
             Label("Downloaded", systemImage: "arrow.down.circle.fill")
                 .labelStyle(.iconOnly)
-                .font(.caption)
+                .font(DuskFont.glyphSmall(ios: .caption))
                 .foregroundStyle(Color.duskAccent)
         } else if showsOfflineAvailability {
             Text(isUsingCachedData ? "Unavailable Offline" : "Not Downloaded")
-                .font(.caption2.weight(.semibold))
+                .font(DuskFont.badge(ios: .caption2.weight(.semibold)))
                 .foregroundStyle(Color.duskTextSecondary)
         } else if let downloadStatus, downloadStatus != .completed {
             Text(downloadStatus.displayName)
-                .font(.caption2.weight(.semibold))
+                .font(DuskFont.badge(ios: .caption2.weight(.semibold)))
                 .foregroundStyle(downloadStatus == .failed ? .red : Color.duskTextSecondary)
         }
     }
@@ -1175,7 +1181,7 @@ private struct SeasonEpisodeSummaryText: View {
     var body: some View {
         if let summary = episode.summary, !summary.isEmpty {
             Text(summary)
-                .font(.subheadline)
+                .font(DuskFont.body(ios: .subheadline))
                 .foregroundStyle(Color.primary.opacity(0.76))
                 .lineSpacing(4)
                 .lineLimit(lineLimit)

@@ -95,7 +95,7 @@ struct ShowDetailView: View {
 
                     if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         Text(summary)
-                            .font(.body)
+                            .font(DuskFont.body(ios: .body))
                             .foregroundStyle(Color.primary.opacity(0.76))
                             .lineSpacing(4)
                             .padding(.horizontal, horizontalPadding)
@@ -173,7 +173,7 @@ struct ShowDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
@@ -182,7 +182,7 @@ struct ShowDetailView: View {
     private func heroMetadata(_ details: PlexMediaDetails) -> some View {
         if let genres = viewModel.genreText {
             Text(genres)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
@@ -206,7 +206,7 @@ struct ShowDetailView: View {
 
         if let studio = details.studio {
             Text(studio)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
     }
@@ -214,11 +214,11 @@ struct ShowDetailView: View {
     private func ratingBadge(icon: String, value: String, color: Color) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(DuskFont.glyphSmall(ios: .caption2))
                 .foregroundStyle(color)
 
             Text(value)
-                .font(.subheadline.monospacedDigit())
+                .font(DuskFont.metadata(ios: .subheadline).monospacedDigit())
                 .foregroundStyle(Color.primary.opacity(0.84))
         }
     }
@@ -342,7 +342,7 @@ struct ShowDetailView: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 Text("Seasons")
-                    .font(.headline)
+                    .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
                     .padding(.horizontal, horizontalPadding)
 

@@ -86,11 +86,11 @@ struct ServerPickerView: View {
     #if os(tvOS)
     private var tvServerPickerContent: some View {
         ScrollView {
-            VStack(spacing: 44) {
+            VStack(spacing: 34) {
                 header
 
                 if let connectionError {
-                    errorBanner(connectionError, font: .body)
+                    errorBanner(connectionError, font: DuskFont.TV.body)
                         .padding(24)
                         .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
                         .frame(maxWidth: 760)
@@ -118,15 +118,15 @@ struct ServerPickerView: View {
     }
 
     private var header: some View {
-        VStack(spacing: 22) {
-            ServerIcon(size: 96, cornerRadius: 28, iconFont: .system(size: 44, weight: .semibold))
+        VStack(spacing: 20) {
+            ServerIcon(size: 88, cornerRadius: 26, iconFont: .system(size: 40, weight: .semibold))
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 Text("Choose Server")
-                    .font(.system(size: 48, weight: .bold, design: .rounded))
+                    .font(DuskFont.TV.pageTitleRounded)
                     .foregroundStyle(Color.duskTextPrimary)
 
-                descriptionText(font: .title3)
+                descriptionText(font: DuskFont.TV.pageSubtitle)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 720)
             }
@@ -274,11 +274,11 @@ private struct TVServerCard: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 24) {
-                ServerIcon(size: 64, cornerRadius: 18, iconFont: .system(size: 28, weight: .semibold))
+                ServerIcon(size: 58, cornerRadius: 16, iconFont: .system(size: 26, weight: .semibold))
 
-                VStack(alignment: .leading, spacing: 6) {
+                VStack(alignment: .leading, spacing: 4) {
                     Text(server.name)
-                        .font(.title3.weight(.semibold))
+                        .font(DuskFont.TV.rowTitle)
                         .foregroundStyle(Color.duskTextPrimary)
                         .lineLimit(1)
 
@@ -293,7 +293,7 @@ private struct TVServerCard: View {
                         Text(server.presence ? "Online" : "Offline")
                             .foregroundStyle(server.presence ? Color.duskAccent : Color.duskTextSecondary)
                     }
-                    .font(.body)
+                    .font(DuskFont.TV.caption)
                 }
 
                 Spacer(minLength: 16)
@@ -303,12 +303,12 @@ private struct TVServerCard: View {
                         .tint(Color.duskAccent)
                 } else {
                     Image(systemName: "chevron.right")
-                        .font(.title3.weight(.semibold))
+                        .font(DuskFont.TV.glyphMedium)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 22)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
@@ -332,10 +332,10 @@ private struct TVTextButton: View {
     var body: some View {
         Button(role: role, action: action) {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.TV.buttonLabel)
                 .foregroundStyle(tint)
-                .padding(.horizontal, 30)
-                .padding(.vertical, 14)
+                .padding(.horizontal, 28)
+                .padding(.vertical, 12)
                 .background(
                     Color.duskSurface.opacity(isFocused ? 1 : 0),
                     in: Capsule()

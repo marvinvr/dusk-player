@@ -19,6 +19,23 @@ var detailHeroActionSpacing: CGFloat {
     #endif
 }
 
+/// Minimum height of a detail-hero action label. tvOS sits a touch lower than iOS
+/// because its label is the 27pt `buttonLabel` token rather than a 38pt semantic
+/// style; iOS keeps the value it has always had.
+var detailHeroActionLabelMinHeight: CGFloat {
+    #if os(tvOS)
+    30
+    #else
+    34
+    #endif
+}
+
+#if os(tvOS)
+/// Contained width for the left-aligned tvOS primary action, so "Play" / "Resume"
+/// doesn't hug its own label. Scaled down with the label type.
+let detailHeroTVActionLabelMinWidth: CGFloat = 220
+#endif
+
 /// Horizontal alignment for the detail hero's text/action blocks. iPhone centers
 /// the whole hero (no poster); iPad and tvOS stay leading-aligned.
 @MainActor
@@ -50,11 +67,11 @@ struct OfflineMetadataBanner: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: "wifi.slash")
-                .font(.caption.weight(.semibold))
+                .font(DuskFont.glyphSmall(ios: .caption.weight(.semibold)))
                 .foregroundStyle(Color.duskAccent)
 
             Text(message)
-                .font(.caption.weight(.medium))
+                .font(DuskFont.caption(ios: .caption.weight(.medium)))
                 .foregroundStyle(Color.primary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -148,7 +165,7 @@ struct DetailHeroShowTitleLink: View {
 
     private var titleText: some View {
         Text(title)
-            .font(.subheadline.weight(.medium))
+            .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
             .foregroundStyle(Color.duskAccent)
     }
 }
@@ -300,8 +317,8 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     // the backdrop with a single action row beneath it.
     @ViewBuilder
     private func tvOSHeroContent(titleArtworkHeight: CGFloat) -> some View {
-        VStack(alignment: .leading, spacing: 20) {
-            VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 8) {
                 supertitle
                 titleView(height: titleArtworkHeight, alignment: .leading)
                 if let titleAccessory { titleAccessory }
@@ -436,7 +453,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 
     private func titleFallback(alignment: Alignment) -> some View {
         Text(title)
-            .font(.title2.bold())
+            .font(DuskFont.heroTitle(ios: .title2.bold()))
             // Soft near-black/near-white instead of pure `Color.primary` so the
             // title reads as a gentler grey, not harsh black, in Light mode.
             .foregroundStyle(Color.duskTextPrimary)
@@ -535,18 +552,28 @@ struct DetailHeroSecondaryIconLabel: View {
 
     var body: some View {
         Image(systemName: systemImage)
-            .font(.subheadline.weight(.semibold))
+            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
             // Square on tvOS so the circular button reads as round; a slimmer pill
             // on iOS where the secondaries sit in a capsule row.
-            .frame(minWidth: iconMinWidth, minHeight: 32)
+            .frame(minWidth: iconMinWidth, minHeight: iconMinHeight)
             .contentShape(Capsule())
     }
 
     private var iconMinWidth: CGFloat {
         #if os(tvOS)
-        32
+        // Kept equal to `iconMinHeight` — the tvOS button is a circle and goes
+        // oval the moment these diverge.
+        iconMinHeight
         #else
         24
+        #endif
+    }
+
+    private var iconMinHeight: CGFloat {
+        #if os(tvOS)
+        30
+        #else
+        32
         #endif
     }
 }
@@ -559,17 +586,17 @@ struct DetailHeroPrimaryActionButtonLabel: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-                .font(.headline.weight(.semibold))
+                .font(DuskFont.buttonLabel(ios: .headline.weight(.semibold)))
 
             Text(title)
-                .font(.headline)
+                .font(DuskFont.buttonLabel(ios: .headline))
                 .lineLimit(1)
         }
-        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 34)
+        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: detailHeroActionLabelMinHeight)
         #if os(tvOS)
         // tvOS is left-aligned, so give the primary a contained width (space to its
         // right) rather than letting it hug the short "Play" / "Resume" label.
-        .frame(minWidth: 260)
+        .frame(minWidth: detailHeroTVActionLabelMinWidth)
         #endif
         // The primary fills with a translucent-`primary` prominent glass on every
         // platform, so the label uses the inverse color to stay legible on it.
@@ -586,16 +613,16 @@ struct DetailHeroStatusActionLabel: View {
     var body: some View {
         HStack(spacing: 8) {
             Image(systemName: systemImage)
-                .font(.headline.weight(.semibold))
+                .font(DuskFont.buttonLabel(ios: .headline.weight(.semibold)))
 
             Text(title)
-                .font(.headline)
+                .font(DuskFont.buttonLabel(ios: .headline))
                 .lineLimit(1)
         }
         .foregroundStyle(Color.duskTextPrimary)
-        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: 34)
+        .frame(maxWidth: fillsWidth ? .infinity : nil, minHeight: detailHeroActionLabelMinHeight)
         #if os(tvOS)
-        .frame(minWidth: 260)
+        .frame(minWidth: detailHeroTVActionLabelMinWidth)
         #endif
         .padding(.horizontal, 20)
         .padding(.vertical, 5)
@@ -712,8 +739,8 @@ private struct DetailHeroPrimaryTVButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .padding(.horizontal, 24)
-                .padding(.vertical, 12)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 10)
                 .glassEffect(.regular.tint(Color.duskPrimaryButtonTint), in: Capsule())
                 .scaleEffect(isFocused ? 1.05 : 1.0)
                 .shadow(
@@ -749,7 +776,7 @@ struct ActorCreditCard: View {
         #if os(tvOS)
         let avatarSize: CGFloat = 144
         let cardWidth: CGFloat = 156
-        let avatarTextSpacing: CGFloat = 28
+        let avatarTextSpacing: CGFloat = 14
         let artworkShape = RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
 
         VStack(alignment: .leading, spacing: avatarTextSpacing) {
@@ -819,13 +846,13 @@ struct ActorCreditCard: View {
     private func personDetails(width: CGFloat) -> some View {
         VStack(spacing: 2) {
             Text(person.name)
-                .font(.caption)
+                .font(DuskFont.cardSubtitle(ios: .caption))
                 .foregroundStyle(Color.primary)
                 .lineLimit(1)
 
             if let roleName = person.roleName, !roleName.isEmpty {
                 Text(roleName)
-                    .font(.caption2)
+                    .font(DuskFont.cardSubtitle(ios: .caption2))
                     .foregroundStyle(Color.primary.opacity(0.72))
                     .lineLimit(1)
             }
@@ -851,16 +878,18 @@ struct DetailCastSection: View {
 
     var body: some View {
         #if os(tvOS)
-        let castSpacing: CGFloat = 28
+        let castSpacing: CGFloat = 24
         let castVerticalPadding: CGFloat = 12
+        let headerSpacing: CGFloat = 10
         #else
         let castSpacing: CGFloat = 12
         let castVerticalPadding: CGFloat = 0
+        let headerSpacing: CGFloat = 12
         #endif
 
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: headerSpacing) {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.sectionHeader(ios: .headline))
                 .foregroundStyle(Color.primary)
                 .padding(.horizontal, horizontalPadding)
 
@@ -884,8 +913,18 @@ struct DetailCastSection: View {
 }
 
 struct ExpandableSummaryText: View {
+    /// Default collapsed height of a synopsis block. tvOS fits one extra line in
+    /// the same space now that the prose is 27pt rather than 29pt.
+    static var defaultCollapsedLineLimit: Int {
+        #if os(tvOS)
+        10
+        #else
+        9
+        #endif
+    }
+
     let text: String
-    var collapsedLineLimit = 9
+    var collapsedLineLimit = ExpandableSummaryText.defaultCollapsedLineLimit
     var foregroundStyle = Color.primary.opacity(0.76)
     var allowsExpansion = true
 
@@ -896,7 +935,9 @@ struct ExpandableSummaryText: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(text)
-                .font(.body)
+                // Must stay identical to `measurementText` below, or the
+                // expand/collapse height comparison stops matching the real text.
+                .font(DuskFont.body(ios: .body))
                 .foregroundStyle(foregroundStyle)
                 .lineSpacing(4)
                 .lineLimit(isExpanded ? nil : collapsedLineLimit)
@@ -919,7 +960,7 @@ struct ExpandableSummaryText: View {
                 Button(isExpanded ? "Show Less" : "Show More") {
                     isExpanded.toggle()
                 }
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.duskAccent)
                 .buttonStyle(.plain)
                 .duskSuppressTVOSButtonChrome()
@@ -936,7 +977,8 @@ struct ExpandableSummaryText: View {
         onHeightChange: @escaping (CGFloat) -> Void
     ) -> some View {
         Text(text)
-            .font(.body)
+            // Keep in lockstep with the visible text's font above.
+            .font(DuskFont.body(ios: .body))
             .lineSpacing(4)
             .lineLimit(lineLimit)
             .truncationMode(.tail)

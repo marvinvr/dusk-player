@@ -83,8 +83,9 @@ struct SeerrMediaDetailView: View {
                        let overview = viewModel.overview?.nilIfEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Synopsis")
-                                .font(.title3.bold())
+                                .font(DuskFont.sectionHeader(ios: .title3.bold()))
                             Text(overview)
+                                .duskFont(tvOnly: DuskFont.TV.body)
                                 .foregroundStyle(Color.duskTextSecondary)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -159,18 +160,18 @@ struct SeerrMediaDetailView: View {
                     viewModel.mediaType == .tv ? "TV Show" : "Movie",
                 ].compactMap { $0 }
                 Text(metadata.joined(separator: " · "))
-                    .font(.subheadline.weight(.medium))
+                    .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                     .foregroundStyle(Color.primary.opacity(0.78))
 
                 if let genres = viewModel.genreText {
                     Text(genres)
-                        .font(.caption)
+                        .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.primary.opacity(0.72))
                 }
 
                 if let rating = viewModel.rating, rating > 0 {
                     Label(String(format: "%.1f", rating), systemImage: "star.fill")
-                        .font(.caption)
+                        .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.primary.opacity(0.78))
                 }
             }

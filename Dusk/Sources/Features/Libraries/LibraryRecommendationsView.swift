@@ -154,7 +154,7 @@ struct LibraryRecommendationsView: View {
         #if os(tvOS)
         NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
             Text(labelText)
-                .font(.subheadline.weight(.semibold))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
         }
         .controlSize(.small)
         .buttonBorderShape(.capsule)

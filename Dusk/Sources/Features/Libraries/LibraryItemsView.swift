@@ -183,16 +183,16 @@ struct LibraryItemsView: View {
     ) -> some View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
-                .font(.headline)
+                .font(DuskFont.glyphMedium(ios: .headline))
                 .foregroundStyle(isActive ? Color.duskAccent : Color.duskTextSecondary)
 
             Text(value)
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(1)
 
             Image(systemName: "chevron.down")
-                .font(.caption.weight(.semibold))
+                .font(DuskFont.glyphSmall(ios: .caption.weight(.semibold)))
                 .foregroundStyle(Color.duskTextSecondary)
         }
         .padding(.horizontal, 14)

@@ -183,11 +183,11 @@ struct SubtitleSearchView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Download Subtitles")
-                        .font(.largeTitle.weight(.bold))
+                        .font(DuskFont.TV.pageTitle)
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text(Self.providerFootnote)
-                        .font(.title3.weight(.medium))
+                        .font(DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
 
@@ -292,7 +292,7 @@ struct SubtitleSearchView: View {
                 VStack(alignment: .leading, spacing: 12) {
                     if let errorMessage = viewModel.errorMessage {
                         Text(errorMessage)
-                            .font(.callout)
+                            .font(DuskFont.TV.body)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
 
@@ -353,7 +353,7 @@ struct SubtitleSearchView: View {
 
                 if !result.detailText.isEmpty {
                     Text(result.detailText)
-                        .font(.caption)
+                        .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.duskTextSecondary)
                         .lineLimit(2)
                 }
@@ -365,7 +365,7 @@ struct SubtitleSearchView: View {
                 FeatureLoadingView()
             } else {
                 Image(systemName: "arrow.down.circle")
-                    .font(.body.weight(.semibold))
+                    .font(DuskFont.glyphMedium(ios: .body.weight(.semibold)))
                     .foregroundStyle(Color.duskAccent)
             }
         }
@@ -374,7 +374,7 @@ struct SubtitleSearchView: View {
 
     private func badge(_ text: String) -> some View {
         Text(text)
-            .font(.caption2.weight(.bold))
+            .font(DuskFont.badge(ios: .caption2.weight(.bold)))
             .foregroundStyle(Color.duskTextSecondary)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)

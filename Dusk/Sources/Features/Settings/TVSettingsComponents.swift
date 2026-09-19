@@ -12,7 +12,13 @@ enum TVSettingsMetrics {
     /// the card edge. Rows lay out inside `contentInset`, so the band lands
     /// `contentInset - rowBandOutset` (≈8pt) from the card edge: it covers the
     /// whole field while the text/control still sit inset within the band.
+    /// Purely horizontal, so it is unaffected by the row type scale; the band's
+    /// height follows `rowMinHeight` instead.
     static let rowBandOutset: CGFloat = 22
+    /// Minimum height of a settings row, and therefore of its focus band. Tuned
+    /// for the `DuskFont.rowTitle` (29pt) text the rows carry — the old 72pt was
+    /// sized for 38pt titles and leaves a slack band around the shorter line.
+    static let rowMinHeight: CGFloat = 64
     /// Top/bottom padding inside each card. Kept small and tuned so the first and
     /// last row's focus band sits the same ~8pt from the card edge as the band's
     /// sides (`contentInset - rowBandOutset`), instead of leaving a larger gap at
@@ -21,7 +27,7 @@ enum TVSettingsMetrics {
     static let cardVerticalPadding: CGFloat = 4
     /// Gap between sections — and between the page title and the first section.
     /// Kept clearly larger than the intra-section gaps so groups read as groups.
-    static let sectionSpacing: CGFloat = 48
+    static let sectionSpacing: CGFloat = 40
 }
 
 struct TVSettingsSection<Content: View>: View {
@@ -45,7 +51,7 @@ struct TVSettingsSection<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text(title)
-                .font(.subheadline.weight(.semibold))
+                .font(DuskFont.groupHeader(ios: .subheadline.weight(.semibold)))
                 .textCase(.uppercase)
                 .tracking(0.6)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -61,7 +67,7 @@ struct TVSettingsSection<Content: View>: View {
 
             if let footer, !footer.isEmpty {
                 Text(footer)
-                    .font(.footnote)
+                    .font(DuskFont.caption(ios: .footnote))
                     .foregroundStyle(footerColor)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 14)
@@ -100,7 +106,7 @@ struct TVSettingsMenuRow<Option: Hashable>: View {
             }
         } label: {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(1)
         }
@@ -108,7 +114,7 @@ struct TVSettingsMenuRow<Option: Hashable>: View {
         .focused($isFocused)
         .accessibilityLabel(title)
         .accessibilityValue(selectedTitle)
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: TVSettingsMetrics.rowMinHeight, alignment: .leading)
         .tvSettingsRowFocusHighlight(isFocused)
     }
 }
@@ -121,7 +127,7 @@ struct TVSettingsToggleRow: View {
     var body: some View {
         HStack(spacing: 20) {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(Color.duskTextPrimary)
 
             Spacer(minLength: 24)
@@ -132,7 +138,7 @@ struct TVSettingsToggleRow: View {
                 .tint(Color.duskAccent)
                 .focused($isFocused)
         }
-        .frame(minHeight: 72)
+        .frame(minHeight: TVSettingsMetrics.rowMinHeight)
         .tvSettingsRowFocusHighlight(isFocused)
     }
 }
@@ -182,7 +188,7 @@ struct TVSettingsActionRow: View {
     private func label() -> some View {
         HStack(spacing: 20) {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(tint)
 
             Spacer()
@@ -192,14 +198,15 @@ struct TVSettingsActionRow: View {
                     .tint(Color.duskAccent)
             } else if let detail {
                 Text(detail)
+                    .duskFont(tvOnly: DuskFont.TV.rowValue)
                     .foregroundStyle(Color.duskTextSecondary)
             } else if showsChevron {
                 Image(systemName: "chevron.right")
-                    .font(.headline)
+                    .font(DuskFont.glyphSmall(ios: .headline))
                     .foregroundStyle(Color.duskTextSecondary)
             }
         }
-        .frame(minHeight: 72)
+        .frame(minHeight: TVSettingsMetrics.rowMinHeight)
         .contentShape(Rectangle())
     }
 }
@@ -224,22 +231,23 @@ struct TVSettingsNavigationRow<Destination: View>: View {
         NavigationLink(destination: destination) {
             HStack(spacing: 20) {
                 Text(title)
-                    .font(.headline)
+                    .font(DuskFont.rowTitle(ios: .headline))
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Spacer()
 
                 if let detail {
                     Text(detail)
+                        .duskFont(tvOnly: DuskFont.TV.rowValue)
                         .foregroundStyle(Color.duskTextSecondary)
                         .lineLimit(1)
                 }
 
                 Image(systemName: "chevron.right")
-                    .font(.headline)
+                    .font(DuskFont.glyphSmall(ios: .headline))
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .frame(minHeight: 72)
+            .frame(minHeight: TVSettingsMetrics.rowMinHeight)
             .contentShape(Rectangle())
         }
         .duskSuppressTVOSButtonChrome()
@@ -266,19 +274,19 @@ struct TVSettingsExternalLinkRow: View {
     var body: some View {
         HStack(spacing: 18) {
             Text(title)
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(1)
 
             Spacer(minLength: 24)
 
             Text(subtitle)
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(tint)
                 .lineLimit(1)
                 .truncationMode(.middle)
         }
-        .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: TVSettingsMetrics.rowMinHeight, alignment: .leading)
         .accessibilityElement(children: .combine)
     }
 }
@@ -298,18 +306,18 @@ struct TVSettingsURLFieldRow: View {
         } label: {
             HStack(spacing: 20) {
                 Text(prompt)
-                    .font(.headline)
+                    .font(DuskFont.rowTitle(ios: .headline))
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Spacer(minLength: 24)
 
                 Text(text.isEmpty ? "Not set" : text)
-                    .font(.subheadline.weight(.medium))
+                    .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)))
                     .foregroundStyle(Color.duskTextSecondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
-            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: TVSettingsMetrics.rowMinHeight, alignment: .leading)
             .contentShape(Rectangle())
         }
         .duskSuppressTVOSButtonChrome()

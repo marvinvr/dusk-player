@@ -8,7 +8,7 @@ enum PlayerOverlayLayout {
     // raised above the play bar while the controls are up. Keep the raised
     // inset in sync with the controls' bottom bar height.
     #if os(tvOS)
-    static let skipMarkerRaisedBottomInset: CGFloat = 184
+    static let skipMarkerRaisedBottomInset: CGFloat = 168
     static let skipMarkerRestingBottomInset: CGFloat = 60
     #else
     static let skipMarkerRaisedBottomInset: CGFloat = 108
@@ -913,7 +913,7 @@ private struct PlayerSessionView: View {
     private func playerToast(_ message: String) -> some View {
         VStack {
             Text(message)
-                .font(.subheadline.weight(.semibold))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
                 .foregroundStyle(.white)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 18)
@@ -1094,10 +1094,10 @@ private struct PlayerSessionView: View {
     private func skipMarkerButtonLabel(_ marker: PlexMarker) -> some View {
         HStack(spacing: 10) {
             Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
-                .font(.callout.weight(.semibold))
+                .font(DuskFont.glyphSmall(ios: .callout.weight(.semibold)))
 
             Text(marker.skipButtonTitle ?? "Skip")
-                .font(.subheadline.weight(.semibold))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
         }
         .foregroundStyle(.white)
         #if os(tvOS)
@@ -1171,7 +1171,7 @@ private struct PlayerSessionView: View {
                 .foregroundStyle(Color.duskAccent)
 
             Text(error.localizedDescription)
-                .font(.headline)
+                .font(DuskFont.sectionHeader(ios: .headline))
                 .foregroundStyle(Color.duskTextPrimary)
                 .multilineTextAlignment(.center)
 
@@ -1186,7 +1186,7 @@ private struct PlayerSessionView: View {
                     dismissPlayer()
                 }
             }
-            .font(.headline)
+            .font(DuskFont.buttonLabel(ios: .headline))
             .foregroundStyle(.white)
             .padding(.horizontal, 32)
             .padding(.vertical, 12)

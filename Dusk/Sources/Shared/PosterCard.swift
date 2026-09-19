@@ -52,10 +52,10 @@ struct PosterArtwork: View {
         .overlay(alignment: .topTrailing) {
             if let availabilityBadge, !availabilityBadge.isEmpty {
                 Text(availabilityBadge)
-                    .font(.caption2.weight(.bold))
+                    .font(DuskFont.badge(ios: .caption2.weight(.bold)))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
-                    .padding(.horizontal, 7)
+                    .padding(.horizontal, availabilityBadgeHorizontalPadding)
                     .padding(.vertical, 5)
                     .background(.ultraThinMaterial, in: Capsule())
                     .overlay(
@@ -79,9 +79,20 @@ struct PosterArtwork: View {
         imageAspectRatio > 1
     }
 
+    /// The badge text shrinks to `DuskFont.badge` on tvOS, so the pill needs
+    /// relatively more horizontal padding there to stay a pill rather than a
+    /// tight box around two words.
+    private var availabilityBadgeHorizontalPadding: CGFloat {
+        #if os(tvOS)
+        9
+        #else
+        7
+        #endif
+    }
+
     private var playOverlaySymbolSize: CGFloat {
         #if os(tvOS)
-        isHorizontalArtwork ? 42 : 34
+        isHorizontalArtwork ? 34 : 28
         #else
         25
         #endif
@@ -89,7 +100,7 @@ struct PosterArtwork: View {
 
     private var playOverlayPadding: CGFloat {
         #if os(tvOS)
-        isHorizontalArtwork ? 20 : 16
+        isHorizontalArtwork ? 16 : 14
         #else
         14
         #endif
@@ -100,7 +111,7 @@ struct PosterArtwork: View {
             .fill(Color.duskSurface)
             .overlay {
                 Image(systemName: isHorizontalArtwork ? "play.rectangle" : "film")
-                    .font(.title2)
+                    .font(DuskFont.glyphLarge(ios: .title2))
                     .foregroundStyle(Color.duskTextSecondary)
             }
     }

@@ -205,7 +205,7 @@ struct PlayerControlsTVOverlay: View {
 
     private var pauseTooltip: some View {
         Image(systemName: "pause.fill")
-            .font(.caption2.weight(.bold))
+            .font(DuskFont.TV.badge)
             .foregroundStyle(.white.opacity(0.92))
             .frame(width: 46, height: 46)
             .background {
@@ -227,7 +227,7 @@ struct PlayerControlsTVOverlay: View {
 
     private func seekTooltip(_ presentation: PlayerSeekFeedbackPresentation) -> some View {
         Image(systemName: presentation.direction.symbolName)
-            .font(.caption.weight(.bold))
+            .font(DuskFont.TV.badge)
             .foregroundStyle(.white.opacity(0.92))
             .offset(y: -1.5)
             .frame(width: 46, height: 46)

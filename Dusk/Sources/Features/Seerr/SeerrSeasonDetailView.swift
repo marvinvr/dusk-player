@@ -57,11 +57,11 @@ struct SeerrSeasonDetailView: View {
                         VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
                             if let showName = viewModel.show?.name {
                                 Text(showName)
-                                    .font(.subheadline.weight(.medium))
+                                    .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                                     .foregroundStyle(Color.duskAccent)
                             }
                             Text("\(season.episodes?.count ?? 0) episodes · \(viewModel.requestState.detailTitle)")
-                                .font(.caption)
+                                .font(DuskFont.caption(ios: .caption))
                                 .foregroundStyle(Color.primary.opacity(0.76))
                         }
                     } actions: {
@@ -129,11 +129,11 @@ struct SeerrSeasonDetailView: View {
 
                                 VStack(alignment: .leading, spacing: 5) {
                                     Text(episode.name?.nilIfEmpty ?? "Episode \(episode.episodeNumber ?? 0)")
-                                        .font(.headline)
+                                        .font(DuskFont.rowTitle(ios: .headline))
                                         .foregroundStyle(Color.duskTextPrimary)
                                     if let episodeNumber = episode.episodeNumber {
                                         Text("Episode \(episodeNumber)")
-                                            .font(.caption)
+                                            .font(DuskFont.caption(ios: .caption))
                                             .foregroundStyle(Color.duskTextSecondary)
                                     }
                                 }

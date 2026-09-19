@@ -132,8 +132,9 @@ extension View {
     ///
     /// `.standard` mirrors the inverse of the overlay's iOS bottom fade so both
     /// platforms produce the same composite. `.compact` is a tvOS-only, shorter
-    /// and lighter fade that reveals more of the backdrop, used by the home
-    /// cinematic hero banner.
+    /// and lighter fade that reveals more of the backdrop. `.fullBleed` is the
+    /// tvOS full-screen home hero: the artwork is held at full strength almost
+    /// to the display edge and only vignettes away in the last stretch.
     @ViewBuilder
     func duskHeroBackdropBottomFade(_ style: DuskHeroBottomFadeStyle = .standard) -> some View {
         #if os(tvOS)
@@ -155,9 +156,14 @@ extension View {
 enum DuskHeroBottomFadeStyle {
     /// Full fade. Used by detail heroes.
     case standard
-    /// Shorter, lighter fade that keeps more of the backdrop visible. Used by
-    /// the home cinematic hero banner.
+    /// Shorter, lighter fade that keeps more of the backdrop visible.
     case compact
+    /// Full-bleed fade for a hero that owns the whole display (the tvOS home
+    /// cinematic hero). Almost the entire frame stays at full strength; the
+    /// mask only vignettes across the last ~14% and still reaches — and holds —
+    /// zero alpha *before* the hero boundary, which is what makes the HDR seam
+    /// with the page background impossible. Do not let it end above zero.
+    case fullBleed
 
     #if os(tvOS)
     var maskStops: [Gradient.Stop] {
@@ -182,6 +188,15 @@ enum DuskHeroBottomFadeStyle {
                 .init(color: .white.opacity(0.34), location: 0.72),
                 .init(color: .white.opacity(0.10), location: 0.82),
                 .init(color: .white.opacity(0), location: 0.90),
+                .init(color: .white.opacity(0), location: 1),
+            ]
+        case .fullBleed:
+            return [
+                .init(color: .white, location: 0),
+                .init(color: .white, location: 0.86),
+                .init(color: .white.opacity(0.84), location: 0.92),
+                .init(color: .white.opacity(0.40), location: 0.965),
+                .init(color: .white.opacity(0), location: 0.99),
                 .init(color: .white.opacity(0), location: 1),
             ]
         }
@@ -292,7 +307,7 @@ private struct DuskTVFocusedScaleModifier: ViewModifier {
 enum DuskPosterMetrics {
     static var carouselSectionSpacing: CGFloat {
         #if os(tvOS)
-        30
+        22
         #else
         12
         #endif
@@ -300,7 +315,7 @@ enum DuskPosterMetrics {
 
     static var carouselHeaderSpacing: CGFloat {
         #if os(tvOS)
-        24
+        18
         #else
         12
         #endif
@@ -308,7 +323,7 @@ enum DuskPosterMetrics {
 
     static var carouselItemSpacing: CGFloat {
         #if os(tvOS)
-        40
+        34
         #else
         12
         #endif
@@ -340,7 +355,7 @@ enum DuskPosterMetrics {
 
     static var pageSectionSpacing: CGFloat {
         #if os(tvOS)
-        44
+        36
         #else
         18
         #endif
@@ -356,7 +371,7 @@ enum DuskPosterMetrics {
 
     static var cardSpacing: CGFloat {
         #if os(tvOS)
-        28
+        16
         #else
         6
         #endif
@@ -364,7 +379,7 @@ enum DuskPosterMetrics {
 
     static var cardTextSpacing: CGFloat {
         #if os(tvOS)
-        6
+        4
         #else
         0
         #endif
@@ -479,21 +494,9 @@ enum DuskPosterMetrics {
         #endif
     }
 
-    static var titleFont: Font {
-        #if os(tvOS)
-        .subheadline.weight(.semibold)
-        #else
-        .caption
-        #endif
-    }
+    static var titleFont: Font { DuskFont.cardTitle(ios: .caption) }
 
-    static var subtitleFont: Font {
-        #if os(tvOS)
-        .caption
-        #else
-        .caption2
-        #endif
-    }
+    static var subtitleFont: Font { DuskFont.cardSubtitle(ios: .caption2) }
 
     static var posterProgressBarHeight: CGFloat {
         #if os(tvOS)
@@ -611,24 +614,55 @@ struct DetailHeroBackdrop: View {
     }
 }
 
-/// Selects how heavily `DuskHeroBackdropOverlay` scrims the backdrop on iOS.
-/// tvOS is unaffected — it always renders the full-strength vertical scrim and
-/// relies on `duskHeroBackdropBottomFade()` for the bottom transition.
+/// Selects how heavily `DuskHeroBackdropOverlay` scrims the backdrop.
+///
+/// `.standard` and `.soft` differ on iOS only; on tvOS both render the same
+/// full-strength vertical scrim they always have, and rely on
+/// `duskHeroBackdropBottomFade()` for the bottom transition. `.cinematic` is the
+/// one style that changes the tvOS scrim, and only the tvOS home hero uses it.
 enum DuskHeroOverlayStyle {
-    /// Full-strength scrim. Used by the home cinematic hero, whose rotating
+    /// Full-strength scrim. Used by the iOS home cinematic hero, whose rotating
     /// backdrops need a dependable dark base for the overlaid text.
     case standard
     /// Lighter scrim that lets more of the backdrop read through. Used by the
     /// movie/show/season/episode detail heroes, where the artwork should lead
     /// and the title block sits in the lower third over a still-solid base.
     case soft
+    /// Full-screen tvOS home hero. The backdrop *is* the screen, so the top two
+    /// thirds stay nearly clear and the darkening is deferred to the lower
+    /// third, where the title block, pager and scroll hint live. tvOS-only in
+    /// practice; on iOS it resolves to `.standard`'s curves so the enum stays
+    /// total.
+    case cinematic
+
+    #if os(tvOS)
+    /// Top-to-bottom darkening on tvOS. `.standard` / `.soft` must keep the
+    /// long-standing values — the detail heroes share this overlay.
+    var tvVerticalDarkeningStops: [Gradient.Stop] {
+        switch self {
+        case .standard, .soft:
+            return [
+                .init(color: Color.black.opacity(0.18), location: 0),
+                .init(color: Color.black.opacity(0.56), location: 0.62),
+                .init(color: Color.black.opacity(0.86), location: 1),
+            ]
+        case .cinematic:
+            return [
+                .init(color: Color.black.opacity(0.10), location: 0),
+                .init(color: Color.black.opacity(0.20), location: 0.55),
+                .init(color: Color.black.opacity(0.62), location: 0.82),
+                .init(color: Color.black.opacity(0.88), location: 1),
+            ]
+        }
+    }
+    #endif
 
     #if !os(tvOS)
     /// Top-to-bottom darkening applied across the whole hero. `.soft` keeps the
     /// upper two thirds close to clear and only ramps up behind the title block.
     var verticalDarkeningStops: [Gradient.Stop] {
         switch self {
-        case .standard:
+        case .standard, .cinematic:
             return [
                 .init(color: Color.black.opacity(0.18), location: 0),
                 .init(color: Color.black.opacity(0.56), location: 0.62),
@@ -651,7 +685,7 @@ enum DuskHeroOverlayStyle {
     /// simply holds the fade off until the lower third.
     var bottomBackgroundFadeStops: [Gradient.Stop] {
         switch self {
-        case .standard:
+        case .standard, .cinematic:
             return [
                 .init(color: Color.duskBackground.opacity(0), location: 0),
                 .init(color: Color.duskBackground.opacity(0), location: 0.20),
@@ -684,7 +718,8 @@ enum DuskHeroOverlayStyle {
 /// `Color.duskBackground` inside the hero on tvOS — see
 /// `duskHeroBackdropBottomFade()` for why.
 ///
-/// `style` only affects iOS; tvOS always renders the full-strength scrim.
+/// On tvOS only `.cinematic` changes anything; `.standard` and `.soft` render
+/// the same full-strength scrim they always have.
 struct DuskHeroBackdropOverlay: View {
     var style: DuskHeroOverlayStyle = .standard
 
@@ -696,11 +731,7 @@ struct DuskHeroBackdropOverlay: View {
         ZStack {
             #if os(tvOS)
             LinearGradient(
-                stops: [
-                    .init(color: Color.black.opacity(0.18), location: 0),
-                    .init(color: Color.black.opacity(0.56), location: 0.62),
-                    .init(color: Color.black.opacity(0.86), location: 1),
-                ],
+                stops: style.tvVerticalDarkeningStops,
                 startPoint: .top,
                 endPoint: .bottom
             )

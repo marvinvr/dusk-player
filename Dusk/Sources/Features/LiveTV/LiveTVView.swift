@@ -86,7 +86,7 @@ struct LiveTVRootContent: View {
                         Task { await viewModel.selectDate(date) }
                     } label: {
                         Text(dateLabel(date))
-                            .font(.subheadline.weight(.semibold))
+                            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
                             .foregroundStyle(
                                 Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
                                     ? Color.duskBackground
@@ -146,12 +146,12 @@ struct LiveTVChannelGuideRow: View {
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(guide.channel.displayTitle)
-                        .font(.headline)
+                        .font(DuskFont.rowTitle(ios: .headline))
                         .foregroundStyle(Color.duskTextPrimary)
                         .lineLimit(1)
                     if let number = guide.channel.displayNumber {
                         Text(number)
-                            .font(.subheadline)
+                            .font(DuskFont.caption(ios: .subheadline))
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }
@@ -171,7 +171,7 @@ struct LiveTVChannelGuideRow: View {
 
             if guide.programs.isEmpty {
                 Text("No program information")
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
                     .frame(height: 120)
             } else {
@@ -259,11 +259,11 @@ struct LiveTVProgramCard: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(program.displayTitle)
-                    .font(.subheadline.weight(.semibold))
+                    .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
                     .lineLimit(2)
                 if let beginsAt = program.beginsAt, let endsAt = program.endsAt {
                     Text("\(beginsAt.formatted(date: .omitted, time: .shortened)) – \(endsAt.formatted(date: .omitted, time: .shortened))")
-                        .font(.caption)
+                        .font(DuskFont.cardSubtitle(ios: .caption))
                         .foregroundStyle(.white.opacity(0.78))
                 }
             }
@@ -308,7 +308,7 @@ struct LiveTVProgramCard: View {
 
     private var placeholderSymbol: some View {
         Image(systemName: "tv")
-            .font(.title2)
+            .font(DuskFont.glyphLarge(ios: .title2))
             .foregroundStyle(Color.duskTextSecondary)
     }
 
@@ -337,10 +337,11 @@ private struct LiveTVProgramDetails: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     Text(program.displayTitle)
-                        .font(.title.bold())
+                        .font(DuskFont.pageTitle(ios: .title.bold()))
                         .foregroundStyle(Color.duskTextPrimary)
                     if let subtitle = program.displaySubtitle {
                         Text(subtitle)
+                            .duskFont(tvOnly: DuskFont.TV.pageSubtitle)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                     if let channel {
@@ -350,14 +351,17 @@ private struct LiveTVProgramDetails: View {
                                 .joined(separator: " · "),
                             systemImage: "dot.radiowaves.left.and.right"
                         )
+                        .duskFont(tvOnly: DuskFont.TV.metadata)
                         .foregroundStyle(Color.duskTextSecondary)
                     }
                     if let beginsAt = program.beginsAt, let endsAt = program.endsAt {
                         Text("\(beginsAt.formatted(date: .abbreviated, time: .shortened)) – \(endsAt.formatted(date: .omitted, time: .shortened))")
+                            .duskFont(tvOnly: DuskFont.TV.metadata)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                     if let summary = program.summary?.nilIfEmpty {
                         Text(summary)
+                            .duskFont(tvOnly: DuskFont.TV.body)
                             .foregroundStyle(Color.duskTextPrimary)
                     }
                     if canPlay {
@@ -371,7 +375,7 @@ private struct LiveTVProgramDetails: View {
                         Text(program.endsAt.map { $0 < .now } == true
                             ? "This program is no longer live."
                             : "This program hasn’t started yet.")
-                            .font(.subheadline)
+                            .font(DuskFont.caption(ios: .subheadline))
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }

@@ -236,7 +236,7 @@ struct PlayerUpNextPosterView: View {
         Color.duskSurface
             .overlay {
                 Image(systemName: "film")
-                    .font(.title3)
+                    .font(DuskFont.glyphMedium(ios: .title3))
                     .foregroundStyle(Color.duskTextSecondary)
             }
     }

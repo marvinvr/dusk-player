@@ -12,9 +12,9 @@ struct LiveTVHomeShelf: View {
             }
 
             if !currentPrograms.isEmpty {
-                VStack(alignment: .leading, spacing: 12) {
+                VStack(alignment: .leading, spacing: DuskPosterMetrics.carouselSectionSpacing) {
                     Text("Live TV")
-                        .font(.title2.bold())
+                        .font(DuskFont.sectionHeader(ios: .title2.bold()))
                         .foregroundStyle(Color.duskTextPrimary)
                         .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
 

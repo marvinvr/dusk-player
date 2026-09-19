@@ -106,8 +106,14 @@ struct SeerrSettingsView: View {
                 if let errorMessage = viewModel.errorMessage ?? seerrService.lastConnectionError {
                     TVSettingsSection(title: "Connection") {
                         Text(errorMessage)
+                            .font(DuskFont.TV.rowValue)
                             .foregroundStyle(Color.duskTextSecondary)
-                            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(
+                                maxWidth: .infinity,
+                                minHeight: TVSettingsMetrics.rowMinHeight,
+                                alignment: .leading
+                            )
                     }
                 }
 
@@ -147,9 +153,10 @@ struct SeerrSettingsView: View {
         HStack(spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Status")
+                    .duskFont(tvOnly: DuskFont.TV.rowTitle)
                     .foregroundStyle(Color.duskTextPrimary)
                 Text(seerrService.connectionSubtitle)
-                    .font(.caption)
+                    .font(DuskFont.caption(ios: .caption))
                     .foregroundStyle(Color.duskTextSecondary)
             }
             Spacer()

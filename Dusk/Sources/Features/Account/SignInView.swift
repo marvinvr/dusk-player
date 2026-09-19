@@ -81,15 +81,20 @@ struct SignInView: View {
             Spacer(minLength: 0)
 
             VStack(spacing: 24) {
-                branding(iconSize: 112, titleFont: .system(size: 44, weight: .bold, design: .rounded))
+                branding(
+                    iconSize: 112,
+                    titleFont: DuskFont.pageTitleRounded(
+                        ios: .system(size: 44, weight: .bold, design: .rounded)
+                    )
+                )
 
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Text("Sign in with Plex")
-                        .font(.title2.weight(.semibold))
+                        .font(DuskFont.sectionHeader(ios: .title2.weight(.semibold)))
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text("On another device, open plex.tv/link and enter the code shown below.")
-                        .font(.title3)
+                        .font(DuskFont.pageSubtitle(ios: .title3))
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                         .frame(maxWidth: 720)
@@ -98,9 +103,9 @@ struct SignInView: View {
                 signInError
 
                 if let linkPinCode {
-                    VStack(spacing: 14) {
+                    VStack(spacing: 12) {
                         Text("plex.tv/link")
-                            .font(.title3.weight(.semibold))
+                            .font(DuskFont.rowTitle(ios: .title3.weight(.semibold)))
                             .foregroundStyle(Color.duskTextSecondary)
 
                         Text(linkPinCode)
@@ -139,7 +144,7 @@ struct SignInView: View {
                     .font(titleFont)
                     .foregroundStyle(Color.duskTextPrimary)
                 Text("The Plex App we Deserve.")
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
             }
         }
@@ -150,7 +155,7 @@ struct SignInView: View {
         if let error {
             Text(error)
                 .foregroundStyle(.red)
-                .font(.callout)
+                .font(DuskFont.body(ios: .callout))
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
         }
@@ -167,7 +172,7 @@ struct SignInView: View {
                 }
                 Text(isSigningIn ? "Waiting for approval…" : "Sign in with Plex")
             }
-            .font(.headline)
+            .font(DuskFont.buttonLabel(ios: .headline))
             .frame(maxWidth: .infinity)
             .padding(.vertical, 14)
             .foregroundStyle(.white)
@@ -185,6 +190,7 @@ struct SignInView: View {
         Button("Cancel") {
             cancelSignIn()
         }
+        .duskFont(tvOnly: DuskFont.TV.buttonLabel)
         .foregroundStyle(Color.duskTextSecondary)
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Capsule())

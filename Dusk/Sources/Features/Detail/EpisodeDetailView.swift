@@ -241,7 +241,9 @@ struct EpisodeDetailView: View {
     }
 
     private var markerFont: Font {
-        usesQuietMarker ? .footnote.weight(.medium) : .subheadline.weight(.medium)
+        usesQuietMarker
+            ? .footnote.weight(.medium)
+            : DuskFont.metadata(ios: .subheadline.weight(.medium))
     }
 
     private var markerColor: Color {
@@ -257,7 +259,7 @@ struct EpisodeDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
@@ -266,17 +268,17 @@ struct EpisodeDetailView: View {
     private func heroMetadata(_ details: PlexMediaDetails) -> some View {
         if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
             Text(originalDate)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let rating = details.rating {
             HStack(spacing: 4) {
                 Image(systemName: "star.fill")
-                    .font(.caption2)
+                    .font(DuskFont.glyphSmall(ios: .caption2))
                     .foregroundStyle(.yellow)
                 Text(String(format: "%.1f", rating))
-                    .font(.subheadline.monospacedDigit())
+                    .font(DuskFont.metadata(ios: .subheadline).monospacedDigit())
                     .foregroundStyle(Color.primary.opacity(0.84))
             }
         }

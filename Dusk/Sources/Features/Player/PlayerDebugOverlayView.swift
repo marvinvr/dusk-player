@@ -60,11 +60,11 @@ struct PlayerPlaybackInfoView: View {
             VStack(alignment: .leading, spacing: 26) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Playback Info")
-                        .font(.largeTitle.weight(.bold))
+                        .font(DuskFont.TV.pageTitle)
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text(debugInfo.title)
-                        .font(.title3.weight(.medium))
+                        .font(DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                         .lineLimit(2)
                 }
@@ -112,12 +112,12 @@ struct PlayerPlaybackInfoView: View {
     private func tvOSPlaybackInfoRow(_ entry: PlaybackInfoEntry, isFocused: Bool) -> some View {
         HStack(alignment: .top, spacing: 28) {
             Text(entry.label.uppercased())
-                .font(.subheadline.weight(.semibold))
+                .font(DuskFont.TV.groupHeader)
                 .foregroundStyle(Color.duskTextSecondary)
                 .frame(width: 230, alignment: .leading)
 
             Text(entry.value)
-                .font(.subheadline.monospaced())
+                .font(DuskFont.TV.rowValue.monospaced())
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(Self.extendedLineLabels.contains(entry.label) ? 5 : 2)
                 .minimumScaleFactor(0.8)
@@ -220,11 +220,11 @@ struct PlayerPlaybackInfoView: View {
     private func playbackInfoRow(_ entry: PlaybackInfoEntry) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(entry.label.uppercased())
-                .font(.caption2.weight(.semibold))
+                .font(DuskFont.badge(ios: .caption2.weight(.semibold)))
                 .foregroundStyle(Color.duskTextSecondary)
 
             Text(entry.value)
-                .font(.caption.monospaced())
+                .font(DuskFont.caption(ios: .caption).monospaced())
                 .foregroundStyle(Color.duskTextPrimary)
                 .lineLimit(Self.extendedLineLabels.contains(entry.label) ? 4 : 2)
         }
@@ -285,15 +285,15 @@ struct PlayerPlaybackInfoUnavailableView: View {
 
             VStack(spacing: 18) {
                 Image(systemName: "info.circle")
-                    .font(.system(size: 54, weight: .medium))
+                    .font(DuskFont.TV.glyphLarge)
                     .foregroundStyle(Color.duskTextSecondary)
 
                 Text("Playback Info Unavailable")
-                    .font(.title2.weight(.semibold))
+                    .font(DuskFont.TV.sectionHeader)
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Text("No playback statistics are available for this session.")
-                    .font(.body)
+                    .font(DuskFont.TV.body)
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
 

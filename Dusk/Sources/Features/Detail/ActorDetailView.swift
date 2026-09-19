@@ -97,7 +97,7 @@ struct ActorDetailView: View {
         }()
         let headerSpacing: CGFloat = {
             #if os(tvOS)
-            40
+            32
             #else
             20
             #endif
@@ -108,18 +108,18 @@ struct ActorDetailView: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(viewModel.person.name)
-                    .font(.title2.bold())
+                    .font(DuskFont.pageTitle(ios: .title2.bold()))
                     .foregroundStyle(Color.primary)
                     .multilineTextAlignment(.leading)
 
                 if let roleName = viewModel.person.roleName, !roleName.isEmpty {
                     Text(roleName)
-                        .font(.subheadline)
+                        .font(DuskFont.metadata(ios: .subheadline))
                         .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
                 Text(viewModel.creditSummary)
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.primary.opacity(0.76))
             }
 
@@ -174,7 +174,7 @@ struct ActorDetailView: View {
         )
         let sectionSpacing: CGFloat = {
             #if os(tvOS)
-            30
+            24
             #else
             16
             #endif
@@ -199,21 +199,17 @@ struct ActorDetailView: View {
     }
 
     private var sectionTitleFont: Font {
-        #if os(tvOS)
-        .title3.bold()
-        #else
-        .headline
-        #endif
+        DuskFont.sectionHeader(ios: .headline)
     }
 
     private var emptyState: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("No titles found")
-                .font(.headline)
+                .font(DuskFont.rowTitle(ios: .headline))
                 .foregroundStyle(Color.primary)
 
             Text("This actor doesn't have any movies or shows available in your connected Plex library.")
-                .font(.subheadline)
+                .font(DuskFont.caption(ios: .subheadline))
                 .foregroundStyle(Color.primary.opacity(0.76))
                 .fixedSize(horizontal: false, vertical: true)
         }

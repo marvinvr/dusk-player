@@ -15,15 +15,16 @@ struct FeatureEmptyStateView: View {
     var body: some View {
         VStack(spacing: 12) {
             Image(systemName: systemImage)
-                .font(.largeTitle)
+                .font(DuskFont.glyphLarge(ios: .largeTitle))
                 .foregroundStyle(Color.duskTextSecondary)
 
             Text(title)
+                .duskFont(tvOnly: DuskFont.TV.rowTitle)
                 .foregroundStyle(Color.duskTextSecondary)
 
             if let message, !message.isEmpty {
                 Text(message)
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
             }
@@ -55,10 +56,11 @@ struct FeatureErrorView: View {
     var body: some View {
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
-                .font(.largeTitle)
+                .font(DuskFont.glyphLarge(ios: .largeTitle))
                 .foregroundStyle(Color.duskTextSecondary)
 
             Text(message)
+                .duskFont(tvOnly: DuskFont.TV.rowTitle)
                 .foregroundStyle(Color.duskTextSecondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 40)
@@ -70,7 +72,7 @@ struct FeatureErrorView: View {
                     retryAction()
                 }
             }
-            .font(.headline)
+            .font(DuskFont.buttonLabel(ios: .headline))
             .foregroundStyle(.white)
             .padding(.horizontal, 32)
             .padding(.vertical, 12)

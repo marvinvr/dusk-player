@@ -42,9 +42,57 @@ A crisp, high-clarity alternative. Avoids "pure" white to reduce eye strain.
 
 ### 3.1 Fonts (SF Pro)
 
-* **Header:** Title 2, Bold.
-* **Metadata:** Subheadline, Monospaced (for technical data like `4K • HEVC`).
-* **Body:** Body, Regular, line spacing +4pt.
+All type goes through `DuskFont` (`Dusk/Sources/Shared/DuskTypography.swift`).
+
+**tvOS views go through `DuskFont` — never raw semantic text styles.** SwiftUI's
+semantic styles resolve 2.1–2.7× larger on tvOS than on iOS (`.subheadline` = 38pt,
+`.title3` = 48pt, `.title` = 76pt) and default to Medium weight, so any `.font(.headline)`
+in a tvOS-reachable view is oversized by construction. `DuskFont` gives tvOS explicit
+point sizes; iOS keeps the exact style the call site passes via `ios:`, so iOS
+rendering is unchanged.
+
+| Token | tvOS pt | tvOS weight | Applied to |
+|---|---|---|---|
+| `heroTitle` (`heroTitleRounded`) | 56 | Bold | Hero title text fallback (no clear-logo) |
+| `glyphLarge` | 52 | Regular | Empty / error state glyphs, artwork placeholders |
+| `pageTitle` (`pageTitleRounded`) | 48 | Bold | Top-level screen titles |
+| `playerOverlayTitle` | 44 | Bold | Up-Next full-screen overlay title |
+| `sectionHeader` | 33 | Semibold | Shelf headers, "Synopsis", "Cast", "Seasons", "Episodes" |
+| `playerTitle` | 33 | Semibold | Player HUD media title |
+| `heroSubtitle` | 31 | Semibold | Featured item title inside a hero |
+| `glyphMedium` | 30 | Regular | Standalone control icons |
+| `pageSubtitle` | 29 | Regular | Paragraph under a `pageTitle` |
+| `rowTitle` | 29 | Medium | List / settings row primary text |
+| `body` | 27 | Regular | Synopses, descriptions, expandable summaries |
+| `rowValue` | 27 | Regular | Row detail / current value |
+| `buttonLabel` | 27 | Semibold | Play, Resume, Browse, Retry, Sign In, Show More |
+| `playerTitleCompact` | 27 | Semibold | Compact player HUD title (its secondary episode title uses `metadata`) |
+| `cardTitle` | 25 | Semibold | Poster / episode / video card titles |
+| `metadata` | 25 | Medium | `2024 · PG-13 · 2h 10m`, genres, credits, ratings, time readouts |
+| `groupHeader` | 25 | Semibold | Settings section headers (secondary colour) |
+| `cardSubtitle` | 23 | Regular | Card subtitles, cast names, watched checkmark |
+| `caption` | 23 | Regular | Footers, hints, menu subtitles |
+| `glyphSmall` | 23 | Regular | Inline icons beside text |
+| `badge` | 21 | Bold | Pills over artwork, player tooltips |
+
+Usage — shared views pass the style the site uses today; tvOS-only paths use the
+`TV` namespace; sites where iOS deliberately sets no font use the modifier:
+
+```swift
+.font(DuskFont.sectionHeader(ios: .title3.bold()))        // shared
+.font(DuskFont.metadata(ios: .subheadline).monospacedDigit())  // chained on both platforms
+.font(DuskFont.TV.pageTitle)                              // inside #if os(tvOS)
+.duskFont(tvOnly: DuskFont.TV.rowValue)                   // iOS keeps inheriting
+```
+
+Raw point sizes for layout structs: `DuskFont.TV.Size.heroTitle`. A genuine one-off
+(the `plex.tv/link` code, a glyph sized from a layout metric) may stay an explicit
+`.system(size:)` inside `#if os(tvOS)`.
+
+iOS conventions that predate the tokens and still hold:
+
+* **Metadata:** Monospaced for technical data like `4K • HEVC`.
+* **Body:** line spacing +4pt.
 
 ### 3.2 Shapes
 

@@ -61,11 +61,12 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
+                    .duskFont(tvOnly: DuskFont.TV.rowTitle)
                     .foregroundStyle(Color.duskTextPrimary)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption)
+                        .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -74,7 +75,7 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
 
             if isSelected {
                 Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
+                    .font(DuskFont.glyphSmall(ios: .caption.weight(.bold)))
                     .foregroundStyle(Color.duskAccent)
             }
         }

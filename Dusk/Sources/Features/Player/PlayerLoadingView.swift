@@ -67,14 +67,14 @@ struct PlayerLoadingView: View {
 
                     VStack(spacing: 6) {
                         Text(placeholder.title)
-                            .font(.title3.weight(.semibold))
+                            .font(DuskFont.sectionHeader(ios: .title3.weight(.semibold)))
                             .foregroundStyle(.white)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
 
                         if let subtitle = placeholder.subtitle, !subtitle.isEmpty {
                             Text(subtitle)
-                                .font(.subheadline)
+                                .font(DuskFont.caption(ios: .subheadline))
                                 .foregroundStyle(.white.opacity(0.7))
                                 .multilineTextAlignment(.center)
                                 .lineLimit(1)

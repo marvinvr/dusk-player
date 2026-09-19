@@ -128,8 +128,8 @@ struct HomeUserPickerView: View {
     #if os(tvOS)
     private var tvProfileSelection: some View {
         ScrollView {
-            VStack(spacing: 42) {
-                pickerHeader(titleSize: 50, iconSize: 82)
+            VStack(spacing: 34) {
+                pickerHeader(titleSize: DuskFont.TV.Size.pageTitle, iconSize: 72)
 
                 LazyVGrid(
                     columns: tvProfileColumns,
@@ -186,7 +186,7 @@ struct HomeUserPickerView: View {
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Text("Choose a Plex Home user. Watch history and recommendations will stay with this profile.")
-                    .font(.body)
+                    .font(DuskFont.pageSubtitle(ios: .body))
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
@@ -199,11 +199,11 @@ struct HomeUserPickerView: View {
         Toggle(isOn: $rememberSelection) {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Remember This User")
-                    .font(.headline)
+                    .font(DuskFont.rowTitle(ios: .headline))
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Text("Open Dusk with this profile next time. You can change this anytime in Settings.")
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -218,7 +218,7 @@ struct HomeUserPickerView: View {
     private var bottomActions: some View {
         if let switchError {
             Label(switchError, systemImage: "exclamationmark.triangle.fill")
-                .font(.callout)
+                .font(DuskFont.body(ios: .callout))
                 .foregroundStyle(.red)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 680)
@@ -391,7 +391,7 @@ private struct HomeUserCard: View {
 
                     if user.isProtected {
                         Image(systemName: "lock.fill")
-                            .font(.caption.weight(.bold))
+                            .font(DuskFont.badge(ios: .caption.weight(.bold)))
                             .foregroundStyle(Color.duskTextPrimary)
                             .padding(8)
                             .background(Color.duskSurface, in: Circle())
@@ -400,13 +400,13 @@ private struct HomeUserCard: View {
 
                 HStack(spacing: 6) {
                     Text(user.displayName)
-                        .font(.headline)
+                        .font(DuskFont.rowTitle(ios: .headline))
                         .foregroundStyle(Color.duskTextPrimary)
                         .lineLimit(1)
 
                     if isCurrent {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.subheadline)
+                            .font(DuskFont.glyphSmall(ios: .subheadline))
                             .foregroundStyle(Color.duskAccent)
                     }
                 }
@@ -547,13 +547,13 @@ private struct TVHomeUserPINView: View {
             VStack(spacing: 28) {
                 PlexHomeUserAvatar(user: user, size: 176)
 
-                VStack(spacing: 12) {
+                VStack(spacing: 10) {
                     Text("Enter PIN")
-                        .font(.system(size: 56, weight: .bold, design: .rounded))
+                        .font(DuskFont.TV.pageTitleRounded)
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text("Enter the four-digit Plex Home PIN for \(user.displayName).")
-                        .font(.body)
+                        .font(DuskFont.TV.pageSubtitle)
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                 }
@@ -574,17 +574,17 @@ private struct TVHomeUserPINView: View {
                 ZStack {
                     if let error {
                         Text(error)
-                            .font(.body.weight(.medium))
+                            .font(DuskFont.TV.body)
                             .foregroundStyle(.red)
                             .multilineTextAlignment(.center)
                             .lineLimit(2)
                             .frame(maxWidth: 620)
                     }
                 }
-                .frame(height: 68)
+                .frame(height: 60)
 
                 Text("Forgot your PIN? Manage Plex Home from your Plex account on another device.")
-                    .font(.callout)
+                    .font(DuskFont.TV.caption)
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
                     .frame(maxWidth: 620)
@@ -664,7 +664,10 @@ private struct TVPINKey: View {
                     Text(key)
                 }
             }
-            .font(.title2.weight(.semibold))
+            // One-off: the keypad digit is sized to the key tile, not to a text
+            // role, so it stays an explicit point size (see DuskFont's escape
+            // hatch) rather than borrowing a semantic token.
+            .font(.system(size: 40, weight: .semibold))
             .foregroundStyle(Color.duskTextPrimary)
             .frame(width: 112, height: 82)
             .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
@@ -697,10 +700,10 @@ private struct HomeUserTextButton: View {
                 }
             }
         }
-        .font(.headline)
+        .font(DuskFont.TV.buttonLabel)
         .foregroundStyle(tint)
-        .padding(.horizontal, 28)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 26)
+        .padding(.vertical, 10)
         .background(Color.duskSurface.opacity(isFocused ? 1 : 0), in: Capsule())
         .duskSuppressTVOSButtonChrome()
         .focused($isFocused)

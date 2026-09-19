@@ -169,7 +169,7 @@ struct MovieDetailView: View {
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
@@ -178,7 +178,7 @@ struct MovieDetailView: View {
     private func heroMetadata(_ details: PlexMediaDetails) -> some View {
         if let genres = viewModel.genreText {
             Text(genres)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
@@ -201,13 +201,13 @@ struct MovieDetailView: View {
 
         if let director = viewModel.directorText {
             Text("Directed by \(director)")
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
         if let studio = details.studio {
             Text(studio)
-                .font(.caption)
+                .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
     }
@@ -215,10 +215,10 @@ struct MovieDetailView: View {
     private func ratingBadge(icon: String, value: String, color: Color) -> some View {
         HStack(spacing: 4) {
             Image(systemName: icon)
-                .font(.caption2)
+                .font(DuskFont.glyphSmall(ios: .caption2))
                 .foregroundStyle(color)
             Text(value)
-                .font(.subheadline.monospacedDigit())
+                .font(DuskFont.metadata(ios: .subheadline).monospacedDigit())
                 .foregroundStyle(Color.primary.opacity(0.84))
         }
     }
@@ -350,11 +350,11 @@ struct MovieDetailView: View {
     private func summarySection(_ summary: String) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Synopsis")
-                .font(.headline)
+                .font(DuskFont.sectionHeader(ios: .headline))
                 .foregroundStyle(Color.primary)
 
             Text(summary)
-                .font(.body)
+                .font(DuskFont.body(ios: .body))
                 .foregroundStyle(Color.primary.opacity(0.76))
                 .lineSpacing(4)
         }
@@ -367,11 +367,11 @@ struct MovieDetailView: View {
         if let info = viewModel.mediaInfo {
             VStack(alignment: .leading, spacing: 8) {
                 Text("Media")
-                    .font(.headline)
+                    .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
 
                 Text(info)
-                    .font(.subheadline.monospaced())
+                    .font(DuskFont.metadata(ios: .subheadline).monospaced())
                     .foregroundStyle(Color.primary.opacity(0.76))
             }
         }

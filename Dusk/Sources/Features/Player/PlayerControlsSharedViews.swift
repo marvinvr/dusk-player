@@ -41,7 +41,9 @@ struct PlayerMediaHeaderView: View {
 
             if let secondaryTitle = header.secondaryTitle {
                 Text(secondaryTitle)
-                    .font(.title3.weight(.bold))
+                    // tvOS: one step below the (compact) primary title so the
+                    // header reads 27 / 25 / 23 rather than 27 / 27 / 23.
+                    .font(DuskFont.metadata(ios: .title3.weight(.bold)))
                     .foregroundStyle(.white)
                     #if os(tvOS)
                     .lineLimit(2)
@@ -54,7 +56,7 @@ struct PlayerMediaHeaderView: View {
 
             if let subtitle = header.subtitle {
                 Text(subtitle)
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(.white.opacity(0.72))
                     .lineLimit(1)
             }
@@ -70,7 +72,7 @@ struct PlayerMediaHeaderView: View {
 
     private var titleFont: Font {
         #if os(tvOS)
-        header.usesCompactTitleOnTV ? .subheadline.weight(.semibold) : .headline.weight(.semibold)
+        header.usesCompactTitleOnTV ? DuskFont.TV.playerTitleCompact : DuskFont.TV.playerTitle
         #else
         .headline.weight(.semibold)
         #endif
@@ -97,7 +99,7 @@ struct PlayerTimeStatusView: View {
                             .fill(viewModel.isAtLiveEdge ? Color.red : Color.white.opacity(0.5))
                             .frame(width: 7, height: 7)
                         Text(viewModel.formattedLiveOffset)
-                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .font(DuskFont.rowValue(ios: .subheadline.weight(.semibold)).monospacedDigit())
                     }
                 }
                 .buttonStyle(.plain)
@@ -109,22 +111,22 @@ struct PlayerTimeStatusView: View {
                 // that makes the playhead's place legible.
                 if let programWindow = viewModel.liveProgramWindowLabel {
                     Text(programWindow)
-                        .font(.subheadline.weight(.medium).monospacedDigit())
+                        .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)).monospacedDigit())
                         .foregroundStyle(.white.opacity(0.55))
                         .lineLimit(1)
                         .padding(.leading, 6)
                 }
             } else {
             Text(formattedPosition)
-                .font(.subheadline.weight(.medium).monospacedDigit())
+                .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
 
             Text("/")
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(.white.opacity(0.5))
 
             Text(viewModel.formattedDuration)
-                .font(.subheadline.weight(.medium).monospacedDigit())
+                .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)).monospacedDigit())
                 .foregroundStyle(.white.opacity(0.8))
             }
         }
@@ -333,7 +335,7 @@ struct PlayerLiveClockBubble: View {
 
     var body: some View {
         Text(label)
-            .font(.caption.weight(.semibold).monospacedDigit())
+            .font(DuskFont.caption(ios: .caption.weight(.semibold)).monospacedDigit())
             .foregroundStyle(.white.opacity(0.94))
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
@@ -379,7 +381,7 @@ struct PlayerScrubPreviewPopup: View {
                     .clipped()
 
                 Text(formattedTime(position))
-                    .font(.caption2.weight(.semibold).monospacedDigit())
+                    .font(DuskFont.badge(ios: .caption2.weight(.semibold)).monospacedDigit())
                     .foregroundStyle(.white.opacity(0.94))
                     .padding(.horizontal, 7)
                     .padding(.vertical, 4)
@@ -460,7 +462,7 @@ struct PlayerTrackSettingsMenu: View {
             .tvMenuPresentationLifecycle(onMenuPresentationChanged)
         } label: {
             Image(systemName: "gearshape")
-                .font(.footnote.weight(.semibold))
+                .font(DuskFont.TV.glyphMedium)
                 .accessibilityLabel("Playback Settings")
         }
         .disabled(!hasAvailableSettings)
@@ -832,7 +834,7 @@ struct PlayerTrackSettingsMenu: View {
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
-                        .font(.caption)
+                        .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.duskTextSecondary)
                         .lineLimit(1)
                 }
@@ -842,7 +844,7 @@ struct PlayerTrackSettingsMenu: View {
 
             if isSelected {
                 Image(systemName: "checkmark")
-                    .font(.caption.weight(.bold))
+                    .font(DuskFont.glyphSmall(ios: .caption.weight(.bold)))
                     .foregroundStyle(Color.duskAccent)
             }
         }

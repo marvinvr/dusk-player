@@ -45,7 +45,7 @@ struct HomeHeroActionButtonLabel: View {
     var fillsWidth: Bool = false
 
     #if os(tvOS)
-    private let minimumButtonWidth: CGFloat = 340
+    private let minimumButtonWidth: CGFloat = 280
     #endif
 
     var body: some View {
@@ -81,7 +81,7 @@ struct HomeHeroActionButtonLabel: View {
 
     private var heroButtonFont: Font {
         #if os(tvOS)
-        .subheadline.weight(.semibold)
+        DuskFont.TV.buttonLabel
         #else
         .headline.weight(.semibold)
         #endif
@@ -89,7 +89,7 @@ struct HomeHeroActionButtonLabel: View {
 
     private var heroButtonMinHeight: CGFloat {
         #if os(tvOS)
-        30
+        28
         #else
         32
         #endif
@@ -100,7 +100,7 @@ struct HomeHeroSecondaryActionButtonLabel: View {
     let title: String
 
     #if os(tvOS)
-    private let minimumButtonWidth: CGFloat = 340
+    private let minimumButtonWidth: CGFloat = 280
     #endif
 
     var body: some View {
@@ -123,7 +123,7 @@ struct HomeHeroSecondaryActionButtonLabel: View {
 
     private var heroButtonFont: Font {
         #if os(tvOS)
-        .subheadline.weight(.semibold)
+        DuskFont.TV.buttonLabel
         #else
         .headline.weight(.semibold)
         #endif

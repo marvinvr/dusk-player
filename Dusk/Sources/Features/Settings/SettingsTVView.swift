@@ -24,7 +24,7 @@ struct SettingsTVView: View {
         return ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 Text("Settings")
-                    .font(.title.weight(.bold))
+                    .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
                     .foregroundStyle(Color.duskTextPrimary)
                     .padding(.leading, TVSettingsMetrics.contentInset)
 
@@ -44,25 +44,25 @@ struct SettingsTVView: View {
                         footer: "When off, Dusk asks who’s watching whenever it starts."
                     ) {
                         HStack(spacing: 22) {
-                            PlexHomeUserAvatar(user: activeUser, size: 76)
+                            PlexHomeUserAvatar(user: activeUser, size: 68)
 
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Current User")
-                                    .font(.caption.weight(.semibold))
+                                    .font(DuskFont.badge(ios: .caption.weight(.semibold)))
                                     .textCase(.uppercase)
                                     .tracking(0.5)
                                     .foregroundStyle(Color.duskTextSecondary)
 
                                 Text(activeUser.displayName)
-                                    .font(.headline.weight(.semibold))
+                                    .font(DuskFont.rowTitle(ios: .headline.weight(.semibold)))
                                     .foregroundStyle(Color.duskTextPrimary)
                                     .lineLimit(1)
                             }
 
                             Spacer()
                         }
-                        .frame(minHeight: 112)
-                        .padding(.vertical, 16)
+                        .frame(minHeight: 100)
+                        .padding(.vertical, 14)
 
                         tvRowDivider
 
@@ -86,19 +86,21 @@ struct SettingsTVView: View {
                 if viewModel.hasMultipleServers {
                     TVSettingsSection(title: "Plex Server") {
                         HStack(spacing: 20) {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 4) {
                                 Text("Current Server")
-                                    .font(.headline)
+                                    .font(DuskFont.rowTitle(ios: .headline))
                                     .foregroundStyle(Color.duskTextPrimary)
 
                                 if let server = plexService.connectedServer {
                                     Text(server.name)
+                                        .duskFont(tvOnly: DuskFont.TV.rowValue)
                                         .foregroundStyle(Color.duskTextPrimary)
                                     Text(viewModel.connectionType)
-                                        .font(.caption)
+                                        .font(DuskFont.caption(ios: .caption))
                                         .foregroundStyle(Color.duskTextSecondary)
                                 } else {
                                     Text("Not connected")
+                                        .duskFont(tvOnly: DuskFont.TV.rowValue)
                                         .foregroundStyle(Color.duskTextSecondary)
                                 }
                             }
@@ -109,7 +111,8 @@ struct SettingsTVView: View {
                                 .fill(plexService.connectedServer == nil ? Color.duskTextSecondary : Color.duskAccent)
                                 .frame(width: 10, height: 10)
                         }
-                        .frame(minHeight: 72)
+                        .frame(minHeight: TVSettingsMetrics.rowMinHeight)
+                        .padding(.vertical, 10)
 
                         tvRowDivider
 
@@ -284,15 +287,16 @@ struct SettingsTVView: View {
                 TVSettingsSection(title: "About", footer: SettingsSupport.aboutFooterText) {
                     HStack(spacing: 20) {
                         Text("Version")
-                            .font(.headline)
+                            .font(DuskFont.rowTitle(ios: .headline))
                             .foregroundStyle(Color.duskTextPrimary)
 
                         Spacer()
 
                         Text(viewModel.appVersion)
+                            .duskFont(tvOnly: DuskFont.TV.rowValue)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
-                    .frame(minHeight: 72)
+                    .frame(minHeight: TVSettingsMetrics.rowMinHeight)
 
                     tvRowDivider
 

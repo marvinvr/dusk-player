@@ -149,7 +149,7 @@ struct PlayerUpNextOverlayView: View {
         Color.duskSurface
             .overlay {
                 Image(systemName: "film")
-                    .font(.largeTitle)
+                    .font(DuskFont.glyphLarge(ios: .largeTitle))
                     .foregroundStyle(Color.duskTextSecondary)
             }
     }
@@ -513,12 +513,14 @@ private struct UpNextLayoutMetrics {
         let isShortHeight = availableHeight < 340
 
         #if os(tvOS)
-        let eyebrowFont: Font = .system(size: 22, weight: .bold)
-        let titleFont: Font = .system(size: 50, weight: .bold)
-        let metadataFont: Font = .system(size: 24, weight: .medium)
-        let summaryFont: Font = .system(size: 26, weight: .regular)
-        let countdownFont: Font = .system(size: 24, weight: .semibold)
-        let actionFont: Font = .system(size: 26, weight: .semibold)
+        // Hand-sized for this overlay, but kept on the `DuskFont` tvOS ladder:
+        // badge 21 → caption 23 → metadata 25 → playerOverlayTitle 44.
+        let eyebrowFont: Font = DuskFont.TV.badge
+        let titleFont: Font = DuskFont.TV.playerOverlayTitle
+        let metadataFont: Font = .system(size: 23, weight: .medium)
+        let summaryFont: Font = .system(size: 25, weight: .regular)
+        let countdownFont: Font = .system(size: 23, weight: .semibold)
+        let actionFont: Font = .system(size: 25, weight: .semibold)
         let summaryLineLimit = 3
         let blockSpacing: CGFloat = 26
         let headerSpacing: CGFloat = 10

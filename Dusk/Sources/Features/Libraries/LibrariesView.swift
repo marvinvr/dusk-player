@@ -126,18 +126,18 @@ private struct LibraryRowContent: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(library.title)
-                    .font(.headline)
+                    .font(DuskFont.rowTitle(ios: .headline))
                     .foregroundStyle(Color.duskTextPrimary)
 
                 Text(libraryTypeLabel)
-                    .font(.subheadline)
+                    .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
             }
 
             Spacer()
 
             Image(systemName: "chevron.right")
-                .font(.caption)
+                .font(DuskFont.glyphSmall(ios: .caption))
                 .foregroundStyle(Color.duskTextSecondary)
         }
         .padding(12)
@@ -160,11 +160,7 @@ private struct LibraryRowContent: View {
     }
 
     private var libraryPlaceholderIconFont: Font {
-        #if os(tvOS)
-        .system(size: 20, weight: .medium)
-        #else
-        .title2
-        #endif
+        DuskFont.glyphMedium(ios: .title2)
     }
 }
 

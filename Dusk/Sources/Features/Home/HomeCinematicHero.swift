@@ -6,6 +6,11 @@ import UIKit
 struct HomeCinematicHeroLayout {
     var heroHeightFactor: CGFloat = 0.72
     var heroHeightRange: ClosedRange<CGFloat> = 520 ... 760
+    /// When true the hero ignores `heroHeightFactor` / `heroHeightRange` and
+    /// simply takes the container height it is handed, unmodified (no
+    /// `topInset` addition — the caller already sized the container to the whole
+    /// display). tvOS uses this for the full-bleed cinematic home hero.
+    var fillsContainerHeight: Bool = false
     var maxContentWidth: CGFloat = 620
     var contentHorizontalPadding: CGFloat = 20
     var contentTopPadding: CGFloat = 64
@@ -19,6 +24,14 @@ struct HomeCinematicHeroLayout {
     var titleLogoMaxWidth: CGFloat = 420
     var titleLogoMaxHeight: CGFloat = 108
     var backdropImageAlignment: Alignment = .center
+    /// tvOS-only bottom mask of the backdrop + overlay stack. iOS ignores it.
+    var backdropBottomFadeStyle: DuskHeroBottomFadeStyle = .compact
+    /// Scrim strength of `DuskHeroBackdropOverlay`.
+    var backdropOverlayStyle: DuskHeroOverlayStyle = .standard
+    /// Gap between the title (logo or text) and the lines under it. Movies have
+    /// no episode title, so their block breathes a little wider.
+    var titleBlockSpacingMovie: CGFloat = 18
+    var titleBlockSpacingOther: CGFloat = 14
     var episodeTitleFont: Font = .title3.weight(.semibold)
     var metadataFont: Font = .subheadline.weight(.medium)
     var summaryFont: Font = .body
@@ -26,28 +39,51 @@ struct HomeCinematicHeroLayout {
     var summaryLineSpacing: CGFloat = 4
 
     static let ios = HomeCinematicHeroLayout(summaryLineLimit: 2)
+    /// Apple TV: the hero owns the **entire** screen. Heights come from the
+    /// container (`fillsContainerHeight`), and the paddings below are measured
+    /// from the real display edges, not from a banner box:
+    ///
+    /// - `contentBottomPaddingWithPager` keeps the text/button block clear of
+    ///   both the pager pills and the "More" scroll hint that `HomeTVView`
+    ///   overlays at the bottom centre.
+    /// - `pagerBottomPadding` = 60pt overscan inset + ~18pt so the pills share a
+    ///   baseline with that hint.
     static let tv = HomeCinematicHeroLayout(
-        heroHeightFactor: 0.75,
-        heroHeightRange: 560 ... 820,
-        maxContentWidth: 820,
+        heroHeightFactor: 1,
+        heroHeightRange: 560 ... 2160,
+        fillsContainerHeight: true,
+        maxContentWidth: 920,
         contentHorizontalPadding: 56,
         contentTopPadding: 64,
-        contentBottomPaddingWithPager: 64,
-        contentBottomPaddingWithoutPager: 32,
+        contentBottomPaddingWithPager: 220,
+        contentBottomPaddingWithoutPager: 188,
         actionsTopPadding: 10,
         actionsBottomPadding: 8,
         pagerHorizontalPadding: 56,
-        pagerBottomPadding: 34,
-        titleFontSize: 40,
-        titleLogoMaxWidth: 560,
-        titleLogoMaxHeight: 124,
-        backdropImageAlignment: .top,
-        episodeTitleFont: .title3.weight(.semibold),
-        metadataFont: .subheadline.weight(.medium),
-        summaryFont: .callout,
-        summaryLineLimit: 2,
+        pagerBottomPadding: 78,
+        titleFontSize: DuskFont.TV.Size.heroTitle,
+        titleLogoMaxWidth: 640,
+        titleLogoMaxHeight: 150,
+        backdropImageAlignment: .center,
+        backdropBottomFadeStyle: .fullBleed,
+        backdropOverlayStyle: .cinematic,
+        titleBlockSpacingMovie: 14,
+        titleBlockSpacingOther: 10,
+        episodeTitleFont: DuskFont.TV.heroSubtitle,
+        metadataFont: DuskFont.TV.metadata,
+        summaryFont: DuskFont.TV.body,
+        summaryLineLimit: 3,
         summaryLineSpacing: 3
     )
+}
+
+/// A vertical remote move that reached the hero, surfaced so the host view can
+/// tell "the user pressed down out of the hero" apart from "focus left the hero
+/// upwards into the tab bar". Declared unconditionally so `HomeTVView` compiles
+/// on every platform; only tvOS ever emits one.
+enum HomeHeroVerticalMove {
+    case up
+    case down
 }
 
 struct HomeCinematicHeroCallbacks {
@@ -77,6 +113,9 @@ struct HomeCinematicHero: View {
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
+    /// Fires on tvOS when a vertical move command reaches the hero. The hero
+    /// never acts on it — it only reports it so the host can drive scrolling.
+    var onVerticalMove: ((HomeHeroVerticalMove) -> Void)? = nil
 
     @State private var currentHeroIndex = 0
     @State private var heroRotationRevision = 0
@@ -103,10 +142,15 @@ struct HomeCinematicHero: View {
     var body: some View {
         let resolvedIndex = resolvedHeroIndex
         let heroWidth = pixelAlignedLength(containerSize.width)
-        let rawHeroHeight = min(
-            max(containerSize.height * layout.heroHeightFactor, layout.heroHeightRange.lowerBound),
-            layout.heroHeightRange.upperBound
-        ) + topInset
+        let rawHeroHeight: CGFloat = layout.fillsContainerHeight
+            // Full-bleed: the caller already sized `containerSize` to the whole
+            // display, top safe area included, so adding `topInset` again would
+            // push the hero past the bottom of the screen.
+            ? containerSize.height
+            : min(
+                max(containerSize.height * layout.heroHeightFactor, layout.heroHeightRange.lowerBound),
+                layout.heroHeightRange.upperBound
+            ) + topInset
         let heroHeight = pixelAlignedLength(rawHeroHeight)
         let backdropWidth = Int(heroWidth.rounded(.up))
         let backdropHeight = Int(heroHeight.rounded(.up))
@@ -314,9 +358,9 @@ struct HomeCinematicHero: View {
                     heroHeight: heroHeight
                 )
 
-                DuskHeroBackdropOverlay()
+                DuskHeroBackdropOverlay(style: layout.backdropOverlayStyle)
             }
-            .duskHeroBackdropBottomFade(.compact)
+            .duskHeroBackdropBottomFade(layout.backdropBottomFadeStyle)
 
             #if os(iOS)
             if let detailsAction {
@@ -379,7 +423,7 @@ struct HomeCinematicHero: View {
     }
 
     private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
-        item.type == .movie ? 18 : 14
+        item.type == .movie ? layout.titleBlockSpacingMovie : layout.titleBlockSpacingOther
     }
 
     private var showsHeroSummary: Bool {
@@ -680,7 +724,11 @@ struct HomeCinematicHero: View {
         case .right:
             guard heroItemIDs.count > 1 else { return }
             showNextHero()
-        default:
+        case .up:
+            onVerticalMove?(.up)
+        case .down:
+            onVerticalMove?(.down)
+        @unknown default:
             break
         }
     }

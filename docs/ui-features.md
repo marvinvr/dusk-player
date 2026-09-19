@@ -111,7 +111,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Use `AdaptivePosterGridLayout.make(...)` for responsive poster grids. Do not hand-roll
   column math in feature files.
 - Use `DuskPosterMetrics` for platform-sensitive poster widths, grid spacing,
-  horizontal padding, detail padding, and text fonts.
+  horizontal padding, and detail padding. Its `titleFont` / `subtitleFont` are thin
+  forwards to `DuskFont.cardTitle` / `DuskFont.cardSubtitle`, so card text is styled
+  by the type scale, not by the metrics struct.
+- Use `DuskFont` (`Shared/DuskTypography.swift`) for **all** type. tvOS views go
+  through `DuskFont` and never use raw semantic text styles (`.headline`, `.title3`,
+  `.caption`, …), which resolve 2.1–2.7× larger on tvOS than on iOS. Each token takes
+  the call site's current iOS style — `DuskFont.sectionHeader(ios: .title3.bold())` —
+  and returns it unchanged off tvOS, so iOS rendering never moves. tvOS-only paths use
+  `DuskFont.TV.<token>`; layout structs that store point sizes use
+  `DuskFont.TV.Size.<token>`; sites where iOS deliberately applies no font use
+  `.duskFont(tvOnly:)`. The full token table lives in `STYLE.md` §3.1.
 - Use `MediaTextFormatter` for duration, season/episode labels, counts, progress,
   media type icons, air dates, and playback version labels.
 - Use `PlexItemPresentation` helpers for standard poster subtitles, continue-watching
@@ -123,14 +133,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   The overlay owns the shared top and leading scrims; the bottom fade into the page
   is platform-split: on iOS the overlay paints a `Color.duskBackground` gradient and
   cap, on tvOS the modifier instead masks the hero to fully transparent so the page
-  background underneath is the only fill at the hero boundary. Pass `.compact` to the
-  modifier for a shorter, lighter tvOS fade that reveals more of the backdrop (the home
-  cinematic hero banner uses this); detail heroes keep the default `.standard` fade.
+  background underneath is the only fill at the hero boundary. The modifier's style
+  picks the tvOS mask curve: `.standard` (the default) for detail heroes, `.compact`
+  for a shorter, lighter fade that reveals more of the backdrop, and `.fullBleed` for
+  a hero that owns the whole display — it holds full strength to ~86% and only
+  vignettes across the last stretch. Every case must still reach, and hold, zero
+  alpha before the hero's bottom edge; that is what makes the HDR seam impossible.
   On iOS the overlay's own scrim strength is selectable via its `style`: the home hero
   keeps the default `.standard`, while the movie/show/season/episode detail heroes pass
   `.soft` to hold the darkening and bottom fade off until the lower third so more of the
-  backdrop reads through behind the title block. `style` is iOS-only — tvOS always
-  renders the full-strength vertical scrim regardless.
+  backdrop reads through behind the title block. `.standard` and `.soft` differ on iOS
+  only — on tvOS both render the long-standing full-strength vertical scrim. The one
+  overlay style that changes tvOS is `.cinematic` (0.10 → 0.20@55% → 0.62@82% →
+  0.88), used **only** by the full-screen tvOS home hero so the artwork stays nearly
+  unscrimmed above the title block; the shared leading ramp is unchanged. Do not
+  repoint the detail heroes at it.
   Never paint `Color.duskBackground` (gradient or solid) inside a hero subtree on
   tvOS: real Apple TV HDR output resolves hero-subtree fills and the plain page
   background through different color pipelines, so two stacked fills of the same
@@ -217,10 +234,50 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic
   range to standard to avoid real-device HDR/SDR seams between the backdrop fade and
   the shelves below.
-- On tvOS, the home hero is intentionally taller than iOS but should still leave
-  enough of the first shelf visible to make lower home content discoverable and
-  reachable through normal focus movement. Keep the title/logo block, metadata, and
-  hero button sizing restrained so the hero reads cinematic instead of crowded.
+- **On tvOS the home hero is full-bleed: it occupies the entire display and nothing
+  else is on screen at rest.** This replaces the older "leave the first shelf peeking"
+  rule — discoverability now comes from an explicit scroll hint plus a scripted
+  scroll, not from a cropped shelf.
+  - `HomeCinematicHeroLayout.fillsContainerHeight` (set only by `.tv`) makes the hero
+    take the container height verbatim, with no `topInset` addition — the caller has
+    already sized the container to the whole display. `HomeTVView` builds that size
+    from `fullDisplayWidth` / `fullDisplayHeight`, floored at
+    `geometry.size + safeAreaInsets.top + .bottom`. The existing
+    `.ignoresSafeArea(edges: .top)` plus the negative top padding on the scroll
+    content are what put the artwork at screen y = 0; keep the explicit
+    frame/offset width handling and `.contentMargins(.zero…)` — do not swap either
+    for `containerRelativeFrame`.
+  - The `.tv` paddings are measured from the real display edges: the text block
+    clears the pager *and* the hint (~220pt of bottom padding), the pager sits at
+    60pt overscan + ~18pt so its pills share a baseline with the hint, and the logo
+    caps grow to 640×150 for a 1920-wide frame. The backdrop is centre-aligned
+    because 16:9 artwork now lands in a 16:9 box.
+  - `HomeTVScrollHint` (tvOS-only, defined in `HomeTVView.swift`) is the "More" +
+    `chevron.down` affordance, attached as an `.overlay(alignment: .bottom)` on the
+    hero **after** the width frame and x-offset so it centres on the true screen, and
+    padded 60pt off the bottom. It is decoration: non-focusable, `allowsHitTesting`
+    off, `accessibilityHidden`, with a gentle chevron bounce that is skipped under
+    Reduce Motion, faded out (0.25s) whenever focus is not on `.heroPrimaryAction`,
+    and omitted entirely when there is nothing below the hero. Keep it out of
+    `HomeCinematicHero`'s per-item slide — mounting it there would re-create it on
+    every hero change and disturb the focus binding.
+  - Scroll choreography: the shelves live in a `ScrollViewReader`, the hero and the
+    (padded) shelf stack carry `.id` anchors, and a `focusedTarget` change scrolls
+    between them over 0.35s — down to the shelves' top, back up to the hero's top.
+    `@FocusState` cannot tell "down into the shelves" from "up into the tab bar"
+    (both read as `nil`), so `HomeCinematicHero` reports vertical move commands via
+    `onVerticalMove` and `HomeTVView` only scrolls down when the last move was
+    `.down`. The shelf stack is a plain `VStack` on tvOS, not a `LazyVStack`: with
+    the hero filling the screen the first shelf starts exactly at the fold, and an
+    unmaterialised lazy stack turns the down-press into a dead end. `shelfTopPadding`
+    is derived from the measured top safe area because it is now what keeps the
+    first shelf header clear of the floating tab bar after the scroll.
+  - Unchanged and still load-bearing: both `.focusSection()`s, the focus
+    scope / `defaultFocus` / `requestHeroPrimaryFocusIfNeeded` dance, and
+    `autoRotates: false`.
+  - `HomeViewModel.heroItems()` caps the rotation at 10 items **on tvOS only**, since
+    every backdrop is now decoded at 1920×1080 and the whole set is prefetched
+    eagerly. iOS keeps the unbounded list.
 - On iOS the home hero play button uses `homeHeroNativeButtonStyle()` (prominent,
   `Color.primary`-tinted Liquid Glass that contrasts the artwork) with
   `HomeHeroActionButtonLabel(fillsWidth: true)`, sized as a wide, short pill

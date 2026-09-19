@@ -92,14 +92,15 @@ struct ContentView: View {
             VStack(spacing: 18) {
                 if let homeBootstrapError {
                     Image(systemName: "person.2.slash")
-                        .font(.largeTitle)
+                        .font(DuskFont.glyphLarge(ios: .largeTitle))
                         .foregroundStyle(Color.duskTextSecondary)
 
                     Text("Couldn’t load Plex")
-                        .font(.headline)
+                        .font(DuskFont.sectionHeader(ios: .headline))
                         .foregroundStyle(Color.duskTextPrimary)
 
                     Text(homeBootstrapError)
+                        .duskFont(tvOnly: DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
@@ -110,7 +111,7 @@ struct ContentView: View {
                             Button("Sign In") {
                                 signOut()
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(Color.duskPrimaryActionLabel)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -121,7 +122,7 @@ struct ContentView: View {
                             Button("Retry") {
                                 Task { await bootstrapHomeIfNeeded(force: true) }
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(Color.duskPrimaryActionLabel)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -133,7 +134,7 @@ struct ContentView: View {
                             Button("Sign Out", role: .destructive) {
                                 signOut()
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(.red)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -147,6 +148,7 @@ struct ContentView: View {
                         .tint(Color.duskAccent)
 
                     Text("Loading…")
+                        .duskFont(tvOnly: DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -162,6 +164,7 @@ struct ContentView: View {
                     .tint(Color.duskAccent)
                 if showConnectionRefreshMessage {
                     Text("Checking your server connection…")
+                        .duskFont(tvOnly: DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -182,9 +185,10 @@ struct ContentView: View {
             VStack(spacing: 16) {
                 if let error = connectError {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
+                        .font(DuskFont.glyphLarge(ios: .largeTitle))
                         .foregroundStyle(Color.duskTextSecondary)
                     Text(error)
+                        .duskFont(tvOnly: DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal, 40)
@@ -193,7 +197,7 @@ struct ContentView: View {
                             Button("Sign In") {
                                 signOut()
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -204,7 +208,7 @@ struct ContentView: View {
                             Button("Retry") {
                                 resetDiscoveryState()
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(.white)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -215,7 +219,7 @@ struct ContentView: View {
                             Button("Sign Out", role: .destructive) {
                                 signOut()
                             }
-                            .font(.headline)
+                            .font(DuskFont.buttonLabel(ios: .headline))
                             .foregroundStyle(.red)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 12)
@@ -228,6 +232,7 @@ struct ContentView: View {
                     ProgressView()
                         .tint(Color.duskAccent)
                     Text("Finding your servers…")
+                        .duskFont(tvOnly: DuskFont.TV.body)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }

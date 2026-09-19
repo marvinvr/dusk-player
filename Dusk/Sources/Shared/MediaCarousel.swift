@@ -19,7 +19,7 @@ struct MediaCarousel<Content: View>: View {
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.carouselSectionSpacing) {
             Text(title)
-                .font(.title3.bold())
+                .font(DuskFont.sectionHeader(ios: .title3.bold()))
                 .foregroundStyle(Color.primary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, horizontalPadding)

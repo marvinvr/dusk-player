@@ -87,7 +87,7 @@ struct ShowAllCarouselTile: View {
 
     private var labelSpacing: CGFloat {
         #if os(tvOS)
-        isHorizontalArtwork ? 12 : 18
+        isHorizontalArtwork ? 10 : 14
         #else
         isHorizontalArtwork ? 6 : 10
         #endif
@@ -95,7 +95,7 @@ struct ShowAllCarouselTile: View {
 
     private var iconSize: CGFloat {
         #if os(tvOS)
-        min(width * 0.16, 54)
+        min(width * 0.16, 44)
         #else
         min(width * 0.18, 34)
         #endif
@@ -103,7 +103,7 @@ struct ShowAllCarouselTile: View {
 
     private var labelFont: Font {
         #if os(tvOS)
-        .headline.weight(.semibold)
+        DuskFont.TV.buttonLabel
         #else
         .subheadline.weight(.semibold)
         #endif

@@ -134,7 +134,7 @@ struct LibraryOrderSettingsView: View {
 
                 if let saveError = viewModel.saveError {
                     Text(saveError)
-                        .font(.footnote)
+                        .font(DuskFont.TV.caption)
                         .foregroundStyle(Color.duskTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, TVSettingsMetrics.contentInset)

@@ -161,7 +161,7 @@ struct VideoDetailView: View {
     private func metadataLine() -> some View {
         if let line = viewModel.metadataLine {
             Text(line)
-                .font(.subheadline.weight(.medium))
+                .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                 .foregroundStyle(Color.primary.opacity(0.78))
         }
     }
