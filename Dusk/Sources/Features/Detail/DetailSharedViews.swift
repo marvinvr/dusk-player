@@ -740,6 +740,9 @@ let detailHeroRegularPrimaryWidth: CGFloat = 260
 
 struct ActorCreditCard: View {
     let person: PlexPersonReference
+    /// The server this credit was read from; the person's page and avatar both
+    /// have to be fetched from it, because person ids are per-server tag ids.
+    let serverID: String?
     let plexService: PlexService
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -753,7 +756,7 @@ struct ActorCreditCard: View {
         let artworkShape = RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
 
         VStack(alignment: .leading, spacing: avatarTextSpacing) {
-            NavigationLink(value: AppNavigationRoute.person(person)) {
+            NavigationLink(value: AppNavigationRoute.person(person, serverID: serverID)) {
                 avatarImage(size: avatarSize)
             }
             .duskSuppressTVOSButtonChrome()
@@ -768,7 +771,7 @@ struct ActorCreditCard: View {
         .duskTVOSFocusedScale(isFocused)
         .zIndex(isFocused ? 1 : 0)
         #else
-        NavigationLink(value: AppNavigationRoute.person(person)) {
+        NavigationLink(value: AppNavigationRoute.person(person, serverID: serverID)) {
             VStack(spacing: 8) {
                 avatarImage(size: 72)
                 personDetails(width: 80)
@@ -787,7 +790,7 @@ struct ActorCreditCard: View {
 
         Group {
             if let thumbPath = person.thumb {
-                DuskAsyncImage(url: plexService.imageURL(for: thumbPath, width: imageSize, height: imageSize)) { phase in
+                DuskAsyncImage(url: plexService.imageURL(for: thumbPath, serverID: serverID, width: imageSize, height: imageSize)) { phase in
                     switch phase {
                     case .success(let image):
                         image
@@ -844,6 +847,8 @@ struct ActorCreditCard: View {
 
 struct DetailCastSection: View {
     let roles: [PlexRole]
+    /// The server the item's metadata came from; its cast lives there too.
+    let serverID: String?
     let plexService: PlexService
     var title = "Cast"
     var horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
@@ -867,7 +872,11 @@ struct DetailCastSection: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: castSpacing) {
                     ForEach(Array(roles.prefix(maxVisibleRoles).enumerated()), id: \.offset) { _, role in
-                        ActorCreditCard(person: PlexPersonReference(role: role), plexService: plexService)
+                        ActorCreditCard(
+                            person: PlexPersonReference(role: role),
+                            serverID: serverID,
+                            plexService: plexService
+                        )
                     }
                 }
                 .padding(.horizontal, horizontalPadding)

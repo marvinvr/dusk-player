@@ -17,7 +17,7 @@ enum PlayerLoadingState: Equatable {
 /// construct URL → present player → report timeline → scrobble.
 ///
 /// Injected into the environment so any view can trigger playback via
-/// `coordinator.play(ratingKey:resumeOffsetMilliseconds:)`. The player is
+/// `coordinator.play(id:resumeOffsetMilliseconds:)`. The player is
 /// presented as a full-screen cover in MainTabView.
 @MainActor @Observable
 final class PlaybackCoordinator {
@@ -92,6 +92,10 @@ final class PlaybackCoordinator {
     let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     @ObservationIgnored let nowPlayingController = PlaybackNowPlayingController()
     var ratingKey: String?
+    /// The server the live session is actually playing from. Authoritative for
+    /// timeline, scrobble, transcode ping/stop, subtitles, scrub previews and
+    /// Up Next: a rating key means something different on every other server,
+    /// so none of it may be fanned out to the pool.
     var activePlaybackServerID: String?
     var activePlaybackUsesLocalDownload = false
     var activeItemDetails: PlexMediaDetails?
@@ -236,6 +240,13 @@ final class PlaybackCoordinator {
         sharePlayController.errorMessage
     }
 
+    /// Server-scoped identity of what is playing, for call sites that route by
+    /// item rather than by rating key.
+    var activeItemID: PlexItemID? {
+        guard let ratingKey else { return nil }
+        return PlexItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+    }
+
     var canSharePlayCurrentPlayback: Bool {
         activeItemDetails != nil && activeLiveTVContext == nil && activePlaybackServerID != nil
     }
@@ -288,18 +299,29 @@ final class PlaybackCoordinator {
     // MARK: - Play an Item
 
     /// Full "play an item" flow. The player cover is presented immediately on a
-    /// loading placeholder, then metadata is fetched → engine picked → URL built
-    /// → session committed under the already-visible cover. `placeholder` is what
-    /// the caller already knows (title/poster) so the loading screen isn't blank.
+    /// loading placeholder, then a server is chosen → metadata fetched → engine
+    /// picked → URL built → session committed under the already-visible cover.
+    /// `placeholder` is what the caller already knows (title/poster) so the
+    /// loading screen isn't blank.
+    ///
+    /// `id` carries the server the caller was looking at. That server is the
+    /// first choice; the same content on other connected servers is used as
+    /// fallback (see `PlaybackSourceResolver`).
+    /// `resumeOffsetDurationMilliseconds` is the runtime of the copy the offset
+    /// was read from. A fallback server only inherits the position when its own
+    /// copy is the same length (see `runPlaybackAttempt`), so callers that know
+    /// the item's duration should pass it.
     func play(
-        ratingKey: String,
+        id: PlexItemID,
         resumeOffsetMilliseconds: Int?,
+        resumeOffsetDurationMilliseconds: Int? = nil,
         placeholder: PlaybackPlaceholder? = nil
     ) async {
         await beginPlayback(
-            ratingKey: ratingKey,
+            id: id,
             startPositionOverride: nil,
             resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+            resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
             selectedMediaID: nil,
             placeholder: placeholder
         )
@@ -378,7 +400,9 @@ final class PlaybackCoordinator {
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
             ratingKey = program?.ratingKey ?? tune.sessionID
-            activePlaybackServerID = plexService.currentServerIdentifier
+            // Every follow-up call (timeline, transcode ping/stop) has to reach
+            // the server that actually holds the tuner session.
+            activePlaybackServerID = tune.serverID
             activePlaybackUsesLocalDownload = false
             activePlaybackSessionIdentifier = tune.playbackSessionIdentifier
             activeTranscodeSessionID = tune.transcodeSessionID
@@ -390,7 +414,7 @@ final class PlaybackCoordinator {
                 startPosition: nil,
                 context: context,
                 preferredAudioTrackPosition: nil,
-                locality: sourceLocality(for: tune.playbackURL),
+                locality: sourceLocality(for: tune.playbackURL, serverID: tune.serverID),
                 liveTVContext: liveContext
             )
             debugInfo = PlaybackDebugInfo(
@@ -408,6 +432,7 @@ final class PlaybackCoordinator {
                 title: title,
                 channelTitle: subtitle,
                 artworkPath: program?.preferredLandscapePath ?? channel.thumb,
+                serverID: tune.serverID,
                 engine: newEngine,
                 plexService: plexService,
                 skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
@@ -519,27 +544,38 @@ final class PlaybackCoordinator {
     /// How far ahead the held schedule must reach before Dusk refetches it.
     private static let liveTVScheduleCoverageHorizon: TimeInterval = 60 * 60
 
-    func playFromStart(ratingKey: String, placeholder: PlaybackPlaceholder? = nil) async {
+    /// - Parameter restrictToItemServer: keeps the session on the item's own
+    ///   server (SharePlay: the whole group is watching that server's copy).
+    func playFromStart(
+        id: PlexItemID,
+        restrictToItemServer: Bool = false,
+        placeholder: PlaybackPlaceholder? = nil
+    ) async {
         await beginPlayback(
-            ratingKey: ratingKey,
+            id: id,
             startPositionOverride: 0,
             resumeOffsetMilliseconds: nil,
             selectedMediaID: nil,
+            restrictToItemServer: restrictToItemServer,
             placeholder: placeholder
         )
     }
 
+    /// An explicitly chosen media version stays on the server it was chosen
+    /// from: another server's copy of the same title has entirely different
+    /// versions, so falling back would silently play something else.
     func playVersion(
-        ratingKey: String,
+        id: PlexItemID,
         mediaID: Int,
         resumeOffsetMilliseconds: Int?,
         placeholder: PlaybackPlaceholder? = nil
     ) async {
         await beginPlayback(
-            ratingKey: ratingKey,
+            id: id,
             startPositionOverride: nil,
             resumeOffsetMilliseconds: resumeOffsetMilliseconds,
             selectedMediaID: mediaID,
+            restrictToItemServer: true,
             placeholder: placeholder
         )
     }
@@ -547,20 +583,24 @@ final class PlaybackCoordinator {
     /// Present the cover on a loading placeholder first, then prepare the session
     /// in the background so pressing Play feels instant.
     private func beginPlayback(
-        ratingKey: String,
+        id: PlexItemID,
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
+        resumeOffsetDurationMilliseconds: Int? = nil,
         selectedMediaID: Int?,
+        restrictToItemServer: Bool = false,
         placeholder: PlaybackPlaceholder?
     ) async {
         let attemptID = UUID()
         enterLoadingState(placeholder: placeholder, attemptID: attemptID)
 
-        let didStart = await startPlaybackSession(
-            ratingKey: ratingKey,
+        let didStart = await runPlaybackAttempt(
+            id: id,
             startPositionOverride: startPositionOverride,
             resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+            resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
             selectedMediaID: selectedMediaID,
+            restrictToItemServer: restrictToItemServer,
             attemptID: attemptID
         )
 
@@ -570,7 +610,7 @@ final class PlaybackCoordinator {
         if didStart {
             resetContinuousPlayEpisodeRunCountForCurrentItem()
         } else {
-            // `startPlaybackSession` set `loadError`; the cover surfaces it as an
+            // `runPlaybackAttempt` set `loadError`; the cover surfaces it as an
             // alert (see PlayerView) and stays up on the placeholder until the
             // user dismisses it.
             continuousPlayEpisodeRunCount = 0
@@ -681,26 +721,16 @@ final class PlaybackCoordinator {
             return .waitingForAccount("Sign in to Plex to join this SharePlay activity.")
         }
 
-        if plexService.currentServerIdentifier != activity.serverIdentifier {
-            do {
-                let servers = try await plexService.discoverServers()
-                guard !Task.isCancelled else { return .cancelled }
-                guard let server = servers.first(where: {
-                    $0.clientIdentifier == activity.serverIdentifier
-                }) else {
-                    return .failed("This Plex account doesn’t have access to the server hosting \(activity.title).")
-                }
-                try await plexService.connect(to: server)
-            } catch {
-                guard !Task.isCancelled else { return .cancelled }
-                return .failed("Couldn’t connect to the Plex server for SharePlay: \(error.localizedDescription)")
-            }
+        // The hosting server is resolved out of this participant's own pool.
+        // Joining a SharePlay session must never move the invitee's session
+        // onto another server: with every enabled server connected in
+        // parallel, either they already have it or they genuinely don't.
+        guard plexService.pool.connection(for: activity.serverIdentifier) != nil else {
+            guard !Task.isCancelled else { return .cancelled }
+            return .failed("This Plex account doesn’t have access to the server hosting \(activity.title).")
         }
 
         guard !Task.isCancelled else { return .cancelled }
-        guard plexService.currentServerIdentifier == activity.serverIdentifier else {
-            return .failed("Couldn’t connect to the Plex server hosting \(activity.title).")
-        }
 
         if ratingKey == activity.ratingKey,
            activePlaybackServerID == activity.serverIdentifier,
@@ -708,13 +738,21 @@ final class PlaybackCoordinator {
             return .ready
         }
 
+        // The group is watching one server's copy: the activity names it, and
+        // the readiness check below rejects anything else. Falling back to this
+        // participant's higher-priority server would only tear the session down.
         await playFromStart(
-            ratingKey: activity.ratingKey,
+            id: PlexItemID(
+                serverID: activity.serverIdentifier,
+                ratingKey: activity.ratingKey
+            ),
+            restrictToItemServer: true,
             placeholder: PlaybackPlaceholder(
                 title: activity.title,
                 subtitle: activity.subtitle,
                 posterPath: nil,
-                backdropPath: nil
+                backdropPath: nil,
+                serverID: activity.serverIdentifier
             )
         )
 

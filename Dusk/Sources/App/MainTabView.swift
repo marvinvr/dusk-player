@@ -23,7 +23,10 @@ struct MainTabView: View {
         @Bindable var bindablePlayback = playback
 
         shellView
-            .task {
+            // Which tabs exist depends on the merged library list, so the shell
+            // reloads it whenever the set of connected servers changes: it
+            // mounts before the first server is connected.
+            .task(id: plexService.serverContentRevision) {
                 if librariesViewModel == nil {
                     librariesViewModel = LibrariesViewModel(plexService: plexService)
                 }

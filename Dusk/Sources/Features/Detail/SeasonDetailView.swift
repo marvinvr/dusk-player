@@ -15,14 +15,14 @@ struct SeasonDetailView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
     ) {
         _viewModel = State(initialValue: SeasonDetailViewModel(
-            ratingKey: ratingKey,
+            id: id,
             plexService: plexService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -233,8 +233,8 @@ struct SeasonDetailView: View {
                             width: Int((containerWidth * 0.5).rounded(.up)),
                             height: 128
                         ),
-                        showRoute: viewModel.showRatingKey.map {
-                            viewModel.detailRoute(type: .show, ratingKey: $0)
+                        showRoute: viewModel.showID.map {
+                            viewModel.detailRoute(type: .show, id: $0)
                         }
                     )
                 }
@@ -385,6 +385,7 @@ struct SeasonDetailView: View {
             if !selectedTVEpisodeRoles.isEmpty {
                 DetailCastSection(
                     roles: selectedTVEpisodeRoles,
+                    serverID: viewModel.serverID,
                     plexService: plexService,
                     title: "Episode Cast"
                 )
@@ -431,7 +432,7 @@ struct SeasonDetailView: View {
 
             HStack(spacing: detailHeroActionSpacing) {
                 DownloadActionButton(
-                    ratingKey: viewModel.ratingKey,
+                    id: viewModel.id,
                     type: .season,
                     iconOnly: true
                 )
@@ -449,14 +450,15 @@ struct SeasonDetailView: View {
             nextEpisodePlayableVersions: heroPlayEpisodeVersions,
             nextEpisodeRoute: heroPlayEpisodeRoute,
             nextEpisodeMenuLabel: heroPlayEpisodeMenuLabel,
-            showRoute: viewModel.showRatingKey.map { viewModel.detailRoute(type: .show, ratingKey: $0) },
+            showRoute: viewModel.showID.map { viewModel.detailRoute(type: .show, id: $0) },
             usesFullWidthActionButtons: fillsActionWidth,
             onPlay: { episode in
                 guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
                 Task {
                     await playback.play(
-                        ratingKey: episode.ratingKey,
+                        id: episode.id,
                         resumeOffsetMilliseconds: episode.viewOffset,
+                        resumeOffsetDurationMilliseconds: episode.duration,
                         placeholder: PlaybackPlaceholder(episode: episode)
                     )
                 }
@@ -464,7 +466,7 @@ struct SeasonDetailView: View {
             onPlayVersion: { episode, version in
                 Task {
                     await playback.playVersion(
-                        ratingKey: episode.ratingKey,
+                        id: episode.id,
                         mediaID: version.id,
                         resumeOffsetMilliseconds: episode.viewOffset,
                         placeholder: PlaybackPlaceholder(episode: episode)
@@ -505,7 +507,7 @@ struct SeasonDetailView: View {
 
     private var heroPlayEpisodeRoute: AppNavigationRoute? {
         #if os(tvOS)
-        focusedTVEpisode.map { viewModel.detailRoute(type: .episode, ratingKey: $0.ratingKey) }
+        focusedTVEpisode.map { viewModel.detailRoute(type: .episode, id: $0.id) }
         #else
         viewModel.nextEpisodeRoute
         #endif
@@ -574,8 +576,9 @@ struct SeasonDetailView: View {
                                     guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
                                     Task {
                                         await playback.play(
-                                            ratingKey: episode.ratingKey,
+                                            id: episode.id,
                                             resumeOffsetMilliseconds: episode.viewOffset,
+                                            resumeOffsetDurationMilliseconds: episode.duration,
                                             placeholder: PlaybackPlaceholder(episode: episode)
                                         )
                                     }
@@ -601,7 +604,7 @@ struct SeasonDetailView: View {
                     ForEach(viewModel.displayEpisodes) { episode in
                         SeasonEpisodeRow(
                             episode: episode,
-                            destination: viewModel.detailRoute(type: .episode, ratingKey: episode.ratingKey),
+                            destination: viewModel.detailRoute(type: .episode, id: episode.id),
                             imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
                             label: viewModel.episodeLabel(episode),
                             subtitle: viewModel.episodeSubtitle(episode),
@@ -619,8 +622,9 @@ struct SeasonDetailView: View {
                                 guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
                                 Task {
                                     await playback.play(
-                                        ratingKey: episode.ratingKey,
+                                        id: episode.id,
                                         resumeOffsetMilliseconds: episode.viewOffset,
+                                        resumeOffsetDurationMilliseconds: episode.duration,
                                         placeholder: PlaybackPlaceholder(episode: episode)
                                     )
                                 }
@@ -690,11 +694,11 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func episodeContextMenu(_ episode: PlexEpisode) -> some View {
-        let downloadState = downloadManager.downloadState(for: DownloadScope(ratingKey: episode.ratingKey, type: .episode))
+        let downloadState = downloadManager.downloadState(for: DownloadScope(id: episode.id, type: .episode))
 
         if viewModel.isPartiallyWatched(episode) {
             Button {
-                Task { await playback.playFromStart(ratingKey: episode.ratingKey, placeholder: PlaybackPlaceholder(episode: episode)) }
+                Task { await playback.playFromStart(id: episode.id, placeholder: PlaybackPlaceholder(episode: episode)) }
             } label: {
                 Label("Play from Start", systemImage: "arrow.counterclockwise")
             }
@@ -733,7 +737,7 @@ struct SeasonDetailView: View {
                     onResume: { downloadManager.resumeDownload(scope: downloadState.scope) },
                     onCancel: { downloadManager.cancelDownload(scope: downloadState.scope) },
                     onDelete: { downloadManager.deleteDownload(scope: downloadState.scope) },
-                    onRetry: { downloadManager.retryDownload(ratingKey: episode.ratingKey) }
+                    onRetry: { downloadManager.retryDownload(id: episode.id) }
                 )
             } else {
                 Button {

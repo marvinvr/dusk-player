@@ -6,15 +6,151 @@ private let playbackSessionLogger = Logger(
     category: "PlaybackSession"
 )
 
+/// How one attempt on one server ended.
+enum PlaybackSessionOutcome {
+    case started
+    /// This server can't deliver the item, but another one might: the details
+    /// fetch failed, the server is gone, there is no playable part, the
+    /// transcode decision failed, or no URL could be built.
+    case hardFailure(String)
+    /// A newer attempt or a dismissal took over while this one loaded.
+    case superseded
+}
+
 extension PlaybackCoordinator {
+    /// How long one candidate server gets to answer before the walk moves on.
+    /// The session's own 15 s request timeout is the right ceiling for the last
+    /// candidate, but waiting it out on each of them would turn a fallback into
+    /// half a minute of spinner. Generous enough for a sleeping NAS to spin its
+    /// disks up and answer a `checkFiles` metadata request.
+    static let candidateFetchDeadline: Duration = .seconds(10)
+
+    /// Plays `id`, walking the item's other servers when one of them fails
+    /// hard. Sets `loadError` when nothing could be started.
+    ///
+    /// `resumeOffsetMilliseconds` is the offset of the instance the user
+    /// actually picked, so that instance plays first even when a
+    /// higher-priority server also has the item: the progress belongs to this
+    /// copy, and splitting it across two servers is what makes a series resume
+    /// in two places. A fallback server only inherits the offset when its own
+    /// copy is the same length (`resumeOffsetDurationMilliseconds`, within 2 %)
+    /// — otherwise it starts from whatever position that server itself knows.
     @discardableResult
-    func startPlaybackSession(
-        ratingKey: String,
+    func runPlaybackAttempt(
+        id: PlexItemID,
         startPositionOverride: TimeInterval?,
         resumeOffsetMilliseconds: Int?,
+        resumeOffsetDurationMilliseconds: Int? = nil,
         selectedMediaID: Int?,
+        restrictToItemServer: Bool = false,
         attemptID: UUID
     ) async -> Bool {
+        let isPlayableOffline = downloadManager?.isPlayableOffline(id: id) == true
+        let resolution = await PlaybackSourceResolver(plexService: plexService).resolve(
+            for: id,
+            // An explicitly chosen media version only exists on its own server.
+            restrictToItemServer: restrictToItemServer || selectedMediaID != nil,
+            prefersRequestedInstance: (resumeOffsetMilliseconds ?? 0) > 0
+        )
+        guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+
+        // Every usable copy needs an entitlement the account doesn't have, so
+        // say so once instead of letting each server fail in turn. A completed
+        // download plays regardless — it needs no server at all.
+        if resolution.isFullyRestricted,
+           let restrictionMessage = resolution.restrictionMessage,
+           !isPlayableOffline {
+            playbackSessionLogger.notice(
+                "Blocking remote playback for \(id.storageKey, privacy: .public): every candidate server is remote-streaming restricted"
+            )
+            loadError = restrictionMessage
+            return false
+        }
+
+        var candidates = resolution.identifiers
+        if isPlayableOffline {
+            // The downloaded file belongs to the server it came from and plays
+            // with no connection, so it always goes first.
+            candidates = [id] + candidates.filter { $0 != id }
+        }
+        if candidates.isEmpty {
+            // Nothing connected. Try the item as asked anyway: this is the
+            // offline path, and it surfaces the normal error when it is not.
+            candidates = [id]
+        }
+
+        var firstFailureMessage: String?
+
+        for (index, candidate) in candidates.enumerated() {
+            let isLastCandidate = index == candidates.index(before: candidates.endIndex)
+            let outcome = await startPlaybackSession(
+                id: candidate,
+                startPositionOverride: startPositionOverride,
+                resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+                resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
+                // Only the copy the offset was measured on may use it blindly.
+                // Both spellings count: the resolver fills in a missing server.
+                carriesRequestedOffset: candidate == id || candidate == resolution.requestedID,
+                selectedMediaID: selectedMediaID,
+                attemptID: attemptID,
+                fetchDeadline: isLastCandidate ? nil : Self.candidateFetchDeadline
+            )
+
+            switch outcome {
+            case .started:
+                return true
+            case .superseded:
+                return false
+            case let .hardFailure(message):
+                firstFailureMessage = firstFailureMessage ?? message
+                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+                if !isLastCandidate {
+                    playbackSessionLogger.notice(
+                        "Playback candidate \(candidate.storageKey, privacy: .public) failed (\(message, privacy: .public)); trying the next server"
+                    )
+                }
+            }
+        }
+
+        // The walk ends on the restricted candidates (they always sort last), so
+        // when there were any, the last thing that stood between the viewer and
+        // the item was the missing Plex Pass — a more useful answer than the
+        // first server's own error.
+        if !isPlayableOffline,
+           resolution.hasRestrictedCandidate,
+           let restrictionMessage = resolution.restrictionMessage {
+            loadError = restrictionMessage
+            return false
+        }
+
+        loadError = firstFailureMessage ?? "Could not play this item."
+        return false
+    }
+
+    /// One attempt on one server.
+    ///
+    /// - Parameters:
+    ///   - carriesRequestedOffset: true when this candidate is the very copy
+    ///     `resumeOffsetMilliseconds` was measured on.
+    ///   - suppressLocalDownload: ignore the completed download for this item
+    ///     and stream from the server instead. Set when the file on disk turned
+    ///     out to be unusable.
+    ///   - fetchDeadline: bounds the metadata fetch so a dead server does not
+    ///     hold the candidate walk for the full request timeout. nil leaves the
+    ///     session's own timeout in charge (the last candidate).
+    func startPlaybackSession(
+        id: PlexItemID,
+        startPositionOverride: TimeInterval?,
+        resumeOffsetMilliseconds: Int?,
+        resumeOffsetDurationMilliseconds: Int? = nil,
+        carriesRequestedOffset: Bool = true,
+        selectedMediaID: Int?,
+        attemptID: UUID,
+        suppressLocalDownload: Bool = false,
+        fetchDeadline: Duration? = nil
+    ) async -> PlaybackSessionOutcome {
+        let ratingKey = id.ratingKey
+        let itemServerID = id.serverID
         loadError = nil
         qualitySwitchError = nil
         cancelUpNextCountdown()
@@ -24,20 +160,25 @@ extension PlaybackCoordinator {
         // Plex session hygiene: a replaced session that was never finalized
         // (e.g. direct restart) must not leave its server transcoder running.
         if let staleTranscodeSessionID = activeTranscodeSessionID {
-            stopTranscodeSessionInBackground(staleTranscodeSessionID)
+            stopTranscodeSessionInBackground(staleTranscodeSessionID, serverID: activePlaybackServerID)
             activeTranscodeSessionID = nil
         }
 
         do {
             let details: PlexMediaDetails
-            if downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true,
-               let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+            if !suppressLocalDownload,
+               downloadManager?.isPlayableOffline(id: id) == true,
+               let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
                 details = cachedDetails
             } else {
                 do {
-                    details = try await plexService.getMediaDetails(ratingKey: ratingKey, checkFiles: true)
+                    details = try await fetchPlaybackDetails(
+                        ratingKey: ratingKey,
+                        serverID: itemServerID,
+                        deadline: fetchDeadline
+                    )
                 } catch {
-                    if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+                    if let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
                         details = cachedDetails
                     } else {
                         throw error
@@ -47,21 +188,21 @@ extension PlaybackCoordinator {
 
             // A newer attempt or a dismissal can supersede this one during the
             // metadata fetch; bail before building any playback state.
-            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return .superseded }
 
             airPlayController.refreshRoute(notify: false)
             let wantsAirPlay = airPlayController.isAirPlayRouteSelected
             let downloadedURL = downloadManager?.localPlaybackURL(
-                for: ratingKey,
+                for: id,
                 selectedMediaID: selectedMediaID
             )
             // AirPlay receivers cannot consume Dusk's private app-container URL.
             // When the matching Plex server is reachable, ask it for HLS even if
             // this item also has a completed local download.
-            let localURL = wantsAirPlay ? nil : downloadedURL
+            let localURL = (wantsAirPlay || suppressLocalDownload) ? nil : downloadedURL
             let localMediaVersion = localURL.flatMap { _ in
                 downloadManager?.downloadedMediaVersion(
-                    for: ratingKey,
+                    for: id,
                     in: details,
                     selectedMediaID: selectedMediaID
                 )
@@ -70,8 +211,20 @@ extension PlaybackCoordinator {
                 playbackSessionLogger.error(
                     "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): local download metadata did not match the downloaded media version"
                 )
-                loadError = "Downloaded file metadata is incomplete. Retry the download."
-                return false
+                // The file on disk is unusable, but the server it came from can
+                // still stream the item. Retry this same candidate online rather
+                // than ending the walk on a download error.
+                return await startPlaybackSession(
+                    id: id,
+                    startPositionOverride: startPositionOverride,
+                    resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+                    resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
+                    carriesRequestedOffset: carriesRequestedOffset,
+                    selectedMediaID: selectedMediaID,
+                    attemptID: attemptID,
+                    suppressLocalDownload: true,
+                    fetchDeadline: fetchDeadline
+                )
             }
             let media = localMediaVersion?.media ?? resolveMediaVersion(
                 in: details,
@@ -84,8 +237,7 @@ extension PlaybackCoordinator {
                 playbackSessionLogger.error(
                     "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): no playable media version was available"
                 )
-                loadError = "No playable media found."
-                return false
+                return .hardFailure("No playable media found.")
             }
 
             let resolverDecision = StreamResolver.evaluate(
@@ -109,30 +261,18 @@ extension PlaybackCoordinator {
                 playbackDecision = .localDownload
                 usesLocalDownload = true
             } else {
-                if wantsAirPlay, !plexService.isConnected {
-                    loadError = "Connect to the matching Plex server to AirPlay this item."
-                    return false
-                }
-                // Plex Pass gate: away from the server's LAN, remote playback of
-                // personal media needs an entitlement. Surface a clear message
-                // instead of letting the stream fail slowly. Only fires for owned
-                // servers we positively know lack a subscription; offline
-                // downloads reached the branch above and are never gated.
-                if let restriction = await plexService.remoteStreamingRestriction() {
-                    guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
-                    playbackSessionLogger.notice(
-                        "Blocking remote playback for ratingKey \(ratingKey, privacy: .public): \(String(describing: restriction), privacy: .public)"
-                    )
-                    loadError = restriction.message
-                    return false
+                // The Plex Pass remote-streaming gate is resolved per candidate
+                // by `PlaybackSourceResolver` before we get here, so a
+                // restricted server is only reached when it is the last resort.
+                if wantsAirPlay, plexService.pool.connection(for: itemServerID) == nil {
+                    return .hardFailure("Connect to the matching Plex server to AirPlay this item.")
                 }
 
-                guard let directPlayURL = plexService.directPlayURL(for: part) else {
+                guard let directPlayURL = plexService.directPlayURL(for: part, serverID: itemServerID) else {
                     playbackSessionLogger.error(
                         "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
                     )
-                    loadError = "Could not construct playback URL."
-                    return false
+                    return .hardFailure("Could not construct playback URL.")
                 }
                 playbackURL = directPlayURL
                 sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
@@ -157,12 +297,12 @@ extension PlaybackCoordinator {
                         sessionIdentifier: sessionIdentifier,
                         transcodeSessionID: airPlaySessionID,
                         audioStreamID: audioStreamID,
-                        subtitleStreamID: subtitleStreamID
+                        subtitleStreamID: subtitleStreamID,
+                        serverID: itemServerID
                     )
                     guard case .transcodeAvailable = result.outcome else {
-                        stopTranscodeSessionInBackground(airPlaySessionID)
-                        loadError = airPlayUnavailableMessage(for: result.outcome)
-                        return false
+                        stopTranscodeSessionInBackground(airPlaySessionID, serverID: itemServerID)
+                        return .hardFailure(airPlayUnavailableMessage(for: result.outcome))
                     }
 
                     playbackURL = result.url
@@ -185,7 +325,8 @@ extension PlaybackCoordinator {
                             ratingKey: ratingKey,
                             mediaIndex: mediaIndex,
                             sessionIdentifier: sessionIdentifier,
-                            transcodeSessionID: serverStreamSessionID
+                            transcodeSessionID: serverStreamSessionID,
+                            serverID: itemServerID
                         )
                         if case .transcodeAvailable = result.outcome {
                             playbackURL = result.url
@@ -212,12 +353,17 @@ extension PlaybackCoordinator {
             // transcode session we started so it doesn't linger on the server.
             guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else {
                 if let transcodeSessionID {
-                    stopTranscodeSessionInBackground(transcodeSessionID)
+                    stopTranscodeSessionInBackground(transcodeSessionID, serverID: itemServerID)
                 }
-                return false
+                return .superseded
             }
 
-            let serverID = downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+            // The session's server, in this order: the one the candidate names,
+            // the one the downloaded record belongs to, then the primary for an
+            // unstamped item. Everything the session reports goes here only.
+            let serverID = itemServerID
+                ?? downloadManager?.serverID(for: id)
+                ?? plexService.pool.primary?.serverID
             // Hub/list responses can carry the current Plex viewOffset even when
             // the item-detail response omits it. Keep that initiating offset as
             // a fallback so tapping a visible "Resume" item cannot silently
@@ -225,7 +371,12 @@ extension PlaybackCoordinator {
             // returns one, and the explicit startPositionOverride used by
             // "Play From Start" wins below.
             let detailViewOffset = details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
-            let initiatingViewOffset = resumeOffsetMilliseconds.flatMap { $0 > 0 ? $0 : nil }
+            let initiatingViewOffset = carriedResumeOffsetMs(
+                resumeOffsetMilliseconds,
+                referenceDurationMs: resumeOffsetDurationMilliseconds,
+                candidateDurationMs: details.duration,
+                carriesRequestedOffset: carriesRequestedOffset
+            )
             let serverViewOffset = detailViewOffset ?? initiatingViewOffset
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
@@ -339,7 +490,7 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 ),
-                locality: sourceLocality(for: playbackURL)
+                locality: sourceLocality(for: playbackURL, serverID: serverID)
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -371,15 +522,85 @@ extension PlaybackCoordinator {
                 startDirectPlayFallbackWatch()
             }
 
-            return true
+            return .started
         } catch {
             // Don't surface an error for a superseded/dismissed attempt.
-            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return .superseded }
             playbackSessionLogger.error(
                 "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
-            loadError = error.localizedDescription
-            return false
+            return .hardFailure(error.localizedDescription)
+        }
+    }
+
+    /// How much of the initiating offset a candidate may use.
+    ///
+    /// The copy the user picked keeps its own offset unconditionally. Another
+    /// server's copy is a different file — a different cut, a different edition,
+    /// or a whole other title behind a weak content key — so it only inherits
+    /// the position when both copies run for (very nearly) the same length.
+    /// Otherwise the fallback server's own `viewOffset` decides where to start.
+    private func carriedResumeOffsetMs(
+        _ resumeOffsetMilliseconds: Int?,
+        referenceDurationMs: Int?,
+        candidateDurationMs: Int?,
+        carriesRequestedOffset: Bool
+    ) -> Int? {
+        guard let offset = resumeOffsetMilliseconds, offset > 0 else { return nil }
+        guard !carriesRequestedOffset else { return offset }
+        guard let referenceDurationMs, referenceDurationMs > 0,
+              let candidateDurationMs, candidateDurationMs > 0 else {
+            return nil
+        }
+        let tolerance = Double(referenceDurationMs) * Self.resumeOffsetDurationTolerance
+        guard Double(abs(candidateDurationMs - referenceDurationMs)) <= tolerance else {
+            return nil
+        }
+        return offset
+    }
+
+    /// How far two copies' runtimes may differ before a carried resume position
+    /// stops being meaningful.
+    static let resumeOffsetDurationTolerance = 0.02
+
+    /// Fetches the item's details from one server, optionally giving up early
+    /// so the candidate walk can move on. The bound is a race rather than a
+    /// request timeout because `getMediaDetails` may also answer from the
+    /// offline cache, which must not be penalized.
+    private func fetchPlaybackDetails(
+        ratingKey: String,
+        serverID: String?,
+        deadline: Duration?
+    ) async throws -> PlexMediaDetails {
+        guard let deadline else {
+            return try await plexService.getMediaDetails(
+                ratingKey: ratingKey,
+                checkFiles: true,
+                serverID: serverID
+            )
+        }
+
+        // The fetch child is deliberately *not* annotated `@MainActor`:
+        // `getMediaDetails` hops there itself, and an explicitly isolated child
+        // closure trips the region-based isolation checker (Swift 6).
+        return try await withThrowingTaskGroup(of: PlexMediaDetails.self) { group in
+            group.addTask { [plexService] in
+                try await plexService.getMediaDetails(
+                    ratingKey: ratingKey,
+                    checkFiles: true,
+                    serverID: serverID
+                )
+            }
+            group.addTask {
+                try await Task.sleep(for: deadline)
+                throw PlexServiceError.networkError("The server did not answer in time.")
+            }
+
+            defer { group.cancelAll() }
+            guard let details = try await group.next() else {
+                throw PlexServiceError.networkError("The server did not answer in time.")
+            }
+            return details
         }
     }
 
@@ -426,7 +647,10 @@ extension PlaybackCoordinator {
             let videoEnhancementRequest: VideoEnhancementRequest
 
             if preset.isOriginal {
-                guard let directPlayURL = plexService.directPlayURL(for: part) else {
+                guard let directPlayURL = plexService.directPlayURL(
+                    for: part,
+                    serverID: activePlaybackServerID
+                ) else {
                     presentQualitySwitchError("Could not construct direct-play URL.")
                     return
                 }
@@ -449,7 +673,10 @@ extension PlaybackCoordinator {
                 // Plex session hygiene: returning to Original releases the
                 // server transcoder that fed the previous quality.
                 if let oldTranscodeSessionID = activeTranscodeSessionID {
-                    stopTranscodeSessionInBackground(oldTranscodeSessionID)
+                    stopTranscodeSessionInBackground(
+                        oldTranscodeSessionID,
+                        serverID: activePlaybackServerID
+                    )
                 }
                 activeTranscodeSessionID = nil
             } else {
@@ -463,7 +690,8 @@ extension PlaybackCoordinator {
                     preset: preset,
                     sessionIdentifier: playbackSessionID,
                     transcodeSessionID: newTranscodeSessionID,
-                    audioStreamID: audioStreamID
+                    audioStreamID: audioStreamID,
+                    serverID: activePlaybackServerID
                 )
 
                 switch result.outcome {
@@ -472,7 +700,10 @@ extension PlaybackCoordinator {
                     // after the new session is confirmed, so a failed switch
                     // keeps the current stream running (doc invariant).
                     if let oldTranscodeSessionID = activeTranscodeSessionID {
-                        stopTranscodeSessionInBackground(oldTranscodeSessionID)
+                        stopTranscodeSessionInBackground(
+                            oldTranscodeSessionID,
+                            serverID: activePlaybackServerID
+                        )
                     }
                     activeTranscodeSessionID = newTranscodeSessionID
                     playbackURL = result.url
@@ -611,7 +842,7 @@ extension PlaybackCoordinator {
             return
         }
 
-        guard plexService.isConnected else {
+        guard plexService.pool.connection(for: activePlaybackServerID) != nil else {
             engine?.pause()
             presentQualitySwitchError("Connect to the matching Plex server to AirPlay this item.")
             return
@@ -645,24 +876,28 @@ extension PlaybackCoordinator {
                 sessionIdentifier: playbackSessionID,
                 transcodeSessionID: newTranscodeSessionID,
                 audioStreamID: activeAudioStreamID,
-                subtitleStreamID: activeSubtitleStreamID
+                subtitleStreamID: activeSubtitleStreamID,
+                serverID: activePlaybackServerID
             )
 
             guard !Task.isCancelled,
                   !didFinalizeCurrentSession,
                   playerPresentationID == expectedPresentationID,
                   self.ratingKey == ratingKey else {
-                stopTranscodeSessionInBackground(newTranscodeSessionID)
+                stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
                 return
             }
             guard case .transcodeAvailable = result.outcome else {
-                stopTranscodeSessionInBackground(newTranscodeSessionID)
+                stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
                 presentQualitySwitchError(airPlayUnavailableMessage(for: result.outcome))
                 return
             }
 
             if let oldTranscodeSessionID = activeTranscodeSessionID {
-                stopTranscodeSessionInBackground(oldTranscodeSessionID)
+                stopTranscodeSessionInBackground(
+                    oldTranscodeSessionID,
+                    serverID: activePlaybackServerID
+                )
             }
             activeTranscodeSessionID = newTranscodeSessionID
             activateReplacementAttempt(
@@ -686,7 +921,7 @@ extension PlaybackCoordinator {
                 shouldAutoPlay: wasPlaying
             )
         } catch {
-            stopTranscodeSessionInBackground(newTranscodeSessionID)
+            stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
             guard !Task.isCancelled else { return }
             playbackSessionLogger.error(
                 "AirPlay preparation failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
@@ -783,7 +1018,7 @@ extension PlaybackCoordinator {
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             ),
-            locality: sourceLocality(for: playbackURL)
+            locality: sourceLocality(for: playbackURL, serverID: activePlaybackServerID)
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -841,7 +1076,10 @@ extension PlaybackCoordinator {
 
         let details: PlexMediaDetails
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            details = try await plexService.getMediaDetails(
+                ratingKey: ratingKey,
+                serverID: activePlaybackServerID
+            )
         } catch {
             playbackSessionLogger.error(
                 "Subtitle refresh failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
@@ -961,9 +1199,10 @@ extension PlaybackCoordinator {
     /// session's server connection (LAN vs remote/relay). VLCKit sizes its
     /// protective caching — and with it the silent stretch before audio joins
     /// at start and after seeks — from this.
-    func sourceLocality(for url: URL) -> PlaybackSourceLocality {
+    func sourceLocality(for url: URL, serverID: String?) -> PlaybackSourceLocality {
         if url.isFileURL { return .localFile }
-        return plexService.isConnectedViaLocalNetwork ? .localNetwork : .remoteNetwork
+        let connection = plexService.pool.connection(for: serverID)
+        return connection?.isLocal == true ? .localNetwork : .remoteNetwork
     }
 
     // MARK: - Automatic delivery-ladder fallback
@@ -1062,7 +1301,8 @@ extension PlaybackCoordinator {
                 ratingKey: ratingKey,
                 mediaIndex: mediaIndex,
                 sessionIdentifier: playbackSessionID,
-                transcodeSessionID: transcodeSessionID
+                transcodeSessionID: transcodeSessionID,
+                serverID: activePlaybackServerID
             )
 
             // The session may have been torn down or replaced while awaiting
@@ -1070,7 +1310,7 @@ extension PlaybackCoordinator {
             guard !didFinalizeCurrentSession,
                   playerPresentationID == expectedPresentationID,
                   self.ratingKey == ratingKey else {
-                stopTranscodeSessionInBackground(transcodeSessionID)
+                stopTranscodeSessionInBackground(transcodeSessionID, serverID: activePlaybackServerID)
                 return
             }
 
@@ -1106,9 +1346,12 @@ extension PlaybackCoordinator {
 
     /// Fire-and-forget `/video/:/transcode/universal/stop` for Plex session
     /// hygiene; `PlexService` logs failures instead of throwing.
-    func stopTranscodeSessionInBackground(_ transcodeSessionID: String) {
+    func stopTranscodeSessionInBackground(_ transcodeSessionID: String, serverID: String?) {
         Task {
-            await plexService.stopTranscodeSession(transcodeSessionID: transcodeSessionID)
+            await plexService.stopTranscodeSession(
+                transcodeSessionID: transcodeSessionID,
+                serverID: serverID
+            )
         }
     }
 
@@ -1162,7 +1405,7 @@ extension PlaybackCoordinator {
 
         // Plex session hygiene: release the server transcoder with the session.
         if let transcodeSessionID = activeTranscodeSessionID {
-            stopTranscodeSessionInBackground(transcodeSessionID)
+            stopTranscodeSessionInBackground(transcodeSessionID, serverID: activePlaybackServerID)
             activeTranscodeSessionID = nil
         }
 
@@ -1195,8 +1438,9 @@ extension PlaybackCoordinator {
                         await offlinePlaybackSyncManager?.syncPendingActions()
                     }
                 } else {
+                    let serverID = activePlaybackServerID
                     Task {
-                        try? await plexService.scrobble(ratingKey: ratingKey)
+                        try? await plexService.scrobble(ratingKey: ratingKey, serverID: serverID)
                     }
                 }
             }
@@ -1253,7 +1497,7 @@ extension PlaybackCoordinator {
         // Normally already stopped by finalize; belt-and-braces for paths
         // that clear without finalizing.
         if let transcodeSessionID = activeTranscodeSessionID {
-            stopTranscodeSessionInBackground(transcodeSessionID)
+            stopTranscodeSessionInBackground(transcodeSessionID, serverID: activePlaybackServerID)
         }
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil

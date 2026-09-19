@@ -19,13 +19,12 @@ struct HomeRecommendationEngine {
     ) async throws -> [HomePersonalizedShelf] {
         guard itemsPerShelf > 0 else { return [] }
 
-        let libraries = try await plexService.getLibraries()
-        let movieLibraries = libraries
-            .filter { $0.libraryType == .movie }
-            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
-        let showLibraries = libraries
-            .filter { $0.libraryType == .show }
-            .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        // Every connected server's sections, already in the account's order.
+        // Shelves therefore span servers: a genre the user likes pulls from
+        // wherever those titles happen to live.
+        let libraries = try await plexService.ensureLibraryOrderLoaded()
+        let movieLibraries = libraries.filter { $0.libraryType == .movie }
+        let showLibraries = libraries.filter { $0.libraryType == .show }
 
         guard let viewedSince = calendar.date(byAdding: .day, value: -30, to: nowProvider()) else {
             return []
@@ -88,7 +87,7 @@ struct HomeRecommendationEngine {
         guard !scoredGenres.isEmpty else { return [] }
 
         var shelves: [HomePersonalizedShelf] = []
-        var usedRatingKeys = Set<String>()
+        var usedTitles = RecommendationSeenTitles()
         let showAllLibrary = libraries.count == 1 ? libraries.first : nil
 
         for scoredGenre in scoredGenres.prefix(shelfLimit) {
@@ -96,7 +95,7 @@ struct HomeRecommendationEngine {
                 for: scoredGenre.genre,
                 libraries: libraries,
                 availableGenresByLibrary: availableGenresByLibrary,
-                usedRatingKeys: usedRatingKeys,
+                usedTitles: usedTitles,
                 itemsPerShelf: itemsPerShelf,
                 libraryType: libraryType
             )
@@ -113,7 +112,7 @@ struct HomeRecommendationEngine {
                 )
             )
 
-            usedRatingKeys.formUnion(items.map(\.ratingKey))
+            usedTitles.formUnion(items)
         }
 
         return shelves
@@ -124,14 +123,17 @@ struct HomeRecommendationEngine {
     ) async -> [String: [LibraryGenreOption]] {
         var genresByLibrary: [String: [LibraryGenreOption]] = [:]
 
+        // Keyed by `library.id`, never by `library.key`: section keys are
+        // per-server counters and two servers' "3" would share one entry.
         for library in libraries {
             if let genres = try? await LibraryGenreSupport.loadGenreOptions(
                 sectionId: library.key,
+                serverID: library.serverID,
                 plexService: plexService
             ) {
-                genresByLibrary[library.key] = genres
+                genresByLibrary[library.id] = genres
             } else {
-                genresByLibrary[library.key] = [.all]
+                genresByLibrary[library.id] = [.all]
             }
         }
 
@@ -146,17 +148,19 @@ struct HomeRecommendationEngine {
         var entries: [PlexPlaybackHistoryEntry] = []
 
         for library in libraries {
-            var history = try await plexService.getPlaybackHistory(
+            var history = (try? await plexService.getPlaybackHistory(
                 accountId: currentUserID,
                 librarySectionId: library.key,
-                viewedSince: viewedSince
-            )
+                viewedSince: viewedSince,
+                serverID: library.serverID
+            )) ?? []
 
             if history.isEmpty, currentUserID != nil {
                 history = (try? await plexService.getPlaybackHistory(
                     accountId: nil,
                     librarySectionId: library.key,
-                    viewedSince: viewedSince
+                    viewedSince: viewedSince,
+                    serverID: library.serverID
                 )) ?? []
             }
 
@@ -171,7 +175,10 @@ struct HomeRecommendationEngine {
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(ratingKey: signal.ratingKey) else {
+            guard let details = try? await plexService.getMediaDetails(
+                ratingKey: signal.ratingKey,
+                serverID: signal.serverID
+            ) else {
                 homeRecommendationLogger.debug(
                     "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
                 )
@@ -198,6 +205,7 @@ struct HomeRecommendationEngine {
             guard let viewedAt = entry.viewedAt else { continue }
             guard let identity = collapsedIdentity(for: entry) else { continue }
 
+
             let viewedDate = Date(timeIntervalSince1970: TimeInterval(viewedAt))
             let dayAge = max(0, calendar.dateComponents([.day], from: viewedDate, to: now).day ?? 0)
             let recencyWeight = max(0.2, 1.0 - (Double(dayAge) / 30.0))
@@ -209,7 +217,7 @@ struct HomeRecommendationEngine {
             } else {
                 signalByIdentity[identity.identity] = RecommendationTasteSignal(
                     identity: identity.identity,
-                    ratingKey: identity.ratingKey,
+                    id: identity.id,
                     type: nil,
                     weight: recencyWeight,
                     lastViewedAt: viewedAt
@@ -242,11 +250,11 @@ struct HomeRecommendationEngine {
             items.append(contentsOf: libraryItems)
         }
 
-        var seenRatingKeys = Set<String>()
+        var seen = RecommendationSeenTitles()
 
         return items
             .sorted { ($0.lastViewedAt ?? 0) > ($1.lastViewedAt ?? 0) }
-            .filter { seenRatingKeys.insert($0.ratingKey).inserted }
+            .filter { seen.insert($0) }
     }
 
     private func loadRecentlyViewedItems(
@@ -265,7 +273,8 @@ struct HomeRecommendationEngine {
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
-                sort: "lastViewedAt:desc"
+                sort: "lastViewedAt:desc",
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { break }
@@ -309,19 +318,22 @@ struct HomeRecommendationEngine {
         for genre: LibraryGenreOption,
         libraries: [PlexLibrary],
         availableGenresByLibrary: [String: [LibraryGenreOption]],
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int,
         libraryType: PlexLibraryType
     ) async throws -> [PlexItem] {
         var pool: [PlexItem] = []
-        var seenRatingKeys = usedRatingKeys
+        var seen = usedTitles
         let desiredPoolSize = max(itemsPerShelf * 4, 24)
-        let librarySeed = libraries.map(\.key).joined(separator: ",")
+        // The seed spans every contributing library on every server, so the
+        // daily shuffle changes when a server comes or goes rather than
+        // silently producing the same row from a different catalogue.
+        let librarySeed = libraries.map(\.id).joined(separator: ",")
 
         for library in libraries {
             let matchedLibraryGenre = matchingLibraryGenre(
                 for: genre,
-                availableGenres: availableGenresByLibrary[library.key] ?? [.all]
+                availableGenres: availableGenresByLibrary[library.id] ?? [.all]
             )
 
             let libraryItems: [PlexItem]
@@ -330,7 +342,7 @@ struct HomeRecommendationEngine {
                 let serverFilteredItems = try await loadServerFilteredCandidates(
                     in: library,
                     genreValue: genreValue,
-                    usedRatingKeys: seenRatingKeys,
+                    usedTitles: seen,
                     itemsPerShelf: max(itemsPerShelf * 2, 12),
                     libraryType: libraryType
                 )
@@ -341,7 +353,7 @@ struct HomeRecommendationEngine {
                     libraryItems = try await loadLocallyFilteredCandidates(
                         in: library,
                         genre: genre,
-                        usedRatingKeys: seenRatingKeys,
+                        usedTitles: seen,
                         itemsPerShelf: max(itemsPerShelf * 2, 12),
                         libraryType: libraryType
                     )
@@ -350,14 +362,14 @@ struct HomeRecommendationEngine {
                 libraryItems = try await loadLocallyFilteredCandidates(
                     in: library,
                     genre: genre,
-                    usedRatingKeys: seenRatingKeys,
+                    usedTitles: seen,
                     itemsPerShelf: max(itemsPerShelf * 2, 12),
                     libraryType: libraryType
                 )
             }
 
-            for item in libraryItems where shouldIncludeCandidate(item, seenRatingKeys: seenRatingKeys) {
-                seenRatingKeys.insert(item.ratingKey)
+            for item in libraryItems where shouldIncludeCandidate(item, seen: seen) {
+                seen.insert(item)
                 pool.append(item)
             }
 
@@ -378,14 +390,15 @@ struct HomeRecommendationEngine {
     private func loadServerFilteredCandidates(
         in library: PlexLibrary,
         genreValue: String,
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int,
         libraryType: PlexLibraryType
     ) async throws -> [PlexItem] {
         let filters = ["genre": genreValue]
         let totalCount = try await plexService.getLibraryItemCount(
             sectionId: library.key,
-            filters: filters
+            filters: filters,
+            serverID: library.serverID
         )
 
         guard totalCount > 0 else { return [] }
@@ -396,11 +409,11 @@ struct HomeRecommendationEngine {
 
         let shuffledPageOrder = rotatedPageOrder(
             pageCount: maxPagesToInspect,
-            seed: dailySeed(for: "\(library.key)|\(genreValue)")
+            seed: dailySeed(for: "\(library.id)|\(genreValue)")
         )
 
         var pool: [PlexItem] = []
-        var seenRatingKeys = usedRatingKeys
+        var seen = usedTitles
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -409,14 +422,15 @@ struct HomeRecommendationEngine {
                 start: page * pageSize,
                 size: pageSize,
                 sort: "titleSort",
-                filters: filters
+                filters: filters,
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { continue }
 
-            for item in items where shouldIncludeCandidate(item, seenRatingKeys: seenRatingKeys) {
+            for item in items where shouldIncludeCandidate(item, seen: seen) {
                 guard isCandidateType(item, libraryType: libraryType) else { continue }
-                seenRatingKeys.insert(item.ratingKey)
+                seen.insert(item)
                 pool.append(item)
             }
 
@@ -431,11 +445,14 @@ struct HomeRecommendationEngine {
     private func loadLocallyFilteredCandidates(
         in library: PlexLibrary,
         genre: LibraryGenreOption,
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int,
         libraryType: PlexLibraryType
     ) async throws -> [PlexItem] {
-        let totalCount = try await plexService.getLibraryItemCount(sectionId: library.key)
+        let totalCount = try await plexService.getLibraryItemCount(
+            sectionId: library.key,
+            serverID: library.serverID
+        )
         guard totalCount > 0 else { return [] }
 
         let pageSize = max(itemsPerShelf * 5, 60)
@@ -444,11 +461,11 @@ struct HomeRecommendationEngine {
 
         let shuffledPageOrder = rotatedPageOrder(
             pageCount: maxPagesToInspect,
-            seed: dailySeed(for: "\(library.key)|\(genre.title)|local")
+            seed: dailySeed(for: "\(library.id)|\(genre.title)|local")
         )
 
         var pool: [PlexItem] = []
-        var seenRatingKeys = usedRatingKeys
+        var seen = usedTitles
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -456,16 +473,17 @@ struct HomeRecommendationEngine {
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
-                sort: "titleSort"
+                sort: "titleSort",
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { continue }
 
-            for item in items where shouldIncludeCandidate(item, seenRatingKeys: seenRatingKeys) {
+            for item in items where shouldIncludeCandidate(item, seen: seen) {
                 guard isCandidateType(item, libraryType: libraryType) else { continue }
                 guard await itemMatchesGenre(item, genre: genre) else { continue }
 
-                seenRatingKeys.insert(item.ratingKey)
+                seen.insert(item)
                 pool.append(item)
             }
 
@@ -503,9 +521,14 @@ struct HomeRecommendationEngine {
         ).seededShuffle(combined, seed: seed)
     }
 
+    /// Collapses an episode to its show and keys on the *server* plus the
+    /// rating key: the same numeric key means a different title on every
+    /// server, so a bare key would fuse two servers' taste signals together.
     private func collapsedIdentity(
         for entry: PlexPlaybackHistoryEntry
-    ) -> (identity: String, ratingKey: String)? {
+    ) -> (identity: String, id: PlexItemID)? {
+        let serverID = entry.serverID
+
         switch entry.type {
         case .episode:
             guard let showKey = extractRatingKey(from: entry.grandparentRatingKey),
@@ -513,9 +536,11 @@ struct HomeRecommendationEngine {
                 return nil
             }
 
-            return ("show:\(showKey)", showKey)
+            let id = PlexItemID(serverID: serverID, ratingKey: showKey)
+            return ("show:\(id.storageKey)", id)
         case .movie, .show:
-            return ("\(entry.type.rawValue):\(entry.ratingKey)", entry.ratingKey)
+            let id = PlexItemID(serverID: serverID, ratingKey: entry.ratingKey)
+            return ("\(entry.type.rawValue):\(id.storageKey)", id)
         default:
             return nil
         }
@@ -527,9 +552,9 @@ struct HomeRecommendationEngine {
 
     private func shouldIncludeCandidate(
         _ item: PlexItem,
-        seenRatingKeys: Set<String>
+        seen: RecommendationSeenTitles
     ) -> Bool {
-        guard !seenRatingKeys.contains(item.ratingKey) else { return false }
+        guard !seen.contains(item) else { return false }
         return !RecommendationCandidateSupport.isCompleted(item)
     }
 
@@ -565,8 +590,10 @@ struct HomeRecommendationEngine {
             return true
         }
 
-        guard let details = try? await plexService.getMediaDetails(ratingKey: item.ratingKey),
-              let genres = details.genres else {
+        guard let details = try? await plexService.getMediaDetails(
+            ratingKey: item.ratingKey,
+            serverID: item.serverID
+        ), let genres = details.genres else {
             return false
         }
 

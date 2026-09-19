@@ -35,7 +35,7 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexMediaDetails.self, from: data).first
+        return Self.decodeMetadata(PlexMediaDetails.self, from: data, serverID: serverID).first
     }
 
     func seasons(accountProfileID: String, serverID: String, showKey: String) -> [PlexSeason]? {
@@ -46,7 +46,7 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexSeason.self, from: data)
+        return Self.decodeMetadata(PlexSeason.self, from: data, serverID: serverID)
     }
 
     func episodes(accountProfileID: String, serverID: String, seasonKey: String) -> [PlexEpisode]? {
@@ -57,7 +57,7 @@ struct PlexMetadataCache: Sendable {
         ) else {
             return nil
         }
-        return Self.decodeMetadata(PlexEpisode.self, from: data)
+        return Self.decodeMetadata(PlexEpisode.self, from: data, serverID: serverID)
     }
 
     func firstCachedMediaDetails(
@@ -119,7 +119,15 @@ struct PlexMetadataCache: Sendable {
         "/library/metadata/\(ratingKey)/children"
     }
 
-    private static func decodeMetadata<T: Decodable>(_ type: T.Type, from data: Data) -> [T] {
-        (try? JSONDecoder().decode(MetadataResponse<T>.self, from: data).MediaContainer.Metadata) ?? []
+    /// Stamps the server onto the decoder so cached models carry the same
+    /// server-scoped identity they would have had when fetched online.
+    private static func decodeMetadata<T: Decodable>(
+        _ type: T.Type,
+        from data: Data,
+        serverID: String
+    ) -> [T] {
+        let decoder = JSONDecoder()
+        decoder.userInfo[.duskServerID] = serverID
+        return (try? decoder.decode(MetadataResponse<T>.self, from: data).MediaContainer.Metadata) ?? []
     }
 }

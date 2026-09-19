@@ -4,7 +4,13 @@ import Foundation
 /// Used for movies, shows, seasons, and episodes in lists, hubs, and search results.
 /// Fields are optional because different item types populate different subsets.
 struct PlexItem: Decodable, Sendable, Identifiable {
-    var id: String { ratingKey }
+    /// Server-scoped identity. Rating keys collide across servers, so nothing
+    /// may key, compare, or route on `ratingKey` alone.
+    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+
+    /// Machine identifier of the server this item was decoded from. Stamped by
+    /// `ServerPool.decoder(for:)` through `decoder.duskServerID`.
+    let serverID: String?
 
     let ratingKey: String
     let key: String
@@ -59,10 +65,13 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     let directors: [PlexTag]?
     let writers: [PlexTag]?
     let roles: [PlexRole]?
+    /// Plex's scalar guid. Modern servers send a `plex://` global metadata id
+    /// here, which is the strongest cross-server content identity we get.
+    let guid: String?
     let guids: [PlexGuid]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, subtype, title
+        case ratingKey, key, type, subtype, title, guid
         case summary, studio, contentRating, year, originallyAvailableAt
         case thumb, art, banner, clearLogo
         case rating, audienceRating
@@ -83,6 +92,7 @@ struct PlexItem: Decodable, Sendable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
+        serverID = decoder.duskServerID
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(PlexMediaType.self, forKey: .type)
@@ -129,20 +139,21 @@ struct PlexItem: Decodable, Sendable, Identifiable {
         directors = try container.decodeIfPresent([PlexTag].self, forKey: .directors)
         writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
+        guid = try container.decodeIfPresent(String.self, forKey: .guid)
         guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
     }
 }
 
 extension PlexItem: Hashable {
     static func == (lhs: PlexItem, rhs: PlexItem) -> Bool {
-        lhs.ratingKey == rhs.ratingKey &&
+        lhs.id == rhs.id &&
         lhs.viewOffset == rhs.viewOffset &&
         lhs.viewCount == rhs.viewCount &&
         lhs.duration == rhs.duration
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(ratingKey)
+        hasher.combine(id)
     }
 }
 

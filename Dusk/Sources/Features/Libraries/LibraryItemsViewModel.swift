@@ -121,6 +121,9 @@ final class LibraryItemsViewModel {
         self.selectedSort = LibrarySortOption.defaultOption(for: library.libraryType)
     }
 
+    /// Every fetch on this screen is scoped to the library's own server.
+    var serverID: String? { library.serverID }
+
     var isVideoLibrary: Bool {
         library.libraryType == .video
     }
@@ -199,7 +202,10 @@ final class LibraryItemsViewModel {
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
         do {
-            try await plexService.setWatched(watched, ratingKey: item.ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                watched,
+                id: PlexItemID(serverID: item.serverID ?? serverID, ratingKey: item.ratingKey)
+            )
             await reloadItems()
         } catch {
             self.error = error.localizedDescription
@@ -284,7 +290,8 @@ final class LibraryItemsViewModel {
             start: start,
             size: pageSize,
             sort: query.sort.plexValue,
-            filters: filters
+            filters: filters,
+            serverID: serverID
         )
     }
 
@@ -295,7 +302,8 @@ final class LibraryItemsViewModel {
     ) async throws -> [PlexItem] {
         let totalCount = try await plexService.getLibraryItemCount(
             sectionId: library.key,
-            filters: baseFilters
+            filters: baseFilters,
+            serverID: serverID
         )
         guard totalCount > 0 else { return [] }
 
@@ -312,7 +320,8 @@ final class LibraryItemsViewModel {
                 start: page * serverPageSize,
                 size: serverPageSize,
                 sort: query.sort.plexValue,
-                filters: baseFilters
+                filters: baseFilters,
+                serverID: serverID
             )
 
             guard !fetchedItems.isEmpty else { break }
@@ -342,6 +351,7 @@ final class LibraryItemsViewModel {
         do {
             var loadedGenres = try await LibraryGenreSupport.loadGenreOptions(
                 sectionId: library.key,
+                serverID: serverID,
                 plexService: plexService
             )
 
@@ -365,7 +375,7 @@ final class LibraryItemsViewModel {
         _ item: PlexItem,
         genre: LibraryGenreOption
     ) async -> Bool {
-        let cacheKey = "\(genre.id)|\(item.ratingKey)"
+        let cacheKey = "\(genre.id)|\(item.id.storageKey)"
 
         if let cached = genreMatchCache[cacheKey] {
             return cached
@@ -376,7 +386,10 @@ final class LibraryItemsViewModel {
         if let genres = item.genres,
            LibraryGenreSupport.containsGenre(genres, matching: genre) {
             matches = true
-        } else if let details = try? await plexService.getMediaDetails(ratingKey: item.ratingKey),
+        } else if let details = try? await plexService.getMediaDetails(
+            ratingKey: item.ratingKey,
+            serverID: item.serverID ?? serverID
+        ),
                   let genres = details.genres {
             matches = LibraryGenreSupport.containsGenre(genres, matching: genre)
         } else {

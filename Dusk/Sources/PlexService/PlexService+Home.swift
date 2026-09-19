@@ -47,7 +47,7 @@ extension PlexService {
 
             // An old server token may have owner-level access. Do not let it
             // survive the moment we learn this is a multi-user Home.
-            clearServer()
+            tearDownServerSessions()
             activeAccountToken = primaryAccountToken
             activeHomeUser = nil
             currentUser = nil
@@ -60,7 +60,7 @@ extension PlexService {
             let migrationCompleted = UserDefaults.standard.bool(
                 forKey: Self.defaultsHomeMigrationCompletedKey
             )
-            if !migrationCompleted, connectedServer != nil, serverBaseURL != nil {
+            if !migrationCompleted, pool.primary != nil {
                 // Preserve the pre-Home behavior for one offline/transient
                 // upgraded launch. We intentionally do not mark migration as
                 // complete, so the next launch checks again.
@@ -122,7 +122,7 @@ extension PlexService {
 
         // Commit only after the switch succeeds, so a wrong PIN leaves the
         // existing playback/session state intact.
-        clearServer()
+        tearDownServerSessions()
         activeAccountToken = switchedToken
         activeHomeUser = user
         currentUser = nil

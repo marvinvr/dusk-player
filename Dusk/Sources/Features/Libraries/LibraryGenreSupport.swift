@@ -1,11 +1,17 @@
 import Foundation
 
 enum LibraryGenreSupport {
+    /// - Parameter serverID: The server the section belongs to. Section keys
+    ///   and filter paths are per-server, so this must be the library's own.
     static func loadGenreOptions(
         sectionId: String,
+        serverID: String? = nil,
         plexService: PlexService
     ) async throws -> [LibraryGenreOption] {
-        let filters = try await plexService.getLibraryFilters(sectionId: sectionId)
+        let filters = try await plexService.getLibraryFilters(
+            sectionId: sectionId,
+            serverID: serverID
+        )
 
         guard let genreFilter = filters.first(where: {
             $0.filter.localizedCaseInsensitiveCompare("genre") == .orderedSame
@@ -13,7 +19,10 @@ enum LibraryGenreSupport {
             return [.all]
         }
 
-        let values = try await plexService.getLibraryFilterValues(path: genreFilter.key)
+        let values = try await plexService.getLibraryFilterValues(
+            path: genreFilter.key,
+            serverID: serverID
+        )
         let genres = values
             .compactMap { genreOption(from: $0, parameterName: genreFilter.filter) }
             .sorted {

@@ -68,14 +68,16 @@ extension PlexItem {
         }
     }
 
+    /// Artwork always comes from the item's own server: a merged row mixes
+    /// items from several servers, and the paths are only valid on theirs.
     @MainActor
     func posterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredPosterPath, width: width, height: height)
+        plexService.imageURL(for: preferredPosterPath, serverID: serverID, width: width, height: height)
     }
 
     @MainActor
     func landscapeImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredLandscapePath, width: width, height: height)
+        plexService.imageURL(for: preferredLandscapePath, serverID: serverID, width: width, height: height)
     }
 }
 

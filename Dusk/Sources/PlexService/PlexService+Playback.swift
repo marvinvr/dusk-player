@@ -41,13 +41,17 @@ extension PlexService {
         }
     }
 
+    /// - Parameter serverID: The server the item is being played from. Progress
+    ///   goes to that server only — never fanned out — because a rating key
+    ///   means something different on every other server.
     func reportTimeline(
         ratingKey: String,
         key: String? = nil,
         state: PlaybackState,
         timeMs: Int,
         durationMs: Int,
-        sessionIdentifier: String? = nil
+        sessionIdentifier: String? = nil,
+        serverID: String? = nil
     ) async {
         try? await submitTimeline(
             ratingKey: ratingKey,
@@ -55,7 +59,8 @@ extension PlexService {
             state: state,
             timeMs: timeMs,
             durationMs: durationMs,
-            sessionIdentifier: sessionIdentifier
+            sessionIdentifier: sessionIdentifier,
+            serverID: serverID
         )
     }
 
@@ -65,7 +70,8 @@ extension PlexService {
         state: PlaybackState,
         timeMs: Int,
         durationMs: Int,
-        sessionIdentifier: String? = nil
+        sessionIdentifier: String? = nil,
+        serverID: String? = nil
     ) async throws {
         let stateString: String
         switch state {
@@ -95,58 +101,66 @@ extension PlexService {
 
         _ = try await rawServerRequest(
             path: "/:/timeline",
-            queryItems: queryItems
+            queryItems: queryItems,
+            serverID: serverID
         )
     }
 
-    func scrobble(ratingKey: String) async throws {
+    func scrobble(ratingKey: String, serverID: String? = nil) async throws {
         _ = try await rawServerRequest(
             path: "/:/scrobble",
             queryItems: [
                 URLQueryItem(name: "key", value: ratingKey),
                 URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
-            ]
+            ],
+            serverID: serverID
         )
     }
 
-    func unscrobble(ratingKey: String) async throws {
+    func unscrobble(ratingKey: String, serverID: String? = nil) async throws {
         _ = try await rawServerRequest(
             path: "/:/unscrobble",
             queryItems: [
                 URLQueryItem(name: "key", value: ratingKey),
                 URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
-            ]
+            ],
+            serverID: serverID
         )
     }
 
-    func setWatched(_ watched: Bool, ratingKey: String) async throws {
+    func setWatched(_ watched: Bool, ratingKey: String, serverID: String? = nil) async throws {
         if watched {
-            try await scrobble(ratingKey: ratingKey)
+            try await scrobble(ratingKey: ratingKey, serverID: serverID)
         } else {
-            try await unscrobble(ratingKey: ratingKey)
+            try await unscrobble(ratingKey: ratingKey, serverID: serverID)
         }
     }
 
     /// Hides an item from the server-wide "Continue Watching" hub without
     /// changing its watch state, mirroring Plex's "Remove from Continue
     /// Watching" action.
-    func removeFromContinueWatching(ratingKey: String) async throws {
+    func removeFromContinueWatching(ratingKey: String, serverID: String? = nil) async throws {
         _ = try await rawServerRequest(
             method: "PUT",
             path: "/actions/removeFromContinueWatching",
             queryItems: [
                 URLQueryItem(name: "ratingKey", value: ratingKey),
-            ]
+            ],
+            serverID: serverID
         )
     }
 
-    func directPlayURL(for part: PlexMediaPart) -> URL? {
-        guard let baseURL = serverBaseURL else {
+    /// - Parameter serverID: The server holding the file. Parts are per-server
+    ///   paths, so playing one from the wrong base URL either 404s or, worse,
+    ///   streams a different title that happens to share the key.
+    func directPlayURL(for part: PlexMediaPart, serverID: String? = nil) -> URL? {
+        guard let connection = pool.connection(for: serverID) else {
             plexPlaybackLogger.error(
                 "Failed to build direct play URL for part \(part.id, privacy: .public): missing server base URL"
             )
             return nil
         }
+        let baseURL = connection.baseURL
         let urlString = baseURL.absoluteString.hasSuffix("/")
             ? String(baseURL.absoluteString.dropLast()) + part.key
             : baseURL.absoluteString + part.key
@@ -157,9 +171,7 @@ extension PlexService {
             return nil
         }
         var items = components.queryItems ?? []
-        if let token = preferredServerToken {
-            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
-        }
+        items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
         components.queryItems = items.isEmpty ? nil : items
         guard let url = components.url else {
             plexPlaybackLogger.error(
@@ -181,7 +193,8 @@ extension PlexService {
         sessionIdentifier: String,
         transcodeSessionID: String,
         audioStreamID: Int? = nil,
-        subtitleStreamID: Int? = nil
+        subtitleStreamID: Int? = nil,
+        serverID: String? = nil
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
         guard !preset.isOriginal else {
             throw PlexServiceError.invalidURL
@@ -194,7 +207,8 @@ extension PlexService {
             sessionIdentifier: sessionIdentifier,
             transcodeSessionID: transcodeSessionID,
             audioStreamID: audioStreamID,
-            subtitleStreamID: subtitleStreamID
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
         )
     }
 
@@ -209,7 +223,8 @@ extension PlexService {
         sessionIdentifier: String,
         transcodeSessionID: String,
         audioStreamID: Int? = nil,
-        subtitleStreamID: Int? = nil
+        subtitleStreamID: Int? = nil,
+        serverID: String? = nil
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
         try await transcodeLadderURL(
             ratingKey: ratingKey,
@@ -218,7 +233,8 @@ extension PlexService {
             sessionIdentifier: sessionIdentifier,
             transcodeSessionID: transcodeSessionID,
             audioStreamID: audioStreamID,
-            subtitleStreamID: subtitleStreamID
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
         )
     }
 
@@ -232,7 +248,8 @@ extension PlexService {
         sessionIdentifier: String,
         transcodeSessionID: String,
         audioStreamID: Int? = nil,
-        subtitleStreamID: Int? = nil
+        subtitleStreamID: Int? = nil,
+        serverID: String? = nil
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
         try await transcodeLadderURL(
             ratingKey: ratingKey,
@@ -241,7 +258,8 @@ extension PlexService {
             sessionIdentifier: sessionIdentifier,
             transcodeSessionID: transcodeSessionID,
             audioStreamID: audioStreamID,
-            subtitleStreamID: subtitleStreamID
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
         )
     }
 
@@ -251,7 +269,8 @@ extension PlexService {
     func liveTVStreamURL(
         sessionPath: String,
         sessionIdentifier: String,
-        transcodeSessionID: String
+        transcodeSessionID: String,
+        serverID: String? = nil
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
         try await transcodeLadderURL(
             ratingKey: sessionPath,
@@ -261,18 +280,20 @@ extension PlexService {
             sessionIdentifier: sessionIdentifier,
             transcodeSessionID: transcodeSessionID,
             audioStreamID: nil,
-            subtitleStreamID: nil
+            subtitleStreamID: nil,
+            serverID: serverID
         )
     }
 
     /// Plex session hygiene: tells the server to reap the transcoder for a
     /// finished session so it stops burning CPU/disk on the server. Errors are
     /// logged, never thrown — this call is best-effort by design.
-    func stopTranscodeSession(transcodeSessionID: String) async {
+    func stopTranscodeSession(transcodeSessionID: String, serverID: String? = nil) async {
         do {
             _ = try await rawServerRequest(
                 path: "/video/:/transcode/universal/stop",
-                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)]
+                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)],
+                serverID: serverID
             )
             plexPlaybackLogger.notice(
                 "Stopped transcode session \(transcodeSessionID, privacy: .public)"
@@ -286,11 +307,12 @@ extension PlexService {
 
     /// Keep-alive for an active transcode session; Plex reaps transcoders it
     /// has not heard from. Errors are logged, never thrown.
-    func pingTranscodeSession(transcodeSessionID: String) async {
+    func pingTranscodeSession(transcodeSessionID: String, serverID: String? = nil) async {
         do {
             _ = try await rawServerRequest(
                 path: "/video/:/transcode/universal/ping",
-                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)]
+                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)],
+                serverID: serverID
             )
             plexPlaybackLogger.debug(
                 "Pinged transcode session \(transcodeSessionID, privacy: .public)"
@@ -319,11 +341,14 @@ private extension PlexService {
         sessionIdentifier: String,
         transcodeSessionID: String,
         audioStreamID: Int?,
-        subtitleStreamID: Int?
+        subtitleStreamID: Int?,
+        serverID: String?
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
-        guard let baseURL = serverBaseURL else {
+        let targetID = try resolveServerID(serverID)
+        guard let connection = pool.connection(for: targetID) else {
             throw PlexServiceError.noServerConnected
         }
+        let baseURL = connection.baseURL
 
         let queryItems = transcodeQueryItems(
             ratingKey: ratingKey,
@@ -334,12 +359,13 @@ private extension PlexService {
             transcodeSessionID: transcodeSessionID,
             audioStreamID: audioStreamID,
             subtitleStreamID: subtitleStreamID,
-            includeToken: true
+            token: connection.token
         )
 
         let decisionData = try await rawServerRequest(
             path: "/video/:/transcode/universal/decision",
-            queryItems: queryItems
+            queryItems: queryItems,
+            serverID: targetID
         )
         let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: decisionData)
         let outcome = decision.outcome
@@ -372,7 +398,7 @@ private extension PlexService {
         transcodeSessionID: String,
         audioStreamID: Int?,
         subtitleStreamID: Int?,
-        includeToken: Bool
+        token: String?
     ) -> [URLQueryItem] {
         let clientProfileExtra = transcodeClientProfileExtra(for: mode)
         let resolvedSourcePath = sourcePath ?? "/library/metadata/\(ratingKey)"
@@ -449,7 +475,7 @@ private extension PlexService {
         if let audioStreamID {
             items.append(URLQueryItem(name: "audioStreamID", value: String(audioStreamID)))
         }
-        if includeToken, let token = preferredServerToken {
+        if let token {
             items.append(URLQueryItem(name: "X-Plex-Token", value: token))
         }
 

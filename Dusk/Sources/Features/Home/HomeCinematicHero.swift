@@ -131,7 +131,7 @@ struct HomeCinematicHero: View {
                         reservesPagerSpace: items.count > 1
                     )
                     .offset(x: backgroundHeroOffset(width: heroWidth))
-                    .id("background-\(items[backgroundHeroIndex].ratingKey)")
+                    .id("background-\(items[backgroundHeroIndex].id.storageKey)")
                     .zIndex(0)
                 }
 
@@ -145,7 +145,7 @@ struct HomeCinematicHero: View {
                         reservesPagerSpace: items.count > 1
                     )
                     .offset(x: foregroundHeroOffset(width: heroWidth))
-                    .id("foreground-\(items[resolvedIndex].ratingKey)")
+                    .id("foreground-\(items[resolvedIndex].id.storageKey)")
                     .zIndex(1)
                 }
             }
@@ -254,7 +254,7 @@ struct HomeCinematicHero: View {
     }
 
     private var heroItemIDs: [String] {
-        items.map(\.ratingKey)
+        items.map(\.id.storageKey)
     }
 
     private func pixelAlignedLength(_ length: CGFloat) -> CGFloat {
@@ -430,13 +430,13 @@ struct HomeCinematicHero: View {
     @ViewBuilder
     private func heroTitleArtwork(for item: PlexItem, width: CGFloat, height: CGFloat) -> some View {
         #if canImport(UIKit)
-        if let image = preloadedHeroTitleImages[item.ratingKey] {
+        if let image = preloadedHeroTitleImages[item.id.storageKey] {
             Image(uiImage: image)
                 .resizable()
                 .scaledToFit()
                 .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
                 .frame(width: width, height: height, alignment: heroContentBlockAlignment)
-        } else if failedHeroTitleImageKeys.contains(item.ratingKey) {
+        } else if failedHeroTitleImageKeys.contains(item.id.storageKey) {
             heroTitleFallback(for: item)
         } else {
             Color.clear
@@ -752,14 +752,14 @@ struct HomeCinematicHero: View {
 
     private func heroBackdropPrefetchSeed(width: Int, height: Int) -> String {
         [
-            items.map(\.ratingKey).joined(separator: "|"),
+            items.map(\.id.storageKey).joined(separator: "|"),
             "\(width)x\(height)"
         ].joined(separator: "::")
     }
 
     private func heroTitlePrefetchSeed(width: Int, height: Int) -> String {
         [
-            items.map { "\($0.ratingKey):\($0.clearLogo ?? "")" }.joined(separator: "|"),
+            items.map { "\($0.id.storageKey):\($0.clearLogo ?? "")" }.joined(separator: "|"),
             "\(width)x\(height)"
         ].joined(separator: "::")
     }
@@ -771,10 +771,10 @@ struct HomeCinematicHero: View {
                 return nil
             }
 
-            return (item.ratingKey, url)
+            return (item.id.storageKey, url)
         }
 
-        let validKeys = Set(items.map(\.ratingKey))
+        let validKeys = Set(items.map(\.id.storageKey))
         await MainActor.run {
             preloadedHeroBackdropImages = preloadedHeroBackdropImages.filter { validKeys.contains($0.key) }
         }
@@ -813,10 +813,10 @@ struct HomeCinematicHero: View {
                 return nil
             }
 
-            return (item.ratingKey, url)
+            return (item.id.storageKey, url)
         }
 
-        let validKeys = Set(items.map(\.ratingKey))
+        let validKeys = Set(items.map(\.id.storageKey))
         let requestedKeys = Set(titleRequests.map(\.0))
 
         await MainActor.run {
@@ -866,7 +866,7 @@ struct HomeCinematicHero: View {
         let imageAlignment = heroBackdropImageAlignment
 
         #if canImport(UIKit)
-        if let image = preloadedHeroBackdropImages[item.ratingKey] {
+        if let image = preloadedHeroBackdropImages[item.id.storageKey] {
             GeometryReader { geometry in
                 ZStack {
                     Color.duskSurface

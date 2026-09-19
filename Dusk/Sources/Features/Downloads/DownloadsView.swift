@@ -348,11 +348,15 @@ private enum DownloadedLibraryItem: Identifiable {
     var route: AppNavigationRoute {
         switch self {
         case .movie(let record):
+            let id = record.itemID
             return record.isClip
-                ? .downloadedVideo(ratingKey: record.ratingKey)
-                : .downloadedMedia(type: .movie, ratingKey: record.ratingKey)
+                ? .downloadedVideo(id: id)
+                : .downloadedMedia(type: .movie, id: id)
         case .show(let show):
-            return .downloadedMedia(type: .show, ratingKey: show.ratingKey)
+            return .downloadedMedia(
+                type: .show,
+                id: show.itemID
+            )
         }
     }
 
@@ -369,9 +373,9 @@ private enum DownloadedLibraryItem: Identifiable {
     var scope: DownloadScope {
         switch self {
         case .movie(let record):
-            return DownloadScope(ratingKey: record.ratingKey, type: record.type)
+            return DownloadScope(id: record.itemID, type: record.type)
         case .show(let show):
-            return DownloadScope(ratingKey: show.ratingKey, type: .show)
+            return DownloadScope(id: show.itemID, type: .show)
         }
     }
 
@@ -483,7 +487,7 @@ private struct DownloadQueueRow: View {
     let onOpen: (AppNavigationRoute) -> Void
 
     private var scope: DownloadScope {
-        DownloadScope(ratingKey: record.ratingKey, type: record.type)
+        DownloadScope(id: record.itemID, type: record.type)
     }
 
     private var state: DownloadControlState {
@@ -492,10 +496,11 @@ private struct DownloadQueueRow: View {
 
     var body: some View {
         Button {
+            let id = PlexItemID(serverID: record.serverID, ratingKey: record.ratingKey)
             onOpen(
                 record.isClip
-                    ? .downloadedVideo(ratingKey: record.ratingKey)
-                    : .downloadedMedia(type: record.type, ratingKey: record.ratingKey)
+                    ? .downloadedVideo(id: id)
+                    : .downloadedMedia(type: record.type, id: id)
             )
         } label: {
             HStack(spacing: 12) {
@@ -544,7 +549,7 @@ private struct DownloadQueueRow: View {
                 onResume: { downloadManager.resumeDownload(scope: scope) },
                 onCancel: { downloadManager.cancelDownload(scope: scope) },
                 onDelete: { downloadManager.deleteDownload(scope: scope) },
-                onRetry: { downloadManager.retryDownload(ratingKey: record.ratingKey) }
+                onRetry: { downloadManager.retryDownload(id: record.itemID) }
             )
         }
     }
@@ -552,6 +557,12 @@ private struct DownloadQueueRow: View {
     private var statusText: String {
         if state.isDeleting {
             return "Deleting"
+        }
+
+        // A queued download whose server is off or unreachable would otherwise
+        // sit at "Queued" with no hint that nothing is going to happen.
+        if let waitReason = downloadManager.queueWaitReason(for: record) {
+            return record.totalBytes.map { "\(waitReason) · \(formattedBytes($0))" } ?? waitReason
         }
 
         return switch record.status {

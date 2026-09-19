@@ -14,6 +14,22 @@ extension PlexService {
         ]
     }
 
+    /// Every Plex header except the token. `ServerPool` is handed this once so a
+    /// connection probe is byte-for-byte what a real request would be.
+    var plexRequestHeaders: [String: String] {
+        var headers = basePlexHeaders
+
+        #if os(tvOS)
+        headers["X-Plex-Platform"] = "tvOS"
+        headers["X-Plex-Device-Name"] = "Apple TV"
+        #elseif canImport(UIKit)
+        headers["X-Plex-Platform"] = "iOS"
+        headers["X-Plex-Device-Name"] = UIDevice.current.name
+        #endif
+
+        return headers
+    }
+
     func plexTVRequest<T: Decodable>(
         method: String = "GET",
         path: String,
@@ -80,19 +96,39 @@ extension PlexService {
         )
     }
 
-    /// - Parameter timeoutInterval: Overrides the session's 15s request timeout
-    ///   for this call only. Use it for server work that legitimately takes
-    ///   longer than a metadata read, such as asking the server to fetch a
-    ///   subtitle file from its provider. Leave it nil everywhere else so the
-    ///   global default keeps screens responsive.
+    /// Sends a request to one server.
+    ///
+    /// - Parameters:
+    ///   - timeoutInterval: Overrides the session's 15s request timeout for this
+    ///     call only. Use it for server work that legitimately takes longer than
+    ///     a metadata read, such as asking the server to fetch a subtitle file
+    ///     from its provider. Leave it nil everywhere else so the global default
+    ///     keeps screens responsive.
+    ///   - serverID: Which server to talk to. nil means the primary one, which
+    ///     is what every not-yet-routed call site still gets.
+    ///
+    /// Recovery is per server on purpose: a 401 or a dead endpoint marks *that*
+    /// server and re-races *its* connections. It never clears the session, so
+    /// one stale share can no longer sign the user out of every other server.
+    /// Recovery is also coalesced and rate-limited per server — see
+    /// `recoverServer(serverID:)`.
     func rawServerRequest(
         method: String = "GET",
         path: String,
         queryItems: [URLQueryItem]? = nil,
-        timeoutInterval: TimeInterval? = nil
+        timeoutInterval: TimeInterval? = nil,
+        serverID: String? = nil
     ) async throws -> Data {
-        if preferredServerToken == nil {
-            try await recoverServerAuthorizationIfPossible()
+        let targetID = try resolveServerID(serverID)
+
+        // A server the user switched off is not a server that is merely down:
+        // never reconnect it behind their back, whoever is asking.
+        guard pool.state(for: targetID) != .disabled else {
+            throw PlexServiceError.noServerConnected
+        }
+
+        if pool.connection(for: targetID) == nil {
+            try await refreshServerAuthorization(serverID: targetID)
         }
 
         do {
@@ -100,50 +136,73 @@ extension PlexService {
                 method: method,
                 path: path,
                 queryItems: queryItems,
-                timeoutInterval: timeoutInterval
+                timeoutInterval: timeoutInterval,
+                serverID: targetID
             )
         } catch let error as PlexServiceError where error == .unauthorized {
             plexAuthLogger.notice("Server request unauthorized for \(path, privacy: .public); attempting token refresh")
-            try await recoverServerAuthorizationIfPossible()
+            pool.markUnauthorized(serverID: targetID)
+            try await refreshServerAuthorization(serverID: targetID)
             do {
                 return try await sendRawServerRequest(
                     method: method,
                     path: path,
                     queryItems: queryItems,
-                    timeoutInterval: timeoutInterval
+                    timeoutInterval: timeoutInterval,
+                    serverID: targetID
                 )
             } catch let retryError as PlexServiceError where retryError == .unauthorized {
-                clearServer()
+                // Leave the rest of the pool alone; only this server is out.
+                pool.markUnauthorized(serverID: targetID)
                 throw retryError
             }
         } catch let error as PlexServiceError where shouldRefreshServerEndpoint(after: error) {
             plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
-            try await refreshConnectedServerConnection()
+            try await recoverServer(serverID: targetID)
             return try await sendRawServerRequest(
                 method: method,
                 path: path,
                 queryItems: queryItems,
-                timeoutInterval: timeoutInterval
+                timeoutInterval: timeoutInterval,
+                serverID: targetID
             )
         }
+    }
+
+    /// Resolves an explicit server, or the primary one when the caller has not
+    /// been routed yet.
+    func resolveServerID(_ serverID: String?) throws -> String {
+        if let serverID = serverID?.nilIfEmpty {
+            return serverID
+        }
+        // Falling back to the highest-priority *known* server (rather than only
+        // a connected one) keeps the failure specific: the request then reports
+        // "not authorized" instead of a generic "no server" when that is why the
+        // session is missing.
+        guard let primaryID = pool.primary?.serverID ?? pool.priorityOrderedIdentifiers.first else {
+            throw PlexServiceError.noServerConnected
+        }
+        return primaryID
     }
 
     private func sendRawServerRequest(
         method: String,
         path: String,
         queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval? = nil
+        timeoutInterval: TimeInterval? = nil,
+        serverID: String
     ) async throws -> Data {
-        guard let baseURL = serverBaseURL else {
-            throw PlexServiceError.noServerConnected
+        guard let connection = pool.connection(for: serverID) else {
+            switch pool.state(for: serverID) {
+            case .unauthorized:
+                throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+            default:
+                throw PlexServiceError.noServerConnected
+            }
         }
 
-        guard let url = buildURL(base: baseURL.absoluteString, path: path, queryItems: queryItems) else {
+        guard let url = buildURL(base: connection.baseURL.absoluteString, path: path, queryItems: queryItems) else {
             throw PlexServiceError.invalidURL
-        }
-
-        guard let serverToken = preferredServerToken else {
-            throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
         }
 
         var request = URLRequest(url: url)
@@ -152,7 +211,7 @@ extension PlexService {
         if let timeoutInterval {
             request.timeoutInterval = timeoutInterval
         }
-        applyHeaders(to: &request, token: serverToken)
+        applyHeaders(to: &request, token: connection.token)
 
         return try await executeRequest(request)
     }
@@ -160,63 +219,50 @@ extension PlexService {
     private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
         switch error {
         case .networkError(_):
-            return activeAccountToken != nil && currentServerIdentifier != nil
+            return activeAccountToken != nil
         case .httpError(let statusCode):
             return activeAccountToken != nil
-                && currentServerIdentifier != nil
                 && [404, 408, 421, 502, 503, 504].contains(statusCode)
         default:
             return false
         }
     }
 
-    func recoverServerAuthorizationIfPossible() async throws {
-        guard !needsHomeUserSelection, activeAccountToken != nil else {
-            throw PlexServiceError.unauthorized
-        }
-
-        try await retryAfterFreshAuthentication {
-            try await refreshConnectedServerAuthorization()
-        }
-    }
-
     func fetchMetadata<T: Decodable>(
         path: String,
-        queryItems: [URLQueryItem]? = nil
+        queryItems: [URLQueryItem]? = nil,
+        serverID: String? = nil
     ) async throws -> [T] {
-        let data = try await rawServerRequest(path: path, queryItems: queryItems)
-        let response = try decodeJSON(MetadataResponse<T>.self, from: data)
+        let targetID = try resolveServerID(serverID)
+        let data = try await rawServerRequest(path: path, queryItems: queryItems, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<T>.self, from: data, serverID: targetID)
         return response.MediaContainer.Metadata ?? []
     }
 
     func fetchDirectories<T: Decodable>(
         path: String,
-        queryItems: [URLQueryItem]? = nil
+        queryItems: [URLQueryItem]? = nil,
+        serverID: String? = nil
     ) async throws -> [T] {
-        let data = try await rawServerRequest(path: path, queryItems: queryItems)
-        let response = try decodeJSON(DirectoryResponse<T>.self, from: data)
+        let targetID = try resolveServerID(serverID)
+        let data = try await rawServerRequest(path: path, queryItems: queryItems, serverID: targetID)
+        let response = try decodeJSON(DirectoryResponse<T>.self, from: data, serverID: targetID)
         return response.MediaContainer.Directory ?? []
     }
 
     func fetchHubs(
         path: String,
-        queryItems: [URLQueryItem]? = nil
+        queryItems: [URLQueryItem]? = nil,
+        serverID: String? = nil
     ) async throws -> [PlexHub] {
-        let data = try await rawServerRequest(path: path, queryItems: queryItems)
-        let response = try decodeJSON(HubResponse.self, from: data)
+        let targetID = try resolveServerID(serverID)
+        let data = try await rawServerRequest(path: path, queryItems: queryItems, serverID: targetID)
+        let response = try decodeJSON(HubResponse.self, from: data, serverID: targetID)
         return response.MediaContainer.Hub ?? []
     }
 
     func applyHeaders(to request: inout URLRequest, token: String?) {
-        var headers = basePlexHeaders
-
-        #if os(tvOS)
-        headers["X-Plex-Platform"] = "tvOS"
-        headers["X-Plex-Device-Name"] = "Apple TV"
-        #elseif canImport(UIKit)
-        headers["X-Plex-Platform"] = "iOS"
-        headers["X-Plex-Device-Name"] = UIDevice.current.name
-        #endif
+        var headers = plexRequestHeaders
 
         if let token {
             headers["X-Plex-Token"] = token
@@ -261,9 +307,12 @@ extension PlexService {
         return try await operation()
     }
 
-    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+    /// Decodes a server payload with the server stamped onto the decoder, so
+    /// every model — including nested ones — records which server it came from.
+    /// Pass `serverID: nil` only for account-level (plex.tv) payloads.
+    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String? = nil) throws -> T {
         do {
-            return try decoder.decode(type, from: data)
+            return try pool.decoder(for: serverID).decode(type, from: data)
         } catch {
             throw PlexServiceError.decodingError(String(describing: error))
         }

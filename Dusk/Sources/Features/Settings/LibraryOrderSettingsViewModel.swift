@@ -32,6 +32,11 @@ final class LibraryOrderSettingsViewModel {
     private(set) var error: String?
     private(set) var saveError: String?
 
+    /// Server names, keyed by library id, for the libraries whose title and
+    /// type are not unique. The server name is a disambiguator, never
+    /// decoration: a single-server account never sees one.
+    private(set) var serverLabels: [String: String] = [:]
+
     /// The order waiting for the debounce to elapse, if any.
     @ObservationIgnored private var pendingOrder: [PlexLibrary]?
     @ObservationIgnored private var debounceTask: Task<Void, Never>?
@@ -52,10 +57,22 @@ final class LibraryOrderSettingsViewModel {
             // the account's current order rather than whatever was cached at launch.
             _ = try await plexService.ensureLibraryOrderLoaded(force: true)
             libraries = plexService.libraryOrder.orderedSections
+            serverLabels = makeServerLabels(for: libraries)
         } catch {
             self.error = Self.loadErrorMessage
         }
         isLoading = false
+    }
+
+    /// The row title: the library name, plus its server only when another
+    /// library of the same type carries the same name. Shared with the
+    /// Libraries tab through `ServerLabeling` so both say the same thing.
+    func displayTitle(for library: PlexLibrary) -> String {
+        ServerLabeling.displayTitle(for: library, labels: serverLabels)
+    }
+
+    private func makeServerLabels(for libraries: [PlexLibrary]) -> [String: String] {
+        ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
     }
 
     // MARK: - Editing

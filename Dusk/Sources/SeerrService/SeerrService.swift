@@ -56,13 +56,13 @@ final class SeerrService {
         currentStoredSession != nil
     }
 
+    /// Seerr belongs to one Plex server. The binding is the account's
+    /// highest-priority enabled server (`plexService.seerrBindingServerID`),
+    /// which is stable across launches and outages — unlike the pool's primary
+    /// connection, which is nil until a server answers and moves to the next
+    /// server whenever the top one is offline.
     var isAvailableForCurrentContext: Bool {
-        guard isConnected,
-              configuredPlexServerID == plexService.currentServerIdentifier,
-              plexService.activeProfileID != nil else {
-            return false
-        }
-        return true
+        isConnected && plexService.activeProfileID != nil
     }
 
     var connectionSubtitle: String {
@@ -89,6 +89,8 @@ final class SeerrService {
             return
         }
 
+        rekeyLegacyServerIdentifiers()
+
         guard isAvailableForCurrentContext else { return }
         do {
             try await refreshConnectionStatus()
@@ -100,7 +102,7 @@ final class SeerrService {
     func connect(serverURLString: String) async throws {
         guard !isConnecting else { return }
         guard let profileID = plexService.activeProfileID,
-              let serverID = plexService.currentServerIdentifier,
+              let serverID = plexService.seerrBindingServerID,
               let plexToken = plexService.activeAccountToken else {
             throw SeerrServiceError.notConnected
         }
@@ -219,7 +221,7 @@ final class SeerrService {
             throw SeerrServiceError.notConnected
         }
 
-        guard stored.serverID == plexService.currentServerIdentifier else {
+        guard isUsableSession(stored) else {
             currentUser = nil
             throw SeerrServiceError.serverMismatch
         }
@@ -487,15 +489,63 @@ final class SeerrService {
         )
     }
 
+    /// The session for this Plex user and this Seerr instance.
+    ///
+    /// The bound server is preferred, but a session stored against any other
+    /// server this account knows still counts: the old binding followed
+    /// whichever server happened to be connected at the time, and re-linking
+    /// the same Seerr instance under a new key would only make the user sign in
+    /// again for no reason.
     private var currentStoredSession: SeerrStoredSession? {
         guard let baseURL = configuredBaseURL?.absoluteString,
-              let profileID = plexService.activeProfileID,
-              let serverID = plexService.currentServerIdentifier else {
+              let profileID = plexService.activeProfileID else {
             return nil
         }
-        return storedSessions.first {
-            $0.baseURL == baseURL && $0.profileID == profileID && $0.serverID == serverID
+        let sessions = storedSessions.filter {
+            $0.baseURL == baseURL && $0.profileID == profileID
         }
+        if let bindingServerID = plexService.seerrBindingServerID,
+           let bound = sessions.first(where: { $0.serverID == bindingServerID }) {
+            return bound
+        }
+        return sessions.first { plexService.isKnownServerID($0.serverID) }
+    }
+
+    /// Whether a stored session still belongs to this account's servers.
+    private func isUsableSession(_ session: SeerrStoredSession) -> Bool {
+        session.serverID == plexService.seerrBindingServerID
+            || plexService.isKnownServerID(session.serverID)
+    }
+
+    /// Sessions written before servers were identified by machine identifier
+    /// carry a base-URL string where the identifier belongs, so they never match
+    /// again. Re-key them once, where the URL still points at a known server.
+    private func rekeyLegacyServerIdentifiers() {
+        if let legacy = configuredPlexServerID,
+           !plexService.isKnownServerID(legacy),
+           let resolved = plexService.serverID(forLegacyConnectionURI: legacy) {
+            configuredPlexServerID = resolved
+            persistConfiguration()
+        }
+
+        var changed = false
+        for index in storedSessions.indices {
+            let serverID = storedSessions[index].serverID
+            guard !plexService.isKnownServerID(serverID),
+                  let resolved = plexService.serverID(forLegacyConnectionURI: serverID),
+                  resolved != serverID else {
+                continue
+            }
+            storedSessions[index] = SeerrStoredSession(
+                baseURL: storedSessions[index].baseURL,
+                profileID: storedSessions[index].profileID,
+                serverID: resolved,
+                cookies: storedSessions[index].cookies
+            )
+            changed = true
+        }
+        guard changed else { return }
+        SeerrCredentialStore.save(storedSessions)
     }
 
     private func requireStoredSession() throws -> SeerrStoredSession {

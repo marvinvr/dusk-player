@@ -11,13 +11,13 @@ struct EpisodeDetailView: View {
     @State private var showSubtitleSearch = false
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         _viewModel = State(initialValue: EpisodeDetailViewModel(
-            ratingKey: ratingKey,
+            id: id,
             plexService: plexService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager
@@ -112,7 +112,11 @@ struct EpisodeDetailView: View {
                     }
 
                     if let roles = details.roles, !roles.isEmpty {
-                        DetailCastSection(roles: roles, plexService: plexService)
+                        DetailCastSection(
+                            roles: roles,
+                            serverID: viewModel.serverID,
+                            plexService: plexService
+                        )
                             .padding(.top, 24)
                     }
                 }
@@ -159,8 +163,8 @@ struct EpisodeDetailView: View {
                             width: Int((containerWidth * 0.5).rounded(.up)),
                             height: 128
                         ),
-                        showRoute: viewModel.showRatingKey.map {
-                            AppNavigationRoute.media(type: .show, ratingKey: $0)
+                        showRoute: viewModel.showID.map {
+                            AppNavigationRoute.media(type: .show, id: $0)
                         }
                     )
                 }
@@ -205,8 +209,8 @@ struct EpisodeDetailView: View {
 #if os(tvOS)
         metadataMarkerText(title)
 #else
-        if let seasonRatingKey = viewModel.seasonRatingKey {
-            NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
+        if let seasonID = viewModel.seasonID {
+            NavigationLink(value: AppNavigationRoute.media(type: .season, id: seasonID)) {
                 metadataMarkerText(title)
             }
             .buttonStyle(.plain)
@@ -311,8 +315,9 @@ struct EpisodeDetailView: View {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
                 await playback.play(
-                    ratingKey: details.ratingKey,
+                    id: details.id,
                     resumeOffsetMilliseconds: details.viewOffset,
+                    resumeOffsetDurationMilliseconds: details.duration,
                     placeholder: PlaybackPlaceholder(details: details)
                 )
             }
@@ -330,7 +335,7 @@ struct EpisodeDetailView: View {
                 PlayVersionContextMenu(versions: details.media) { version in
                     Task {
                         await playback.playVersion(
-                            ratingKey: details.ratingKey,
+                            id: details.id,
                             mediaID: version.id,
                             resumeOffsetMilliseconds: details.viewOffset,
                             placeholder: PlaybackPlaceholder(details: details)
@@ -353,7 +358,7 @@ struct EpisodeDetailView: View {
 
     private func downloadButton(_ details: PlexMediaDetails) -> some View {
         DownloadActionButton(
-            ratingKey: details.ratingKey,
+            id: details.id,
             type: .episode,
             iconOnly: true
         )
@@ -362,8 +367,8 @@ struct EpisodeDetailView: View {
     @ViewBuilder
     private func episodeNavigationButton() -> some View {
         #if os(tvOS)
-        if let seasonRatingKey = viewModel.seasonRatingKey {
-            NavigationLink(value: AppNavigationRoute.media(type: .season, ratingKey: seasonRatingKey)) {
+        if let seasonID = viewModel.seasonID {
+            NavigationLink(value: AppNavigationRoute.media(type: .season, id: seasonID)) {
                 DetailHeroSecondaryIconLabel(systemImage: "rectangle.stack.fill")
             }
             .detailHeroNativeSecondaryButtonStyle()

@@ -25,24 +25,25 @@ final class HomeHubItemsViewModel {
         await reloadItems()
     }
 
+    /// Pages the row on **every** server that contributed to it and re-merges,
+    /// so "Show All" on a merged row is the full row rather than the primary
+    /// server's share of it.
     func reloadItems() async {
         isLoading = true
         error = nil
 
-        do {
-            if let hubKey = hub.key {
-                items = try await plexService.getHubItems(hubKey: hubKey)
-            }
-        } catch {
-            self.error = error.localizedDescription
-        }
+        // A source that fails contributes nothing rather than failing the page:
+        // one unreachable server must not hide the other's half of the row.
+        let merged = await plexService.mergedHubItems(for: hub)
+        plexService.registerAlternates(merged.alternates)
+        items = merged.items
 
         isLoading = false
     }
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
         do {
-            try await plexService.setWatched(watched, ratingKey: item.ratingKey)
+            try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await reloadItems()
         } catch {
             self.error = error.localizedDescription

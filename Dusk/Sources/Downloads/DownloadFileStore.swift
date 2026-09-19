@@ -102,6 +102,36 @@ struct DownloadFileStore: Sendable {
         }
     }
 
+    /// Moves one profile's cached metadata from one server directory to
+    /// another. Used when a legacy record keyed on the server's base URL is
+    /// re-keyed onto its machine identifier: the payloads are still valid, they
+    /// just live under the old name.
+    func relocateMetadata(accountProfileID: String, fromServerID: String, toServerID: String) {
+        let profileDirectory = metadataDirectory
+            .appendingPathComponent("Profiles", isDirectory: true)
+            .appendingPathComponent(safeFileComponent(accountProfileID), isDirectory: true)
+        let sourceDirectory = profileDirectory
+            .appendingPathComponent(safeFileComponent(fromServerID), isDirectory: true)
+        let destinationDirectory = profileDirectory
+            .appendingPathComponent(safeFileComponent(toServerID), isDirectory: true)
+
+        guard FileManager.default.fileExists(atPath: sourceDirectory.path) else { return }
+        try? FileManager.default.createDirectory(
+            at: destinationDirectory,
+            withIntermediateDirectories: true
+        )
+
+        let files = (try? FileManager.default.contentsOfDirectory(
+            at: sourceDirectory,
+            includingPropertiesForKeys: nil
+        )) ?? []
+        for sourceURL in files {
+            let destinationURL = destinationDirectory.appendingPathComponent(sourceURL.lastPathComponent)
+            guard !FileManager.default.fileExists(atPath: destinationURL.path) else { continue }
+            try? FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+        }
+    }
+
     func artworkURL(for path: String?) -> URL? {
         guard let path, !path.isEmpty else { return nil }
         return artworkDirectory.appendingPathComponent("\(Self.hash(path)).jpg")

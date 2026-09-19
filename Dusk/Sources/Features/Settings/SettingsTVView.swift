@@ -83,46 +83,6 @@ struct SettingsTVView: View {
                     }
                 }
 
-                if viewModel.hasMultipleServers {
-                    TVSettingsSection(title: "Plex Server") {
-                        HStack(spacing: 20) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("Current Server")
-                                    .font(.headline)
-                                    .foregroundStyle(Color.duskTextPrimary)
-
-                                if let server = plexService.connectedServer {
-                                    Text(server.name)
-                                        .foregroundStyle(Color.duskTextPrimary)
-                                    Text(viewModel.connectionType)
-                                        .font(.caption)
-                                        .foregroundStyle(Color.duskTextSecondary)
-                                } else {
-                                    Text("Not connected")
-                                        .foregroundStyle(Color.duskTextSecondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            Circle()
-                                .fill(plexService.connectedServer == nil ? Color.duskTextSecondary : Color.duskAccent)
-                                .frame(width: 10, height: 10)
-                        }
-                        .frame(minHeight: 72)
-
-                        tvRowDivider
-
-                        TVSettingsActionRow(
-                            title: "Change Server",
-                            tint: Color.duskAccent,
-                            showsChevron: true
-                        ) {
-                            viewModel.showServerPicker = true
-                        }
-                    }
-                }
-
                 TVSettingsSection(
                     title: "Integrations",
                     footer: "Optionally add requestable movies and shows to search."
@@ -153,6 +113,15 @@ struct SettingsTVView: View {
                         detail: SettingsSupport.libraryOrderSummary(plexService)
                     ) {
                         LibraryOrderSettingsView()
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(
+                        title: "Server Priority",
+                        detail: SettingsSupport.serverPrioritySummary(plexService)
+                    ) {
+                        ServerPrioritySettingsView()
                     }
                 }
 

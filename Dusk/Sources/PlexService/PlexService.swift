@@ -19,12 +19,6 @@ final class PlexService {
     var activeAccountToken: String?
     var authTokenUpdatedAt: Date?
     var currentUser: PlexUser?
-    private(set) var connectedServer: PlexServer?
-    var serverBaseURL: URL?
-    private(set) var serverAuthToken: String?
-    /// The connection the current session was established through (set when a
-    /// probe wins in `connect`). Used to tell local from remote/relay playback.
-    private(set) var activeConnection: PlexConnection?
     /// Cached account entitlement: nil = unknown/not fetched, true/false = known.
     /// Drives the remote-streaming (Plex Pass) restriction check.
     var accountSubscriptionActive: Bool?
@@ -41,7 +35,6 @@ final class PlexService {
     var authToken: String? { activeAccountToken }
 
     var isAuthenticated: Bool { primaryAccountToken != nil }
-    var isConnected: Bool { serverBaseURL != nil }
     var hasPlexHome: Bool { homeUsers.count > 1 }
     var activeProfileID: String? {
         if needsHomeUserSelection, activeHomeUser == nil {
@@ -76,6 +69,22 @@ final class PlexService {
     /// connected server's sections. See `PlexService+LibraryOrder`.
     let libraryOrder = LibraryOrderStore()
 
+    /// Every server this account can use and the live session with each one.
+    /// Everything that talks to a server resolves through here.
+    let pool = ServerPool()
+
+    /// The user's server order and per-server on/off switch.
+    let serverPriority = ServerPriorityStore()
+
+    /// Which items on different servers are the same content. Filled by the
+    /// merge layers, read by playback to fall back to another server.
+    let alternates = ContentAlternatesIndex()
+
+    /// Per-server recovery bookkeeping. Owned by `PlexService+Servers`
+    /// (`recoverServer(serverID:)`) — nothing else may touch these.
+    @ObservationIgnored var serverRecoveryTasks: [String: Task<PlexServerConnection, Error>] = [:]
+    @ObservationIgnored var serverRecoveryCooldowns: [String: Date] = [:]
+
     let clientIdentifier: String
     let session: URLSession
     let decoder: JSONDecoder
@@ -86,16 +95,28 @@ final class PlexService {
     /// migrates without requiring another sign-in.
     static let keychainTokenKey = "PlexAuthToken"
     static let keychainActiveHomeTokenKey = "PlexActiveHomeUserToken"
-    static let keychainServerTokenKey = "PlexServerAuthToken"
     static let defaultsClientIDKey = "PlexClientIdentifier"
+    // The four keys below are the single-server layout. Nothing writes them any
+    // more: they are read once by `migrateLegacySingleServerState()` and then
+    // deleted, and `ServerPool` reuses their names as the prefix of its
+    // per-server keys ("PlexServerURL.<id>", …) so an install keeps one
+    // recognisable namespace.
+    static let keychainServerTokenKey = "PlexServerAuthToken"
     static let defaultsServerURLKey = "PlexServerURL"
-    static let defaultsServerIDKey = "PlexServerID"
     static let defaultsServerDataKey = "PlexServerData"
     static let defaultsLastGoodConnectionURIKey = "PlexLastGoodConnectionURI"
+    /// Legacy selection, still read by `ServerPriorityStore` to seed the first
+    /// priority order. Only sign-out removes it.
+    static let defaultsServerIDKey = "PlexServerID"
     static let defaultsActiveHomeUserDataKey = "PlexActiveHomeUserData"
     static let defaultsAutomaticHomeSignInKey = "PlexAutomaticallySignInHomeUser"
     static let defaultsHomeMigrationCompletedKey = "PlexHomeMigrationCompleted"
     static let defaultsPrimaryProfileIDKey = "PlexPrimaryProfileID"
+    /// How long requests to a server keep failing fast after its recovery
+    /// failed. Long enough that a screenful of requests cannot re-run discovery
+    /// over and over, short enough that a server coming back is picked up on the
+    /// next screen refresh.
+    static let serverRecoveryCooldown: TimeInterval = 30
     static let authenticationPropagationRetryWindow: TimeInterval = 20
     static let authenticationPropagationRetryAttempts = 20
 
@@ -151,132 +172,124 @@ final class PlexService {
             activeAccountToken = primaryAccountToken
         }
 
-        if let data = KeychainHelper.load(key: Self.keychainServerTokenKey),
-           let token = String(data: data, encoding: .utf8) {
-            serverAuthToken = token.nilIfEmpty
-        }
+        pool.configure(session: session, baseHeaders: plexRequestHeaders)
+        migrateLegacySingleServerState()
+        restorePersistedSessions()
+    }
 
-        if let urlString = UserDefaults.standard.string(forKey: Self.defaultsServerURLKey),
-           let url = URL(string: urlString) {
-            serverBaseURL = url
-        }
+    /// Seeds the pool from the sessions persisted by the previous launch, so a
+    /// cold start already has every enabled server usable before plex.tv
+    /// discovery answers. `ServerConnectionCoordinator`'s pass then verifies and
+    /// refreshes them; a restored endpoint that has since moved simply fails
+    /// over on its next request.
+    private func restorePersistedSessions() {
+        for server in ServerPool.storedSnapshots()
+        where !server.clientIdentifier.isEmpty && serverPriority.isEnabled(server.clientIdentifier) {
+            let serverID = server.clientIdentifier
+            guard let token = ServerPool.storedToken(serverID: serverID) else { continue }
+            // The remembered base URL is the exact endpoint that worked; the
+            // last-good connection URI is the fallback for installs that
+            // upgraded before base URLs were kept per server.
+            guard let baseURL = ServerPool.storedBaseURL(serverID: serverID)
+                    ?? ServerPool.lastGoodConnectionURI(serverID: serverID)
+                    .flatMap(URL.init(string:)) else { continue }
 
-        if let serverData = UserDefaults.standard.data(forKey: Self.defaultsServerDataKey),
-           let server = try? decoder.decode(PlexServer.self, from: serverData) {
-            // Migrate server tokens persisted by older releases into Keychain,
-            // then immediately keep only the tokenless snapshot in memory and
-            // UserDefaults.
-            let persistedServerToken = server.usableAccessToken
-            connectedServer = server.withoutAccessToken
-            if serverAuthToken == nil, let persistedServerToken {
-                serverAuthToken = persistedServerToken
-                KeychainHelper.save(
-                    key: Self.keychainServerTokenKey,
-                    data: Data(persistedServerToken.utf8)
-                )
-            }
-            if let tokenlessData = try? encoder.encode(server.withoutAccessToken) {
-                UserDefaults.standard.set(tokenlessData, forKey: Self.defaultsServerDataKey)
-            }
-        }
-
-        if let serverAuthToken {
-            KeychainHelper.save(key: Self.keychainServerTokenKey, data: Data(serverAuthToken.utf8))
+            pool.adopt(
+                server: server,
+                baseURL: baseURL,
+                token: token,
+                connection: Self.connection(in: server, matching: baseURL),
+                priority: serverPriority
+            )
         }
     }
 
-    var preferredServerToken: String? {
-        serverAuthToken?.nilIfEmpty
-    }
+    /// Moves the pre-multi-server session (`PlexServerURL`, `PlexServerData`,
+    /// `PlexLastGoodConnectionURI`, Keychain `PlexServerAuthToken`) onto the
+    /// per-server keys and retires the originals. Nothing writes them any more,
+    /// so this is a one-time upgrade step; `PlexServerID` is deliberately left
+    /// in place because `ServerPriorityStore` still seeds its order from it.
+    private func migrateLegacySingleServerState() {
+        let defaults = UserDefaults.standard
+        let legacyToken = KeychainHelper.load(key: Self.keychainServerTokenKey)
+            .flatMap { String(data: $0, encoding: .utf8) }?
+            .nilIfEmpty
+        let legacyLastGoodURI = defaults
+            .string(forKey: Self.defaultsLastGoodConnectionURIKey)?
+            .nilIfEmpty
+        let legacyBaseURL = defaults
+            .string(forKey: Self.defaultsServerURLKey)
+            .flatMap(URL.init(string:))
+        let legacyServer = defaults
+            .data(forKey: Self.defaultsServerDataKey)
+            .flatMap { try? decoder.decode(PlexServer.self, from: $0) }
 
-    var currentServerIdentifier: String? {
-        if let identifier = connectedServer?.clientIdentifier.nilIfEmpty {
-            return identifier
+        if let legacyServer, !legacyServer.clientIdentifier.isEmpty {
+            ServerPool.migrateLegacyState(
+                serverID: legacyServer.clientIdentifier,
+                // Older releases persisted the server token inside the snapshot.
+                token: legacyToken ?? legacyServer.usableAccessToken,
+                lastGoodURI: legacyLastGoodURI,
+                baseURL: legacyBaseURL,
+                snapshot: legacyServer.withoutAccessToken
+            )
         }
-        return serverBaseURL?.absoluteString.nilIfEmpty
-    }
 
-    /// Last server chosen on this device, retained across Home switches so the
-    /// new profile can reconnect to it when that server is still accessible.
-    var preferredServerIdentifier: String? {
-        connectedServer?.clientIdentifier.nilIfEmpty
-            ?? UserDefaults.standard.string(forKey: Self.defaultsServerIDKey)?.nilIfEmpty
-    }
-
-    /// The connection the session is running on. Prefers the one recorded when
-    /// the probe won; after a cold launch (state restored from disk without a
-    /// re-probe) it falls back to matching `serverBaseURL` against the stored
-    /// server's connection list by host.
-    var resolvedActiveConnection: PlexConnection? {
-        if let activeConnection {
-            return activeConnection
-        }
-        guard let serverBaseURL, let connectedServer else { return nil }
-        return connectedServer.connections.first { connectionMatches($0, baseURL: serverBaseURL) }
-    }
-
-    /// True when the active session runs over the server's local network.
-    var isConnectedViaLocalNetwork: Bool {
-        resolvedActiveConnection?.local == true
-    }
-
-    /// True when the active session runs over a remote or relay connection.
-    /// Defaults to false when the connection can't be resolved so callers never
-    /// wrongly treat an unknown state as "away from home".
-    var isConnectedRemotely: Bool {
-        guard let connection = resolvedActiveConnection else { return false }
-        return !connection.local
-    }
-
-    private func connectionMatches(_ connection: PlexConnection, baseURL: URL) -> Bool {
-        guard let host = baseURL.host else { return false }
-        for uri in [connection.uri, connection.httpFallbackURI].compactMap({ $0 }) {
-            guard let url = URL(string: uri), url.host == host else { continue }
-            if let basePort = baseURL.port, let connectionPort = url.port, basePort != connectionPort {
-                continue
-            }
-            return true
-        }
-        return false
-    }
-
-    func setServer(_ server: PlexServer, baseURL: URL, accessToken: String?, connection: PlexConnection? = nil) {
-        let tokenlessServer = server.withoutAccessToken
-        // Only a genuine server change invalidates the cached library order.
-        // `connect(to:)` also runs when a transient server error makes
-        // `refreshConnectedServerConnection()` re-probe the *same* server, and
-        // dropping the sections there would empty the Libraries tab (and the tab
-        // bar, which is derived from it) until something re-loads them.
-        if connectedServer?.clientIdentifier != tokenlessServer.clientIdentifier {
-            libraryOrder.invalidate()
-        }
-        connectedServer = tokenlessServer
-        serverBaseURL = baseURL
-        activeConnection = connection
-        serverAuthToken = accessToken?.nilIfEmpty ?? server.usableAccessToken
-        UserDefaults.standard.set(baseURL.absoluteString, forKey: Self.defaultsServerURLKey)
-        UserDefaults.standard.set(server.clientIdentifier, forKey: Self.defaultsServerIDKey)
-        if let data = try? encoder.encode(tokenlessServer) {
-            UserDefaults.standard.set(data, forKey: Self.defaultsServerDataKey)
-        }
-        if let serverAuthToken {
-            KeychainHelper.save(key: Self.keychainServerTokenKey, data: Data(serverAuthToken.utf8))
-        } else {
-            KeychainHelper.delete(key: Self.keychainServerTokenKey)
-        }
-    }
-
-    func clearServer(forgetSelection: Bool = false) {
-        libraryOrder.invalidate()
-        connectedServer = nil
-        serverBaseURL = nil
-        serverAuthToken = nil
-        activeConnection = nil
-        UserDefaults.standard.removeObject(forKey: Self.defaultsServerURLKey)
-        if forgetSelection {
-            UserDefaults.standard.removeObject(forKey: Self.defaultsServerIDKey)
-        }
-        UserDefaults.standard.removeObject(forKey: Self.defaultsServerDataKey)
+        defaults.removeObject(forKey: Self.defaultsServerURLKey)
+        defaults.removeObject(forKey: Self.defaultsServerDataKey)
+        defaults.removeObject(forKey: Self.defaultsLastGoodConnectionURIKey)
         KeychainHelper.delete(key: Self.keychainServerTokenKey)
+    }
+
+    /// Matches a restored base URL back onto the stored server's connection
+    /// list by host, so a session restored without a probe still knows whether
+    /// it is local, remote, or relayed.
+    private static func connection(in server: PlexServer, matching baseURL: URL) -> PlexConnection? {
+        guard let host = baseURL.host else { return nil }
+        return server.connections.first { connection in
+            for uri in [connection.uri, connection.httpFallbackURI].compactMap({ $0 }) {
+                guard let url = URL(string: uri), url.host == host else { continue }
+                if let basePort = baseURL.port, let connectionPort = url.port, basePort != connectionPort {
+                    continue
+                }
+                return true
+            }
+            return false
+        }
+    }
+
+    // MARK: - Teardown
+
+    /// Tears down *every* server session. Sign-out and Plex Home switches only:
+    /// a single failing request must never clear the pool, because that would
+    /// sign the user out of the servers that are working fine.
+    ///
+    /// - Parameter forgetServers: Sign-out. Also drops the stored priority order
+    ///   and every per-server credential and remembered endpoint, including
+    ///   those of servers that never connected this launch.
+    func tearDownServerSessions(forgetServers: Bool = false) {
+        libraryOrder.invalidate()
+        // Rating keys only mean something for the account that fetched them.
+        alternates.reset()
+        for task in serverRecoveryTasks.values {
+            task.cancel()
+        }
+        serverRecoveryTasks = [:]
+        serverRecoveryCooldowns = [:]
+        // Server tokens belong to the identity that fetched them, so a Home
+        // switch invalidates every one of them just as a sign-out does — and the
+        // pool only knows the servers it has seen this launch, so the stored
+        // order and snapshots have to be swept too.
+        let known = Set(serverPriority.entries.map(\.machineIdentifier))
+            .union(ServerPool.storedSnapshots().map(\.clientIdentifier))
+            .union(pool.knownServerIDs)
+        for serverID in known {
+            ServerPool.forget(serverID: serverID)
+        }
+        pool.clear()
+        if forgetServers {
+            UserDefaults.standard.removeObject(forKey: Self.defaultsServerIDKey)
+            serverPriority.reset()
+        }
     }
 }

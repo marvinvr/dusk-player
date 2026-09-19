@@ -7,16 +7,40 @@ private let libraryRecommendationsLogger = Logger(
     category: "LibraryRecommendations"
 )
 
+/// One channel row plus the library it belongs to, so "Show All" opens that
+/// library's collection rather than whichever library happened to be first.
+struct LibraryChannelRow: Identifiable, Sendable {
+    let library: PlexLibrary
+    let shelf: LibraryVideoChannelShelf
+
+    var id: String { "\(library.id)|\(shelf.id)" }
+}
+
+/// The recommendations screen for one library **or for every library of one
+/// type**, across servers.
+///
+/// A type tab (Movies, TV Shows, Videos) lands here with all of that type's
+/// libraries: their hub rows are merged the same way Home merges `/hubs`, so
+/// "Recently Added" is one row spanning both servers instead of two rows the
+/// user has to compare. With a single library nothing is merged and the screen
+/// behaves exactly as it did before.
 @MainActor
 @Observable
 final class LibraryRecommendationsViewModel {
     private var maxRecentlyAddedItems = 10
 
-    let library: PlexLibrary
+    /// Every library this screen covers, in the account's order. Never empty.
+    let libraries: [PlexLibrary]
+
+    /// The library that stands in for the screen: its type drives the layout
+    /// and it is what a single-library screen browses into.
+    var library: PlexLibrary { libraries[0] }
+
+    var isMultiLibrary: Bool { libraries.count > 1 }
 
     private(set) var hubs: [PlexHub] = []
     private(set) var personalizedShelves: [LibraryPersonalizedShelf] = []
-    private(set) var channelShelves: [LibraryVideoChannelShelf] = []
+    private(set) var channelShelves: [LibraryChannelRow] = []
     private(set) var rediscoverItems: [PlexItem] = []
     private(set) var continueWatching: [PlexItem] = []
     private(set) var continueWatchingTitle = "Continue Watching"
@@ -25,20 +49,20 @@ final class LibraryRecommendationsViewModel {
     private(set) var error: String?
 
     private let plexService: PlexService
-    private let recommendationEngine: LibraryRecommendationEngine
-    private let videoShelfLoader: LibraryVideoShelfLoader
 
-    init(library: PlexLibrary, plexService: PlexService) {
-        self.library = library
+    /// Bumped by every load. A load that is overtaken — a second server
+    /// connects, or the user marks something watched mid-load — must not
+    /// publish its older result over the newer one.
+    private var loadGeneration = 0
+
+    convenience init(library: PlexLibrary, plexService: PlexService) {
+        self.init(libraries: [library], plexService: plexService)
+    }
+
+    init(libraries: [PlexLibrary], plexService: PlexService) {
+        precondition(!libraries.isEmpty, "A recommendations screen needs at least one library")
+        self.libraries = libraries
         self.plexService = plexService
-        self.recommendationEngine = LibraryRecommendationEngine(
-            library: library,
-            plexService: plexService
-        )
-        self.videoShelfLoader = LibraryVideoShelfLoader(
-            library: library,
-            plexService: plexService
-        )
     }
 
     var isVideoLibrary: Bool {
@@ -58,6 +82,8 @@ final class LibraryRecommendationsViewModel {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
+        loadGeneration += 1
+        let generation = loadGeneration
         let isInitialLoad = !hasAnyContent
 
         if isInitialLoad {
@@ -67,13 +93,15 @@ final class LibraryRecommendationsViewModel {
 
         do {
             if isVideoLibrary {
-                try await loadVideoLibraryContent(isInitialLoad: isInitialLoad)
+                try await loadVideoLibraryContent(isInitialLoad: isInitialLoad, generation: generation)
             } else {
-                try await loadStandardLibraryContent(isInitialLoad: isInitialLoad)
+                try await loadStandardLibraryContent(isInitialLoad: isInitialLoad, generation: generation)
             }
 
+            guard generation == loadGeneration else { return }
             error = nil
         } catch {
+            guard generation == loadGeneration else { return }
             if isInitialLoad {
                 self.error = error.localizedDescription
             }
@@ -84,18 +112,12 @@ final class LibraryRecommendationsViewModel {
     }
 
     /// Movie/show libraries: Plex hubs plus genre-engine personalized shelves.
-    private func loadStandardLibraryContent(isInitialLoad: Bool) async throws {
-        async let fetchedHubsTask = plexService.getLibraryHubs(
-            sectionId: library.key,
-            count: hubFetchCount
-        )
-        async let personalizedShelvesTask = recommendationEngine.loadResult(
-            itemsPerShelf: maxRecentlyAddedItems
-        )
+    private func loadStandardLibraryContent(isInitialLoad: Bool, generation: Int) async throws {
+        async let fetchedHubsTask = fetchLibraryHubs()
+        async let personalizedShelvesTask = loadPersonalizedShelves()
 
-        let fetchedHubs = try await fetchedHubsTask
-        let processedHubs = try await processHubs(fetchedHubs)
-        let recommendationResult = (try? await personalizedShelvesTask) ?? .empty
+        let processedHubs = await processHubs(await fetchedHubsTask)
+        let recommendationResult = await personalizedShelvesTask
         let filteredPersonalizedShelves = filterPersonalizedShelves(
             recommendationResult.shelves,
             excluding: processedHubs.continueWatching
@@ -104,6 +126,8 @@ final class LibraryRecommendationsViewModel {
         if filteredPersonalizedShelves.isEmpty {
             libraryRecommendationsLogger.debug("\(recommendationResult.diagnostics.summary, privacy: .public)")
         }
+
+        guard generation == loadGeneration else { return }
 
         apply(isInitialLoad: isInitialLoad) {
             self.hubs = processedHubs.hubs
@@ -118,16 +142,14 @@ final class LibraryRecommendationsViewModel {
     /// Video libraries skip the genre recommendation engine entirely (its
     /// history/genre scoring is expensive and meaningless for clips) and load
     /// channel rows plus a seeded Rediscover row instead.
-    private func loadVideoLibraryContent(isInitialLoad: Bool) async throws {
-        async let fetchedHubsTask = plexService.getLibraryHubs(
-            sectionId: library.key,
-            count: hubFetchCount
-        )
-        async let videoShelvesTask = videoShelfLoader.load()
+    private func loadVideoLibraryContent(isInitialLoad: Bool, generation: Int) async throws {
+        async let fetchedHubsTask = fetchLibraryHubs()
+        async let videoShelvesTask = loadVideoShelves()
 
-        let fetchedHubs = try await fetchedHubsTask
-        let processedHubs = try await processHubs(fetchedHubs)
+        let processedHubs = await processHubs(await fetchedHubsTask)
         let videoShelves = await videoShelvesTask
+
+        guard generation == loadGeneration else { return }
 
         apply(isInitialLoad: isInitialLoad) {
             self.hubs = processedHubs.hubs
@@ -143,11 +165,77 @@ final class LibraryRecommendationsViewModel {
         max(maxRecentlyAddedItems, 12)
     }
 
+    /// `/hubs/sections/{id}` for every library this screen covers, all at once,
+    /// each routed to its own server. A library that fails contributes nothing
+    /// rather than failing the screen.
+    private func fetchLibraryHubs() async -> [[PlexHub]] {
+        let service = plexService
+        let count = hubFetchCount
+        let libraries = self.libraries
+
+        return await withTaskGroup(of: (Int, [PlexHub]).self) { group in
+            for (index, library) in libraries.enumerated() {
+                group.addTask {
+                    let hubs = (try? await service.getLibraryHubs(
+                        sectionId: library.key,
+                        count: count,
+                        serverID: library.serverID
+                    )) ?? []
+                    return (index, hubs)
+                }
+            }
+
+            var results: [(Int, [PlexHub])] = []
+            for await result in group {
+                results.append(result)
+            }
+            return results.sorted { $0.0 < $1.0 }.map(\.1)
+        }
+    }
+
+    private func loadPersonalizedShelves() async -> LibraryRecommendationLoadResult {
+        var results: [LibraryRecommendationLoadResult] = []
+        for library in libraries {
+            let engine = LibraryRecommendationEngine(library: library, plexService: plexService)
+            let result = (try? await engine.loadResult(itemsPerShelf: maxRecentlyAddedItems)) ?? .empty
+            results.append(result)
+        }
+        return LibraryRecommendationLoadResult.merging(results)
+    }
+
+    private func loadVideoShelves() async -> (
+        channelShelves: [LibraryChannelRow],
+        rediscoverItems: [PlexItem]
+    ) {
+        var channelRows: [LibraryChannelRow] = []
+        var rediscoverLists: [[PlexItem]] = []
+
+        for library in libraries {
+            let loader = LibraryVideoShelfLoader(library: library, plexService: plexService)
+            let result = await loader.load()
+            channelRows.append(
+                contentsOf: result.channelShelves.map {
+                    LibraryChannelRow(library: library, shelf: $0)
+                }
+            )
+            rediscoverLists.append(result.rediscoverItems)
+        }
+
+        return (channelRows, PlexItemMerge.interleave(rediscoverLists).items)
+    }
+
+    /// Merges each library's rows into one set, then expands the Recently Added
+    /// rows and splits Continue Watching out of them.
     private func processHubs(
-        _ fetchedHubs: [PlexHub]
-    ) async throws -> (hubs: [PlexHub], continueWatching: [PlexItem], continueWatchingTitle: String) {
-        let baseHubs = fetchedHubs.filter { !shouldHideHub($0) }
-        let expandedHubs = try await expandedRecentlyAddedHubs(from: baseHubs)
+        _ fetchedHubs: [[PlexHub]]
+    ) async -> (hubs: [PlexHub], continueWatching: [PlexItem], continueWatchingTitle: String) {
+        let filtered = fetchedHubs.map { $0.filter { !shouldHideHub($0) } }
+        // One list per library here, not per server: merging rows of two
+        // libraries of the same type is exactly what a type tab is for.
+        let merged = HubMerge.merge(filtered, mode: .libraryType)
+        plexService.registerAlternates(merged.alternates)
+
+        let expandedHubs = await expandedRecentlyAddedHubs(from: merged.hubs)
 
         let continueWatchingHub = expandedHubs.first(where: isContinueWatchingHub)
         let recommendationHubs = expandedHubs.filter { !isContinueWatchingHub($0) }
@@ -167,7 +255,7 @@ final class LibraryRecommendationsViewModel {
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
         do {
-            try await plexService.setWatched(watched, ratingKey: item.ratingKey)
+            try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -217,18 +305,21 @@ final class LibraryRecommendationsViewModel {
         hubs.filter { !isRecentlyAddedHub($0) }
     }
 
+    /// A merged row is pageable when any of its libraries is, and its size is
+    /// the sum across them.
     func shouldShowAll(for hub: PlexHub) -> Bool {
-        guard hub.key != nil else { return false }
+        guard hub.isPageable else { return false }
 
         let visibleCount = visibleItems(in: hub).count
+        let totalSize = hub.totalSourceSize
 
         if isRecentlyAddedHub(hub) {
             return visibleCount > maxRecentlyAddedItems ||
-                hub.more == true ||
-                (hub.size ?? 0) > maxRecentlyAddedItems
+                hub.hasMoreOnAnySource ||
+                totalSize > maxRecentlyAddedItems
         }
 
-        return hub.more == true || (hub.size ?? visibleCount) > visibleCount
+        return hub.hasMoreOnAnySource || max(totalSize, visibleCount) > visibleCount
     }
 
     func normalizedTitle(for hub: PlexHub) -> String {
@@ -254,22 +345,29 @@ final class LibraryRecommendationsViewModel {
         return hub.title
     }
 
-    private func expandedRecentlyAddedHubs(from hubs: [PlexHub]) async throws -> [PlexHub] {
+    /// Re-fetches each Recently Added row at the size the screen shows,
+    /// following every contributing library's own hub key and re-merging.
+    private func expandedRecentlyAddedHubs(from hubs: [PlexHub]) async -> [PlexHub] {
         var expandedHubs: [PlexHub] = []
         expandedHubs.reserveCapacity(hubs.count)
 
         for hub in hubs {
-            guard isRecentlyAddedHub(hub), let hubKey = hub.key else {
+            guard isRecentlyAddedHub(hub), hub.isPageable else {
                 expandedHubs.append(hub)
                 continue
             }
 
-            let items = try await plexService.getHubItems(
-                hubKey: hubKey,
+            let merged = await plexService.mergedHubItems(
+                for: hub,
                 size: maxRecentlyAddedItems
             )
+            guard !merged.items.isEmpty else {
+                expandedHubs.append(hub)
+                continue
+            }
 
-            expandedHubs.append(hub.replacingItems(items))
+            plexService.registerAlternates(merged.alternates)
+            expandedHubs.append(hub.replacingItems(merged.items))
         }
 
         return expandedHubs
@@ -317,32 +415,43 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
+    /// Drops anything already in Continue Watching. Matching is on
+    /// `PlexItemID` (rating keys alias across servers) plus the cross-server
+    /// content key, so a film in progress on one server is not recommended
+    /// from another.
     private func filterPersonalizedShelves(
         _ shelves: [LibraryPersonalizedShelf],
         excluding continueWatchingItems: [PlexItem]
     ) -> [LibraryPersonalizedShelf] {
-        let excludedRatingKeys = Set(
-            continueWatchingItems.flatMap { item in
-                [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
-                    .compactMap { $0 }
+        var excludedIDs: Set<PlexItemID> = []
+        var excludedContentKeys: Set<PlexContentKey> = []
+
+        for item in continueWatchingItems {
+            for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
+                .compactMap({ $0 }) {
+                excludedIDs.insert(PlexItemID(serverID: item.serverID, ratingKey: ratingKey))
             }
-        )
+            excludedContentKeys.insert(item.contentKey)
+        }
 
         return shelves.compactMap { shelf in
-            let filteredItems = shelf.items.filter { !excludedRatingKeys.contains($0.ratingKey) }
+            let filteredItems = shelf.items.filter {
+                !excludedIDs.contains($0.id) && !excludedContentKeys.contains($0.contentKey)
+            }
 
             guard filteredItems.count >= min(2, maxRecentlyAddedItems) else { return nil }
 
             return LibraryPersonalizedShelf(
                 genre: shelf.genre,
                 title: shelf.title,
-                items: filteredItems
+                items: filteredItems,
+                showAllLibrary: shelf.showAllLibrary
             )
         }
     }
 }
 
-private extension LibraryRecommendationLoadResult {
+extension LibraryRecommendationLoadResult {
     static let empty = LibraryRecommendationLoadResult(
         shelves: [],
         diagnostics: LibraryRecommendationDiagnostics(
@@ -354,4 +463,50 @@ private extension LibraryRecommendationLoadResult {
             shelfCount: 0
         )
     )
+
+    /// Folds several libraries' results into one screen's worth of rows.
+    ///
+    /// Rows for the same genre collapse into a single row whose items are
+    /// interleaved and deduplicated by content key — two libraries both
+    /// offering "More Thrillers" is exactly the duplication the type tab exists
+    /// to remove. A merged row loses its "Show All" link because there is no
+    /// single library list behind it any more.
+    static func merging(_ results: [LibraryRecommendationLoadResult]) -> LibraryRecommendationLoadResult {
+        guard results.count > 1 else { return results.first ?? .empty }
+
+        var shelvesByGenre: [String: [LibraryPersonalizedShelf]] = [:]
+        var order: [String] = []
+
+        for result in results {
+            for shelf in result.shelves {
+                if shelvesByGenre[shelf.id] == nil {
+                    order.append(shelf.id)
+                }
+                shelvesByGenre[shelf.id, default: []].append(shelf)
+            }
+        }
+
+        let shelves = order.compactMap { id -> LibraryPersonalizedShelf? in
+            guard let group = shelvesByGenre[id], let representative = group.first else { return nil }
+            guard group.count > 1 else { return representative }
+            return LibraryPersonalizedShelf(
+                genre: representative.genre,
+                title: representative.title,
+                items: PlexItemMerge.interleave(group.map(\.items)).items,
+                showAllLibrary: nil
+            )
+        }
+
+        return LibraryRecommendationLoadResult(
+            shelves: shelves,
+            diagnostics: LibraryRecommendationDiagnostics(
+                candidateGenreCount: results.map(\.diagnostics.candidateGenreCount).reduce(0, +),
+                historyCount: results.map(\.diagnostics.historyCount).reduce(0, +),
+                historyGenreCount: results.map(\.diagnostics.historyGenreCount).reduce(0, +),
+                fallbackViewedCount: results.map(\.diagnostics.fallbackViewedCount).reduce(0, +),
+                fallbackGenreCount: results.map(\.diagnostics.fallbackGenreCount).reduce(0, +),
+                shelfCount: shelves.count
+            )
+        )
+    }
 }

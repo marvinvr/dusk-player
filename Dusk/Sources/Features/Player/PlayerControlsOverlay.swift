@@ -40,7 +40,9 @@ struct PlayerControlsOverlay: View {
             selectedQualityPreset: debugInfo?.qualityPreset ?? .original,
             availableQualityPresets: debugInfo?.availableQualityPresets ?? [.original],
             hasPlaybackInfo: debugInfo != nil,
-            canDownloadSubtitles: plexService.canDownloadSubtitles && !viewModel.isLiveTV,
+            canDownloadSubtitles: plexService.canDownloadSubtitles(
+                serverID: playback.activePlaybackServerID
+            ) && !viewModel.isLiveTV,
             hasQualityControl: debugInfo != nil && !viewModel.isLiveTV,
             canSelectQuality: debugInfo?.canSelectPlaybackQuality == true &&
                 !playback.isAirPlayPlaybackActive,

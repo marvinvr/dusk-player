@@ -4,12 +4,25 @@ import Foundation
 /// `collection` filter values (e.g. one collection per channel in an
 /// "Other Videos" library).
 struct PlexLibraryCollection: Sendable, Hashable, Identifiable {
-    var id: String { key }
+    /// Collection tag ids are per-server, so the server belongs in the identity.
+    var id: String {
+        guard let serverID else { return key }
+        return "\(serverID)|\(key)"
+    }
+
+    /// The server whose library section this collection belongs to.
+    let serverID: String?
 
     /// Plain filter value: pass it as `filters: ["collection": key]` to
     /// `getLibraryItems(sectionId:)` / `getLibraryItemCount(sectionId:)`.
     let key: String
     let title: String
+
+    init(serverID: String?, key: String, title: String) {
+        self.serverID = serverID
+        self.key = key
+        self.title = title
+    }
 }
 
 extension PlexLibraryCollection {
@@ -18,7 +31,7 @@ extension PlexLibraryCollection {
     /// tag id, an `.../all?collection=<id>` fast key, or a path ending in the
     /// id, so the plain value is extracted the same way
     /// `LibraryGenreSupport.extractFilterValue` handles genre keys.
-    init?(filterValue: PlexLibraryFilterValue) {
+    init?(filterValue: PlexLibraryFilterValue, serverID: String? = nil) {
         let rawKey = filterValue.key
         let extractedKey: String?
 
@@ -33,6 +46,7 @@ extension PlexLibraryCollection {
 
         guard let key = extractedKey, !key.isEmpty else { return nil }
 
+        self.serverID = serverID
         self.key = key
         self.title = filterValue.title
     }

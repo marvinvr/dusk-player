@@ -4,9 +4,12 @@ enum SearchMediaResult: Identifiable {
     case plex(PlexItem)
     case seerr(SeerrSearchMedia)
 
+    /// Includes the server: merged results can hold the same rating key from
+    /// two servers, and a duplicate id inside one `ForEach` makes SwiftUI drop
+    /// rows at random.
     var id: String {
         switch self {
-        case .plex(let item): "plex:\(item.ratingKey)"
+        case .plex(let item): "plex:\(item.id.storageKey)"
         case .seerr(let item): "seerr:\(item.mediaType):\(item.id)"
         }
     }
@@ -55,11 +58,7 @@ enum SearchMediaResult: Identifiable {
     ) -> URL? {
         switch self {
         case .plex(let item):
-            plexService.imageURL(
-                for: item.preferredPosterPath,
-                width: width,
-                height: height
-            )
+            item.posterImageURL(plexService: plexService, width: width, height: height)
         case .seerr(let item):
             seerrService.posterURL(path: item.posterPath, width: width)
         }

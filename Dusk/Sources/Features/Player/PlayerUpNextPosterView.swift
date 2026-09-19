@@ -267,6 +267,7 @@ struct PlayerUpNextPosterView: View {
             for: presentation.episode.thumb
                 ?? presentation.episode.art
                 ?? presentation.episode.grandparentThumb,
+            serverID: presentation.episode.serverID,
             width: 640,
             height: 360
         )

@@ -9,7 +9,7 @@ extension PlexService {
     func setAuthToken(_ token: String) {
         let normalizedToken = token.nilIfEmpty
         if primaryAccountToken != normalizedToken {
-            clearServer(forgetSelection: true)
+            tearDownServerSessions(forgetServers: true)
             currentUser = nil
             accountSubscriptionActive = nil
             resetHomeSession(clearPreference: true)
@@ -55,7 +55,7 @@ extension PlexService {
     }
 
     func signOut() {
-        clearServer(forgetSelection: true)
+        tearDownServerSessions(forgetServers: true)
         clearAuthToken()
     }
 

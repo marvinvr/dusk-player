@@ -363,6 +363,7 @@ private struct PlayerAirPlayRemoteBackground: View {
                     PosterArtwork(
                         imageURL: plexService.imageURL(
                             for: posterPath,
+                            serverID: placeholder?.serverID,
                             width: Int(width),
                             height: Int(width * 1.5)
                         ),
@@ -459,7 +460,12 @@ private struct PlayerAirPlayRemoteBackground: View {
     }
 
     private var backdropURL: URL? {
-        plexService.imageURL(for: placeholder?.backdropPath, width: 1280, height: 720)
+        plexService.imageURL(
+            for: placeholder?.backdropPath,
+            serverID: placeholder?.serverID,
+            width: 1280,
+            height: 720
+        )
     }
 
     private var routeLabel: String {
@@ -672,7 +678,10 @@ private struct PlayerSessionView: View {
             // Set before configuring: the first track sync already needs to be
             // able to resolve and mount the part's Plex sidecar subtitles.
             viewModel.externalSubtitleURLProvider = { stream in
-                playback.plexService.externalSubtitleURL(for: stream)
+                playback.plexService.externalSubtitleURL(
+                    for: stream,
+                    serverID: playback.activePlaybackServerID
+                )
             }
             viewModel.externalSubtitleRestartHandler = { streamID in
                 playback.switchToVLCKitForExternalSubtitle(streamID: streamID)
@@ -897,6 +906,7 @@ private struct PlayerSessionView: View {
             SubtitleSearchView(
                 plexService: plexService,
                 ratingKey: ratingKey,
+                serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
                 onDownloaded: { _ in
                     await playback.refreshSubtitleStreamsAfterDownload()
@@ -1208,7 +1218,10 @@ private struct PlayerSessionView: View {
         scrubPreviewSource = nil
         guard let partID else { return }
 
-        let source = await plexService.scrubPreviewSource(forPartID: partID)
+        let source = await plexService.scrubPreviewSource(
+            forPartID: partID,
+            serverID: playback.activePlaybackServerID
+        )
         guard !Task.isCancelled else { return }
         scrubPreviewSource = source
     }

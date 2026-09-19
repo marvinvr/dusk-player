@@ -20,9 +20,10 @@ struct ActorDetailView: View {
     }()
     private let minimumColumnCount = 2
 
-    init(person: PlexPersonReference, plexService: PlexService) {
+    init(person: PlexPersonReference, serverID: String? = nil, plexService: PlexService) {
         _viewModel = State(initialValue: ActorDetailViewModel(
             person: person,
+            serverID: serverID,
             plexService: plexService
         ))
     }

@@ -149,14 +149,19 @@ final class OfflinePlaybackSyncManager {
         guard force || isNetworkAvailable else { return }
         guard plexService.isSessionReady else { return }
         guard let activeProfileID = plexService.activeProfileID?.nilIfEmpty else { return }
-        guard let currentServerID = plexService.currentServerIdentifier else { return }
+
+        rekeyLegacyServerIdentifiers()
 
         let now = Date()
+        // Each action goes to the server it was recorded on, and only while that
+        // server is connected. Actions for servers that are offline or switched
+        // off simply wait — replaying them anywhere else would move watch state
+        // on a completely different title.
         let pendingActions = storedActions
             .filter { action in
                 action.needsSync &&
                     action.accountProfileID == activeProfileID &&
-                    action.serverID == currentServerID &&
+                    plexService.pool.connection(for: action.serverID) != nil &&
                     (force || shouldAttemptSync(action, now: now))
             }
             .sorted { $0.updatedAt < $1.updatedAt }
@@ -214,16 +219,38 @@ final class OfflinePlaybackSyncManager {
                 ratingKey: action.ratingKey,
                 state: playbackState(for: action.plexState),
                 timeMs: action.viewOffsetMs ?? 0,
-                durationMs: action.durationMs ?? 0
+                durationMs: action.durationMs ?? 0,
+                serverID: action.serverID
             )
             if action.shouldMarkWatched {
-                try await plexService.scrobble(ratingKey: action.ratingKey)
+                try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
             }
         case .watched:
-            try await plexService.scrobble(ratingKey: action.ratingKey)
+            try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
         case .unwatched:
-            try await plexService.unscrobble(ratingKey: action.ratingKey)
+            try await plexService.unscrobble(ratingKey: action.ratingKey, serverID: action.serverID)
         }
+    }
+
+    /// Actions queued before servers were identified by machine identifier can
+    /// carry the server's base URL instead, which matches no connection and
+    /// would keep them pending forever. Re-key them once their server is known;
+    /// an address that resolves to nothing is left alone rather than replayed
+    /// against a server that would move watch state on a different title.
+    private func rekeyLegacyServerIdentifiers() {
+        var changed = false
+        for index in storedActions.indices {
+            let legacyServerID = storedActions[index].serverID
+            guard !plexService.isKnownServerID(legacyServerID),
+                  let resolved = plexService.serverID(forLegacyConnectionURI: legacyServerID),
+                  resolved != legacyServerID else {
+                continue
+            }
+            storedActions[index].serverID = resolved
+            changed = true
+        }
+        guard changed else { return }
+        persist()
     }
 
     private func action(serverID: String?, ratingKey: String) -> OfflinePlaybackSyncAction? {

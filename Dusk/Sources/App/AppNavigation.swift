@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Every media route carries a `PlexItemID`, not a bare rating key: rating keys
+/// are per-server counters that collide across servers, so a route without the
+/// server would open whatever item happens to share that key on the primary
+/// one. Navigating from an item therefore always opens it on *its* server.
 enum AppNavigationRoute: Hashable {
     case search
     case library(PlexLibrary)
@@ -7,26 +11,28 @@ enum AppNavigationRoute: Hashable {
     case libraryCollection(library: PlexLibrary, collection: PlexLibraryCollection)
     case libraryRecommendations(PlexLibrary)
     case hub(PlexHub)
-    case media(type: PlexMediaType, ratingKey: String)
-    case downloadedMedia(type: PlexMediaType, ratingKey: String)
-    case video(ratingKey: String)
-    case downloadedVideo(ratingKey: String)
-    case person(PlexPersonReference)
+    case media(type: PlexMediaType, id: PlexItemID)
+    case downloadedMedia(type: PlexMediaType, id: PlexItemID)
+    case video(id: PlexItemID)
+    case downloadedVideo(id: PlexItemID)
+    /// Person tag ids are per-server too, so the route carries the server the
+    /// credit was read from; nil falls back to the primary server.
+    case person(PlexPersonReference, serverID: String?)
     case seerrMedia(type: SeerrMediaType, id: Int)
     case seerrSeason(tvID: Int, seasonNumber: Int)
 
     static func destination(for item: PlexItem) -> Self {
         if let person = PlexPersonReference(item: item) {
-            return .person(person)
+            return .person(person, serverID: item.serverID)
         }
 
         // Clips report `type == "movie"` with `subtype == "clip"`, so they must
         // never fall through to the movie detail flow.
         if item.isClip {
-            return .video(ratingKey: item.ratingKey)
+            return .video(id: item.id)
         }
 
-        return .media(type: item.type, ratingKey: item.ratingKey)
+        return .media(type: item.type, id: item.id)
     }
 }
 
@@ -62,41 +68,41 @@ struct AppNavigationDestinationView: View {
             )
         case .hub(let hub):
             HomeHubItemsView(hub: hub, plexService: plexService)
-        case let .media(type, ratingKey):
+        case let .media(type, id):
             MediaDetailDestinationView(
                 type: type,
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
-        case let .downloadedMedia(type, ratingKey):
+        case let .downloadedMedia(type, id):
             MediaDetailDestinationView(
                 type: type,
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 prefersOfflineAvailability: DownloadsFeature.isVisible
             )
-        case let .video(ratingKey):
+        case let .video(id):
             VideoDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
-        case let .downloadedVideo(ratingKey):
+        case let .downloadedVideo(id):
             VideoDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
-        case .person(let person):
-            ActorDetailView(person: person, plexService: plexService)
+        case let .person(person, serverID):
+            ActorDetailView(person: person, serverID: serverID, plexService: plexService)
         case let .seerrMedia(type, id):
             SeerrMediaDetailView(mediaType: type, mediaID: id, service: seerrService)
         case let .seerrSeason(tvID, seasonNumber):

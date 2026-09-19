@@ -6,7 +6,10 @@ struct HomeIOSView: View {
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
-    let serverName: String?
+    /// Enabled servers that are currently unreachable. Only used for the quiet
+    /// inline note; Home never names the server a row came from, because with
+    /// every server merged into one screen that would be noise.
+    let offlineServerNames: [String]
     let recentlyAddedInlineItemLimit: Int
     let heroSelectionResetRevision: Int
     let liveTVViewModel: LiveTVViewModel
@@ -85,12 +88,12 @@ struct HomeIOSView: View {
                                 path.append(AppNavigationRoute.destination(for: item))
                             }
                         )
-                    } else if showsHomeServerSubtitle, let serverName {
-                        homeSubtitle(serverName)
-                            .padding(.bottom, 12)
                     }
 
                     LazyVStack(alignment: .leading, spacing: 18) {
+                        ServerOutageNote(offlineServerNames: offlineServerNames)
+                            .padding(.horizontal, 20)
+
                         if showsLiveTV {
                             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
                         }
@@ -105,7 +108,7 @@ struct HomeIOSView: View {
                     }
                     .padding(.top, heroItems.isEmpty ? 0 : 24)
                 }
-                .padding(.top, heroItems.isEmpty ? (showsHomeServerSubtitle ? -10 : 16) : -geometry.safeAreaInsets.top)
+                .padding(.top, heroItems.isEmpty ? 16 : -geometry.safeAreaInsets.top)
                 .padding(.bottom, 24)
             }
             .scrollIndicators(.hidden)
@@ -199,18 +202,6 @@ struct HomeIOSView: View {
                 .duskNavigationBarTitleDisplayModeLarge()
                 .toolbarBackground(.visible, for: .navigationBar)
         }
-    }
-
-    private func homeSubtitle(_ serverName: String) -> some View {
-        Text(serverName)
-            .font(.subheadline)
-            .foregroundStyle(Color.primary)
-            .lineLimit(1)
-            .padding(.horizontal, 20)
-    }
-
-    private var showsHomeServerSubtitle: Bool {
-        UIDevice.current.userInterfaceIdiom == .phone
     }
 
     private var showsCinematicHero: Bool {

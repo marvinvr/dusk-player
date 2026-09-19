@@ -106,7 +106,16 @@ final class LiveTVViewModel {
     }
 
     func imageURL(for path: String?, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: path, width: width, height: height)
+        // Explicit because `imageURL` falls back to the primary server, while
+        // the endpoints above resolve `liveTVServerID` themselves. Both are the
+        // same server today; routing the art by hand keeps it that way if Live
+        // TV ever stops being pinned to the highest-priority server.
+        plexService.imageURL(
+            for: path,
+            serverID: plexService.liveTVServerID,
+            width: width,
+            height: height
+        )
     }
 
     var dateOptions: [Date] {

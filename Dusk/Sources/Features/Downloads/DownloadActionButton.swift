@@ -15,7 +15,9 @@ struct DownloadActionButton: View {
     @State private var isStartingDownload = false
     @State private var isShowingDeleteConfirmation = false
 
-    let ratingKey: String
+    /// Server-scoped identity of the item the button acts on. Rating keys
+    /// collide across servers, so the download record must be found by both.
+    let id: PlexItemID
     let type: PlexMediaType
     /// True for video clips (Plex `type == "movie"` + `subtype == "clip"`), so
     /// the queued download record carries the flag for 16:9 artwork and
@@ -80,7 +82,7 @@ struct DownloadActionButton: View {
     }
 
     private var scope: DownloadScope {
-        DownloadScope(ratingKey: ratingKey, type: type)
+        DownloadScope(id: id, type: type)
     }
 
     private var state: DownloadControlState {
@@ -232,7 +234,7 @@ struct DownloadActionButton: View {
     private func startDownload() {
         isStartingDownload = true
         Task {
-            await downloadManager.queueDownload(ratingKey: ratingKey, type: type, isClip: isClip)
+            await downloadManager.queueDownload(id: id, type: type, isClip: isClip)
             isStartingDownload = false
         }
     }
@@ -241,7 +243,7 @@ struct DownloadActionButton: View {
         if type == .season || type == .show {
             startDownload()
         } else {
-            downloadManager.retryDownload(ratingKey: ratingKey)
+            downloadManager.retryDownload(id: id)
         }
     }
 }

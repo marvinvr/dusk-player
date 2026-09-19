@@ -33,7 +33,8 @@ extension PlexService {
         ratingKey: String,
         languageCode: String,
         hearingImpaired: Bool = false,
-        forced: Bool = false
+        forced: Bool = false,
+        serverID: String? = nil
     ) async throws -> [PlexSubtitleSearchResult] {
         let language = languageCode
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,11 +46,17 @@ extension PlexService {
             URLQueryItem(name: "forced", value: forced ? "1" : "0"),
         ]
 
+        let targetID = try resolveServerID(serverID)
         let data = try await rawServerRequest(
             path: "/library/metadata/\(ratingKey)/subtitles",
-            queryItems: queryItems
+            queryItems: queryItems,
+            serverID: targetID
         )
-        let response = try decodeJSON(StreamResponse<PlexSubtitleSearchResult>.self, from: data)
+        let response = try decodeJSON(
+            StreamResponse<PlexSubtitleSearchResult>.self,
+            from: data,
+            serverID: targetID
+        )
         let results = response.MediaContainer.Stream ?? []
 
         plexSubtitlesLogger.debug(
@@ -68,7 +75,11 @@ extension PlexService {
     ///
     /// Optional parameters are only sent when the result carries them, matching
     /// what Plex Web does.
-    func downloadSubtitle(ratingKey: String, result: PlexSubtitleSearchResult) async throws {
+    func downloadSubtitle(
+        ratingKey: String,
+        result: PlexSubtitleSearchResult,
+        serverID: String? = nil
+    ) async throws {
         var queryItems = [URLQueryItem(name: "key", value: result.key)]
 
         if let codec = result.codec ?? result.format {
@@ -94,7 +105,8 @@ extension PlexService {
             method: "PUT",
             path: "/library/metadata/\(ratingKey)/subtitles",
             queryItems: queryItems,
-            timeoutInterval: Self.subtitleDownloadTimeout
+            timeoutInterval: Self.subtitleDownloadTimeout,
+            serverID: serverID
         )
 
         plexSubtitlesLogger.notice(
@@ -108,15 +120,16 @@ extension PlexService {
     /// Returns nil for embedded streams: only external (sidecar) subtitle
     /// streams carry a `key`, and embedded tracks are selected in the engine
     /// instead of fetched.
-    func externalSubtitleURL(for stream: PlexStream) -> URL? {
+    func externalSubtitleURL(for stream: PlexStream, serverID: String? = nil) -> URL? {
         guard stream.streamType == .subtitle, let key = stream.key?.nilIfEmpty else { return nil }
-        guard let baseURL = serverBaseURL else {
+        guard let connection = pool.connection(for: serverID) else {
             plexSubtitlesLogger.error(
                 "Failed to build external subtitle URL for stream \(stream.id, privacy: .public): missing server base URL"
             )
             return nil
         }
 
+        let baseURL = connection.baseURL
         let base = baseURL.absoluteString.hasSuffix("/")
             ? String(baseURL.absoluteString.dropLast())
             : baseURL.absoluteString
@@ -130,11 +143,9 @@ extension PlexService {
 
         // Same token choice as direct play and image requests: the server token,
         // never the account token.
-        if let token = preferredServerToken {
-            var items = components.queryItems ?? []
-            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
-            components.queryItems = items
-        }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
+        components.queryItems = items
 
         guard let url = components.url else {
             plexSubtitlesLogger.error(
@@ -149,14 +160,18 @@ extension PlexService {
         return url
     }
 
-    /// Whether the current session may search for and install subtitles.
+    /// Whether this session may search for and install subtitles on one server.
     ///
     /// Plex only lets the server owner write sidecar files, and restricted Home
     /// users (managed/child profiles) are blocked as well. Users on a shared
     /// server therefore never see the affordance — hide the entry point rather
     /// than showing an action that fails with a 403.
-    var canDownloadSubtitles: Bool {
-        connectedServer?.owned == true && activeHomeUser?.isRestricted != true
+    ///
+    /// Per server on purpose: the account can own one server and merely be
+    /// shared another, so the answer differs per item.
+    func canDownloadSubtitles(serverID: String?) -> Bool {
+        guard let connection = pool.connection(for: serverID) else { return false }
+        return connection.owned && activeHomeUser?.isRestricted != true
     }
 
     /// Server-side provider downloads are slower than a metadata read.

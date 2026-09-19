@@ -1,7 +1,24 @@
 import Foundation
 import OSLog
 
+/// Identity of the current server session: the Plex Home profile plus the pool's
+/// generation, which changes on every sign-out and Home switch.
+///
+/// Discovery is slow enough that a profile switch routinely happens while a pass
+/// is in flight. Every pass captures this before its first await and abandons
+/// itself when it no longer matches, so the previous member's servers can never
+/// be re-registered — with their tokens written back to the Keychain — into the
+/// session that replaced them.
+struct ServerSessionToken: Equatable {
+    let profileID: String?
+    let generation: Int
+}
+
 extension PlexService {
+    var serverSessionToken: ServerSessionToken {
+        ServerSessionToken(profileID: activeProfileID, generation: pool.generation)
+    }
+
     func discoverServers() async throws -> [PlexServer] {
         guard !needsHomeUserSelection, let activeAccountToken else {
             throw PlexServiceError.notAuthenticated
@@ -47,386 +64,157 @@ extension PlexService {
         }
     }
 
-    /// How long, after the first connection succeeds, we keep waiting for a
-    /// still-pending higher-priority connection (e.g. the LAN address) to also
-    /// come back before committing to the best success we already have. Bounds
-    /// the classic "off-network, local address hangs" stall while still letting
-    /// a reachable local connection win the race when we're actually home.
-    static let connectionPreferenceGrace: Duration = .milliseconds(1500)
-
-    func connect(to server: PlexServer) async throws {
-        try await retryAfterFreshAuthentication {
-            let server = try await connectableServer(from: server)
-            let candidates = connectionCandidates(for: server)
-            let token = try serverAccessToken(for: server)
-
-            guard !candidates.isEmpty else {
-                throw PlexServiceError.networkError("No reachable connections for \(server.name)")
-            }
-
-            switch await probeConnections(candidates: candidates, token: token, serverName: server.name) {
-            case let .connected(baseURL, connection):
-                rememberLastGoodConnection(connection)
-                setServer(server, baseURL: baseURL, accessToken: token, connection: connection)
-                // Best-effort: learn the account's remote-streaming entitlement
-                // in the background so the player can warn instantly later.
-                Task { await self.loadAccountEntitlementIfNeeded() }
-            case .unauthorized:
-                plexAuthLogger.notice("Server connect received 401 for \(server.name, privacy: .public) during bootstrap=\(self.isAuthenticationFresh, privacy: .public)")
-                throw isAuthenticationFresh
-                    ? AuthenticationBootstrapError.waitingForPropagation
-                    : PlexServiceError.unauthorized
-            case let .failed(reason):
-                throw PlexServiceError.networkError(reason)
-            }
-        }
-    }
-
-    /// Probes every candidate connection concurrently and returns the working
-    /// one with the highest priority (earliest in the sorted candidate list).
+    /// Connects every enabled server in parallel: discover, fold the result into
+    /// the stored priority order, then let the pool race each server's
+    /// connections on its own. Never fails because one server is unreachable —
+    /// it throws only when the account itself cannot be used.
     ///
-    /// The race is priority-preserving, not first-past-the-post: a candidate is
-    /// only committed once no higher-priority candidate can still win — either
-    /// because they have all resolved, or because the preference grace elapsed
-    /// after the first success. This keeps local playback preferred when we're
-    /// home while never blocking on a hung LAN address when we're away.
-    private func probeConnections(
-        candidates: [ConnectionCandidate],
-        token: String,
-        serverName: String
-    ) async -> ConnectionResolution {
-        let plans = buildProbePlans(candidates: candidates, token: token)
-        guard !plans.isEmpty else {
-            return .failed("Could not connect to \(serverName)")
+    /// This is the only entry point that connects the account; feature screens
+    /// go through `ServerConnectionCoordinator` instead.
+    @discardableResult
+    func connectAllServers() async throws -> [PlexServerConnection] {
+        guard !needsHomeUserSelection, activeAccountToken != nil else {
+            throw PlexServiceError.notAuthenticated
         }
 
-        let session = self.session
-        let grace = Self.connectionPreferenceGrace
-        let planByIndex = Dictionary(uniqueKeysWithValues: plans.map { ($0.index, $0) })
+        let session = serverSessionToken
+        // An account-wide pass means "try again now", so it lifts the per-server
+        // recovery cooldowns instead of letting them fail requests fast.
+        serverRecoveryCooldowns = [:]
 
-        return await withTaskGroup(of: ProbeEvent.self) { group -> ConnectionResolution in
-            for plan in plans {
-                group.addTask {
-                    .probe(index: plan.index, result: await Self.runProbe(session: session, plan: plan))
-                }
-            }
+        let discovered = try await discoverServers()
 
-            var pending = Set(plans.map(\.index))
-            var bestIndex: Int?
-            var sawUnauthorized = false
-            var lastFailure = "Could not connect to \(serverName)"
-            var graceStarted = false
-
-            func winner() -> ConnectionResolution? {
-                guard let bestIndex, let plan = planByIndex[bestIndex] else { return nil }
-                return .connected(plan.baseURL, plan.connection)
-            }
-
-            // Once a success exists, we can commit as soon as no still-pending
-            // candidate outranks it (nothing better can arrive).
-            func bestIsUnbeatable() -> Bool {
-                guard let bestIndex else { return false }
-                return !pending.contains { $0 < bestIndex }
-            }
-
-            for await event in group {
-                switch event {
-                case let .probe(index, result):
-                    pending.remove(index)
-                    switch result {
-                    case .success:
-                        if bestIndex == nil || index < bestIndex! {
-                            bestIndex = index
-                        }
-                        if !graceStarted {
-                            graceStarted = true
-                            group.addTask {
-                                try? await Task.sleep(for: grace)
-                                return .graceElapsed
-                            }
-                        }
-                    case let .failure(unauthorized, reason):
-                        if unauthorized { sawUnauthorized = true }
-                        lastFailure = reason
-                    }
-
-                    if bestIsUnbeatable(), let resolution = winner() {
-                        group.cancelAll()
-                        return resolution
-                    }
-                case .graceElapsed:
-                    // A better candidate was still pending, but we've waited long
-                    // enough — go with the best working connection we have.
-                    if let resolution = winner() {
-                        group.cancelAll()
-                        return resolution
-                    }
-                }
-
-                if pending.isEmpty {
-                    break
-                }
-            }
-
-            if let resolution = winner() {
-                group.cancelAll()
-                return resolution
-            }
-            if sawUnauthorized {
-                return .unauthorized
-            }
-            return .failed(lastFailure)
+        // The profile changed (or the session was torn down) while plex.tv was
+        // answering: reconciling or connecting now would hand the new identity
+        // the previous member's servers and tokens.
+        guard session == serverSessionToken else {
+            plexAuthLogger.notice("Discarding a connect pass that belongs to a previous Plex session")
+            return []
         }
-    }
 
-    private func buildProbePlans(candidates: [ConnectionCandidate], token: String) -> [ProbePlan] {
-        candidates.enumerated().compactMap { index, candidate -> ProbePlan? in
-            let timeout: TimeInterval = candidate.connection.local ? 20 : 8
+        serverPriority.reconcile(discovered: discovered)
 
-            var probeRequest = URLRequest(url: candidate.probeURL)
-            probeRequest.httpMethod = "GET"
-            probeRequest.timeoutInterval = timeout
-            applyHeaders(to: &probeRequest, token: token)
+        await pool.connectAll(discovered, priority: serverPriority)
 
-            guard let validationURL = buildURL(base: candidate.baseURL.absoluteString, path: "/library/sections") else {
-                return nil
-            }
-            var validationRequest = URLRequest(url: validationURL)
-            validationRequest.httpMethod = "GET"
-            validationRequest.timeoutInterval = timeout
-            validationRequest.cachePolicy = .reloadIgnoringLocalCacheData
-            applyHeaders(to: &validationRequest, token: token)
-
-            return ProbePlan(
-                index: index,
-                baseURL: candidate.baseURL,
-                connection: candidate.connection,
-                probeRequest: probeRequest,
-                validationRequest: validationRequest
-            )
+        // The library-order cache is keyed on the connected servers in priority
+        // order, so it invalidates itself when that set or its order changes;
+        // nothing has to be dropped here.
+        if pool.primary != nil {
+            // Best-effort: learn the account's remote-streaming entitlement in
+            // the background so the player can warn instantly later.
+            Task { await self.loadAccountEntitlementIfNeeded() }
         }
+
+        return pool.connections
     }
 
-    /// Runs one candidate's reachability probe (`/identity`) followed by an
-    /// authorization check (`/library/sections`). Pure networking on Sendable
-    /// inputs so it is safe to fan out across a task group off the main actor.
-    private static func runProbe(session: URLSession, plan: ProbePlan) async -> ProbeChildResult {
-        do {
-            let (_, response) = try await session.data(for: plan.probeRequest)
-            guard let http = response as? HTTPURLResponse else {
-                return .failure(unauthorized: false, reason: "Invalid response")
-            }
-            if http.statusCode == 401 {
-                return .failure(unauthorized: true, reason: "HTTP 401")
-            }
-            guard (200...299).contains(http.statusCode) else {
-                return .failure(unauthorized: false, reason: "HTTP \(http.statusCode)")
-            }
-
-            let (_, validationResponse) = try await session.data(for: plan.validationRequest)
-            guard let validationHTTP = validationResponse as? HTTPURLResponse else {
-                return .failure(unauthorized: false, reason: "Invalid validation response")
-            }
-            switch validationHTTP.statusCode {
-            case 200...299:
-                return .success
-            case 401:
-                return .failure(unauthorized: true, reason: "HTTP 401")
-            default:
-                return .failure(unauthorized: false, reason: "HTTP \(validationHTTP.statusCode)")
-            }
-        } catch is CancellationError {
-            return .failure(unauthorized: false, reason: "Cancelled")
-        } catch {
-            return .failure(unauthorized: false, reason: error.localizedDescription)
-        }
-    }
-
-    private func rememberLastGoodConnection(_ connection: PlexConnection) {
-        UserDefaults.standard.set(connection.uri, forKey: Self.defaultsLastGoodConnectionURIKey)
-    }
-
-    func refreshConnectedServerConnection() async throws {
+    /// Re-discovers one server and re-races its connections. Used when a request
+    /// to that server fails in a way a fresh endpoint could fix. Only that
+    /// server's state changes; every other session keeps running.
+    @discardableResult
+    func reconnectServer(serverID: String) async throws -> PlexServerConnection {
         guard activeAccountToken != nil else { throw PlexServiceError.notAuthenticated }
-        guard isConnected || connectedServer != nil else { throw PlexServiceError.noServerConnected }
 
-        let currentServerID = connectedServer?.clientIdentifier.nilIfEmpty
-            ?? UserDefaults.standard.string(forKey: Self.defaultsServerIDKey)?.nilIfEmpty
-        let refreshedServers = try await discoverServers()
+        let session = serverSessionToken
 
-        let refreshedServer: PlexServer?
-        if let currentServerID {
-            refreshedServer = refreshedServers.first { $0.clientIdentifier == currentServerID }
-        } else if refreshedServers.count == 1 {
-            refreshedServer = refreshedServers[0]
-        } else {
-            refreshedServer = nil
-        }
-
-        guard let refreshedServer else {
-            if currentServerID != nil {
-                clearServer()
-            }
-            throw PlexServiceError.noServerConnected
-        }
-
-        plexAuthLogger.notice("Refreshing Plex server endpoint for \(refreshedServer.name, privacy: .public)")
-        try await connect(to: refreshedServer)
-    }
-
-    func connectionCandidates(for server: PlexServer) -> [ConnectionCandidate] {
-        var candidates: [ConnectionCandidate] = []
-        var seen = Set<String>()
-
-        for connection in server.sortedConnections where !connection.isKnownUnreachableAddress {
-            if connection.local, let httpFallbackURI = connection.httpFallbackURI {
-                appendConnectionCandidate(
-                    uri: httpFallbackURI,
-                    connection: connection,
-                    seen: &seen,
-                    into: &candidates
-                )
-            }
-
-            appendConnectionCandidate(
-                uri: connection.uri,
-                connection: connection,
-                seen: &seen,
-                into: &candidates
-            )
-
-            if !connection.local, let httpFallbackURI = connection.httpFallbackURI {
-                appendConnectionCandidate(
-                    uri: httpFallbackURI,
-                    connection: connection,
-                    seen: &seen,
-                    into: &candidates
-                )
-            }
-        }
-
-        return preferringLastGoodConnection(in: candidates)
-    }
-
-    /// Floats the last connection that successfully served this device to the
-    /// front of its own priority tier ("remember which one works and stay on
-    /// it") without ever promoting it across tiers — so a remembered remote
-    /// connection never outranks a reachable LAN connection when we're home.
-    private func preferringLastGoodConnection(in candidates: [ConnectionCandidate]) -> [ConnectionCandidate] {
-        guard let lastGoodURI = UserDefaults.standard.string(forKey: Self.defaultsLastGoodConnectionURIKey)?.nilIfEmpty else {
-            return candidates
-        }
-
-        return candidates.enumerated().sorted { lhs, rhs in
-            let left = lhs.element
-            let right = rhs.element
-            if left.connection.sortPriority != right.connection.sortPriority {
-                return left.connection.sortPriority < right.connection.sortPriority
-            }
-            let leftIsLastGood = left.connection.uri == lastGoodURI
-            let rightIsLastGood = right.connection.uri == lastGoodURI
-            if leftIsLastGood != rightIsLastGood {
-                return leftIsLastGood
-            }
-            return lhs.offset < rhs.offset
-        }
-        .map(\.element)
-    }
-
-    func appendConnectionCandidate(
-        uri: String,
-        connection: PlexConnection,
-        seen: inout Set<String>,
-        into candidates: inout [ConnectionCandidate]
-    ) {
-        guard let baseURL = URL(string: uri),
-              seen.insert(baseURL.absoluteString).inserted,
-              let probeURL = buildURL(base: baseURL.absoluteString, path: "/identity") else {
-            return
-        }
-
-        candidates.append(
-            ConnectionCandidate(
-                baseURL: baseURL,
-                probeURL: probeURL,
-                connection: connection
-            )
-        )
-    }
-
-    private func connectableServer(from server: PlexServer) async throws -> PlexServer {
-        if isAuthenticationFresh {
+        return try await retryAfterFreshAuthentication {
             let refreshedServers = try await discoverServers()
 
-            if let refreshedServer = refreshedServers.first(where: { $0.clientIdentifier == server.clientIdentifier }) {
-                guard refreshedServer.usableAccessToken != nil else {
-                    throw AuthenticationBootstrapError.waitingForPropagation
-                }
-
-                return refreshedServer
+            // Same rule as a full pass: a session that has since been replaced
+            // must not get this server (and its token) grafted onto it.
+            guard session == serverSessionToken else {
+                throw PlexServiceError.noServerConnected
             }
-        }
 
-        guard server.usableAccessToken != nil else {
-            throw PlexServiceError.networkError("Missing server access token for \(server.name)")
-        }
+            guard let server = refreshedServers.first(where: { $0.clientIdentifier == serverID }) else {
+                pool.markOffline(serverID: serverID, reason: "This server is no longer shared with your account.")
+                throw PlexServiceError.noServerConnected
+            }
 
-        return server
+            plexAuthLogger.notice("Refreshing Plex server endpoint for \(server.name, privacy: .public)")
+
+            guard let connection = await pool.connect(to: server, priority: serverPriority) else {
+                throw connectionFailure(for: server)
+            }
+            serverRecoveryCooldowns[serverID] = nil
+            return connection
+        }
     }
 
-    func refreshConnectedServerAuthorization() async throws {
-        guard let connectedServer else {
-            throw PlexServiceError.noServerConnected
+    /// Per-server recovery for the request layer: one reconnect at a time per
+    /// server, joined by everyone who needs it, with a short cooldown after a
+    /// failure.
+    ///
+    /// A screen makes a dozen requests at once. Without this, a single offline
+    /// server turns every one of them into its own plex.tv discovery plus a full
+    /// probe race, which is both slow and a good way to get rate-limited. During
+    /// the cooldown requests to that server fail fast instead; an account-wide
+    /// pass (`connectAllServers`) and the explicit Retry in Server Priority
+    /// clear it, because those are the user asking for another attempt.
+    @discardableResult
+    func recoverServer(serverID: String) async throws -> PlexServerConnection {
+        if let existing = serverRecoveryTasks[serverID] {
+            return try await existing.value
         }
 
-        plexAuthLogger.notice("Refreshing server authorization for \(connectedServer.name, privacy: .public)")
+        if let coolingDownUntil = serverRecoveryCooldowns[serverID], coolingDownUntil > .now {
+            throw recentRecoveryFailure(for: serverID)
+        }
 
-        try await refreshConnectedServerConnection()
-        plexAuthLogger.notice("Refreshed server authorization for \(connectedServer.name, privacy: .public)")
+        let task = Task { @MainActor [weak self] () throws -> PlexServerConnection in
+            guard let self else { throw PlexServiceError.noServerConnected }
+            return try await self.reconnectServer(serverID: serverID)
+        }
+        serverRecoveryTasks[serverID] = task
+
+        do {
+            let connection = try await task.value
+            serverRecoveryTasks[serverID] = nil
+            serverRecoveryCooldowns[serverID] = nil
+            return connection
+        } catch {
+            serverRecoveryTasks[serverID] = nil
+            serverRecoveryCooldowns[serverID] = .now.addingTimeInterval(Self.serverRecoveryCooldown)
+            throw error
+        }
     }
 
-    private func serverAccessToken(for server: PlexServer) throws -> String {
-        if let token = server.usableAccessToken {
-            return token
+    /// The error a request gets while its server is on the recovery cooldown.
+    /// It repeats why the server is unusable rather than inventing a new reason.
+    private func recentRecoveryFailure(for serverID: String) -> Error {
+        switch pool.state(for: serverID) {
+        case .unauthorized:
+            return PlexServiceError.unauthorized
+        case let .offline(reason):
+            return PlexServiceError.networkError(reason)
+        default:
+            return PlexServiceError.networkError(
+                "Could not connect to \(pool.displayName(for: serverID))"
+            )
         }
-
-        if isAuthenticationFresh {
-            throw AuthenticationBootstrapError.waitingForPropagation
-        }
-
-        throw PlexServiceError.unauthorized
     }
-}
 
-struct ConnectionCandidate {
-    let baseURL: URL
-    let probeURL: URL
-    let connection: PlexConnection
-}
+    /// Re-authorizes a single server. A 401 from one server says nothing about
+    /// the others, so this never touches the rest of the pool.
+    func refreshServerAuthorization(serverID: String) async throws {
+        guard !needsHomeUserSelection, activeAccountToken != nil else {
+            throw PlexServiceError.unauthorized
+        }
+        try await recoverServer(serverID: serverID)
+    }
 
-/// A prepared, Sendable unit of work for one candidate probe. The requests are
-/// built on the main actor (they need `applyHeaders`) but carry no actor state,
-/// so the actual networking can fan out across a task group.
-private struct ProbePlan: Sendable {
-    let index: Int
-    let baseURL: URL
-    let connection: PlexConnection
-    let probeRequest: URLRequest
-    let validationRequest: URLRequest
-}
-
-private enum ProbeChildResult: Sendable {
-    case success
-    case failure(unauthorized: Bool, reason: String)
-}
-
-private enum ProbeEvent: Sendable {
-    case probe(index: Int, result: ProbeChildResult)
-    case graceElapsed
-}
-
-enum ConnectionResolution: Sendable {
-    case connected(URL, PlexConnection)
-    case unauthorized
-    case failed(String)
+    /// Turns a pool failure state into the error the call site expects.
+    private func connectionFailure(for server: PlexServer) -> Error {
+        switch pool.state(for: server.clientIdentifier) {
+        case .unauthorized:
+            plexAuthLogger.notice("Server connect received 401 for \(server.name, privacy: .public) during bootstrap=\(self.isAuthenticationFresh, privacy: .public)")
+            return isAuthenticationFresh
+                ? AuthenticationBootstrapError.waitingForPropagation
+                : PlexServiceError.unauthorized
+        case let .offline(reason):
+            return PlexServiceError.networkError(reason)
+        default:
+            return PlexServiceError.networkError("Could not connect to \(server.name)")
+        }
+    }
 }

@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// The list of a type's libraries, as a navigation value.
+///
+/// Local to this screen rather than an `AppNavigationRoute` case because it is
+/// only ever reachable from the type tab itself: the tab lands on merged
+/// recommendations and this is the way out to the individual libraries.
+struct LibraryTypeListDestination: Hashable {
+    let libraryType: PlexLibraryType
+}
+
 struct LibrariesView: View {
     let libraryType: PlexLibraryType
     let viewModel: LibrariesViewModel
@@ -20,8 +29,13 @@ struct LibrariesRootContent: View {
 
     var body: some View {
         rootContent
-            .task {
+            // Reloads when a server connects, drops out, is reordered or
+            // switched off: the tab shell mounts before anything is connected.
+            .task(id: viewModel.serverContentRevision) {
                 await viewModel.loadLibraries()
+            }
+            .navigationDestination(for: LibraryTypeListDestination.self) { destination in
+                LibraryTypeListView(libraryType: destination.libraryType, viewModel: viewModel)
             }
     }
 
@@ -29,20 +43,34 @@ struct LibrariesRootContent: View {
     private var rootContent: some View {
         let libraries = viewModel.libraries(for: libraryType)
 
-        if viewModel.isLoading && viewModel.libraries.isEmpty {
+        if viewModel.libraries.isEmpty, !viewModel.availability.isReady {
+            // Nothing to list and the cause is the servers, not this screen.
+            ZStack {
+                Color.duskBackground.ignoresSafeArea()
+                ServerAvailabilityStateView(availability: viewModel.availability)
+            }
+            .duskNavigationTitle(libraryType.tabTitle)
+            .duskNavigationBarTitleDisplayModeLarge()
+        } else if viewModel.isLoading && viewModel.libraries.isEmpty {
             loadingView
         } else if let error = viewModel.error, viewModel.libraries.isEmpty {
             errorView(message: error)
-        } else if libraries.count == 1, let library = libraries.first {
-            LibraryRecommendationsView(
-                library: library,
-                plexService: plexService,
-                navigationTitle: libraryType.tabTitle
-            )
         } else if libraries.isEmpty {
             emptyView
         } else {
-            libraryList(libraries)
+            // The tab always lands on recommendations, merged across every
+            // library of this type on every server. With one library this is
+            // exactly the screen it always was; with several, "Libraries" in
+            // the toolbar opens the list.
+            LibraryRecommendationsView(
+                libraries: libraries,
+                plexService: plexService,
+                navigationTitle: libraryType.tabTitle,
+                libraryListDestination: libraries.count > 1
+                    ? LibraryTypeListDestination(libraryType: libraryType)
+                    : nil
+            )
+            .id(libraries.map(\.id).joined(separator: "|"))
         }
     }
 
@@ -77,10 +105,21 @@ struct LibrariesRootContent: View {
         .duskNavigationTitle(libraryType.tabTitle)
         .duskNavigationBarTitleDisplayModeLarge()
     }
+}
 
-    private func libraryList(_ libraries: [PlexLibrary]) -> some View {
+/// Every library of one type, in the account's cross-server order.
+struct LibraryTypeListView: View {
+    let libraryType: PlexLibraryType
+    let viewModel: LibrariesViewModel
+
+    var body: some View {
+        let libraries = viewModel.libraries(for: libraryType)
+
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
+                ServerOutageNote(offlineServerNames: viewModel.availability.offlineServerNames)
+                    .padding(.horizontal, 4)
+
                 ForEach(libraries) { library in
                     NavigationLink(value: AppNavigationRoute.libraryRecommendations(library)) {
                         LibraryRowContent(library: library, vm: viewModel)
@@ -125,7 +164,9 @@ private struct LibraryRowContent: View {
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(library.title)
+                // Carries the server name only when another library of the same
+                // type has the same title. See `ServerLabeling`.
+                Text(vm.displayTitle(for: library))
                     .font(.headline)
                     .foregroundStyle(Color.duskTextPrimary)
 
@@ -170,12 +211,15 @@ private struct LibraryRowContent: View {
 
 // MARK: - PlexLibrary Hashable conformance for NavigationLink
 
+/// Keyed on `id` (`"<serverID>|<key>"`), never on `key` alone: section keys are
+/// per-server counters, so two servers' "3" sections would compare equal and a
+/// navigation link could open the wrong library.
 extension PlexLibrary: Hashable {
     static func == (lhs: PlexLibrary, rhs: PlexLibrary) -> Bool {
-        lhs.key == rhs.key
+        lhs.id == rhs.id
     }
 
     func hash(into hasher: inout Hasher) {
-        hasher.combine(key)
+        hasher.combine(id)
     }
 }

@@ -1,6 +1,67 @@
 import Foundation
 import SwiftUI
 
+/// One server's answer to the two requests Home makes of it.
+///
+/// A server that fails both contributes nothing rather than failing Home; the
+/// reason is kept so Home can still report an error when *every* server failed.
+/// Declared outside the view model so it stays free of actor isolation and can
+/// cross the fan-out's task boundary.
+private struct HomeServerPayload: Sendable {
+    let hubs: [PlexHub]
+    let continueWatching: [PlexItem]
+    let failure: String?
+}
+
+/// Both of Home's requests to one server, run concurrently. The server is only
+/// counted as failed when neither of them came back.
+private func loadHomePayload(
+    _ service: PlexService,
+    _ serverID: String
+) async -> HomeServerPayload {
+    async let hubs = loadHomeHubs(service, serverID)
+    async let continueWatching = loadHomeContinueWatching(service, serverID)
+
+    let hubsResult = await hubs
+    let continueWatchingResult = await continueWatching
+
+    let failure: String?
+    switch (hubsResult, continueWatchingResult) {
+    case let (.failure(error), .failure):
+        failure = error.localizedDescription
+    default:
+        failure = nil
+    }
+
+    return HomeServerPayload(
+        hubs: (try? hubsResult.get()) ?? [],
+        continueWatching: (try? continueWatchingResult.get()) ?? [],
+        failure: failure
+    )
+}
+
+private func loadHomeHubs(
+    _ service: PlexService,
+    _ serverID: String
+) async -> Result<[PlexHub], any Error> {
+    do {
+        return .success(try await service.getHubs(serverID: serverID))
+    } catch {
+        return .failure(error)
+    }
+}
+
+private func loadHomeContinueWatching(
+    _ service: PlexService,
+    _ serverID: String
+) async -> Result<[PlexItem], any Error> {
+    do {
+        return .success(try await service.getContinueWatching(serverID: serverID))
+    } catch {
+        return .failure(error)
+    }
+}
+
 @MainActor @Observable
 final class HomeViewModel {
     private var maxRecentlyAddedItems = 10
@@ -11,7 +72,6 @@ final class HomeViewModel {
     private(set) var isLoading = false
     private(set) var error: String?
 
-    private var isLoadInFlight = false
     private var loadGeneration = 0
     private var recentlyAddedExpansionTask: Task<Void, Never>?
     private var personalizedShelvesTask: Task<Void, Never>?
@@ -29,21 +89,30 @@ final class HomeViewModel {
         !hubs.isEmpty || !continueWatching.isEmpty || !personalizedShelves.isEmpty
     }
 
+    /// Loads Home from every connected server at once.
+    ///
+    /// The screen is published again every time a server answers, so the box on
+    /// the LAN fills Home immediately and a relayed server folds its content in
+    /// when it gets there. The merge is a pure function of the per-server
+    /// answers in priority order, so each republish refines the same list
+    /// rather than re-deriving a different one.
     func load(maxRecentlyAddedItems: Int? = nil) async {
         if let maxRecentlyAddedItems {
             self.maxRecentlyAddedItems = maxRecentlyAddedItems
         }
 
-        guard !isLoadInFlight else { return }
-
-        isLoadInFlight = true
+        // A load already running is never a reason to skip this one: the most
+        // common caller is "another server just connected", and that load has
+        // already fanned out to the servers it knew about. The generation below
+        // is what keeps the older one from publishing over this one — it is
+        // usually a cancelled task that has not reached its next checkpoint yet.
         loadGeneration += 1
         let generation = loadGeneration
         let currentMaxRecentlyAddedItems = self.maxRecentlyAddedItems
         recentlyAddedExpansionTask?.cancel()
         personalizedShelvesTask?.cancel()
 
-        let isInitialLoad = hubs.isEmpty && continueWatching.isEmpty && personalizedShelves.isEmpty
+        let isInitialLoad = !hasLoadedContent
 
         if isInitialLoad {
             isLoading = true
@@ -51,61 +120,141 @@ final class HomeViewModel {
         }
 
         defer {
-            isLoadInFlight = false
+            if generation == loadGeneration {
+                isLoading = false
+            }
+        }
+
+        let serverIDs = plexService.mergeServerIDs
+        guard !serverIDs.isEmpty else {
+            // The pool is only ever empty before the first connect pass or
+            // after a sign-out / Plex Home switch, so anything still on screen
+            // belongs to a session that is gone.
+            hubs = []
+            continueWatching = []
+            personalizedShelves = []
+            return
+        }
+
+        // The account's library order is a nicety, not a requirement: if it
+        // cannot be read, Home keeps each server's own hub order.
+        async let orderedSections = plexService.ensureLibraryOrderLoaded()
+
+        var hubsByServer = [[PlexHub]](repeating: [], count: serverIDs.count)
+        var continueWatchingByServer = [[PlexItem]](repeating: [], count: serverIDs.count)
+        var answered = 0
+        var latestHubs: [PlexHub] = []
+        var latestContinueWatching: [PlexItem] = []
+
+        var failureCount = 0
+        var firstFailure: String?
+
+        for await result in plexService.streamAcrossServers(loadHomePayload) {
+            guard !Task.isCancelled, generation == loadGeneration else { return }
+
+            if let failure = result.value.failure {
+                failureCount += 1
+                firstFailure = firstFailure ?? failure
+            }
+
+            hubsByServer[result.rank] = result.value.hubs.filter { !shouldHideHomeHub($0) }
+            continueWatchingByServer[result.rank] = result.value.continueWatching
+                .filter { !shouldHideHomeItem($0) }
+            answered += 1
+
+            let mergedHubs = HubMerge.merge(hubsByServer)
+            let mergedContinueWatching = ContinueWatchingMerge.merge(continueWatchingByServer)
+            plexService.registerAlternates(mergedHubs.alternates)
+            plexService.registerAlternates(mergedContinueWatching.alternates)
+
+            // Ordering only settles once the library order is known, but the
+            // first server's rows are worth showing before that: they arrive in
+            // the server's own order and are re-arranged on the next republish.
+            let libraryOrder = libraryOrderIdentities()
+            latestHubs = HomeHubArrangement.arrange(
+                hubs: mergedHubs.hubs,
+                libraryOrder: libraryOrder
+            )
+            latestContinueWatching = mergedContinueWatching.items
+
+            publish(
+                hubs: latestHubs,
+                continueWatching: latestContinueWatching,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
+                animated: !isInitialLoad || answered > 1
+            )
+            if hasLoadedContent {
+                error = nil
+            }
             isLoading = false
         }
 
-        do {
-            async let fetchedHubs = plexService.getHubs()
-            async let fetchedOnDeck = plexService.getContinueWatching()
-            async let orderedSections = plexService.ensureLibraryOrderLoaded()
+        guard !Task.isCancelled, generation == loadGeneration else { return }
 
-            // The account's library order is a nicety, not a requirement: if it
-            // cannot be read, Home keeps the server's own hub order.
-            let libraryOrder = ((try? await orderedSections) ?? []).map(\.key)
-            let visibleHubs = try await fetchedHubs.filter { !shouldHideHomeHub($0) }
-            let baseHubs = HomeHubArrangement.arrange(hubs: visibleHubs, libraryOrder: libraryOrder)
-            let newContinueWatching = try await fetchedOnDeck.filter { !shouldHideHomeItem($0) }
-            let adjustedPersonalizedShelves = filterPersonalizedShelves(
-                personalizedShelves,
-                excluding: newContinueWatching,
-                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
-            )
+        // An error only when *every* server failed and there is nothing to
+        // show. One failing server is reported by the partial-outage note.
+        if failureCount == serverIDs.count, !hasLoadedContent {
+            error = firstFailure
+            return
+        }
 
-            if isInitialLoad {
-                hubs = baseHubs
-                continueWatching = newContinueWatching
-                personalizedShelves = adjustedPersonalizedShelves
-            } else {
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    hubs = baseHubs
-                    continueWatching = newContinueWatching
-                    personalizedShelves = adjustedPersonalizedShelves
-                }
-            }
+        // The order may only have landed after the last server answered.
+        _ = try? await orderedSections
+        let libraryOrder = libraryOrderIdentities()
+        if !libraryOrder.isEmpty {
+            latestHubs = HomeHubArrangement.arrange(hubs: latestHubs, libraryOrder: libraryOrder)
+            publish(
+                hubs: latestHubs,
+                continueWatching: latestContinueWatching,
+                maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
+                animated: !isInitialLoad
+            )
+        }
 
-            error = nil
-            startRecentlyAddedExpansion(
-                from: baseHubs,
-                generation: generation,
-                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
-            )
-            startPersonalizedShelvesLoad(
-                excluding: newContinueWatching,
-                generation: generation,
-                maxRecentlyAddedItems: currentMaxRecentlyAddedItems
-            )
-        } catch {
-            // On refresh, only show error if we have no existing data
-            if isInitialLoad {
-                self.error = error.localizedDescription
-            }
+        startRecentlyAddedExpansion(
+            from: latestHubs,
+            generation: generation,
+            maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+        )
+        startPersonalizedShelvesLoad(
+            excluding: latestContinueWatching,
+            generation: generation,
+            maxRecentlyAddedItems: currentMaxRecentlyAddedItems
+        )
+    }
+
+    private func libraryOrderIdentities() -> [String] {
+        plexService.libraryOrder.orderedSectionIdentities
+    }
+
+    private func publish(
+        hubs newHubs: [PlexHub],
+        continueWatching newContinueWatching: [PlexItem],
+        maxRecentlyAddedItems: Int,
+        animated: Bool
+    ) {
+        let adjustedShelves = filterPersonalizedShelves(
+            personalizedShelves,
+            excluding: newContinueWatching,
+            maxRecentlyAddedItems: maxRecentlyAddedItems
+        )
+
+        let updates = {
+            self.hubs = newHubs
+            self.continueWatching = newContinueWatching
+            self.personalizedShelves = adjustedShelves
+        }
+
+        if animated {
+            withAnimation(.easeInOut(duration: 0.3), updates)
+        } else {
+            updates()
         }
     }
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
         do {
-            try await plexService.setWatched(watched, ratingKey: item.ratingKey)
+            try await plexService.setWatchedAcrossServers(watched, id: item.id)
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -115,19 +264,34 @@ final class HomeViewModel {
     func removeFromContinueWatching(_ item: PlexItem) async {
         // Optimistically drop the item so the hero updates immediately, then
         // reconcile with the server's refreshed Continue Watching hub.
-        let removedRatingKey = item.ratingKey
+        let removedID = item.id
         withAnimation(.easeInOut(duration: 0.3)) {
-            continueWatching.removeAll { $0.ratingKey == removedRatingKey }
+            continueWatching.removeAll { $0.id == removedID }
         }
 
-        do {
-            try await plexService.removeFromContinueWatching(ratingKey: removedRatingKey)
-            await load()
-        } catch {
-            self.error = error.localizedDescription
-            // Restore the optimistic removal if the server rejected the request.
-            await load()
+        // The row shows one copy of a title that may be in progress on several
+        // servers. Dismissing it is a statement about the content, not about
+        // that copy, so every connected copy is dismissed — otherwise the title
+        // reappears from another server on the next load.
+        var failure: (any Error)?
+        for target in plexService.alternates.instances(of: removedID)
+        where plexService.pool.connection(for: target.serverID) != nil {
+            do {
+                try await plexService.removeFromContinueWatching(
+                    ratingKey: target.ratingKey,
+                    serverID: target.serverID
+                )
+            } catch {
+                failure = failure ?? error
+            }
         }
+
+        if let failure {
+            self.error = failure.localizedDescription
+        }
+        // Reconcile with the servers' refreshed Continue Watching hub, which
+        // also restores the optimistic removal if it was rejected.
+        await load()
     }
 
     func posterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
@@ -167,11 +331,21 @@ final class HomeViewModel {
     }
 
     func heroBackgroundURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: heroBackgroundPath(for: item), width: width, height: height)
+        plexService.imageURL(
+            for: heroBackgroundPath(for: item),
+            serverID: item.serverID,
+            width: width,
+            height: height
+        )
     }
 
     func heroTitleLogoURL(for item: PlexItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: item.clearLogo, width: width, height: height)
+        plexService.imageURL(
+            for: item.clearLogo,
+            serverID: item.serverID,
+            width: width,
+            height: height
+        )
     }
 
     func heroMetadata(for item: PlexItem) -> [String] {
@@ -252,13 +426,16 @@ final class HomeViewModel {
         return Array(items.prefix(maxRecentlyAddedItems))
     }
 
+    /// A merged row is pageable when any of its sources is, and its total size
+    /// is the sum across servers — otherwise a row merged from two servers of
+    /// six items each would never offer "Show All".
     func shouldShowAll(for hub: PlexHub, maxRecentlyAddedItems: Int) -> Bool {
-        guard isRecentlyAddedHub(hub), hub.key != nil else { return false }
+        guard isRecentlyAddedHub(hub), hub.isPageable else { return false }
 
         let visibleCount = visibleItems(in: hub).count
         return visibleCount > maxRecentlyAddedItems ||
-            hub.more == true ||
-            (hub.size ?? 0) > maxRecentlyAddedItems
+            hub.hasMoreOnAnySource ||
+            hub.totalSourceSize > maxRecentlyAddedItems
     }
 
     /// A hub renders as a 16:9 video carousel when every visible item in it is
@@ -286,27 +463,22 @@ final class HomeViewModel {
         generation: Int,
         maxRecentlyAddedItems: Int
     ) {
-        guard baseHubs.contains(where: { isRecentlyAddedHub($0) && $0.key != nil }) else {
+        guard baseHubs.contains(where: { isRecentlyAddedHub($0) && $0.isPageable }) else {
             return
         }
 
         recentlyAddedExpansionTask = Task { @MainActor [weak self] in
             guard let self else { return }
 
-            do {
-                let expandedHubs = try await expandedRecentlyAddedHubs(
-                    from: baseHubs,
-                    maxRecentlyAddedItems: maxRecentlyAddedItems
-                )
+            let expandedHubs = await expandedRecentlyAddedHubs(
+                from: baseHubs,
+                maxRecentlyAddedItems: maxRecentlyAddedItems
+            )
 
-                guard !Task.isCancelled, generation == loadGeneration else { return }
+            guard !Task.isCancelled, generation == loadGeneration else { return }
 
-                withAnimation(.easeInOut(duration: 0.3)) {
-                    hubs = expandedHubs
-                }
-            } catch {
-                guard !Task.isCancelled, generation == loadGeneration else { return }
-                // Keep the base hub payload visible if a follow-up expansion request fails.
+            withAnimation(.easeInOut(duration: 0.3)) {
+                hubs = expandedHubs
             }
         }
     }
@@ -339,25 +511,33 @@ final class HomeViewModel {
         }
     }
 
+    /// Re-fetches each Recently Added row at the size Home actually shows,
+    /// following every contributing server's own hub key and re-merging. A row
+    /// whose expansion comes back empty keeps the items it already had.
     private func expandedRecentlyAddedHubs(
         from hubs: [PlexHub],
         maxRecentlyAddedItems: Int
-    ) async throws -> [PlexHub] {
+    ) async -> [PlexHub] {
         var expandedHubs: [PlexHub] = []
         expandedHubs.reserveCapacity(hubs.count)
 
         for hub in hubs {
-            guard isRecentlyAddedHub(hub), let hubKey = hub.key else {
+            guard isRecentlyAddedHub(hub), hub.isPageable else {
                 expandedHubs.append(hub)
                 continue
             }
 
-            let items = try await plexService.getHubItems(
-                hubKey: hubKey,
+            let merged = await plexService.mergedHubItems(
+                for: hub,
                 size: maxRecentlyAddedItems
             )
+            guard !merged.items.isEmpty else {
+                expandedHubs.append(hub)
+                continue
+            }
 
-            expandedHubs.append(hub.replacingItems(items))
+            plexService.registerAlternates(merged.alternates)
+            expandedHubs.append(hub.replacingItems(merged.items))
         }
 
         return expandedHubs
@@ -371,20 +551,32 @@ final class HomeViewModel {
         HomeHubFilter.shouldHide(item: item)
     }
 
+    /// Drops anything already in Continue Watching from the personalized rows.
+    ///
+    /// Matching is on `PlexItemID` (an episode's show is identified by its
+    /// grandparent key *on that episode's server*, because rating keys alias
+    /// across servers) plus the cross-server content key, so the same film in
+    /// progress on one server is not recommended from another.
     private func filterPersonalizedShelves(
         _ shelves: [HomePersonalizedShelf],
         excluding continueWatchingItems: [PlexItem],
         maxRecentlyAddedItems: Int
     ) -> [HomePersonalizedShelf] {
-        let excludedRatingKeys = Set(
-            continueWatchingItems.flatMap { item in
-                [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
-                    .compactMap { $0 }
+        var excludedIDs: Set<PlexItemID> = []
+        var excludedContentKeys: Set<PlexContentKey> = []
+
+        for item in continueWatchingItems {
+            for ratingKey in [item.ratingKey, item.parentRatingKey, item.grandparentRatingKey]
+                .compactMap({ $0 }) {
+                excludedIDs.insert(PlexItemID(serverID: item.serverID, ratingKey: ratingKey))
             }
-        )
+            excludedContentKeys.insert(item.contentKey)
+        }
 
         return shelves.compactMap { shelf in
-            let filteredItems = shelf.items.filter { !excludedRatingKeys.contains($0.ratingKey) }
+            let filteredItems = shelf.items.filter {
+                !excludedIDs.contains($0.id) && !excludedContentKeys.contains($0.contentKey)
+            }
 
             guard filteredItems.count >= min(2, maxRecentlyAddedItems) else { return nil }
 

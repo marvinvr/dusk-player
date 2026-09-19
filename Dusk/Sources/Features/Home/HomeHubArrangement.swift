@@ -7,8 +7,14 @@ import Foundation
 /// way to ask for a different one (`pinnedContentDirectoryID` is not honoured by
 /// shipping servers), so Dusk permutes the rows itself.
 enum HomeHubArrangement {
-    /// Orders `hubs` by `libraryOrder`, a list of `/library/sections` keys in
-    /// effective order.
+    /// Orders `hubs` by `libraryOrder`, a list of `PlexLibrary.id`
+    /// (`"<serverID>|<key>"`) in effective order.
+    ///
+    /// The id, not the bare section key: section keys are per-server counters,
+    /// so with two servers connected "3" means a different library on each and
+    /// keying on it alone would drop one server's rows into the other's block.
+    /// A merged row is placed by its representative source — the highest
+    /// priority server that contributed to it.
     ///
     /// Layout: global rows (hubs with no resolvable section, e.g. Continue
     /// Watching) keep their server order and stay first; then one contiguous
@@ -37,11 +43,11 @@ enum HomeHubArrangement {
         var unknown: [PlexHub] = []
 
         for hub in hubs {
-            guard let sectionID = hub.resolvedLibrarySectionID else {
+            guard let libraryID = hub.representativeLibraryID else {
                 global.append(hub)
                 continue
             }
-            if let index = rank[sectionID] {
+            if let index = rank[libraryID] {
                 buckets[index].append(hub)
             } else {
                 unknown.append(hub)

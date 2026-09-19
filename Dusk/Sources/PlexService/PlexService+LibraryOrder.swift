@@ -28,18 +28,27 @@ extension PlexService {
     private static let plexTVRequestTimeout: TimeInterval = 6
 
     /// Cache identity of the current session. The pinned list is per account
-    /// token (Plex Home members each have their own) and the section keys in it
-    /// only mean anything for one server.
+    /// token (Plex Home members each have their own) and the sections are the
+    /// ones the currently connected servers answered with, so both go in.
+    ///
+    /// The servers go in **in priority order**, not sorted: the unpinned tail of
+    /// the effective order follows server priority, so reordering Server
+    /// Priority has to invalidate the cache even though the same servers are
+    /// connected.
     var libraryOrderCacheIdentity: String {
-        "\(currentServerIdentifier ?? "-")|\(activeProfileID ?? "-")"
+        let serverIDs = mergeServerIDs.joined(separator: ",")
+        return "\(serverIDs.nilIfEmpty ?? "-")|\(activeProfileID ?? "-")"
     }
 
-    /// Loads `/library/sections` and the plex.tv experience blob in parallel,
-    /// once per `(serverID|profileID)`. Concurrent callers share the same
-    /// in-flight request pair.
+    /// Loads `/library/sections` from every connected server and the plex.tv
+    /// experience blob, all in parallel, once per `(serverIDs|profileID)`.
+    /// Concurrent callers share the same in-flight request set.
     ///
-    /// Throws only when `/library/sections` fails; a plex.tv failure is
-    /// swallowed and simply leaves the libraries in plain server order.
+    /// Each server's sections are committed the moment they arrive, so the
+    /// library list paints from the first server instead of the slowest. Throws
+    /// only when *every* server's `/library/sections` failed; one failing server
+    /// must never blank the others' libraries. A plex.tv failure is swallowed
+    /// and simply leaves the libraries in plain server order.
     @discardableResult
     func ensureLibraryOrderLoaded(force: Bool = false) async throws -> [PlexLibrary] {
         let identity = libraryOrderCacheIdentity
@@ -80,10 +89,10 @@ extension PlexService {
 
     /// Read-modify-write of the account's pinned sources.
     ///
-    /// `ordered` must be EVERY section of the connected server in the new order,
-    /// including sections Dusk cannot browse (music, photos) — anything left out
-    /// would lose its pin. Writes are serialized; each one re-reads the blob
-    /// first and never writes from cache.
+    /// `ordered` must be EVERY section of every connected server in the new
+    /// order, including sections Dusk cannot browse (music, photos) — anything
+    /// left out would lose its pin. Writes are serialized; each one re-reads the
+    /// blob first and never writes from cache.
     func reorderLibraries(_ ordered: [PlexLibrary]) async throws {
         let previous = libraryOrder.writeTask
 
@@ -111,34 +120,58 @@ extension PlexService {
         LibraryOrderArrangement.effectiveOrder(
             libraries: libraries,
             pinnedSources: libraryOrder.pinnedSources,
-            machineIdentifier: connectedServer?.clientIdentifier
+            machineIdentifiers: libraryOrder.machineIdentifiers
         )
     }
 
     // MARK: - Load
 
     private func performLibraryOrderLoad(identity: String) async throws -> [PlexLibrary] {
-        libraryOrder.beginLoading()
+        let serverIDs = mergeServerIDs
+        libraryOrder.beginLoading(serverOrder: serverIDs)
 
-        async let sectionsResult = getLibraries()
+        guard !serverIDs.isEmpty else {
+            libraryOrder.finishLoading(
+                experience: await loadExperienceSettingsIgnoringFailure(),
+                identity: identity
+            )
+            return []
+        }
+
+        // The account blob and every server's sections race each other; the
+        // blob is optional, so it is never awaited before the first section
+        // commit.
         async let experienceResult = loadExperienceSettingsIgnoringFailure()
 
-        let sections: [PlexLibrary]
-        do {
-            sections = try await sectionsResult
-        } catch {
-            _ = await experienceResult
+        var failures: [String: any Error] = [:]
+        for await result in streamAcrossServers({ service, serverID in
+            do {
+                return Result<[PlexLibrary], any Error>.success(
+                    try await service.getLibraries(serverID: serverID)
+                )
+            } catch {
+                return .failure(error)
+            }
+        }) {
+            switch result.value {
+            case let .success(sections):
+                libraryOrder.applyServerSections(sections, serverID: result.serverID)
+            case let .failure(error):
+                failures[result.serverID] = error
+                libraryOrder.applyServerSections(nil, serverID: result.serverID)
+            }
+        }
+
+        let experience = await experienceResult
+
+        // Only a total blackout is an error. One failing server leaves the
+        // others' libraries on screen and is surfaced as a partial-outage note.
+        if failures.count == serverIDs.count, let error = failures.values.first {
             libraryOrder.failLoading(error.localizedDescription)
             throw error
         }
 
-        let experience = await experienceResult
-        libraryOrder.apply(
-            sections: sections,
-            experience: experience,
-            machineIdentifier: connectedServer?.clientIdentifier,
-            identity: identity
-        )
+        libraryOrder.finishLoading(experience: experience, identity: identity)
         return libraryOrder.orderedSections
     }
 
@@ -218,11 +251,25 @@ extension PlexService {
     // MARK: - Write
 
     private func performLibraryReorder(_ ordered: [PlexLibrary]) async throws {
-        guard let server = connectedServer else {
-            throw PlexServiceError.noServerConnected
-        }
         guard let token = activeAccountToken?.nilIfEmpty else {
             throw PlexServiceError.notAuthenticated
+        }
+
+        // HARD INVARIANT: only servers that actually answered `/library/sections`
+        // with sections this session may have their pins rewritten. A server
+        // whose fetch failed looks identical to one with no libraries, and
+        // writing that would unpin its libraries in every Plex client the
+        // account uses. The same goes for a server that answered with nothing
+        // (`LibraryOrderStore.machineIdentifiers` leaves it out) and for one
+        // that is not connected at all.
+        var servers: [String: PlexServer] = [:]
+        for serverID in libraryOrder.machineIdentifiers
+        where !libraryOrder.failedServerIDs.contains(serverID) {
+            guard let server = pool.server(for: serverID) else { continue }
+            servers[serverID] = server
+        }
+        guard !servers.isEmpty else {
+            throw PlexServiceError.noServerConnected
         }
 
         // Never write from cache: plex.tv is last-writer-wins and other clients
@@ -233,12 +280,12 @@ extension PlexService {
         let reordered = LibraryOrderArrangement.writeOrder(
             userOrder: ordered,
             existing: existing,
-            server: server
+            servers: servers
         )
         let merged = LibraryOrderArrangement.merged(
             existing: existing,
             reordered: reordered,
-            machineIdentifier: server.clientIdentifier
+            machineIdentifiers: Set(servers.keys)
         )
 
         // Start from the blob we just read (or an empty object for a fresh
