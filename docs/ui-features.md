@@ -14,13 +14,26 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   artwork and light content backgrounds.
 - `ContentView` is the account-bootstrap root gate: unauthenticated users see
   `SignInView`; signed-in Plex Home accounts are checked and, when needed, show
-  `HomeUserPickerView`; only an active Home identity can discover/pick servers
-  and enter `MainTabView`.
-- Server discovery/refresh lives in `ContentView`; do not move connection logic into
-  feature screens.
-- Home selection precedes server selection because each Home identity can expose
-  a different resource list. A successful switch reconstructs the main shell so
+  `HomeUserPickerView`; an active Home identity enters `MainTabView`. **There is
+  no server step in onboarding.**
+- Connecting is not a gate. `ServerConnectionCoordinator` (injected into the
+  environment by `ContentView`) connects every enabled server in parallel while
+  the shell is already on screen; each server's content appears as it answers.
+  Keep connection logic there — do not spread `connectAllServers()` calls into
+  feature screens; call the coordinator's `refresh()` for a retry instead.
+- A connect pass runs on first mount, on a profile switch, on return to the
+  foreground, and on a network-path change. Passes are deduplicated and a fresh
+  one is skipped for a minute unless the pool has nothing usable.
+- Home selection precedes connecting because each Home identity can expose a
+  different resource list. A successful switch reconstructs the main shell so
   navigation paths and feature view models cannot retain the previous user's data.
+- Server trouble is never a modal or a full-screen blocker. All servers off is a
+  distinct empty state; nothing reachable is an inline error with Retry and a way
+  into Server Priority; a partial outage is an unobtrusive inline note. Downloads
+  stay reachable in every case. A pool that never got as far as producing server
+  states (discovery itself failed: no internet, fresh install) shows the same
+  inline error once the coordinator's first pass has finished — `unknown` is only
+  a spinner while a pass is actually running.
 - `MainTabView` owns one `NavigationPath` per tab so tab stacks stay independent.
 - Re-selecting the active tab pops that tab to root.
 - Available tabs are data-driven: every present and user-visible library type
@@ -181,7 +194,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   cannot preserve a stale selection after Continue Watching reorders.
 - `HomeViewModel` owns ordinary Plex Home calls. The separate shared
   `LiveTVViewModel` owns the optional, non-blocking Live TV Home shelf.
-- `HomeView` keys its load context by both the active Plex Home profile and server,
+- `HomeView` keys its load context by the active Plex Home profile and the server
+  set it is showing (`serverPriority.revision` plus the connected servers),
   and installs a fresh `HomeViewModel` whenever that context task starts. Keep the
   profile in this identity: Home users commonly share a server ID, and retaining
   the outgoing model can let its in-flight load suppress the incoming user's load.
@@ -204,14 +218,32 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the Live TV shelf (when enabled), the Plex hubs, then the personalized shelves. `HomeIOSView` and
   `HomeTVView` each render that sequence directly. There is no user-editable Home
   layout; do not reintroduce one.
+- Home is **merged across every connected server**. `HomeViewModel.load()` fans
+  `/hubs` and `/hubs/continueWatching` out to all of them and republishes the merged
+  screen each time a server answers, so a LAN server fills Home while a relayed one is
+  still talking. The merge (`HubMerge`, `ContinueWatchingMerge`) is a pure function of
+  the per-server answers in priority order, so each republish refines the same list.
+  With one server both merges return their input verbatim. Every merge registers its
+  findings in `plexService.alternates` for playback fallback.
+- Home reloads on `plexService.serverContentRevision` (`.task(id:)`), never on a single
+  server identifier: the tab shell mounts before anything is connected.
+- Home never labels a row with the server it came from — with every server merged into
+  one screen that is noise. The only server wording is `ServerOutageNote`, a quiet line
+  naming enabled servers that are currently offline. The old server-name subtitle
+  (iPhone) and tvOS header subtitle are gone.
 - Within the hubs, `HomeHubArrangement.arrange(hubs:libraryOrder:)` regroups the rows
-  so each library's hubs appear in the order the account gives that library
-  (`PlexHub.resolvedLibrarySectionID`, falling back to the numeric suffix of
-  `hubIdentifier`). It is a pure permutation — global rows first, then one block per
-  library in library order, then rows whose section is unknown. `libraryOrder` must be
-  built from *every* section, including music and photo, or the blocks drift.
-- Recently Added hubs are expanded through `getHubItems(...)` so shelf limits are
-  intentional and "Show all" can point to `.hub`.
+  so each library's hubs appear in the order the account gives that library.
+  `libraryOrder` is a list of **`PlexLibrary.id`** (`"<serverID>|<key>"`), and a row is
+  placed by `PlexHub.representativeLibraryID` — its own server, or the highest-priority
+  source of a merged row. Never key this on the bare section key: two servers' "3"
+  sections would share a block. It is a pure permutation — global rows first, then one
+  block per library in library order, then rows whose section is unknown. `libraryOrder`
+  must be built from *every* section, including music and photo, or the blocks drift.
+- Recently Added hubs are expanded through `PlexService.mergedHubItems(for:size:)`,
+  which pages **each contributing server's** hub key and re-merges, so shelf limits are
+  intentional and "Show all" (`.hub`) shows the whole merged row rather than the
+  primary server's share of it. `PlexHub.isPageable` / `hasMoreOnAnySource` /
+  `totalSourceSize` are the merged-row equivalents of `key` / `more` / `size`.
 - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS remote
   swipe capture, image preloading, title-logo fallback, pager state, and motion
   reduction. iOS enables automatic rotation (`autoRotates: true`): the hero advances
@@ -294,13 +326,46 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid; all-clip hubs render it 16:9.
 
+### Server Priority
+
+- `Settings › Navigation › Server Priority` opens `ServerPrioritySettingsView` on
+  every platform. It answers two questions and nothing else: in which order the
+  servers rank, and which of them Dusk uses at all.
+- Each row shows the server name, its ownership ("Your server" / "Shared by X"),
+  and its live status from `pool.state(for:)` — Local, Remote, Relay, Connecting…,
+  Offline, Not authorized, Disabled. The words come from `ServerStatusText` so the
+  rest of the app says the same thing.
+- Every edit is written immediately through `ServerPriorityStore`; there is no
+  save step and nothing to lose by leaving. Enabling a server reconnects it
+  straight away (the row reads "Connecting…" until it resolves); disabling calls
+  `pool.markDisabled`, which drops the session so the rest of the app forgets that
+  server. Both bump `serverPriority.revision`, which Home, Libraries, and Search
+  observe to reload.
+- "Check Again" re-runs the whole connect pass through
+  `ServerConnectionCoordinator.refresh()` — use it after bringing a server online
+  or accepting a new share.
+- Disabling the last enabled server is allowed but never silent: the screen shows
+  what it costs ("Dusk has nothing to show; downloads still play"). Do not replace
+  this with a blocking alert — the user may be deliberately going offline-only.
+- A single-server account sees a plain one-row screen: no reorder affordances, no
+  talk of priority. Ordering language only appears once there are two servers.
+- iOS/iPadOS use `EditButton` + `onMove` plus a per-row toggle; tvOS gives each
+  server its own section with a position menu and a "Use This Server" toggle. The
+  same tvOS rule as Library Order applies: **no focus-driven drag**.
+- The visible rows are not the stored list — a server that has gone missing keeps
+  its slot in `ServerPriorityStore`. Reordering therefore goes through
+  `reorder(visible:)`, which re-applies the new order to the visible slots only.
+
 ### Library Order
 
 - `Settings › Navigation › Library Order` opens `LibraryOrderSettingsView` on every
-  platform. It edits the order of the *connected server's* libraries, which is an
+  platform. It edits the order of *your* libraries across every enabled server,
+  which is an
   account-level Plex setting rather than a Dusk preference: the same order drives the
   Plex Web sidebar and the other Plex apps signed in as this user.
-- The screen lists **every** section of the server, music and photo included, even
+- A row carries its server name only when another library of the same type has the
+  same title. The server name disambiguates; it is never decoration.
+- The screen lists **every** section, music and photo included, even
   though Dusk cannot browse those. They occupy slots in the account's order, so
   omitting them would silently move them when the list is written back.
 - iOS/iPadOS use native list editing (`EditButton` + `onMove`). tvOS uses a position
@@ -316,7 +381,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   shows an inline message; showing the rejected order would lie about what the other
   Plex apps will do. A failed load shows `FeatureErrorView` with Retry.
 - The order is read and written through `PlexService`; the view model never talks to
-  plex.tv itself. Storage format and traps: `docs/data-and-plex.md`.
+  plex.tv itself. Entries for disabled servers, cloud providers, and servers whose
+  sections failed to load are carried through untouched — never write an order for a
+  server Dusk could not read. Storage format and traps: `docs/data-and-plex.md`.
 - Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
   `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where
   an all-clip hub (`isVideoHub`) renders as a 16:9 carousel.
@@ -324,16 +391,30 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 ## Libraries
 
 - `LibrariesViewModel` groups Plex libraries by `PlexLibraryType`. Its `libraries`
-  reads through `PlexService.libraryOrder.orderedSections`, so the library list and the
-  library tabs follow the account's library order, not raw `/library/sections` order.
+  reads through `PlexService.libraryOrder.orderedSections`, which now spans **every
+  connected server** in the account's cross-server order, not raw `/library/sections`
+  order. Libraries are never merged into virtual ones: two servers' "Movies" sections
+  hold different files and page independently, so they stay two rows.
+- A library shows its server name **only** when another library of the same type has
+  the same title (`ServerLabeling`, shared with the Library Order settings screen). A
+  single-server account never sees one.
 - `MainTabView` reuses a single `LibrariesViewModel` to decide tabs and feed library
-  screens. Avoid each tab independently discovering libraries.
-- `LibrariesView` is the direct Movies/Shows/Videos tab wrapper. If exactly one
-  matching library exists, it goes straight to `LibraryRecommendationsView`. (The old
-  combined `LibrariesHubView` tab is retired; every type gets its own tab.)
-- `LibraryRecommendationsViewModel` is the library-scoped home equivalent:
-  `getLibraryHubs(...)`, continue-watching hub extraction, recently-added expansion,
-  and personalized shelves from `LibraryRecommendationEngine`.
+  screens, and reloads it on `plexService.serverContentRevision` because the available
+  tabs derive from the merged library list. Avoid each tab independently discovering
+  libraries.
+- `LibrariesView` is the direct Movies/Shows/Videos tab wrapper. The tab always lands
+  on `LibraryRecommendationsView` for **all** libraries of that type; with more than
+  one, a "Libraries" toolbar link opens `LibraryTypeListView` (the list of them). With
+  exactly one library it is the screen it has always been. (The old combined
+  `LibrariesHubView` tab is retired; every type gets its own tab.)
+- `LibraryRecommendationsViewModel` takes `libraries: [PlexLibrary]` and is the
+  library-scoped home equivalent: `getLibraryHubs(...)` per library (fanned out, each
+  routed to its own server), `HubMerge` across them, continue-watching hub extraction,
+  recently-added expansion, and personalized shelves from `LibraryRecommendationEngine`
+  merged per genre (`LibraryRecommendationLoadResult.merging`). A merged personalized
+  row has no "Show All" because no single library list is behind it.
+- A failing server never blanks the others: the sections load commits per server and
+  only throws when every server failed.
 - `.video` libraries never run the genre engine. Their shelves come from
   `LibraryVideoShelfLoader`: per-channel rows (first ~6 collections via
   `getLibraryCollections`, items sorted by release date) and a day-seeded
@@ -426,7 +507,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   episode, and video detail. iOS/iPadOS put it in the Play button's `.contextMenu`
   next to Play Version; tvOS gets a `captions.bubble` icon button in the hero action
   row, because context menus are awkward there. It is gated on
-  `<Model>.canDownloadSubtitles` — `PlexService.canDownloadSubtitles` (server owner,
+  `<Model>.canDownloadSubtitles` — `PlexService.canDownloadSubtitles(serverID:)` (owner of
+  *that item's* server,
   non-restricted Home user; anything else would 403) plus a real playable part and
   no cached/offline metadata. The detail models own the flow
   (`makeSubtitleSearchViewModel(preferredLanguageCode:)`), so the views never touch
@@ -465,6 +547,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   All-clip result groups render 16:9.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
+- Search is **fanned out to every connected server** (`PlexService.streamSearch`) and the
+  merged groups are republished as each server answers (`SearchMerge`), so results stream
+  in instead of waiting for the slowest server. Groups are matched on their type, items
+  deduplicated by content key and round-robin interleaved in priority order, and the
+  copies registered in `plexService.alternates`. It is an error **only** when every
+  server failed and there is nothing to show; one unreachable server shows
+  `ServerOutageNote` above the results. A server connecting or dropping re-runs the
+  current query (`.task(id: serverContentRevision)`).
+- `SearchMediaResult.id` carries the server (`PlexItemID.storageKey`): merged results can
+  hold the same rating key twice, and duplicate `ForEach` ids drop rows.
 - When Seerr is connected, search also performs an additive Seerr discovery
   request. Plex groups publish first; external movies/shows are deduplicated and
   appended with request-state badges. A Seerr failure stays silent and never
@@ -486,15 +578,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - The Integrations section links to `SeerrSettingsView`. Both platforms accept
   only a server URL and connect using the active Plex identity; tvOS uses native
   keyboard/Remote input rather than a browser login.
-- `SettingsViewModel` is for transient settings UI state: the silently refreshed
-  server list, server picker, Home-user picker presentation, image cache status,
-  app version, and server/user switching.
+- `SettingsViewModel` is for transient settings UI state: Home-user picker
+  presentation, image cache status, and app version. Server state belongs to
+  `ServerPrioritySettingsViewModel`.
 - Persistent settings live in `UserPreferences`, not `SettingsViewModel`.
-- Settings → Navigation holds the two ordering screens, and they are deliberately
-  different in scope. Navigation Tabs controls the visibility and order of Movies,
-  TV Shows, Videos, and Live TV; it is device-local `UserPreferences`. Library Order
-  controls the order of the server's individual libraries; it is stored on the Plex
-  account (see "Library Order"). Both use native list editing on iOS/iPadOS and
+- Settings → Navigation holds three ordering screens, deliberately different in
+  scope. Navigation Tabs controls the visibility and order of Movies, TV Shows,
+  Videos, and Live TV; it is device-local `UserPreferences`. Library Order controls
+  the order of your individual libraries across servers; it is stored on the Plex
+  account (see "Library Order"). Server Priority controls which servers Dusk uses
+  at all and which one wins for a title that exists on several; it is device-local
+  (see "Server Priority"). All three use native list editing on iOS/iPadOS and
   position menus on tvOS.
 - For Navigation Tabs, hidden types stay in the saved order so restoring one puts it
   back where the user placed it.
@@ -524,9 +618,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   is enough for both platforms. Playback matching then canonicalizes Plex/VLCKit
   ISO 639-2 codes (`rum`/`ron` → `ro`) in `PlayerViewModel.normalizedLanguageCode`.
 - Both settings pages lead with a supporter row (thank-you state for supporters),
-  followed by Plex Home when applicable and Plex Server when the active user can
-  access multiple servers. Opening Settings refreshes the server list silently;
-  the existing app-start connection refresh remains separate. Everyday playback
+  followed by Plex Home when applicable. There is no "Plex Server" section and no
+  server picker: servers are managed in Navigation › Server Priority. Everyday playback
   and appearance settings follow, while engine overrides, storage, About, and
   Account stay lower on the page. AI Upscaling is a normal Playback Default;
   Playback Advanced is reserved for forced engine selection. The iOS Appearance
@@ -539,7 +632,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   future sessions transcoded.
 - "Download Subtitles" also lives in the in-player gear menu (iOS item below
   Subtitle Size, tvOS button beside the Subtitles menu), behind
-  `PlayerControlsContext.canDownloadSubtitles` — `PlexService.canDownloadSubtitles`
+  `PlayerControlsContext.canDownloadSubtitles` — `PlexService.canDownloadSubtitles(serverID:)`
   and not Live TV. It opens `SubtitleSearchView` (sheet on iOS with
   `[.medium, .large]` detents, full-screen cover on tvOS) via
   `PlayerViewModel.showSubtitleSearch`, which must stay in both controls auto-hide

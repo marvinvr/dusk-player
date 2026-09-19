@@ -25,8 +25,12 @@ extension PlaybackCoordinator {
         transcodePingTickCounter += 1
         guard transcodePingTickCounter >= 6 else { return }
         transcodePingTickCounter = 0
+        let serverID = activePlaybackServerID
         Task {
-            await plexService.pingTranscodeSession(transcodeSessionID: transcodeSessionID)
+            await plexService.pingTranscodeSession(
+                transcodeSessionID: transcodeSessionID,
+                serverID: serverID
+            )
         }
     }
 
@@ -93,8 +97,9 @@ extension PlaybackCoordinator {
                     await offlinePlaybackSyncManager?.syncPendingActions()
                 }
             } else {
+                let serverID = activePlaybackServerID
                 Task {
-                    try? await plexService.scrobble(ratingKey: ratingKey)
+                    try? await plexService.scrobble(ratingKey: ratingKey, serverID: serverID)
                 }
             }
         }
@@ -120,6 +125,10 @@ extension PlaybackCoordinator {
         } else {
             let sessionIdentifier = activePlaybackSessionIdentifier
             let timelineKey = activeLiveTVContext?.sessionPath
+            // Only the server this session plays from: the same rating key is a
+            // different title everywhere else, so a fan-out would corrupt watch
+            // state on every other server.
+            let serverID = activePlaybackServerID
             Task {
                 await plexService.reportTimeline(
                     ratingKey: ratingKey,
@@ -127,7 +136,8 @@ extension PlaybackCoordinator {
                     state: state,
                     timeMs: timeMs,
                     durationMs: durationMs,
-                    sessionIdentifier: sessionIdentifier
+                    sessionIdentifier: sessionIdentifier,
+                    serverID: serverID
                 )
             }
         }

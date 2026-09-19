@@ -9,6 +9,9 @@ struct LibraryRecommendationsView: View {
     @State private var viewModel: LibraryRecommendationsViewModel
 
     private let navigationTitle: String
+    /// Where "Browse" goes when this screen covers several libraries: the list
+    /// of them, because there is no single library to open.
+    private let libraryListDestination: LibraryTypeListDestination?
 
     private let continueWatchingCardWidth: CGFloat = DuskPosterMetrics.continueWatchingWidth
     private let continueWatchingAspectRatio: CGFloat = 16.0 / 9.0
@@ -18,9 +21,24 @@ struct LibraryRecommendationsView: View {
         plexService: PlexService,
         navigationTitle: String
     ) {
+        self.init(
+            libraries: [library],
+            plexService: plexService,
+            navigationTitle: navigationTitle,
+            libraryListDestination: nil
+        )
+    }
+
+    init(
+        libraries: [PlexLibrary],
+        plexService: PlexService,
+        navigationTitle: String,
+        libraryListDestination: LibraryTypeListDestination?
+    ) {
         self.navigationTitle = navigationTitle
+        self.libraryListDestination = libraryListDestination
         _viewModel = State(initialValue: LibraryRecommendationsViewModel(
-            library: library,
+            libraries: libraries,
             plexService: plexService
         ))
     }
@@ -86,6 +104,9 @@ struct LibraryRecommendationsView: View {
                         .padding(.top, 40)
                 } else {
                     LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
+                        ServerOutageNote()
+                            .padding(.horizontal, DuskPosterMetrics.libraryPageHorizontalPadding)
+
                         if !viewModel.continueWatching.isEmpty {
                             continueWatchingSection
                         }
@@ -107,9 +128,9 @@ struct LibraryRecommendationsView: View {
                                 }
                             }
 
-                            ForEach(viewModel.channelShelves) { shelf in
-                                if !shelf.items.isEmpty {
-                                    channelShelfSection(shelf)
+                            ForEach(viewModel.channelShelves) { row in
+                                if !row.shelf.items.isEmpty {
+                                    channelShelfSection(row)
                                 }
                             }
 
@@ -149,23 +170,47 @@ struct LibraryRecommendationsView: View {
         .duskTVOSPageBackground()
     }
 
+    /// One library: browse it. Several: open the list of them, because there
+    /// is no single library the button could mean.
     @ViewBuilder
     private func browseLibraryButton(labelText: String) -> some View {
+        if let libraryListDestination, viewModel.isMultiLibrary {
+            styledBrowseLink(
+                NavigationLink(value: libraryListDestination) {
+                    browseLabel("Libraries")
+                }
+            )
+        } else {
+            styledBrowseLink(
+                NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
+                    browseLabel(labelText)
+                }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private func browseLabel(_ labelText: String) -> some View {
         #if os(tvOS)
-        NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
-            Text(labelText)
-                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
-        }
-        .controlSize(.small)
-        .buttonBorderShape(.capsule)
-        .buttonStyle(.glass)
-        .tint(Color.primary)
+        Text(labelText)
+            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
         #else
-        NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
-            Label(labelText, systemImage: "square.grid.2x2")
-                .font(.subheadline.weight(.semibold))
-        }
-        .buttonStyle(.plain)
+        Label(labelText, systemImage: "square.grid.2x2")
+            .font(.subheadline.weight(.semibold))
+        #endif
+    }
+
+    @ViewBuilder
+    private func styledBrowseLink(_ link: some View) -> some View {
+        #if os(tvOS)
+        link
+            .controlSize(.small)
+            .buttonBorderShape(.capsule)
+            .buttonStyle(.glass)
+            .tint(Color.primary)
+        #else
+        link
+            .buttonStyle(.plain)
         #endif
     }
 
@@ -203,7 +248,9 @@ struct LibraryRecommendationsView: View {
             title: shelf.title,
             items: shelf.items,
             horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
-            showAllRoute: AppNavigationRoute.libraryGenre(library: viewModel.library, genre: shelf.genre),
+            showAllRoute: shelf.showAllLibrary.map {
+                AppNavigationRoute.libraryGenre(library: $0, genre: shelf.genre)
+            },
             subtitle: { viewModel.subtitle(for: $0) },
             posterURL: { item, width, height in
                 viewModel.posterURL(for: item, width: width, height: height)
@@ -250,7 +297,9 @@ struct LibraryRecommendationsView: View {
     }
 
     @ViewBuilder
-    private func channelShelfSection(_ shelf: LibraryVideoChannelShelf) -> some View {
+    private func channelShelfSection(_ row: LibraryChannelRow) -> some View {
+        let shelf = row.shelf
+
         PlexItemPosterCarouselSection(
             title: shelf.collection.title,
             items: shelf.items,
@@ -258,7 +307,7 @@ struct LibraryRecommendationsView: View {
             imageAspectRatio: shelfImageAspectRatio,
             horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
             showAllRoute: AppNavigationRoute.libraryCollection(
-                library: viewModel.library,
+                library: row.library,
                 collection: shelf.collection
             ),
             subtitle: { viewModel.subtitle(for: $0) },
@@ -330,8 +379,9 @@ struct LibraryRecommendationsView: View {
     private func play(_ item: PlexItem) {
         Task {
             await playback.play(
-                ratingKey: item.ratingKey,
+                id: item.id,
                 resumeOffsetMilliseconds: item.viewOffset,
+                resumeOffsetDurationMilliseconds: item.duration,
                 placeholder: PlaybackPlaceholder(item: item)
             )
         }

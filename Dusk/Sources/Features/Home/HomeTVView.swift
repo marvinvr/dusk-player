@@ -13,7 +13,10 @@ struct HomeTVView: View {
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
-    let serverName: String?
+    /// Enabled servers that are currently unreachable. Only used for the quiet
+    /// inline note; Home never names the server a row came from, because with
+    /// every server merged into one screen that would be noise.
+    let offlineServerNames: [String]
     let recentlyAddedInlineItemLimit: Int
     let heroSelectionResetRevision: Int
     let liveTVViewModel: LiveTVViewModel
@@ -173,8 +176,8 @@ struct HomeTVView: View {
                             #if os(tvOS)
                             .focusSection()
                             #endif
-                        } else if let serverName {
-                            homeHeader(serverName: serverName)
+                        } else {
+                            homeHeader()
                                 .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
                                 .padding(.top, DuskPosterMetrics.pageSectionSpacing)
                         }
@@ -247,6 +250,9 @@ struct HomeTVView: View {
 
     @ViewBuilder
     private func shelves() -> some View {
+        ServerOutageNote(offlineServerNames: offlineServerNames)
+            .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+
         if showsLiveTV {
             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
         }
@@ -404,20 +410,17 @@ struct HomeTVView: View {
         #endif
     }
 
-    private func homeHeader(serverName: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Home")
-                .font(
-                    DuskFont.pageTitleRounded(
-                        ios: .system(size: 44, weight: .bold, design: .rounded)
-                    )
+    /// The server name used to sit under this title. With every server merged
+    /// into one Home there is no single server to name, and naming the primary
+    /// would be a lie about where the rows came from.
+    private func homeHeader() -> some View {
+        Text("Home")
+            .font(
+                DuskFont.pageTitleRounded(
+                    ios: .system(size: 44, weight: .bold, design: .rounded)
                 )
-                .foregroundStyle(Color.primary)
-
-            Text(serverName)
-                .font(DuskFont.pageSubtitle(ios: .title3))
-                .foregroundStyle(Color.primary)
-        }
+            )
+            .foregroundStyle(Color.primary)
     }
 
     private func heroDetailsLabel(for item: PlexItem) -> String {

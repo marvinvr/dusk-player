@@ -49,6 +49,12 @@ struct SearchRootContent: View {
             .onChange(of: vm.query) {
                 vm.searchDebounced()
             }
+            // A server connecting or dropping changes what "search" even means,
+            // so the current query is run again against the new set.
+            .task(id: plexService.serverContentRevision) {
+                guard vm.hasSearched else { return }
+                vm.searchDebounced()
+            }
     }
 
     /// Picks the result layout that feels native to each platform:
@@ -101,7 +107,12 @@ private extension SearchRootContent {
         _ vm: SearchViewModel,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        if vm.isSearching && vm.results.isEmpty {
+        let availability = plexService.pool.availability
+
+        if vm.results.isEmpty, !availability.isReady {
+            // Nothing can be searched yet, and the reason is the servers.
+            ServerAvailabilityStateView(availability: availability)
+        } else if vm.isSearching && vm.results.isEmpty {
             FeatureLoadingView()
         } else if let error = vm.error, vm.results.isEmpty {
             FeatureErrorView(message: error) {
@@ -132,6 +143,11 @@ private extension SearchRootContent {
         searchResults(vm) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
+                    ServerOutageNote(
+                        offlineServerNames: plexService.pool.availability.offlineServerNames
+                    )
+                    .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+
                     ForEach(vm.results) { group in
                         let isVideoGroup = group.isAllClips
                         let width = isVideoGroup
@@ -204,6 +220,11 @@ private extension SearchRootContent {
 
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
+                        ServerOutageNote(
+                            offlineServerNames: plexService.pool.availability.offlineServerNames
+                        )
+                        .padding(.horizontal, DuskPosterMetrics.gridHorizontalPadding)
+
                         ForEach(vm.results) { group in
                             let isVideoGroup = group.isAllClips
 

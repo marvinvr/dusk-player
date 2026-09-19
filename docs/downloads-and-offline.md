@@ -50,7 +50,7 @@ Normal single-item flow:
 
 ```text
 DownloadActionButton
-  -> DownloadManager.queueDownload(ratingKey:type:)
+  -> DownloadManager.queueDownload(id:type:)   // id = PlexItemID
   -> create DownloadedMediaRecord(.queued)
   -> processQueue()
   -> fetch/cache Plex metadata
@@ -59,8 +59,33 @@ DownloadActionButton
   -> completeDownload(.completed + relativeVideoPath)
 ```
 
-Season and show downloads fetch hierarchy metadata, then call the same
-single-item queue path for each episode. Single movie/episode requests should
+Every queue API is keyed by `PlexItemID`, and `DownloadScope` carries it too:
+rating keys collide across servers, so a record is only ever matched by server +
+rating key. `DownloadManager.record(for:)` is strict about this: an id without a
+server resolves only when exactly one record carries that rating key, never by
+picking the first match — the answer feeds `localPlaybackURL` and
+`downloadedMediaVersion`, where a wrong match plays a different file. Season and
+show downloads fetch hierarchy metadata on the season's
+or show's own server, then call the same
+single-item queue path for each episode, which inherits that server.
+
+Records and pending sync actions written before servers were identified by
+machine identifier can carry the server's base URL in `serverID`. Those match no
+connection and would wait forever, so `DownloadManager` and
+`OfflinePlaybackSyncManager` re-key them once
+(`plexService.serverID(forLegacyConnectionURI:)`, which matches the URL against
+each known server's endpoints); the record's cached metadata directory moves
+with it (`DownloadFileStore.relocateMetadata`). An address that resolves to no
+known server is left untouched — the record stays listed and its file stays
+playable offline.
+
+The queue only starts records whose server is currently connected; the others
+stay `queued` rather than failing, and `DownloadManager` observes the pool so a
+server coming back re-runs the queue on its own. Such a record must say why it
+is idle: `DownloadManager.queueWaitReason(for:)` turns `pool.state(for:)` into
+the queue row's status text ("Waiting for <server>", "<server> is turned off"),
+so a download parked behind a disabled or unreachable server never looks like a
+stuck "Queued". Single movie/episode requests should
 return after writing the queued record; expensive metadata fetch, media version
 selection, episode context caching, and storage validation belong in queue
 processing. Aggregate controls use `DownloadScope` and `relatedRecords(for:)`;
@@ -113,9 +138,10 @@ Artwork is separate: `DownloadManager.cacheArtwork` fetches image bytes through
 `localArtworkURL(for:)` first, then fall back to Plex image URLs.
 
 Pitfall: cached metadata is profile- and server-scoped. Use the active profile
-with `serverID(for:)`, `currentServerIdentifier`, or `preferredServerIDs`; do
-not assume a rating key is unique across profiles or servers. Legacy cache/video
-paths remain readable and are adopted only by the originally linked profile.
+with `serverID(for:)` or `preferredServerIDs`; do not assume a rating key is
+unique across profiles or servers — with several servers connected at once, it
+is routinely not. Legacy cache/video paths remain readable and are adopted only
+by the originally linked profile.
 
 Plex Home adds a second identity boundary: downloaded records, offline metadata
 lookups, playback-sync actions, and their global keys include `activeProfileID`
@@ -152,8 +178,10 @@ sync. Finalization records stopped progress; crossing 90 percent queues a
 watched/scrobble effect. Detail watch/unwatch actions also queue locally when
 using cached data or a local file.
 
-Sync only considers actions for both `plexService.activeProfileID` and
-`plexService.currentServerIdentifier`. It starts
+Sync considers actions for `plexService.activeProfileID`, and routes each action
+to **its own** server: a pending action is syncable when that server is
+currently connected (`pool.connection(for:)`), and actions for servers that are
+offline or disabled simply wait. It starts
 on launch and active scene phase, stops its retry loop outside active phase, and
 uses per-action backoff. `markSynced` preserves newer local edits when an older
 sync attempt completes late.
@@ -196,7 +224,10 @@ offline playback behavior: `PlaybackCoordinator+Session` or
 ## Pitfalls
 
 Do not key persisted records by rating key alone; use
-`profileID:serverID:ratingKey`. Do
+`profileID:serverID:ratingKey`. Route every download action — token, URL,
+connectivity guard — by the record's or item's own `serverID`, never by the
+primary server. A download whose server has since been disabled stays listed and
+plays offline; only new network work needs the server back. Do
 not casually delete shared metadata/artwork; show/season browsing and up-next may
 reuse it. Do not trust `downloadTaskIdentifier` across relaunch. Do not report
 Plex timeline directly for local downloads. Do not make Downloads always visible
@@ -206,7 +237,7 @@ or add a generic provider abstraction unless product scope changes.
 
 Locate the layer: storage, queue, delegate, metadata cache, playback route, sync
 queue, or UI. Preserve root containment, relative paths, server-scoped keys,
-completion validation, and current-server sync filtering. Keep views on
+completion validation, and per-server sync routing. Keep views on
 managers/view models, not files or network calls. Exercise movie, episode,
 season, and show scopes; check pause, resume, cancel, retry, delete, delete-all,
 Wi-Fi Only, and relaunch behavior. For offline-route changes, check cached

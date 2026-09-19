@@ -15,11 +15,71 @@ has a separate boundary documented in `docs/seerr-integration.md`.
 - No generic provider abstraction. Seerr is not a media provider. Add focused
   Plex methods in the existing same-type extension files.
 
-## Auth And Server Discovery
-Files: `PlexService.swift` for shared state and persisted bootstrap;
-`PlexService+Auth.swift` for PIN auth and token lifecycle;
-`PlexService+Servers.swift` for resource lookup, probing, endpoint refresh, and
-server-token recovery; `KeychainHelper.swift` for token storage.
+## Multi-Server Model
+Dusk is connected to **every enabled server at once**. There is no "current
+server" the user picks: the account's servers are discovered, connected in
+parallel, and their content is merged. Server selection exists only as an
+*order* (which server wins when a title is on several) and an *on/off switch*
+per server, both in Settings -> Server Priority.
+
+Files: `ServerPool.swift` (live sessions), `ServerPriorityStore.swift` (order +
+enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
+(the connection race), `ServerAvailability.swift` (aggregate state + UI wording).
+
+- `PlexServerConnection` is one live session: `serverID` (machine identifier),
+  `name`, `owned`, `sourceTitle`, `baseURL`, `token`, winning `connection`, plus
+  `isLocal` / `isRemote` / `isRelay`. Everything that talks to a server resolves
+  one of these first, so a request, an image URL, or a playback decision can
+  never land on a different server than the item it belongs to.
+- `ServerPool` (`plexService.pool`) holds `states: [String: ServerConnectionState]`
+  (`idle`/`connecting`/`connected`/`unauthorized`/`offline(reason)`/`disabled`),
+  the discovered `servers`, `connections` (connected, in priority order),
+  `primary`, and `decoder(for:)`. `connectAll` probes up to four servers at a
+  time and **commits each server's state the moment it resolves**, so one
+  unreachable server never delays the others. A probe carries its own token, so
+  two probes of the same server cannot consume each other's and report a good
+  session as `.unauthorized`, and every commit re-checks two things: the pool's
+  `generation` (see below) and whether the server is still enabled, because the
+  user can switch it off while it is being probed.
+- A **disabled server is never connected by accident**. `pool.connect(to:)`
+  short-circuits to `.disabled`, and `rawServerRequest` fails fast rather than
+  recovering it, so a stray request from a screen that has not reloaded yet
+  cannot bring a switched-off server back.
+- After a *successful* discovery, a server the pool knows about that plex.tv did
+  not return is marked `.offline`: discovery sees the whole account, so a
+  session restored from the last launch must not keep claiming it is connected.
+- `pool.generation` is the session counter. `clear()` bumps it, and any probe
+  that started earlier is discarded when it lands. Together with
+  `PlexService.serverSessionToken` (profile + generation, captured before
+  `discoverServers()` and re-checked after) this is what stops a connect pass
+  from a previous Plex Home member re-registering that member's servers — and
+  re-saving their tokens — into the session that replaced it.
+- `pool.primary` is simply the highest-priority connected server. It is a
+  fallback for the handful of things that are genuinely account-wide — the
+  Seerr link and Live TV — and for a call site that has no item in hand. It is
+  **not** "the current server": anything holding an item, library, hub or
+  download record must pass that value's `serverID` instead. There are no
+  single-server compatibility shims on `PlexService`.
+- `ServerPriorityStore` (`plexService.serverPriority`) persists an ordered
+  `[{machineIdentifier, isEnabled}]` in UserDefaults (`PlexServerPriority`). It
+  is additive: `reconcile(discovered:)` appends unknown servers enabled at the
+  end and never drops a server that simply did not answer this time; only
+  sign-out prunes it. Every mutation bumps `revision`, which merged screens
+  (Home, Libraries, Search) observe to know they must reload.
+- `PlexService.serverContentRevision` is the `.task(id:)` key for merged
+  screens: it changes when a server connects or drops, when the order or an
+  enabled flag changes, or when the profile changes. Key a merged load on it
+  rather than on a single server identifier.
+- `ServerPool.availability` classifies the whole account for the UI:
+  `unknown` / `connecting` / `ready(offlineServerNames:)` / `allDisabled` /
+  `unreachable(reason:)`. `unknown` and `connecting` only mean "wait" while a
+  pass is actually running: discovery can fail before a single server state
+  exists (no internet, fresh install), so `ServerAvailabilityStateView` folds in
+  the coordinator's `hasCompletedFirstPass` / `isConnecting` / `lastError` and
+  shows the error with Retry instead of a spinner that never ends.
+  `ServerStatusText` holds the words for one server
+  ("Local", "Remote", "Relay", "Connecting…", "Offline", "Not authorized",
+  "Disabled", "Your server", "Shared by X").
 
 Tokens and persisted state:
 - `primaryAccountToken`: the full Plex account token established by device-link
@@ -28,11 +88,33 @@ Tokens and persisted state:
 - `activeAccountToken`: the identity used for account/resource requests. With no
   multi-user Plex Home it is the primary token; after a Home switch it is the
   switched user's token. It is persisted only when automatic Home sign-in is on.
-- `serverAuthToken`: selected-server token discovered for the active identity,
-  saved in Keychain and cleared whenever that identity changes.
-- `connectedServer`: tokenless encoded server metadata in UserDefaults. Never
-  restore an access token from this payload.
-- `serverBaseURL`: selected connection URI in UserDefaults.
+- Server state is **per server**, and together it is everything a cold launch
+  needs to be usable before plex.tv answers:
+  - Keychain `PlexServerAuthToken.<machineID>`: that server's token, written by
+    the pool when it connects.
+  - `PlexServerURL.<machineID>`: the endpoint the last successful session
+    actually used.
+  - `PlexLastGoodConnectionURI.<machineID>`: the connection that last won the
+    probe race for that server. It can differ from the base URL above — an
+    HTTPS connection whose HTTP fallback won reports the former and is reached
+    over the latter — so both are kept.
+  - `PlexServerSnapshots`: tokenless `PlexServer` snapshots of every server the
+    account has seen, in priority order. Only `pool.connectAll` rewrites it, so
+    a disabled server keeps its snapshot and costs no round-trip when it is
+    turned back on.
+- `PlexService.init` restores a session for every *enabled* snapshot that has a
+  token and a remembered endpoint, so Home/Libraries/Search have content
+  immediately; `ServerConnectionCoordinator`'s pass then verifies and refreshes
+  them, and a restored endpoint that has since moved fails over on its next
+  request. A restored session has no winning `PlexConnection` unless the base
+  URL still matches one of the snapshot's connections, so its locality reads as
+  unknown until the next probe.
+- `PlexServerURL` / `PlexServerData` / `PlexLastGoodConnectionURI` and Keychain
+  `PlexServerAuthToken` (the unsuffixed single-server keys) are **never
+  written**. `migrateLegacySingleServerState()` reads them once on launch, moves
+  their contents onto the per-server keys, and deletes them. `PlexServerID` is
+  the one legacy key still kept: `ServerPriorityStore` seeds the first priority
+  order from it, and only sign-out removes it.
 - `clientIdentifier`: stable UUID sent on every Plex request.
 
 Flow:
@@ -57,17 +139,30 @@ Flow:
 6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
    HTTPS/relay and keeps
    resources whose `provides` contains `server`.
-7. `connect(to:)` probes candidates, validates `/library/sections`, and calls
-   `setServer(...)`.
+7. `connectAllServers()` is the app's entry point: discover ->
+   `serverPriority.reconcile(discovered:)` -> `pool.connectAll(...)`. It never
+   fails because a server is unreachable; it throws only when the account itself
+   cannot be used. `ContentView` mounts the tab shell first and runs this
+   underneath, so nothing waits for the slowest server.
+8. `reconnectServer(serverID:)` re-discovers and re-probes exactly one server.
+   Use it to recover one server; it never touches the other sessions. The
+   request layer goes through `recoverServer(serverID:)` instead, which
+   coalesces concurrent callers onto one reconnect and applies the cooldown
+   below.
 
 Plex Home invariants:
 - Home membership and switching use the primary token. Server discovery,
   current-user lookup, metadata, history, and playback use the active token.
 - Select the Home identity before discovering servers; members can have
   different server/library access.
-- A switch invalidates current-user, entitlement, and server authorization
-  caches. Reconnect to the previous server identifier only if it appears in the
-  new identity's resources.
+- A switch clears the whole pool (`tearDownServerSessions()`) and invalidates current-user,
+  entitlement, and library-order caches. Server tokens belong to the identity
+  that obtained them, so the teardown also forgets the token, base URL and
+  last-good connection of **every** known server — the ones in the stored
+  priority order and snapshots included, not just the ones this launch
+  connected to — and cancels any in-flight per-server recovery. The priority order survives the switch;
+  `reconcile` folds the new identity's server list into it, so a server the new
+  member cannot see simply keeps its slot without being connected.
 - Automatic sign-in remembers the switched session token in Keychain, not the
   Home PIN. With automatic sign-in off, a cold Home switch requires internet.
 - `activeProfileID` is the local persistence boundary for downloads, cached
@@ -76,46 +171,76 @@ Plex Home invariants:
 Discovery behavior to preserve:
 - Connections sort local non-relay, remote non-relay, relay; HTTPS wins within
   a priority. HTTP fallbacks and unreachable-address filtering are built in.
-- `connect(to:)` probes all candidates **concurrently** (`probeConnections`) and
-  commits the highest-priority one that works. The race is priority-preserving:
+- Each server's candidates are probed **concurrently** (`ServerProbe`) and the
+  highest-priority one that works is committed. The race is priority-preserving:
   a success is only committed once no higher-priority candidate can still win —
   either they have all resolved, or `connectionPreferenceGrace` (1.5 s) elapsed
   after the first success. This keeps local preferred at home without blocking on
   a hung LAN address when away. Do not regress this back to a sequential loop.
-- The winning connection URI is remembered (`PlexLastGoodConnectionURI`) and
-  floated to the front of *its own priority tier* on the next connect, never
-  across tiers. `resolvedActiveConnection` / `isConnectedRemotely` expose whether
-  the live session is local or remote/relay.
+  Servers race each other too (`ServerPool.connectAll`, max four at a time), and
+  the two levels are independent.
+- The winning connection URI is remembered per server
+  (`PlexLastGoodConnectionURI.<machineID>`) and floated to the front of *its own
+  priority tier* on the next connect, never across tiers. Locality is read off
+  the connection: `PlexServerConnection.isLocal` / `isRemote` / `isRelay`.
 - Fresh auth has a propagation retry window; missing server tokens or 401s may
   become `.authenticationPending`.
-- A server request 401 tries authorization recovery once; repeated 401 clears
-  the selected server.
-- Selected endpoints refresh after network errors or selected 4xx/5xx statuses.
+- A 401 is **per server**: the request layer tries authorization recovery for
+  that server once, then `pool.markUnauthorized(serverID:)`. It must never clear
+  the pool — one revoked share cannot sign the user out of the servers that are
+  working. Only sign-out and a Plex Home switch clear the pool.
+- A server's endpoint is re-probed after network errors or selected 4xx/5xx
+  statuses, again for that server alone.
+- Recovery is **coalesced and rate-limited per server** (`recoverServer(serverID:)`):
+  one reconnect at a time per server with every caller joined to it, and a
+  `serverRecoveryCooldown` (30 s) after a failure during which requests to that
+  server fail fast with its last reason. Otherwise a screenful of requests to an
+  offline server becomes a screenful of plex.tv discoveries and probe races. An
+  account-wide pass (`connectAllServers()`) and the explicit Retry in Server
+  Priority clear the cooldown, because those are the user asking again.
 - Account-level `.unauthorized` / `.notAuthenticated` are user-facing
   re-authentication, not retryable request failures. `FeatureErrorView`, the
-  player overlay and load-error alert, and ContentView bootstrap/discovery
-  replace Retry with Sign In. Sign In calls `signOut()` so `ContentView`
-  presents `SignInView`. Successful re-auth runs home bootstrap and server
-  discovery again; it does not resume the failed screen or playback.
+  player overlay and load-error alert, and ContentView bootstrap replace Retry
+  with Sign In. Sign In calls `signOut()` so `ContentView` presents `SignInView`.
+  Successful re-auth runs home bootstrap and a fresh connect pass; it does not
+  resume the failed screen or playback.
+- `ServerConnectionCoordinator` (`App/ServerConnectionCoordinator.swift`) owns
+  *when* a connect pass runs: first mount, profile switch, return to the
+  foreground, and network-path change. One pass at a time; concurrent callers of
+  the **same session** join the running one, while a pass belonging to a profile
+  that has been left is cancelled rather than joined. A pass is skipped if the
+  last one succeeded less than a minute ago and the pool still has a usable
+  server. `refresh()` (user Retry, network change) never settles for the pass
+  that is already running — that pass started before the reason for the retry
+  existed — so it queues another one behind it. It is published in the
+  environment, so any screen can offer a retry with `refresh()`.
 
 Remote-streaming entitlement (Plex Pass): since April 2025 Plex only allows
 remote playback of personal video media when the server owner (or the streaming
 user) holds an active Plex Pass / Remote Watch Pass; local streaming stays free.
 `PlexService+Entitlement.swift` reads the account's `subscription.active` from
 `/api/v2/user` (cached in `accountSubscriptionActive`) and
-`remoteStreamingRestriction()` returns `.ownerNeedsPlexPass` only for an **owned**
-server reached **remotely** with a positively-inactive subscription. The player's
-online-playback path checks it and shows a clean message instead of failing
-slowly. Unknown/shared cases never pre-empt playback.
+`remoteStreamingRestriction(forServerID:)` returns `.ownerNeedsPlexPass` only for
+an **owned** server reached **remotely** with a positively-inactive subscription.
+The entitlement is account-wide but the *restriction is per server*, because
+ownership and locality differ per session: one server can be restricted while
+another plays fine. The playback source resolver demotes a restricted server to
+last and only shows the Plex Pass message when every candidate is restricted.
+Unknown/shared cases never pre-empt playback.
 
 ## Request And Decode Helpers
 File: `PlexService+Networking.swift`.
 - Use `plexTVRequest<T>` for `plex.tv` JSON.
-- Use `rawServerRequest` for selected-server calls. It applies the server token,
-  recovers auth, refreshes endpoints, and returns `Data`.
+- Use `rawServerRequest` for server calls. It takes an optional `serverID:`,
+  resolves that server's `PlexServerConnection` from the pool (nil = the
+  primary), applies **that server's** token, recovers auth, re-probes the
+  endpoint, and returns `Data`.
 - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
 - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
 - Use `fetchHubs(...)` for `MediaContainer.Hub`.
+- The fetch helpers decode through `pool.decoder(for: serverID)`, which stamps
+  `serverID` onto every model it decodes. A hand-rolled `JSONDecoder` loses that
+  stamp and produces unattributable items — always go through the pool.
 - Use `decodeJSON(_:from:)` so decode failures become `PlexServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
 - `applyHeaders(to:token:)` centralizes Plex headers, platform/device metadata,
@@ -125,10 +250,14 @@ File: `PlexService+Networking.swift`.
   Plex. Keep header changes centralized in `applyHeaders`.
 
 Pitfalls:
-- `rawServerRequest` requires `serverBaseURL` plus a usable server token.
+- `rawServerRequest` needs a connected server: either the one `serverID` names
+  or the primary.
+- Pass the item's `serverID` through. A call that falls back to the primary for
+  an item that came from another server reads the wrong library, and with
+  colliding rating keys it can silently read the *wrong item*.
 - Keep primary-account, active-account, and server-token usage distinct. Home
   membership/switch calls use the primary account, `plex.tv` resources use the
-  active account, and selected-server APIs use the server token.
+  active account, and per-server APIs use that server's token.
 - Plex is inconsistent: optional fields, int-or-bool flags, unknown media types,
   and multiple person id shapes are normal.
 - Do not log token-bearing URLs. Use sanitized playback URL logging where it
@@ -189,12 +318,38 @@ same array: `sidebarSettings.pinnedSources`. Array position is the order.
 - `sourceType` maps from the section type: movie->movies, show->tv, artist->music,
   photo->photos, clip->videos.
 - Effective order (`LibraryOrderArrangement.effectiveOrder`): take the entries for
-  the connected server's machine id that are PMS libraries and not hidden, in array
-  order, map `directoryID` to the section key, then append every section the array
-  does not mention. No entries at all means plain `/library/sections` order.
-- Merge on write (`LibraryOrderArrangement.merged`): the connected server's entries
-  collapse into one contiguous block placed where its first entry was. Entries for
-  other servers and for cloud providers are carried through verbatim.
+  **every enabled server's** machine id that are PMS libraries and not hidden, in
+  array order, map (`machineIdentifier`, `directoryID`) to the section, then
+  append every section the array does not mention (server priority first, then
+  the server's own order). No entries at all means plain `/library/sections`
+  order per server. The pairing must include the machine id: `directoryID` is a
+  per-server counter, so keying on it alone aliases two servers' sections.
+- Merge on write (`LibraryOrderArrangement.merged(existing:reordered:machineIdentifiers:)`):
+  the participating servers' entries collapse into **one** contiguous block placed
+  where the first of them was — the user's order is one cross-server list, not one
+  block per server. Entries for cloud providers, disabled servers, servers that are
+  not connected, and servers whose sections fetch **failed** are carried through
+  verbatim. `writeOrder(userOrder:existing:servers:)` takes the participating servers
+  keyed by machine identifier, because a never-pinned section's new entry has to be
+  built from *its own* server; a section whose server is missing is skipped, never
+  guessed at.
+- HARD INVARIANT: never write entries for a server whose sections could not be
+  read. A failed fetch looks exactly like "this server has no libraries", and the
+  write would unpin that server's libraries in every Plex client.
+  `LibraryOrderStore.machineIdentifiers` is the set that answered **with at least
+  one section** and `failedServerIDs` the set that failed; the write path
+  intersects them. A server that answered with *nothing* is in neither: it has no
+  pins to write, and an empty answer is also what a still-scanning or half-started
+  server returns, so it must not be able to delete what the account has pinned
+  for it.
+- `LibraryOrderStore` caches per `"<connected serverIDs in priority order>|<profileID>"`
+  — priority order, not sorted, because reordering Server Priority changes the
+  unpinned tail and must invalidate the cache — and commits each
+  server's sections the moment they land (`applyServerSections`), so the library list
+  paints from the first server rather than the slowest. `sections` is reassembled in
+  server-priority order each time. Identify a section by `orderedSectionIdentities`
+  (`PlexLibrary.id`, `"<serverID>|<key>"`), never by the bare section key — those
+  are per-server counters that collide.
 
 Traps:
 - The write is a **full-blob replace**. Read the whole `experience` document,
@@ -246,11 +401,12 @@ Subtitle search and download (`PlexService+Subtitles.swift`):
 - The PUT passes `timeoutInterval: 30` to `rawServerRequest` because the provider
   round-trip routinely exceeds the session's 15s request default. 30s is also the
   session's `timeoutIntervalForResource`, so it is the practical ceiling.
-- `externalSubtitleURL(for:)` builds `serverBaseURL + stream.key + X-Plex-Token`
-  for sidecar streams (`streamType == .subtitle` with a non-nil `key`) so the
+- `externalSubtitleURL(for:)` builds the item's server base URL + `stream.key` +
+  `X-Plex-Token` for sidecar streams (`streamType == .subtitle` with a non-nil `key`) so the
   engine can attach them via VLCKit `addPlaybackSlave`. Server token, never the
   account token; log only through `sanitizedPlaybackURLString`.
-- `canDownloadSubtitles` gates the affordance: owned server and a non-restricted
+- `canDownloadSubtitles(serverID:)` gates the affordance per server: an owned
+  server and a non-restricted
   Home user. Shared-server and managed-profile users cannot write sidecars, so
   hide the entry point instead of surfacing a 403.
 
@@ -269,7 +425,8 @@ Where to edit:
 
 Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 
-- Discover the selected server's EPG provider through `/media/providers`.
+- Live TV uses the highest-priority enabled server only (v1). Discover that
+  server's EPG provider through `/media/providers`.
   The provider advertises its grid path and DVR identifier; do not hard-code
   `tv.plex.providers.epg.*` identifiers.
 - Load stations from the provider's `/lineups/dvr/channels` path and currently
@@ -294,7 +451,8 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 
 ## Playback URL Handling
 File: `PlexService+Playback.swift`.
-- Direct play uses `{serverBaseURL}{part.key}` plus `X-Plex-Token` in the URL
+- Direct play uses `{connection.baseURL}{part.key}` — the connection of the
+  server the item came from — plus `X-Plex-Token` in the URL
   query because AVPlayer/VLCKit load the URL directly.
 - Manual video transcoding uses Plex's universal transcoder flow:
   `/video/:/transcode/universal/decision` first, then
@@ -317,8 +475,9 @@ File: `PlexService+Images.swift`.
 - Without dimensions, `directImageURL(for:)` builds the server-relative URL
   without embedding a token.
 - `imageRequestURLString(for:includeToken:)` accepts absolute URLs as-is and
-  builds relative paths from `serverBaseURL`.
-- `imageData(for:)` authenticates URLs matching the selected server
+  builds relative paths from the connection of the item's server, resolved via
+  `pool.connection(for:)`.
+- `imageData(for:)` authenticates URLs matching a connected server's
   scheme/host/defaulted port; other URLs are fetched as plain binary requests.
 - `DuskAsyncImage` uses `DuskImageLoader`, delegating to
   `plexService.imageData(for:)`.
@@ -337,10 +496,106 @@ Pitfalls:
 - Keep width and height optional; callers rely on poster/art/banner/logo
   fallbacks.
 
+## Identity Across Servers
+Rating keys, section keys, and hub identifiers are **per server** counters: two
+servers hand out the same `ratingKey` for different titles. Identity therefore
+always carries the server.
+
+- `Models/PlexServerScoped.swift` defines `CodingUserInfoKey.duskServerID`,
+  `Decoder.duskServerID`, and `PlexItemID { serverID, ratingKey }`. Each model's
+  `init(from:)` reads `decoder.duskServerID` and stamps it, so nested items are
+  stamped automatically. Do not add post-decode copy helpers or wrappers.
+- `PlexItem.id`, `PlexMediaDetails.id`, `PlexEpisode.id`, and `PlexSeason.id` are
+  `PlexItemID`; `==`/`hash` include the server. `PlexLibrary.id` is
+  `"<serverID>|<key>"`. `AppNavigationRoute` carries a `PlexItemID`.
+- `serverID` is `String?`: nil means "not stamped" (a model built locally or
+  decoded outside the pool), not "the primary server".
+- `Models/PlexContentKey.swift` is the *cross-server* identity used for merging:
+  the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
+  the `guids` array namespaced by type, else `type|normalizedTitle|year`
+  (seasons: show|season, episodes: show|season|episode), else `.instance(id)` —
+  this one copy and nothing else. It answers "is this the same title as that one,
+  on another server" — never use it as a storage key or a request parameter.
+  - Namespaces are **per type**, not collapsed: a show, its season and its
+    episode routinely carry the same tvdb id and must never merge. Clips
+    ("Other Videos", which report `type == "movie"` with `subtype == "clip"`)
+    get their own namespace via `isClip`.
+  - The heuristic is only allowed for movie/show/season/episode, and only when
+    it actually carries information (a title, or a show plus numbering).
+    Anything else — a guid-less clip called "Trailer", a season with no show —
+    resolves to `.instance` and merges with nothing.
+  - `isStrong` marks the two key kinds that identify the *content* (`plex`,
+    `external`). Only those may be recorded as playback alternates; a heuristic
+    key may collapse a row on screen and nothing more.
+
+## Merging Rules
+`PlexService/MultiServer/` merges what the connected servers return. Fan-outs use
+a `TaskGroup`, a server that fails contributes `[]`, and results are grouped by
+`PlexContentKey`.
+
+Entry points on `PlexService` (`PlexService+MultiServer.swift`):
+`mergeServerIDs` (connected servers in priority order),
+`fanOutAcrossServers` (all answers, priority-ordered, once they all land),
+`streamAcrossServers` (each answer the moment it lands, carrying its `rank`),
+`streamHomeHubs` / `streamContinueWatching` / `streamSearch`,
+`mergedHubItems(for:size:)` (pages every source of a merged row and re-merges),
+and `registerAlternates(_:)`.
+
+Every merge takes its per-server lists in **priority order** and is a pure
+function of them. That is what makes progressive rendering safe: a screen can
+merge what it has, render, and merge again when the next server answers without
+deriving a different list. A single list is always returned verbatim — a
+single-server install must never see its rows reordered or deduplicated, because
+a heuristic content key can legitimately collide on one server.
+
+- `ContentAlternatesIndex` (`plexService.alternates`) is the side table the merges
+  fill and playback reads: `register(_:for:)` records that these `PlexItemID`s are
+  the same content, `instances(of:)` returns every known copy. It accumulates for
+  the whole session and is cleared by `tearDownServerSessions()` (sign-out, Plex Home switch),
+  because rating keys only mean something for the account that fetched them.
+  Two registration rules exist because playing the wrong file is worse than
+  offering no fallback: **only strong keys are recorded** (`PlexContentKey.isStrong`),
+  and **at most one id per (key, server)** — two copies on one server are two
+  files, so `instances(of:)` returns the id it was asked about plus copies on
+  *other* servers only. An id seen later under a better key is moved, never left
+  listed under both. `PlexItemMerge.alternates(in:)`/`combine(_:_:)` apply the
+  same rules to the tables they hand out.
+- Continue Watching: representative = newest `lastViewedAt`, then larger
+  `viewOffset`, then lowest server rank; the row is then sorted newest-first. The
+  other copies are registered as alternates (in rank order) for playback fallback.
+- Hubs: keyed on `hubIdentifier` with its trailing numeric section suffix
+  stripped, plus type (normalized title as fallback). Deduped by content key and
+  round-robin interleaved in priority order. `PlexHub.sources` records each
+  contributing (serverID, key, size, more) so "Show All" can page each source and
+  re-merge. `HubMerge.Mode` decides what "the same row" means, and getting it
+  wrong makes whole libraries disappear from Home:
+  - `.home` (one list per server, `GET /hubs`): the stripped identifier is not
+    enough, because that suffix is the *only* thing telling two movie libraries
+    on one server apart. The key therefore also carries the library — its
+    normalized `librarySectionTitle`, which is comparable across servers, or the
+    server and section id when the title is missing (then it simply never
+    merges) — and two rows from the same server never merge whatever their keys
+    say.
+  - `.libraryType` (one list per library, `GET /hubs/sections/{id}`): a type tab
+    exists to show every library of that type as one screen, so rows of the same
+    kind merge across libraries, same server or not.
+  - A merged row's `id` is the merge key (`PlexHub.mergeIdentity`), never the
+    representative's `hubIdentifier`: that identifier carries one server's
+    section id and two merged rows can carry the same one.
+- Search: fanned out to every connected server and **republished as each server
+  answers**, so results stream in. Grouped by type, deduped by content key,
+  interleaved by rank. It is an error only when every server failed and there is
+  nothing to show. Seerr results layer on unchanged.
+- Libraries are **not** merged into virtual libraries. Each server's libraries
+  stay distinct, ordered by the account's `pinnedSources`, and the server name is
+  shown **only** when another library of the same type has the same title
+  (`ServerLabeling`). A single-server account must look exactly as it did before.
+- Live TV uses the highest-priority enabled server only.
+
 ## Model Conventions
 - List, hub, and search rows use `PlexItem`; full metadata uses
   `PlexMediaDetails`.
-- `ratingKey` is the stable identity for most media models.
+- `ratingKey` is stable only *within* one server; `PlexItemID` is the identity.
 - Plex capitalized arrays map directly: `Media`, `Part`, `Stream`, `Genre`,
   `Role`, `Marker`, `Image`, etc.
 - Most fields are optional because Plex varies by endpoint, media type, agent,
@@ -390,6 +645,11 @@ Pitfalls:
 ## Safe-Change Checklist
 - Keep network calls out of views.
 - Use the existing helper matching the Plex envelope.
+- Route every server call by the item's `serverID`; never let it fall back to
+  the primary by accident.
+- Decode through `pool.decoder(for:)` so models keep their server stamp.
+- Keep failure per server: a 401 or an outage on one server must not clear the
+  pool or empty the other servers' content.
 - Preserve account-token vs server-token separation.
 - Preserve first-login auth propagation retries.
 - Keep decoding tolerant and optional.

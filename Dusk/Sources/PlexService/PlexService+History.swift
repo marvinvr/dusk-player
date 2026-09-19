@@ -16,7 +16,8 @@ extension PlexService {
         librarySectionId: String,
         viewedSince: Date,
         limit: Int = 400,
-        pageSize: Int = 200
+        pageSize: Int = 200,
+        serverID: String? = nil
     ) async throws -> [PlexPlaybackHistoryEntry] {
         let epochSeconds = Int(viewedSince.timeIntervalSince1970.rounded(.down))
         let clampedLimit = max(limit, 0)
@@ -43,7 +44,8 @@ extension PlexService {
 
             let page: [PlexPlaybackHistoryEntry] = try await fetchMetadata(
                 path: "/status/sessions/history/all",
-                queryItems: queryItems
+                queryItems: queryItems,
+                serverID: serverID
             )
 
             guard !page.isEmpty else { break }

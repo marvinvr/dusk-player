@@ -27,7 +27,19 @@ final class ShowDetailViewModel {
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     private let prefersOfflineAvailability: Bool
-    let ratingKey: String
+    /// Server-scoped identity of the show. Seasons, episodes, and artwork all
+    /// come from `id.serverID` — a show's children only exist on its own server.
+    let id: PlexItemID
+
+    var ratingKey: String { id.ratingKey }
+
+    /// The route's server wins; the download record and the primary server are
+    /// only fallbacks for an id that reached us without one (an offline cache).
+    var serverID: String? {
+        id.serverID
+            ?? downloadManager?.serverID(for: id)
+            ?? plexService.pool.primary?.serverID
+    }
 
     private(set) var details: PlexMediaDetails?
     private(set) var seasons: [PlexSeason] = []
@@ -42,14 +54,14 @@ final class ShowDetailViewModel {
     private(set) var offlineStateVersion = 0
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
     ) {
-        self.ratingKey = ratingKey
+        self.id = id
         self.plexService = plexService
         self.seerrService = seerrService
         self.downloadManager = downloadManager
@@ -80,7 +92,10 @@ final class ShowDetailViewModel {
 
     func markSeason(_ season: PlexSeason, watched: Bool) async {
         do {
-            try await plexService.setWatched(watched, ratingKey: season.ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                watched,
+                id: PlexItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey)
+            )
             try await reload()
         } catch {
             self.error = error.localizedDescription
@@ -98,7 +113,10 @@ final class ShowDetailViewModel {
     func toggleWatched() async {
         let target = !isWatched
         do {
-            try await plexService.setWatched(target, ratingKey: ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                target,
+                id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
+            )
             try await reload()
         } catch {
             self.error = error.localizedDescription
@@ -123,14 +141,14 @@ final class ShowDetailViewModel {
 
     var episodeCountText: String? {
         if DownloadsFeature.isVisible && isUsingCachedData {
-            return MediaTextFormatter.episodeCount(downloadManager?.downloadedEpisodeCount(showKey: ratingKey))
+            return MediaTextFormatter.episodeCount(downloadManager?.downloadedEpisodeCount(show: id))
         }
         return MediaTextFormatter.episodeCount(details?.leafCount)
     }
 
     var visibleSeasons: [PlexSeason] {
         guard DownloadsFeature.isVisible, isUsingCachedData, let downloadManager else { return seasons }
-        return seasons.filter { downloadManager.hasDownloadedEpisodes(seasonKey: $0.ratingKey) }
+        return seasons.filter { downloadManager.hasDownloadedEpisodes(season: $0.id) }
     }
 
     var seasonItems: [SeasonItem] {
@@ -148,23 +166,28 @@ final class ShowDetailViewModel {
 
     func backdropURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: details?.art, width: width, height: height)
+            ?? plexService.imageURL(for: details?.art, serverID: serverID, width: width, height: height)
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: details?.thumb, width: width, height: height)
+            ?? plexService.imageURL(for: details?.thumb, serverID: serverID, width: width, height: height)
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
     }
 
     func seasonPosterURL(_ season: PlexSeason, width: Int, height: Int) -> URL? {
         let path = season.thumb ?? season.parentThumb ?? season.art
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, width: width, height: height)
+            ?? plexService.imageURL(
+                for: path,
+                serverID: season.serverID ?? serverID,
+                width: width,
+                height: height
+            )
     }
 
     func seasonPosterURL(_ season: SeerrSeasonSummary, width: Int) -> URL? {
@@ -184,7 +207,7 @@ final class ShowDetailViewModel {
         }
 
         if let downloadManager {
-            let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
+            let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if showsOfflineAvailability {
                 let episodeCount = MediaTextFormatter.episodeCount(season.leafCount)
                 guard downloadedCount > 0 else {
@@ -206,7 +229,7 @@ final class ShowDetailViewModel {
 
     func seasonProgress(_ season: PlexSeason) -> Double? {
         if DownloadsFeature.isVisible, let downloadManager {
-            let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
+            let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if let total = season.leafCount, total > 0, downloadedCount > 0 {
                 return Double(downloadedCount) / Double(total)
             }
@@ -224,7 +247,7 @@ final class ShowDetailViewModel {
 
     func seasonAvailabilityBadge(_ season: PlexSeason) -> String? {
         guard showsOfflineAvailability, let downloadManager else { return nil }
-        let downloadedCount = downloadManager.downloadedEpisodeCount(seasonKey: season.ratingKey)
+        let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
         guard downloadedCount > 0 else { return "Not Downloaded" }
         guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Available Offline" }
         return "Partial"
@@ -232,14 +255,15 @@ final class ShowDetailViewModel {
 
     func isSeasonUnavailableOffline(_ season: PlexSeason) -> Bool {
         guard showsOfflineAvailability, let downloadManager else { return false }
-        return !downloadManager.hasDownloadedEpisodes(seasonKey: season.ratingKey)
+        return !downloadManager.hasDownloadedEpisodes(season: season.id)
     }
 
-    func detailRoute(type: PlexMediaType, ratingKey: String) -> AppNavigationRoute {
+    func detailRoute(type: PlexMediaType, id: PlexItemID) -> AppNavigationRoute {
         prefersOfflineAvailability && DownloadsFeature.isVisible
-            ? .downloadedMedia(type: type, ratingKey: ratingKey)
-            : .media(type: type, ratingKey: ratingKey)
+            ? .downloadedMedia(type: type, id: id)
+            : .media(type: type, id: id)
     }
+
 
     // MARK: - Play Next
 
@@ -266,12 +290,15 @@ final class ShowDetailViewModel {
 
     var nextEpisodeRoute: AppNavigationRoute? {
         guard let nextEpisode else { return nil }
-        return detailRoute(type: .episode, ratingKey: nextEpisode.ratingKey)
+        return detailRoute(type: .episode, id: nextEpisode.id)
     }
 
     var nextSeasonRoute: AppNavigationRoute? {
         guard let seasonRatingKey = nextEpisode?.parentRatingKey else { return nil }
-        return detailRoute(type: .season, ratingKey: seasonRatingKey)
+        return detailRoute(
+            type: .season,
+            id: PlexItemID(serverID: nextEpisode?.serverID ?? serverID, ratingKey: seasonRatingKey)
+        )
     }
 
     var nextEpisodeMenuLabel: String {
@@ -300,7 +327,7 @@ final class ShowDetailViewModel {
 
     var offlineBannerText: String? {
         guard showsOfflineAvailability else { return nil }
-        let downloadedCount = downloadManager?.downloadedEpisodeCount(showKey: ratingKey) ?? 0
+        let downloadedCount = downloadManager?.downloadedEpisodeCount(show: id) ?? 0
         guard let total = details?.leafCount, total > 0, downloadedCount > 0 else {
             return nil
         }
@@ -311,11 +338,11 @@ final class ShowDetailViewModel {
     }
 
     private func reload() async throws {
-        if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+        if let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
             details = cachedDetails
             isUsingCachedData = true
         }
-        if let cachedSeasons = downloadManager?.cachedSeasons(showKey: ratingKey) {
+        if let cachedSeasons = downloadManager?.cachedSeasons(show: id) {
             seasons = cachedSeasons.sorted { $0.index < $1.index }
             isUsingCachedData = true
         }
@@ -323,8 +350,14 @@ final class ShowDetailViewModel {
         // Context-menu navigation can create transient view/task lifetimes here.
         // Keeping these requests sequential avoids the async-let runtime abort seen in TestFlight.
         do {
-            let loadedDetails = try await plexService.getMediaDetails(ratingKey: ratingKey)
-            let loadedSeasons = try await plexService.getSeasons(showKey: ratingKey)
+            let loadedDetails = try await plexService.getMediaDetails(
+                ratingKey: ratingKey,
+                serverID: serverID
+            )
+            let loadedSeasons = try await plexService.getSeasons(
+                showKey: ratingKey,
+                serverID: serverID
+            )
             details = loadedDetails
             seasons = loadedSeasons.sorted { $0.index < $1.index }
             isUsingCachedData = false
@@ -386,18 +419,21 @@ final class ShowDetailViewModel {
         }
 
         do {
-            let episodes = try await plexService.getEpisodes(seasonKey: season.ratingKey)
-                .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+            let episodes = try await plexService.getEpisodes(
+                seasonKey: season.ratingKey,
+                serverID: season.serverID ?? serverID
+            )
+            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
             nextEpisode = episodes.first(where: { isPartiallyWatched($0) })
                 ?? episodes.first(where: { !isWatched($0) })
                 ?? episodes.first
             await loadNextEpisodeDetails()
         } catch {
-            let episodes = downloadManager?.cachedEpisodes(seasonKey: season.ratingKey)?
+            let episodes = downloadManager?.cachedEpisodes(season: season.id)?
                 .sorted { ($0.index ?? 0) < ($1.index ?? 0) } ?? []
             let playableEpisodes = isUsingCachedData
-                ? episodes.filter { downloadManager?.isPlayableOffline(ratingKey: $0.ratingKey) == true }
+                ? episodes.filter { downloadManager?.isPlayableOffline(id: $0.id) == true }
                 : episodes
             nextEpisode = playableEpisodes.first(where: { isPartiallyWatched($0) })
                 ?? playableEpisodes.first(where: { !isWatched($0) })
@@ -413,9 +449,12 @@ final class ShowDetailViewModel {
         }
 
         do {
-            nextEpisodeDetails = try await plexService.getMediaDetails(ratingKey: nextEpisode.ratingKey)
+            nextEpisodeDetails = try await plexService.getMediaDetails(
+                ratingKey: nextEpisode.ratingKey,
+                serverID: nextEpisode.serverID ?? serverID
+            )
         } catch {
-            nextEpisodeDetails = downloadManager?.cachedMediaDetails(ratingKey: nextEpisode.ratingKey)
+            nextEpisodeDetails = downloadManager?.cachedMediaDetails(for: nextEpisode.id)
         }
     }
 
@@ -441,10 +480,16 @@ final class ShowDetailViewModel {
         ) ?? episode.viewOffset
     }
 
+    /// An episode decoded from this show's server is already stamped with it;
+    /// the download records only answer for an episode restored from a cache.
+    ///
+    /// The show's own server wins over any rating-key-only guess: an episode of
+    /// *this* show can only live on the server the show was read from, whereas
+    /// `DownloadManager.record(for:)` matches an unstamped id on the rating key
+    /// alone and could hand back an unrelated download from another server.
     private func serverID(for episode: PlexEpisode) -> String? {
-        downloadManager?.serverID(for: episode.ratingKey)
-            ?? downloadManager?.serverID(for: episode.parentRatingKey ?? "")
-            ?? downloadManager?.serverID(for: ratingKey)
-            ?? plexService.currentServerIdentifier
+        episode.serverID
+            ?? downloadManager?.serverID(for: episode.id)
+            ?? serverID
     }
 }

@@ -199,10 +199,11 @@ extension PlaybackCoordinator {
 
         let attemptID = UUID()
         currentPlaybackAttemptID = attemptID
-        let didStart = await startPlaybackSession(
-            ratingKey: poster.episode.ratingKey,
+        let didStart = await runPlaybackAttempt(
+            id: poster.episode.id,
             startPositionOverride: nil,
             resumeOffsetMilliseconds: poster.episode.viewOffset,
+            resumeOffsetDurationMilliseconds: poster.episode.duration,
             selectedMediaID: nil,
             attemptID: attemptID
         )
@@ -366,11 +367,11 @@ extension PlaybackCoordinator {
         // already-finalized engine keeps showing behind it.
         let attemptID = UUID()
         currentPlaybackAttemptID = attemptID
-        let nextRatingKey = presentation.episode.ratingKey
-        let didStart = await startPlaybackSession(
-            ratingKey: nextRatingKey,
+        let didStart = await runPlaybackAttempt(
+            id: presentation.episode.id,
             startPositionOverride: nil,
             resumeOffsetMilliseconds: presentation.episode.viewOffset,
+            resumeOffsetDurationMilliseconds: presentation.episode.duration,
             selectedMediaID: nil,
             attemptID: attemptID
         )

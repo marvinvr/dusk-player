@@ -22,7 +22,11 @@ struct HomeView: View {
                 if let viewModel {
                     let hasHomeContent = viewModel.hasLoadedContent
 
-                    if viewModel.isLoading, !hasHomeContent {
+                    if !hasHomeContent, !availability.isReady {
+                        // Nothing to show and the cause is the servers, not
+                        // Home: say which one, with the action that fixes it.
+                        ServerAvailabilityStateView(availability: availability)
+                    } else if viewModel.isLoading, !hasHomeContent {
                         FeatureLoadingView()
                     } else if let error = viewModel.error, !hasHomeContent {
                         FeatureErrorView(message: error) {
@@ -35,8 +39,11 @@ struct HomeView: View {
                     FeatureLoadingView()
                 }
             }
-            .task(id: loadContext) {
-                let newViewModel = HomeViewModel(plexService: plexService)
+            // Keyed on the merged-content revision: Home has to reload when a
+            // server connects or drops, when priority changes, and when the
+            // profile changes — the tab shell mounts before any of that.
+            .task(id: plexService.serverContentRevision) {
+                let newViewModel = viewModel ?? HomeViewModel(plexService: plexService)
                 viewModel = newViewModel
                 await newViewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
             }
@@ -74,7 +81,7 @@ struct HomeView: View {
         HomeTVView(
             path: $path,
             viewModel: viewModel,
-            serverName: plexService.connectedServer?.name,
+            offlineServerNames: availability.offlineServerNames,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
             heroSelectionResetRevision: heroSelectionResetRevision,
             liveTVViewModel: liveTVViewModel,
@@ -86,7 +93,7 @@ struct HomeView: View {
         HomeIOSView(
             path: $path,
             viewModel: viewModel,
-            serverName: plexService.connectedServer?.name,
+            offlineServerNames: availability.offlineServerNames,
             recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
             heroSelectionResetRevision: heroSelectionResetRevision,
             liveTVViewModel: liveTVViewModel,
@@ -95,6 +102,10 @@ struct HomeView: View {
             play: play
         )
         #endif
+    }
+
+    private var availability: ServerAvailability {
+        plexService.pool.availability
     }
 
     private var recentlyAddedInlineItemLimit: Int {
@@ -108,8 +119,9 @@ struct HomeView: View {
     private func play(_ item: PlexItem) {
         Task {
             await playback.play(
-                ratingKey: item.ratingKey,
+                id: item.id,
                 resumeOffsetMilliseconds: item.viewOffset,
+                resumeOffsetDurationMilliseconds: item.duration,
                 placeholder: PlaybackPlaceholder(item: item)
             )
         }
@@ -128,16 +140,4 @@ struct HomeView: View {
     private func resetHeroSelection() {
         heroSelectionResetRevision += 1
     }
-
-    private var loadContext: HomeLoadContext {
-        HomeLoadContext(
-            profileID: plexService.activeProfileID,
-            serverID: plexService.currentServerIdentifier
-        )
-    }
-}
-
-private struct HomeLoadContext: Hashable {
-    let profileID: String?
-    let serverID: String?
 }

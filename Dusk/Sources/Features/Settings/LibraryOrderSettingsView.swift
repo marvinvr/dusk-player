@@ -66,8 +66,11 @@ struct LibraryOrderSettingsView: View {
         List {
             Section {
                 ForEach(viewModel.libraries) { library in
-                    Label(library.title, systemImage: Self.iconName(for: library))
-                        .foregroundStyle(Color.duskTextPrimary)
+                    Label(
+                        viewModel.displayTitle(for: library),
+                        systemImage: Self.iconName(for: library)
+                    )
+                    .foregroundStyle(Color.duskTextPrimary)
                 }
                 .onMove { offsets, destination in
                     viewModel.move(fromOffsets: offsets, toOffset: destination)
@@ -116,13 +119,16 @@ struct LibraryOrderSettingsView: View {
                     title: "Order",
                     footer: "Choose the position of each library. The order is saved to your Plex account, so other Plex apps use it too."
                 ) {
-                    ForEach(Array(viewModel.libraries.enumerated()), id: \.element) { index, library in
+                    // Keyed on the library's own id: `PlexLibrary`'s Hashable
+                    // conformance only looks at `key`, which two servers can
+                    // both hand out.
+                    ForEach(Array(viewModel.libraries.enumerated()), id: \.element.id) { index, library in
                         if index > 0 {
                             tvRowDivider
                         }
 
                         TVSettingsMenuRow(
-                            title: library.title,
+                            title: viewModel.displayTitle(for: library),
                             options: Array(viewModel.libraries.indices),
                             selection: positionBinding(viewModel, for: library),
                             selectedTitle: LibraryOrderPositionName.label(for: index)

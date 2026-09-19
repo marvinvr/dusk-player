@@ -375,6 +375,10 @@ struct PlexLivePlaybackContext: Sendable, Hashable {
 }
 
 struct PlexLiveTuneResult: Sendable {
+    /// The server the tuner session lives on. Live TV runs on one server at a
+    /// time, and every follow-up call (stream URL, transcode ping/stop) has to
+    /// go back to that same one.
+    let serverID: String
     let sessionID: String
     let playbackSessionIdentifier: String
     let transcodeSessionID: String?

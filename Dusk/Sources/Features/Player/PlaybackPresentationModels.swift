@@ -34,19 +34,25 @@ struct PlaybackPlaceholder: Sendable {
     let posterPath: String?
     let backdropPath: String?
     let artwork: Artwork
+    /// The server the art paths belong to. Image paths are server-relative, so
+    /// the loading screen has to ask that server for them rather than whichever
+    /// one happens to be primary.
+    let serverID: String?
 
     init(
         title: String,
         subtitle: String?,
         posterPath: String?,
         backdropPath: String?,
-        artwork: Artwork = .poster
+        artwork: Artwork = .poster,
+        serverID: String? = nil
     ) {
         self.title = title
         self.subtitle = subtitle
         self.posterPath = posterPath
         self.backdropPath = backdropPath
         self.artwork = artwork
+        self.serverID = serverID
     }
 }
 
@@ -56,7 +62,8 @@ extension PlaybackPlaceholder {
             title: item.continueWatchingDisplayTitle,
             subtitle: item.standardPosterSubtitle,
             posterPath: item.preferredPosterPath,
-            backdropPath: item.preferredLandscapePath
+            backdropPath: item.preferredLandscapePath,
+            serverID: item.serverID
         )
     }
 
@@ -68,7 +75,8 @@ extension PlaybackPlaceholder {
                 episode: episode.index
             ) ?? episode.title,
             posterPath: episode.grandparentThumb ?? episode.thumb ?? episode.art,
-            backdropPath: episode.thumb ?? episode.art ?? episode.grandparentThumb
+            backdropPath: episode.thumb ?? episode.art ?? episode.grandparentThumb,
+            serverID: episode.serverID
         )
     }
 
@@ -82,14 +90,16 @@ extension PlaybackPlaceholder {
                     episode: details.index
                 ) ?? details.title,
                 posterPath: details.grandparentThumb ?? details.parentThumb ?? details.thumb ?? details.art,
-                backdropPath: details.art ?? details.thumb ?? details.grandparentThumb
+                backdropPath: details.art ?? details.thumb ?? details.grandparentThumb,
+                serverID: details.serverID
             )
         default:
             self.init(
                 title: details.title,
                 subtitle: details.year.map(String.init),
                 posterPath: details.thumb ?? details.art,
-                backdropPath: details.art ?? details.thumb
+                backdropPath: details.art ?? details.thumb,
+                serverID: details.serverID
             )
         }
     }

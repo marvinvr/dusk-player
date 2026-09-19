@@ -1,11 +1,21 @@
 import Foundation
 
+/// One thing the user watched, collapsed to the title level, used to score
+/// genres.
+///
+/// `id` carries the server: the signal is followed up with a metadata fetch, and
+/// a bare rating key would read whatever item happens to share that key on the
+/// primary server. `identity` is the de-duplication key and includes the server
+/// for the same reason — two servers' "1423" are not the same show.
 struct RecommendationTasteSignal: Sendable {
     let identity: String
-    let ratingKey: String
+    let id: PlexItemID
     let type: PlexMediaType?
     var weight: Double
     var lastViewedAt: Int
+
+    var ratingKey: String { id.ratingKey }
+    var serverID: String? { id.serverID }
 }
 
 struct RecommendationScoredGenre: Sendable {
@@ -143,6 +153,38 @@ struct RecommendationSeededRandomizer {
 
         return string.utf8.reduce(offsetBasis) { hash, byte in
             (hash ^ UInt64(byte)) &* prime
+        }
+    }
+}
+
+/// The titles a recommendation pass has already used.
+///
+/// Tracks both the exact copy (`PlexItemID`) and the *content* (`PlexContentKey`)
+/// because shelves now draw from several servers at once: without the content
+/// key the same film sitting on two servers would fill two slots of the same
+/// row, which is precisely the duplication merging is supposed to remove.
+struct RecommendationSeenTitles {
+    private var ids: Set<PlexItemID> = []
+    private var contentKeys: Set<PlexContentKey> = []
+
+    init() {}
+
+    func contains(_ item: PlexItem) -> Bool {
+        ids.contains(item.id) || contentKeys.contains(item.contentKey)
+    }
+
+    /// Returns false when the title was already used.
+    @discardableResult
+    mutating func insert(_ item: PlexItem) -> Bool {
+        guard !contains(item) else { return false }
+        ids.insert(item.id)
+        contentKeys.insert(item.contentKey)
+        return true
+    }
+
+    mutating func formUnion(_ items: some Sequence<PlexItem>) {
+        for item in items {
+            insert(item)
         }
     }
 }

@@ -190,20 +190,25 @@ struct DuskApp: App {
 }
 
 private extension DuskApp {
+    /// Seerr is bound to the account's first enabled server (see
+    /// `SeerrService`), not to whichever server happens to be connected, so its
+    /// context only changes when that binding or the profile does.
     var seerrContextID: String {
         [
             plexService.activeProfileID ?? "none",
-            plexService.currentServerIdentifier ?? "none",
+            plexService.seerrBindingServerID ?? "none",
             String(plexService.isAuthenticated),
         ].joined(separator: ":")
     }
 
+    /// Offline sync spans the whole pool: a second server coming up has to
+    /// re-arm it, so the connected count is part of the identity.
     var offlineContextID: String {
         [
             String(plexService.homeBootstrapCompleted),
             plexService.activeProfileID ?? "none",
-            plexService.currentServerIdentifier ?? "none",
-            String(plexService.isConnected),
+            plexService.pool.primary?.serverID ?? "none",
+            String(plexService.pool.connections.count),
         ].joined(separator: ":")
     }
 

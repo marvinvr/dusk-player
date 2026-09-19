@@ -74,14 +74,20 @@ enum DownloadStatus: String, Codable, Sendable {
     }
 }
 
+/// What a download control acts on: one item (or one season/show branch) on one
+/// server. The server travels with the rating key because the same key means a
+/// different title on every other server the account has connected.
 struct DownloadScope: Hashable, Sendable {
-    let ratingKey: String
+    let id: PlexItemID
     let type: PlexMediaType
 
-    init(ratingKey: String, type: PlexMediaType) {
-        self.ratingKey = ratingKey
+    init(id: PlexItemID, type: PlexMediaType) {
+        self.id = id
         self.type = type
     }
+
+    var ratingKey: String { id.ratingKey }
+    var serverID: String? { id.serverID }
 }
 
 struct DownloadControlState: Hashable, Sendable {
@@ -118,8 +124,11 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// Stable Plex Home identity that owns this download. A nil value is a
     /// pre-Plex-Home record awaiting one-time adoption by the original account.
     var accountProfileID: String? = nil
-    let serverID: String
-    let serverName: String?
+    /// Machine identifier of the server the file came from. Mutable only so a
+    /// legacy record keyed on the server's base URL can be re-keyed once the
+    /// matching server is known (see `DownloadManager`).
+    var serverID: String
+    var serverName: String?
     let ratingKey: String
     let type: PlexMediaType
     /// Whether the item is a video clip (Plex reports clips as `type == "movie"`
@@ -169,6 +178,11 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
             serverID: serverID,
             ratingKey: ratingKey
         )
+    }
+
+    /// Server-scoped identity of the downloaded item, for playback and lookups.
+    var itemID: PlexItemID {
+        PlexItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
     var displayTitle: String {
@@ -244,6 +258,10 @@ struct DownloadedShowSummary: Identifiable, Hashable {
 
     var id: String {
         DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
+    }
+
+    var itemID: PlexItemID {
+        PlexItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
     var subtitle: String {

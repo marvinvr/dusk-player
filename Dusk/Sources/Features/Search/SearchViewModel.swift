@@ -51,6 +51,10 @@ final class SearchViewModel {
         item.availabilityBadge(using: seerrService)
     }
 
+    /// Fans the query out to every connected server and republishes the merged
+    /// results as each one answers, so a local server's hits are on screen
+    /// while a relayed server is still searching. Seerr layers on top
+    /// afterwards, exactly as before.
     private func performSearch(_ query: String) async {
         isSearching = true
         error = nil
@@ -63,23 +67,40 @@ final class SearchViewModel {
         }
         defer { seerrTask.cancel() }
 
+        let serverIDs = plexService.mergeServerIDs
+        var resultsByServer = [[PlexSearchResult]](repeating: [], count: serverIDs.count)
+        var failureCount = 0
+        var firstFailure: (any Error)?
         var plexGroups: [PlexSearchResult] = []
-        var plexError: Error?
-        do {
-            plexGroups = try await plexService.search(query: query)
+
+        for await result in plexService.streamSearch(query: query) {
             guard !Task.isCancelled else { return }
+
+            switch result.value {
+            case let .success(groups):
+                resultsByServer[result.rank] = groups
+            case let .failure(error):
+                failureCount += 1
+                firstFailure = firstFailure ?? error
+            }
+
+            let merged = SearchMerge.merge(resultsByServer)
+            plexService.registerAlternates(merged.alternates)
+            plexGroups = merged.groups
             results = Self.makeGroups(plexGroups: plexGroups, seerrItems: [])
             hasSearched = true
-        } catch {
-            plexError = error
         }
+
+        guard !Task.isCancelled else { return }
 
         let seerrItems = await seerrTask.value
         guard !Task.isCancelled else { return }
         results = Self.makeGroups(plexGroups: plexGroups, seerrItems: seerrItems)
         hasSearched = true
-        if results.isEmpty, let plexError {
-            self.error = plexError.localizedDescription
+        // An error only when every server failed and there is nothing to show;
+        // one unreachable server must not hide the other's hits.
+        if results.isEmpty, failureCount == serverIDs.count, let firstFailure {
+            self.error = firstFailure.localizedDescription
         }
         isSearching = false
     }

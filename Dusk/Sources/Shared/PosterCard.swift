@@ -300,19 +300,25 @@ extension PlexItem {
         }
     }
 
+    /// A relative of this item — its season or its show — always lives on the
+    /// same server, so the route inherits this item's `serverID`.
+    private func relativeID(_ ratingKey: String) -> PlexItemID {
+        PlexItemID(serverID: serverID, ratingKey: ratingKey)
+    }
+
     var contextMenuSeasonRoute: AppNavigationRoute? {
         guard type == .episode, let parentRatingKey else { return nil }
-        return .media(type: .season, ratingKey: parentRatingKey)
+        return .media(type: .season, id: relativeID(parentRatingKey))
     }
 
     var contextMenuShowRoute: AppNavigationRoute? {
         switch type {
         case .episode:
             guard let grandparentRatingKey else { return nil }
-            return .media(type: .show, ratingKey: grandparentRatingKey)
+            return .media(type: .show, id: relativeID(grandparentRatingKey))
         case .season:
             guard let parentRatingKey else { return nil }
-            return .media(type: .show, ratingKey: parentRatingKey)
+            return .media(type: .show, id: relativeID(parentRatingKey))
         default:
             return nil
         }

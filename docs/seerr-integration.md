@@ -48,9 +48,22 @@ by a noninteractive, appearance-aware status capsule rather than a disabled
 primary button. Seerr movie, show, and season detail scroll views support native
 pull-to-refresh so request and availability state can be fetched on demand.
 
-Sessions are partitioned by normalized Seerr URL, active Plex profile ID, and
-selected Plex server ID. Changing Plex Home identity never reuses another
-identity's Seerr session. Signing out of Plex clears stored Seerr sessions.
+Sessions are partitioned by normalized Seerr URL, active Plex profile ID, and a
+Plex server ID. A Seerr instance is configured against one Plex server, so the
+binding is `plexService.seerrBindingServerID`: the first **enabled** entry of
+Server Priority (falling back to the first entry). That value is persisted, so
+it is already known at launch before any server has answered and it does not
+move when the top server is offline — unlike `pool.primary?.serverID`, which
+would flip the binding and make an existing session look unconfigured. Seerr is
+deliberately not merged across servers.
+
+Session matching is tolerant on purpose: the bound server wins, but a stored
+session recorded against any other server this account knows still counts as
+connected, so an upgrade never forces the user to re-link the same Seerr
+instance. Sessions whose stored id is a pre-multi-server base URL are re-keyed
+once through `plexService.serverID(forLegacyConnectionURI:)` when it resolves.
+Changing Plex Home identity never reuses another profile's Seerr session, and
+signing out of Plex clears stored Seerr sessions.
 
 ## Search And Detail Flow
 
@@ -76,7 +89,7 @@ missing seasons. Whole-show detail always offers all missing seasons.
 
 Online Plex show details request GUIDs. Missing-season enrichment runs only when:
 
-- Seerr is connected for the current Plex profile/server;
+- Seerr is connected for the current Plex profile and its bound server;
 - live Plex metadata is in use, not cached offline metadata; and
 - the Plex show has an exact `tmdb://` GUID.
 

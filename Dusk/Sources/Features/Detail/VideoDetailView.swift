@@ -18,13 +18,13 @@ struct VideoDetailView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         _viewModel = State(initialValue: VideoDetailViewModel(
-            ratingKey: ratingKey,
+            id: id,
             plexService: plexService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager
@@ -196,8 +196,9 @@ struct VideoDetailView: View {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
                 await playback.play(
-                    ratingKey: details.ratingKey,
+                    id: details.id,
                     resumeOffsetMilliseconds: details.viewOffset,
+                    resumeOffsetDurationMilliseconds: details.duration,
                     placeholder: PlaybackPlaceholder(details: details)
                 )
             }
@@ -215,7 +216,7 @@ struct VideoDetailView: View {
                 PlayVersionContextMenu(versions: details.media) { version in
                     Task {
                         await playback.playVersion(
-                            ratingKey: details.ratingKey,
+                            id: details.id,
                             mediaID: version.id,
                             resumeOffsetMilliseconds: details.viewOffset,
                             placeholder: PlaybackPlaceholder(details: details)
@@ -238,7 +239,7 @@ struct VideoDetailView: View {
 
     private func downloadButton(_ details: PlexMediaDetails) -> some View {
         DownloadActionButton(
-            ratingKey: details.ratingKey,
+            id: details.id,
             type: details.type,
             isClip: true,
             iconOnly: true

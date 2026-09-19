@@ -43,6 +43,7 @@ struct LibraryRecommendationEngine {
 
         let availableGenres = try await LibraryGenreSupport.loadGenreOptions(
             sectionId: library.key,
+            serverID: library.serverID,
             plexService: plexService
         )
 
@@ -66,7 +67,8 @@ struct LibraryRecommendationEngine {
         var history = try await plexService.getPlaybackHistory(
             accountId: currentUser?.id,
             librarySectionId: library.key,
-            viewedSince: viewedSince
+            viewedSince: viewedSince,
+            serverID: library.serverID
         )
 
         // Some Plex servers under-serve account-scoped history. Fall back to
@@ -75,7 +77,8 @@ struct LibraryRecommendationEngine {
             history = (try? await plexService.getPlaybackHistory(
                 accountId: nil,
                 librarySectionId: library.key,
-                viewedSince: viewedSince
+                viewedSince: viewedSince,
+                serverID: library.serverID
             )) ?? []
         }
 
@@ -111,12 +114,12 @@ struct LibraryRecommendationEngine {
         }
 
         var shelves: [LibraryPersonalizedShelf] = []
-        var usedRatingKeys = Set<String>()
+        var usedTitles = RecommendationSeenTitles()
 
         for scoredGenre in scoredGenres.prefix(shelfLimit) {
             let items = (try? await loadCandidates(
                 for: scoredGenre.genre,
-                usedRatingKeys: usedRatingKeys,
+                usedTitles: usedTitles,
                 itemsPerShelf: itemsPerShelf,
                 preferServerGenreFilter: !usesRawGenreInference
             )) ?? []
@@ -127,11 +130,12 @@ struct LibraryRecommendationEngine {
                 LibraryPersonalizedShelf(
                     genre: scoredGenre.genre,
                     title: "More \(scoredGenre.genre.title)",
-                    items: items
+                    items: items,
+                    showAllLibrary: library
                 )
             )
 
-            usedRatingKeys.formUnion(items.map(\.ratingKey))
+            usedTitles.formUnion(items)
         }
 
         return LibraryRecommendationLoadResult(
@@ -153,7 +157,10 @@ struct LibraryRecommendationEngine {
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(ratingKey: signal.ratingKey) else {
+            guard let details = try? await plexService.getMediaDetails(
+                ratingKey: signal.ratingKey,
+                serverID: signal.serverID
+            ) else {
                 recommendationLogger.debug(
                     "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
                 )
@@ -172,7 +179,10 @@ struct LibraryRecommendationEngine {
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(ratingKey: signal.ratingKey) else {
+            guard let details = try? await plexService.getMediaDetails(
+                ratingKey: signal.ratingKey,
+                serverID: signal.serverID
+            ) else {
                 recommendationLogger.debug(
                     "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
                 )
@@ -222,7 +232,7 @@ struct LibraryRecommendationEngine {
             } else {
                 signalByIdentity[identity.identity] = RecommendationTasteSignal(
                     identity: identity.identity,
-                    ratingKey: identity.ratingKey,
+                    id: identity.id,
                     type: identity.type,
                     weight: recencyWeight,
                     lastViewedAt: viewedAt
@@ -251,7 +261,8 @@ struct LibraryRecommendationEngine {
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
-                sort: "lastViewedAt:desc"
+                sort: "lastViewedAt:desc",
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { break }
@@ -293,14 +304,14 @@ struct LibraryRecommendationEngine {
 
     private func loadCandidates(
         for genre: LibraryGenreOption,
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int,
         preferServerGenreFilter: Bool
     ) async throws -> [PlexItem] {
         if preferServerGenreFilter, let genreValue = genre.value {
             let serverFilteredCandidates = try await loadServerFilteredCandidates(
                 for: genreValue,
-                usedRatingKeys: usedRatingKeys,
+                usedTitles: usedTitles,
                 itemsPerShelf: itemsPerShelf
             )
 
@@ -311,20 +322,21 @@ struct LibraryRecommendationEngine {
 
         return try await loadLocallyFilteredCandidates(
             for: genre,
-            usedRatingKeys: usedRatingKeys,
+            usedTitles: usedTitles,
             itemsPerShelf: itemsPerShelf
         )
     }
 
     private func loadServerFilteredCandidates(
         for genreValue: String,
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int
     ) async throws -> [PlexItem] {
         let filters = ["genre": genreValue]
         let totalCount = try await plexService.getLibraryItemCount(
             sectionId: library.key,
-            filters: filters
+            filters: filters,
+            serverID: library.serverID
         )
 
         guard totalCount > 0 else { return [] }
@@ -339,7 +351,7 @@ struct LibraryRecommendationEngine {
         )
 
         var pool: [PlexItem] = []
-        var seenRatingKeys = usedRatingKeys
+        var seen = usedTitles
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -349,13 +361,14 @@ struct LibraryRecommendationEngine {
                 start: start,
                 size: pageSize,
                 sort: "titleSort",
-                filters: filters
+                filters: filters,
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { continue }
 
-            for item in items where shouldIncludeCandidate(item, seenRatingKeys: seenRatingKeys) {
-                seenRatingKeys.insert(item.ratingKey)
+            for item in items where shouldIncludeCandidate(item, seen: seen) {
+                seen.insert(item)
                 pool.append(item)
             }
 
@@ -372,10 +385,13 @@ struct LibraryRecommendationEngine {
 
     private func loadLocallyFilteredCandidates(
         for genre: LibraryGenreOption,
-        usedRatingKeys: Set<String>,
+        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int
     ) async throws -> [PlexItem] {
-        let totalCount = try await plexService.getLibraryItemCount(sectionId: library.key)
+        let totalCount = try await plexService.getLibraryItemCount(
+            sectionId: library.key,
+            serverID: library.serverID
+        )
 
         guard totalCount > 0 else { return [] }
 
@@ -389,7 +405,7 @@ struct LibraryRecommendationEngine {
         )
 
         var pool: [PlexItem] = []
-        var seenRatingKeys = usedRatingKeys
+        var seen = usedTitles
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -397,15 +413,16 @@ struct LibraryRecommendationEngine {
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
-                sort: "titleSort"
+                sort: "titleSort",
+                serverID: library.serverID
             )
 
             guard !items.isEmpty else { continue }
 
-            for item in items where shouldIncludeCandidate(item, seenRatingKeys: seenRatingKeys) {
+            for item in items where shouldIncludeCandidate(item, seen: seen) {
                 guard await itemMatchesGenre(item, genre: genre) else { continue }
 
-                seenRatingKeys.insert(item.ratingKey)
+                seen.insert(item)
                 pool.append(item)
             }
 
@@ -420,9 +437,14 @@ struct LibraryRecommendationEngine {
         )
     }
 
+    /// Keys on the *server* plus the rating key: the same numeric key means a
+    /// different title on every server, so a bare key would fuse two servers'
+    /// taste signals together.
     private func collapsedIdentity(
         for entry: PlexPlaybackHistoryEntry
-    ) -> (identity: String, ratingKey: String, type: PlexMediaType)? {
+    ) -> (identity: String, id: PlexItemID, type: PlexMediaType)? {
+        let serverID = entry.serverID
+
         switch entry.type {
         case .episode:
             guard let showKey = extractRatingKey(from: entry.grandparentRatingKey),
@@ -430,9 +452,11 @@ struct LibraryRecommendationEngine {
                 return nil
             }
 
-            return ("show:\(showKey)", showKey, .show)
+            let id = PlexItemID(serverID: serverID, ratingKey: showKey)
+            return ("show:\(id.storageKey)", id, .show)
         case .movie, .show:
-            return ("\(entry.type.rawValue):\(entry.ratingKey)", entry.ratingKey, entry.type)
+            let id = PlexItemID(serverID: serverID, ratingKey: entry.ratingKey)
+            return ("\(entry.type.rawValue):\(id.storageKey)", id, entry.type)
         default:
             return nil
         }
@@ -444,9 +468,9 @@ struct LibraryRecommendationEngine {
 
     private func shouldIncludeCandidate(
         _ item: PlexItem,
-        seenRatingKeys: Set<String>
+        seen: RecommendationSeenTitles
     ) -> Bool {
-        guard !seenRatingKeys.contains(item.ratingKey) else { return false }
+        guard !seen.contains(item) else { return false }
         return !RecommendationCandidateSupport.isCompleted(item)
     }
 
@@ -468,8 +492,10 @@ struct LibraryRecommendationEngine {
             return true
         }
 
-        guard let details = try? await plexService.getMediaDetails(ratingKey: item.ratingKey),
-              let genres = details.genres else {
+        guard let details = try? await plexService.getMediaDetails(
+            ratingKey: item.ratingKey,
+            serverID: item.serverID
+        ), let genres = details.genres else {
             return false
         }
 
@@ -480,7 +506,7 @@ struct LibraryRecommendationEngine {
         RecommendationSeededRandomizer(
             calendar: calendar,
             nowProvider: nowProvider,
-            seedScope: library.key
+            seedScope: library.id
         )
         .dailySeed(for: value)
     }

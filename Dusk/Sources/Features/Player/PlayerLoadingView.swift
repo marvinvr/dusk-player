@@ -165,6 +165,7 @@ struct PlayerLoadingView: View {
     private func channelLogoURL(for path: String?) -> URL? {
         plexService.imageURL(
             for: path,
+            serverID: placeholder?.serverID,
             width: Int(channelTileSize * 2),
             height: Int(channelTileSize * 2)
         )
@@ -190,6 +191,7 @@ struct PlayerLoadingView: View {
         guard let path = placeholder?.posterPath else { return nil }
         return plexService.imageURL(
             for: path,
+            serverID: placeholder?.serverID,
             width: Int(posterWidth),
             height: Int(posterWidth * 1.5)
         )
@@ -197,6 +199,11 @@ struct PlayerLoadingView: View {
 
     private var backdropURL: URL? {
         guard let path = placeholder?.backdropPath else { return nil }
-        return plexService.imageURL(for: path, width: 1280, height: 720)
+        return plexService.imageURL(
+            for: path,
+            serverID: placeholder?.serverID,
+            width: 1280,
+            height: 720
+        )
     }
 }

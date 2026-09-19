@@ -4,7 +4,12 @@ import Foundation
 /// Returned from `GET /library/metadata/{ratingKey}`. Used by StreamResolver
 /// to determine which playback engine to use and to construct the direct play URL.
 struct PlexMediaDetails: Decodable, Sendable, Identifiable {
-    var id: String { ratingKey }
+    /// Server-scoped identity; see `PlexItemID`.
+    var id: PlexItemID { PlexItemID(serverID: serverID, ratingKey: ratingKey) }
+
+    /// Machine identifier of the server this payload came from, stamped by
+    /// `ServerPool.decoder(for:)`.
+    let serverID: String?
 
     let ratingKey: String
     let key: String
@@ -55,6 +60,8 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     /// Collections the item belongs to. Video clip libraries carry one per
     /// channel, which drives the "More from this channel" row.
     let collections: [PlexTag]?
+    /// Plex's scalar guid (`plex://…` on modern servers). See `PlexContentKey`.
+    let guid: String?
     let guids: [PlexGuid]
     let markers: [PlexMarker]
 
@@ -63,7 +70,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let media: [PlexMedia]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, subtype, librarySectionID, title, summary, year
+        case ratingKey, key, type, subtype, librarySectionID, title, summary, year, guid
         case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating
         case rating, audienceRating, studio, originallyAvailableAt
         case childCount, leafCount, viewedLeafCount
@@ -81,6 +88,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        serverID = decoder.duskServerID
         ratingKey = try container.decode(String.self, forKey: .ratingKey)
         key = try container.decode(String.self, forKey: .key)
         type = try container.decode(PlexMediaType.self, forKey: .type)
@@ -120,6 +128,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         writers = try container.decodeIfPresent([PlexTag].self, forKey: .writers)
         roles = try container.decodeIfPresent([PlexRole].self, forKey: .roles)
         collections = try container.decodeIfPresent([PlexTag].self, forKey: .collections)
+        guid = try container.decodeIfPresent(String.self, forKey: .guid)
         guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
         markers = (try container.decodeIfPresent([PlexMarker].self, forKey: .markers) ?? [])
             .sorted { $0.startTimeOffset < $1.startTimeOffset }

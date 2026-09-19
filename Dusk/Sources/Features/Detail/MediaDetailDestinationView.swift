@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MediaDetailDestinationView: View {
     let type: PlexMediaType
-    let ratingKey: String
+    let id: PlexItemID
     let plexService: PlexService
     let seerrService: SeerrService?
     let downloadManager: DownloadManager?
@@ -11,7 +11,7 @@ struct MediaDetailDestinationView: View {
 
     init(
         type: PlexMediaType,
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
@@ -19,7 +19,7 @@ struct MediaDetailDestinationView: View {
         prefersOfflineAvailability: Bool = false
     ) {
         self.type = type
-        self.ratingKey = ratingKey
+        self.id = id
         self.plexService = plexService
         self.seerrService = seerrService
         self.downloadManager = downloadManager
@@ -32,14 +32,14 @@ struct MediaDetailDestinationView: View {
         switch type {
         case .movie:
             MovieDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
         case .show:
             ShowDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 seerrService: seerrService,
                 downloadManager: downloadManager,
@@ -48,12 +48,13 @@ struct MediaDetailDestinationView: View {
             )
         case .person:
             ActorDetailView(
-                person: PlexPersonReference(personID: ratingKey, name: "Actor", thumb: nil),
+                person: PlexPersonReference(personID: id.ratingKey, name: "Actor", thumb: nil),
+                serverID: id.serverID,
                 plexService: plexService
             )
         case .season:
             SeasonDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -61,7 +62,7 @@ struct MediaDetailDestinationView: View {
             )
         case .episode:
             EpisodeDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
@@ -70,14 +71,14 @@ struct MediaDetailDestinationView: View {
             // Clips normally route through `.video`; this catches legacy
             // `.media(type: .clip, ...)` paths so they never open MovieDetailView.
             VideoDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
         default:
             MovieDetailView(
-                ratingKey: ratingKey,
+                id: id,
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager

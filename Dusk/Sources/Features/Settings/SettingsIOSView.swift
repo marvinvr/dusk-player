@@ -117,49 +117,6 @@ struct SettingsIOSView: View {
                 .listRowBackground(Color.duskSurface)
             }
 
-            if viewModel.hasMultipleServers {
-                Section {
-                    if let server = plexService.connectedServer {
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(server.name)
-                                    .foregroundStyle(Color.duskTextPrimary)
-                                Text(viewModel.connectionType)
-                                    .font(.caption)
-                                    .foregroundStyle(Color.duskTextSecondary)
-                            }
-
-                            Spacer()
-
-                            Circle()
-                                .fill(Color.duskAccent)
-                                .frame(width: 8, height: 8)
-                        }
-                    } else {
-                        Text("Not connected")
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-
-                    Button {
-                        viewModel.showServerPicker = true
-                    } label: {
-                        HStack {
-                            Text("Change Server")
-                                .foregroundStyle(Color.duskAccent)
-                            Spacer()
-                            Image(systemName: "chevron.right")
-                                .font(.caption.weight(.semibold))
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-                    }
-                    .duskSuppressTVOSButtonChrome()
-                } header: {
-                    Text("Plex Server")
-                        .foregroundStyle(Color.duskTextSecondary)
-                }
-                .listRowBackground(Color.duskSurface)
-            }
-
             Section {
                 NavigationLink {
                     SeerrSettingsView()
@@ -206,6 +163,20 @@ struct SettingsIOSView: View {
                         Spacer()
 
                         Text(SettingsSupport.libraryOrderSummary(plexService))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+
+                NavigationLink {
+                    ServerPrioritySettingsView()
+                } label: {
+                    HStack {
+                        Text("Server Priority")
+                            .foregroundStyle(Color.duskTextPrimary)
+
+                        Spacer()
+
+                        Text(SettingsSupport.serverPrioritySummary(plexService))
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }

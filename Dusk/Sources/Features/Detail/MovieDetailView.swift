@@ -13,13 +13,13 @@ struct MovieDetailView: View {
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         _viewModel = State(initialValue: MovieDetailViewModel(
-            ratingKey: ratingKey,
+            id: id,
             plexService: plexService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager
@@ -107,7 +107,11 @@ struct MovieDetailView: View {
                             .padding(.top, 24)
                     }
                     if let roles = details.roles, !roles.isEmpty {
-                        DetailCastSection(roles: roles, plexService: plexService)
+                        DetailCastSection(
+                            roles: roles,
+                            serverID: viewModel.serverID,
+                            plexService: plexService
+                        )
                             .padding(.top, 40)
                     }
                     mediaInfoSection()
@@ -253,8 +257,9 @@ struct MovieDetailView: View {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
                 await playback.play(
-                    ratingKey: details.ratingKey,
+                    id: details.id,
                     resumeOffsetMilliseconds: details.viewOffset,
+                    resumeOffsetDurationMilliseconds: details.duration,
                     placeholder: PlaybackPlaceholder(details: details)
                 )
             }
@@ -272,7 +277,7 @@ struct MovieDetailView: View {
                 PlayVersionContextMenu(versions: details.media) { version in
                     Task {
                         await playback.playVersion(
-                            ratingKey: details.ratingKey,
+                            id: details.id,
                             mediaID: version.id,
                             resumeOffsetMilliseconds: details.viewOffset,
                             placeholder: PlaybackPlaceholder(details: details)
@@ -295,7 +300,7 @@ struct MovieDetailView: View {
 
     private func downloadButton(_ details: PlexMediaDetails) -> some View {
         DownloadActionButton(
-            ratingKey: details.ratingKey,
+            id: details.id,
             type: .movie,
             iconOnly: true
         )

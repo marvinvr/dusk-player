@@ -46,8 +46,11 @@ struct LibraryVideoShelfLoader {
     /// at most one collection skip channel rows entirely because the section
     /// hubs already cover the same content.
     private func loadChannelShelves() async -> [LibraryVideoChannelShelf] {
-        guard let collections = try? await plexService.getLibraryCollections(sectionId: library.key),
-              collections.count > 1 else {
+        let serverID = library.serverID
+        guard let collections = try? await plexService.getLibraryCollections(
+            sectionId: library.key,
+            serverID: serverID
+        ), collections.count > 1 else {
             return []
         }
 
@@ -65,7 +68,8 @@ struct LibraryVideoShelfLoader {
                         sectionId: sectionId,
                         size: itemsPerShelf,
                         sort: "originallyAvailableAt:desc",
-                        filters: ["collection": collection.key]
+                        filters: ["collection": collection.key],
+                        serverID: serverID
                     )) ?? []
 
                     guard !items.isEmpty else { return (index, nil) }
@@ -97,12 +101,15 @@ struct LibraryVideoShelfLoader {
         let randomizer = RecommendationSeededRandomizer(
             calendar: calendar,
             nowProvider: nowProvider,
-            seedScope: library.key
+            seedScope: library.id
         )
         let seed = randomizer.dailySeed(for: "rediscover")
 
         let pageSize = Self.rediscoverCandidatePageSize
-        let totalCount = (try? await plexService.getLibraryItemCount(sectionId: library.key)) ?? 0
+        let totalCount = (try? await plexService.getLibraryItemCount(
+            sectionId: library.key,
+            serverID: library.serverID
+        )) ?? 0
         let maxOffset = max(0, totalCount - pageSize)
         let offset = maxOffset > 0 ? Int(seed % UInt64(maxOffset + 1)) : 0
 
@@ -110,7 +117,8 @@ struct LibraryVideoShelfLoader {
             sectionId: library.key,
             start: offset,
             size: pageSize,
-            sort: "titleSort"
+            sort: "titleSort",
+            serverID: library.serverID
         )) ?? []
 
         let unwatched = candidates.filter { !$0.isWatched && !$0.isPartiallyWatched }

@@ -13,7 +13,10 @@ final class VideoDetailViewModel {
     private let plexService: PlexService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
-    let ratingKey: String
+    /// Server-scoped identity of the clip; every request goes to its server.
+    let id: PlexItemID
+
+    var ratingKey: String { id.ratingKey }
 
     private(set) var details: PlexMediaDetails?
     private(set) var isLoading = false
@@ -30,12 +33,12 @@ final class VideoDetailViewModel {
     @ObservationIgnored private var loadedChannelContext: String?
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
-        self.ratingKey = ratingKey
+        self.id = id
         self.plexService = plexService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -50,13 +53,13 @@ final class VideoDetailViewModel {
         isLoading = true
         error = nil
 
-        if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+        if let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
             details = cachedDetails
             isUsingCachedData = true
         }
 
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -84,8 +87,11 @@ final class VideoDetailViewModel {
         }
 
         do {
-            try await plexService.setWatched(targetWatched, ratingKey: ratingKey)
-            self.details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                targetWatched,
+                id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
+            )
+            self.details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
@@ -113,7 +119,7 @@ final class VideoDetailViewModel {
     }
 
     var isPlayableOffline: Bool {
-        downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true
+        downloadManager?.isPlayableOffline(id: id) == true
     }
 
     var offlineBannerText: String? {
@@ -163,11 +169,15 @@ final class VideoDetailViewModel {
         // A clip's `art` is rare; its `thumb` (16:9 frame grab) works as backdrop.
         let path = details?.art ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, width: width, height: height)
+            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }
 
-    private var serverID: String? {
-        downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+    /// The route's server wins; the download record and the primary server are
+    /// only fallbacks for an id that reached us without one (an offline cache).
+    var serverID: String? {
+        id.serverID
+            ?? downloadManager?.serverID(for: id)
+            ?? plexService.pool.primary?.serverID
     }
 
     // MARK: - Channel Row
@@ -198,7 +208,13 @@ final class VideoDetailViewModel {
 
     private func loadChannelItems(sectionID: String, channelTag: String, context: String) async {
         do {
-            let collections = try await plexService.getLibraryCollections(sectionId: sectionID)
+            // The channel row lives entirely on the clip's own server: its
+            // section id, collection tag, and rating keys all belong to it.
+            let serverID = self.serverID
+            let collections = try await plexService.getLibraryCollections(
+                sectionId: sectionID,
+                serverID: serverID
+            )
             guard let collection = collections.first(where: {
                 $0.title.caseInsensitiveCompare(channelTag) == .orderedSame
             }) else {
@@ -213,18 +229,20 @@ final class VideoDetailViewModel {
                 sectionId: sectionID,
                 size: Self.channelRowFetchSize,
                 sort: "originallyAvailableAt:desc",
-                filters: ["collection": collection.key]
+                filters: ["collection": collection.key],
+                serverID: serverID
             )
 
             // The library is only needed for the "Show all" route; failing to
             // resolve it must not hide the row itself.
-            let library = (try? await plexService.getLibraries())?.first { $0.key == sectionID }
+            let library = (try? await plexService.getLibraries(serverID: serverID))?
+                .first { $0.key == sectionID }
 
             guard !Task.isCancelled else { return }
             loadedChannelContext = context
             channelItems = Array(
                 items
-                    .filter { $0.ratingKey != ratingKey }
+                    .filter { $0.id != id }
                     .prefix(Self.channelRowItemLimit)
             )
             channelShowAllRoute = library.map { .libraryCollection(library: $0, collection: collection) }
@@ -244,7 +262,7 @@ extension VideoDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles && !isUsingCachedData && hasPlayablePart
+        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
@@ -258,6 +276,7 @@ extension VideoDetailViewModel {
         SubtitleSearchViewModel(
             plexService: plexService,
             ratingKey: ratingKey,
+            serverID: serverID,
             preferredLanguageCode: preferredLanguageCode
         ) { [weak self] _ in
             await self?.refreshDetails()

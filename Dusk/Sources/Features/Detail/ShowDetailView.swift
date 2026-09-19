@@ -14,7 +14,7 @@ struct ShowDetailView: View {
     private let minimumColumnCount = 2
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
@@ -22,7 +22,7 @@ struct ShowDetailView: View {
         prefersOfflineAvailability: Bool = false
     ) {
         _viewModel = State(initialValue: ShowDetailViewModel(
-            ratingKey: ratingKey,
+            id: id,
             plexService: plexService,
             seerrService: seerrService,
             downloadManager: downloadManager,
@@ -115,7 +115,11 @@ struct ShowDetailView: View {
 #endif
 
                     if let roles = details.roles, !roles.isEmpty {
-                        DetailCastSection(roles: roles, plexService: plexService)
+                        DetailCastSection(
+                            roles: roles,
+                            serverID: viewModel.serverID,
+                            plexService: plexService
+                        )
                             .padding(.top, 40)
                             .padding(.bottom, 56)
                     }
@@ -252,8 +256,9 @@ struct ShowDetailView: View {
                 if let ep = viewModel.nextEpisode {
                     Task {
                         await playback.play(
-                            ratingKey: ep.ratingKey,
+                            id: ep.id,
                             resumeOffsetMilliseconds: ep.viewOffset,
+                            resumeOffsetDurationMilliseconds: ep.duration,
                             placeholder: PlaybackPlaceholder(episode: ep)
                         )
                     }
@@ -271,7 +276,7 @@ struct ShowDetailView: View {
                     PlayVersionContextMenu(versions: viewModel.nextEpisodePlayableVersions) { version in
                         Task {
                             await playback.playVersion(
-                                ratingKey: episode.ratingKey,
+                                id: episode.id,
                                 mediaID: version.id,
                                 resumeOffsetMilliseconds: episode.viewOffset,
                                 placeholder: PlaybackPlaceholder(episode: episode)
@@ -297,7 +302,7 @@ struct ShowDetailView: View {
 
     private func downloadButton() -> some View {
         DownloadActionButton(
-            ratingKey: viewModel.ratingKey,
+            id: viewModel.id,
             type: .show,
             iconOnly: true
         )
@@ -351,7 +356,7 @@ struct ShowDetailView: View {
                         switch item {
                         case .plex(let season):
                             PosterNavigationCard(
-                                route: viewModel.detailRoute(type: .season, ratingKey: season.ratingKey),
+                                route: viewModel.detailRoute(type: .season, id: season.id),
                                 imageURL: viewModel.seasonPosterURL(season, width: imageWidth, height: imageHeight),
                                 title: season.title,
                                 subtitle: viewModel.seasonSubtitle(season),
@@ -390,7 +395,7 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func seasonContextMenu(_ season: PlexSeason) -> some View {
-        let downloadState = downloadManager.downloadState(for: DownloadScope(ratingKey: season.ratingKey, type: .season))
+        let downloadState = downloadManager.downloadState(for: DownloadScope(id: season.id, type: .season))
 
         if !season.isFullyWatched {
             Button {

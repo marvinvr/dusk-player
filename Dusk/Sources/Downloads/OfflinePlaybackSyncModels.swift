@@ -12,7 +12,10 @@ struct OfflinePlaybackSyncAction: Codable, Sendable, Identifiable, Hashable {
     /// Stable Plex Home identity that owns this local watch-state mutation.
     /// Nil identifies an action written before Plex Home support.
     var accountProfileID: String? = nil
-    let serverID: String
+    /// Machine identifier of the server this action has to be replayed on.
+    /// Mutable only so an action written before servers were identified by
+    /// machine identifier can be re-keyed (see `OfflinePlaybackSyncManager`).
+    var serverID: String
     let ratingKey: String
     var kind: OfflinePlaybackSyncActionKind
     var viewOffsetMs: Int?

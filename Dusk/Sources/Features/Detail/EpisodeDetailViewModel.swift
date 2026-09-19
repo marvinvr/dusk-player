@@ -6,7 +6,10 @@ final class EpisodeDetailViewModel {
     private let plexService: PlexService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
-    let ratingKey: String
+    /// Server-scoped identity of the episode; every request goes to its server.
+    let id: PlexItemID
+
+    var ratingKey: String { id.ratingKey }
 
     private(set) var details: PlexMediaDetails?
     private(set) var isLoading = false
@@ -15,12 +18,12 @@ final class EpisodeDetailViewModel {
     private(set) var offlineStateVersion = 0
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
-        self.ratingKey = ratingKey
+        self.id = id
         self.plexService = plexService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -51,7 +54,10 @@ final class EpisodeDetailViewModel {
         }
 
         do {
-            try await plexService.setWatched(targetWatched, ratingKey: details.ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                targetWatched,
+                id: PlexItemID(serverID: serverID, ratingKey: details.ratingKey)
+            )
             await reload()
         } catch {
             if isPlayableOffline {
@@ -71,8 +77,8 @@ final class EpisodeDetailViewModel {
         MediaTextFormatter.seasonEpisodeLabel(season: details?.parentIndex, episode: nil)
     }
 
-    var seasonRatingKey: String? {
-        details?.parentRatingKey
+    var seasonID: PlexItemID? {
+        details?.parentRatingKey.map { PlexItemID(serverID: serverID, ratingKey: $0) }
     }
 
     var episodeLabel: String? {
@@ -83,8 +89,8 @@ final class EpisodeDetailViewModel {
         details?.grandparentTitle
     }
 
-    var showRatingKey: String? {
-        details?.grandparentRatingKey
+    var showID: PlexItemID? {
+        details?.grandparentRatingKey.map { PlexItemID(serverID: serverID, ratingKey: $0) }
     }
 
     var formattedDuration: String? {
@@ -103,7 +109,7 @@ final class EpisodeDetailViewModel {
     }
 
     var isPlayableOffline: Bool {
-        downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true
+        downloadManager?.isPlayableOffline(id: id) == true
     }
 
     var offlineBannerText: String? {
@@ -116,13 +122,13 @@ final class EpisodeDetailViewModel {
     func backdropURL(width: Int, height: Int) -> URL? {
         let path = details?.thumb ?? details?.art
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, width: width, height: height)
+            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         let path = details?.parentThumb ?? details?.grandparentThumb ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, width: width, height: height)
+            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }
 
     /// The show's title logo (clear-logo art) inherited onto the episode metadata.
@@ -130,20 +136,20 @@ final class EpisodeDetailViewModel {
     /// didn't attach a clear logo, in which case the hero falls back to text.
     func showTitleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
     }
 
     private func reload() async {
         isLoading = true
         error = nil
 
-        if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+        if let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
             details = cachedDetails
             isUsingCachedData = true
         }
 
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -159,8 +165,12 @@ final class EpisodeDetailViewModel {
         return viewCount > 0
     }
 
-    private var serverID: String? {
-        downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+    /// The route's server wins; the download record and the primary server are
+    /// only fallbacks for an id that reached us without one (an offline cache).
+    var serverID: String? {
+        id.serverID
+            ?? downloadManager?.serverID(for: id)
+            ?? plexService.pool.primary?.serverID
     }
 }
 
@@ -171,7 +181,7 @@ extension EpisodeDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles && !isUsingCachedData && hasPlayablePart
+        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
@@ -185,6 +195,7 @@ extension EpisodeDetailViewModel {
         SubtitleSearchViewModel(
             plexService: plexService,
             ratingKey: ratingKey,
+            serverID: serverID,
             preferredLanguageCode: preferredLanguageCode
         ) { [weak self] _ in
             await self?.refresh()

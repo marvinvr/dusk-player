@@ -86,6 +86,9 @@ final class DownloadManager {
     @ObservationIgnored private var hasDeferredProfileActivation = false
     @ObservationIgnored private var pendingProfileSuspensionTaskIDs: Set<Int> = []
     @ObservationIgnored private var networkMonitor: NWPathMonitor?
+    /// Servers that were connected at the last observation, so only a server
+    /// that has just come back re-runs the queue.
+    @ObservationIgnored private var connectedServerIDs: Set<String> = []
     @ObservationIgnored private var networkMonitorQueue = DispatchQueue(label: "com.dusk.networkMonitor")
     @ObservationIgnored private var queueTask: Task<Void, Never>?
     @ObservationIgnored private var lastProgressPersistDates: [String: Date] = [:]
@@ -107,11 +110,86 @@ final class DownloadManager {
         self.metadataCache = PlexMetadataCache(fileStore: fileStore)
         try? fileStore.prepareRootDirectory()
         storedRecords = fileStore.loadSnapshot().records
+        rekeyLegacyServerIdentifiers()
         reconcileCompletedFiles()
         _ = transferController
         startNetworkMonitoring()
+        observeServerConnectivity()
+        connectedServerIDs = Set(plexService.pool.connections.map(\.serverID))
         Task { [weak self] in
             await self?.reconcileExistingTransfers()
+        }
+    }
+
+    /// Downloads waiting on a server that was offline or switched off resume as
+    /// soon as that server comes back, without the user touching anything.
+    private func observeServerConnectivity() {
+        withObservationTracking {
+            _ = plexService.pool.connections.map(\.serverID)
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.serverConnectivityDidChange()
+            }
+        }
+    }
+
+    private func serverConnectivityDidChange() {
+        observeServerConnectivity()
+        rekeyLegacyServerIdentifiers()
+        let current = Set(plexService.pool.connections.map(\.serverID))
+        let appeared = current.subtracting(connectedServerIDs)
+        connectedServerIDs = current
+        guard !appeared.isEmpty else { return }
+        processQueueIfNeeded()
+    }
+
+    /// Records written before servers were identified by machine identifier can
+    /// carry the server's base URL instead. Those records match no connection,
+    /// so their downloads would wait forever; re-key them once the server they
+    /// belong to is known. A URL that resolves to nothing is left untouched —
+    /// the record stays listed and its completed file stays playable offline.
+    private func rekeyLegacyServerIdentifiers() {
+        var changed = false
+        for index in storedRecords.indices {
+            let legacyServerID = storedRecords[index].serverID
+            guard !plexService.isKnownServerID(legacyServerID),
+                  let resolved = plexService.serverID(forLegacyConnectionURI: legacyServerID),
+                  resolved != legacyServerID else {
+                continue
+            }
+            if let accountProfileID = storedRecords[index].accountProfileID {
+                // The cached metadata lives in a per-server directory, so it has
+                // to travel with the record or the item loses its offline detail.
+                fileStore.relocateMetadata(
+                    accountProfileID: accountProfileID,
+                    fromServerID: legacyServerID,
+                    toServerID: resolved
+                )
+            }
+            storedRecords[index].serverID = resolved
+            storedRecords[index].serverName = serverName(for: resolved)
+                ?? storedRecords[index].serverName
+            storedRecords[index].updatedAt = .now
+            changed = true
+        }
+        guard changed else { return }
+        persist()
+    }
+
+    /// Why a queued download is not moving: its server is switched off or not
+    /// reachable right now. Nil while the queue is actually able to run.
+    func queueWaitReason(for record: DownloadedMediaRecord) -> String? {
+        guard record.status == .queued else { return nil }
+        let name = serverName(for: record.serverID) ?? record.serverName ?? "the server"
+        switch plexService.pool.state(for: record.serverID) {
+        case .connected:
+            return nil
+        case .disabled:
+            return "\(name) is turned off"
+        case .unauthorized:
+            return "\(name) did not accept this device"
+        case .idle, .connecting, .offline:
+            return "Waiting for \(name)"
         }
     }
 
@@ -159,15 +237,24 @@ final class DownloadManager {
     }
 
     var downloadedShows: [DownloadedShowSummary] {
+        // Grouped on (server, show rating key): show keys are per-server
+        // counters, so grouping on the key alone would fold two unrelated shows
+        // from two servers into one row — with the wrong server's artwork and a
+        // combined episode count.
         let grouped = Dictionary(grouping: downloadedEpisodes) { record in
-            record.grandparentRatingKey ?? record.parentRatingKey ?? record.ratingKey
+            PlexItemID(
+                serverID: record.serverID,
+                ratingKey: record.grandparentRatingKey ?? record.parentRatingKey ?? record.ratingKey
+            )
         }
 
-        return grouped.compactMap { showKey, episodes -> DownloadedShowSummary? in
+        return grouped.compactMap { showID, episodes -> DownloadedShowSummary? in
             guard let first = episodes.first,
                   let accountProfileID = first.accountProfileID else {
                 return nil
             }
+            let showKey = showID.ratingKey
+            // Every record in the group shares the server the key was grouped on.
             let serverID = first.serverID
             let cachedShow = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
@@ -188,36 +275,47 @@ final class DownloadManager {
         .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
-    func record(for ratingKey: String) -> DownloadedMediaRecord? {
-        records.first { $0.ratingKey == ratingKey }
+    /// The record for one item.
+    ///
+    /// Strict by design: the answer feeds `localPlaybackURL` and
+    /// `downloadedMediaVersion`, so matching the wrong server's record would
+    /// play a different file. An `id` without a server (an unstamped offline
+    /// cache, a legacy route) is only resolved when exactly one record carries
+    /// that rating key — an ambiguous match is no match.
+    func record(for id: PlexItemID) -> DownloadedMediaRecord? {
+        guard let serverID = id.serverID else {
+            let matches = records.filter { $0.ratingKey == id.ratingKey }
+            return matches.count == 1 ? matches.first : nil
+        }
+        return records.first { $0.ratingKey == id.ratingKey && $0.serverID == serverID }
     }
 
-    func serverID(for ratingKey: String) -> String? {
-        record(for: ratingKey)?.serverID
+    func serverID(for id: PlexItemID) -> String? {
+        record(for: id)?.serverID
     }
 
-    func canPause(ratingKey: String) -> Bool {
-        record(for: ratingKey)?.status.canPause == true
+    func canPause(id: PlexItemID) -> Bool {
+        record(for: id)?.status.canPause == true
     }
 
-    func canResume(ratingKey: String) -> Bool {
-        record(for: ratingKey)?.status.canResume == true
+    func canResume(id: PlexItemID) -> Bool {
+        record(for: id)?.status.canResume == true
     }
 
-    func status(for ratingKey: String) -> DownloadStatus? {
-        record(for: ratingKey)?.status
+    func status(for id: PlexItemID) -> DownloadStatus? {
+        record(for: id)?.status
     }
 
-    func status(for ratingKey: String, type: PlexMediaType) -> DownloadStatus? {
-        downloadState(for: DownloadScope(ratingKey: ratingKey, type: type)).status
+    func status(for id: PlexItemID, type: PlexMediaType) -> DownloadStatus? {
+        downloadState(for: DownloadScope(id: id, type: type)).status
     }
 
-    func progress(for ratingKey: String) -> Double? {
-        record(for: ratingKey)?.progress
+    func progress(for id: PlexItemID) -> Double? {
+        record(for: id)?.progress
     }
 
-    func progress(for ratingKey: String, type: PlexMediaType) -> Double? {
-        let state = downloadState(for: DownloadScope(ratingKey: ratingKey, type: type))
+    func progress(for id: PlexItemID, type: PlexMediaType) -> Double? {
+        let state = downloadState(for: DownloadScope(id: id, type: type))
         return state.hasRecords ? state.progress : nil
     }
 
@@ -253,22 +351,22 @@ final class DownloadManager {
         return TimeInterval(Double(remainingBytes) / bytesPerSecond)
     }
 
-    func isDownloaded(ratingKey: String) -> Bool {
-        record(for: ratingKey)?.status == .completed
+    func isDownloaded(id: PlexItemID) -> Bool {
+        record(for: id)?.status == .completed
     }
 
-    func isDeletingDownload(ratingKey: String) -> Bool {
-        guard let record = record(for: ratingKey) else { return false }
+    func isDeletingDownload(id: PlexItemID) -> Bool {
+        guard let record = record(for: id) else { return false }
         return deletingDownloadIDs.contains(record.globalKey)
     }
 
-    func isDeletingDownload(ratingKey: String, type: PlexMediaType) -> Bool {
-        downloadState(for: DownloadScope(ratingKey: ratingKey, type: type)).isDeleting
+    func isDeletingDownload(id: PlexItemID, type: PlexMediaType) -> Bool {
+        downloadState(for: DownloadScope(id: id, type: type)).isDeleting
     }
 
-    func isDeletingDownloads(showKey: String) -> Bool {
+    func isDeletingDownloads(show: PlexItemID) -> Bool {
         records
-            .filter { $0.grandparentRatingKey == showKey || $0.parentRatingKey == showKey }
+            .filter { matchesBranch($0, of: show) }
             .contains { deletingDownloadIDs.contains($0.globalKey) }
     }
 
@@ -283,47 +381,45 @@ final class DownloadManager {
         )
     }
 
-    func isPlayableOffline(ratingKey: String) -> Bool {
-        localPlaybackURL(for: ratingKey) != nil
+    func isPlayableOffline(id: PlexItemID) -> Bool {
+        localPlaybackURL(for: id) != nil
     }
 
-    func hasDownloadedEpisodes(showKey: String) -> Bool {
-        downloadedEpisodes.contains { $0.grandparentRatingKey == showKey || $0.parentRatingKey == showKey }
+    func hasDownloadedEpisodes(show: PlexItemID) -> Bool {
+        downloadedEpisodes.contains { matchesBranch($0, of: show) }
     }
 
-    func hasDownloadedEpisodes(seasonKey: String) -> Bool {
-        downloadedEpisodes.contains { $0.parentRatingKey == seasonKey }
+    func hasDownloadedEpisodes(season: PlexItemID) -> Bool {
+        downloadedEpisodes.contains { matchesSeason($0, of: season) }
     }
 
-    func downloadedEpisodeCount(seasonKey: String) -> Int {
-        downloadedEpisodes.filter { $0.parentRatingKey == seasonKey }.count
+    func downloadedEpisodeCount(season: PlexItemID) -> Int {
+        downloadedEpisodes.filter { matchesSeason($0, of: season) }.count
     }
 
-    func downloadedEpisodeCount(showKey: String) -> Int {
-        downloadedEpisodes.filter { $0.grandparentRatingKey == showKey }.count
+    func downloadedEpisodeCount(show: PlexItemID) -> Int {
+        downloadedEpisodes.filter { record in
+            record.grandparentRatingKey == show.ratingKey && matchesServer(record, of: show)
+        }.count
     }
 
-    func downloadedEpisodeKeys(seasonKey: String) -> Set<String> {
-        Set(downloadedEpisodes.filter { $0.parentRatingKey == seasonKey }.map(\.ratingKey))
-    }
-
-    func queueDownload(ratingKey: String, type: PlexMediaType, isClip: Bool = false) async {
+    func queueDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false) async {
         do {
             switch type {
             case .movie, .episode, .clip:
-                try await queueSingleDownload(ratingKey: ratingKey, type: type, isClip: isClip)
+                try await queueSingleDownload(id: id, type: type, isClip: isClip)
             case .season:
-                try await queueSeasonDownload(seasonKey: ratingKey)
+                try await queueSeasonDownload(season: id)
             case .show:
-                try await queueShowDownload(showKey: ratingKey)
+                try await queueShowDownload(show: id)
             default:
                 break
             }
-            removeAggregatePlaceholder(for: DownloadScope(ratingKey: ratingKey, type: type))
+            removeAggregatePlaceholder(for: DownloadScope(id: id, type: type))
             processQueueIfNeeded()
         } catch {
             guard !(error is CancellationError) else { return }
-            upsertFailedPlaceholder(ratingKey: ratingKey, type: type, isClip: isClip, error: error)
+            upsertFailedPlaceholder(id: id, type: type, isClip: isClip, error: error)
         }
     }
 
@@ -333,8 +429,24 @@ final class DownloadManager {
             processQueueIfNeeded()
         } catch {
             guard !(error is CancellationError) else { return }
-            upsertFailedPlaceholder(ratingKey: episode.ratingKey, type: .episode, error: error)
+            upsertFailedPlaceholder(id: episode.id, type: .episode, error: error)
         }
+    }
+
+    /// An episode record belongs to a season when both the key and the server
+    /// match; a nil server on the scope means "any server", for callers that
+    /// only have a cached key.
+    private func matchesSeason(_ record: DownloadedMediaRecord, of season: PlexItemID) -> Bool {
+        record.parentRatingKey == season.ratingKey && matchesServer(record, of: season)
+    }
+
+    private func matchesBranch(_ record: DownloadedMediaRecord, of show: PlexItemID) -> Bool {
+        (record.grandparentRatingKey == show.ratingKey || record.parentRatingKey == show.ratingKey)
+            && matchesServer(record, of: show)
+    }
+
+    private func matchesServer(_ record: DownloadedMediaRecord, of id: PlexItemID) -> Bool {
+        id.serverID == nil || record.serverID == id.serverID
     }
 
     /// Pauses the outgoing profile before PlexService replaces its credentials.
@@ -347,7 +459,7 @@ final class DownloadManager {
         isProcessingQueue = false
 
         for record in records where record.status.canPause {
-            pauseDownload(ratingKey: record.ratingKey, forProfileSwitch: true)
+            pauseDownload(globalKey: record.globalKey, forProfileSwitch: true)
         }
     }
 
@@ -418,8 +530,13 @@ final class DownloadManager {
         completeProfileActivation()
     }
 
-    func retryDownload(ratingKey: String) {
-        guard let index = activeRecordIndex(ratingKey: ratingKey) else { return }
+    func retryDownload(id: PlexItemID) {
+        guard let record = record(for: id) else { return }
+        retryDownload(globalKey: record.globalKey)
+    }
+
+    private func retryDownload(globalKey: String) {
+        guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }) else { return }
         fileStore.deleteResumeData(relativePath: storedRecords[index].resumeDataPath)
         storedRecords[index].status = .queued
         storedRecords[index].progress = 0
@@ -434,12 +551,13 @@ final class DownloadManager {
         processQueueIfNeeded()
     }
 
-    func pauseDownload(ratingKey: String) {
-        pauseDownload(ratingKey: ratingKey, forProfileSwitch: false)
+    func pauseDownload(id: PlexItemID) {
+        guard let record = record(for: id) else { return }
+        pauseDownload(globalKey: record.globalKey, forProfileSwitch: false)
     }
 
-    private func pauseDownload(ratingKey: String, forProfileSwitch: Bool) {
-        guard let index = activeRecordIndex(ratingKey: ratingKey),
+    private func pauseDownload(globalKey: String, forProfileSwitch: Bool) {
+        guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }),
               storedRecords[index].status.canPause else {
             return
         }
@@ -462,19 +580,24 @@ final class DownloadManager {
         }
     }
 
-    func pauseDownload(ratingKey: String, type: PlexMediaType) {
-        pauseDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    func pauseDownload(id: PlexItemID, type: PlexMediaType) {
+        pauseDownload(scope: DownloadScope(id: id, type: type))
     }
 
     func pauseDownload(scope: DownloadScope) {
         performOnRelatedRecords(scope) { record in
             guard record.status.canPause else { return }
-            pauseDownload(ratingKey: record.ratingKey)
+            pauseDownload(globalKey: record.globalKey, forProfileSwitch: false)
         }
     }
 
-    func resumeDownload(ratingKey: String) {
-        guard let index = activeRecordIndex(ratingKey: ratingKey),
+    func resumeDownload(id: PlexItemID) {
+        guard let record = record(for: id) else { return }
+        resumeDownload(globalKey: record.globalKey)
+    }
+
+    private func resumeDownload(globalKey: String) {
+        guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }),
               storedRecords[index].status.canResume else {
             return
         }
@@ -487,42 +610,44 @@ final class DownloadManager {
         processQueueIfNeeded()
     }
 
-    func resumeDownload(ratingKey: String, type: PlexMediaType) {
-        resumeDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    func resumeDownload(id: PlexItemID, type: PlexMediaType) {
+        resumeDownload(scope: DownloadScope(id: id, type: type))
     }
 
     func resumeDownload(scope: DownloadScope) {
         performOnRelatedRecords(scope) { record in
             guard record.status.canResume else { return }
-            resumeDownload(ratingKey: record.ratingKey)
+            resumeDownload(globalKey: record.globalKey)
         }
     }
 
-    func cancelDownload(ratingKey: String) {
-        guard let record = record(for: ratingKey),
-              record.status != .completed else {
-            return
-        }
+    func cancelDownload(id: PlexItemID) {
+        guard let record = record(for: id) else { return }
+        cancelDownload(record)
+    }
+
+    private func cancelDownload(_ record: DownloadedMediaRecord) {
+        guard record.status != .completed else { return }
         deleteRecords([record])
     }
 
-    func cancelDownload(ratingKey: String, type: PlexMediaType) {
-        cancelDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    func cancelDownload(id: PlexItemID, type: PlexMediaType) {
+        cancelDownload(scope: DownloadScope(id: id, type: type))
     }
 
     func cancelDownload(scope: DownloadScope) {
         performOnRelatedRecords(scope) { record in
-            cancelDownload(ratingKey: record.ratingKey)
+            cancelDownload(record)
         }
     }
 
     func pauseAllDownloads() {
         isQueuePaused = true
-        let pausableRatingKeys = records
+        let pausableKeys = records
             .filter { $0.status.canPause && !deletingDownloadIDs.contains($0.globalKey) }
-            .map(\.ratingKey)
-        for ratingKey in pausableRatingKeys {
-            pauseDownload(ratingKey: ratingKey)
+            .map(\.globalKey)
+        for globalKey in pausableKeys {
+            pauseDownload(globalKey: globalKey, forProfileSwitch: false)
         }
     }
 
@@ -563,29 +688,29 @@ final class DownloadManager {
         }
     }
 
-    func deleteDownload(ratingKey: String) {
-        guard let record = record(for: ratingKey) else { return }
+    func deleteDownload(id: PlexItemID) {
+        guard let record = record(for: id) else { return }
         deleteRecords([record])
     }
 
-    func deleteDownload(ratingKey: String, type: PlexMediaType) {
-        deleteDownload(scope: DownloadScope(ratingKey: ratingKey, type: type))
+    func deleteDownload(id: PlexItemID, type: PlexMediaType) {
+        deleteDownload(scope: DownloadScope(id: id, type: type))
     }
 
     func deleteDownload(scope: DownloadScope) {
         deleteRecords(relatedRecords(for: scope))
     }
 
-    func deleteDownloads(showKey: String) {
-        deleteDownload(scope: DownloadScope(ratingKey: showKey, type: .show))
+    func deleteDownloads(show: PlexItemID) {
+        deleteDownload(scope: DownloadScope(id: show, type: .show))
     }
 
     func deleteAllDownloads() {
         deleteRecords(records)
     }
 
-    func localPlaybackURL(for ratingKey: String, selectedMediaID: Int? = nil) -> URL? {
-        guard let record = record(for: ratingKey),
+    func localPlaybackURL(for id: PlexItemID, selectedMediaID: Int? = nil) -> URL? {
+        guard let record = record(for: id),
               record.status == .completed,
               selectedMediaID == nil || selectedMediaID == record.mediaID else {
             return nil
@@ -594,11 +719,11 @@ final class DownloadManager {
     }
 
     func downloadedMediaVersion(
-        for ratingKey: String,
+        for id: PlexItemID,
         in details: PlexMediaDetails,
         selectedMediaID: Int? = nil
     ) -> (media: PlexMedia, part: PlexMediaPart)? {
-        guard let record = record(for: ratingKey),
+        guard let record = record(for: id),
               record.status == .completed,
               selectedMediaID == nil || selectedMediaID == record.mediaID,
               let mediaID = record.mediaID,
@@ -610,30 +735,30 @@ final class DownloadManager {
         return (media, part)
     }
 
-    func cachedMediaDetails(ratingKey: String) -> PlexMediaDetails? {
+    func cachedMediaDetails(for id: PlexItemID) -> PlexMediaDetails? {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedMediaDetails(
             accountProfileID: accountProfileID,
-            ratingKey: ratingKey,
-            serverIDs: preferredServerIDs
+            ratingKey: id.ratingKey,
+            serverIDs: candidateServerIDs(for: id)
         )
     }
 
-    func cachedSeasons(showKey: String) -> [PlexSeason]? {
+    func cachedSeasons(show: PlexItemID) -> [PlexSeason]? {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedSeasons(
             accountProfileID: accountProfileID,
-            showKey: showKey,
-            serverIDs: preferredServerIDs
+            showKey: show.ratingKey,
+            serverIDs: candidateServerIDs(for: show)
         )
     }
 
-    func cachedEpisodes(seasonKey: String) -> [PlexEpisode]? {
+    func cachedEpisodes(season: PlexItemID) -> [PlexEpisode]? {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty else { return nil }
         return metadataCache.firstCachedEpisodes(
             accountProfileID: accountProfileID,
-            seasonKey: seasonKey,
-            serverIDs: preferredServerIDs
+            seasonKey: season.ratingKey,
+            serverIDs: candidateServerIDs(for: season)
         )
     }
 
@@ -644,23 +769,24 @@ final class DownloadManager {
             return nil
         }
 
-        let currentSeasonEpisodes = (cachedEpisodes(seasonKey: seasonKey) ?? [])
+        let serverID = episode.serverID
+        let currentSeasonEpisodes = (cachedEpisodes(season: PlexItemID(serverID: serverID, ratingKey: seasonKey)) ?? [])
             .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
         if let currentEpisodeIndex = currentSeasonEpisodes.firstIndex(where: { $0.ratingKey == episode.ratingKey }) {
             let remainingEpisodes = currentSeasonEpisodes[currentSeasonEpisodes.index(after: currentEpisodeIndex)...]
-            if let nextDownloadedEpisode = remainingEpisodes.first(where: { isPlayableOffline(ratingKey: $0.ratingKey) }) {
+            if let nextDownloadedEpisode = remainingEpisodes.first(where: { isPlayableOffline(id: $0.id) }) {
                 return nextDownloadedEpisode
             }
         } else if let currentEpisodeNumber = episode.index,
                   let nextDownloadedEpisode = currentSeasonEpisodes.first(where: {
                       ($0.index ?? 0) > currentEpisodeNumber
-                      && isPlayableOffline(ratingKey: $0.ratingKey)
+                      && isPlayableOffline(id: $0.id)
                   }) {
             return nextDownloadedEpisode
         }
 
-        let seasons = (cachedSeasons(showKey: showKey) ?? [])
+        let seasons = (cachedSeasons(show: PlexItemID(serverID: serverID, ratingKey: showKey)) ?? [])
             .sorted { $0.index < $1.index }
         let currentSeasonIndex = episode.parentIndex
             ?? seasons.first(where: { $0.ratingKey == seasonKey })?.index
@@ -668,10 +794,10 @@ final class DownloadManager {
         guard let currentSeasonIndex else { return nil }
 
         for season in seasons where season.index > currentSeasonIndex {
-            let episodes = (cachedEpisodes(seasonKey: season.ratingKey) ?? [])
+            let episodes = (cachedEpisodes(season: season.id) ?? [])
                 .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
 
-            if let firstDownloadedEpisode = episodes.first(where: { isPlayableOffline(ratingKey: $0.ratingKey) }) {
+            if let firstDownloadedEpisode = episodes.first(where: { isPlayableOffline(id: $0.id) }) {
                 return firstDownloadedEpisode
             }
         }
@@ -687,40 +813,49 @@ final class DownloadManager {
         return url
     }
 
-    private var preferredServerIDs: [String] {
+    /// Where to look for one item's cached metadata: its own server first, then
+    /// the connected servers in priority order, then every server that already
+    /// holds a record. A cache hit on the wrong server would be a different
+    /// title, so the item's own server always wins.
+    private func candidateServerIDs(for id: PlexItemID) -> [String] {
         var ids: [String] = []
-        if let currentServerID {
-            ids.append(currentServerID)
+        if let serverID = id.serverID {
+            ids.append(serverID)
         }
-        for id in records.map(\.serverID) where !ids.contains(id) {
-            ids.append(id)
+        for serverID in plexService.pool.connections.map(\.serverID) where !ids.contains(serverID) {
+            ids.append(serverID)
+        }
+        for serverID in records.map(\.serverID) where !ids.contains(serverID) {
+            ids.append(serverID)
         }
         return ids
     }
 
-    private var currentServerID: String? {
-        if let id = plexService.connectedServer?.clientIdentifier.nilIfEmpty {
-            return id
+    /// The server a new download belongs to: the item's own, or the primary one
+    /// when the caller could not say (an unstamped item from a cache).
+    private func downloadServerID(for id: PlexItemID) throws -> String {
+        guard let serverID = id.serverID ?? plexService.pool.primary?.serverID else {
+            throw PlexServiceError.noServerConnected
         }
-        return plexService.serverBaseURL?.absoluteString.nilIfEmpty
+        return serverID
     }
 
-    private var currentServerName: String? {
-        plexService.connectedServer?.name
+    private func serverName(for serverID: String) -> String? {
+        plexService.pool.server(for: serverID)?.name
+            ?? plexService.pool.connection(for: serverID)?.name
     }
 
-    private func queueSingleDownload(ratingKey: String, type: PlexMediaType, isClip: Bool = false) async throws {
+    private func queueSingleDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false) async throws {
         guard type == .movie || type == .episode || type == .clip else { return }
         guard !isProfileSwitching,
               plexService.isSessionReady,
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
             throw PlexServiceError.notAuthenticated
         }
-        guard let serverID = currentServerID else {
-            throw PlexServiceError.noServerConnected
-        }
+        let serverID = try downloadServerID(for: id)
+        let ratingKey = id.ratingKey
 
-        if let existing = record(for: ratingKey),
+        if let existing = record(for: PlexItemID(serverID: serverID, ratingKey: ratingKey)),
            existing.status == .completed || existing.status.isActive {
             return
         }
@@ -733,7 +868,7 @@ final class DownloadManager {
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            serverName: currentServerName,
+            serverName: serverName(for: serverID),
             ratingKey: ratingKey,
             type: cachedDetails?.type ?? type,
             isClip: isClip || type == .clip || cachedDetails?.isClip == true,
@@ -768,11 +903,9 @@ final class DownloadManager {
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
             throw PlexServiceError.notAuthenticated
         }
-        guard let serverID = currentServerID else {
-            throw PlexServiceError.noServerConnected
-        }
+        let serverID = try downloadServerID(for: episode.id)
 
-        if let existing = record(for: episode.ratingKey),
+        if let existing = record(for: PlexItemID(serverID: serverID, ratingKey: episode.ratingKey)),
            existing.status == .completed || existing.status.isActive {
             return
         }
@@ -785,7 +918,7 @@ final class DownloadManager {
         let record = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            serverName: currentServerName,
+            serverName: serverName(for: serverID),
             ratingKey: episode.ratingKey,
             type: .episode,
             title: cachedDetails?.title ?? episode.title,
@@ -818,32 +951,54 @@ final class DownloadManager {
         upsert(record)
     }
 
-    private func queueSeasonDownload(seasonKey: String) async throws {
-        let seasonDetails = try await fetchAndCacheDetails(ratingKey: seasonKey)
+    /// Season and show downloads expand into per-episode records on the SAME
+    /// server the season/show was opened from; children never inherit the
+    /// primary server.
+    private func queueSeasonDownload(season: PlexItemID) async throws {
+        let serverID = try downloadServerID(for: season)
+        let seasonDetails = try await fetchAndCacheDetails(ratingKey: season.ratingKey, serverID: serverID)
         if let showKey = seasonDetails.parentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: showKey)
-            if let seasons = try? await fetchAndCacheChildren(PlexSeason.self, ratingKey: showKey) {
-                await cacheArtwork(for: seasons)
+            _ = try? await fetchAndCacheDetails(ratingKey: showKey, serverID: serverID)
+            if let seasons = try? await fetchAndCacheChildren(
+                PlexSeason.self,
+                ratingKey: showKey,
+                serverID: serverID
+            ) {
+                await cacheArtwork(for: seasons, serverID: serverID)
             }
         }
 
-        let episodes = try await fetchAndCacheChildren(PlexEpisode.self, ratingKey: seasonKey)
-            .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
-        await cacheArtwork(for: episodes)
+        let episodes = try await fetchAndCacheChildren(
+            PlexEpisode.self,
+            ratingKey: season.ratingKey,
+            serverID: serverID
+        )
+        .sorted { ($0.index ?? 0) < ($1.index ?? 0) }
+        await cacheArtwork(for: episodes, serverID: serverID)
 
         for episode in episodes {
-            try await queueSingleDownload(ratingKey: episode.ratingKey, type: .episode)
+            try await queueSingleDownload(
+                id: PlexItemID(serverID: serverID, ratingKey: episode.ratingKey),
+                type: .episode
+            )
         }
     }
 
-    private func queueShowDownload(showKey: String) async throws {
-        _ = try await fetchAndCacheDetails(ratingKey: showKey)
-        let seasons = try await fetchAndCacheChildren(PlexSeason.self, ratingKey: showKey)
-            .sorted { $0.index < $1.index }
-        await cacheArtwork(for: seasons)
+    private func queueShowDownload(show: PlexItemID) async throws {
+        let serverID = try downloadServerID(for: show)
+        _ = try await fetchAndCacheDetails(ratingKey: show.ratingKey, serverID: serverID)
+        let seasons = try await fetchAndCacheChildren(
+            PlexSeason.self,
+            ratingKey: show.ratingKey,
+            serverID: serverID
+        )
+        .sorted { $0.index < $1.index }
+        await cacheArtwork(for: seasons, serverID: serverID)
 
         for season in seasons {
-            try await queueSeasonDownload(seasonKey: season.ratingKey)
+            try await queueSeasonDownload(
+                season: PlexItemID(serverID: serverID, ratingKey: season.ratingKey)
+            )
         }
     }
 
@@ -863,7 +1018,6 @@ final class DownloadManager {
         }
 
         guard plexService.isSessionReady,
-              plexService.isConnected,
               plexService.activeProfileID?.nilIfEmpty != nil,
               !isProfileSwitching,
               !isQueuePaused,
@@ -871,21 +1025,31 @@ final class DownloadManager {
             return
         }
 
+        // A record whose server is offline or switched off is not an error: it
+        // stays queued (and its completed siblings stay playable) until that
+        // server connects again, which re-runs the queue.
         while plexService.isSessionReady,
-              plexService.isConnected,
               !isProfileSwitching,
               !isQueuePaused,
               activeDownloadCount < preferences.maximumActiveDownloads.rawValue,
-              let next = records.first(where: { $0.status == .queued && !deletingDownloadIDs.contains($0.globalKey) }) {
+              let next = records.first(where: {
+                  $0.status == .queued
+                      && !deletingDownloadIDs.contains($0.globalKey)
+                      && isServerConnected($0.serverID)
+              }) {
             await startDownload(record: next)
         }
+    }
+
+    private func isServerConnected(_ serverID: String) -> Bool {
+        plexService.pool.connection(for: serverID) != nil
     }
 
     private func startDownload(record: DownloadedMediaRecord) async {
         guard !Task.isCancelled,
               record.accountProfileID == plexService.activeProfileID,
               plexService.isSessionReady,
-              plexService.isConnected else {
+              let connection = plexService.pool.connection(for: record.serverID) else {
             return
         }
         update(globalKey: record.globalKey) { item in
@@ -904,13 +1068,16 @@ final class DownloadManager {
                ) {
                 details = cachedDetails
             } else {
-                details = try await fetchAndCacheDetails(ratingKey: record.ratingKey)
+                details = try await fetchAndCacheDetails(
+                    ratingKey: record.ratingKey,
+                    serverID: record.serverID
+                )
             }
 
             guard !Task.isCancelled,
                   record.accountProfileID == plexService.activeProfileID,
                   plexService.isSessionReady,
-                  plexService.isConnected else {
+                  isServerConnected(record.serverID) else {
                 update(globalKey: record.globalKey) { item in
                     item.status = .queued
                     item.downloadTaskIdentifier = nil
@@ -924,14 +1091,14 @@ final class DownloadManager {
             }
 
             if details.type == .episode {
-                try await cacheEpisodeContext(details)
+                try await cacheEpisodeContext(details, serverID: record.serverID)
             }
 
             guard !Task.isCancelled,
                   !isProfileSwitching,
                   record.accountProfileID == plexService.activeProfileID,
                   plexService.isSessionReady,
-                  plexService.isConnected else {
+                  isServerConnected(record.serverID) else {
                 throw CancellationError()
             }
 
@@ -942,7 +1109,7 @@ final class DownloadManager {
                 throw PlexServiceError.decodingError("Cached media part missing for \(record.title)")
             }
 
-            guard let sourceURL = plexService.directPlayURL(for: part) else {
+            guard let sourceURL = plexService.directPlayURL(for: part, serverID: record.serverID) else {
                 throw PlexServiceError.invalidURL
             }
 
@@ -979,7 +1146,9 @@ final class DownloadManager {
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
             request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
-            plexService.applyHeaders(to: &request, token: plexService.preferredServerToken)
+            // The token belongs to the record's own server; the primary one's
+            // would be rejected (or, worse, accepted for a different title).
+            plexService.applyHeaders(to: &request, token: connection.token)
             try validateAvailableStorage(for: part)
 
             let resumeData = fileStore.resumeData(relativePath: latestRecord.resumeDataPath)
@@ -1064,7 +1233,7 @@ final class DownloadManager {
             fileStore.deleteResumeData(relativePath: record.resumeDataPath)
             if record.accountProfileID == plexService.activeProfileID,
                plexService.isSessionReady {
-                await cacheArtwork(for: details)
+                await cacheArtwork(for: details, serverID: record.serverID)
             }
 
             update(globalKey: globalKey) { item in
@@ -1093,14 +1262,16 @@ final class DownloadManager {
         processQueueIfNeeded()
     }
 
-    private func fetchAndCacheDetails(ratingKey: String) async throws -> PlexMediaDetails {
+    private func fetchAndCacheDetails(
+        ratingKey: String,
+        serverID: String
+    ) async throws -> PlexMediaDetails {
         guard !isProfileSwitching,
-              let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
-              let serverID = currentServerID else {
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await plexService.getMediaDetailsPayload(ratingKey: ratingKey)
+        let data = try await plexService.getMediaDetailsPayload(ratingKey: ratingKey, serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               plexService.activeProfileID == accountProfileID else {
@@ -1112,23 +1283,26 @@ final class DownloadManager {
             serverID: serverID,
             endpoint: PlexMetadataCache.metadataEndpoint(ratingKey)
         )
-        let response = try plexService.decodeJSON(MetadataResponse<PlexMediaDetails>.self, from: data)
+        let response = try plexService.decodeJSON(
+            MetadataResponse<PlexMediaDetails>.self,
+            from: data,
+            serverID: serverID
+        )
         guard let details = response.MediaContainer.Metadata?.first else {
             throw PlexServiceError.decodingError("No metadata found for \(ratingKey)")
         }
-        await cacheArtwork(for: details)
+        await cacheArtwork(for: details, serverID: serverID)
         return details
     }
 
     @discardableResult
-    private func fetchAndCacheChildren(ratingKey: String) async throws -> Data {
+    private func fetchAndCacheChildren(ratingKey: String, serverID: String) async throws -> Data {
         guard !isProfileSwitching,
-              let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
-              let serverID = currentServerID else {
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
             throw PlexServiceError.noServerConnected
         }
 
-        let data = try await plexService.getChildrenPayload(ratingKey: ratingKey)
+        let data = try await plexService.getChildrenPayload(ratingKey: ratingKey, serverID: serverID)
         guard !Task.isCancelled,
               !isProfileSwitching,
               plexService.activeProfileID == accountProfileID else {
@@ -1143,35 +1317,52 @@ final class DownloadManager {
         return data
     }
 
-    private func fetchAndCacheChildren<T: Decodable>(_ type: T.Type, ratingKey: String) async throws -> [T] {
-        let data = try await fetchAndCacheChildren(ratingKey: ratingKey)
-        let response = try plexService.decodeJSON(MetadataResponse<T>.self, from: data)
+    private func fetchAndCacheChildren<T: Decodable>(
+        _ type: T.Type,
+        ratingKey: String,
+        serverID: String
+    ) async throws -> [T] {
+        let data = try await fetchAndCacheChildren(ratingKey: ratingKey, serverID: serverID)
+        let response = try plexService.decodeJSON(
+            MetadataResponse<T>.self,
+            from: data,
+            serverID: serverID
+        )
         return response.MediaContainer.Metadata ?? []
     }
 
-    private func cacheEpisodeContext(_ details: PlexMediaDetails) async throws {
+    private func cacheEpisodeContext(_ details: PlexMediaDetails, serverID: String) async throws {
         if let seasonKey = details.parentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: seasonKey)
-            if let episodes = try? await fetchAndCacheChildren(PlexEpisode.self, ratingKey: seasonKey) {
-                await cacheArtwork(for: episodes)
+            _ = try? await fetchAndCacheDetails(ratingKey: seasonKey, serverID: serverID)
+            if let episodes = try? await fetchAndCacheChildren(
+                PlexEpisode.self,
+                ratingKey: seasonKey,
+                serverID: serverID
+            ) {
+                await cacheArtwork(for: episodes, serverID: serverID)
             }
         }
 
         if let showKey = details.grandparentRatingKey {
-            _ = try? await fetchAndCacheDetails(ratingKey: showKey)
-            if let seasons = try? await fetchAndCacheChildren(PlexSeason.self, ratingKey: showKey) {
-                await cacheArtwork(for: seasons)
+            _ = try? await fetchAndCacheDetails(ratingKey: showKey, serverID: serverID)
+            if let seasons = try? await fetchAndCacheChildren(
+                PlexSeason.self,
+                ratingKey: showKey,
+                serverID: serverID
+            ) {
+                await cacheArtwork(for: seasons, serverID: serverID)
             }
         }
     }
 
-    private func cacheArtwork(for details: PlexMediaDetails) async {
+    private func cacheArtwork(for details: PlexMediaDetails, serverID: String) async {
         let expectedProfileID = plexService.activeProfileID
         // A clip's thumb and art are 16:9 frame grabs; requesting the poster
         // box would crop them server-side before they ever reach the cache.
         if details.isClip {
             await cacheArtwork(
                 paths: [details.thumb, details.art].compactMap { $0 },
+                serverID: serverID,
                 width: 1280,
                 height: 720,
                 expectedProfileID: expectedProfileID
@@ -1193,11 +1384,12 @@ final class DownloadManager {
 
         await cacheArtwork(
             paths: paths.compactMap { $0 },
+            serverID: serverID,
             expectedProfileID: expectedProfileID
         )
     }
 
-    private func cacheArtwork(for seasons: [PlexSeason]) async {
+    private func cacheArtwork(for seasons: [PlexSeason], serverID: String) async {
         let expectedProfileID = plexService.activeProfileID
         await cacheArtwork(paths: seasons.flatMap { season in
             [
@@ -1205,10 +1397,10 @@ final class DownloadManager {
                 season.art,
                 season.parentThumb,
             ].compactMap { $0 }
-        }, expectedProfileID: expectedProfileID)
+        }, serverID: serverID, expectedProfileID: expectedProfileID)
     }
 
-    private func cacheArtwork(for episodes: [PlexEpisode]) async {
+    private func cacheArtwork(for episodes: [PlexEpisode], serverID: String) async {
         let expectedProfileID = plexService.activeProfileID
         await cacheArtwork(paths: episodes.flatMap { episode in
             [
@@ -1216,11 +1408,12 @@ final class DownloadManager {
                 episode.art,
                 episode.grandparentThumb,
             ].compactMap { $0 }
-        }, expectedProfileID: expectedProfileID)
+        }, serverID: serverID, expectedProfileID: expectedProfileID)
     }
 
     private func cacheArtwork(
         paths: [String],
+        serverID: String,
         width: Int = 900,
         height: Int = 1350,
         expectedProfileID: String?
@@ -1230,7 +1423,12 @@ final class DownloadManager {
                   plexService.activeProfileID == expectedProfileID,
                   let targetURL = fileStore.artworkURL(for: path),
                   !FileManager.default.fileExists(atPath: targetURL.path),
-                  let sourceURL = plexService.imageURL(for: path, width: width, height: height) else {
+                  let sourceURL = plexService.imageURL(
+                      for: path,
+                      serverID: serverID,
+                      width: width,
+                      height: height
+                  ) else {
                 continue
             }
 
@@ -1373,19 +1571,22 @@ final class DownloadManager {
     }
 
     private func relatedRecords(for scope: DownloadScope) -> [DownloadedMediaRecord] {
+        let ownRecords = records.filter {
+            $0.ratingKey == scope.ratingKey && matchesServer($0, of: scope.id)
+        }
         switch scope.type {
         case .season:
             let episodeRecords = records.filter {
-                $0.type == .episode && $0.parentRatingKey == scope.ratingKey
+                $0.type == .episode && matchesSeason($0, of: scope.id)
             }
-            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == scope.ratingKey } : episodeRecords
+            return episodeRecords.isEmpty ? ownRecords : episodeRecords
         case .show:
             let episodeRecords = records.filter {
-                $0.type == .episode && ($0.grandparentRatingKey == scope.ratingKey || $0.parentRatingKey == scope.ratingKey)
+                $0.type == .episode && matchesBranch($0, of: scope.id)
             }
-            return episodeRecords.isEmpty ? records.filter { $0.ratingKey == scope.ratingKey } : episodeRecords
+            return episodeRecords.isEmpty ? ownRecords : episodeRecords
         default:
-            return records.filter { $0.ratingKey == scope.ratingKey }
+            return ownRecords
         }
     }
 
@@ -1434,19 +1635,6 @@ final class DownloadManager {
 
     private func record(globalKey: String) -> DownloadedMediaRecord? {
         storedRecords.first { $0.globalKey == globalKey }
-    }
-
-    private func activeRecordIndex(ratingKey: String) -> Int? {
-        let activeProfileID = plexService.activeProfileID
-        return storedRecords.firstIndex {
-            $0.accountProfileID == activeProfileID && $0.ratingKey == ratingKey
-        }
-    }
-
-    private func update(_ ratingKey: String, mutate: (inout DownloadedMediaRecord) -> Void) {
-        guard let index = activeRecordIndex(ratingKey: ratingKey) else { return }
-        mutate(&storedRecords[index])
-        persist()
     }
 
     private func update(globalKey: String, persist shouldPersist: Bool = true, mutate: (inout DownloadedMediaRecord) -> Void) {
@@ -1796,19 +1984,20 @@ final class DownloadManager {
         return error.localizedDescription
     }
 
-    private func upsertFailedPlaceholder(ratingKey: String, type: PlexMediaType, isClip: Bool = false, error: Error) {
+    private func upsertFailedPlaceholder(id: PlexItemID, type: PlexMediaType, isClip: Bool = false, error: Error) {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
-              let serverID = currentServerID else {
+              let serverID = try? downloadServerID(for: id) else {
             return
         }
+        let ratingKey = id.ratingKey
         let placeholder = DownloadedMediaRecord(
             accountProfileID: accountProfileID,
             serverID: serverID,
-            serverName: currentServerName,
+            serverName: serverName(for: serverID),
             ratingKey: ratingKey,
             type: type,
             isClip: isClip || type == .clip,
-            title: cachedMediaDetails(ratingKey: ratingKey)?.title ?? "Download",
+            title: cachedMediaDetails(for: PlexItemID(serverID: serverID, ratingKey: ratingKey))?.title ?? "Download",
             subtitle: nil,
             parentRatingKey: nil,
             parentTitle: nil,
@@ -1857,6 +2046,7 @@ final class DownloadManager {
         storedRecords.removeAll {
             $0.accountProfileID == activeProfileID
                 && $0.ratingKey == scope.ratingKey
+                && (scope.serverID == nil || $0.serverID == scope.serverID)
                 && $0.type == scope.type
                 && $0.mediaID == nil
                 && $0.partID == nil

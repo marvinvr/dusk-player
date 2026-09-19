@@ -74,6 +74,7 @@ final class PlaybackNowPlayingController {
         title: String,
         channelTitle: String,
         artworkPath: String?,
+        serverID: String?,
         engine: any PlaybackEngine,
         plexService: PlexService,
         skipBackwardInterval: TimeInterval,
@@ -102,7 +103,7 @@ final class PlaybackNowPlayingController {
         ]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         MPNowPlayingInfoCenter.default().playbackState = .paused
-        loadLiveArtwork(path: artworkPath, using: plexService)
+        loadLiveArtwork(path: artworkPath, serverID: serverID, using: plexService)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         #endif
     }
@@ -330,7 +331,12 @@ private extension PlaybackNowPlayingController {
             ?? details.parentThumb
             ?? details.art
 
-        guard let artworkURL = plexService.imageURL(for: artworkPath, width: 640, height: 640) else {
+        guard let artworkURL = plexService.imageURL(
+            for: artworkPath,
+            serverID: details.serverID,
+            width: 640,
+            height: 640
+        ) else {
             return
         }
 
@@ -351,8 +357,13 @@ private extension PlaybackNowPlayingController {
         }
     }
 
-    func loadLiveArtwork(path: String?, using plexService: PlexService) {
-        guard let artworkURL = plexService.imageURL(for: path, width: 640, height: 360) else {
+    func loadLiveArtwork(path: String?, serverID: String?, using plexService: PlexService) {
+        guard let artworkURL = plexService.imageURL(
+            for: path,
+            serverID: serverID,
+            width: 640,
+            height: 360
+        ) else {
             return
         }
         artworkTask = Task { @MainActor [weak self, weak plexService] in

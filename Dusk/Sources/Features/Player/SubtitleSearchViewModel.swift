@@ -27,6 +27,8 @@ final class SubtitleSearchViewModel {
     private let onDownloaded: (PlexSubtitleSearchResult) async -> Void
 
     let ratingKey: String
+    /// The server the item lives on; nil means the primary one.
+    let serverID: String?
 
     var language: CommonLanguage
     var hearingImpaired = false
@@ -39,11 +41,13 @@ final class SubtitleSearchViewModel {
     init(
         plexService: PlexService,
         ratingKey: String,
+        serverID: String? = nil,
         preferredLanguageCode: String?,
         onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void
     ) {
         self.plexService = plexService
         self.ratingKey = ratingKey
+        self.serverID = serverID
         self.onDownloaded = onDownloaded
         self.language = Self.defaultLanguage(preferredCode: preferredLanguageCode)
     }
@@ -84,7 +88,8 @@ final class SubtitleSearchViewModel {
             let found = try await plexService.searchSubtitles(
                 ratingKey: ratingKey,
                 languageCode: language.code,
-                hearingImpaired: hearingImpaired
+                hearingImpaired: hearingImpaired,
+                serverID: serverID
             )
             guard generation == searchGeneration else { return }
             results = found
@@ -108,7 +113,11 @@ final class SubtitleSearchViewModel {
 
         phase = .downloading(result.id)
         do {
-            try await plexService.downloadSubtitle(ratingKey: ratingKey, result: result)
+            try await plexService.downloadSubtitle(
+                ratingKey: ratingKey,
+                result: result,
+                serverID: serverID
+            )
             phase = .downloaded
             await onDownloaded(result)
         } catch {

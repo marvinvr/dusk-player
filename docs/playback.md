@@ -12,14 +12,18 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   abstraction for playback unless another backend actually exists.
 
 ## End-to-End Play Flow
-1. Detail/list UI asks `PlaybackCoordinator` to play a `ratingKey` through
+1. Detail/list UI asks `PlaybackCoordinator` to play a `PlexItemID` (server +
+   rating key) through
    `play`, `playFromStart`, or `playVersion`, passing a `PlaybackPlaceholder`
    (the title/poster art paths the caller already holds). The coordinator
    also receives the initiating model's `viewOffset` as a resume fallback:
    freshly fetched item details remain authoritative when they contain a
    positive offset, but a hub/list offset is preserved when that detail
    response omits one or reports zero. `playFromStart` always overrides both
-   with zero. The coordinator
+   with zero. Callers that know the item's runtime also pass
+   `resumeOffsetDurationMilliseconds`, which decides whether that offset may
+   follow the item onto another server's copy (see "Choosing The Server").
+   The coordinator
    presents the player cover IMMEDIATELY on `PlayerLoadingView` (poster + title +
    spinner) via `enterLoadingState`, stamps a `currentPlaybackAttemptID`, and
    then loads in the background — pressing Play feels instant instead of blocking
@@ -32,8 +36,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 3. The coordinator chooses a `PlexMedia` version, then its first *available*
    part (`PlexMedia.firstAvailablePart`).
 4. If a matching completed download exists, playback uses the local file URL.
-   Otherwise `PlexService.directPlayURL(for:)` builds `{serverBaseURL}{part.key}`
-   and adds `X-Plex-Token` when available.
+   Otherwise `PlexService.directPlayURL(for:)` builds
+   `{connection.baseURL}{part.key}` from the connection of the item's own server
+   and adds that server's `X-Plex-Token` when available.
 5. `StreamResolver.evaluate` records the intended engine, a human-readable
    reason, and `requiresServerTranscode` (media neither engine can render
    correctly, e.g. Dolby Vision profile 5). Flagged online media skips direct
@@ -134,6 +139,69 @@ so the whole live HUD is derived from one instant.
   on the next sync; the network fetch only runs when the held schedule stops
   covering the next hour (and pulls the next day in at the date boundary).
 
+## Choosing The Server
+
+- An item can exist on several connected servers. `PlaybackSourceResolver`
+  builds the candidate list — the item itself plus its merge `alternates`,
+  filtered to currently connected servers and sorted by strict server priority —
+  and a server tripping the remote-streaming Plex Pass restriction is demoted to
+  last rather than dropped.
+- **The requested instance always represents its own server.** An alternate on
+  the *same* server is never substituted for it: two items can share a weak
+  (heuristic) content key — two guid-less clips both called "Trailer" — and
+  swapping them would play a different file, on single-server accounts too.
+- **A copy that carries progress plays first.** When the caller passes a
+  positive `resumeOffsetMilliseconds`, that instance becomes candidate #0
+  regardless of priority (`prefersRequestedInstance`): the offset belongs to
+  that copy, and re-resolving by priority is what makes a merged Continue
+  Watching row resume server A's copy at server B's position and then split the
+  progress across both.
+- `PlaybackCoordinator.runPlaybackAttempt` walks those candidates on a **hard**
+  failure: details fetch throws, no playable part, transcode decision failure, or
+  a nil URL. A soft failure (an engine error mid-stream) stays inside the current
+  server and uses the delivery ladder below. Every candidate but the last gets
+  only `candidateFetchDeadline` (10 s) for its metadata fetch — enough for a
+  sleeping NAS to answer a `checkFiles` request, far less than the full 15 s
+  request timeout.
+- The initiating offset travels with the walk only where it means something: the
+  copy it was measured on uses it unconditionally, and another server's copy
+  inherits it only when both runtimes are within
+  `resumeOffsetDurationTolerance` (2 %, from `resumeOffsetDurationMilliseconds`
+  passed by the caller). Otherwise the fallback server's own `viewOffset`
+  decides. A positive `viewOffset` in the candidate's own details always wins.
+- A completed local download is always tried first — it needs no server at all.
+  If the file on disk turns out not to match the record, the same candidate is
+  immediately retried online (`suppressLocalDownload`) instead of ending the
+  walk on a download error.
+- Explicit version selection (`playVersion`) never leaves its server, and
+  neither does SharePlay: `prepareForSharePlay` calls
+  `playFromStart(restrictToItemServer: true)`, because the group is watching the
+  copy the activity names and the readiness post-check rejects any other server.
+- `activePlaybackServerID` is authoritative for the session. Timelines and
+  scrobbles go **only** to the server the session is actually playing from —
+  never fanned out to the pool, which would corrupt watch state on the others.
+  An explicit "Mark as Watched/Unwatched" is the deliberate exception: see
+  `PlexService.setWatchedAcrossServers`.
+- The Plex Pass message is shown when *every* candidate is restricted, and also
+  when the walk exhausted a list that ended in restricted candidates — the
+  missing entitlement is a more useful answer than the first server's error.
+
+### Watch State Across Servers
+
+- `PlexService.setWatchedAcrossServers(_:id:)`
+  (`Shared/PlexService+WatchedFanOut.swift`) marks an item watched/unwatched on
+  the requested instance **and** on every connected server holding a known
+  alternate of the same content. Detail screens and item context menus use it.
+- The requested instance decides the result (its error is thrown and surfaced);
+  the other copies are best effort and never twice per server.
+- Removing an item from Continue Watching (`HomeViewModel`) fans out the same
+  way and for the same reason: the row shows one copy of a title that may be in
+  progress on several servers, and dismissing only that copy makes it come back
+  from another server on the next load.
+- Those two are the only watch-state fan-outs. Timeline reporting and scrobbles
+  during playback stay on `activePlaybackServerID`, because those describe one
+  file being played, not a statement the user made about the content.
+
 ## Delivery Ladder and Session Hygiene
 
 - The ladder is: direct play → server stream (HLS with `directStream=1`,
@@ -141,7 +209,8 @@ so the whole live HUD is derived from one instant.
   It never triggers for local downloads or sessions already on a server
   stream/transcode, and it must not change the direct-play-first startup rule:
   the server rung is entered only on resolver `requiresServerTranscode` or an
-  actual direct-play failure.
+  actual direct-play failure. The ladder stays **within one server**; moving to
+  another server is the candidate walk above, not a rung.
 - `PlexService.serverStreamURL` drives the fallback rung via
   `TranscodeDeliveryMode.directStreamFallback` (no bitrate caps, `directPlay=0`,
   `directStream=1`, `directStreamAudio=1`); manual Quality keeps
@@ -250,8 +319,13 @@ so the whole live HUD is derived from one instant.
   direct play, or a per-user Plex HLS stream without breaking synchronization.
 - `PlaybackSharePlayController` owns the `GroupSession` listener, activation,
   join/leave lifecycle, participant state, incoming activity handling, and
-  engine attachment. An invitee signed into the same shared Plex server is
-  switched to that server automatically. Missing authentication is retryable
+  engine attachment. An invitee who has the hosting server connected resolves the
+  item on that server through `pool.connection(for:)`; nothing about the
+  invitee's own session changes. The preparation plays with
+  `restrictToItemServer: true` so the invitee's own server priority cannot move
+  the session to another copy — the readiness check compares
+  `activePlaybackServerID` against the activity and would otherwise tear the
+  session down as if the item were unavailable. Missing authentication is retryable
   after sign-in; an account without server access gets a clear failure.
   Session/activity listeners stay responsive while a separate cancellable
   worker resolves Plex playback. It drains the latest activity, never republishes

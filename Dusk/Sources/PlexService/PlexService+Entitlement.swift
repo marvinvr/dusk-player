@@ -47,17 +47,23 @@ extension PlexService {
         }
     }
 
-    /// Detects the Plex Pass remote-streaming restriction for online playback.
+    /// Detects the Plex Pass remote-streaming restriction for one server.
     ///
     /// Only decides for servers the account owns: there, the streaming user *is*
     /// the owner, so the account's own subscription is authoritative. For shared
     /// servers the owner's entitlement isn't visible to the client, so we don't
     /// pre-empt playback — those simply fall through to the normal error path.
     /// Returns nil unless we positively know the entitlement is missing.
-    func remoteStreamingRestriction() async -> RemoteStreamingRestriction? {
-        guard isConnectedRemotely,
-              let server = connectedServer,
-              server.owned,
+    ///
+    /// Per server because locality and ownership differ per session: the same
+    /// account can be on the LAN of one server and off-network for another, so
+    /// playback source selection asks this for each candidate.
+    ///
+    /// - Parameter serverID: nil means the primary server.
+    func remoteStreamingRestriction(forServerID serverID: String?) async -> RemoteStreamingRestriction? {
+        guard let connection = pool.connection(for: serverID),
+              connection.isRemote,
+              connection.owned,
               activeHomeUser?.isRestricted != true else {
             return nil
         }

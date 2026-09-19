@@ -14,6 +14,7 @@ struct SubtitleSearchView: View {
     init(
         plexService: PlexService,
         ratingKey: String,
+        serverID: String?,
         preferredLanguageCode: String?,
         onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void,
         onDismiss: @escaping () -> Void
@@ -21,6 +22,7 @@ struct SubtitleSearchView: View {
         _viewModel = State(initialValue: SubtitleSearchViewModel(
             plexService: plexService,
             ratingKey: ratingKey,
+            serverID: serverID,
             preferredLanguageCode: preferredLanguageCode,
             onDownloaded: onDownloaded
         ))

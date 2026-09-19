@@ -6,7 +6,11 @@ final class MovieDetailViewModel {
     private let plexService: PlexService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
-    let ratingKey: String
+    /// Server-scoped identity of the movie. Every request this model makes goes
+    /// to `id.serverID`, never to whichever server happens to be primary.
+    let id: PlexItemID
+
+    var ratingKey: String { id.ratingKey }
 
     private(set) var details: PlexMediaDetails?
     private(set) var isLoading = false
@@ -15,12 +19,12 @@ final class MovieDetailViewModel {
     private(set) var offlineStateVersion = 0
 
     init(
-        ratingKey: String,
+        id: PlexItemID,
         plexService: PlexService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
-        self.ratingKey = ratingKey
+        self.id = id
         self.plexService = plexService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -35,13 +39,13 @@ final class MovieDetailViewModel {
         isLoading = true
         error = nil
 
-        if let cachedDetails = downloadManager?.cachedMediaDetails(ratingKey: ratingKey) {
+        if let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
             details = cachedDetails
             isUsingCachedData = true
         }
 
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -67,8 +71,11 @@ final class MovieDetailViewModel {
         }
 
         do {
-            try await plexService.setWatched(targetWatched, ratingKey: ratingKey)
-            self.details = try await plexService.getMediaDetails(ratingKey: ratingKey)
+            try await plexService.setWatchedAcrossServers(
+                targetWatched,
+                id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
+            )
+            self.details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
@@ -96,7 +103,7 @@ final class MovieDetailViewModel {
     }
 
     var isPlayableOffline: Bool {
-        downloadManager?.isPlayableOffline(ratingKey: ratingKey) == true
+        downloadManager?.isPlayableOffline(id: id) == true
     }
 
     var offlineBannerText: String? {
@@ -155,21 +162,25 @@ final class MovieDetailViewModel {
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: details?.thumb, width: width, height: height)
+            ?? plexService.imageURL(for: details?.thumb, serverID: serverID, width: width, height: height)
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: details?.art, width: width, height: height)
+            ?? plexService.imageURL(for: details?.art, serverID: serverID, width: width, height: height)
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, width: width, height: height)
+            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
     }
 
-    private var serverID: String? {
-        downloadManager?.serverID(for: ratingKey) ?? plexService.currentServerIdentifier
+    /// The route's server wins; the download record and the primary server are
+    /// only fallbacks for an id that reached us without one (an offline cache).
+    var serverID: String? {
+        id.serverID
+            ?? downloadManager?.serverID(for: id)
+            ?? plexService.pool.primary?.serverID
     }
 }
 
@@ -180,7 +191,7 @@ extension MovieDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles && !isUsingCachedData && hasPlayablePart
+        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
@@ -194,6 +205,7 @@ extension MovieDetailViewModel {
         SubtitleSearchViewModel(
             plexService: plexService,
             ratingKey: ratingKey,
+            serverID: serverID,
             preferredLanguageCode: preferredLanguageCode
         ) { [weak self] _ in
             await self?.refreshDetails()

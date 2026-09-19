@@ -4,31 +4,36 @@ import UIKit
 #endif
 
 extension PlexService {
-    func imageURL(for path: String?, width: Int? = nil, height: Int? = nil) -> URL? {
+    /// - Parameter serverID: The server the artwork path belongs to. nil means
+    ///   the primary server, which is only correct for artwork that has no item
+    ///   behind it; everything derived from a `PlexItem`/`PlexMediaDetails`
+    ///   passes that model's `serverID`.
+    func imageURL(for path: String?, serverID: String? = nil, width: Int? = nil, height: Int? = nil) -> URL? {
         guard let path else { return nil }
 
         let requestSize = imageRequestSize(width: width, height: height)
         if requestSize.hasDimensions,
-           let transcodedURL = transcodedImageURL(for: path, size: requestSize) {
+           let transcodedURL = transcodedImageURL(for: path, size: requestSize, serverID: serverID) {
             return transcodedURL
         }
 
-        return directImageURL(for: path)
+        return directImageURL(for: path, serverID: serverID)
     }
 
-    func directImageURL(for path: String) -> URL? {
-        guard let urlString = imageRequestURLString(for: path, includeToken: false) else {
+    func directImageURL(for path: String, serverID: String? = nil) -> URL? {
+        guard let urlString = imageRequestURLString(for: path, includeToken: false, serverID: serverID) else {
             return nil
         }
         return URL(string: urlString)
     }
 
-    func transcodedImageURL(for path: String, size: ImageRequestSize) -> URL? {
-        guard let baseURL = serverBaseURL,
-              let originalURLString = imageRequestURLString(for: path, includeToken: true) else {
+    func transcodedImageURL(for path: String, size: ImageRequestSize, serverID: String? = nil) -> URL? {
+        guard let connection = pool.connection(for: serverID),
+              let originalURLString = imageRequestURLString(for: path, includeToken: true, serverID: serverID) else {
             return nil
         }
 
+        let baseURL = connection.baseURL
         let base = baseURL.absoluteString.hasSuffix("/")
             ? String(baseURL.absoluteString.dropLast())
             : baseURL.absoluteString
@@ -52,8 +57,8 @@ extension PlexService {
     }
 
     func imageData(for url: URL) async throws -> Data {
-        if shouldAuthenticateImageRequest(for: url) {
-            return try await rawImageServerRequest(url: url)
+        if let connection = imageServerConnection(for: url) {
+            return try await rawImageServerRequest(url: url, connection: connection)
         }
 
         var request = URLRequest(url: url)
@@ -62,11 +67,11 @@ extension PlexService {
         return try await executeBinaryRequest(request)
     }
 
-    func scrubPreviewSource(forPartID partID: Int) async -> PlexScrubPreviewSource? {
+    func scrubPreviewSource(forPartID partID: Int, serverID: String? = nil) async -> PlexScrubPreviewSource? {
         guard partID > 0 else { return nil }
 
         do {
-            let data = try await rawScrubPreviewRequest(partID: partID)
+            let data = try await rawScrubPreviewRequest(partID: partID, serverID: serverID)
             guard !data.isEmpty, data.count <= PlexBIFParser.maxFileSize else { return nil }
 
             let frames = await Task.detached(priority: .utility) {
@@ -80,58 +85,74 @@ extension PlexService {
         }
     }
 
-    func shouldAuthenticateImageRequest(for url: URL) -> Bool {
-        guard let serverBaseURL else { return false }
+    /// The connected server an artwork URL points at, matched on scheme, host,
+    /// and port.
+    ///
+    /// Checked against *every* connected server, not just the primary one:
+    /// artwork for an item that lives on the second server is served by that
+    /// server, and matching only the primary would send it out unauthenticated.
+    func imageServerConnection(for url: URL) -> PlexServerConnection? {
+        pool.connections.first { connection in
+            let baseURL = connection.baseURL
+            let normalizedURLPort = url.port ?? defaultPort(for: url.scheme)
+            let normalizedServerPort = baseURL.port ?? defaultPort(for: baseURL.scheme)
 
-        let normalizedURLPort = url.port ?? defaultPort(for: url.scheme)
-        let normalizedServerPort = serverBaseURL.port ?? defaultPort(for: serverBaseURL.scheme)
-
-        return url.scheme?.lowercased() == serverBaseURL.scheme?.lowercased()
-            && url.host?.lowercased() == serverBaseURL.host?.lowercased()
-            && normalizedURLPort == normalizedServerPort
+            return url.scheme?.lowercased() == baseURL.scheme?.lowercased()
+                && url.host?.lowercased() == baseURL.host?.lowercased()
+                && normalizedURLPort == normalizedServerPort
+        }
     }
 
-    private func rawImageServerRequest(url: URL) async throws -> Data {
-        if preferredServerToken == nil {
-            try await recoverServerAuthorizationIfPossible()
-        }
+    func shouldAuthenticateImageRequest(for url: URL) -> Bool {
+        imageServerConnection(for: url) != nil
+    }
 
+    private func rawImageServerRequest(url: URL, connection: PlexServerConnection) async throws -> Data {
         do {
-            return try await sendImageServerRequest(url: url)
+            return try await sendImageServerRequest(url: url, token: connection.token)
         } catch let error as PlexServiceError where error == .unauthorized {
             plexAuthLogger.notice("Image request unauthorized for \(url.path, privacy: .public); attempting token refresh")
-            try await recoverServerAuthorizationIfPossible()
+            let refreshed = try await refreshedImageConnection(serverID: connection.serverID)
             do {
-                return try await sendImageServerRequest(url: url)
+                return try await sendImageServerRequest(url: url, token: refreshed.token)
             } catch let retryError as PlexServiceError where retryError == .unauthorized {
-                clearServer()
+                // Only this server is out; the rest of the pool keeps working.
+                pool.markUnauthorized(serverID: connection.serverID)
                 throw retryError
             }
         }
     }
 
-    private func rawScrubPreviewRequest(partID: Int) async throws -> Data {
-        if preferredServerToken == nil {
-            try await recoverServerAuthorizationIfPossible()
+    /// Re-authorizes the one server an image belongs to and hands back its new
+    /// session.
+    private func refreshedImageConnection(serverID: String) async throws -> PlexServerConnection {
+        try await refreshServerAuthorization(serverID: serverID)
+        guard let connection = pool.connection(for: serverID) else {
+            throw PlexServiceError.unauthorized
+        }
+        return connection
+    }
+
+    private func rawScrubPreviewRequest(partID: Int, serverID: String?) async throws -> Data {
+        let targetID = try resolveServerID(serverID)
+
+        if pool.connection(for: targetID) == nil {
+            try await refreshServerAuthorization(serverID: targetID)
         }
 
         do {
-            return try await sendScrubPreviewRequest(partID: partID)
+            return try await sendScrubPreviewRequest(partID: partID, serverID: targetID)
         } catch let error as PlexServiceError where error == .unauthorized {
-            try await recoverServerAuthorizationIfPossible()
-            return try await sendScrubPreviewRequest(partID: partID)
+            try await refreshServerAuthorization(serverID: targetID)
+            return try await sendScrubPreviewRequest(partID: partID, serverID: targetID)
         }
     }
 
-    private func sendImageServerRequest(url: URL) async throws -> Data {
-        guard let serverToken = preferredServerToken else {
-            throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
-        }
-
+    private func sendImageServerRequest(url: URL, token: String) async throws -> Data {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.cachePolicy = .returnCacheDataElseLoad
-        applyHeaders(to: &request, token: serverToken)
+        applyHeaders(to: &request, token: token)
 
         if let cachedResponse = AppImageCache.cachedResponse(for: request) {
             return cachedResponse.data
@@ -144,23 +165,27 @@ extension PlexService {
         return data
     }
 
-    private func sendScrubPreviewRequest(partID: Int) async throws -> Data {
-        guard let baseURL = serverBaseURL else {
-            throw PlexServiceError.noServerConnected
+    private func sendScrubPreviewRequest(partID: Int, serverID: String) async throws -> Data {
+        guard let connection = pool.connection(for: serverID) else {
+            switch pool.state(for: serverID) {
+            case .unauthorized:
+                throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
+            default:
+                throw PlexServiceError.noServerConnected
+            }
         }
 
-        guard let serverToken = preferredServerToken else {
-            throw isAuthenticationFresh ? PlexServiceError.authenticationPending : PlexServiceError.unauthorized
-        }
-
-        guard let url = buildURL(base: baseURL.absoluteString, path: "/library/parts/\(partID)/indexes/sd") else {
+        guard let url = buildURL(
+            base: connection.baseURL.absoluteString,
+            path: "/library/parts/\(partID)/indexes/sd"
+        ) else {
             throw PlexServiceError.invalidURL
         }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.cachePolicy = .returnCacheDataElseLoad
-        applyHeaders(to: &request, token: serverToken)
+        applyHeaders(to: &request, token: connection.token)
         request.setValue("application/octet-stream,image/*,*/*", forHTTPHeaderField: "Accept")
 
         return try await executeRequest(request)
@@ -197,20 +222,21 @@ extension PlexService {
         }
     }
 
-    func imageRequestURLString(for path: String, includeToken: Bool) -> String? {
+    func imageRequestURLString(for path: String, includeToken: Bool, serverID: String? = nil) -> String? {
         if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
             return absoluteURL.absoluteString
         }
 
-        guard let baseURL = serverBaseURL else { return nil }
+        guard let connection = pool.connection(for: serverID) else { return nil }
+        let baseURL = connection.baseURL
         let base = baseURL.absoluteString.hasSuffix("/")
             ? String(baseURL.absoluteString.dropLast())
             : baseURL.absoluteString
         guard var components = URLComponents(string: base + path) else { return nil }
 
-        if includeToken, let token = preferredServerToken {
+        if includeToken {
             var items = components.queryItems ?? []
-            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
+            items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
             components.queryItems = items
         }
 

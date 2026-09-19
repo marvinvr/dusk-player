@@ -18,13 +18,6 @@ struct SettingsContainer<Content: View>: View {
             Color.duskBackground.ignoresSafeArea()
             content
         }
-        .sheet(isPresented: serverPickerPresented) {
-            ServerPickerView(servers: viewModel.availableServers) { server in
-                try await viewModel.connect(to: server, using: plexService)
-            } onCancel: {
-                viewModel.showServerPicker = false
-            }
-        }
         #if os(tvOS)
         .fullScreenCover(isPresented: homeUserPickerPresented) {
             homeUserPicker
@@ -34,9 +27,6 @@ struct SettingsContainer<Content: View>: View {
             homeUserPicker
         }
         #endif
-        .task {
-            await viewModel.refreshAvailableServers(using: plexService)
-        }
         .duskNavigationTitle("Settings")
         .duskNavigationBarTitleDisplayModeLarge()
     }
@@ -51,13 +41,6 @@ struct SettingsContainer<Content: View>: View {
             onCancel: {
                 viewModel.showHomeUserPicker = false
             }
-        )
-    }
-
-    private var serverPickerPresented: Binding<Bool> {
-        Binding(
-            get: { viewModel.showServerPicker && !viewModel.availableServers.isEmpty },
-            set: { viewModel.showServerPicker = $0 }
         )
     }
 
