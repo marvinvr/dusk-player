@@ -331,8 +331,9 @@ so the whole live HUD is derived from one instant.
   worker resolves Plex playback. It drains the latest activity, never republishes
   an incoming item's local metadata, and cannot commit an engine after its
   session is left/replaced. Repeated attachment of an unchanged session is ignored.
-- SharePlay lives in the player gear menu on iOS/iPadOS and tvOS, using the
-  native menu label/icon layout. The action checks `GroupStateObserver`: an eligible
+- SharePlay lives in the player gear menu on iOS/iPadOS and, on tvOS, as a
+  direct button on the play bar's action row (it is a one-shot action, not a
+  settings list). The action checks `GroupStateObserver`: an eligible
   conversation uses `activate()`, otherwise iOS/iPadOS presents Apple's
   `GroupActivitySharingController` to invite participants/start a call. tvOS
   explains how to start a call or continue from iPhone/iPad when ineligible.
@@ -373,7 +374,8 @@ so the whole live HUD is derived from one instant.
 ## Manual Transcoding
 - Playback never starts with video transcoding because of a stored quality
   preference. `maxResolution` only chooses among existing Plex media versions.
-- The player gear menu exposes Quality on iOS and tvOS. `Original` means the
+- Quality is in the player gear menu on iOS and the Quality tab of the tvOS
+  settings panel. `Original` means the
   current media version direct-plays; non-original presets manually request
   Plex HLS transcoding. Transcode choices are filtered against the active
   original media version so the menu only offers presets below its resolution
@@ -1131,12 +1133,10 @@ so the whole live HUD is derived from one instant.
   auto-skip markers, stall recovery, and track selection.
 - `PlayerSessionView` loads Plex scrub-preview BIF data for online playback
   parts when available. iOS shows a thumbnail popup while dragging the seek
-  bar; tvOS keeps a separate preview cursor while swiping the focused seek
-  point. The thumb and thumbnail move during the swipe, but the filled progress
-  bar, time readout, and video position keep tracking actual playback until
-  select commits the preview position and resumes playback. Holding left/right
-  on the focused seek point repeats preview jumps after a short delay. If BIF
-  loading or parsing fails, the controls keep their existing no-preview behavior.
+  bar; tvOS shows it above the grown playhead while scrubbing (see "tvOS Play
+  Bar"). The playhead and thumbnail move during the swipe, but the video
+  position keeps tracking actual playback until Select commits. If BIF loading
+  or parsing fails, the controls keep their existing no-preview behavior.
 - Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
   episode 1 of a season. The episode check comes from the active
   `PlexMediaDetails.index`, so missing episode numbers are treated as not the
@@ -1168,10 +1168,12 @@ so the whole live HUD is derived from one instant.
   is re-decided on every render pass, and sync republishes `currentTime` 4x/sec —
   which `activeSkipMarker` derives from and `body` reads — so an unanimated pass
   lands mid-fade and finalizes the removal, making the HUD vanish instead of fade
-  (fade-in is unaffected, which is what makes the bug look one-sided). tvOS keeps
-  the conditional mount because `PlayerControlsTVOverlay` owns focus state and its
-  buttons stay focusable at zero opacity; it binds the curve to the transition
-  instead.
+  (fade-in is unaffected, which is what makes the bug look one-sided). **tvOS now
+  stays mounted too**: nothing in its transport is focusable any more, so a HUD at
+  zero opacity cannot capture the remote. Staying mounted is also load-bearing —
+  it is what keeps `PlayerTVHUDController.actions` / `availablePanelTabs` populated
+  while the HUD is hidden, so a Down press can open the settings panel straight
+  from the video.
 - On iPad the whole player cover — `PlayerView`'s stack, the loading art, the
   shared spinner, and the session — extends through the top status-bar safe
   area (`PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges`), while the HUD
@@ -1217,28 +1219,18 @@ so the whole live HUD is derived from one instant.
   orientation's saved value; `toggleAspectFill()` writes back only the current
   orientation. Portrait and landscape are fully independent — rotating swaps the
   framing to whatever that orientation was last left at.
-- tvOS uses focus-aware overlays, a gear menu for playback info and track
-  selection, quality menus, remote seek handling, touch-surface tap reveal/hide,
-  and explicit move-command routing.
-- Engaging the playback settings menu refreshes the auto-hide deadline with a
+- tvOS uses a bottom-anchored native-style play bar driven by one remote input
+  bridge and one state machine; see "tvOS Play Bar" below.
+- Engaging the iOS playback settings menu refreshes the auto-hide deadline with a
   longer window than a normal tap (`settingsControlsAutoHideDelay`, double the
   base delay) via `PlayerViewModel.noteSettingsMenuInteraction()`, so the HUD
   does not hide while the menu is open. iOS detects the gear's opening tap with
-  a `simultaneousGesture` (a native `Menu` exposes no presentation callback);
-  tvOS routes its settings-menu presentation callbacks to the same refresh.
-- tvOS focus moves and menu selections refresh the auto-hide deadline as a
-  reveal. Do not use tvOS `Menu` appear/disappear callbacks as hard HUD holds;
-  SwiftUI can emit those lifecycle events outside a real open-menu interval,
-  which would otherwise leave the HUD stuck visible. The settings refresh guards
-  on `showControls` and never reveals the HUD on its own for the same reason.
-- The tvOS full-screen interaction layer is focusable only while controls are
-  hidden. When controls reappear, focus is restored to the seek point so remote
-  input does not get stranded on the background reveal layer.
-- The first seek-point select immediately after a hidden-to-visible reveal is
-  ignored; this prevents the same remote press that revealed the HUD from also
-  activating the focused play bar and pausing playback.
-- Controls auto-hide again only while playback is playing; paused playback may
-  keep controls visible until the user hides them manually.
+  a `simultaneousGesture` (a native `Menu` exposes no presentation callback).
+- Controls auto-hide while playing on every platform. **tvOS also auto-hides
+  while paused** (`PlayerViewModel.stateAllowsControlsAutoHide`): the picture is
+  the point, the remote has a dedicated play/pause button, and any click brings
+  the transport straight back. iOS keeps the HUD up while paused because the
+  play button is the only way back.
 - With a mouse/trackpad (Mac or iPad), the system pointer hides together with the
   controls and returns the moment the pointer moves. The non-tvOS
   `PlayerTapInteractionOverlay` owns this: a `UIPointerInteraction` returns
@@ -1253,18 +1245,116 @@ so the whole live HUD is derived from one instant.
   Metal view instead of the native AVPlayer/VLCKit video surface.
 - `PlayerControlsOverlay` chooses iOS vs tvOS controls; shared controls live in
   `PlayerControlsSharedViews.swift`.
-- `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the player gear
-  menu; tvOS uses a custom full-screen diagnostic panel instead of the stock
+- `PlayerPlaybackInfoView` presents `PlaybackDebugInfo` from the iOS gear menu
+  and from the tvOS panel's Info tab ("More…"); tvOS uses a custom full-screen
+  diagnostic panel instead of the stock
   sheet/list presentation so long technical values stay readable. Its rows are
   focusable so remote up/down navigation scrolls the panel, and the back/menu
   command dismisses it. Expose resolver, stream, engine, and enhancement
   diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
-  menus under the shared gear menu.
+  the tabs of `PlayerTVInfoPanel`.
 - Marker skip buttons come from `PlexMarker.skipButtonTitle`. Only the intro
   marker still renders a skip button (`PlayerViewModel.activeSkipMarker` is
   intro-only). Credits are handled by the bottom-right Up Next poster instead of
   a Skip Credits button (see "Timeline, Scrobble, and Up Next").
+
+## tvOS Play Bar
+- The tvOS HUD is a native-feeling, bottom-anchored play bar rather than a
+  focusable control strip. Four files own it:
+  - `PlayerTVHUDController` — the state machine. One `@Observable` object holding
+    `mode` (`hidden` / `transport` / `scrubbing` / `panel`), `transportFocus`,
+    the scrub target, the seek accumulator, and one `handle(_: PlayerTVRemoteInput)`
+    entry point. Owned by `PlayerSessionView`, not by the overlay, so it survives
+    the HUD being hidden.
+  - `PlayerTVRemoteInputBridge` — the player's **single** remote-input owner: a
+    `UIViewController` that becomes first responder while `isCaptureEnabled`,
+    handles `pressesBegan/Ended/Cancelled` plus an indirect-touch pan and tap,
+    and calls `super` for everything it does not understand. Its view is also
+    the player's **focus sentinel** (`canBecomeFocused` while capturing, with a
+    `UIFocusSystem.requestFocusUpdate(to:)` on every capture change). Nothing
+    else in the HUD is focusable, and tvOS routes presses through the focused
+    item's responder chain and delivers touch-surface (indirect) touches to the
+    focused view — so a HUD with zero focusable items would leave both with
+    nowhere to land. Making the input owner *be* the focused item converges the
+    focus route and the first-responder route on one object and cannot start a
+    focus fight, because while capture is on it is the only candidate. Do not
+    drop the sentinel "because the first responder is enough": it is what makes
+    the swipe scrub and the touch tap reachable too.
+  - `PlayerControlsTVOverlay` + `PlayerTVActionRow` / `PlayerTVTransportBar` /
+    `PlayerTVScrubOverlay` — the presentation.
+  - `PlayerTVInfoPanel` — the settings sheet that replaced the three-level gear
+    menu (tabs: Info, Chapters, Audio, Subtitles, Quality, Channel, Speed;
+    a tab is omitted when it has nothing to show).
+- **Invariant: only one thing owns the remote at a time.** The transport is not
+  focusable — the action row draws its own selection from
+  `transportFocus`, never from `@FocusState`. `PlayerTVInfoPanel` is the sole
+  exception and uses SwiftUI focus properly (`.focusSection()`, `@FocusState`,
+  `.onExitCommand`); while it is up the bridge resigns capture. Capture is also
+  resigned for the subtitle-search cover, the playback-info cover, the
+  full-screen Up Next overlay, and a surfaced playback error
+  (`PlayerSessionView.isTVRemoteCaptureEnabled`). Never add a tvOS
+  `onExitCommand` / `onPlayPauseCommand` to the player: the bridge already owns
+  Menu and Play/Pause and the two would double-fire.
+- Mode transitions:
+  - `hidden`: tap or Select or Up → `transport`; Left/Right → accumulate a seek
+    (see below) with a centred badge, stays hidden; horizontal swipe → `scrubbing`;
+    Down → `panel`; Play/Pause → toggles with a transient badge, stays hidden;
+    Menu → dismiss the player. While a Skip Intro chip or an Up Next poster is on
+    screen, Select activates it and Down dismisses it (the chip has nothing to
+    dismiss, so Down falls through to the panel).
+  - `transport`: Menu or tap → `hidden`; Up → action row, Down from the row →
+    the bar, Down from the bar → `panel`; Left/Right on the bar → seek, on the
+    row → move the selection; Select on the bar → play/pause, on the row → run
+    the action. Auto-hide is armed here only.
+  - `scrubbing`: the swipe moves a preview target, Left/Right steps it; Select
+    or Play/Pause commits a precise seek (resuming if the session was paused);
+    Menu or Up cancels back to wherever the scrub started.
+  - `panel`: Menu closes it back to `transport`.
+- **Seeks never go to the engine one press at a time.** A held (or repeatedly
+  clicked) Left/Right accumulates into an offset previewed on the bar and the
+  badge; one `seek(precise: false)` is issued once the button is released plus a
+  short debounce. The hold ramps through `PlayerTVHUDLayout.seekHoldRampMultipliers`
+  applied to the user's configured skip interval
+  (`UserPreferences.playerDoubleTap{Backward,Forward}Interval`) — tvOS no longer
+  has a hardcoded 10 s remote interval.
+- Swipe scrubbing is direction-locked in the pan handler: tvOS delivers a
+  touch-surface flick as *both* a pan and an arrow press, so a vertical flick is
+  dropped by the pan (it is the panel gesture) and arrow presses are ignored
+  while a horizontal pan is live. Mapping is
+  `sign(n) * |n|^swipeEaseExponent * span`, `n = translationX / fullSwipeTranslation`,
+  with `span` the seekable width on live and the timeline width otherwise. A
+  second swipe that starts before the first is committed re-anchors on the
+  cursor (`translation` restarts at zero for every new gesture). The pan's
+  `ended/cancelled/failed` branch is deliberately outside the capture guard: the
+  controller drops arrow presses until the pan it believes is live has ended, so
+  a swipe interrupted by capture going away (an Up Next overlay, a surfaced
+  error) would otherwise leave the remote dead.
+- The action row and the title block fade out while scrubbing: the scrub
+  thumbnail (`PlayerScrubPreviewPopup`, 240x135 on tvOS) is positioned above the
+  bar row and would otherwise land on top of the title. Fading rather than
+  removing keeps the bottom-anchored stack from jumping as it appears.
+- **All tunables live in `PlayerTVHUDLayout`** (insets, bar/head sizes, swipe
+  translation and ease exponent, hold delays and ramp, auto-hide delay, panel
+  height). They are a simulator-tuned first pass and are expected to be adjusted
+  on a real Apple TV with a real Siri Remote.
+- HUD visibility is mirrored in both directions: the controller writes
+  `PlayerViewModel.showControls` (which the status bar, the skip chip's inset and
+  the Up Next poster all read), and `PlayerSessionView` feeds changes back through
+  `syncControlsVisibility(_:)` so a reveal that came from playback code (an
+  auto-skip, a marker jump) still lands in a coherent mode.
+  `PlayerViewModel.suppressControlsReveal` is the tvOS-only escape hatch for the
+  actions that must *not* raise the HUD (play/pause and Skip Intro from `hidden`).
+  The panel and an in-flight scrub hold the HUD up via the existing
+  `beginControlsInteractionHold()` / `endControlsInteractionHold()` pair.
+- Chapters are marker-backed only. Plex exposes no chapter list through the
+  endpoints Dusk uses, so `PlayerViewModel.chapterMarkers` (intro + credits) drives
+  both the bar's ticks and the Chapters tab, and the tab is hidden when it is empty.
+- Playback speed is `PlayerViewModel.playbackRate` / `setPlaybackRate(_:)`
+  (platform-neutral, tvOS-only UI). It is refused for Live TV, the Speed tab is
+  hidden while SharePlay is active, and the iOS press-and-hold 2x boost overrides
+  it transiently — `endSpeedBoost()` restores the chosen rate rather than 1x. The
+  rate is per session, because the engine is rebuilt with the session.
 
 ## Timeline, Scrobble, and Up Next
 - `PlaybackCoordinator.startTimelineReporting` sends progress every 10 seconds,
@@ -1336,9 +1426,13 @@ so the whole live HUD is derived from one instant.
     credits marker in `spentAutoSkipMarkerIDs`. Seeking back before the credits
     and reaching them again therefore raises a `manual` poster instead of
     restarting a countdown the viewer already saw or waved off.
-- Poster interactions: tapping it (Select on tvOS) plays the next episode now
-  (`playUpNextPosterNow`); dragging it down (iOS) / swiping down (tvOS) dismisses
-  the poster and cancels any pending auto-advance
+- Poster interactions: tapping it plays the next episode now
+  (`playUpNextPosterNow`); dragging it down dismisses the poster and cancels any
+  pending auto-advance. On tvOS the card is **not** focusable (that would take
+  the remote away from `PlayerTVRemoteInputBridge`): it is drawn as selected
+  while the HUD is hidden and `PlayerTVHUDController` routes Select and Down to
+  it, which is the same treatment the Skip Intro chip gets. Dismissing cancels
+  any pending auto-advance
   (`dismissUpNextPoster(userInitiated: true)` — the flag is what marks the
   auto-advance spent; the seek-back-out-of-credits path dismisses without it), so the
   current episode plays out to its end — the full-screen overlay only appears

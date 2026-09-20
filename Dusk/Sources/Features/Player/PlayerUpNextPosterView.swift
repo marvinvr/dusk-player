@@ -21,13 +21,15 @@ struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
     let plexService: PlexService
     let controlsVisible: Bool
+    /// tvOS only: the card is "selected" while the HUD is hidden, which is when
+    /// `PlayerTVHUDController` routes Select and Down to it. It is deliberately
+    /// not focusable — a focusable card here would take the remote away from
+    /// the player's single input bridge. Ignored on iOS.
+    var isSelected: Bool = false
     let onPlayNow: () -> Void
     let onDismiss: () -> Void
 
-    #if os(tvOS)
-    @FocusState private var isFocused: Bool
-    @State private var isDismissing = false
-    #else
+    #if !os(tvOS)
     @GestureState private var dragTranslation: CGSize = .zero
     #endif
 
@@ -56,29 +58,14 @@ struct PlayerUpNextPosterView: View {
 
     private func card(textColumnWidth: CGFloat) -> some View {
         #if os(tvOS)
-        Button(action: onPlayNow) {
-            cardContent(textColumnWidth: textColumnWidth)
-        }
-        .focused($isFocused)
-        .duskSuppressTVOSButtonChrome()
-        .contentShape(.interaction, cardShape)
-        .focusEffectDisabled()
-        // No focus glow: the poster grabs focus the moment it appears and holds
-        // it while the HUD is hidden, so the shared white glow renders as a
-        // permanent oversized halo around the card. The 1.05x scale is enough
-        // focus feedback when the HUD is up.
-        .duskTVOSFocusedScale(isFocused, glow: false)
-        .offset(y: isDismissing ? Metrics.dismissDropDistance : 0)
-        .opacity(isDismissing ? 0 : 1)
-        .onMoveCommand { direction in
-            if direction == .down {
-                dismissWithAnimation()
-            }
-        }
-        .onAppear {
-            Task { @MainActor in isFocused = true }
-        }
-        .accessibilityLabel(accessibilityLabel)
+        // No focus glow: the card is selected for as long as the HUD is
+        // hidden, so the shared white glow would render as a permanent
+        // oversized halo. The 1.05x scale is enough feedback on its own.
+        cardContent(textColumnWidth: textColumnWidth)
+            .duskTVOSFocusedScale(isSelected, glow: false)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityHint("Press Select to play now, Down to dismiss")
         #else
         cardContent(textColumnWidth: textColumnWidth)
             .contentShape(cardShape)
@@ -305,20 +292,6 @@ struct PlayerUpNextPosterView: View {
         RoundedRectangle(cornerRadius: Metrics.cardCornerRadius, style: .continuous)
     }
 
-    #if os(tvOS)
-    /// Slides the card down and fades it out before it is removed, so a
-    /// swipe-down dismiss reads as an intentional gesture that mirrors the
-    /// direction of the swipe — instead of the card blinking out of existence.
-    private func dismissWithAnimation() {
-        guard !isDismissing else { return }
-        withAnimation(.easeIn(duration: 0.28)) {
-            isDismissing = true
-        } completion: {
-            onDismiss()
-        }
-    }
-    #endif
-
     #if !os(tvOS)
     /// Follows the finger downward (with resistance) while dragging, so the pull
     /// to dismiss the poster feels physical.
@@ -344,7 +317,6 @@ private enum Metrics {
     static let textRowSpacing: CGFloat = 6
     static let countdownSpacing: CGFloat = 16
     static let countdownBarHeight: CGFloat = 6
-    static let dismissDropDistance: CGFloat = 60
     static let playSymbolSize: CGFloat = 24
     static let playSymbolPadding: CGFloat = 14
     static let playCircleSize: CGFloat = 52

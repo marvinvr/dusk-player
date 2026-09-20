@@ -1,514 +1,192 @@
 #if os(tvOS)
 import SwiftUI
-import UIKit
 
+/// The tvOS play bar.
+///
+/// Bottom-anchored and deliberately shaped like AVPlayerViewController's:
+/// a trailing row of circular actions, the media title under it on the leading
+/// edge, then the bar with its elapsed / remaining readouts inline. Selection
+/// is drawn from `PlayerTVHUDController.transportFocus` — nothing here is
+/// focusable, so the SwiftUI focus engine never takes the remote away from
+/// `PlayerTVRemoteInputBridge`. The settings panel is the single exception and
+/// owns focus outright while it is up.
 struct PlayerControlsTVOverlay: View {
-    @Environment(UserPreferences.self) private var preferences
-    @FocusState private var focusedControl: FocusTarget?
-    @State private var tvScrubCursorPosition: TimeInterval?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let viewModel: PlayerViewModel
+    let controller: PlayerTVHUDController
     let context: PlayerControlsContext
     let scrubPreviewSource: PlexScrubPreviewSource?
-    let hasActiveSkipMarker: Bool
 
-    private let horizontalPadding: CGFloat = 12
-    private let topPadding: CGFloat = 8
-    private let bottomPadding: CGFloat = 2
-    private let seekTooltipY: CGFloat = -6
-    private let minimumScrubDistance: CGFloat = 2
-    private let scrubFullDurationTouchPoints: TimeInterval = 70
-
-    private enum FocusTarget: Hashable {
-        case seekPoint
-        case settings
+    private var isScrubbing: Bool {
+        controller.mode == .scrubbing
     }
 
     var body: some View {
-        GeometryReader { _ in
-            ZStack {
-                PlayerControlsGradientBackdrop()
+        GeometryReader { geometry in
+            ZStack(alignment: .bottom) {
+                backdrop
 
-                VStack(spacing: 12) {
-                    topBar
-                    Spacer()
-                    bottomBar
+                transport
+                    .opacity(controller.mode == .panel ? 0 : 1)
+                    .accessibilityHidden(controller.mode == .panel)
+
+                if controller.mode == .panel {
+                    PlayerTVInfoPanel(
+                        viewModel: viewModel,
+                        controller: controller,
+                        context: context,
+                        tabs: controller.availablePanelTabs,
+                        onClose: { controller.closePanel() }
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: geometry.size.height * PlayerTVHUDLayout.panelHeightFraction,
+                        alignment: .bottom
+                    )
+                    .padding(.horizontal, PlayerTVHUDLayout.horizontalInset)
+                    .padding(.bottom, PlayerTVHUDLayout.bottomInset)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.top, topPadding)
-                .padding(.bottom, bottomPadding)
-                .focusSection()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
-        .defaultFocus($focusedControl, .seekPoint)
-        .onAppear {
-            if viewModel.showControls && !hasActiveSkipMarker {
-                restoreSeekFocus()
-            }
+        .ignoresSafeArea()
+        .animation(
+            PlayerTVHUDLayout.animation(PlayerTVHUDLayout.panelTransition, reduceMotion: reduceMotion),
+            value: controller.mode
+        )
+        // The controller needs these while the HUD is hidden too (a Down press
+        // from the hidden state opens the panel), which is why the whole
+        // overlay stays mounted and only fades — see `PlayerSessionView`.
+        .onChange(of: actionItems, initial: true) { _, items in
+            controller.actions = items
         }
-        .onChange(of: viewModel.showControls) { _, isShowing in
-            if isShowing && !hasActiveSkipMarker {
-                restoreSeekFocus()
-            } else {
-                tvScrubCursorPosition = nil
-                focusedControl = nil
-            }
+        .onChange(of: panelTabs, initial: true) { _, tabs in
+            controller.availablePanelTabs = tabs
         }
-        .onChange(of: hasActiveSkipMarker) { _, isVisible in
-            if !isVisible, viewModel.showControls {
-                restoreSeekFocus()
-            } else if isVisible {
-                tvScrubCursorPosition = nil
-                focusedControl = nil
-            }
-        }
-        .onChange(of: focusedControl) { previousControl, focusedControl in
-            guard previousControl != nil,
-                  focusedControl != nil,
-                  previousControl != focusedControl else {
-                return
-            }
-            viewModel.noteControlsInteraction()
-        }
-        .onMoveCommand(perform: handleMoveCommand)
     }
 
-    private var topBar: some View {
-        HStack(alignment: .top) {
+    // MARK: - Layers
+
+    private var backdrop: some View {
+        LinearGradient(
+            colors: [.clear, .black.opacity(0.32), .black.opacity(0.78)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+        .frame(height: PlayerTVHUDLayout.backdropHeight)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .allowsHitTesting(false)
+    }
+
+    private var transport: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if !controller.actions.isEmpty {
+                PlayerTVActionRow(
+                    actions: controller.actions,
+                    selectedIndex: selectedActionIndex,
+                    reduceMotion: reduceMotion
+                )
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.bottom, PlayerTVHUDLayout.actionRowBottomSpacing)
+                .opacity(isScrubbing ? 0 : 1)
+            }
+
             if let header = context.mediaHeader {
                 PlayerMediaHeaderView(header: header)
+                    .padding(.bottom, PlayerTVHUDLayout.titleBottomSpacing)
+                    // The scrub thumbnail is 240x135 and is positioned above the
+                    // bar row, so it lands on top of this block. Fading rather
+                    // than removing keeps the bar from jumping as it appears.
+                    .opacity(isScrubbing ? 0 : 1)
             }
 
-            Spacer()
-        }
-    }
+            PlayerTVTransportBar(
+                viewModel: viewModel,
+                controller: controller,
+                scrubPreviewSource: scrubPreviewSource,
+                reduceMotion: reduceMotion
+            )
 
-    private var bottomBar: some View {
-        VStack(spacing: 8) {
-            seekPointControl
-
-            HStack(alignment: .center, spacing: 18) {
-                PlayerTimeStatusView(viewModel: viewModel, position: viewModel.currentTime)
-
-                Spacer()
-
-                PlayerTrackSettingsMenu(
-                    viewModel: viewModel,
-                    context: context,
-                    onMenuPresentationChanged: handleSettingsMenuPresentation
-                )
-                .focused($focusedControl, equals: .settings)
+            if controller.mode == .scrubbing {
+                PlayerTVScrubHint()
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 14)
+                    .transition(.opacity)
             }
         }
+        .padding(.horizontal, PlayerTVHUDLayout.horizontalInset)
+        .padding(.bottom, PlayerTVHUDLayout.bottomInset)
     }
 
-    private var seekPointControl: some View {
-        GeometryReader { geometry in
-            let width = geometry.size.width
-            let cursorPosition = tvScrubCursorPosition ?? viewModel.currentTime
-            let cursorProgress = viewModel.timelineProgress(for: cursorPosition)
-            let clampedCursorProgress = max(0, min(cursorProgress, 1))
-            let thumbX = max(15, min(width - 15, width * clampedCursorProgress))
-            let isFocused = focusedControl == .seekPoint
-            let isPaused = viewModel.state == .paused
-            let shouldShowScrubPreview = scrubPreviewSource?.isAvailable == true &&
-                (tvScrubCursorPosition != nil || isPaused || viewModel.seekFeedback != nil)
+    // MARK: - Derived state
 
-            ZStack(alignment: .topLeading) {
-                PlayerSeekBar(
-                    viewModel: viewModel,
-                    isInteractive: false,
-                    progressPosition: viewModel.currentTime
-                )
-                    .frame(height: 36)
-                    .padding(.top, 20)
-
-                if shouldShowScrubPreview,
-                   let scrubPreviewSource {
-                    PlayerScrubPreviewPopup(
-                        source: scrubPreviewSource,
-                        position: cursorPosition
-                    )
-                    .position(
-                        x: scrubPreviewX(thumbX, totalWidth: width),
-                        y: PlayerScrubPreviewPopup.verticalPosition
-                    )
-                    .transition(seekTooltipTransition)
-                } else if tvScrubCursorPosition != nil || isPaused,
-                          let clockLabel = viewModel.liveClockLabel(for: cursorPosition) {
-                    // Live sessions have no thumbnails, so the cursor answers
-                    // "what time of the broadcast is this" instead — which is
-                    // also what makes a paused live picture readable.
-                    PlayerLiveClockBubble(label: clockLabel)
-                        .position(x: thumbX, y: PlayerLiveClockBubble.verticalPosition)
-                        .transition(seekTooltipTransition)
-                } else if let seekFeedback = viewModel.seekFeedback {
-                    seekTooltip(seekFeedback)
-                        .position(x: thumbX, y: seekTooltipY)
-                        .transition(seekTooltipTransition)
-                } else if isPaused {
-                    pauseTooltip
-                        .position(x: thumbX, y: seekTooltipY)
-                        .transition(seekTooltipTransition)
-                }
-
-                ZStack {
-                    Circle()
-                        .fill(.white.opacity(isFocused ? 0.98 : 0.88))
-                        .frame(width: isFocused ? 24 : 18, height: isFocused ? 24 : 18)
-                        .shadow(
-                            color: .white.opacity(isFocused ? 0.36 : 0.18),
-                            radius: isFocused ? 14 : 7
-                        )
-                }
-                .position(x: thumbX, y: 38)
-
-                PlayerTVScrubGestureBridge(
-                    minimumScrubDistance: minimumScrubDistance,
-                    onTouchSurfaceTap: {
-                        guard focusedControl == .seekPoint else { return }
-                        tvScrubCursorPosition = nil
-                        viewModel.toggleControls()
-                    },
-                    onScrubBegan: {
-                        viewModel.beginControlsInteractionHold()
-                    },
-                    onScrubChanged: { deltaWidth in
-                        updateTVScrub(
-                            deltaWidth: deltaWidth
-                        )
-                    },
-                    onScrubEnded: {
-                        finishTVScrubPreview()
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                Button(action: handleSeekPointSelect) {
-                    Circle()
-                        .fill(.clear)
-                        .frame(width: 52, height: 52)
-                        .contentShape(Circle())
-                }
-                .duskSuppressTVOSButtonChrome()
-                .focused($focusedControl, equals: .seekPoint)
-                .focusEffectDisabled()
-                .position(x: thumbX, y: 38)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .contentShape(Rectangle())
-            .scaleEffect(isFocused ? 1.01 : 1.0)
-            .animation(.easeInOut(duration: 0.12), value: isFocused)
-        }
-        .frame(height: 64)
-    }
-
-    private var pauseTooltip: some View {
-        Image(systemName: "pause.fill")
-            .font(DuskFont.TV.badge)
-            .foregroundStyle(.white.opacity(0.92))
-            .frame(width: 46, height: 46)
-            .background {
-                Circle()
-                    .fill(.white.opacity(0.07))
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .overlay {
-                Circle()
-                    .strokeBorder(.white.opacity(0.42), lineWidth: 1.2)
-            }
-            .shadow(color: .white.opacity(0.12), radius: 10)
-            .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
-    }
-
-    private var seekTooltipTransition: AnyTransition {
-        .move(edge: .bottom).combined(with: .opacity)
-    }
-
-    private func seekTooltip(_ presentation: PlayerSeekFeedbackPresentation) -> some View {
-        Image(systemName: presentation.direction.symbolName)
-            .font(DuskFont.TV.badge)
-            .foregroundStyle(.white.opacity(0.92))
-            .offset(y: -1.5)
-            .frame(width: 46, height: 46)
-            .background {
-                Circle()
-                    .fill(.white.opacity(0.07))
-                    .background(.ultraThinMaterial, in: Circle())
-            }
-            .overlay {
-                Circle()
-                    .strokeBorder(.white.opacity(0.42), lineWidth: 1.2)
-            }
-            .shadow(color: .white.opacity(0.12), radius: 10)
-            .shadow(color: .black.opacity(0.28), radius: 12, y: 5)
-    }
-
-    private func scrubPreviewX(_ proposedX: CGFloat, totalWidth: CGFloat) -> CGFloat {
-        let halfWidth = PlayerScrubPreviewPopup.width / 2
-        guard totalWidth > halfWidth * 2 else {
-            return max(totalWidth / 2, halfWidth)
-        }
-
-        return min(max(proposedX, halfWidth), totalWidth - halfWidth)
-    }
-
-    private func updateTVScrub(deltaWidth: CGFloat) {
-        guard focusedControl == .seekPoint,
-              scrubTimelineDuration > 0 else {
-            return
-        }
-
-        let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
-        let secondsPerPoint = max(
-            minimumScrubSecondsPerPoint,
-            scrubTimelineDuration / scrubFullDurationTouchPoints
-        )
-        tvScrubCursorPosition = clampedPosition(startPosition + TimeInterval(deltaWidth) * secondsPerPoint)
-        viewModel.scheduleHide()
-    }
-
-    /// A live play bar spans a whole scheduled program, but only the part the
-    /// tuned session still holds is reachable — often just minutes. Pacing the
-    /// swipe by the bar would make every touch overshoot the reachable stretch.
-    private var scrubTimelineDuration: TimeInterval {
-        if viewModel.isLiveTV, let seekableRange = viewModel.seekableRange {
-            return seekableRange.upperBound - seekableRange.lowerBound
-        }
-        return viewModel.timelineRange.upperBound - viewModel.timelineRange.lowerBound
-    }
-
-    private var minimumScrubSecondsPerPoint: TimeInterval {
-        viewModel.isLiveTV ? 4 : 45
-    }
-
-    private func handleSettingsMenuPresentation(isPresented _: Bool) {
-        viewModel.noteSettingsMenuInteraction()
-    }
-
-    private func finishTVScrubPreview() {
-        viewModel.endControlsInteractionHold()
-        restoreSeekFocus()
-    }
-
-    private func handleSeekPointSelect() {
-        guard focusedControl == .seekPoint else { return }
-        guard !viewModel.shouldIgnoreSeekPointSelectAfterReveal() else {
-            viewModel.scheduleHide()
-            return
-        }
-
-        if tvScrubCursorPosition != nil {
-            commitTVScrub()
-        } else {
-            viewModel.togglePlayPause()
-        }
-    }
-
-    private func commitTVScrub() {
-        guard let targetPosition = tvScrubCursorPosition else {
-            return
-        }
-
-        viewModel.seek(to: targetPosition, revealControls: true)
-        if viewModel.state == .paused {
-            viewModel.togglePlayPause()
-        }
-        tvScrubCursorPosition = nil
-        restoreSeekFocus()
-    }
-
-    private func clampedPosition(_ position: TimeInterval) -> TimeInterval {
-        viewModel.clampedSeekPosition(position)
-    }
-
-    private func restoreSeekFocus(reset: Bool = true) {
-        if reset {
-            focusedControl = nil
-        }
-
-        Task { @MainActor in
-            await Task.yield()
-
-            guard viewModel.showControls, !hasActiveSkipMarker else { return }
-            focusedControl = .seekPoint
-        }
-    }
-
-    // Explicit routing keeps the custom tvOS layout predictable across menus and the seek point.
-    private func handleMoveCommand(_ direction: MoveCommandDirection) {
-        viewModel.noteControlsInteraction()
-
-        let currentFocus = focusedControl ?? .seekPoint
-
-        switch direction {
-        case .up:
-            focusedControl = focusTargetAbove(currentFocus)
-        case .down:
-            focusedControl = focusTargetBelow(currentFocus)
-        case .left:
-            if currentFocus == .seekPoint {
-                handleSeekPointJump(by: -preferences.playerDoubleTapBackwardInterval.timeInterval)
-                restoreSeekFocus(reset: false)
-            } else {
-                focusedControl = focusTargetLeft(currentFocus)
-            }
-        case .right:
-            if currentFocus == .seekPoint {
-                handleSeekPointJump(by: preferences.playerDoubleTapForwardInterval.timeInterval)
-                restoreSeekFocus(reset: false)
-            } else {
-                focusedControl = focusTargetRight(currentFocus)
-            }
-        default:
-            break
-        }
-    }
-
-    private func handleSeekPointJump(by offset: TimeInterval) {
-        let startPosition = tvScrubCursorPosition ?? viewModel.currentTime
-        tvScrubCursorPosition = clampedPosition(startPosition + offset)
-        viewModel.scheduleHide()
-    }
-
-    private func focusTargetAbove(_ current: FocusTarget) -> FocusTarget? {
-        switch current {
-        case .seekPoint:
-            return nil
-        case .settings:
-            return .seekPoint
-        }
-    }
-
-    private func focusTargetBelow(_ current: FocusTarget) -> FocusTarget? {
-        switch current {
-        case .seekPoint:
-            return hasAvailableTrackSettings ? .settings : nil
-        case .settings:
+    private var selectedActionIndex: Int? {
+        guard case let .action(index) = controller.transportFocus,
+              !controller.actions.isEmpty else {
             return nil
         }
+        return min(max(index, 0), controller.actions.count - 1)
     }
 
-    private func focusTargetLeft(_ current: FocusTarget) -> FocusTarget? {
-        switch current {
-        case .seekPoint, .settings:
-            return nil
+    /// Kept short on purpose. Quality, Channel, Chapters and Speed are one
+    /// Down-press away in the panel's tab strip; crowding the row with nine
+    /// circles is exactly what the old gear menu felt like.
+    private var actionItems: [PlayerTVActionItem] {
+        var items: [PlayerTVActionItem] = []
+
+        if viewModel.isLiveTV, !viewModel.isAtLiveEdge {
+            items.append(.goLive)
         }
-    }
-
-    private func focusTargetRight(_ current: FocusTarget) -> FocusTarget? {
-        switch current {
-        case .seekPoint, .settings:
-            return nil
+        if context.hasSharePlayControl {
+            items.append(.sharePlay(isActive: context.isSharePlayActive))
         }
-    }
-
-    private var hasAvailableTrackSettings: Bool {
-        context.hasPlaybackInfo ||
-            context.hasQualityControl ||
-            !viewModel.audioTracks.isEmpty ||
-            !viewModel.subtitleTracks.isEmpty
-    }
-}
-
-private struct PlayerTVScrubGestureBridge: UIViewRepresentable {
-    let minimumScrubDistance: CGFloat
-    let onTouchSurfaceTap: () -> Void
-    let onScrubBegan: () -> Void
-    let onScrubChanged: (CGFloat) -> Void
-    let onScrubEnded: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> PlayerTVScrubGestureView {
-        let view = PlayerTVScrubGestureView()
-        view.backgroundColor = .clear
-
-        context.coordinator.touchSurfaceTapRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
-        context.coordinator.touchSurfaceTapRecognizer.allowedPressTypes = []
-        context.coordinator.touchSurfaceTapRecognizer.cancelsTouchesInView = false
-        context.coordinator.panRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
-        context.coordinator.panRecognizer.delegate = context.coordinator
-
-        view.addGestureRecognizer(context.coordinator.touchSurfaceTapRecognizer)
-        view.addGestureRecognizer(context.coordinator.panRecognizer)
-        context.coordinator.sync(with: self)
-        context.coordinator.sync(view, with: self)
-        return view
-    }
-
-    func updateUIView(_ uiView: PlayerTVScrubGestureView, context: Context) {
-        context.coordinator.sync(with: self)
-        context.coordinator.sync(uiView, with: self)
-    }
-
-    @MainActor
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        private var parent: PlayerTVScrubGestureBridge
-        let touchSurfaceTapRecognizer = UITapGestureRecognizer()
-        let panRecognizer = UIPanGestureRecognizer()
-        private var hasStartedScrubbing = false
-        private var lastPanTranslationWidth: CGFloat = 0
-
-        init(parent: PlayerTVScrubGestureBridge) {
-            self.parent = parent
-            super.init()
-            touchSurfaceTapRecognizer.addTarget(self, action: #selector(handleTouchSurfaceTap(_:)))
-            panRecognizer.addTarget(self, action: #selector(handlePan(_:)))
+        if !viewModel.subtitleTracks.isEmpty || context.canDownloadSubtitles {
+            items.append(.panel(.subtitles))
+        }
+        if !viewModel.audioTracks.isEmpty {
+            items.append(.panel(.audio))
+        }
+        if !panelTabs.isEmpty {
+            items.append(.panel(.info))
         }
 
-        func sync(with parent: PlayerTVScrubGestureBridge) {
-            self.parent = parent
-        }
-
-        func sync(_ view: PlayerTVScrubGestureView, with parent: PlayerTVScrubGestureBridge) {}
-
-        @objc
-        private func handleTouchSurfaceTap(_ recognizer: UITapGestureRecognizer) {
-            guard recognizer.state == .ended else { return }
-            parent.onTouchSurfaceTap()
-        }
-
-        @objc
-        private func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            let translationWidth = recognizer.translation(in: recognizer.view).x
-
-            switch recognizer.state {
-            case .began:
-                hasStartedScrubbing = false
-                lastPanTranslationWidth = 0
-                parent.onScrubBegan()
-            case .changed:
-                guard hasStartedScrubbing || abs(translationWidth) >= parent.minimumScrubDistance else {
-                    return
-                }
-                let deltaWidth = hasStartedScrubbing ? translationWidth - lastPanTranslationWidth : translationWidth
-                hasStartedScrubbing = true
-                lastPanTranslationWidth = translationWidth
-                parent.onScrubChanged(deltaWidth)
-            case .ended, .cancelled, .failed:
-                parent.onScrubEnded()
-                hasStartedScrubbing = false
-                lastPanTranslationWidth = 0
-            default:
-                break
-            }
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            false
-        }
+        return items
     }
-}
 
-private final class PlayerTVScrubGestureView: UIView {
-    override var canBecomeFocused: Bool {
-        false
+    private var panelTabs: [PlayerTVPanelTab] {
+        var tabs: [PlayerTVPanelTab] = []
+
+        if context.hasPlaybackInfo || context.mediaHeader != nil {
+            tabs.append(.info)
+        }
+        if !viewModel.chapterMarkers.isEmpty {
+            tabs.append(.chapters)
+        }
+        if !viewModel.audioTracks.isEmpty {
+            tabs.append(.audio)
+        }
+        if !viewModel.subtitleTracks.isEmpty || context.canDownloadSubtitles {
+            tabs.append(.subtitles)
+        }
+        if context.hasQualityControl {
+            tabs.append(.quality)
+        }
+        if context.liveTVContext != nil {
+            tabs.append(.channel)
+        }
+        if hasSpeedControl {
+            tabs.append(.speed)
+        }
+
+        return tabs
+    }
+
+    /// Mirrors the iOS press-and-hold speed boost's guards: no rate control on
+    /// a live stream, and never while a SharePlay group is following along.
+    private var hasSpeedControl: Bool {
+        !viewModel.isLiveTV && !context.isSharePlayActive
     }
 }
 #endif

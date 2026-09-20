@@ -8,14 +8,13 @@ enum PlayerOverlayLayout {
     // raised above the play bar while the controls are up. Keep the raised
     // inset in sync with the controls' bottom bar height.
     #if os(tvOS)
-    static let skipMarkerRaisedBottomInset: CGFloat = 168
+    // Clears the whole bottom HUD: bottom inset + the bar row and its
+    // readouts + the title block's spacing + the action row.
+    static let skipMarkerRaisedBottomInset: CGFloat = 200
     static let skipMarkerRestingBottomInset: CGFloat = 60
     #else
     static let skipMarkerRaisedBottomInset: CGFloat = 108
     static let skipMarkerRestingBottomInset: CGFloat = 48
-    #endif
-    #if os(tvOS)
-    static let remoteSeekInterval: TimeInterval = 10
     #endif
 
     static let skipMarkerRepositionAnimation: Animation = .snappy(duration: 0.35)
@@ -489,8 +488,10 @@ private struct PlayerSessionView: View {
     @State private var viewModel: PlayerViewModel
     @State private var scrubPreviewSource: PlexScrubPreviewSource?
     #if os(tvOS)
-    @FocusState private var skipMarkerFocused: Bool
-    @FocusState private var backgroundFocused: Bool
+    /// Owns the tvOS HUD state machine for the whole session. Lives here, not
+    /// in the overlay, because the remote bridge drives it while the HUD is
+    /// hidden as well.
+    @State private var hudController = PlayerTVHUDController()
     #endif
 
     private let playbackSource: PlaybackSource
@@ -540,17 +541,16 @@ private struct PlayerSessionView: View {
             #endif
 
             #if os(tvOS)
-            PlayerTVRemoteSeekBridge(
-                isEnabled: playback.upNextPresentation == nil && viewModel.playbackError == nil,
-                showsControls: viewModel.showControls,
-                hasActiveSkipMarker: hasBottomTrailingFocusControl,
-                backwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
-                forwardSeekInterval: PlayerOverlayLayout.remoteSeekInterval,
-                onSeek: { offset in viewModel.handleSeekJump(by: offset) },
-                onPlayPause: { viewModel.togglePlayPause() },
-                onRevealControlsWhenHidden: { viewModel.touchControls() }
+            // The player's only remote-input owner. It resigns capture the
+            // moment something else needs the focus engine — the settings
+            // panel, the subtitle search cover, the playback info cover, the
+            // full Up Next overlay or a surfaced playback error — and forwards
+            // anything it does not understand up the responder chain.
+            PlayerTVRemoteInputBridge(
+                isCaptureEnabled: isTVRemoteCaptureEnabled,
+                onInput: { hudController.handle($0) }
             )
-            .allowsHitTesting(false)
+            .allowsHitTesting(isTVRemoteCaptureEnabled)
             .ignoresSafeArea()
             #endif
 
@@ -579,7 +579,17 @@ private struct PlayerSessionView: View {
                 )
                 .transition(.opacity)
             } else {
+                #if !os(tvOS)
                 interactionOverlay
+                #endif
+
+                #if os(tvOS)
+                if let badge = hudController.transientBadge,
+                   hudController.mode == .hidden {
+                    PlayerTVTransientBadgeOverlay(badge: badge)
+                        .transition(.opacity)
+                }
+                #endif
 
                 #if !os(tvOS)
                 if viewModel.isSpeedBoostActive {
@@ -616,6 +626,7 @@ private struct PlayerSessionView: View {
                         presentation: poster,
                         plexService: plexService,
                         controlsVisible: viewModel.showControls,
+                        isSelected: isTVBottomTrailingControlSelected,
                         onPlayNow: { playback.playUpNextPosterNow() },
                         onDismiss: { playback.dismissUpNextPoster(userInitiated: true) }
                     )
@@ -659,18 +670,9 @@ private struct PlayerSessionView: View {
         .duskCaptureStatusBarAppearance()
         .duskStatusBarHidden(!viewModel.showControls)
         .persistentSystemOverlays(viewModel.showControls ? .visible : .hidden)
-        #if os(tvOS)
-        .onPlayPauseCommand {
-            viewModel.togglePlayPause()
-        }
-        .onExitCommand {
-            if viewModel.showControls {
-                dismissPlayer()
-            } else {
-                viewModel.toggleControls()
-            }
-        }
-        #endif
+        // No `onExitCommand` / `onPlayPauseCommand` on tvOS: the remote bridge
+        // is the single owner of those presses, and a SwiftUI command modifier
+        // here would double-fire against it.
         .onAppear {
             // If we are re-presenting after the user tapped restore on the PiP
             // window, let the system finish animating the video back into place.
@@ -732,9 +734,7 @@ private struct PlayerSessionView: View {
             }
             viewModel.startPlaybackIfNeeded(source: playbackSource)
             #if os(tvOS)
-            if viewModel.activeSkipMarker != nil {
-                skipMarkerFocused = true
-            }
+            configureTVHUDController()
             #endif
         }
         .onDisappear {
@@ -744,6 +744,9 @@ private struct PlayerSessionView: View {
             viewModel.externalSubtitleRestartHandler = nil
             viewModel.cleanup()
             viewModel.bufferingPresentationHandler = nil
+            #if os(tvOS)
+            hudController.cleanup()
+            #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
             playback.flushTimelineForScenePhase(newPhase)
@@ -768,23 +771,21 @@ private struct PlayerSessionView: View {
             await loadScrubPreviewSource(partID: scrubPreviewPartID)
         }
         #if os(tvOS)
-        .onChange(of: viewModel.activeSkipMarker?.id) { _, _ in
-            if viewModel.activeSkipMarker != nil {
-                Task { @MainActor in
-                    skipMarkerFocused = true
-                }
-            } else {
-                skipMarkerFocused = false
-            }
-        }
+        // The HUD controller and `showControls` mirror each other: the
+        // controller writes the flag when the viewer drives it, and reads it
+        // back here when playback code reveals the HUD on its own (an
+        // auto-skip, a marker jump).
         .onChange(of: viewModel.showControls) { _, isShowing in
-            if !isShowing && viewModel.activeSkipMarker == nil && playback.upNextPoster == nil {
-                Task { @MainActor in
-                    backgroundFocused = true
-                }
-            } else if isShowing {
-                backgroundFocused = false
-            }
+            hudController.syncControlsVisibility(isShowing)
+        }
+        .onChange(of: hasBottomTrailingFocusControl, initial: true) { _, isVisible in
+            hudController.isBottomTrailingControlVisible = isVisible
+        }
+        .onChange(of: preferences.playerDoubleTapBackwardInterval, initial: true) { _, interval in
+            hudController.backwardSeekInterval = interval.timeInterval
+        }
+        .onChange(of: preferences.playerDoubleTapForwardInterval, initial: true) { _, interval in
+            hudController.forwardSeekInterval = interval.timeInterval
         }
         #endif
         #if !os(tvOS)
@@ -955,66 +956,48 @@ private struct PlayerSessionView: View {
     /// those passes. Insertion never showed the bug because a fade-in degrades
     /// into an ordinary attribute animation on an already-live view.
     ///
-    /// tvOS cannot stay mounted: `PlayerControlsTVOverlay` owns focus state and
-    /// restores focus from `onAppear`, and its buttons remain focusable at zero
-    /// opacity, so the remote would drive an invisible HUD. It keeps the
-    /// conditional mount and binds the curve to the transition so the fade does
-    /// not depend on the ambient transaction.
+    /// tvOS now stays mounted too. Nothing in the transport is focusable any
+    /// more (the action row draws its own selection from the HUD controller),
+    /// and the settings panel — the one part that does take focus — is only
+    /// built while it is open. Staying mounted also means the controller's
+    /// action list and panel tabs are known while the HUD is hidden, which is
+    /// what lets a Down press open the panel straight from the video.
     @ViewBuilder
     private var controlsOverlay: some View {
-        #if os(tvOS)
-        if viewModel.showControls {
-            playerControls
-                .transition(.opacity.animation(PlayerViewModel.controlsVisibilityAnimation))
-        }
-        #else
         playerControls
             .opacity(viewModel.showControls ? 1 : 0)
             .allowsHitTesting(viewModel.showControls)
             // `allowsHitTesting(false)` does not take the hidden HUD out of the
             // accessibility tree on its own.
             .accessibilityHidden(!viewModel.showControls)
-        #endif
+            .animation(PlayerViewModel.controlsVisibilityAnimation, value: viewModel.showControls)
     }
 
     private var playerControls: some View {
+        #if os(tvOS)
+        PlayerControlsOverlay(
+            viewModel: viewModel,
+            hudController: hudController,
+            mediaDetails: mediaDetails,
+            debugInfo: debugInfo,
+            scrubPreviewSource: scrubPreviewSource,
+            controlsTopSafeAreaInset: controlsTopSafeAreaInset,
+            onDismiss: dismissPlayer
+        )
+        #else
         PlayerControlsOverlay(
             viewModel: viewModel,
             mediaDetails: mediaDetails,
             debugInfo: debugInfo,
             scrubPreviewSource: scrubPreviewSource,
-            hasActiveSkipMarker: hasBottomTrailingFocusControl,
             controlsTopSafeAreaInset: controlsTopSafeAreaInset,
             onDismiss: dismissPlayer
         )
+        #endif
     }
 
+    #if !os(tvOS)
     private var interactionOverlay: some View {
-        #if os(tvOS)
-        GeometryReader { _ in
-            ZStack {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .focusable(!viewModel.showControls)
-                    .focused($backgroundFocused)
-                    .onMoveCommand { _ in
-                        if !viewModel.showControls {
-                            viewModel.toggleControls()
-                        }
-                    }
-                    .onTapGesture { viewModel.toggleControls() }
-
-                PlayerTVTouchSurfaceTapBridge(
-                    isEnabled: !viewModel.showControls,
-                    onTap: { viewModel.toggleControls() }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .allowsHitTesting(!viewModel.showControls)
-            }
-        }
-        .ignoresSafeArea()
-        #else
         PlayerTapInteractionOverlay(
             showsControls: viewModel.showControls,
             doubleTapSeekEnabled: preferences.playerDoubleTapSeekEnabled,
@@ -1030,12 +1013,14 @@ private struct PlayerSessionView: View {
             onPointerMoved: { viewModel.touchControls() }
         )
         .ignoresSafeArea()
-        #endif
     }
+    #endif
 
+    /// tvOS draws its own seek feedback from the HUD controller's accumulator
+    /// (see `PlayerTVTransientBadgeOverlay`), so the shared badge stays off.
     private var shouldShowGlobalSeekFeedback: Bool {
         #if os(tvOS)
-        !viewModel.showControls
+        false
         #else
         true
         #endif
@@ -1065,36 +1050,26 @@ private struct PlayerSessionView: View {
 
             HStack {
                 Spacer()
+                #if os(tvOS)
+                // Not a Button: a focusable control here would be handed the
+                // remote by the focus engine and would fight the input bridge.
+                // The chip is "selected" while the HUD is hidden, and the
+                // controller turns Select into `handleSkipMarker`.
+                skipMarkerButtonLabel(marker)
+                    .duskTVOSFocusedScale(isTVBottomTrailingControlSelected, glow: false)
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel(marker.skipButtonTitle ?? "Skip")
+                #else
                 Button {
                     handleSkipMarker(marker)
                 } label: {
                     skipMarkerButtonLabel(marker)
                 }
-                #if os(tvOS)
-                .focused($skipMarkerFocused)
-                .duskSuppressTVOSButtonChrome()
-                .contentShape(.interaction, skipMarkerButtonShape)
-                .focusEffectDisabled()
-                // Like the Up Next poster, this control owns focus while the
-                // HUD is hidden. Keep the focus scale without the persistent
-                // white halo behind Skip Intro / Skip Credits.
-                .duskTVOSFocusedScale(skipMarkerFocused, glow: false)
-                #else
                 .buttonStyle(.plain)
                 #endif
             }
         }
         .id(marker.id)
-        #if os(tvOS)
-        .onAppear {
-            Task { @MainActor in
-                skipMarkerFocused = true
-            }
-        }
-        .onDisappear {
-            skipMarkerFocused = false
-        }
-        #endif
         .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
         .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: viewModel.showControls))
         .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: viewModel.showControls)
@@ -1253,12 +1228,61 @@ private struct PlayerSessionView: View {
         }
     }
 
-    /// Whether a bottom-trailing control (Skip Intro button or Up Next poster)
-    /// is on screen. tvOS uses it to hand remote focus to that control and pause
-    /// its own remote-seek capture so the two don't fight.
+    /// Whether a bottom-trailing control (Skip Intro chip or Up Next poster) is
+    /// on screen. On tvOS the HUD controller gives it Select and Down while the
+    /// HUD is hidden — without taking the remote away from the input bridge.
     private var hasBottomTrailingFocusControl: Bool {
         viewModel.activeSkipMarker != nil || playback.upNextPoster != nil
     }
+
+    /// Drawn as "selected" only while the HUD is hidden: that is exactly when
+    /// the chip / poster owns Select on the remote.
+    private var isTVBottomTrailingControlSelected: Bool {
+        #if os(tvOS)
+        hudController.mode == .hidden && hasBottomTrailingFocusControl
+        #else
+        false
+        #endif
+    }
+
+    #if os(tvOS)
+    /// The bridge resigns first responder whenever something else needs the
+    /// focus engine. Every one of these presents a focusable surface of its
+    /// own, and two responders would double-handle Menu and Select.
+    private var isTVRemoteCaptureEnabled: Bool {
+        playback.upNextPresentation == nil &&
+            !hasVisiblePlaybackError &&
+            !viewModel.showSubtitleSearch &&
+            !viewModel.showPlaybackInfo &&
+            !hudController.isPanelPresented
+    }
+
+    private func configureTVHUDController() {
+        hudController.viewModel = viewModel
+        hudController.onDismissPlayer = dismissPlayer
+        hudController.onSharePlay = {
+            Task { await playback.toggleSharePlay() }
+        }
+        hudController.onActivateBottomTrailingControl = {
+            if let marker = viewModel.activeSkipMarker {
+                handleSkipMarker(marker)
+            } else if playback.upNextPoster != nil {
+                playback.playUpNextPosterNow()
+            }
+        }
+        hudController.onDismissBottomTrailingControl = {
+            // The Skip Intro chip has nothing to dismiss; returning false lets
+            // Down fall through to opening the settings panel.
+            guard playback.upNextPoster != nil else { return false }
+            playback.dismissUpNextPoster(userInitiated: true)
+            return true
+        }
+        hudController.isBottomTrailingControlVisible = hasBottomTrailingFocusControl
+        hudController.backwardSeekInterval = preferences.playerDoubleTapBackwardInterval.timeInterval
+        hudController.forwardSeekInterval = preferences.playerDoubleTapForwardInterval.timeInterval
+        hudController.syncControlsVisibility(viewModel.showControls)
+    }
+    #endif
 }
 
 private extension View {
@@ -1298,206 +1322,6 @@ private struct PlayerIdleTimerModifier: ViewModifier {
     }
 }
 
-#if os(tvOS)
-private struct PlayerTVTouchSurfaceTapBridge: UIViewRepresentable {
-    var isEnabled: Bool
-    var onTap: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> PlayerTVTouchSurfaceTapView {
-        let view = PlayerTVTouchSurfaceTapView()
-        view.backgroundColor = .clear
-        context.coordinator.tapRecognizer.allowedTouchTypes = [NSNumber(value: UITouch.TouchType.indirect.rawValue)]
-        context.coordinator.tapRecognizer.allowedPressTypes = []
-        context.coordinator.tapRecognizer.cancelsTouchesInView = false
-        view.addGestureRecognizer(context.coordinator.tapRecognizer)
-        context.coordinator.sync(view, with: self)
-        return view
-    }
-
-    func updateUIView(_ uiView: PlayerTVTouchSurfaceTapView, context: Context) {
-        context.coordinator.sync(uiView, with: self)
-    }
-
-    @MainActor
-    final class Coordinator: NSObject {
-        private var parent: PlayerTVTouchSurfaceTapBridge
-        let tapRecognizer = UITapGestureRecognizer()
-
-        init(parent: PlayerTVTouchSurfaceTapBridge) {
-            self.parent = parent
-            super.init()
-            tapRecognizer.numberOfTapsRequired = 1
-            tapRecognizer.addTarget(self, action: #selector(handleTap(_:)))
-        }
-
-        func sync(_ view: PlayerTVTouchSurfaceTapView, with parent: PlayerTVTouchSurfaceTapBridge) {
-            self.parent = parent
-            view.isTapEnabled = parent.isEnabled
-        }
-
-        @objc
-        private func handleTap(_ recognizer: UITapGestureRecognizer) {
-            guard parent.isEnabled,
-                  recognizer.state == .ended else {
-                return
-            }
-
-            parent.onTap()
-        }
-    }
-}
-
-private final class PlayerTVTouchSurfaceTapView: UIView {
-    var isTapEnabled = false {
-        didSet {
-            isUserInteractionEnabled = isTapEnabled
-        }
-    }
-
-    override var canBecomeFocused: Bool {
-        false
-    }
-}
-
-private struct PlayerTVRemoteSeekBridge: UIViewRepresentable {
-    var isEnabled: Bool
-    var showsControls: Bool
-    var hasActiveSkipMarker: Bool
-    var backwardSeekInterval: TimeInterval
-    var forwardSeekInterval: TimeInterval
-    var onSeek: (TimeInterval) -> Void
-    var onPlayPause: () -> Void
-    var onRevealControlsWhenHidden: () -> Void
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(parent: self)
-    }
-
-    func makeUIView(context: Context) -> PlayerTVRemoteSeekView {
-        let view = PlayerTVRemoteSeekView()
-        view.backgroundColor = .clear
-        context.coordinator.sync(view, with: self)
-        return view
-    }
-
-    func updateUIView(_ uiView: PlayerTVRemoteSeekView, context: Context) {
-        context.coordinator.sync(uiView, with: self)
-    }
-
-    @MainActor
-    final class Coordinator {
-        private var parent: PlayerTVRemoteSeekBridge
-
-        init(parent: PlayerTVRemoteSeekBridge) {
-            self.parent = parent
-        }
-
-        func sync(_ view: PlayerTVRemoteSeekView, with parent: PlayerTVRemoteSeekBridge) {
-            self.parent = parent
-            view.isRemoteCaptureEnabled = parent.isEnabled &&
-                !parent.showsControls &&
-                !parent.hasActiveSkipMarker
-            view.showsControls = parent.showsControls
-            view.hasActiveSkipMarker = parent.hasActiveSkipMarker
-            view.backwardSeekInterval = parent.backwardSeekInterval
-            view.forwardSeekInterval = parent.forwardSeekInterval
-            view.onSeek = parent.onSeek
-            view.onPlayPause = parent.onPlayPause
-            view.onRevealControlsWhenHidden = parent.onRevealControlsWhenHidden
-            view.refreshFirstResponderStatus()
-        }
-    }
-}
-
-private final class PlayerTVRemoteSeekView: UIView {
-    var isRemoteCaptureEnabled = false {
-        didSet {
-            refreshFirstResponderStatus()
-        }
-    }
-
-    var showsControls = true {
-        didSet {
-            refreshFirstResponderStatus()
-        }
-    }
-
-    var hasActiveSkipMarker = false {
-        didSet {
-            refreshFirstResponderStatus()
-        }
-    }
-
-    var backwardSeekInterval: TimeInterval = 0
-    var forwardSeekInterval: TimeInterval = 0
-    var onSeek: ((TimeInterval) -> Void)?
-    var onPlayPause: (() -> Void)?
-    var onRevealControlsWhenHidden: (() -> Void)?
-
-    override var canBecomeFirstResponder: Bool {
-        isRemoteCaptureEnabled && window != nil
-    }
-
-    override func didMoveToWindow() {
-        super.didMoveToWindow()
-        refreshFirstResponderStatus()
-    }
-
-    override func pressesBegan(_ presses: Set<UIPress>, with event: UIPressesEvent?) {
-        guard isRemoteCaptureEnabled else {
-            super.pressesBegan(presses, with: event)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .playPause }) {
-            onPlayPause?()
-            return
-        }
-
-        if presses.contains(where: { $0.type == .menu }) {
-            onRevealControlsWhenHidden?()
-            return
-        }
-
-        if presses.contains(where: { $0.type == .leftArrow }) {
-            onSeek?(-backwardSeekInterval)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .rightArrow }) {
-            onSeek?(forwardSeekInterval)
-            return
-        }
-
-        if presses.contains(where: { $0.type == .select }),
-           !showsControls,
-           !hasActiveSkipMarker {
-            onRevealControlsWhenHidden?()
-            return
-        }
-
-        super.pressesBegan(presses, with: event)
-    }
-
-    func refreshFirstResponderStatus() {
-        guard window != nil else { return }
-
-        if isRemoteCaptureEnabled {
-            guard !isFirstResponder else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.isRemoteCaptureEnabled, self.window != nil else { return }
-                self.becomeFirstResponder()
-            }
-        } else if isFirstResponder {
-            resignFirstResponder()
-        }
-    }
-}
-#endif
 
 #if !os(tvOS)
 private struct PlayerTapInteractionOverlay: UIViewRepresentable {

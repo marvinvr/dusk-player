@@ -184,6 +184,9 @@ struct PlayerSeekBar: View {
 
             ZStack(alignment: .topLeading) {
                 #if os(tvOS)
+                // tvOS has no `DragGesture` and no longer mounts this view at
+                // all — its play bar is `PlayerTVTransportBar`. The branch only
+                // exists because both targets compile every source file.
                 seekTrack(playedWidth: playedWidth, totalWidth: width)
                 #else
                 if isInteractive {
@@ -239,11 +242,7 @@ struct PlayerSeekBar: View {
     private func seekTrack(playedWidth: CGFloat, totalWidth: CGFloat) -> some View {
         ZStack(alignment: .leading) {
             Capsule()
-                #if os(tvOS)
-                .fill(.black.opacity(0.54))
-                #else
                 .fill(.ultraThinMaterial)
-                #endif
                 .overlay {
                     Capsule()
                         .strokeBorder(trackBorderColor, lineWidth: 0.8)
@@ -279,27 +278,15 @@ struct PlayerSeekBar: View {
     }
 
     private var trackBorderColor: Color {
-        #if os(tvOS)
-        .white.opacity(0.2)
-        #else
         .white.opacity(0.16)
-        #endif
     }
 
     private var playedTrackColor: Color {
-        #if os(tvOS)
         .white.opacity(0.96)
-        #else
-        .white.opacity(0.96)
-        #endif
     }
 
     private var playedTrackShadowColor: Color {
-        #if os(tvOS)
         .white.opacity(0.18)
-        #else
-        .white.opacity(0.18)
-        #endif
     }
 
     private func playedTrackWidth(for progress: Double, totalWidth: CGFloat) -> CGFloat {
@@ -413,12 +400,17 @@ struct PlayerScrubPreviewPopup: View {
     }
 }
 
+/// The gear menu on the iOS play bar.
+///
+/// tvOS used to have a three-level version of this and no longer does: its
+/// settings live in `PlayerTVInfoPanel`, a bottom sheet with a tab strip. This
+/// view still compiles on tvOS (both targets build every source file) but
+/// nothing there mounts it.
 struct PlayerTrackSettingsMenu: View {
     @Environment(PlaybackCoordinator.self) private var playback
 
     let viewModel: PlayerViewModel
     let context: PlayerControlsContext
-    var onMenuPresentationChanged: ((Bool) -> Void)?
 
     private var hasAvailableSettings: Bool {
         context.hasPlaybackInfo ||
@@ -437,234 +429,10 @@ struct PlayerTrackSettingsMenu: View {
     }
 
     var body: some View {
-        #if os(tvOS)
-        tvOSMenu
-        #else
-        iOSMenu
-        #endif
+        settingsMenu
     }
 
-    #if os(tvOS)
-    private var tvOSMenu: some View {
-        Menu {
-            Group {
-                sharePlayButton
-                playbackInfoButton
-                channelMenu
-                if context.hasQualityControl {
-                    qualityMenu
-                }
-                subtitleTracksMenu
-                subtitleSizeMenu
-                downloadSubtitlesButton
-                audioTracksMenu
-            }
-            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-        } label: {
-            Image(systemName: "gearshape")
-                .font(DuskFont.TV.glyphMedium)
-                .accessibilityLabel("Playback Settings")
-        }
-        .disabled(!hasAvailableSettings)
-        .buttonStyle(.glass)
-        .controlSize(.small)
-        .tint(.white)
-    }
-
-    private var qualityMenu: some View {
-        Menu {
-            Group {
-                if !context.canSelectQuality {
-                    Button("Unavailable Offline") {}
-                        .disabled(true)
-                } else {
-                    ForEach(context.availableQualityPresets) { preset in
-                        Button {
-                            viewModel.noteControlsInteraction()
-                            viewModel.endAllControlsInteractionHolds()
-                            Task {
-                                await playback.switchQuality(to: preset)
-                            }
-                        } label: {
-                            trackMenuItem(
-                                title: preset.displayName,
-                                subtitle: preset.detailTitle,
-                                isSelected: context.selectedQualityPreset == preset
-                            )
-                        }
-                        .disabled(context.isChangingQuality || context.selectedQualityPreset == preset)
-                    }
-                }
-            }
-            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-        } label: {
-            Label("Quality", systemImage: "rectangle.compress.vertical")
-        }
-        .disabled(!context.canSelectQuality || context.isChangingQuality)
-    }
-
-    @ViewBuilder
-    private var channelMenu: some View {
-        if let live = context.liveTVContext {
-            Menu {
-                ForEach(live.lineup.channels) { channel in
-                    Button {
-                        guard channel.id != live.channel.id else { return }
-                        viewModel.endAllControlsInteractionHolds()
-                        let program = live.lineup.guide(for: channel)?.currentProgram()
-                        Task {
-                            await playback.playLiveTV(
-                                channel: channel,
-                                program: program,
-                                lineup: live.lineup
-                            )
-                        }
-                    } label: {
-                        Label(
-                            [channel.displayNumber, channel.displayTitle]
-                                .compactMap { $0 }
-                                .joined(separator: " · "),
-                            systemImage: channel.id == live.channel.id
-                                ? "checkmark"
-                                : "dot.radiowaves.left.and.right"
-                        )
-                    }
-                    .disabled(channel.id == live.channel.id)
-                }
-            } label: {
-                Label("Channel", systemImage: "list.number")
-            }
-        }
-    }
-
-    private var subtitleTracksMenu: some View {
-        Menu {
-            Group {
-                if viewModel.subtitleTracks.isEmpty {
-                    Button("No Subtitles") {}
-                        .disabled(true)
-                } else {
-                    Button {
-                        viewModel.noteControlsInteraction()
-                        viewModel.selectSubtitle(nil)
-                        viewModel.endAllControlsInteractionHolds()
-                    } label: {
-                        trackMenuItem(
-                            title: "Off",
-                            subtitle: nil,
-                            isSelected: viewModel.selectedSubtitleTrack == nil
-                        )
-                    }
-
-                    ForEach(viewModel.subtitleTracks) { track in
-                        Button {
-                            viewModel.noteControlsInteraction()
-                            viewModel.selectSubtitle(track)
-                            viewModel.endAllControlsInteractionHolds()
-                        } label: {
-                            trackMenuItem(
-                                title: track.displayTitle,
-                                subtitle: track.pickerDetailTitle,
-                                isSelected: viewModel.selectedSubtitleTrackID == track.id
-                            )
-                        }
-                    }
-                }
-            }
-            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-        } label: {
-            Label {
-                Text("Subtitles")
-            } icon: {
-                Image(systemName: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill")
-            }
-        }
-        .disabled(viewModel.subtitleTracks.isEmpty)
-    }
-
-    private var subtitleSizeMenu: some View {
-        Menu {
-            Group {
-                ForEach(SubtitleFontSize.allCases) { size in
-                    Button {
-                        viewModel.noteControlsInteraction()
-                        viewModel.selectSubtitleFontSize(size)
-                        viewModel.endAllControlsInteractionHolds()
-                    } label: {
-                        trackMenuItem(
-                            title: size.displayName,
-                            subtitle: size.detailTitle,
-                            isSelected: viewModel.subtitleFontSize == size
-                        )
-                    }
-                }
-            }
-            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-        } label: {
-            Label("Subtitle Size", systemImage: "textformat.size")
-        }
-        .disabled(!canResizeSubtitles)
-    }
-
-    /// Plex installs the sidecar server-side; the coordinator mounts it into the
-    /// live session afterwards. Hidden when the account cannot write to the
-    /// server (shared server / restricted Home user) or for Live TV.
-    @ViewBuilder
-    private var downloadSubtitlesButton: some View {
-        if context.canDownloadSubtitles {
-            Button {
-                viewModel.noteControlsInteraction()
-                viewModel.showSubtitleSearch = true
-                viewModel.endAllControlsInteractionHolds()
-            } label: {
-                Label("Download Subtitles", systemImage: "arrow.down.circle")
-            }
-        }
-    }
-
-    private var audioTracksMenu: some View {
-        Menu {
-            Group {
-                if viewModel.audioTracks.isEmpty {
-                    Button("No Audio Tracks") {}
-                        .disabled(true)
-                } else {
-                    ForEach(viewModel.audioTracks) { track in
-                        Button {
-                            viewModel.noteControlsInteraction()
-                            viewModel.selectAudio(track)
-                            viewModel.endAllControlsInteractionHolds()
-                        } label: {
-                            trackMenuItem(
-                                title: track.compactDisplayTitle,
-                                subtitle: track.detailDisplayTitle,
-                                isSelected: viewModel.selectedAudioTrackID == track.id
-                            )
-                        }
-                    }
-                }
-            }
-            .tvMenuPresentationLifecycle(onMenuPresentationChanged)
-        } label: {
-            Label("Audio", systemImage: "speaker.wave.2")
-        }
-        .disabled(viewModel.audioTracks.isEmpty)
-    }
-
-    @ViewBuilder
-    private var playbackInfoButton: some View {
-        if context.hasPlaybackInfo {
-            Button {
-                viewModel.noteControlsInteraction()
-                viewModel.showPlaybackInfo = true
-                viewModel.endAllControlsInteractionHolds()
-            } label: {
-                Label("Get Info", systemImage: "info.circle")
-            }
-        }
-    }
-    #else
-    private var iOSMenu: some View {
+    private var settingsMenu: some View {
         Menu {
             sharePlayButton
 
@@ -793,7 +561,6 @@ struct PlayerTrackSettingsMenu: View {
             Image(systemName: icon)
         }
     }
-    #endif
 
     @ViewBuilder
     private var sharePlayButton: some View {
@@ -821,59 +588,4 @@ struct PlayerTrackSettingsMenu: View {
         }
     }
 
-    private func trackMenuItem(
-        title: String,
-        subtitle: String?,
-        isSelected: Bool
-    ) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .lineLimit(1)
-
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(DuskFont.caption(ios: .caption))
-                        .foregroundStyle(Color.duskTextSecondary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer(minLength: 20)
-
-            if isSelected {
-                Image(systemName: "checkmark")
-                    .font(DuskFont.glyphSmall(ios: .caption.weight(.bold)))
-                    .foregroundStyle(Color.duskAccent)
-            }
-        }
-    }
 }
-
-#if os(tvOS)
-private struct PlayerTVMenuPresentationLifecycleModifier: ViewModifier {
-    let onPresentationChanged: ((Bool) -> Void)?
-    @State private var isPresented = false
-
-    func body(content: Content) -> some View {
-        content
-            .onAppear {
-                guard !isPresented else { return }
-                isPresented = true
-                onPresentationChanged?(true)
-            }
-            .onDisappear {
-                guard isPresented else { return }
-                isPresented = false
-                onPresentationChanged?(false)
-            }
-    }
-}
-
-private extension View {
-    func tvMenuPresentationLifecycle(_ onPresentationChanged: ((Bool) -> Void)?) -> some View {
-        modifier(PlayerTVMenuPresentationLifecycleModifier(onPresentationChanged: onPresentationChanged))
-    }
-}
-#endif

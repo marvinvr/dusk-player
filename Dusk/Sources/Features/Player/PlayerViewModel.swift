@@ -54,6 +54,16 @@ final class PlayerViewModel {
     var seekFeedback: PlayerSeekFeedbackPresentation?
     var autoSkipCountdownProgress: Double?
     var isSpeedBoostActive = false
+    /// Viewer-chosen playback speed. Separate from the transient press-and-hold
+    /// 2× boost, which overrides it while held and restores it on release.
+    /// Reset per session, because the engine is rebuilt with the session.
+    var playbackRate: Float = 1
+    #if os(tvOS)
+    /// tvOS routes every HUD reveal through `PlayerTVHUDController`. Set while
+    /// the controller performs an action that must not raise the HUD — a
+    /// play/pause press or a Skip Intro activation from the hidden state.
+    @ObservationIgnored var suppressControlsReveal = false
+    #endif
 
     let engine: any PlaybackEngine
     /// The engine's rendering view. Refreshed from `sync()` when the engine
@@ -151,7 +161,6 @@ final class PlayerViewModel {
     @ObservationIgnored nonisolated(unsafe) var controlsAutoHideTask: Task<Void, Never>?
     @ObservationIgnored var controlsAutoHideDeadline: Date?
     @ObservationIgnored var controlsInteractionHoldCount = 0
-    @ObservationIgnored var suppressSeekPointSelectUntil: Date?
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
     /// Preferences store used to persist the per-orientation zoom-to-fill
@@ -191,7 +200,6 @@ final class PlayerViewModel {
         controlsAutoHideDeadline = nil
         controlsInteractionHoldCount = 0
         isControlsInteractionHeld = false
-        suppressSeekPointSelectUntil = nil
         seekFeedbackTask = nil
         autoSkipCountdownTask = nil
         showQualityPicker = false

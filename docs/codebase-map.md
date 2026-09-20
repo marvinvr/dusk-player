@@ -166,6 +166,14 @@ Player:
   stay in the coordinator and use Plex HLS plus AVPlayer, so receivers do not
   need Dusk installed.
 - `PlayerView` and `PlayerViewModel` own on-screen player interaction.
+- tvOS's HUD is its own small stack, all of it file-scope `#if os(tvOS)`:
+  `PlayerTVHUDController` (the `hidden`/`transport`/`scrubbing`/`panel` state
+  machine), `PlayerTVRemoteInputBridge` (the player's single remote-input
+  owner — nothing else in the tvOS player is focusable except
+  `PlayerTVInfoPanel`), `PlayerTVHUDLayout` (every tunable),
+  `PlayerControlsTVOverlay` + `PlayerTVTransportBar` / `PlayerTVActionRow` /
+  `PlayerTVScrubOverlay` (presentation), and `PlayerTVInfoPanel` (the settings
+  sheet that replaced the gear menu). See `docs/playback.md` → "tvOS Play Bar".
 - `PlayerLiveTimeline.swift` owns the Live TV play bar's wall-clock model
   (live-edge estimate, program window, behind-live offset).
 - `SubtitleSearchViewModel`/`SubtitleSearchView` own the "Download Subtitles"
@@ -260,7 +268,8 @@ Some files are large because they own a complex boundary:
 - `DownloadManager.swift`: queue orchestration, local metadata, file completion,
   aggregate show/season operations.
 - `HomeCinematicHero.swift`: responsive hero presentation and interaction.
-- `PlayerView.swift`: platform input bridges and full-screen player composition.
+- `PlayerView.swift`: full-screen player composition, the iOS touch/keyboard
+  input bridges, and the tvOS session's wiring to `PlayerTVHUDController`.
 - `VLCKitEngine.swift` / `AVPlayerEngine.swift`: concrete playback engine state.
 - `SeasonDetailView.swift`: season hero plus episode list variants.
 

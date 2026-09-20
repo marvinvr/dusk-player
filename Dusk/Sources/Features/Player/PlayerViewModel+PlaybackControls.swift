@@ -16,13 +16,18 @@ extension PlayerViewModel {
     private static let stallRecoveryCooldown: TimeInterval = 8.0
     private static let stallProgressTolerance: TimeInterval = 0.75
     private static let maxStallRecoveryAttempts = 2
+    #if os(tvOS)
+    /// tvOS tunables live together in `PlayerTVHUDLayout` so they can be
+    /// adjusted in one on-device pass.
+    private static let controlsAutoHideDelay: TimeInterval = PlayerTVHUDLayout.autoHideDelay
+    #else
     private static let controlsAutoHideDelay: TimeInterval = 4.0
+    #endif
     // The settings menu is a deliberate, multi-step interaction (open the menu,
     // read the options, drill into a picker), so it gets a longer auto-hide
     // window than a normal tap to avoid the HUD vanishing mid-selection.
     private static let settingsControlsAutoHideDelay: TimeInterval = controlsAutoHideDelay * 2
     private static let controlsAutoHideRetryDelay: TimeInterval = 0.25
-    private static let seekPointSelectRevealSuppressionDelay: TimeInterval = 0.45
 
     func startSync() {
         syncTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
@@ -136,10 +141,24 @@ extension PlayerViewModel {
     func endSpeedBoost() {
         guard isSpeedBoostActive else { return }
 
-        engine.setPlaybackRate(1)
+        // Back to the viewer's chosen speed, not blindly to 1×.
+        engine.setPlaybackRate(playbackRate)
         withAnimation(.easeInOut(duration: 0.15)) {
             isSpeedBoostActive = false
         }
+    }
+
+    /// Sets the session's playback speed. Platform-neutral; today only the
+    /// tvOS settings panel exposes it. A live session has no rate to change
+    /// and a transient 2× boost wins until it is released — the boost's own
+    /// `endSpeedBoost()` then restores whatever was chosen here.
+    func setPlaybackRate(_ rate: Float) {
+        guard liveTVContext == nil else { return }
+        guard playbackRate != rate else { return }
+
+        playbackRate = rate
+        guard !isSpeedBoostActive else { return }
+        engine.setPlaybackRate(rate)
     }
 
     func togglePictureInPicture() {
@@ -254,7 +273,6 @@ extension PlayerViewModel {
         let shouldShowControls = !showControls
         if shouldShowControls {
             resetControlsInteractionHold()
-            suppressImmediateSeekPointSelect()
         }
 
         withAnimation(Self.controlsVisibilityAnimation) {
@@ -270,10 +288,18 @@ extension PlayerViewModel {
     }
 
     func touchControls() {
+        #if os(tvOS)
+        // The tvOS HUD controller owns reveals; some of its actions (play/pause
+        // or Skip Intro while the HUD is hidden) must not raise it.
+        if suppressControlsReveal {
+            scheduleHide()
+            return
+        }
+        #endif
+
         let shouldRevealControls = !showControls
         if shouldRevealControls {
             resetControlsInteractionHold()
-            suppressImmediateSeekPointSelect()
             withAnimation(Self.controlsVisibilityAnimation) {
                 showControls = true
             }
@@ -319,13 +345,6 @@ extension PlayerViewModel {
     func endAllControlsInteractionHolds() {
         resetControlsInteractionHold()
         scheduleHide()
-    }
-
-    func shouldIgnoreSeekPointSelectAfterReveal() -> Bool {
-        guard let suppressSeekPointSelectUntil else { return false }
-
-        self.suppressSeekPointSelectUntil = nil
-        return Date() < suppressSeekPointSelectUntil
     }
 
     /// `precise` defaults to frame-accurate for deliberate targets (marker
@@ -456,7 +475,7 @@ extension PlayerViewModel {
             !showAudioPicker &&
             !showQualityPicker &&
             !showPlaybackInfo &&
-            state == .playing &&
+            stateAllowsControlsAutoHide &&
             state != .stopped &&
             state != .error
     }
@@ -465,9 +484,21 @@ extension PlayerViewModel {
         showControls &&
             controlsAutoHideIsArmed &&
             playbackError == nil &&
-            state == .playing &&
+            stateAllowsControlsAutoHide &&
             state != .stopped &&
             state != .error
+    }
+
+    /// iOS keeps the HUD up while paused: the play button is the only way back
+    /// and the overlay is the touch target. tvOS hides it anyway — the picture
+    /// is the point, the remote has a dedicated play/pause button, and any
+    /// click brings the transport straight back.
+    private var stateAllowsControlsAutoHide: Bool {
+        #if os(tvOS)
+        state == .playing || state == .paused
+        #else
+        state == .playing
+        #endif
     }
 
     private func cancelScheduledHide() {
@@ -479,10 +510,6 @@ extension PlayerViewModel {
     private func resetControlsInteractionHold() {
         controlsInteractionHoldCount = 0
         isControlsInteractionHeld = false
-    }
-
-    private func suppressImmediateSeekPointSelect() {
-        suppressSeekPointSelectUntil = Date().addingTimeInterval(Self.seekPointSelectRevealSuppressionDelay)
     }
 
     private var controlsAutoHideIsArmed: Bool {

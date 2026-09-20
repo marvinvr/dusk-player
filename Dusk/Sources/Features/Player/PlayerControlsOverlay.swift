@@ -5,10 +5,14 @@ struct PlayerControlsOverlay: View {
     @Environment(PlexService.self) private var plexService
 
     let viewModel: PlayerViewModel
+    #if os(tvOS)
+    /// tvOS HUD state machine. Owned by `PlayerSessionView` so it outlives the
+    /// overlay's visibility and can be driven by the remote bridge.
+    let hudController: PlayerTVHUDController
+    #endif
     let mediaDetails: PlexMediaDetails?
     let debugInfo: PlaybackDebugInfo?
     let scrubPreviewSource: PlexScrubPreviewSource?
-    let hasActiveSkipMarker: Bool
     let controlsTopSafeAreaInset: CGFloat
     let onDismiss: () -> Void
 
@@ -16,9 +20,9 @@ struct PlayerControlsOverlay: View {
         #if os(tvOS)
         PlayerControlsTVOverlay(
             viewModel: viewModel,
+            controller: hudController,
             context: context,
-            scrubPreviewSource: scrubPreviewSource,
-            hasActiveSkipMarker: hasActiveSkipMarker
+            scrubPreviewSource: scrubPreviewSource
         )
         #else
         PlayerControlsIOSOverlay(
@@ -34,6 +38,7 @@ struct PlayerControlsOverlay: View {
     private var context: PlayerControlsContext {
         PlayerControlsContext(
             mediaHeader: mediaHeader,
+            summary: summary,
             subtitleControlTitle: subtitleControlTitle,
             audioControlTitle: audioControlTitle,
             qualityControlTitle: qualityControlTitle,
@@ -53,6 +58,15 @@ struct PlayerControlsOverlay: View {
             sharePlayParticipantCount: playback.sharePlayParticipantCount,
             liveTVContext: viewModel.liveTVContext
         )
+    }
+
+    /// Synopsis for the tvOS panel's Info tab. Live sessions describe the
+    /// program on the bar, not the one that was airing at tune time.
+    private var summary: String? {
+        if viewModel.isLiveTV {
+            return viewModel.liveProgram?.summary
+        }
+        return mediaDetails?.summary
     }
 
     private var mediaHeader: PlayerMediaHeader? {
@@ -125,6 +139,8 @@ struct PlayerControlsOverlay: View {
 
 struct PlayerControlsContext {
     let mediaHeader: PlayerMediaHeader?
+    /// Item synopsis (or the live program's), used by the tvOS panel's Info tab.
+    let summary: String?
     let subtitleControlTitle: String
     let audioControlTitle: String
     let qualityControlTitle: String
