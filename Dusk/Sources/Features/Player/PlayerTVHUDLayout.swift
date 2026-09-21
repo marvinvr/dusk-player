@@ -7,7 +7,7 @@ import SwiftUI
 /// The values were chosen against the tvOS simulator, where the "touch surface"
 /// is a trackpad and every click is a key press. The ones most likely to feel
 /// wrong on a real Apple TV with a real Siri Remote are called out inline:
-/// `fullSwipeTranslation`, `swipeEaseExponent`, `swipeDeadzone`,
+/// `swipeSlowGain` / `swipeFastGain`, `swipeDeadzone`,
 /// `seekHoldInitialDelay` / `seekHoldRepeatInterval` / `seekHoldRampMultipliers`
 /// and `autoHideDelay`.
 enum PlayerTVHUDLayout {
@@ -37,10 +37,8 @@ enum PlayerTVHUDLayout {
 
     /// Gap between the bar row and the elapsed / remaining readouts.
     static let barLabelSpacing: CGFloat = 6
-    /// Gap between the title block and the bar row.
+    /// Gap between the title / action row and the bar row.
     static let titleBottomSpacing: CGFloat = 20
-    /// Gap between the action row and the title block.
-    static let actionRowBottomSpacing: CGFloat = 24
     /// Gap between two action-row buttons.
     static let actionRowSpacing: CGFloat = 18
     /// Diameter of a circular action-row button.
@@ -88,12 +86,16 @@ enum PlayerTVHUDLayout {
 
     // MARK: - Swipe scrubbing
 
-    /// Touch-surface translation, in points, that maps to a full-timeline
-    /// sweep before easing. Larger = slower, more precise scrubbing.
-    static let fullSwipeTranslation: CGFloat = 250
-    /// Exponent applied to the normalized translation. > 1 keeps small swipes
-    /// fine-grained while long swipes still reach the ends of the timeline.
-    static let swipeEaseExponent: Double = 1.6
+    /// Fraction of the timeline one point of touch travel moves the cursor at
+    /// or below `swipeSlowVelocity`. An edge-to-edge drag on the Siri Remote is
+    /// roughly 1000pt of translation, so this is ~3% of the timeline per drag.
+    /// Smaller = slower, more precise scrubbing.
+    static let swipeSlowGain: Double = 0.00003
+    /// Same, at or above `swipeFastVelocity`: ~25% of the timeline per flick.
+    static let swipeFastGain: Double = 0.00025
+    /// Finger speeds, in points per second, the gain is interpolated between.
+    static let swipeSlowVelocity: Double = 400
+    static let swipeFastVelocity: Double = 3000
     /// Horizontal travel required before a pan counts as a scrub at all.
     static let swipeDeadzone: CGFloat = 6
 

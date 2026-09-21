@@ -1321,10 +1321,11 @@ so the whole live HUD is derived from one instant.
 - Swipe scrubbing is direction-locked in the pan handler: tvOS delivers a
   touch-surface flick as *both* a pan and an arrow press, so a vertical flick is
   dropped by the pan (it is the panel gesture) and arrow presses are ignored
-  while a horizontal pan is live. Mapping is
-  `sign(n) * |n|^swipeEaseExponent * span`, `n = translationX / fullSwipeTranslation`,
+  while a horizontal pan is live. Mapping is relative and velocity-scaled:
+  each pan update moves the cursor by `deltaX * gain * span`, `gain`
+  interpolated between `swipeSlowGain` and `swipeFastGain` by finger speed,
   with `span` the seekable width on live and the timeline width otherwise. A
-  second swipe that starts before the first is committed re-anchors on the
+  second swipe that starts before the first is committed continues from the
   cursor (`translation` restarts at zero for every new gesture). The pan's
   `ended/cancelled/failed` branch is deliberately outside the capture guard: the
   controller drops arrow presses until the pan it believes is live has ended, so
@@ -1335,7 +1336,7 @@ so the whole live HUD is derived from one instant.
   bar row and would otherwise land on top of the title. Fading rather than
   removing keeps the bottom-anchored stack from jumping as it appears.
 - **All tunables live in `PlayerTVHUDLayout`** (insets, bar/head sizes, swipe
-  translation and ease exponent, hold delays and ramp, auto-hide delay, panel
+  gains and velocities, hold delays and ramp, auto-hide delay, panel
   height). They are a simulator-tuned first pass and are expected to be adjusted
   on a real Apple TV with a real Siri Remote.
 - HUD visibility is mirrored in both directions: the controller writes

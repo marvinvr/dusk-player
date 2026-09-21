@@ -4,9 +4,9 @@ import SwiftUI
 /// The tvOS play bar.
 ///
 /// Bottom-anchored and deliberately shaped like AVPlayerViewController's:
-/// a trailing row of circular actions, the media title under it on the leading
-/// edge, then the bar with its elapsed / remaining readouts inline. Selection
-/// is drawn from `PlayerTVHUDController.transportFocus` — nothing here is
+/// the media title on the leading edge with the circular actions trailing on
+/// the same row, then the bar with its elapsed / remaining readouts inline.
+/// Selection is drawn from `PlayerTVHUDController.transportFocus` — nothing here is
 /// focusable, so the SwiftUI focus engine never takes the remote away from
 /// `PlayerTVRemoteInputBridge`. The settings panel is the single exception and
 /// owns focus outright while it is up.
@@ -82,25 +82,29 @@ struct PlayerControlsTVOverlay: View {
 
     private var transport: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !controller.actions.isEmpty {
-                PlayerTVActionRow(
-                    actions: controller.actions,
-                    selectedIndex: selectedActionIndex,
-                    reduceMotion: reduceMotion
-                )
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.bottom, PlayerTVHUDLayout.actionRowBottomSpacing)
-                .opacity(isScrubbing ? 0 : 1)
-            }
+            // Title leading, actions trailing, both sitting on the bar. Stacking
+            // the actions above the title left them floating a whole title
+            // block (up to five lines) away from the bar they belong to.
+            HStack(alignment: .bottom, spacing: PlayerTVHUDLayout.actionRowSpacing) {
+                if let header = context.mediaHeader {
+                    PlayerMediaHeaderView(header: header)
+                }
 
-            if let header = context.mediaHeader {
-                PlayerMediaHeaderView(header: header)
-                    .padding(.bottom, PlayerTVHUDLayout.titleBottomSpacing)
-                    // The scrub thumbnail is 240x135 and is positioned above the
-                    // bar row, so it lands on top of this block. Fading rather
-                    // than removing keeps the bar from jumping as it appears.
-                    .opacity(isScrubbing ? 0 : 1)
+                Spacer(minLength: 0)
+
+                if !controller.actions.isEmpty {
+                    PlayerTVActionRow(
+                        actions: controller.actions,
+                        selectedIndex: selectedActionIndex,
+                        reduceMotion: reduceMotion
+                    )
+                }
             }
+            .padding(.bottom, PlayerTVHUDLayout.titleBottomSpacing)
+            // The scrub thumbnail is 240x135 and is positioned above the bar
+            // row, so it lands on top of this block. Fading rather than
+            // removing keeps the bar from jumping as it appears.
+            .opacity(isScrubbing ? 0 : 1)
 
             PlayerTVTransportBar(
                 viewModel: viewModel,

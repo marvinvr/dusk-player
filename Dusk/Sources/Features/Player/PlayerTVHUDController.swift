@@ -138,7 +138,8 @@ final class PlayerTVHUDController {
     @ObservationIgnored var onDismissBottomTrailingControl: (() -> Bool)?
 
     @ObservationIgnored private var isPanActive = false
-    @ObservationIgnored private var scrubAnchor: TimeInterval = 0
+    /// Cumulative pan translation already folded into `scrubTarget`.
+    @ObservationIgnored private var scrubLastTranslationX: CGFloat = 0
     @ObservationIgnored private var scrubOrigin: PlayerTVHUDMode = .hidden
     @ObservationIgnored private var seekAnchor: TimeInterval = 0
     @ObservationIgnored private var seekAccumulator: TimeInterval = 0
@@ -275,8 +276,8 @@ final class PlayerTVHUDController {
         case .panBegan:
             beginScrub()
             return
-        case let .panChanged(translationX, _):
-            updateScrub(translationX: translationX)
+        case let .panChanged(translationX, velocityX):
+            updateScrub(translationX: translationX, velocityX: velocityX)
             return
         case .panEnded:
             isPanActive = false
@@ -601,11 +602,11 @@ final class PlayerTVHUDController {
         guard mode != .panel, let viewModel, viewModel.playbackError == nil else { return }
 
         isPanActive = true
+        // `translation` restarts at zero for every new gesture.
+        scrubLastTranslationX = 0
         guard mode != .scrubbing else {
             // A second swipe without committing continues from where the last
-            // one left the cursor; `translation` restarts at zero for the new
-            // gesture, so the anchor has to move with it.
-            scrubAnchor = scrubTarget ?? viewModel.displayPosition
+            // one left the cursor.
             return
         }
 
@@ -619,25 +620,32 @@ final class PlayerTVHUDController {
         transientBadge = nil
 
         scrubOrigin = mode == .hidden ? .hidden : .transport
-        scrubAnchor = viewModel.displayPosition
-        scrubTarget = scrubAnchor
+        scrubTarget = viewModel.displayPosition
         apply(.scrubbing)
     }
 
-    private func updateScrub(translationX: CGFloat) {
-        guard mode == .scrubbing, let viewModel else { return }
+    /// Relative and velocity-scaled, like a trackpad pointer: every pan update
+    /// moves the cursor by its own delta, and the gain grows with finger speed.
+    /// A slow drag is fine-grained no matter how far it has already travelled,
+    /// a flick still crosses a good part of the timeline.
+    private func updateScrub(translationX: CGFloat, velocityX: CGFloat) {
+        guard mode == .scrubbing, let viewModel, let current = scrubTarget else { return }
 
-        let normalized = Double(translationX / PlayerTVHUDLayout.fullSwipeTranslation)
-        let eased = (normalized < 0 ? -1.0 : 1.0)
-            * pow(abs(normalized), PlayerTVHUDLayout.swipeEaseExponent)
-        scrubTarget = viewModel.clampedSeekPosition(scrubAnchor + eased * scrubSpan)
+        let delta = Double(translationX - scrubLastTranslationX)
+        scrubLastTranslationX = translationX
+
+        let slow = PlayerTVHUDLayout.swipeSlowVelocity
+        let fast = PlayerTVHUDLayout.swipeFastVelocity
+        let speed = min(max((abs(Double(velocityX)) - slow) / (fast - slow), 0), 1)
+        let gain = PlayerTVHUDLayout.swipeSlowGain
+            + (PlayerTVHUDLayout.swipeFastGain - PlayerTVHUDLayout.swipeSlowGain) * speed
+
+        scrubTarget = viewModel.clampedSeekPosition(current + delta * gain * scrubSpan)
     }
 
     private func stepScrub(by offset: TimeInterval) {
         guard let viewModel, let current = scrubTarget else { return }
         scrubTarget = viewModel.clampedSeekPosition(current + offset)
-        // Keep the anchor with the cursor so a following swipe starts here.
-        scrubAnchor = scrubTarget ?? scrubAnchor
     }
 
     /// A live play bar spans a whole scheduled program, but only the stretch
