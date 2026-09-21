@@ -297,7 +297,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     frame/offset width handling and `.contentMargins(.zero…)` — do not swap either
     for `containerRelativeFrame`.
   - The `.tv` paddings are measured from the real display edges: the text block
-    clears the pager *and* the hint (~220pt of bottom padding), the pager sits at
+    sits just above the pager (124pt of bottom padding; the hint is bottom-centre
+    and the block's lowest element is the narrow leading play button, so only the
+    pills need clearing), the pager sits at
     60pt overscan + ~18pt so its pills share a baseline with the hint, and the logo
     caps grow to 640×150 for a 1920-wide frame. The backdrop is centre-aligned
     because 16:9 artwork now lands in a 16:9 box.
@@ -310,9 +312,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     and omitted entirely when there is nothing below the hero. Keep it out of
     `HomeCinematicHero`'s per-item slide — mounting it there would re-create it on
     every hero change and disturb the focus binding.
-  - Scroll choreography: the shelves live in a `ScrollViewReader`, the hero and the
-    (padded) shelf stack carry `.id` anchors, and a `focusedTarget` change scrolls
-    between them over 0.35s — down to the shelves' top, back up to the hero's top.
+  - Scroll choreography: a `focusedTarget` change scrolls between hero and shelves
+    over 0.35s through a `ScrollPosition` — down to the absolute offset
+    `heroHeight - topContentInset` (shelf stack top at the top of the display), back
+    up with `scrollTo(edge: .top)`. Keep it offset/edge based: the focus engine
+    starts its own reveal-scroll on the same down-press, and an id-anchored
+    `scrollTo` resolved against that in-flight geometry overshot by several rows.
     `@FocusState` cannot tell "down into the shelves" from "up into the tab bar"
     (both read as `nil`), so `HomeCinematicHero` reports vertical move commands via
     `onVerticalMove` and `HomeTVView` only scrolls down when the last move was

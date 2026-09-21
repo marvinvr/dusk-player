@@ -34,12 +34,17 @@ struct HomeTVView: View {
         case heroPrimaryAction
     }
 
-    /// Scroll anchors for the down/up choreography between the full-screen hero
-    /// and the shelves.
-    private enum HomeScrollAnchor: Hashable {
-        case hero
-        case shelves
-    }
+    /// Drives the down/up choreography between the full-screen hero and the
+    /// shelves.
+    ///
+    /// Deliberately offset/edge based, never id based. The focus engine starts
+    /// its own reveal-scroll on the same down-press, and an id-based `scrollTo`
+    /// resolves its target against that in-flight geometry — which overshot
+    /// the first shelf by several rows. An absolute offset has one answer no
+    /// matter what the scroll view is doing when it is issued.
+    @State private var scrollPosition = ScrollPosition(idType: Int.self)
+    /// The scroll view's top content inset, i.e. minus its resting offset.
+    @State private var scrollTopInset: CGFloat?
 
     private let heroScrollAnimationDuration: TimeInterval = 0.35
 
@@ -86,144 +91,147 @@ struct HomeTVView: View {
                 )
             )
 
-            ScrollViewReader { scrollProxy in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 0) {
-                        if !heroItems.isEmpty {
-                            HomeCinematicHero(
-                                items: heroItems,
-                                viewModel: viewModel,
-                                containerSize: heroContainerSize,
-                                topInset: geometry.safeAreaInsets.top,
-                                contentLeadingInset: leadingContentInset,
-                                contentTrailingInset: trailingContentInset,
-                                layout: .tv,
-                                // Keep tvOS hero rotation OFF. The focusable play button
-                                // lives inside the per-item hero slide (keyed by ratingKey),
-                                // so an unattended rotation tears down the view that owns the
-                                // `.heroPrimaryAction` focus binding. While another tab is on
-                                // screen the Home tab stays alive and keeps rotating, leaving
-                                // the binding detached — so returning to Home and pressing down
-                                // from the tab bar drops focus into nothing (cursor vanishes,
-                                // nothing is selectable). iOS has no focus engine and keeps it on.
-                                autoRotates: false,
-                                supportsDragNavigation: false,
-                                selectionResetRevision: heroSelectionResetRevision,
-                                primaryAction: { item, callbacks in
-                                    AnyView(
-                                        Button {
-                                            callbacks.restartRotation()
-                                            play(item)
-                                        } label: {
-                                            HomeHeroActionButtonLabel(
-                                                title: viewModel.heroPrimaryActionTitle(for: item),
-                                                systemImage: "play.fill"
-                                            )
-                                        }
-                                        #if os(tvOS)
-                                        .homeHeroNativeButtonStyle()
-                                        .focused($focusedTarget, equals: .heroPrimaryAction)
-                                        .prefersDefaultFocus(true, in: homeFocusScope)
-                                        .background(
-                                            TVRemoteSwipeCapture(
-                                                isEnabled: focusedTarget == .heroPrimaryAction,
-                                                onSwipeLeft: callbacks.showPrevious,
-                                                onSwipeRight: callbacks.showNext
-                                            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if !heroItems.isEmpty {
+                        HomeCinematicHero(
+                            items: heroItems,
+                            viewModel: viewModel,
+                            containerSize: heroContainerSize,
+                            topInset: geometry.safeAreaInsets.top,
+                            contentLeadingInset: leadingContentInset,
+                            contentTrailingInset: trailingContentInset,
+                            layout: .tv,
+                            // Keep tvOS hero rotation OFF. The focusable play button
+                            // lives inside the per-item hero slide (keyed by ratingKey),
+                            // so an unattended rotation tears down the view that owns the
+                            // `.heroPrimaryAction` focus binding. While another tab is on
+                            // screen the Home tab stays alive and keeps rotating, leaving
+                            // the binding detached — so returning to Home and pressing down
+                            // from the tab bar drops focus into nothing (cursor vanishes,
+                            // nothing is selectable). iOS has no focus engine and keeps it on.
+                            autoRotates: false,
+                            supportsDragNavigation: false,
+                            selectionResetRevision: heroSelectionResetRevision,
+                            primaryAction: { item, callbacks in
+                                AnyView(
+                                    Button {
+                                        callbacks.restartRotation()
+                                        play(item)
+                                    } label: {
+                                        HomeHeroActionButtonLabel(
+                                            title: viewModel.heroPrimaryActionTitle(for: item),
+                                            systemImage: "play.fill"
                                         )
-                                        #endif
-                                        .contextMenu {
-                                            HomeItemContextMenu(
-                                                item: item,
-                                                detailsLabel: heroDetailsLabel(for: item),
-                                                onMarkWatched: {
-                                                    Task { await viewModel.setWatched(true, for: item) }
-                                                },
-                                                onMarkUnwatched: {
-                                                    Task { await viewModel.setWatched(false, for: item) }
-                                                },
-                                                onSelectRoute: { route in
-                                                    path.append(route)
-                                                },
-                                                onRemoveFromContinueWatching: {
-                                                    Task { await viewModel.removeFromContinueWatching(item) }
-                                                }
-                                            )
-                                            .onAppear {
-                                                callbacks.pauseRotation()
-                                            }
-                                            .onDisappear {
-                                                callbacks.restartRotation()
-                                            }
-                                        }
-                                        .accessibilityAddTraits(.isButton)
+                                    }
+                                    #if os(tvOS)
+                                    .homeHeroNativeButtonStyle()
+                                    .focused($focusedTarget, equals: .heroPrimaryAction)
+                                    .prefersDefaultFocus(true, in: homeFocusScope)
+                                    .background(
+                                        TVRemoteSwipeCapture(
+                                            isEnabled: focusedTarget == .heroPrimaryAction,
+                                            onSwipeLeft: callbacks.showPrevious,
+                                            onSwipeRight: callbacks.showNext
+                                        )
                                     )
-                                },
-                                onVerticalMove: { move in
-                                    lastHeroVerticalMove = move
-                                }
-                            )
-                            .frame(width: heroContainerSize.width)
-                            .offset(x: -leadingContentInset)
-                            // Applied *after* the width frame and the offset so
-                            // the hint centres on the real display rather than on
-                            // the safe-area-inset content box.
-                            .overlay(alignment: .bottom) {
-                                scrollHint(isEnabled: hasContentBelowHero)
+                                    #endif
+                                    .contextMenu {
+                                        HomeItemContextMenu(
+                                            item: item,
+                                            detailsLabel: heroDetailsLabel(for: item),
+                                            onMarkWatched: {
+                                                Task { await viewModel.setWatched(true, for: item) }
+                                            },
+                                            onMarkUnwatched: {
+                                                Task { await viewModel.setWatched(false, for: item) }
+                                            },
+                                            onSelectRoute: { route in
+                                                path.append(route)
+                                            },
+                                            onRemoveFromContinueWatching: {
+                                                Task { await viewModel.removeFromContinueWatching(item) }
+                                            }
+                                        )
+                                        .onAppear {
+                                            callbacks.pauseRotation()
+                                        }
+                                        .onDisappear {
+                                            callbacks.restartRotation()
+                                        }
+                                    }
+                                    .accessibilityAddTraits(.isButton)
+                                )
+                            },
+                            onVerticalMove: { move in
+                                lastHeroVerticalMove = move
                             }
-                            .ignoresSafeArea(edges: .top)
-                            .id(HomeScrollAnchor.hero)
-                            #if os(tvOS)
-                            .focusSection()
-                            #endif
-                        } else {
-                            homeHeader()
-                                .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
-                                .padding(.top, DuskPosterMetrics.pageSectionSpacing)
+                        )
+                        .frame(width: heroContainerSize.width)
+                        .offset(x: -leadingContentInset)
+                        // Applied *after* the width frame and the offset so
+                        // the hint centres on the real display rather than on
+                        // the safe-area-inset content box.
+                        .overlay(alignment: .bottom) {
+                            scrollHint(isEnabled: hasContentBelowHero)
                         }
-
-                        shelvesStack()
-                            .padding(
-                                .top,
-                                heroItems.isEmpty
-                                    ? 56
-                                    : shelfTopPadding(safeAreaTop: geometry.safeAreaInsets.top)
-                            )
-                            .padding(.bottom, DuskPosterMetrics.pageBottomPadding)
-                            .id(HomeScrollAnchor.shelves)
-                            #if os(tvOS)
-                            .focusSection()
-                            #endif
+                        .ignoresSafeArea(edges: .top)
+                        #if os(tvOS)
+                        .focusSection()
+                        #endif
+                    } else {
+                        homeHeader()
+                            .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+                            .padding(.top, DuskPosterMetrics.pageSectionSpacing)
                     }
-                    .frame(width: geometry.size.width, alignment: .leading)
-                    .padding(.top, heroItems.isEmpty ? 24 : -geometry.safeAreaInsets.top)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                    shelvesStack()
+                        .padding(
+                            .top,
+                            heroItems.isEmpty
+                                ? 56
+                                : shelfTopPadding(safeAreaTop: geometry.safeAreaInsets.top)
+                        )
+                        .padding(.bottom, DuskPosterMetrics.pageBottomPadding)
+                        #if os(tvOS)
+                        .focusSection()
+                        #endif
                 }
-                #if os(tvOS)
-                .focusScope(homeFocusScope)
-                #endif
-                .contentMargins(.zero, for: .scrollContent)
-                .contentMargins(.zero, for: .scrollIndicators)
-                .scrollIndicators(.hidden)
-                #if os(tvOS)
-                .scrollClipDisabled()
-                #endif
-                .duskTVOSPageBackground()
-                .defaultFocus($focusedTarget, .heroPrimaryAction)
-                .onChange(of: focusedTarget) { _, newValue in
-                    handleHeroFocusChange(
-                        newValue,
-                        hasHeroItems: !heroItems.isEmpty,
-                        scrollProxy: scrollProxy
-                    )
-                }
-                .task(id: heroItemIDs) {
-                    await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
-                }
-                .task(id: showsLiveTV) {
-                    guard showsLiveTV else { return }
-                    await liveTVViewModel.loadNowPlaying(force: true)
-                }
+                .frame(width: geometry.size.width, alignment: .leading)
+                .padding(.top, heroItems.isEmpty ? 24 : -geometry.safeAreaInsets.top)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollPosition($scrollPosition)
+            .onScrollGeometryChange(for: CGFloat.self) { scrollGeometry in
+                scrollGeometry.contentInsets.top
+            } action: { _, topInset in
+                scrollTopInset = topInset
+            }
+            #if os(tvOS)
+            .focusScope(homeFocusScope)
+            #endif
+            .contentMargins(.zero, for: .scrollContent)
+            .contentMargins(.zero, for: .scrollIndicators)
+            .scrollIndicators(.hidden)
+            #if os(tvOS)
+            .scrollClipDisabled()
+            #endif
+            .duskTVOSPageBackground()
+            .defaultFocus($focusedTarget, .heroPrimaryAction)
+            .onChange(of: focusedTarget) { _, newValue in
+                handleHeroFocusChange(
+                    newValue,
+                    hasHeroItems: !heroItems.isEmpty,
+                    heroHeight: heroContainerSize.height,
+                    safeAreaTop: geometry.safeAreaInsets.top
+                )
+            }
+            .task(id: heroItemIDs) {
+                await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
+            }
+            .task(id: showsLiveTV) {
+                guard showsLiveTV else { return }
+                await liveTVViewModel.loadNowPlaying(force: true)
             }
         }
     }
@@ -347,7 +355,8 @@ struct HomeTVView: View {
     private func handleHeroFocusChange(
         _ target: FocusTarget?,
         hasHeroItems: Bool,
-        scrollProxy: ScrollViewProxy
+        heroHeight: CGFloat,
+        safeAreaTop: CGFloat
     ) {
         guard hasHeroItems else { return }
 
@@ -355,13 +364,17 @@ struct HomeTVView: View {
         case .heroPrimaryAction:
             lastHeroVerticalMove = nil
             withAnimation(.easeInOut(duration: heroScrollAnimationDuration)) {
-                scrollProxy.scrollTo(HomeScrollAnchor.hero, anchor: .top)
+                scrollPosition.scrollTo(edge: .top)
             }
         case nil:
             guard lastHeroVerticalMove == .down else { return }
             lastHeroVerticalMove = nil
             withAnimation(.easeInOut(duration: heroScrollAnimationDuration)) {
-                scrollProxy.scrollTo(HomeScrollAnchor.shelves, anchor: .top)
+                // The hero is exactly `heroHeight` tall and starts at the
+                // resting offset, so this puts the shelves stack's top edge
+                // at the top of the display; `shelfTopPadding` then keeps the
+                // first header clear of the tab bar.
+                scrollPosition.scrollTo(y: heroHeight - (scrollTopInset ?? safeAreaTop))
             }
         }
     }

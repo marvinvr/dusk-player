@@ -43,9 +43,10 @@ struct HomeCinematicHeroLayout {
     /// container (`fillsContainerHeight`), and the paddings below are measured
     /// from the real display edges, not from a banner box:
     ///
-    /// - `contentBottomPaddingWithPager` keeps the text/button block clear of
-    ///   both the pager pills and the "More" scroll hint that `HomeTVView`
-    ///   overlays at the bottom centre.
+    /// - `contentBottomPaddingWithPager` sits the text/button block just above
+    ///   the pager pills. The "More" hint `HomeTVView` overlays is bottom
+    ///   *centre*, and the lowest thing in this leading-aligned block is the
+    ///   narrow play button, so the block only has to clear the pills.
     /// - `pagerBottomPadding` = 60pt overscan inset + ~18pt so the pills share a
     ///   baseline with that hint.
     static let tv = HomeCinematicHeroLayout(
@@ -55,8 +56,8 @@ struct HomeCinematicHeroLayout {
         maxContentWidth: 920,
         contentHorizontalPadding: 56,
         contentTopPadding: 64,
-        contentBottomPaddingWithPager: 220,
-        contentBottomPaddingWithoutPager: 188,
+        contentBottomPaddingWithPager: 124,
+        contentBottomPaddingWithoutPager: 96,
         actionsTopPadding: 10,
         actionsBottomPadding: 8,
         pagerHorizontalPadding: 56,
