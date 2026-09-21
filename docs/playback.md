@@ -331,9 +331,9 @@ so the whole live HUD is derived from one instant.
   worker resolves Plex playback. It drains the latest activity, never republishes
   an incoming item's local metadata, and cannot commit an engine after its
   session is left/replaced. Repeated attachment of an unchanged session is ignored.
-- SharePlay lives in the player gear menu on iOS/iPadOS and, on tvOS, as a
-  direct button on the play bar's action row (it is a one-shot action, not a
-  settings list). The action checks `GroupStateObserver`: an eligible
+- SharePlay lives in the player gear menu on iOS/iPadOS. The tvOS play bar has
+  no SharePlay control; an Apple TV only joins a session started elsewhere.
+  The action checks `GroupStateObserver`: an eligible
   conversation uses `activate()`, otherwise iOS/iPadOS presents Apple's
   `GroupActivitySharingController` to invite participants/start a call. tvOS
   explains how to start a call or continue from iPhone/iPad when ineligible.

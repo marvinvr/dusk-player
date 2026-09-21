@@ -28,7 +28,7 @@ struct PlayerTVActionRow: View {
     private func button(_ action: PlayerTVActionItem, isSelected: Bool) -> some View {
         Image(systemName: action.systemImage)
             .font(DuskFont.TV.glyphSmall.weight(.semibold))
-            .foregroundStyle(tint(for: action))
+            .foregroundStyle(.white)
             .frame(
                 width: PlayerTVHUDLayout.actionButtonDiameter,
                 height: PlayerTVHUDLayout.actionButtonDiameter
@@ -50,13 +50,6 @@ struct PlayerTVActionRow: View {
             )
             .accessibilityLabel(action.accessibilityLabel)
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
-    }
-
-    private func tint(for action: PlayerTVActionItem) -> Color {
-        if case let .sharePlay(isActive) = action, isActive {
-            return Color.duskAccent
-        }
-        return .white
     }
 }
 #endif

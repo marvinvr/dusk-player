@@ -67,13 +67,11 @@ enum PlayerTVPanelTab: String, CaseIterable, Identifiable, Hashable {
 enum PlayerTVActionItem: Equatable, Identifiable {
     case panel(PlayerTVPanelTab)
     case goLive
-    case sharePlay(isActive: Bool)
 
     var id: String {
         switch self {
         case let .panel(tab): return "panel.\(tab.rawValue)"
         case .goLive: return "goLive"
-        case let .sharePlay(isActive): return "sharePlay.\(isActive)"
         }
     }
 
@@ -81,7 +79,6 @@ enum PlayerTVActionItem: Equatable, Identifiable {
         switch self {
         case let .panel(tab): return tab.systemImage
         case .goLive: return "forward.end.alt.fill"
-        case .sharePlay: return "shareplay"
         }
     }
 
@@ -89,7 +86,6 @@ enum PlayerTVActionItem: Equatable, Identifiable {
         switch self {
         case let .panel(tab): return tab.title
         case .goLive: return "Go Live"
-        case let .sharePlay(isActive): return isActive ? "Leave SharePlay" : "Start SharePlay"
         }
     }
 }
@@ -131,7 +127,6 @@ final class PlayerTVHUDController {
 
     @ObservationIgnored weak var viewModel: PlayerViewModel?
     @ObservationIgnored var onDismissPlayer: (() -> Void)?
-    @ObservationIgnored var onSharePlay: (() -> Void)?
     @ObservationIgnored var onActivateBottomTrailingControl: (() -> Void)?
     /// Returns true when it actually dismissed something; false lets Down fall
     /// through to opening the panel (the Skip Intro chip cannot be dismissed).
@@ -182,7 +177,6 @@ final class PlayerTVHUDController {
         isPanActive = false
         viewModel = nil
         onDismissPlayer = nil
-        onSharePlay = nil
         onActivateBottomTrailingControl = nil
         onDismissBottomTrailingControl = nil
     }
@@ -455,9 +449,6 @@ final class PlayerTVHUDController {
             openPanel(tab)
         case .goLive:
             viewModel?.goLive()
-            noteInteraction()
-        case .sharePlay:
-            onSharePlay?()
             noteInteraction()
         }
     }

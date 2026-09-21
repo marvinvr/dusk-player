@@ -143,9 +143,6 @@ struct PlayerControlsTVOverlay: View {
         if viewModel.isLiveTV, !viewModel.isAtLiveEdge {
             items.append(.goLive)
         }
-        if context.hasSharePlayControl {
-            items.append(.sharePlay(isActive: context.isSharePlayActive))
-        }
         if !viewModel.subtitleTracks.isEmpty || context.canDownloadSubtitles {
             items.append(.panel(.subtitles))
         }

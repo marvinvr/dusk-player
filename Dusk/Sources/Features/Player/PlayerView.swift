@@ -1260,9 +1260,6 @@ private struct PlayerSessionView: View {
     private func configureTVHUDController() {
         hudController.viewModel = viewModel
         hudController.onDismissPlayer = dismissPlayer
-        hudController.onSharePlay = {
-            Task { await playback.toggleSharePlay() }
-        }
         hudController.onActivateBottomTrailingControl = {
             if let marker = viewModel.activeSkipMarker {
                 handleSkipMarker(marker)
