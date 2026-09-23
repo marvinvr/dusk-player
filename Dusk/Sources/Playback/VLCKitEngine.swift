@@ -297,9 +297,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var currentSource: PlaybackSource?
     /// The user's subtitle size preference, pushed in by the coordinator.
     private var subtitleFontSize: SubtitleFontSize = .default
-    /// The size baked into the media that is currently open. VLCKit 3.x only
-    /// takes `:sub-text-scale` as a per-media option, so a mismatch here means
-    /// the session has to be reopened before the new size can show up.
+    /// The size the currently open media was started with. VLCKit 3.x's text
+    /// renderer only reads its font size when an input attaches, so a mismatch
+    /// here means the session has to be reopened before the new size shows up.
     private var loadedSubtitleFontSize: SubtitleFontSize?
     /// Audio track POSITION (index among the media's audio elementary streams,
     /// what `:audio-track` takes) that was playing when an in-place reopen was
@@ -1523,11 +1523,19 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func applySubtitleStyling(to media: VLCMedia) {
-        // VLCKit 3.x has no player-level font-scale property; sub-text-scale
-        // is the per-media equivalent (percent, 100 = default).
+        // Per-media `:sub-text-scale` never reaches the renderer: the vout and
+        // its text renderer hang off the media player object, not the input,
+        // so they do not inherit input-item options. VLCKit 3.x's player-level
+        // text renderer setter is not in the public headers (VLC for iOS calls
+        // it the same way); the renderer reads it when the next input attaches.
         loadedSubtitleFontSize = subtitleFontSize
-        let scalePercent = Int((PlaybackSubtitleStyle.vlcSubtitleFontScale(for: subtitleFontSize) * 100).rounded())
-        media.addOption(":sub-text-scale=\(scalePercent)")
+        let relativeFontSize = PlaybackSubtitleStyle.vlcRelativeFontSize(for: subtitleFontSize)
+        let setter = Selector(("setTextRendererFontSize:"))
+        if mediaPlayer.responds(to: setter) {
+            mediaPlayer.perform(setter, with: NSNumber(value: relativeFontSize))
+        } else {
+            vlcKitEngineLogger.error("VLCKit has no setTextRendererFontSize:, subtitle size not applied")
+        }
         media.addOption(":freetype-color=#FFFFFF")
         media.addOption(":freetype-background-color=#000000")
         media.addOption(":freetype-background-opacity=110")

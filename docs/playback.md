@@ -597,7 +597,7 @@ so the whole live HUD is derived from one instant.
   slave) is attributed to the slave currently in flight. That ordering is what
   makes the URL → track mapping work; do not parallelize it.
 - Slaves live on the input, not on the media, so every in-place reopen (stall
-  recovery, the `:sub-text-scale` restyle, the PiP support-mode swap) drops
+  recovery, the subtitle size restyle, the PiP support-mode swap) drops
   them. `VLCKitEngine` re-queues its attachments on reopen, re-captures the
   container's own SPU indexes, and restores an active external selection once
   the slave is back (the stale ES index is cleared first — after a reopen it may
@@ -916,7 +916,11 @@ so the whole live HUD is derived from one instant.
   1.25).
 - Applying a size change mid-session differs by engine. `AVPlayerItem.textStyleRules`
   is settable on a playing item, so AVPlayer just rewrites the rules. VLCKit 3.x
-  has no live setter — `:sub-text-scale` is a per-media option only — so
+  has no live setter: the text renderer reads `freetype-rel-fontsize` from the
+  media player object when an input attaches. Per-media options such as
+  `:sub-text-scale` never reach it (the vout does not inherit from the input),
+  so the size is set through VLCKit's unexported `setTextRendererFontSize:`
+  (`PlaybackSubtitleStyle.vlcRelativeFontSize`, 16 = 100%, smaller = larger) and
   `VLCKitEngine` reopens the media in place at the live position through
   `recoverFromStall()`, the same mechanic as stall recovery and the PiP
   support-mode swap. It only does so when the change would be visible: with a
