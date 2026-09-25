@@ -219,13 +219,23 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `HomeTVView` each render that sequence directly. There is no user-editable Home
   layout; do not reintroduce one.
 - Home is **merged across every connected server**. `HomeViewModel.load()` fans
-  `/hubs` and `/hubs/continueWatching` out to all of them. While Home has nothing to
-  show it republishes the merged screen each time a server answers, so a LAN server
-  fills Home while a relayed one is still talking. **Once there is content on screen —
-  a tab return, a pull-to-refresh — the merge is published in one go instead.** A merge
-  missing the servers that have not answered yet is a *smaller* screen than the one
-  already there, and swapping between the two is what made pull-to-refresh look like
-  content jumping between servers. The merge (`HubMerge`, `ContinueWatchingMerge`) is a
+  `/hubs` and `/hubs/continueWatching` out to all of them. **The first paint is gated
+  by `HomeFirstPaintGate`** (`HomeFirstPaintGate.swift`): painting the first server's
+  answer at once made Home jump when a later server brought Continue Watching, and so
+  the cinematic hero, along with it. Once there is content, the loading view stays up for a short
+  grace (`settleGrace`, 500 ms) so the other servers, including ones the pool is still
+  connecting, and the library order can catch up. Only while a server that had
+  hero items the last time Home settled (`HomeContinueWatchingMemory`, per profile in
+  UserDefaults) is still missing *and* nothing in hand has any does it wait longer.
+  Nothing is held past `patience` (3 s from when Home started waiting; the gate
+  survives a load superseded by a server connecting). After the first paint, late
+  servers fold in as they answer. The memory is a hint: it is rewritten on every
+  settled merge, so a server that stops answering stops being waited for. No skeleton
+  is shown, on purpose. **Once there is content on screen (a tab return, a
+  pull-to-refresh, another server connecting) the merge is published in one go
+  instead.** A merge missing the servers that have not answered yet is a *smaller*
+  screen than the one already there, and swapping between the two is what made
+  pull-to-refresh look like content jumping between servers. The merge (`HubMerge`, `ContinueWatchingMerge`) is a
   pure function of the per-server answers in priority order, so each publish refines the
   same list. With one server both merges return their input verbatim. Every merge
   registers its findings in `plexService.alternates` for playback fallback.

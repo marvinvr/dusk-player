@@ -26,6 +26,27 @@ private struct HomeServerPayload: Sendable {
             failure: failure
         )
     }
+
+    /// Something Home would render: a row it does not hide, or an item in
+    /// Continue Watching.
+    var hasVisibleContent: Bool {
+        hubs?.contains { !HomeHubFilter.shouldHide(hub: $0) } == true
+            || continueWatching?.contains { !HomeHubFilter.shouldHide(item: $0) } == true
+    }
+
+    /// Something the cinematic hero would show (`HomeViewModel.heroItems()`).
+    /// Its arrival is what reshapes Home, so the first paint waits for it.
+    var hasHeroItem: Bool {
+        continueWatching?.contains { !HomeHubFilter.shouldHide(item: $0) && !$0.isClip } == true
+    }
+}
+
+/// Everything Home's load loop reacts to while it merges.
+private enum HomeLoadEvent: Sendable {
+    case answer(ServerResult<HomeServerPayload>)
+    case answersFinished
+    case orderSettled
+    case firstPaintDeadline
 }
 
 /// Both of Home's requests to one server, run concurrently. The server is only
@@ -101,6 +122,9 @@ final class HomeViewModel {
     /// the same servers connected, so the server list alone cannot tell whose
     /// content is being kept.
     private var lastPayloadsProfileID: String?
+    /// Set while Home is holding its first paint back. Kept across loads so a
+    /// server connecting mid-wait does not restart the clock.
+    private var firstPaintGate: HomeFirstPaintGate?
     private var recentlyAddedExpansionTask: Task<Void, Never>?
     private var personalizedShelvesTask: Task<Void, Never>?
 
@@ -158,11 +182,17 @@ final class HomeViewModel {
 
     /// Loads Home from every connected server at once.
     ///
-    /// While Home has nothing to show the screen is published again every time a
-    /// server answers, so the box on the LAN fills it immediately and a relayed
-    /// server folds its content in when it gets there. Once there *is* content —
-    /// a tab return, a pull-to-refresh — the merge is published in one go
-    /// instead: a merge missing the servers that have not answered yet is a
+    /// **First load.** Nothing is on screen yet, so the first paint is held back
+    /// by `HomeFirstPaintGate` until the merge is unlikely to change shape: a
+    /// short grace for the other servers and the library order to catch up,
+    /// longer only while a server that had Continue Watching last time is still
+    /// missing, never longer than the gate's cap. The loading view stays up in
+    /// the meantime. After that paint, whatever is still outstanding folds in
+    /// as it lands.
+    ///
+    /// **Any later load** — a tab return, a pull-to-refresh, another server
+    /// connecting — publishes the merge in one go once every server has
+    /// answered: a merge missing the servers that have not answered yet is a
     /// smaller screen than the one already there, and swapping between the two
     /// is what made refreshing look like content jumping between servers.
     ///
@@ -189,6 +219,7 @@ final class HomeViewModel {
             // after a sign-out / Plex Home switch, so anything still on screen
             // belongs to a session that is gone.
             lastPayloads = [:]
+            firstPaintGate = nil
             hubs = []
             continueWatching = []
             personalizedShelves = []
@@ -202,55 +233,140 @@ final class HomeViewModel {
         if profileID != lastPayloadsProfileID {
             lastPayloads = [:]
             lastPayloadsProfileID = profileID
+            firstPaintGate = nil
         }
         lastPayloads = lastPayloads.filter { serverIDs.contains($0.key) }
 
+        // The gate outlives a load that another server's connect supersedes, so
+        // the cap counts from when Home started waiting, not from this load.
+        var gate: HomeFirstPaintGate?
+        var rememberedHeroServerIDs: Set<String> = []
+        if isInitialLoad {
+            let firstPaintGate = firstPaintGate ?? HomeFirstPaintGate(startedAt: .now)
+            self.firstPaintGate = firstPaintGate
+            gate = firstPaintGate
+            rememberedHeroServerIDs = HomeContinueWatchingMemory.serverIDs(profileID: profileID)
+        }
+
+        // One loop reacts to everything the first paint depends on: each
+        // server's answer, the library order, and the gate's deadline.
+        let (events, eventSink) = AsyncStream.makeStream(of: HomeLoadEvent.self)
+        let service = plexService
+        let answers = service.streamAcrossServers(loadHomePayload)
+        let answersTask = Task {
+            for await result in answers {
+                eventSink.yield(.answer(result))
+            }
+            eventSink.yield(.answersFinished)
+        }
         // The account's library order is a nicety, not a requirement: if it
         // cannot be read, Home keeps each server's own hub order.
-        async let orderedSections = plexService.ensureLibraryOrderLoaded()
+        let orderTask = Task {
+            _ = try? await service.ensureLibraryOrderLoaded()
+            eventSink.yield(.orderSettled)
+        }
+        var deadlineTask: Task<Void, Never>?
+        var scheduledDeadline: ContinuousClock.Instant?
+        defer {
+            answersTask.cancel()
+            orderTask.cancel()
+            deadlineTask?.cancel()
+            eventSink.finish()
+        }
 
+        let loadServerIDs = Set(serverIDs)
         var payloadsByRank = [HomeServerPayload?](repeating: nil, count: serverIDs.count)
-        var answered = 0
-        var latestHubs: [PlexHub] = []
-        var latestContinueWatching: [PlexItem] = []
+        var answersFinished = false
+        var orderSettled = false
+        var hasPainted = !isInitialLoad
+        var firstContentAt: ContinuousClock.Instant?
 
         var failureCount = 0
         var firstFailure: String?
 
-        for await result in plexService.streamAcrossServers(loadHomePayload) {
+        for await event in events {
             guard !Task.isCancelled, generation == loadGeneration else { return }
 
-            if let failure = result.value.failure {
-                failureCount += 1
-                firstFailure = firstFailure ?? failure
+            switch event {
+            case let .answer(result):
+                if let failure = result.value.failure {
+                    failureCount += 1
+                    firstFailure = firstFailure ?? failure
+                }
+
+                let payload = result.value.merged(onto: lastPayloads[result.serverID])
+                lastPayloads[result.serverID] = payload
+                payloadsByRank[result.rank] = payload
+
+                // Past its first paint, a first load folds late servers in as
+                // they land. A load that started with content on screen
+                // publishes once, below.
+                if isInitialLoad, hasPainted {
+                    publishMerge(
+                        of: payloadsByRank,
+                        maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
+                        animated: true
+                    )
+                }
+            case .answersFinished:
+                answersFinished = true
+            case .orderSettled:
+                orderSettled = true
+            case .firstPaintDeadline:
+                break
             }
 
-            let payload = result.value.merged(onto: lastPayloads[result.serverID])
-            lastPayloads[result.serverID] = payload
-            payloadsByRank[result.rank] = payload
-            answered += 1
+            let hasContent = payloadsByRank.contains { $0?.hasVisibleContent == true }
 
-            // A partial merge only ever reaches the screen when there is
-            // nothing on it yet. The full one is published below.
-            guard isInitialLoad else { continue }
+            if let gate, !hasPainted {
+                if hasContent, firstContentAt == nil {
+                    firstContentAt = .now
+                }
 
-            // Ordering only settles once the library order is known, but the
-            // first server's rows are worth showing before that: they arrive in
-            // the server's own order and are re-arranged on the next publish.
-            let merged = mergedScreen(from: payloadsByRank)
-            latestHubs = merged.hubs
-            latestContinueWatching = merged.continueWatching
+                let answered = Set(zip(serverIDs, payloadsByRank).compactMap { $1 == nil ? nil : $0 })
+                let outstanding = loadServerIDs
+                    .subtracting(answered)
+                    .union(serversStillConnecting(excluding: loadServerIDs))
 
-            publish(
-                hubs: latestHubs,
-                continueWatching: latestContinueWatching,
-                maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
-                animated: answered > 1
-            )
-            if hasLoadedContent {
-                error = nil
+                let decision = gate.decide(
+                    now: .now,
+                    hasContent: hasContent,
+                    hasHero: payloadsByRank.contains { $0?.hasHeroItem == true },
+                    firstContentAt: firstContentAt,
+                    isSettled: outstanding.isEmpty && orderSettled,
+                    isAwaitingRememberedHero: !outstanding.isDisjoint(with: rememberedHeroServerIDs)
+                )
+
+                switch decision {
+                case .paint:
+                    publishMerge(
+                        of: payloadsByRank,
+                        maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
+                        animated: false
+                    )
+                    hasPainted = true
+                    firstPaintGate = nil
+                    error = nil
+                    isLoading = false
+                case let .wait(until: deadline):
+                    if let deadline, deadline != scheduledDeadline {
+                        scheduledDeadline = deadline
+                        deadlineTask?.cancel()
+                        deadlineTask = Task {
+                            try? await Task.sleep(until: deadline, clock: .continuous)
+                            guard !Task.isCancelled else { return }
+                            eventSink.yield(.firstPaintDeadline)
+                        }
+                    }
+                }
             }
-            isLoading = false
+
+            // Done once every server and the order are in — and, on a first
+            // load, once the gate has let something through. A merge with
+            // nothing in it has nothing to hold back.
+            if answersFinished, orderSettled, hasPainted || !hasContent {
+                break
+            }
         }
 
         guard !Task.isCancelled, generation == loadGeneration else { return }
@@ -262,34 +378,65 @@ final class HomeViewModel {
             return
         }
 
-        // The order may only have landed after the last server answered, and on
-        // a refresh this is the run's only publish.
-        _ = try? await orderedSections
-        guard !Task.isCancelled, generation == loadGeneration else { return }
-
-        let merged = mergedScreen(from: payloadsByRank)
-        latestHubs = merged.hubs
-        latestContinueWatching = merged.continueWatching
-        publish(
-            hubs: latestHubs,
-            continueWatching: latestContinueWatching,
+        // On a refresh this is the run's only publish; on a first load it
+        // settles the library order the first paint may not have had yet.
+        let merged = publishMerge(
+            of: payloadsByRank,
             maxRecentlyAddedItems: currentMaxRecentlyAddedItems,
-            animated: !isInitialLoad
+            animated: hasLoadedContent
         )
+        firstPaintGate = nil
         if hasLoadedContent {
             error = nil
         }
 
+        HomeContinueWatchingMemory.remember(
+            Set(zip(serverIDs, payloadsByRank).compactMap { $1?.hasHeroItem == true ? $0 : nil }),
+            profileID: profileID
+        )
+
         startRecentlyAddedExpansion(
-            from: latestHubs,
+            from: merged.hubs,
             generation: generation,
             maxRecentlyAddedItems: currentMaxRecentlyAddedItems
         )
         startPersonalizedShelvesLoad(
-            excluding: latestContinueWatching,
+            excluding: merged.continueWatching,
             generation: generation,
             maxRecentlyAddedItems: currentMaxRecentlyAddedItems
         )
+    }
+
+    /// Enabled servers the pool is still bringing up that this load did not fan
+    /// out to. When one connects, the content revision changes and a new load
+    /// replaces this one; until then the first paint may wait for it.
+    private func serversStillConnecting(excluding loadServerIDs: Set<String>) -> Set<String> {
+        let pool = plexService.pool
+        return pool.knownServerIDs.filter { serverID in
+            guard !loadServerIDs.contains(serverID), pool.isEnabled(serverID) else { return false }
+            switch pool.state(for: serverID) {
+            case .idle, .connecting:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    @discardableResult
+    private func publishMerge(
+        of payloads: [HomeServerPayload?],
+        maxRecentlyAddedItems: Int,
+        animated: Bool
+    ) -> (hubs: [PlexHub], continueWatching: [PlexItem]) {
+        let merged = mergedScreen(from: payloads)
+        publish(
+            hubs: merged.hubs,
+            continueWatching: merged.continueWatching,
+            maxRecentlyAddedItems: maxRecentlyAddedItems,
+            animated: animated
+        )
+        return merged
     }
 
     /// Folds the answers in hand into the screen, in the account's library

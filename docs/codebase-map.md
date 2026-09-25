@@ -102,6 +102,9 @@ Home:
 
 - `HomeView` chooses iOS/tvOS shell.
 - `HomeViewModel` loads hubs, continue watching, and recommendation shelves.
+- `HomeFirstPaintGate` decides when Home's first multi-server merge is stable
+  enough to paint; `HomeContinueWatchingMemory` remembers which servers had
+  Continue Watching so the gate knows whose answer to wait for.
 - `HomeRecommendationEngine` owns home-specific recommendation orchestration.
 - `HomeCinematicHero` is large and visual; keep reusable poster/list UI outside it.
 - `LiveTVHomeShelf` renders currently airing programs without blocking ordinary
