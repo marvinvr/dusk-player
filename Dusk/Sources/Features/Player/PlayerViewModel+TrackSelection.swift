@@ -378,7 +378,9 @@ extension PlayerViewModel {
                 channels: source.channels ?? track.channels,
                 channelLayout: source.channelLayout ?? track.channelLayout,
                 plexStreamID: source.id,
-                isDecodable: track.isDecodable
+                // Plex's codec is authoritative even when the engine's own
+                // fourcc check misses a TrueHD variant.
+                isDecodable: track.isDecodable && !Self.isLocallyUndecodableAudioCodec(source.codec)
             )
         }
     }
@@ -620,9 +622,17 @@ extension PlayerViewModel {
     /// Same policy as the runtime path: scope to the preferred language when
     /// configured (any match counts), otherwise re-rank only within the
     /// default track's language and only when there is a real alternative.
+    ///
+    /// Streams the local engines cannot decode (TrueHD/MLP) are never the
+    /// preselection: opening libvlc on one is a silent start. When such a
+    /// stream is dropped from the language scope, a lone decodable sibling is
+    /// still returned so libvlc opens on it instead of the container default.
+    /// AirPlay passes `excludingLocallyUndecodable: false` — the server
+    /// decodes every codec there.
     static func preferredAudioStreamPosition(
         inPart part: PlexMediaPart?,
-        preferredLanguage rawPreferredLanguage: String?
+        preferredLanguage rawPreferredLanguage: String?,
+        excludingLocallyUndecodable: Bool = true
     ) -> Int? {
         guard let part else { return nil }
         let audioStreams = part.streams.filter { $0.streamType == .audio }
@@ -639,10 +649,16 @@ extension PlayerViewModel {
             scopeLanguage = normalizedLanguageCode(anchor?.languageCode ?? anchor?.languageTag)
         }
 
-        let candidates = audioStreams.enumerated().filter { _, stream in
+        let scopedStreams = audioStreams.enumerated().filter { _, stream in
             normalizedLanguageCode(stream.languageCode ?? stream.languageTag) == scopeLanguage
         }
-        guard candidates.count > (preferredLanguage != nil ? 0 : 1) else { return nil }
+        let candidates = scopedStreams.filter { _, stream in
+            !excludingLocallyUndecodable || !isLocallyUndecodableAudioCodec(stream.codec)
+        }
+        let droppedUndecodable = candidates.count < scopedStreams.count
+        guard candidates.count > (preferredLanguage != nil || droppedUndecodable ? 0 : 1) else {
+            return nil
+        }
 
         return candidates
             .sorted { lhs, rhs in
@@ -680,7 +696,8 @@ extension PlayerViewModel {
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         if let position = preferredAudioStreamPosition(
             inPart: part,
-            preferredLanguage: preferredLanguage
+            preferredLanguage: preferredLanguage,
+            excludingLocallyUndecodable: false
         ), audioStreams.indices.contains(position) {
             return audioStreams[position].id
         }
@@ -703,6 +720,14 @@ extension PlayerViewModel {
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         guard !audioStreams.isEmpty else { return nil }
 
+        // Same pick VLCKit is preselected onto, so a TrueHD 7.1 + AC-3 5.1
+        // file opens the route for the 5.1 track that will actually play.
+        if let position = preferredAudioStreamPosition(inPart: part, preferredLanguage: preferredLanguage),
+           audioStreams.indices.contains(position),
+           let channels = audioStreams[position].channels,
+           channels > 0 {
+            return channels
+        }
         if let id = preferredAudioStreamID(inPart: part, preferredLanguage: preferredLanguage),
            let channels = audioStreams.first(where: { $0.id == id })?.channels,
            channels > 0 {
@@ -958,6 +983,13 @@ extension PlayerViewModel {
         #else
         return isLosslessBitstreamAudio(track) ? -1_800 : 0
         #endif
+    }
+
+    /// Plex audio codecs neither local engine can decode: the vendored stock
+    /// VLCKit ships without TrueHD/MLP, and AVPlayer never supported them.
+    static func isLocallyUndecodableAudioCodec(_ codec: String?) -> Bool {
+        guard let codec = codec?.lowercased() else { return false }
+        return codec == "truehd" || codec == "mlp"
     }
 
     static func isLosslessBitstreamAudio(_ track: AudioTrack) -> Bool {

@@ -635,9 +635,11 @@ so the whole live HUD is derived from one instant.
   disable ffmpeg's mlp decoder/demuxer/parser on iOS/tvOS ("to be in
   compliance with the App Store ToS" — Dolby licensing; AC-3/E-AC-3 decode
   through Apple's licensed AudioToolbox instead), and ffmpeg's truehd decoder
-  depends on the mlp parser. libvlc logs ``Codec `mlpa' (TrueHD Audio) is not
-  supported`` and cannot play such tracks, so
+  depends on the mlp parser. libvlc cannot play such tracks, so
   `VLCKitEngine.undecodableAudioFourCCs` contains the TrueHD/MLP fourccs.
+  libvlc 3.x tags TrueHD `trhd` (verified in the 3.7.3 binary, which has no
+  `ff_truehd_decoder`); `mlpa` was the 4.x alpha's fourcc. The set holds both —
+  it held only `mlpa` after the 3.x migration, so TrueHD passed as decodable.
   (The retired 4.x-alpha setup carried a local patch series that re-enabled
   TrueHD; it lives in git history under `ci_scripts/vlc-patches/` if ever
   needed again — a deliberate licensing/App Store decision.)
@@ -658,6 +660,13 @@ so the whole live HUD is derived from one instant.
   choice produces sound. A file with zero locally decodable audio tracks (a
   TrueHD-only remux) triggers the same fallback automatically instead of
   direct-playing as a silent video.
+- The pre-start preselection (`preferredAudioStreamPosition`) must apply the
+  same rule from Plex metadata alone (`isLocallyUndecodableAudioCodec`): the
+  tvOS ladder ranks TrueHD Atmos highest, and passing its position as
+  `:audio-track` opened libvlc straight onto a dead decoder — a silent start
+  on TrueHD 7.1 Atmos + AC-3 remuxes. The merge also ANDs Plex's codec into
+  `isDecodable`, so a missed engine fourcc cannot re-admit TrueHD. AirPlay's
+  `preferredAudioStreamID` opts out of the filter because the server decodes.
 
 ### VLCKit audio output module
 - `VLCKitEngine` runs its players on a single shared `VLCLibrary` with no
