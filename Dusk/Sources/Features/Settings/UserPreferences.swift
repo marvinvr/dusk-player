@@ -31,6 +31,7 @@ final class UserPreferences {
         static let videoEnhancementMode = "videoEnhancementMode"
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
+        static let spatialAudioRemuxEnabled = "spatialAudioRemuxEnabled"
         static let appearanceMode = "appearanceMode"
         static let libraryTabOrder = "libraryTabOrder"
         static let hiddenLibraryTabs = "hiddenLibraryTabs"
@@ -169,6 +170,13 @@ final class UserPreferences {
             }
             UserDefaults.standard.set(forceVLCKit, forKey: Keys.forceVLCKit)
         }
+    }
+
+    /// Play Dolby Atmos (and, on iPhone/iPad, multichannel Dolby) from files
+    /// only VLCKit could direct play through a lossless Plex remux into
+    /// AVPlayer, so Atmos reaches HDMI and AirPods get spatial audio.
+    var spatialAudioRemuxEnabled: Bool {
+        didSet { UserDefaults.standard.set(spatialAudioRemuxEnabled, forKey: Keys.spatialAudioRemuxEnabled) }
     }
 
     /// App-wide appearance override.
@@ -443,6 +451,7 @@ final class UserPreferences {
         self.videoEnhancementMode = videoEnhancementMode
         self.forceAVPlayer = forceAVPlayer
         self.forceVLCKit = forceVLCKit
+        self.spatialAudioRemuxEnabled = defaults.object(forKey: Keys.spatialAudioRemuxEnabled) as? Bool ?? true
         self.appearanceMode = appearanceMode
         self.libraryTabOrder = libraryTabOrder
         self.hiddenLibraryTabs = hiddenLibraryTabs

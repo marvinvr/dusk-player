@@ -136,6 +136,10 @@ struct PlaybackSource: Sendable {
     /// caching — and with it the audible start/seek latency — from this.
     /// Remote is the safe default for callers that cannot tell.
     var locality: PlaybackSourceLocality = .remoteNetwork
+    /// Route the HLS playlists and init segment through `RemuxHLSLoader`,
+    /// which restores the Dolby Atmos signaling Plex's fMP4 remux drops.
+    /// AVPlayer only; `.spatialAudio` sessions whose audio is Dolby Atmos.
+    var usesRemuxHLSLoader = false
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.
     var liveTVContext: PlexLivePlaybackContext? = nil
@@ -166,6 +170,8 @@ struct PlaybackDebugInfo: Sendable {
             preset.displayName
         case .serverStream:
             "Direct Stream (HLS)"
+        case .spatialAudio:
+            "Remux (HLS, original quality)"
         case .airPlay:
             "AirPlay HLS"
         case .liveTV:
@@ -179,7 +185,7 @@ struct PlaybackDebugInfo: Sendable {
             "Yes"
         case .localDownload:
             "Local"
-        case .transcode, .serverStream, .airPlay, .liveTV:
+        case .transcode, .serverStream, .spatialAudio, .airPlay, .liveTV:
             "No"
         }
     }
@@ -190,6 +196,7 @@ struct PlaybackDebugInfo: Sendable {
         case .localDownload: "Local Download"
         case let .transcode(preset): "Transcode \(preset.displayName)"
         case .serverStream: "Server Stream (HLS)"
+        case .spatialAudio: "Dolby Atmos / Spatial Audio (HLS)"
         case .airPlay: "AirPlay (HLS)"
         case .liveTV: "Live TV"
         }
@@ -201,7 +208,7 @@ struct PlaybackDebugInfo: Sendable {
             .original
         case let .transcode(preset):
             preset
-        case .serverStream:
+        case .serverStream, .spatialAudio:
             // The server copies the original video track when it can, so the
             // effective quality is the original's; no preset cap applies.
             .original
@@ -216,7 +223,7 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .localDownload, .airPlay, .liveTV:
             false
-        case .directPlay, .transcode, .serverStream:
+        case .directPlay, .transcode, .serverStream, .spatialAudio:
             true
         }
     }
@@ -225,7 +232,7 @@ struct PlaybackDebugInfo: Sendable {
         switch decision {
         case .localDownload, .liveTV:
             false
-        case .directPlay, .transcode, .serverStream, .airPlay:
+        case .directPlay, .transcode, .serverStream, .spatialAudio, .airPlay:
             true
         }
     }
@@ -331,6 +338,23 @@ enum PlaybackDecision: Sendable {
     case airPlay
     /// Plex DVR tune session delivered as a sliding HLS time-shift window.
     case liveTV
+    /// Dolby Atmos / spatial-audio delivery: Plex remuxes (copies) a file only
+    /// VLCKit could direct play into fMP4 HLS for AVPlayer, which is what
+    /// renders Atmos over HDMI and spatial audio on AirPods. Original quality;
+    /// see `PlexService.TranscodeDeliveryMode.spatialAudioRemux`.
+    case spatialAudio
+}
+
+extension PlaybackDecision {
+    var isDirectPlay: Bool {
+        if case .directPlay = self { return true }
+        return false
+    }
+
+    var isSpatialAudio: Bool {
+        if case .spatialAudio = self { return true }
+        return false
+    }
 }
 
 enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {

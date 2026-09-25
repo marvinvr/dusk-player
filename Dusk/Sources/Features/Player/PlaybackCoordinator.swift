@@ -67,6 +67,10 @@ final class PlaybackCoordinator {
     /// Set by the sidecar-download flow and by the AVPlayer → VLCKit switch,
     /// consumed by `PlayerViewModel.configureAutomaticTrackSelection`.
     var pendingExternalSubtitleStreamID: Int?
+    /// Plex audio/subtitle choice to carry into the next player configuration
+    /// when a Dolby Atmos remux session moves to direct play because of a
+    /// track change. Consumed once by `PlayerView`.
+    var pendingExplicitTrackSelection: ExplicitTrackSelection?
     /// Bumped when `refreshSubtitleStreamsAfterDownload` replaced the active
     /// part snapshot. The player observes it and re-reads the part's subtitle
     /// streams in place, without rebuilding the session.
@@ -139,6 +143,8 @@ final class PlaybackCoordinator {
     /// engine fails. Cancelled on finalize/clear/engine swap.
     @ObservationIgnored nonisolated(unsafe) var directPlayFallbackWatchTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var airPlayTransitionTask: Task<Void, Never>?
+    /// Serializes Atmos-remux rebuilds after track changes.
+    @ObservationIgnored nonisolated(unsafe) var spatialAudioTransitionTask: Task<Void, Never>?
     /// Keeps the tuned Live TV channel's schedule current for the length of the
     /// session. Cancelled with the session.
     @ObservationIgnored nonisolated(unsafe) var liveTVScheduleRefreshTask: Task<Void, Never>?
@@ -168,6 +174,7 @@ final class PlaybackCoordinator {
         timelineTimer?.invalidate()
         directPlayFallbackWatchTask?.cancel()
         airPlayTransitionTask?.cancel()
+        spatialAudioTransitionTask?.cancel()
         upNextPosterCountdownTask?.cancel()
         liveTVScheduleRefreshTask?.cancel()
     }
@@ -644,6 +651,7 @@ final class PlaybackCoordinator {
         activeAudioStreamID = nil
         activeSubtitleStreamID = nil
         pendingExternalSubtitleStreamID = nil
+        pendingExplicitTrackSelection = nil
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         ratingKey = nil
