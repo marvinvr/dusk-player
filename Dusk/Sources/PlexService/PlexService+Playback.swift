@@ -31,13 +31,54 @@ extension PlexService {
         /// H.264/AAC target lets it convert receiver-incompatible containers,
         /// video, audio, and burned subtitles without imposing a quality cap.
         case airPlay
+        /// Dolby Atmos / spatial-audio delivery for files only VLCKit could
+        /// direct play (MKV & co.): Plex copies the original video and Dolby
+        /// audio into fragmented-MP4 HLS so AVPlayer — the engine that feeds
+        /// Atmos to HDMI and spatial audio to AirPods — can render them. Text
+        /// subtitles ride along as WebVTT segments. Only accepted when Plex
+        /// confirms both tracks are copied (`TranscodeStreamDecisions`).
+        /// With `convertsAudio`, the video is still copied but Plex converts
+        /// the selected audio stream (e.g. TrueHD, which neither local engine
+        /// decodes) to E-AC-3 — Plex caps converted audio at 5.1.
+        case spatialAudioRemux(convertsAudio: Bool)
 
         var logLabel: String {
             switch self {
             case let .manualTranscode(preset): "manual transcode (\(preset.displayName))"
             case .directStreamFallback: "server direct-stream"
             case .airPlay: "AirPlay stream"
+            case let .spatialAudioRemux(convertsAudio):
+                convertsAudio ? "video remux with audio conversion" : "Atmos/spatial audio remux"
             }
+        }
+    }
+
+    /// What Plex's decision said it will do with each track of a session.
+    struct TranscodeStreamDecisions: Sendable {
+        var container: String?
+        var videoDecision: String?
+        var videoCodec: String?
+        var audioDecision: String?
+        var audioCodec: String?
+        var subtitleDecision: String?
+        var subtitleLocation: String?
+
+        /// Video and audio are both copied bit-for-bit, and any subtitle is
+        /// delivered as its own text segments rather than burned in.
+        var isLosslessRemux: Bool {
+            audioDecision == "copy" && isVideoCopyRemux
+        }
+
+        /// The video is copied bit-for-bit and any subtitle is delivered as
+        /// text segments; the audio may be converted.
+        var isVideoCopyRemux: Bool {
+            videoDecision == "copy"
+                && (audioDecision == "copy" || audioDecision == "transcode")
+                && (subtitleDecision == nil || subtitleLocation == "segments-subs")
+        }
+
+        var logDescription: String {
+            "container=\(container ?? "?") video=\(videoCodec ?? "?")/\(videoDecision ?? "?") audio=\(audioCodec ?? "?")/\(audioDecision ?? "?") subtitle=\(subtitleDecision ?? "none")/\(subtitleLocation ?? "-")"
         }
     }
 
@@ -263,6 +304,60 @@ extension PlexService {
         )
     }
 
+    /// Asks Plex for a copy-only fMP4 HLS remux of the item for Dolby Atmos /
+    /// spatial audio (see `TranscodeDeliveryMode.spatialAudioRemux`). Plex
+    /// picks the session's subtitle from the part's server-side selection, so
+    /// the caller sets that first (`selectStreams(partID:...)`). Returns the
+    /// per-track decisions so the caller can refuse anything but a lossless
+    /// remux.
+    func spatialAudioRemuxURL(
+        ratingKey: String,
+        mediaIndex: Int,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: Int?,
+        subtitleStreamID: Int?,
+        convertsAudio: Bool = false,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
+        try await transcodeLadderSession(
+            ratingKey: ratingKey,
+            mediaIndex: mediaIndex,
+            mode: .spatialAudioRemux(convertsAudio: convertsAudio),
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+    }
+
+    /// Records the viewer's audio/subtitle choice on the Plex part — the same
+    /// call Plex's own clients make on a track change. The universal
+    /// transcoder takes a session's subtitle from this selection (the
+    /// `subtitleStreamID` query item alone is ignored for segmented text
+    /// subtitles). `subtitleStreamID: 0` clears the subtitle selection.
+    func selectStreams(
+        partID: Int,
+        audioStreamID: Int?,
+        subtitleStreamID: Int?,
+        serverID: String? = nil
+    ) async throws {
+        var queryItems = [URLQueryItem(name: "allParts", value: "1")]
+        if let audioStreamID {
+            queryItems.append(URLQueryItem(name: "audioStreamID", value: String(audioStreamID)))
+        }
+        if let subtitleStreamID {
+            queryItems.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
+        }
+        _ = try await rawServerRequest(
+            method: "PUT",
+            path: "/library/parts/\(partID)",
+            queryItems: queryItems,
+            serverID: serverID
+        )
+    }
+
     /// Starts a Plex HLS consumer for an already-tuned Live TV session.
     /// Live session paths are virtual resources, so they must go through the
     /// universal endpoint rather than direct-play URL validation for files.
@@ -344,6 +439,31 @@ private extension PlexService {
         subtitleStreamID: Int?,
         serverID: String?
     ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        let session = try await transcodeLadderSession(
+            ratingKey: ratingKey,
+            mediaIndex: mediaIndex,
+            sourcePath: sourcePath,
+            mode: mode,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+        return (session.url, session.outcome)
+    }
+
+    func transcodeLadderSession(
+        ratingKey: String,
+        mediaIndex: Int,
+        sourcePath: String? = nil,
+        mode: TranscodeDeliveryMode,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: Int?,
+        subtitleStreamID: Int?,
+        serverID: String?
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
         let targetID = try resolveServerID(serverID)
         guard let connection = pool.connection(for: targetID) else {
             throw PlexServiceError.noServerConnected
@@ -369,9 +489,10 @@ private extension PlexService {
         )
         let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: decisionData)
         let outcome = decision.outcome
+        let streams = decision.streamDecisions
 
         guard case .transcodeAvailable = outcome else {
-            return (baseURL, outcome)
+            return (baseURL, outcome, streams)
         }
 
         guard let url = buildURL(
@@ -383,10 +504,10 @@ private extension PlexService {
         }
 
         plexPlaybackLogger.notice(
-            "Constructed \(mode.logLabel, privacy: .public) URL for ratingKey \(ratingKey, privacy: .public), mediaIndex \(mediaIndex, privacy: .public): \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+            "Constructed \(mode.logLabel, privacy: .public) URL for ratingKey \(ratingKey, privacy: .public), mediaIndex \(mediaIndex, privacy: .public) [\(streams.logDescription, privacy: .public)]: \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
         )
 
-        return (url, outcome)
+        return (url, outcome, streams)
     }
 
     func transcodeQueryItems(
@@ -409,7 +530,16 @@ private extension PlexService {
         let allowsDirectStream: Bool
         switch mode {
         case .manualTranscode: allowsDirectStream = false
-        case .directStreamFallback, .airPlay: allowsDirectStream = true
+        case .directStreamFallback, .airPlay, .spatialAudioRemux: allowsDirectStream = true
+        }
+        // Converting audio: with direct-stream audio on, Plex ignores the
+        // requested stream and substitutes a copyable sibling (TrueHD 7.1 →
+        // the AC-3 5.1 track) instead of converting the one asked for.
+        let allowsDirectStreamAudio: Bool
+        if case let .spatialAudioRemux(convertsAudio) = mode {
+            allowsDirectStreamAudio = !convertsAudio
+        } else {
+            allowsDirectStreamAudio = allowsDirectStream
         }
 
         var items: [URLQueryItem] = [
@@ -421,7 +551,7 @@ private extension PlexService {
             URLQueryItem(name: "fastSeek", value: "1"),
             URLQueryItem(name: "directPlay", value: "0"),
             URLQueryItem(name: "directStream", value: allowsDirectStream ? "1" : "0"),
-            URLQueryItem(name: "directStreamAudio", value: allowsDirectStream ? "1" : "0"),
+            URLQueryItem(name: "directStreamAudio", value: allowsDirectStreamAudio ? "1" : "0"),
             URLQueryItem(name: "subtitleSize", value: "100"),
             URLQueryItem(name: "audioBoost", value: "100"),
             URLQueryItem(name: "location", value: "lan"),
@@ -453,7 +583,17 @@ private extension PlexService {
             items.append(URLQueryItem(name: "offset", value: "-1"))
         }
 
-        if let subtitleStreamID {
+        if case .spatialAudioRemux = mode {
+            // Text subtitles become WebVTT segments (the part's server-side
+            // selection decides which); burning one in would force a video
+            // re-encode, which the remux refuses anyway.
+            if let subtitleStreamID {
+                items.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
+                items.append(URLQueryItem(name: "subtitles", value: "auto"))
+            } else {
+                items.append(URLQueryItem(name: "subtitles", value: "none"))
+            }
+        } else if let subtitleStreamID {
             items.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
             items.append(URLQueryItem(name: "subtitles", value: "burn"))
         } else {
@@ -484,6 +624,18 @@ private extension PlexService {
 
     func transcodeClientProfileExtra(for mode: TranscodeDeliveryMode) -> String {
         var clauses: [String] = []
+        if case .spatialAudioRemux = mode {
+            // Listed first so Plex prefers it: fragmented MP4 is the only HLS
+            // container AVPlayer plays HEVC from (HEVC in MPEG-TS comes out
+            // audio-only), and it carries E-AC-3/AC-3 untouched. The WebVTT
+            // subtitle target turns text subtitles into HLS subtitle segments.
+            clauses.append(
+                "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc,h264&audioCodec=eac3,ac3)"
+            )
+            clauses.append(
+                "add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+            )
+        }
         if case let .manualTranscode(preset) = mode, let bitrate = preset.videoBitrateKbps {
             clauses.append(
                 "add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=\(bitrate)&replace=true)"
@@ -512,7 +664,7 @@ private extension PlexService {
         // engine rather than simply widening what we accept.
         let allowsSurroundAudioTargets: Bool
         switch mode {
-        case .manualTranscode, .directStreamFallback: allowsSurroundAudioTargets = true
+        case .manualTranscode, .directStreamFallback, .spatialAudioRemux: allowsSurroundAudioTargets = true
         case .airPlay: allowsSurroundAudioTargets = false
         }
         if allowsSurroundAudioTargets {
@@ -582,6 +734,29 @@ private extension PlexService {
 private struct PlexTranscodeDecisionResponse: Decodable {
     let MediaContainer: Container
 
+    /// The session Plex planned: Metadata → Media → Part → Stream, where each
+    /// stream carries `decision` (copy / transcode / burn) and `location`.
+    struct PlannedMetadata: Decodable {
+        let Media: [PlannedMedia]?
+    }
+
+    struct PlannedMedia: Decodable {
+        let container: String?
+        let Part: [PlannedPart]?
+    }
+
+    struct PlannedPart: Decodable {
+        let container: String?
+        let Stream: [PlannedStream]?
+    }
+
+    struct PlannedStream: Decodable {
+        let streamType: Int?
+        let codec: String?
+        let decision: String?
+        let location: String?
+    }
+
     struct Container: Decodable {
         let generalDecisionCode: Int?
         let generalDecisionText: String?
@@ -589,6 +764,7 @@ private struct PlexTranscodeDecisionResponse: Decodable {
         let transcodeDecisionText: String?
         let mdeDecisionCode: Int?
         let mdeDecisionText: String?
+        let metadata: [PlannedMetadata]?
 
         enum CodingKeys: String, CodingKey {
             case generalDecisionCode
@@ -597,6 +773,7 @@ private struct PlexTranscodeDecisionResponse: Decodable {
             case transcodeDecisionText
             case mdeDecisionCode
             case mdeDecisionText
+            case metadata = "Metadata"
         }
 
         init(from decoder: Decoder) throws {
@@ -607,6 +784,8 @@ private struct PlexTranscodeDecisionResponse: Decodable {
             transcodeDecisionText = try container.decodeIfPresent(String.self, forKey: .transcodeDecisionText)
             mdeDecisionCode = Self.decodeFlexibleInt(container, key: .mdeDecisionCode)
             mdeDecisionText = try container.decodeIfPresent(String.self, forKey: .mdeDecisionText)
+            // Diagnostic only: an unexpected shape must never fail the decision.
+            metadata = try? container.decodeIfPresent([PlannedMetadata].self, forKey: .metadata)
         }
 
         private static func decodeFlexibleInt(
@@ -621,6 +800,24 @@ private struct PlexTranscodeDecisionResponse: Decodable {
             }
             return nil
         }
+    }
+
+    var streamDecisions: PlexService.TranscodeStreamDecisions {
+        let media = MediaContainer.metadata?.first?.Media?.first
+        let part = media?.Part?.first
+        let streams = part?.Stream ?? []
+        let video = streams.first { $0.streamType == 1 }
+        let audio = streams.first { $0.streamType == 2 }
+        let subtitle = streams.first { $0.streamType == 3 }
+        return PlexService.TranscodeStreamDecisions(
+            container: part?.container ?? media?.container,
+            videoDecision: video?.decision,
+            videoCodec: video?.codec,
+            audioDecision: audio?.decision,
+            audioCodec: audio?.codec,
+            subtitleDecision: subtitle?.decision,
+            subtitleLocation: subtitle?.location
+        )
     }
 
     var outcome: PlexService.TranscodeDecisionOutcome {

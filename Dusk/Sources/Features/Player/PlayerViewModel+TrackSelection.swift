@@ -1,4 +1,10 @@
 import Foundation
+import OSLog
+
+private let trackSelectionLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+    category: "TrackSelection"
+)
 
 extension PlayerViewModel {
     func selectSubtitle(_ track: SubtitleTrack?) {
@@ -91,6 +97,15 @@ extension PlayerViewModel {
         guard !usesServerTrackSelection else {
             hasAppliedAutomaticAudioSelection = true
             hasAppliedAutomaticSubtitleSelection = true
+            if pendingServerSubtitleRenditionSelection,
+               let rendition = engine.availableSubtitleTracks.first {
+                // The HLS item carries exactly the Plex-selected subtitle.
+                pendingServerSubtitleRenditionSelection = false
+                engine.selectSubtitleTrack(rendition)
+                trackSelectionLogger.notice(
+                    "Selected server subtitle rendition \(rendition.displayTitle, privacy: .public)"
+                )
+            }
             return
         }
 
@@ -100,7 +115,7 @@ extension PlayerViewModel {
         // manual pause/resume. Steady-state switches are reliable.
         if !hasAppliedAutomaticAudioSelection, !audioTracks.isEmpty,
            engine.isReadyForAutomaticAudioSelection {
-            if let preferredAudioTrack = preferredAudioTrack(),
+            if let preferredAudioTrack = explicitAudioTrack() ?? preferredAudioTrack(),
                preferredAudioTrack.id != engine.selectedAudioTrackID {
                 engine.selectAudioTrack(preferredAudioTrack)
                 selectedAudioTrackID = preferredAudioTrack.id
@@ -118,7 +133,9 @@ extension PlayerViewModel {
             transcodeAudioFallbackHandler?(nil)
         }
 
-        if !hasAppliedAutomaticSubtitleSelection, !subtitleTracks.isEmpty {
+        if !hasAppliedAutomaticSubtitleSelection, let explicitTrackSelection {
+            applyExplicitSubtitleSelection(explicitTrackSelection)
+        } else if !hasAppliedAutomaticSubtitleSelection, !subtitleTracks.isEmpty {
             let preferredSubtitleTrack = preferredSubtitleTrack()
             engine.selectSubtitleTrack(preferredSubtitleTrack)
             selectedSubtitleTrackID = engine.selectedSubtitleTrackID
@@ -193,6 +210,41 @@ extension PlayerViewModel {
             .compactMap { stream in
                 externalSubtitleURLProvider(stream).map { (stream: stream, url: $0) }
             }
+    }
+
+    /// The decodable engine track backing the explicitly carried-over Plex
+    /// audio stream, if any.
+    func explicitAudioTrack() -> AudioTrack? {
+        guard let streamID = explicitTrackSelection?.audioStreamID else { return nil }
+        return selectableAudioTracks.first { $0.plexStreamID == streamID }
+    }
+
+    /// Applies a carried-over subtitle choice once: off, an embedded track the
+    /// engine lists, or a Plex sidecar the mount path selects when attached.
+    func applyExplicitSubtitleSelection(_ selection: ExplicitTrackSelection) {
+        guard let streamID = selection.subtitleStreamID else {
+            engine.selectSubtitleTrack(nil)
+            selectedSubtitleTrackID = engine.selectedSubtitleTrackID
+            hasAppliedAutomaticSubtitleSelection = true
+            hasUserSelectedSubtitleTrack = true
+            return
+        }
+        if externalSubtitleStreams.contains(where: { $0.stream.id == streamID }) {
+            pendingExternalSubtitleStreamID = streamID
+            hasAppliedAutomaticSubtitleSelection = true
+            hasUserSelectedSubtitleTrack = true
+            attachExternalSubtitlesIfNeeded()
+            return
+        }
+        guard let track = subtitleTracks.first(where: {
+            $0.plexStreamID == streamID && !$0.requiresEngineSwitch
+        }) else {
+            return // Not listed yet; retried on the next sync tick.
+        }
+        engine.selectSubtitleTrack(track)
+        selectedSubtitleTrackID = engine.selectedSubtitleTrackID
+        hasAppliedAutomaticSubtitleSelection = true
+        hasUserSelectedSubtitleTrack = true
     }
 
     /// Tracks automatic selection may choose: only ones the local engine can
@@ -378,7 +430,9 @@ extension PlayerViewModel {
                 channels: source.channels ?? track.channels,
                 channelLayout: source.channelLayout ?? track.channelLayout,
                 plexStreamID: source.id,
-                isDecodable: track.isDecodable
+                // Plex's codec is authoritative even when the engine's own
+                // fourcc check misses a TrueHD variant.
+                isDecodable: track.isDecodable && !Self.isLocallyUndecodableAudioCodec(source.codec)
             )
         }
     }
@@ -620,9 +674,17 @@ extension PlayerViewModel {
     /// Same policy as the runtime path: scope to the preferred language when
     /// configured (any match counts), otherwise re-rank only within the
     /// default track's language and only when there is a real alternative.
+    ///
+    /// Streams the local engines cannot decode (TrueHD/MLP) are never the
+    /// preselection: opening libvlc on one is a silent start. When such a
+    /// stream is dropped from the language scope, a lone decodable sibling is
+    /// still returned so libvlc opens on it instead of the container default.
+    /// AirPlay passes `excludingLocallyUndecodable: false` — the server
+    /// decodes every codec there.
     static func preferredAudioStreamPosition(
         inPart part: PlexMediaPart?,
-        preferredLanguage rawPreferredLanguage: String?
+        preferredLanguage rawPreferredLanguage: String?,
+        excludingLocallyUndecodable: Bool = true
     ) -> Int? {
         guard let part else { return nil }
         let audioStreams = part.streams.filter { $0.streamType == .audio }
@@ -639,10 +701,16 @@ extension PlayerViewModel {
             scopeLanguage = normalizedLanguageCode(anchor?.languageCode ?? anchor?.languageTag)
         }
 
-        let candidates = audioStreams.enumerated().filter { _, stream in
+        let scopedStreams = audioStreams.enumerated().filter { _, stream in
             normalizedLanguageCode(stream.languageCode ?? stream.languageTag) == scopeLanguage
         }
-        guard candidates.count > (preferredLanguage != nil ? 0 : 1) else { return nil }
+        let candidates = scopedStreams.filter { _, stream in
+            !excludingLocallyUndecodable || !isLocallyUndecodableAudioCodec(stream.codec)
+        }
+        let droppedUndecodable = candidates.count < scopedStreams.count
+        guard candidates.count > (preferredLanguage != nil || droppedUndecodable ? 0 : 1) else {
+            return nil
+        }
 
         return candidates
             .sorted { lhs, rhs in
@@ -669,6 +737,23 @@ extension PlayerViewModel {
             .offset
     }
 
+    /// The Plex audio stream local playback opens on: the pre-start pick when
+    /// there is one, otherwise the part's selected/default/first stream.
+    static func preferredLocalAudioStream(
+        inPart part: PlexMediaPart?,
+        preferredLanguage: String?
+    ) -> PlexStream? {
+        guard let part else { return nil }
+        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        if let position = preferredAudioStreamPosition(inPart: part, preferredLanguage: preferredLanguage),
+           audioStreams.indices.contains(position) {
+            return audioStreams[position]
+        }
+        return audioStreams.first(where: { $0.isSelected ?? false })
+            ?? audioStreams.first(where: { $0.isDefault ?? false })
+            ?? audioStreams.first
+    }
+
     /// Plex stream id matching the same pre-start audio policy used for VLCKit
     /// preselection. AirPlay HLS pins the server session to an id rather than a
     /// container-relative elementary-stream position.
@@ -680,7 +765,8 @@ extension PlayerViewModel {
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         if let position = preferredAudioStreamPosition(
             inPart: part,
-            preferredLanguage: preferredLanguage
+            preferredLanguage: preferredLanguage,
+            excludingLocallyUndecodable: false
         ), audioStreams.indices.contains(position) {
             return audioStreams[position].id
         }
@@ -703,6 +789,14 @@ extension PlayerViewModel {
         let audioStreams = part.streams.filter { $0.streamType == .audio }
         guard !audioStreams.isEmpty else { return nil }
 
+        // Same pick VLCKit is preselected onto, so a TrueHD 7.1 + AC-3 5.1
+        // file opens the route for the 5.1 track that will actually play.
+        if let position = preferredAudioStreamPosition(inPart: part, preferredLanguage: preferredLanguage),
+           audioStreams.indices.contains(position),
+           let channels = audioStreams[position].channels,
+           channels > 0 {
+            return channels
+        }
         if let id = preferredAudioStreamID(inPart: part, preferredLanguage: preferredLanguage),
            let channels = audioStreams.first(where: { $0.id == id })?.channels,
            channels > 0 {
@@ -958,6 +1052,13 @@ extension PlayerViewModel {
         #else
         return isLosslessBitstreamAudio(track) ? -1_800 : 0
         #endif
+    }
+
+    /// Plex audio codecs neither local engine can decode: the vendored stock
+    /// VLCKit ships without TrueHD/MLP, and AVPlayer never supported them.
+    static func isLocallyUndecodableAudioCodec(_ codec: String?) -> Bool {
+        guard let codec = codec?.lowercased() else { return false }
+        return codec == "truehd" || codec == "mlp"
     }
 
     static func isLosslessBitstreamAudio(_ track: AudioTrack) -> Bool {

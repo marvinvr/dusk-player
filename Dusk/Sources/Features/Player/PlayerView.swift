@@ -692,10 +692,12 @@ private struct PlayerSessionView: View {
                 preferences: preferences,
                 part: debugInfo?.part ?? mediaDetails?.media.first?.parts.first,
                 mediaDetails: mediaDetails,
-                usesServerTrackSelection: playback.isAirPlaySession,
+                usesServerTrackSelection: playback.usesServerTrackSelection,
+                rendersServerSubtitleTrack: playback.isSpatialAudioSession,
                 selectedAudioStreamID: playback.activeAudioStreamID,
                 selectedSubtitleStreamID: playback.activeSubtitleStreamID,
                 pendingExternalSubtitleStreamID: playback.consumePendingExternalSubtitleStreamID(),
+                explicitTrackSelection: playback.consumePendingExplicitTrackSelection(),
                 spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs
             )
             viewModel.autoSkipHandler = { marker in

@@ -1,4 +1,5 @@
 import AVFoundation
+import AudioToolbox
 import CoreMedia
 import OSLog
 import SwiftUI
@@ -69,6 +70,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored private var enhancedVideoOutput: AVPlayerItemVideoOutput?
+    /// Front for `.spatialAudio` sessions (see `RemuxHLSLoader`). The
+    /// asset's resource loader holds its delegate weakly, so the engine owns it
+    /// for as long as the item plays.
+    @ObservationIgnored private var remuxHLSLoader: RemuxHLSLoader?
     @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLink: CADisplayLink?
     @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLinkTarget: AVPlayerDisplayLinkTarget?
 
@@ -549,7 +554,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             )
             if let currentAttemptContext {
                 avPlayerEngineLogger.error(
-                    "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public)"
+                    "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
                 )
             }
             error = playbackError
@@ -563,7 +568,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
-        let item = AVPlayerItem(url: source.url)
+        let item: AVPlayerItem
+        if source.usesRemuxHLSLoader {
+            let loader = RemuxHLSLoader()
+            if let asset = RemuxHLSLoader.makeAsset(url: source.url, loader: loader) {
+                remuxHLSLoader = loader
+                item = AVPlayerItem(asset: asset)
+            } else {
+                remuxHLSLoader = nil
+                item = AVPlayerItem(url: source.url)
+            }
+        } else {
+            remuxHLSLoader = nil
+            item = AVPlayerItem(url: source.url)
+        }
         item.preferredForwardBufferDuration = PlaybackBufferPolicy.avPlayerForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules
 
@@ -830,6 +848,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             if secs.isFinite { duration = secs }
         }
 
+        await logAudioFormat(of: item)
+
         // Audio tracks via AVMediaSelectionGroup
         if let group = try? await asset.loadMediaSelectionGroup(for: .audible) {
             guard player.currentItem === item else { return }
@@ -883,6 +903,88 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             }
             applyRequestedSubtitleSelection()
         }
+    }
+}
+
+extension AVPlayerEngine {
+    /// Logs the audio format AVFoundation will decode, including whether it
+    /// exposes the Dolby Atmos (E-AC-3 JOC, `ec+3`) layer — the signal that
+    /// Atmos reaches HDMI and AirPods spatial audio gets object audio.
+    fileprivate func logAudioFormat(of item: AVPlayerItem) async {
+        // HLS assets report no tracks of their own; the item's tracks carry
+        // the asset tracks once it is ready.
+        var audioTrack = try? await item.asset.loadTracks(withMediaType: .audio).first
+        if audioTrack == nil {
+            for _ in 0..<20 where audioTrack == nil {
+                audioTrack = item.tracks.compactMap(\.assetTrack).first { $0.mediaType == .audio }
+                if audioTrack == nil { try? await Task.sleep(for: .milliseconds(250)) }
+            }
+        }
+        guard let track = audioTrack,
+              let description = try? await track.load(.formatDescriptions).first,
+              let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee else {
+            return
+        }
+        let format = Self.fourCCString(streamDescription.mFormatID)
+        let isAtmos = Self.formatListContains(Self.kAudioFormatEnhancedAC3JOC, in: description)
+        avPlayerEngineLogger.notice(
+            "AVPlayer audio format \(format, privacy: .public), \(streamDescription.mChannelsPerFrame, privacy: .public) ch, Dolby Atmos: \(isAtmos ? "yes" : "no", privacy: .public)"
+        )
+    }
+
+    /// `domain code` pairs down the underlying-error chain, for diagnosis.
+    fileprivate static func errorChainDescription(_ error: Error?) -> String {
+        var parts: [String] = []
+        var current = error as NSError?
+        while let nsError = current, parts.count < 4 {
+            parts.append("\(nsError.domain) \(nsError.code)")
+            current = nsError.userInfo[NSUnderlyingErrorKey] as? NSError
+        }
+        return parts.isEmpty ? "no error" : parts.joined(separator: " <- ")
+    }
+
+    fileprivate static func lastErrorLogDescription(_ item: AVPlayerItem?) -> String {
+        guard let event = item?.errorLog()?.events.last else { return "" }
+        return " errorLog: \(event.errorDomain) \(event.errorStatusCode) \(event.errorComment ?? "")"
+    }
+
+    /// E-AC-3 JOC (Dolby Atmos) surfaces as an extra `ec+3` layer in the
+    /// format list AudioToolbox derives from the track's magic cookie.
+    private static let kAudioFormatEnhancedAC3JOC: AudioFormatID = 0x6563_2B33 // 'ec+3'
+
+    private static func formatListContains(_ formatID: AudioFormatID, in description: CMAudioFormatDescription) -> Bool {
+        guard let streamDescription = CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee else {
+            return false
+        }
+        var cookieSize = 0
+        guard let cookie = CMAudioFormatDescriptionGetMagicCookie(description, sizeOut: &cookieSize),
+              cookieSize > 0 else {
+            return streamDescription.mFormatID == formatID
+        }
+        var info = AudioFormatInfo(
+            mASBD: streamDescription,
+            mMagicCookie: cookie,
+            mMagicCookieSize: UInt32(cookieSize)
+        )
+        var size: UInt32 = 0
+        let infoSize = UInt32(MemoryLayout<AudioFormatInfo>.size)
+        guard AudioFormatGetPropertyInfo(kAudioFormatProperty_FormatList, infoSize, &info, &size) == noErr,
+              size > 0 else {
+            return false
+        }
+        var items = [AudioFormatListItem](
+            repeating: AudioFormatListItem(),
+            count: Int(size) / MemoryLayout<AudioFormatListItem>.size
+        )
+        guard AudioFormatGetProperty(kAudioFormatProperty_FormatList, infoSize, &info, &size, &items) == noErr else {
+            return false
+        }
+        return items.contains { $0.mASBD.mFormatID == formatID }
+    }
+
+    private static func fourCCString(_ value: UInt32) -> String {
+        let bytes = [24, 16, 8, 0].map { UInt8((value >> UInt32($0)) & 0xFF) }
+        return String(bytes: bytes, encoding: .ascii) ?? String(value)
     }
 }
 
