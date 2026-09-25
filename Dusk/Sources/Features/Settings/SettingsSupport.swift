@@ -9,7 +9,11 @@ enum SettingsSupport {
     static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Intro skipping can skip every intro or skip every intro except episode 1 of each season. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Double-Tap to Seek adds left and right double-tap seek zones in the player."
     #endif
 
-    static let playbackAdvancedFooterText = "Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
+    #if os(tvOS)
+    static let playbackAdvancedFooterText = "Dolby Atmos plays Atmos tracks in MKV and similar files through Apple's player, which sends Atmos to your receiver or TV. Your Plex server repackages the file on the fly without re-encoding it, so video quality stays the original's. Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
+    #else
+    static let playbackAdvancedFooterText = "Dolby Atmos & Spatial Audio plays Atmos and surround Dolby tracks in MKV and similar files through Apple's player, which enables spatial audio on AirPods. Your Plex server repackages the file on the fly without re-encoding it, so video quality stays the original's. Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
+    #endif
     static let downloadsFooterText = "Download Quality selects which Plex media version is saved. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
     static let navigationFooterText = "Choose which library and Live TV destinations appear in the navigation bar and the order they use. Library Order sets the order of your libraries everywhere in Dusk; it is saved to your Plex account, so other Plex apps use it too. Server Priority decides which of your servers Dusk uses, and which one plays a title that is on more than one."
     static let homeFooterText = "Show currently airing Live TV channels on Home. The Live TV tab is not affected."

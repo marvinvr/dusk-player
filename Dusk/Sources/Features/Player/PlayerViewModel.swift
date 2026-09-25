@@ -142,6 +142,12 @@ final class PlayerViewModel {
     /// AVPlayer HLS item contains only the server-rendered selection. Changes
     /// therefore rebuild the Plex stream instead of selecting an engine track.
     var usesServerTrackSelection = false
+    /// A Dolby Atmos remux delivers the server-selected text subtitle as an
+    /// HLS subtitle rendition the local engine still has to switch on.
+    @ObservationIgnored var pendingServerSubtitleRenditionSelection = false
+    /// Plex streams the viewer explicitly chose before an engine swap (Atmos
+    /// remux → direct play). They replace the automatic picks once.
+    @ObservationIgnored var explicitTrackSelection: ExplicitTrackSelection?
     var serverSelectedAudioStreamID: Int?
     var serverSelectedSubtitleStreamID: Int?
     var plexTrackSelectionHandler: (@MainActor (Int?, Int?) -> Void)?
@@ -221,9 +227,11 @@ final class PlayerViewModel {
         part: PlexMediaPart?,
         mediaDetails: PlexMediaDetails? = nil,
         usesServerTrackSelection: Bool = false,
+        rendersServerSubtitleTrack: Bool = false,
         selectedAudioStreamID: Int? = nil,
         selectedSubtitleStreamID: Int? = nil,
         pendingExternalSubtitleStreamID: Int? = nil,
+        explicitTrackSelection: ExplicitTrackSelection? = nil,
         spentAutoSkipMarkerIDs: Set<Int> = []
     ) {
         userPreferences = preferences
@@ -235,6 +243,10 @@ final class PlayerViewModel {
         self.usesServerTrackSelection = usesServerTrackSelection
         serverSelectedAudioStreamID = selectedAudioStreamID
         serverSelectedSubtitleStreamID = selectedSubtitleStreamID
+        pendingServerSubtitleRenditionSelection = usesServerTrackSelection
+            && rendersServerSubtitleTrack
+            && selectedSubtitleStreamID != nil
+        self.explicitTrackSelection = usesServerTrackSelection ? nil : explicitTrackSelection
         preferredSubtitleLanguage = Self.normalizedLanguageCode(preferences.defaultSubtitleLanguage)
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)
         subtitleForcedOnly = preferences.subtitleForcedOnly

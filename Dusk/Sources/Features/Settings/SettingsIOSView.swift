@@ -432,6 +432,10 @@ struct SettingsIOSView: View {
             .listRowBackground(Color.duskSurface)
 
             Section {
+                Toggle("Dolby Atmos & Spatial Audio", isOn: $preferences.spatialAudioRemuxEnabled)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .tint(Color.duskAccent)
+
                 Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
                     .foregroundStyle(Color.duskTextPrimary)
                     .tint(Color.duskAccent)

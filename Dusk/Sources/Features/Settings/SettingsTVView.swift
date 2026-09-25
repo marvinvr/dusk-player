@@ -229,6 +229,10 @@ struct SettingsTVView: View {
                 }
 
                 TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
+                    TVSettingsToggleRow(title: "Dolby Atmos", isOn: $preferences.spatialAudioRemuxEnabled)
+
+                    tvRowDivider
+
                     TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
 
                     tvRowDivider

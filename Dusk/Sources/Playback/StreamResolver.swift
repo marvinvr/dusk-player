@@ -215,6 +215,102 @@ enum StreamResolver {
         return Decision(engine: .avPlayer, reason: "Plex Live HLS is AVPlayer-compatible")
     }
 
+    // MARK: - Dolby Atmos / Spatial Audio Remux
+
+    /// Subtitle codecs Plex can convert to WebVTT HLS segments without touching
+    /// the video. Bitmap subtitles (PGS, VobSub) would be burned in — a video
+    /// re-encode — and styled ASS/SSA would lose its styling, so both keep the
+    /// VLCKit direct-play path.
+    private static let remuxTextSubtitleCodecs: Set<String> = [
+        "srt", "subrip", "vtt", "webvtt", "mov_text", "tx3g",
+    ]
+
+    /// Whether this file should reach AVPlayer through a Plex copy-remux so
+    /// Dolby audio plays as Atmos (HDMI) or spatial audio (AirPods) instead of
+    /// VLCKit's plain PCM decode. Returns why not, or nil when it qualifies.
+    ///
+    /// Only files that would otherwise direct play on VLCKit are considered —
+    /// AVPlayer-compatible files already get Atmos/spatial audio natively. The
+    /// video must be something AVPlayer decodes from fMP4 HLS (8-bit H.264 or
+    /// HEVC). The audio stream playback would open on must be Dolby: E-AC-3
+    /// with Atmos everywhere, and on iPhone/iPad any 5.1+ AC-3/E-AC-3 (AVPlayer
+    /// spatializes multichannel Dolby for AirPods; on tvOS VLCKit already
+    /// outputs discrete multichannel PCM, so only Atmos is worth the remux).
+    ///
+    /// HDR video needs `displaySupportsHDR` (`AVPlayer.eligibleForHDRPlayback`):
+    /// Plex declares the remux's only variant `VIDEO-RANGE=PQ`, AVFoundation
+    /// refuses such a stream on an SDR display
+    /// (`AVErrorNoCompatibleAlternatesForExternalDisplay`) and rejects it if
+    /// the declaration is removed (CoreMedia -12927). VLCKit tone-maps there.
+    static func spatialAudioRemuxBlocker(
+        media: PlexMedia,
+        decision: Decision,
+        audioStream: PlexStream?,
+        subtitleStream: PlexStream?,
+        displaySupportsHDR: Bool,
+        convertsAudio: Bool = false
+    ) -> String? {
+        guard decision.engine == .vlcKit, !decision.requiresServerTranscode else {
+            return "not a VLCKit direct-play file"
+        }
+        guard media.parts.count == 1 else { return "multi-part media" }
+        if let videoDecision = videoDecision(for: media) {
+            return videoDecision.reason
+        }
+        let videoCodecs = media.parts.flatMap(\.streams)
+            .filter { $0.streamType == .video }
+            .compactMap { $0.codec?.lowercased() }
+        guard !videoCodecs.isEmpty, videoCodecs.allSatisfy({ $0 == "h264" || $0 == "hevc" }) else {
+            return "video codec is not H.264/HEVC"
+        }
+        let hasHDRVideo = media.parts.flatMap(\.streams).contains {
+            $0.streamType == .video && ($0.isHDRVideo || $0.doviPresent == true)
+        }
+        if hasHDRVideo && !displaySupportsHDR {
+            return "HDR video on a display without HDR playback"
+        }
+        // Converting (TrueHD & co.): Plex re-encodes the audio, so any
+        // selected stream qualifies; only the video must be copyable.
+        guard let audioStream, convertsAudio || isSpatialAudioCandidate(audioStream) else {
+            return "audio track is not Dolby Atmos\(platformSpatialAudioSuffix)"
+        }
+        if let subtitleStream, !canRideRemux(subtitle: subtitleStream) {
+            return "subtitle \(subtitleStream.codec?.uppercased() ?? "?") cannot ride the remux"
+        }
+        return nil
+    }
+
+    static func canRideRemux(subtitle stream: PlexStream) -> Bool {
+        remuxTextSubtitleCodecs.contains(stream.codec?.lowercased() ?? "")
+    }
+
+    static func isSpatialAudioCandidate(_ stream: PlexStream) -> Bool {
+        let codec = stream.codec?.lowercased()
+        guard codec == "eac3" || codec == "ac3" else { return false }
+        if isDolbyAtmos(stream) { return true }
+        #if os(tvOS)
+        return false
+        #else
+        return (stream.channels ?? 0) >= 6
+        #endif
+    }
+
+    /// Plex reports E-AC-3 + JOC as profile "dolby digital plus + dolby atmos".
+    static func isDolbyAtmos(_ stream: PlexStream) -> Bool {
+        guard stream.codec?.lowercased() == "eac3" else { return false }
+        let labels = [stream.profile, stream.extendedDisplayTitle, stream.displayTitle]
+            .compactMap { $0?.lowercased() }
+        return labels.contains { $0.contains("atmos") }
+    }
+
+    private static var platformSpatialAudioSuffix: String {
+        #if os(tvOS)
+        ""
+        #else
+        " or multichannel Dolby"
+        #endif
+    }
+
     // MARK: - Per-Stream Checks
 
     /// Whether this device can hardware-decode AV1 (A17 Pro / M3 and newer).

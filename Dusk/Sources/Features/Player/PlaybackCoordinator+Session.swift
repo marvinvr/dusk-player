@@ -254,6 +254,7 @@ extension PlaybackCoordinator {
             var engineType = resolverDecision.engine
             var resolverReason = resolverDecision.reason
             var transcodeSessionID: String?
+            var spatialAudioStreamIDs: (audio: Int?, subtitle: Int?)?
 
             if let localURL {
                 playbackURL = localURL
@@ -345,6 +346,38 @@ extension PlaybackCoordinator {
                             "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
                         )
                     }
+                } else {
+                    // Dolby Atmos / spatial audio: a VLCKit-only file whose
+                    // audio is Dolby goes to AVPlayer through a lossless Plex
+                    // remux. Anything short of a confirmed copy-remux keeps
+                    // plain direct play.
+                    let audioStreamID = PlayerViewModel.preferredLocalAudioStream(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultAudioLanguage
+                    )?.id
+                    let subtitleStreamID = PlayerViewModel.preferredSubtitleStreamID(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultSubtitleLanguage,
+                        forcedOnly: preferences.subtitleForcedOnly
+                    )
+                    if let remux = await requestSpatialAudioRemux(
+                        ratingKey: ratingKey,
+                        mediaIndex: details.media.firstIndex { $0.id == media.id } ?? 0,
+                        media: media,
+                        part: part,
+                        audioStreamID: audioStreamID,
+                        subtitleStreamID: subtitleStreamID,
+                        sessionIdentifier: sessionIdentifier,
+                        serverID: itemServerID
+                    ) {
+                        playbackURL = remux.url
+                        sanitizedURL = plexService.sanitizedPlaybackURLString(for: remux.url)
+                        playbackDecision = .spatialAudio
+                        transcodeSessionID = remux.transcodeSessionID
+                        engineType = .avPlayer
+                        resolverReason = remux.reason
+                        spatialAudioStreamIDs = (audioStreamID, subtitleStreamID)
+                    }
                 }
             }
 
@@ -407,6 +440,8 @@ extension PlaybackCoordinator {
             let videoEnhancementRequest: VideoEnhancementRequest
             if case .serverStream = playbackDecision {
                 videoEnhancementRequest = .disabled
+            } else if case .spatialAudio = playbackDecision {
+                videoEnhancementRequest = .disabled
             } else if case .airPlay = playbackDecision {
                 videoEnhancementRequest = .disabled
             } else {
@@ -439,7 +474,12 @@ extension PlaybackCoordinator {
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
             self.ratingKey = ratingKey
-            if !wantsAirPlay {
+            if let spatialAudioStreamIDs {
+                // The remux is built around exactly these streams; the player
+                // lists and changes them through Plex (server track selection).
+                activeAudioStreamID = spatialAudioStreamIDs.audio
+                activeSubtitleStreamID = spatialAudioStreamIDs.subtitle
+            } else if !wantsAirPlay {
                 activeAudioStreamID = PlayerViewModel.preferredAudioStreamID(
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
@@ -467,7 +507,7 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 )
-            case .transcode, .serverStream, .airPlay, .liveTV:
+            case .transcode, .serverStream, .spatialAudio, .airPlay, .liveTV:
                 // HLS rewrites the stream layout; positions no longer apply.
                 nil
             }
@@ -490,7 +530,8 @@ extension PlaybackCoordinator {
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
                 ),
-                locality: sourceLocality(for: playbackURL, serverID: serverID)
+                locality: sourceLocality(for: playbackURL, serverID: serverID),
+                usesRemuxHLSLoader: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part)
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -516,9 +557,10 @@ extension PlaybackCoordinator {
                 engine: newEngine
             )
 
-            if case .directPlay = playbackDecision {
+            if playbackDecision.isDirectPlay || playbackDecision.isSpatialAudio {
                 // Online direct play gets the automatic delivery-ladder watch:
                 // if the engine dies, the session swaps to a server stream.
+                // A failed Atmos remux falls back to plain direct play.
                 startDirectPlayFallbackWatch()
             }
 
@@ -757,16 +799,26 @@ extension PlaybackCoordinator {
             presentQualitySwitchError("Audio transcoding is unavailable for this playback.")
             return
         }
-        guard let preset = debugInfo.availableQualityPresets.first(where: { !$0.isOriginal }) else {
-            presentQualitySwitchError("No transcode quality is available for this item.")
-            return
-        }
 
         let audioStreams = debugInfo.part.streams.filter { $0.streamType == .audio }
         let fallbackStream = audioStreams.first { $0.isSelected ?? false }
             ?? audioStreams.first { $0.isDefault ?? false }
             ?? audioStreams.first
         let streamID = track?.plexStreamID ?? fallbackStream?.id
+
+        // Preferred: keep the original video (copied, HDR intact) and have
+        // Plex convert only the audio. The quality-preset transcode below
+        // re-encodes the video and is the last resort — on servers without
+        // HDR tone mapping it also fails outright for HDR sources (Plex tags
+        // the 8-bit H.264 output PQ, which AVPlayer rejects with -12927).
+        if await playConvertedAudioRemux(audioStreamID: streamID) {
+            return
+        }
+
+        guard let preset = debugInfo.availableQualityPresets.first(where: { !$0.isOriginal }) else {
+            presentQualitySwitchError("No transcode quality is available for this item.")
+            return
+        }
 
         playbackSessionLogger.notice(
             "Switching to server transcode for locally undecodable audio (streamID \(streamID.map(String.init) ?? "default", privacy: .public), preset \(preset.displayName, privacy: .public))"
@@ -791,7 +843,9 @@ extension PlaybackCoordinator {
             // force-VLCKit preference is active. Ordinary sessions can hand off
             // immediately without rebuilding the Plex source.
             if engine?.supportsExternalPlayback == true { return }
-        case .directPlay, .localDownload:
+        case .directPlay, .localDownload, .spatialAudio:
+            // A spatial-audio remux is fMP4/HEVC HLS built for this device,
+            // not for an arbitrary receiver: rebuild it as AirPlay HLS.
             break
         case nil:
             return
@@ -810,7 +864,12 @@ extension PlaybackCoordinator {
         activeAudioStreamID = audioStreamID
         activeSubtitleStreamID = subtitleStreamID
 
-        guard didChange, isAirPlaySession else { return }
+        guard didChange else { return }
+        if isSpatialAudioSession {
+            scheduleSpatialAudioTrackChange()
+            return
+        }
+        guard isAirPlaySession else { return }
         scheduleAirPlayTransition(isTrackChange: true)
     }
 
@@ -946,7 +1005,7 @@ extension PlaybackCoordinator {
     /// server-stream fallback. Keeps timeline reporting, scrobble state, and
     /// the Plex session identifier intact; the new `playerPresentationID`
     /// rebuilds the player view, which loads the new source.
-    private func activateReplacementAttempt(
+    func activateReplacementAttempt(
         transitionLabel: String,
         attemptID: UUID,
         details: PlexMediaDetails,
@@ -960,7 +1019,8 @@ extension PlaybackCoordinator {
         resolverReason: String,
         videoEnhancementRequest: VideoEnhancementRequest,
         startPosition: TimeInterval?,
-        shouldAutoPlay: Bool = true
+        shouldAutoPlay: Bool = true,
+        audioTrackPositionOverride: Int? = nil
     ) {
         let attemptContext = PlaybackAttemptContext(
             attemptID: attemptID,
@@ -1000,11 +1060,11 @@ extension PlaybackCoordinator {
         engine = newEngine
         let preferredAudioTrackPosition: Int? = switch playbackDecision {
         case .directPlay, .localDownload:
-            PlayerViewModel.preferredAudioStreamPosition(
+            audioTrackPositionOverride ?? PlayerViewModel.preferredAudioStreamPosition(
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             )
-        case .transcode, .serverStream, .airPlay, .liveTV:
+        case .transcode, .serverStream, .spatialAudio, .airPlay, .liveTV:
             // HLS rewrites the stream layout; positions no longer apply.
             nil
         }
@@ -1018,7 +1078,8 @@ extension PlaybackCoordinator {
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             ),
-            locality: sourceLocality(for: playbackURL, serverID: activePlaybackServerID)
+            locality: sourceLocality(for: playbackURL, serverID: activePlaybackServerID),
+            usesRemuxHLSLoader: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part)
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -1044,8 +1105,9 @@ extension PlaybackCoordinator {
             engine: newEngine
         )
 
-        if case .directPlay = playbackDecision {
-            // Returning to Original direct play re-arms the ladder watch.
+        if playbackDecision.isDirectPlay || playbackDecision.isSpatialAudio {
+            // Returning to Original direct play re-arms the ladder watch; a
+            // rebuilt Atmos remux re-arms its fallback to direct play.
             startDirectPlayFallbackWatch()
         }
     }
@@ -1126,9 +1188,10 @@ extension PlaybackCoordinator {
             "Subtitle refresh for ratingKey \(ratingKey, privacy: .public) picked up stream \(addedStreamID, privacy: .public)"
         )
 
-        if isAirPlaySession {
-            // Server-rendered sessions burn subtitles in, so the id goes to
-            // Plex and the HLS session is rebuilt around it.
+        if usesServerTrackSelection {
+            // Server-rendered sessions (AirPlay burns subtitles in, the Atmos
+            // remux carries them as WebVTT), so the id goes to Plex and the
+            // HLS session is rebuilt around it.
             pendingExternalSubtitleStreamID = nil
             selectPlexStreamsForPlayback(
                 audioStreamID: activeAudioStreamID,
@@ -1255,6 +1318,15 @@ extension PlaybackCoordinator {
         defer {
             isAutomaticDirectPlayFallbackAvailable = false
             isAutomaticDirectPlayFallbackActive = false
+        }
+
+        if debugInfo?.decision.isSpatialAudio == true {
+            let failureDescription = engine?.error?.errorDescription ?? "engine reported state .error"
+            await leaveSpatialAudioRemux(
+                reason: "Spatial-audio remux failed (\(failureDescription)); automatic direct-play fallback",
+                keepsExplicitTracks: false
+            )
+            return
         }
 
         guard !didFinalizeCurrentSession,
@@ -1400,6 +1472,8 @@ extension PlaybackCoordinator {
         timelineTimer = nil
         airPlayTransitionTask?.cancel()
         airPlayTransitionTask = nil
+        spatialAudioTransitionTask?.cancel()
+        spatialAudioTransitionTask = nil
         isPreparingAirPlay = false
         cancelDirectPlayFallbackWatch()
 
@@ -1483,6 +1557,8 @@ extension PlaybackCoordinator {
         cancelDirectPlayFallbackWatch()
         airPlayTransitionTask?.cancel()
         airPlayTransitionTask = nil
+        spatialAudioTransitionTask?.cancel()
+        spatialAudioTransitionTask = nil
         isPreparingAirPlay = false
         upNextPresentation = nil
         upNextPoster = nil
@@ -1509,6 +1585,7 @@ extension PlaybackCoordinator {
         activeAudioStreamID = nil
         activeSubtitleStreamID = nil
         pendingExternalSubtitleStreamID = nil
+        pendingExplicitTrackSelection = nil
         debugInfo = nil
         playbackSource = nil
         ratingKey = nil
