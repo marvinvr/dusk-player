@@ -1898,7 +1898,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         return result
     }
 
-    /// Renders a VLC_FOURCC value ("mlpa", "ac-3", …) for display.
+    /// Renders a VLC_FOURCC value ("trhd", "ac-3", …) for display.
     private static func fourCCDisplayString(_ value: UInt32) -> String {
         let bytes = [
             UInt8(value & 0xFF),
@@ -1921,8 +1921,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// picking one in the picker reroutes playback through a server transcode
     /// (see `PlayerViewModel.selectAudio`). A file with no locally decodable
     /// audio at all triggers the same fallback automatically.
+    ///
+    /// libvlc 3.x (the vendored 3.7.3) tags TrueHD as `trhd`; `mlpa` is the
+    /// retired 4.x alpha's fourcc. Missing `trhd` after the 3.x migration let
+    /// TrueHD pass as decodable, so TrueHD Atmos remuxes played silent.
     private static let undecodableAudioFourCCs: Set<UInt32> = [
-        fourCC("m", "l", "p", "a"), // TrueHD
+        fourCC("t", "r", "h", "d"), // TrueHD (libvlc 3.x)
+        fourCC("m", "l", "p", "a"), // TrueHD (libvlc 4.x)
         fourCC("m", "l", "p", " "), // MLP
     ]
 
