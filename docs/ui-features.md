@@ -295,15 +295,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the shelves below.
 - **On tvOS the home hero is full-bleed: it occupies the entire display and nothing
   else is on screen at rest.** This replaces the older "leave the first shelf peeking"
-  rule — discoverability now comes from an explicit scroll hint plus a scripted
-  scroll, not from a cropped shelf.
+  rule — discoverability now comes from an explicit scroll hint plus fold snapping,
+  not from a cropped shelf.
   - `HomeCinematicHeroLayout.fillsContainerHeight` (set only by `.tv`) makes the hero
     take the container height verbatim, with no `topInset` addition — the caller has
     already sized the container to the whole display. `HomeTVView` builds that size
     from `fullDisplayWidth` / `fullDisplayHeight`, floored at
-    `geometry.size + safeAreaInsets.top + .bottom`. The existing
-    `.ignoresSafeArea(edges: .top)` plus the negative top padding on the scroll
-    content are what put the artwork at screen y = 0; keep the explicit
+    `geometry.size + safeAreaInsets.top + .bottom`. While there is a hero, the scroll
+    view itself ignores the top safe area (no top content inset, no negative content
+    padding): that is what puts the artwork at screen y = 0, and it makes content y
+    equal the scroll offset, which the fold snapping relies on. Keep the explicit
     frame/offset width handling and `.contentMargins(.zero…)` — do not swap either
     for `containerRelativeFrame`.
   - The `.tv` paddings are measured from the real display edges: the text block
@@ -322,20 +323,35 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     and omitted entirely when there is nothing below the hero. Keep it out of
     `HomeCinematicHero`'s per-item slide — mounting it there would re-create it on
     every hero change and disturb the focus binding.
-  - Scroll choreography: a `focusedTarget` change scrolls between hero and shelves
-    over 0.35s through a `ScrollPosition` — down to the absolute offset
-    `heroHeight - topContentInset` (shelf stack top at the top of the display), back
-    up with `scrollTo(edge: .top)`. Keep it offset/edge based: the focus engine
-    starts its own reveal-scroll on the same down-press, and an id-anchored
-    `scrollTo` resolved against that in-flight geometry overshot by several rows.
-    `@FocusState` cannot tell "down into the shelves" from "up into the tab bar"
-    (both read as `nil`), so `HomeCinematicHero` reports vertical move commands via
-    `onVerticalMove` and `HomeTVView` only scrolls down when the last move was
-    `.down`. The shelf stack is a plain `VStack` on tvOS, not a `LazyVStack`: with
-    the hero filling the screen the first shelf starts exactly at the fold, and an
-    unmaterialised lazy stack turns the down-press into a dead end. `shelfTopPadding`
-    is derived from the measured top safe area because it is now what keeps the
-    first shelf header clear of the floating tab bar after the scroll.
+  - Hero ⇄ shelves scrolling is **the focus engine's own scroll, bent by a
+    `ScrollTargetBehavior`** (`HomeTVFoldSnapping`, Apple's fold-snapping pattern
+    from the "Creating a tvOS media catalog app in SwiftUI" sample). On tvOS the
+    offset the focus engine is about to scroll to when it reveals a newly focused
+    item goes through `updateTarget` first. From the hero, any real scroll is focus
+    leaving for the shelves, so it lands at the fold (`heroHeight`: first shelf at
+    the top of the display). From below the fold, a target short of the fold either
+    reveals the whole hero (it would show more than half of it, i.e. focus is going
+    back to the low play button) or stays at the fold (the focus engine nudging the
+    first shelf). Past the fold nothing is touched. Which side a scroll starts from
+    comes from the last render: play button focused, or the hero still covering half
+    the screen.
+  - **Never add a programmatic scroll on the same focus change.** It stacks on top
+    of the focus engine's scroll instead of replacing it. The old choreography did
+    exactly that (`ScrollPosition.scrollTo` from `onChange(of: focusedTarget)`,
+    id-anchored first, then offset-based) and threw a single down-press from the
+    hero several rows past the first shelf.
+  - `settleFold` is the only programmatic scroll left. It runs 200ms after the page
+    stops moving (a geometry-change debounce, so it never races the focus engine),
+    and only repairs a page resting between its two stops: focused play button with
+    the hero scrolled away → back to the top, focus off the hero with a sliver of
+    hero on screen → to the fold. With the focus engine proposing what the snapping
+    expects, it never scrolls. The per-frame metrics and pending check live in a
+    class (`HomeTVFoldSettle`) so scrolling does not re-render Home every frame.
+  - The shelf stack is a plain `VStack` on tvOS, not a `LazyVStack`: with the hero
+    filling the screen the first shelf starts exactly at the fold, and an
+    unmaterialised lazy stack turns the down-press into a dead end.
+    `shelfTopPadding` is derived from the measured top safe area because it is what
+    keeps the first shelf header clear of the floating tab bar at the fold.
   - Unchanged and still load-bearing: both `.focusSection()`s, the focus
     scope / `defaultFocus` / `requestHeroPrimaryFocusIfNeeded` dance, and
     `autoRotates: false`.

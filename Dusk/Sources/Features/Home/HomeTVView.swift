@@ -24,29 +24,20 @@ struct HomeTVView: View {
     let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
     let play: (PlexItem) -> Void
 
-    /// The last vertical remote move the hero reported. `@FocusState` only tells
-    /// us that focus *left* `.heroPrimaryAction`, not which way it went — up into
-    /// the tab bar and down into the shelves both read as `nil` — so the hero
-    /// hands us the direction and this disambiguates them.
-    @State private var lastHeroVerticalMove: HomeHeroVerticalMove?
-
     private enum FocusTarget: Hashable {
         case heroPrimaryAction
     }
 
-    /// Drives the down/up choreography between the full-screen hero and the
-    /// shelves.
-    ///
-    /// Deliberately offset/edge based, never id based. The focus engine starts
-    /// its own reveal-scroll on the same down-press, and an id-based `scrollTo`
-    /// resolves its target against that in-flight geometry — which overshot
-    /// the first shelf by several rows. An absolute offset has one answer no
-    /// matter what the scroll view is doing when it is issued.
+    /// Whether the hero still covers at least half the screen. Tells
+    /// `HomeTVFoldSnapping` which side of the fold a focus move starts from.
+    @State private var isHeroShowing = true
+    /// Only `settleFold` scrolls through this, and only once the page is still.
+    /// The hero ⇄ shelves move itself is the focus engine's own scroll; see
+    /// `HomeTVFoldSnapping` for why nothing else may scroll alongside it.
     @State private var scrollPosition = ScrollPosition(idType: Int.self)
-    /// The scroll view's top content inset, i.e. minus its resting offset.
-    @State private var scrollTopInset: CGFloat?
+    @State private var foldSettle = HomeTVFoldSettle()
 
-    private let heroScrollAnimationDuration: TimeInterval = 0.35
+    private let foldSettleAnimationDuration: TimeInterval = 0.35
 
     /// Gap above the first shelf header.
     ///
@@ -90,6 +81,9 @@ struct HomeTVView: View {
                         + geometry.safeAreaInsets.bottom
                 )
             )
+            // Content y of the first shelf's top edge, a.k.a. the fold: the
+            // hero is exactly this tall and the stack below adds no spacing.
+            let heroHeight = heroContainerSize.height
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -162,9 +156,6 @@ struct HomeTVView: View {
                                     }
                                     .accessibilityAddTraits(.isButton)
                                 )
-                            },
-                            onVerticalMove: { move in
-                                lastHeroVerticalMove = move
                             }
                         )
                         .frame(width: heroContainerSize.width)
@@ -175,7 +166,6 @@ struct HomeTVView: View {
                         .overlay(alignment: .bottom) {
                             scrollHint(isEnabled: hasContentBelowHero)
                         }
-                        .ignoresSafeArea(edges: .top)
                         #if os(tvOS)
                         .focusSection()
                         #endif
@@ -198,14 +188,34 @@ struct HomeTVView: View {
                         #endif
                 }
                 .frame(width: geometry.size.width, alignment: .leading)
-                .padding(.top, heroItems.isEmpty ? 24 : -geometry.safeAreaInsets.top)
+                .padding(.top, heroItems.isEmpty ? 24 : 0)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // With a hero, the scroll content starts at the very top of the
+            // display with no top content inset. That is what puts the artwork
+            // at screen y = 0, and it makes content y = scroll offset, so the
+            // fold snapping below can place the first shelf exactly at
+            // `heroHeight`. Without a hero, the "Home" header keeps the inset.
+            .ignoresSafeArea(edges: heroItems.isEmpty ? [] : .top)
             .scrollPosition($scrollPosition)
-            .onScrollGeometryChange(for: CGFloat.self) { scrollGeometry in
-                scrollGeometry.contentInsets.top
-            } action: { _, topInset in
-                scrollTopInset = topInset
+            .scrollTargetBehavior(
+                HomeTVFoldSnapping(
+                    foldY: heroItems.isEmpty ? nil : heroHeight,
+                    startsAboveFold: focusedTarget == .heroPrimaryAction || isHeroShowing
+                )
+            )
+            .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
+                scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top < heroHeight * 0.5
+            } action: { _, isShowing in
+                isHeroShowing = isShowing
+            }
+            .onScrollGeometryChange(for: HomeTVScrollMetrics.self) { scrollGeometry in
+                HomeTVScrollMetrics(scrollGeometry)
+            } action: { _, metrics in
+                // Called every frame while the page moves, so this stays out
+                // of `@State`: the settle check only runs once it stops.
+                foldSettle.metrics = metrics
+                scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: !heroItems.isEmpty)
             }
             #if os(tvOS)
             .focusScope(homeFocusScope)
@@ -218,13 +228,10 @@ struct HomeTVView: View {
             #endif
             .duskTVOSPageBackground()
             .defaultFocus($focusedTarget, .heroPrimaryAction)
-            .onChange(of: focusedTarget) { _, newValue in
-                handleHeroFocusChange(
-                    newValue,
-                    hasHeroItems: !heroItems.isEmpty,
-                    heroHeight: heroContainerSize.height,
-                    safeAreaTop: geometry.safeAreaInsets.top
-                )
+            .onChange(of: focusedTarget) { _, _ in
+                // A move the fold snapping pinned in place scrolls nothing, so
+                // no geometry change would schedule the settle check.
+                scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: !heroItems.isEmpty)
             }
             .task(id: heroItemIDs) {
                 await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
@@ -345,36 +352,47 @@ struct HomeTVView: View {
         #endif
     }
 
-    /// Drives the hero ⇄ shelves scroll choreography.
-    ///
-    /// `focusedTarget` only distinguishes "the hero button" from "anything
-    /// else", so a bare `nil` is ambiguous: it is equally the tab bar above and
-    /// the first shelf below. `lastHeroVerticalMove`, reported by the hero's own
-    /// move-command handler, is what tells the two apart — without it, moving up
-    /// into the tab bar would scroll the shelves into view.
-    private func handleHeroFocusChange(
-        _ target: FocusTarget?,
-        hasHeroItems: Bool,
-        heroHeight: CGFloat,
-        safeAreaTop: CGFloat
-    ) {
+    private func scheduleFoldSettle(heroHeight: CGFloat, hasHeroItems: Bool) {
         guard hasHeroItems else { return }
 
-        switch target {
-        case .heroPrimaryAction:
-            lastHeroVerticalMove = nil
-            withAnimation(.easeInOut(duration: heroScrollAnimationDuration)) {
+        foldSettle.pendingSettle?.cancel()
+        foldSettle.pendingSettle = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(200))
+            guard !Task.isCancelled else { return }
+            settleFold(heroHeight: heroHeight)
+        }
+    }
+
+    /// Safety net behind `HomeTVFoldSnapping`: once the page has stopped
+    /// moving, make sure it rests on one of its two stops, the full hero or
+    /// the first shelf at the fold.
+    ///
+    /// The snapping reads the focus engine's proposed offset, and where the
+    /// focus engine puts a newly focused item is its own business. If it ever
+    /// proposes something the snapping misreads, this is what repairs it: the
+    /// focused play button with the hero scrolled away, or a sliver of hero
+    /// left above the first shelf. It only runs when the page is still, so it
+    /// can never become a second scroll racing the focus engine's, which is
+    /// what caused the old multi-row overshoot. With well-behaved proposals it
+    /// never scrolls at all.
+    private func settleFold(heroHeight: CGFloat) {
+        let metrics = foldSettle.metrics
+        // A short page may not scroll far enough to reach the fold at all.
+        let fold = min(heroHeight, metrics.maxOffset)
+        guard fold > 1 else { return }
+
+        if focusedTarget == .heroPrimaryAction {
+            guard metrics.offset > 1 else { return }
+            withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
                 scrollPosition.scrollTo(edge: .top)
             }
-        case nil:
-            guard lastHeroVerticalMove == .down else { return }
-            lastHeroVerticalMove = nil
-            withAnimation(.easeInOut(duration: heroScrollAnimationDuration)) {
-                // The hero is exactly `heroHeight` tall and starts at the
-                // resting offset, so this puts the shelves stack's top edge
-                // at the top of the display; `shelfTopPadding` then keeps the
-                // first header clear of the tab bar.
-                scrollPosition.scrollTo(y: heroHeight - (scrollTopInset ?? safeAreaTop))
+        } else if metrics.offset > 1, metrics.offset < fold - 1 {
+            // Focus is off the hero (nothing on the hero but the play button
+            // takes focus) while part of the hero is still on screen. The tab
+            // bar never lands here: focus reaches it either from the hero at
+            // rest or from a shelf with the page at or past the fold.
+            withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
+                scrollPosition.scrollTo(y: fold)
             }
         }
     }
@@ -450,6 +468,88 @@ struct HomeTVView: View {
             return "View Details"
         }
     }
+}
+
+/// Snaps the focus engine's own scroll between Home's two stops on tvOS: the
+/// full-screen hero, and the first shelf at the top of the display.
+///
+/// When focus moves to an item that is off screen, the focus engine scrolls
+/// the page to reveal it, and SwiftUI runs that scroll's proposed end offset
+/// through `updateTarget` first. Rewriting the target there is how Home shapes
+/// the hero ⇄ shelves move. This is the fold-snapping pattern from Apple's
+/// "Creating a tvOS media catalog app in SwiftUI" sample, retuned for a hero
+/// that fills the whole display.
+///
+/// Never pair it with a programmatic `scrollTo` on the same focus change: the
+/// two scrolls stack. That stacking is what used to throw a down-press from
+/// the hero several rows past the first shelf.
+///
+/// Offsets are plain content y values. That only holds because the scroll view
+/// has no top content inset while there is a hero (`HomeTVView` ignores the
+/// top safe area).
+private struct HomeTVFoldSnapping: ScrollTargetBehavior {
+    /// Content y of the first shelf's top edge, i.e. the hero height. `nil`
+    /// when there is no hero, which leaves every target alone.
+    var foldY: CGFloat?
+    /// Which side of the fold the scroll starts from. It comes from the last
+    /// render, so it describes the page as it was *before* the focus move that
+    /// triggered the scroll.
+    var startsAboveFold: Bool
+
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        // Only the vertical page scroll, never the shelves' own carousels.
+        guard let foldY, foldY > 0, context.axes.contains(.vertical) else { return }
+        let proposedY = target.rect.minY
+
+        if startsAboveFold {
+            // The play button is the only thing on the hero that takes focus,
+            // and it is fully on screen at rest. So any real scroll from up
+            // here is focus leaving for the shelves: land the first shelf at
+            // the top. Only small nudges (the play button, re-focused or eased
+            // off the bottom edge) keep the hero pinned. The threshold stays
+            // low because the first thing below the fold can be small, like
+            // the outage note's Retry button.
+            target.rect.origin.y = proposedY < foldY * 0.15 ? 0 : foldY
+        } else if proposedY < foldY {
+            // Below the fold, stopping anywhere short of it would leave a
+            // sliver of hero on screen. A target that shows more than half of
+            // the hero means focus is going back up to the play button, which
+            // sits low in the hero, so reveal all of it. Anything less is the
+            // focus engine nudging the first shelf, which stays at the fold.
+            target.rect.origin.y = proposedY < foldY * 0.5 ? 0 : foldY
+        }
+        // Targets past the fold are ordinary shelf-to-shelf scrolling.
+    }
+}
+
+/// The parts of the scroll geometry `settleFold` needs, measured from the
+/// resting offset.
+private struct HomeTVScrollMetrics: Equatable {
+    var offset: CGFloat = 0
+    var maxOffset: CGFloat = 0
+
+    init() {}
+
+    init(_ geometry: ScrollGeometry) {
+        offset = geometry.contentOffset.y + geometry.contentInsets.top
+        maxOffset = max(
+            geometry.contentSize.height
+                + geometry.contentInsets.top
+                + geometry.contentInsets.bottom
+                - geometry.containerSize.height,
+            0
+        )
+    }
+}
+
+/// The latest scroll metrics plus the pending `settleFold` check.
+///
+/// A class on purpose: scroll geometry updates it on every frame of a scroll,
+/// and going through `@State` would re-render Home once per frame.
+@MainActor
+private final class HomeTVFoldSettle {
+    var metrics = HomeTVScrollMetrics()
+    var pendingSettle: Task<Void, Never>?
 }
 
 #if os(tvOS)

@@ -78,15 +78,6 @@ struct HomeCinematicHeroLayout {
     )
 }
 
-/// A vertical remote move that reached the hero, surfaced so the host view can
-/// tell "the user pressed down out of the hero" apart from "focus left the hero
-/// upwards into the tab bar". Declared unconditionally so `HomeTVView` compiles
-/// on every platform; only tvOS ever emits one.
-enum HomeHeroVerticalMove {
-    case up
-    case down
-}
-
 struct HomeCinematicHeroCallbacks {
     let pauseRotation: () -> Void
     let restartRotation: () -> Void
@@ -114,9 +105,6 @@ struct HomeCinematicHero: View {
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
-    /// Fires on tvOS when a vertical move command reaches the hero. The hero
-    /// never acts on it — it only reports it so the host can drive scrolling.
-    var onVerticalMove: ((HomeHeroVerticalMove) -> Void)? = nil
 
     @State private var currentHeroIndex = 0
     @State private var heroRotationRevision = 0
@@ -725,10 +713,10 @@ struct HomeCinematicHero: View {
         case .right:
             guard heroItemIDs.count > 1 else { return }
             showNextHero()
-        case .up:
-            onVerticalMove?(.up)
-        case .down:
-            onVerticalMove?(.down)
+        case .up, .down:
+            // Vertical moves belong to the focus engine. `HomeTVView` shapes
+            // the scroll they cause with its fold snapping.
+            break
         @unknown default:
             break
         }
