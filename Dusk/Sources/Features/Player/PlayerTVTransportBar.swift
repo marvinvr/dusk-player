@@ -1,7 +1,7 @@
 #if os(tvOS)
 import SwiftUI
 
-/// The play bar itself: capsule track, live-reachable shading, marker ticks,
+/// The play bar itself: capsule track, live-reachable shading,
 /// the playhead, and the elapsed / remaining readouts inline beneath it.
 ///
 /// Nothing in here is focusable. The playhead's position comes from
@@ -100,30 +100,8 @@ struct PlayerTVTransportBar: View {
                     .frame(width: min(max(PlayerTVHUDLayout.barHeight, width * progress), width))
                     .shadow(color: .white.opacity(0.18), radius: 5)
             }
-
-            markerTicks(width: width)
         }
         .frame(height: PlayerTVHUDLayout.barHeight)
-    }
-
-    /// Intro / credits ticks. Plex ships no real chapter list, so these are the
-    /// only structural landmarks the bar can show (and the same set the
-    /// Chapters tab lists).
-    @ViewBuilder
-    private func markerTicks(width: CGFloat) -> some View {
-        if width > 0 {
-            ForEach(viewModel.chapterMarkers) { marker in
-                let markerProgress = viewModel.timelineProgress(
-                    for: TimeInterval(marker.startTimeOffset) / 1000
-                )
-                if markerProgress > 0.001, markerProgress < 0.999 {
-                    Capsule()
-                        .fill(.black.opacity(0.55))
-                        .frame(width: PlayerTVHUDLayout.markerTickWidth)
-                        .offset(x: width * markerProgress - PlayerTVHUDLayout.markerTickWidth / 2)
-                }
-            }
-        }
     }
 
     private var head: some View {

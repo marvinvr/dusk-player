@@ -32,9 +32,6 @@ enum PlayerTVHUDLayout {
     static let scrubStemWidth: CGFloat = 2
     static let scrubStemHeight: CGFloat = 40
 
-    /// Width of an intro / credits marker tick on the bar.
-    static let markerTickWidth: CGFloat = 3
-
     /// Gap between the bar row and the elapsed / remaining readouts.
     static let barLabelSpacing: CGFloat = 6
     /// Gap between the title / action row and the bar row.

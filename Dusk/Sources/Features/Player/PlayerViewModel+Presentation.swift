@@ -97,8 +97,8 @@ extension PlayerViewModel {
 
     /// The structural landmarks Dusk actually has for an item. Plex exposes no
     /// chapter list through the endpoints this app uses, so intro and credits
-    /// markers are it: they drive the ticks on the tvOS play bar and the
-    /// Chapters tab, which stays hidden when this is empty.
+    /// markers are it: they drive the Chapters tab, which stays hidden when this
+    /// is empty.
     var chapterMarkers: [PlexMarker] {
         markers.filter { $0.isIntro || $0.isCredits }
     }
