@@ -24,9 +24,11 @@ struct PlayerUpNextOverlayView: View {
         GeometryReader { geometry in
             let metrics = UpNextLayoutMetrics.make(for: geometry)
 
+            // Pinned to the reader's size with the wash as a background: the
+            // fill-scaled backdrop reports its scaled size, and as a sibling it
+            // grew the stack past the screen once the artwork loaded — pushing
+            // the content off-center and the close button off-screen.
             ZStack(alignment: .topTrailing) {
-                background
-
                 content(metrics: metrics)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     .padding(.leading, metrics.leadingPadding)
@@ -38,6 +40,8 @@ struct PlayerUpNextOverlayView: View {
                     .padding(.top, metrics.closeTopInset)
                     .padding(.trailing, metrics.closeTrailingInset)
             }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background { background }
         }
         .ignoresSafeArea()
     }
@@ -56,10 +60,15 @@ struct PlayerUpNextOverlayView: View {
                 DuskAsyncImage(url: backdropURL) { phase in
                     switch phase {
                     case .success(let image):
-                        image
-                            .resizable()
-                            .scaledToFill()
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        // `Color.clear` owns the size; the fill-scaled image only
+                        // overlays it, so it can never report a size larger than
+                        // the screen.
+                        Color.clear
+                            .overlay {
+                                image
+                                    .resizable()
+                                    .scaledToFill()
+                            }
                             .clipped()
                             // `opaque: true` samples the artwork's own edges, so
                             // the wash reaches the screen edges instead of fading
