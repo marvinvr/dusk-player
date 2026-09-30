@@ -342,6 +342,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     first shelf). Past the fold nothing is touched. Which side a scroll starts from
     comes from the last render: play button focused, or the hero still covering half
     the screen.
+  - **The hero's down-press can only reach the first shelf.** Until the page rests
+    at the fold (`hasScrolledPastHero`), every shelf except the first rendered one
+    (`firstShelfID`: outage note, Live TV, first hub, first personalized shelf) is
+    `.disabled`, which takes it out of the focus engine's reach without dimming
+    anything. The engine alone kept landing three or four rows down: a swipe's
+    momentum keeps stepping focus while the page is still scrolling, and entering
+    the shelves' focus section is not strictly nearest-first. `firstShelfID` must
+    mirror `shelves()`, including `LiveTVHomeShelf`'s "nothing on now" check, or the
+    lock points at a shelf that renders nothing and the down-press dead-ends.
   - **Never add a programmatic scroll on the same focus change.** It stacks on top
     of the focus engine's scroll instead of replacing it. The old choreography did
     exactly that (`ScrollPosition.scrollTo` from `onChange(of: focusedTarget)`,

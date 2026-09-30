@@ -31,6 +31,10 @@ struct HomeTVView: View {
     /// Whether the hero still covers at least half the screen. Tells
     /// `HomeTVFoldSnapping` which side of the fold a focus move starts from.
     @State private var isHeroShowing = true
+    /// Whether the page has come all the way off the hero and rests at (or
+    /// past) the fold. Until then only the first shelf can take focus; see
+    /// `shelfLockedForHeroExit`.
+    @State private var hasScrolledPastHero = false
     /// Only `settleFold` scrolls through this, and only once the page is still.
     /// The hero ⇄ shelves move itself is the focus engine's own scroll; see
     /// `HomeTVFoldSnapping` for why nothing else may scroll alongside it.
@@ -175,7 +179,9 @@ struct HomeTVView: View {
                             .padding(.top, DuskPosterMetrics.pageSectionSpacing)
                     }
 
-                    shelvesStack()
+                    shelvesStack(
+                        onlyReachableShelf: heroItems.isEmpty ? nil : shelfLockedForHeroExit
+                    )
                         .padding(
                             .top,
                             heroItems.isEmpty
@@ -208,6 +214,13 @@ struct HomeTVView: View {
                 scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top < heroHeight * 0.5
             } action: { _, isShowing in
                 isHeroShowing = isShowing
+            }
+            .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
+                let metrics = HomeTVScrollMetrics(scrollGeometry)
+                // A short page may not scroll far enough to reach the fold.
+                return metrics.offset >= min(heroHeight, metrics.maxOffset) - 2
+            } action: { _, isPast in
+                hasScrolledPastHero = isPast
             }
             .onScrollGeometryChange(for: HomeTVScrollMetrics.self) { scrollGeometry in
                 HomeTVScrollMetrics(scrollGeometry)
@@ -251,25 +264,75 @@ struct HomeTVView: View {
     /// the focus engine then finds no target and the down-press is a dead end.
     /// A plain stack costs one extra layout pass and makes the move reliable.
     @ViewBuilder
-    private func shelvesStack() -> some View {
+    private func shelvesStack(onlyReachableShelf: HomeTVShelfID?) -> some View {
         #if os(tvOS)
         VStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves()
+            shelves(onlyReachableShelf: onlyReachableShelf)
         }
         #else
         LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves()
+            shelves(onlyReachableShelf: onlyReachableShelf)
         }
         #endif
     }
 
+    /// The shelf a down-press from the hero must land on, while the page has
+    /// not yet come to rest at the fold. `nil` once it has, and every shelf is
+    /// reachable again.
+    ///
+    /// The focus engine alone does not guarantee that the hero's down-press
+    /// ends on the first shelf. Focus keeps moving while the page is still
+    /// scrolling: a Siri Remote swipe carries momentum, and every extra step
+    /// goes one row further, so a single flick from the play button ended
+    /// three or four rows down. Entering the shelves' focus section is not
+    /// strictly nearest-first either. Disabling every other shelf until the
+    /// page rests at the fold leaves the first shelf as the only place focus
+    /// can go. Nothing visible changes: those shelves are below the screen
+    /// while the hero is up, and none of their button styles dim when
+    /// disabled.
+    private var shelfLockedForHeroExit: HomeTVShelfID? {
+        hasScrolledPastHero ? nil : firstShelfID
+    }
+
+    /// The first shelf `shelves()` actually renders. Mirrors its conditions,
+    /// including `LiveTVHomeShelf`'s own "nothing on right now" check: locking
+    /// focus to a shelf that renders nothing would dead-end the down-press.
+    private var firstShelfID: HomeTVShelfID? {
+        if !offlineServerNames.isEmpty {
+            return .outageNote
+        }
+
+        if showsLiveTV,
+           liveTVViewModel.nowPlayingLineup?.guides.contains(where: { $0.currentProgram() != nil }) == true {
+            return .liveTV
+        }
+
+        if let hub = viewModel.hubs.first(where: { hub in
+            !viewModel.inlineItems(in: hub, maxRecentlyAddedItems: recentlyAddedInlineItemLimit).isEmpty
+        }) {
+            return .hub(hub.id)
+        }
+
+        if let shelf = viewModel.personalizedShelves.first(where: { !$0.items.isEmpty }) {
+            return .personalized(shelf.id)
+        }
+
+        return nil
+    }
+
     @ViewBuilder
-    private func shelves() -> some View {
+    private func shelves(onlyReachableShelf: HomeTVShelfID?) -> some View {
+        let isReachable = { (shelf: HomeTVShelfID) in
+            onlyReachableShelf == nil || onlyReachableShelf == shelf
+        }
+
         ServerOutageNote(offlineServerNames: offlineServerNames)
             .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
+            .homeTVShelfFocusable(isReachable(.outageNote))
 
         if showsLiveTV {
             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
+                .homeTVShelfFocusable(isReachable(.liveTV))
         }
 
         ForEach(viewModel.hubs) { hub in
@@ -307,6 +370,7 @@ struct HomeTVView: View {
                         }
                     )
                 }
+                .homeTVShelfFocusable(isReachable(.hub(hub.id)))
             }
         }
 
@@ -334,6 +398,7 @@ struct HomeTVView: View {
                         }
                     )
                 }
+                .homeTVShelfFocusable(isReachable(.personalized(shelf.id)))
             }
         }
     }
@@ -525,6 +590,28 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
             target.rect.origin.y = proposedY < foldY * 0.5 ? 0 : foldY
         }
         // Targets past the fold are ordinary shelf-to-shelf scrolling.
+    }
+}
+
+/// Identifies one of Home's shelves, in `HomeTVView.shelves()` order, so the
+/// hero's down-press can be limited to the first one.
+private enum HomeTVShelfID: Hashable {
+    case outageNote
+    case liveTV
+    case hub(AnyHashable)
+    case personalized(AnyHashable)
+}
+
+private extension View {
+    /// Takes a whole shelf out of the focus engine's reach without changing
+    /// how it looks. See `HomeTVView.shelfLockedForHeroExit`.
+    @ViewBuilder
+    func homeTVShelfFocusable(_ isFocusable: Bool) -> some View {
+        #if os(tvOS)
+        disabled(!isFocusable)
+        #else
+        self
+        #endif
     }
 }
 
