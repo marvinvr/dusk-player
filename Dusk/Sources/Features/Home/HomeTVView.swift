@@ -509,7 +509,16 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
             // off the bottom edge) keep the hero pinned. The threshold stays
             // low because the first thing below the fold can be small, like
             // the outage note's Retry button.
-            target.rect.origin.y = proposedY < foldY * 0.15 ? 0 : foldY
+            //
+            // Never pull a target that is already past the fold back up to it.
+            // That target reveals something below the first shelf: a swipe
+            // with momentum, or a second press, moved focus on while the hero
+            // was still showing (`startsAboveFold` is the last render, so it
+            // lags the scroll). Pinning it would park focus off screen below
+            // the visible rows, and the next press would then jump to it.
+            // Every shelf item sits below the fold, so moving a target short
+            // of the fold down to it keeps the focused item on screen.
+            target.rect.origin.y = proposedY < foldY * 0.15 ? 0 : max(proposedY, foldY)
         } else if proposedY < foldY {
             // Below the fold, stopping anywhere short of it would leave a
             // sliver of hero on screen. A target that shows more than half of

@@ -329,7 +329,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     offset the focus engine is about to scroll to when it reveals a newly focused
     item goes through `updateTarget` first. From the hero, any real scroll is focus
     leaving for the shelves, so it lands at the fold (`heroHeight`: first shelf at
-    the top of the display). From below the fold, a target short of the fold either
+    the top of the display) — but a target already past the fold is left alone,
+    never pulled back up: it means focus went past the first shelf (swipe momentum
+    or a second press while the hero was still showing), and pinning it parked focus
+    off screen below the visible rows. From below the fold, a target short of the fold either
     reveals the whole hero (it would show more than half of it, i.e. focus is going
     back to the low play button) or stays at the fold (the focus engine nudging the
     first shelf). Past the fold nothing is touched. Which side a scroll starts from
