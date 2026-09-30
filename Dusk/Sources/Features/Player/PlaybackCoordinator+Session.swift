@@ -315,36 +315,73 @@ extension PlaybackCoordinator {
                     activeAudioStreamID = audioStreamID
                     activeSubtitleStreamID = subtitleStreamID
                 } else if resolverDecision.requiresServerTranscode {
-                    // Delivery ladder: neither local engine can render this
-                    // media correctly, so skip direct play and start on the
-                    // server-stream rung. On any failure or ambiguity fall
+                    // Delivery ladder: direct play cannot render this media
+                    // correctly (Dolby Vision profile 5). First try a
+                    // video-copy remux AVPlayer renders as Dolby Vision, then
+                    // the server-stream rung. On any failure or ambiguity fall
                     // back to direct play so playback still starts.
                     let mediaIndex = details.media.firstIndex { $0.id == media.id } ?? 0
-                    let serverStreamSessionID = UUID().uuidString
-                    do {
-                        let result = try await plexService.serverStreamURL(
-                            ratingKey: ratingKey,
-                            mediaIndex: mediaIndex,
-                            sessionIdentifier: sessionIdentifier,
-                            transcodeSessionID: serverStreamSessionID,
-                            serverID: itemServerID
-                        )
-                        if case .transcodeAvailable = result.outcome {
-                            playbackURL = result.url
-                            sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
-                            playbackDecision = .serverStream
-                            transcodeSessionID = serverStreamSessionID
-                            engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
-                            resolverReason = "Server stream: \(resolverDecision.reason)"
-                        } else {
-                            playbackSessionLogger.notice(
-                                "Server stream unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); proceeding with direct play"
+                    let audioStreamID = PlayerViewModel.preferredLocalAudioStream(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultAudioLanguage
+                    )?.id
+                    // A bitmap subtitle would force a video re-encode; start
+                    // without it rather than lose Dolby Vision.
+                    let subtitleStreamID = PlayerViewModel.preferredSubtitleStreamID(
+                        inPart: part,
+                        preferredLanguage: preferences.defaultSubtitleLanguage,
+                        forcedOnly: preferences.subtitleForcedOnly
+                    ).flatMap { id -> Int? in
+                        guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
+                            return nil
+                        }
+                        return StreamResolver.canRideRemux(subtitle: stream) ? id : nil
+                    }
+                    let dolbyVisionRemux = await requestSpatialAudioRemux(
+                        ratingKey: ratingKey,
+                        mediaIndex: mediaIndex,
+                        media: media,
+                        part: part,
+                        audioStreamID: audioStreamID,
+                        subtitleStreamID: subtitleStreamID,
+                        sessionIdentifier: sessionIdentifier,
+                        serverID: itemServerID
+                    )
+                    if let dolbyVisionRemux {
+                        playbackURL = dolbyVisionRemux.url
+                        sanitizedURL = plexService.sanitizedPlaybackURLString(for: dolbyVisionRemux.url)
+                        playbackDecision = .spatialAudio
+                        transcodeSessionID = dolbyVisionRemux.transcodeSessionID
+                        engineType = .avPlayer
+                        resolverReason = dolbyVisionRemux.reason
+                        spatialAudioStreamIDs = (audioStreamID, subtitleStreamID)
+                    } else {
+                        let serverStreamSessionID = UUID().uuidString
+                        do {
+                            let result = try await plexService.serverStreamURL(
+                                ratingKey: ratingKey,
+                                mediaIndex: mediaIndex,
+                                sessionIdentifier: sessionIdentifier,
+                                transcodeSessionID: serverStreamSessionID,
+                                serverID: itemServerID
+                            )
+                            if case .transcodeAvailable = result.outcome {
+                                playbackURL = result.url
+                                sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
+                                playbackDecision = .serverStream
+                                transcodeSessionID = serverStreamSessionID
+                                engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
+                                resolverReason = "Server stream: \(resolverDecision.reason)"
+                            } else {
+                                playbackSessionLogger.notice(
+                                    "Server stream unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); proceeding with direct play"
+                                )
+                            }
+                        } catch {
+                            playbackSessionLogger.error(
+                                "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
                             )
                         }
-                    } catch {
-                        playbackSessionLogger.error(
-                            "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
-                        )
                     }
                 } else {
                     // Dolby Atmos / spatial audio: a VLCKit-only file whose
@@ -531,7 +568,8 @@ extension PlaybackCoordinator {
                     preferredLanguage: preferences.defaultAudioLanguage
                 ),
                 locality: sourceLocality(for: playbackURL, serverID: serverID),
-                usesRemuxHLSLoader: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part)
+                restoresDolbyAtmos: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
+                dolbyVisionRemux: remuxDolbyVisionConfiguration(for: media, decision: playbackDecision)
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1079,7 +1117,8 @@ extension PlaybackCoordinator {
                 preferredLanguage: preferences.defaultAudioLanguage
             ),
             locality: sourceLocality(for: playbackURL, serverID: activePlaybackServerID),
-            usesRemuxHLSLoader: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part)
+            restoresDolbyAtmos: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
+            dolbyVisionRemux: remuxDolbyVisionConfiguration(for: media, decision: playbackDecision)
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -1320,7 +1359,13 @@ extension PlaybackCoordinator {
             isAutomaticDirectPlayFallbackActive = false
         }
 
-        if debugInfo?.decision.isSpatialAudio == true {
+        // A failed Dolby Vision profile 5 remux goes down to the server
+        // stream like direct play would: plain direct play is what cannot
+        // render it in the first place.
+        let isFailedDolbyVisionRemux = debugInfo.map {
+            $0.decision.isSpatialAudio && StreamResolver.isDolbyVisionProfile5($0.media)
+        } ?? false
+        if debugInfo?.decision.isSpatialAudio == true, !isFailedDolbyVisionRemux {
             let failureDescription = engine?.error?.errorDescription ?? "engine reported state .error"
             await leaveSpatialAudioRemux(
                 reason: "Spatial-audio remux failed (\(failureDescription)); automatic direct-play fallback",
@@ -1335,7 +1380,7 @@ extension PlaybackCoordinator {
               let details = activeItemDetails,
               let ratingKey,
               let debugInfo,
-              case .directPlay = debugInfo.decision,
+              debugInfo.decision.isDirectPlay || isFailedDolbyVisionRemux,
               let engine else {
             return
         }
@@ -1393,6 +1438,9 @@ extension PlaybackCoordinator {
                 return
             }
 
+            if let failedRemuxSessionID = activeTranscodeSessionID {
+                stopTranscodeSessionInBackground(failedRemuxSessionID, serverID: activePlaybackServerID)
+            }
             activeTranscodeSessionID = transcodeSessionID
             activateReplacementAttempt(
                 transitionLabel: "falling back to server stream after direct-play failure",

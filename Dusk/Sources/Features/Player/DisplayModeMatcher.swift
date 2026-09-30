@@ -88,9 +88,15 @@ enum DisplayModeMatcher {
             return
         }
 
+        // A Dolby Vision profile 5 remux is decoded as Dolby Vision by
+        // AVPlayer (see `DolbyVisionSignaling`); its stream carries no usable
+        // color tags, so describe it as DV rather than SDR.
+        let rendersDolbyVision = decision.isSpatialAudio && videoStream?.doviProfile == 5
+
         guard let formatDescription = makeFormatDescription(
             media: media,
-            videoStream: videoStream
+            videoStream: videoStream,
+            rendersDolbyVision: rendersDolbyVision
         ) else {
             statusLabel = "Could not describe video format"
             return
@@ -102,7 +108,7 @@ enum DisplayModeMatcher {
         )
         displayManager.preferredDisplayCriteria = criteria
 
-        let rangeLabel = dynamicRangeLabel(for: videoStream)
+        let rangeLabel = rendersDolbyVision ? "Dolby Vision" : dynamicRangeLabel(for: videoStream)
         statusLabel = "\(formattedRate(refreshRate)) Hz \(rangeLabel)"
         displayModeLogger.notice(
             "Requested display mode \(formattedRate(refreshRate), privacy: .public) Hz \(rangeLabel, privacy: .public)"
@@ -190,21 +196,30 @@ enum DisplayModeMatcher {
     /// matter here — this description is never used to decode anything.
     private static func makeFormatDescription(
         media: PlexMedia,
-        videoStream: PlexStream?
+        videoStream: PlexStream?,
+        rendersDolbyVision: Bool
     ) -> CMVideoFormatDescription? {
         let width = media.width ?? videoStream?.width ?? 1920
         let height = media.height ?? videoStream?.height ?? 1080
 
-        let extensions: [CFString: Any] = [
-            kCMFormatDescriptionExtension_ColorPrimaries: colorPrimaries(for: videoStream),
-            kCMFormatDescriptionExtension_TransferFunction: transferFunction(for: videoStream),
-            kCMFormatDescriptionExtension_YCbCrMatrix: yCbCrMatrix(for: videoStream),
-        ]
+        let extensions: [CFString: Any] = rendersDolbyVision
+            ? [
+                kCMFormatDescriptionExtension_ColorPrimaries: kCMFormatDescriptionColorPrimaries_ITU_R_2020,
+                kCMFormatDescriptionExtension_TransferFunction: kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ,
+                kCMFormatDescriptionExtension_YCbCrMatrix: kCMFormatDescriptionYCbCrMatrix_ITU_R_2020,
+            ]
+            : [
+                kCMFormatDescriptionExtension_ColorPrimaries: colorPrimaries(for: videoStream),
+                kCMFormatDescriptionExtension_TransferFunction: transferFunction(for: videoStream),
+                kCMFormatDescriptionExtension_YCbCrMatrix: yCbCrMatrix(for: videoStream),
+            ]
 
         var formatDescription: CMVideoFormatDescription?
         let status = CMVideoFormatDescriptionCreate(
             allocator: kCFAllocatorDefault,
-            codecType: codecType(for: videoStream?.codec ?? media.videoCodec),
+            codecType: rendersDolbyVision
+                ? kCMVideoCodecType_DolbyVisionHEVC
+                : codecType(for: videoStream?.codec ?? media.videoCodec),
             width: Int32(clamping: width),
             height: Int32(clamping: height),
             extensions: extensions as CFDictionary,

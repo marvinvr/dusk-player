@@ -570,7 +570,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
         let item: AVPlayerItem
         if source.usesRemuxHLSLoader {
-            let loader = RemuxHLSLoader()
+            let loader = RemuxHLSLoader(
+                restoresDolbyAtmos: source.restoresDolbyAtmos,
+                dolbyVision: source.dolbyVisionRemux
+            )
             if let asset = RemuxHLSLoader.makeAsset(url: source.url, loader: loader) {
                 remuxHLSLoader = loader
                 item = AVPlayerItem(asset: asset)

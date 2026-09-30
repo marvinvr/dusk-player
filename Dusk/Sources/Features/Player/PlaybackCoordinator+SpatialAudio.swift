@@ -35,6 +35,11 @@ extension PlaybackCoordinator {
     /// only when the file qualifies and Plex confirms video and audio are both
     /// copied. Every other outcome returns nil (and releases any session Plex
     /// started) so the caller keeps plain direct play.
+    ///
+    /// Dolby Vision profile 5 files take the same remux for their video
+    /// (AVPlayer renders DV5 from MP4; libvlc cannot) regardless of the
+    /// spatial-audio setting, and have Plex convert any audio the fMP4 cannot
+    /// carry instead of refusing.
     func requestSpatialAudioRemux(
         ratingKey: String,
         mediaIndex: Int,
@@ -46,9 +51,10 @@ extension PlaybackCoordinator {
         sessionIdentifier: String,
         serverID: String?
     ) async -> SpatialAudioRemux? {
+        let isDolbyVisionRemux = StreamResolver.isDolbyVisionProfile5(media)
         // Audio conversion is the undecodable-audio fallback, not a spatial
         // audio preference, so the setting only gates the Dolby remux.
-        guard preferences.spatialAudioRemuxEnabled || convertsAudio,
+        guard preferences.spatialAudioRemuxEnabled || convertsAudio || isDolbyVisionRemux,
               !preferences.forceAVPlayer,
               !preferences.forceVLCKit else {
             return nil
@@ -59,14 +65,23 @@ extension PlaybackCoordinator {
         let subtitleStream = subtitleStreamID.flatMap { id in
             part.streams.first { $0.streamType == .subtitle && $0.id == id }
         }
-        if let blocker = StreamResolver.spatialAudioRemuxBlocker(
-            media: media,
-            decision: resolverDecision,
-            audioStream: audioStream,
-            subtitleStream: subtitleStream,
-            displaySupportsHDR: AVPlayer.eligibleForHDRPlayback,
-            convertsAudio: convertsAudio
-        ) {
+        let convertsAudio = convertsAudio
+            || (isDolbyVisionRemux && audioStream.map { !StreamResolver.canCopyIntoRemux(audio: $0) } == true)
+        let blocker = isDolbyVisionRemux
+            ? StreamResolver.dolbyVisionRemuxBlocker(
+                media: media,
+                subtitleStream: subtitleStream,
+                displaySupportsHDR: AVPlayer.eligibleForHDRPlayback
+            )
+            : StreamResolver.spatialAudioRemuxBlocker(
+                media: media,
+                decision: resolverDecision,
+                audioStream: audioStream,
+                subtitleStream: subtitleStream,
+                displaySupportsHDR: AVPlayer.eligibleForHDRPlayback,
+                convertsAudio: convertsAudio
+            )
+        if let blocker {
             spatialAudioLogger.notice(
                 "No spatial-audio remux for ratingKey \(ratingKey, privacy: .public): \(blocker, privacy: .public)"
             )
@@ -123,7 +138,12 @@ extension PlaybackCoordinator {
                 "Spatial-audio remux accepted for ratingKey \(ratingKey, privacy: .public): \(result.streams.logDescription, privacy: .public)"
             )
             let reason: String
-            if convertsAudio {
+            if isDolbyVisionRemux {
+                let audioNote = convertsAudio
+                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.streams.audioCodec?.uppercased() ?? "a supported codec")"
+                    : ""
+                reason = "Dolby Vision profile 5 via lossless Plex remux\(audioNote)"
+            } else if convertsAudio {
                 let source = audioStream?.codec?.uppercased() ?? "audio"
                 let target = result.streams.audioCodec?.uppercased() ?? "a supported codec"
                 reason = "\(source) converted to \(target) by Plex, video copied (\(resolverDecision.reason))"
@@ -381,6 +401,16 @@ extension PlaybackCoordinator {
             shouldAutoPlay: wasPlaying,
             audioTrackPositionOverride: audioTrackPosition
         )
+    }
+
+    /// The Dolby Vision signaling `RemuxHLSLoader` restores on a remux of a
+    /// Dolby Vision profile 5 file; nil for every other session.
+    func remuxDolbyVisionConfiguration(
+        for media: PlexMedia,
+        decision: PlaybackDecision
+    ) -> DolbyVisionConfiguration? {
+        guard decision.isSpatialAudio else { return nil }
+        return StreamResolver.dolbyVisionProfile5Stream(in: media).flatMap(DolbyVisionConfiguration.init(stream:))
     }
 
     /// Whether the remux's audio is E-AC-3 + JOC. Only then does the session

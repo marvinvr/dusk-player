@@ -6,9 +6,12 @@ import VideoToolbox
 /// Decision logic (from SPEC.md §4.2, evaluated per stream across ALL parts —
 /// parts without stream metadata fall back to the media-level summary fields):
 /// - **Dolby Vision profile 5** (IPTPQc2 color, no HDR10-compatible base layer)
-///   is flagged `requiresServerTranscode` regardless of container — neither
-///   AVPlayer nor libvlc can tone-map it locally. Profiles 7/8 play through
-///   their HDR10 base layer and follow normal engine selection.
+///   is flagged `requiresServerTranscode` regardless of container — libvlc
+///   cannot reshape it, and AVPlayer only renders it from MP4 carrying the DV
+///   signaling (see `dolbyVisionRemuxBlocker`). The engine still follows the
+///   container so a last-resort direct play never hands AVPlayer an MKV.
+///   Profiles 7/8 play through their HDR10 base layer and follow normal
+///   engine selection.
 /// - **AVPlayer** when ALL of: container is mp4/mov/m4v, video is 8-bit h264,
 ///   hevc, or av1 with a hardware decoder, audio is aac/ac3/eac3/alac/mp3/flac,
 ///   and all subtitles are either tx3g/mov_text (embedded) or external text
@@ -130,13 +133,22 @@ enum StreamResolver {
             return Decision(engine: .vlcKit, reason: "User preference forced VLCKit")
         }
 
-        // Dolby Vision profile 5 check — before the container check on purpose:
-        // a DV5 MKV must flag the server transcode too, since neither local
-        // engine can tone-map IPTPQc2 color.
-        if let dolbyVisionDecision = dolbyVisionDecision(for: media) {
-            return dolbyVisionDecision
+        // Dolby Vision profile 5 — a DV5 MKV must flag the server path too,
+        // since libvlc cannot reshape IPTPQc2 color. The engine stays the
+        // container's: if every server rung fails, the coordinator falls back
+        // to direct play, and AVPlayer cannot even open an MKV.
+        let decision = localEngineDecision(for: media)
+        if isDolbyVisionProfile5(media) {
+            return Decision(
+                engine: decision.engine,
+                reason: "Dolby Vision profile 5 requires a server remux or transcode (no local reshaping)",
+                requiresServerTranscode: true
+            )
         }
+        return decision
+    }
 
+    private static func localEngineDecision(for media: PlexMedia) -> Decision {
         // Container check
         guard let container = media.container?.lowercased(),
               avContainers.contains(container) else {
@@ -192,8 +204,12 @@ enum StreamResolver {
         if forceVLCKit {
             return Decision(engine: .vlcKit, reason: "User preference forced VLCKit")
         }
-        if let decision = dolbyVisionDecision(for: media) {
-            return decision
+        if isDolbyVisionProfile5(media) {
+            return Decision(
+                engine: .avPlayer,
+                reason: "Dolby Vision profile 5 requires server transcode (no local reshaping)",
+                requiresServerTranscode: true
+            )
         }
         if let decision = videoDecision(for: media) {
             return decision
@@ -280,6 +296,42 @@ enum StreamResolver {
         return nil
     }
 
+    /// Audio codecs Plex can copy into the fMP4 remux for AVPlayer. Anything
+    /// else (TrueHD, DTS, …) has to be converted by Plex on the way.
+    private static let remuxCopyableAudioCodecs: Set<String> = ["eac3", "ac3", "aac"]
+
+    static func canCopyIntoRemux(audio stream: PlexStream) -> Bool {
+        remuxCopyableAudioCodecs.contains(stream.codec?.lowercased() ?? "")
+    }
+
+    /// Whether a Dolby Vision profile 5 file should reach AVPlayer through a
+    /// video-copy Plex remux. Apple's decoders render DV5 natively (it is
+    /// what Infuse does from the same file) as long as the fMP4 sample entry
+    /// says `dvh1` and carries a `dvcC` box — `RemuxHLSLoader` makes sure of
+    /// that. Returns why not, or nil when it qualifies.
+    ///
+    /// The display gate mirrors the Atmos remux: Plex declares the variant
+    /// `VIDEO-RANGE=PQ`, which AVFoundation refuses on an SDR display.
+    static func dolbyVisionRemuxBlocker(
+        media: PlexMedia,
+        subtitleStream: PlexStream?,
+        displaySupportsHDR: Bool
+    ) -> String? {
+        guard isDolbyVisionProfile5(media) else { return "not Dolby Vision profile 5" }
+        guard media.parts.count == 1 else { return "multi-part media" }
+        let videoCodecs = media.parts.flatMap(\.streams)
+            .filter { $0.streamType == .video }
+            .compactMap { $0.codec?.lowercased() }
+        guard !videoCodecs.isEmpty, videoCodecs.allSatisfy({ $0 == "hevc" }) else {
+            return "video codec is not HEVC"
+        }
+        guard displaySupportsHDR else { return "Dolby Vision on a display without HDR playback" }
+        if let subtitleStream, !canRideRemux(subtitle: subtitleStream) {
+            return "subtitle \(subtitleStream.codec?.uppercased() ?? "?") cannot ride the remux"
+        }
+        return nil
+    }
+
     static func canRideRemux(subtitle stream: PlexStream) -> Bool {
         remuxTextSubtitleCodecs.contains(stream.codec?.lowercased() ?? "")
     }
@@ -319,24 +371,18 @@ enum StreamResolver {
         VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)
 
     /// Dolby Vision profile 5 carries IPTPQc2 color with no HDR10-compatible
-    /// base layer; neither AVPlayer (from a remux) nor libvlc can tone-map it,
-    /// so it must start on the server-transcode ladder rung. Profiles 7/8 (and
-    /// anything with a base-layer compatibility ID) render fine via their HDR10
-    /// base layer, so they stay on normal engine selection.
-    private static func dolbyVisionDecision(for media: PlexMedia) -> Decision? {
-        for part in media.parts {
-            for stream in part.streams where stream.streamType == .video {
-                guard stream.doviPresent == true || stream.doviProfile != nil else { continue }
-                if stream.doviProfile == 5 {
-                    return Decision(
-                        engine: .avPlayer,
-                        reason: "Dolby Vision profile 5 requires server transcode (no local tone mapping)",
-                        requiresServerTranscode: true
-                    )
-                }
-            }
-        }
-        return nil
+    /// base layer; libvlc cannot reshape it, so it must start on a server
+    /// rung. Profiles 7/8 (and anything with a base-layer compatibility ID)
+    /// render fine via their HDR10 base layer, so they stay on normal engine
+    /// selection.
+    static func isDolbyVisionProfile5(_ media: PlexMedia) -> Bool {
+        dolbyVisionProfile5Stream(in: media) != nil
+    }
+
+    static func dolbyVisionProfile5Stream(in media: PlexMedia) -> PlexStream? {
+        media.parts.lazy
+            .flatMap(\.streams)
+            .first { $0.streamType == .video && $0.doviProfile == 5 }
     }
 
     /// Check every video stream in every part; parts without stream metadata

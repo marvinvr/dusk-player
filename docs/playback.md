@@ -40,9 +40,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    `{connection.baseURL}{part.key}` from the connection of the item's own server
    and adds that server's `X-Plex-Token` when available.
 5. `StreamResolver.evaluate` records the intended engine, a human-readable
-   reason, and `requiresServerTranscode` (media neither engine can render
+   reason, and `requiresServerTranscode` (media direct play cannot render
    correctly, e.g. Dolby Vision profile 5). Flagged online media skips direct
-   play and starts on the server-stream rung (see "Delivery Ladder").
+   play: it first tries the Dolby Vision remux (see "Dolby Vision Profile 5"),
+   then the server-stream rung (see "Delivery Ladder"). The recorded engine
+   still follows the container, so the last-resort direct play of a DV5 MKV
+   opens on VLCKit rather than an AVPlayer that cannot read MKV at all.
    `PlaybackEngineFactory.makeEngine` returns an AVPlayer or VLCKit engine,
    reusing a warmed engine when available.
 6. The coordinator creates `PlaybackSource`, `PlaybackAttemptContext`, and
@@ -313,6 +316,37 @@ so the whole live HUD is derived from one instant.
   position instead of surfacing an error.
 - AirPlay: selecting a route rebuilds a remux session as AirPlay HLS, like
   direct play, because the fMP4/HEVC remux targets this device.
+
+## Dolby Vision Profile 5
+
+- Why: DV5 has no HDR10/SDR base layer (IPTPQc2 color). libvlc shows it
+  green/purple, and the server stream asks Plex to transcode 4K DV5 to H.264,
+  which fails on most servers. Apple's decoders render DV5 natively from MP4
+  (what Infuse does) when the track is labelled `dvh1` and carries `dvcC`.
+- Delivery: DV5 media (`StreamResolver.isDolbyVisionProfile5`) goes through
+  the same video-copy fMP4 remux as Atmos (`requestSpatialAudioRemux`, session
+  type `.spatialAudio`), independent of the spatial-audio setting. Eligibility
+  is `StreamResolver.dolbyVisionRemuxBlocker`: single part, HEVC, an HDR
+  capable display (`AVPlayer.eligibleForHDRPlayback`, same PQ-variant reason as
+  above), and a text subtitle if any (the startup pick drops a bitmap one
+  rather than burn it in). Audio the fMP4 cannot carry (TrueHD, DTS) is
+  converted by Plex (`convertsAudio`); E-AC-3/AC-3/AAC is copied.
+- Signaling (`DolbyVisionSignaling` in `RemuxHLSLoader.swift`): Plex labels the
+  copied track `hvc1`. The loader renames the sample entry `hvc1`→`dvh1`
+  (`hev1`→`dvhe`), appends a `dvcC` (`dvvC` for profile > 7) built from Plex's
+  `DOVIProfile`/`DOVILevel`/`DOVIBLCompatID` when the entry has none, and
+  rewrites the HEVC entry of `EXT-X-STREAM-INF` `CODECS` to `dvh1.PP.LL`. The
+  Atmos `dec3` patch runs only when the audio is Atmos
+  (`PlaybackSource.restoresDolbyAtmos`); the DV patch only with
+  `PlaybackSource.dolbyVisionRemux`.
+- tvOS display matching requests a `dvh1` / PQ / BT.2020 mode for these
+  sessions (DV5 streams carry no usable color tags).
+- Ladder: remux declined → server stream → direct play (VLCKit). A remux that
+  fails after starting goes to the server stream, not VLCKit.
+- Not yet verified against a real PMS: whether Plex already writes `dvcC` or
+  `dvh1` itself (the patch then changes nothing) and whether it keeps the RPU
+  NAL units on copy. Picking a bitmap subtitle mid-session still leaves the
+  remux for VLCKit direct play.
 - Verified (2026-09) against PMS 1.43.4 on tvOS/iPadOS simulators and a macOS
   AVPlayer harness: H.264 and HEVC/DV8 MKV remuxes copy both tracks, the
   patched init exposes the `ec+3` layers (7.1.4/9.1.6), WebVTT subtitles
@@ -486,9 +520,9 @@ so the whole live HUD is derived from one instant.
   routes to VLCKit, AV1 uses AVPlayer only when
   `VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)` (dav1d decodes it in
   software otherwise), and Dolby Vision profile 5 sets
-  `requiresServerTranscode` regardless of container — neither engine can
-  tone-map IPTPQc2 locally. DV profiles 7/8 play through their HDR10 base
-  layer normally.
+  `requiresServerTranscode` regardless of container — libvlc cannot reshape
+  IPTPQc2, and AVPlayer only renders it from a relabelled remux. DV profiles
+  7/8 play through their HDR10 base layer normally.
 - Force preferences override all codec/container checks. `forceAVPlayer` can
   intentionally choose an engine that later fails on unsupported media.
 

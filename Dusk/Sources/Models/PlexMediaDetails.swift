@@ -461,7 +461,7 @@ struct PlexStream: Codable, Sendable, Identifiable {
 
     // Dolby Vision fields (video streams). Plex only sends these when the
     // stream carries a DV layer; `doviProfile` 5 has no HDR10-compatible
-    // base layer, which StreamResolver uses to force a server transcode.
+    // base layer, which StreamResolver routes through the Dolby Vision remux.
     let doviPresent: Bool?
     let doviProfile: Int?
     let doviLevel: Int?

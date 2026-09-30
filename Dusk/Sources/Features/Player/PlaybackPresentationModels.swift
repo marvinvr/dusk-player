@@ -136,10 +136,18 @@ struct PlaybackSource: Sendable {
     /// caching — and with it the audible start/seek latency — from this.
     /// Remote is the safe default for callers that cannot tell.
     var locality: PlaybackSourceLocality = .remoteNetwork
-    /// Route the HLS playlists and init segment through `RemuxHLSLoader`,
-    /// which restores the Dolby Atmos signaling Plex's fMP4 remux drops.
-    /// AVPlayer only; `.spatialAudio` sessions whose audio is Dolby Atmos.
-    var usesRemuxHLSLoader = false
+    /// Restore the Dolby Atmos signaling Plex's fMP4 remux drops (through
+    /// `RemuxHLSLoader`). AVPlayer only; `.spatialAudio` sessions whose audio
+    /// is Dolby Atmos.
+    var restoresDolbyAtmos = false
+    /// Relabel the remuxed video as Dolby Vision (through `RemuxHLSLoader`).
+    /// AVPlayer only; `.spatialAudio` sessions of Dolby Vision profile 5.
+    var dolbyVisionRemux: DolbyVisionConfiguration? = nil
+
+    /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
+    var usesRemuxHLSLoader: Bool {
+        restoresDolbyAtmos || dolbyVisionRemux != nil
+    }
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.
     var liveTVContext: PlexLivePlaybackContext? = nil
