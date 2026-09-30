@@ -848,7 +848,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             if secs.isFinite { duration = secs }
         }
 
-        await logAudioFormat(of: item)
+        // Diagnostic only; it can poll for a few seconds on HLS, so it must
+        // not hold up the track lists below.
+        Task { [weak self] in await self?.logAudioFormat(of: item) }
 
         // Audio tracks via AVMediaSelectionGroup
         if let group = try? await asset.loadMediaSelectionGroup(for: .audible) {
