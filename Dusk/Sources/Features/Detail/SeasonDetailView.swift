@@ -1,16 +1,12 @@
+#if !os(tvOS)
 import SwiftUI
 
 struct SeasonDetailView: View {
-    @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
-    #if os(tvOS)
-    @State private var focusedTVEpisodeKey: String?
-    @State private var tvEpisodeFocusTask: Task<Void, Never>?
-    #endif
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
@@ -50,14 +46,6 @@ struct SeasonDetailView: View {
         .task {
             await viewModel.load()
         }
-#if os(tvOS)
-        .task(id: viewModel.nextEpisodeToPlay?.ratingKey) {
-            await loadInitialTVEpisodeDetailsIfNeeded()
-        }
-        .onDisappear {
-            tvEpisodeFocusTask?.cancel()
-        }
-#endif
         .onChange(of: playback.showPlayer) { _, isShowing in
             if !isShowing {
                 Task { await viewModel.refresh() }
@@ -72,62 +60,15 @@ struct SeasonDetailView: View {
     @ViewBuilder
     private func contentView(_ details: PlexMediaDetails) -> some View {
         GeometryReader { geometry in
-            let heroBackgroundWidth: CGFloat = {
-                #if os(tvOS)
-                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
-                #else
-                geometry.size.width
-                #endif
-            }()
-            let heroBackgroundLeadingInset: CGFloat = {
-                #if os(tvOS)
-                geometry.safeAreaInsets.leading
-                #else
-                0
-                #endif
-            }()
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     heroSection(
                         details,
                         topInset: geometry.safeAreaInsets.top,
-                        containerWidth: heroBackgroundWidth,
-                        containerHeight: geometry.size.height,
-                        backgroundLeadingInset: heroBackgroundLeadingInset
+                        containerWidth: geometry.size.width,
+                        containerHeight: geometry.size.height
                     )
-#if os(tvOS)
-                    .focusSection()
-#endif
 
-#if os(tvOS)
-                    // On tvOS the season page effectively becomes the episode
-                    // browser: keep the episode row directly under the banner so
-                    // both stay on screen while zapping. The season summary moves
-                    // below the row (the banner already shows per-episode detail).
-                    if let offlineBannerText = viewModel.offlineBannerText {
-                        OfflineMetadataBanner(message: offlineBannerText)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 24)
-                    }
-
-                    episodesSection(width: geometry.size.width)
-                        .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 24)
-                        .padding(.bottom, episodesBottomPadding)
-                        .focusSection()
-
-                    if let summary = details.summary, !summary.isEmpty {
-                        ExpandableSummaryText(text: summary)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 32)
-                            .focusSection()
-                    }
-
-                    tvEpisodeCastSection()
-                        .padding(.top, 8)
-                        .padding(.bottom, 56)
-#else
                     if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(text: summary)
                             .padding(.horizontal, horizontalPadding)
@@ -143,18 +84,13 @@ struct SeasonDetailView: View {
                     episodesSection(width: geometry.size.width)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, 40)
-                        .padding(.bottom, episodesBottomPadding)
-#endif
+                        .padding(.bottom, 56)
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
-            #if os(tvOS)
-            .scrollClipDisabled()
-            #endif
-            .duskTVOSPageBackground()
         }
     }
 
@@ -163,69 +99,18 @@ struct SeasonDetailView: View {
         _ details: PlexMediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
-        containerHeight: CGFloat,
-        backgroundLeadingInset: CGFloat = 0
+        containerHeight: CGFloat
     ) -> some View {
-        let heroBase: CGFloat = {
-            #if os(tvOS)
-            // Keep the banner compact so the episode row lands high enough that
-            // focusing a card never scrolls the banner off-screen.
-            min(max(containerHeight * 0.50, 500), 540)
-            #else
-            min(max(containerHeight * 0.72, 520), 760)
-            #endif
-        }()
+        let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
-        let heroBackdropURL: URL? = {
-            #if os(tvOS)
-            viewModel.backdropURL(
-                width: Int(containerWidth.rounded(.up)),
-                height: Int(heroHeight.rounded(.up)),
-                focusedEpisode: focusedTVEpisode,
-                focusedEpisodeDetails: selectedTVEpisodeDetails
-            )
-            #else
-            viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up)))
-            #endif
-        }()
-        let keepsPreviousBackdropWhileLoading: Bool = {
-            #if os(tvOS)
-            true
-            #else
-            false
-            #endif
-        }()
-        // tvOS mirrors the show page: the show's clear-logo is the hero title, so
-        // pass it as the title artwork (the show name is the text fallback). iOS
-        // keeps the show logo in the supertitle link, so no title artwork there.
-        let heroTitleArtworkURL: URL? = {
-            #if os(tvOS)
-            viewModel.showTitleLogoURL(
-                width: Int((containerWidth * 0.45).rounded(.up)),
-                height: 128
-            )
-            #else
-            nil
-            #endif
-        }()
         DetailHeroSection(
-            backdropURL: heroBackdropURL,
-            titleArtworkURL: heroTitleArtworkURL,
-            title: heroTitle(fallback: details.title),
+            backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
+            title: details.title,
             descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
-            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
-            keepsPreviousBackdropWhileLoading: keepsPreviousBackdropWhileLoading,
-            titleLineLimit: heroTitleLineLimit,
-            titleAccessory: heroTitleAccessory,
             supertitle: {
-                #if os(tvOS)
-                // The show logo is the title now, so the season hero drops the
-                // separate show-name supertitle the iOS layout uses.
-                EmptyView()
-                #else
                 if let showTitle = viewModel.showTitle {
                     DetailHeroShowTitleLink(
                         title: showTitle,
@@ -238,176 +123,17 @@ struct SeasonDetailView: View {
                         }
                     )
                 }
-                #endif
             },
             subtitle: {
-                #if os(tvOS)
-                tvEpisodeHeroMetadata(details)
-                #else
                 metadataTagline(details)
-                #endif
             },
             actions: {
-                if heroPlayEpisode != nil {
+                if viewModel.nextEpisodeToPlay != nil {
                     actionButtons()
                 }
             }
         )
     }
-
-    // On tvOS the focused episode's name rides directly under the show logo as a
-    // "somewhat prominent" line, so the page reads like the show hero (logo on
-    // top) while still surfacing the episode the row is parked on. iOS keeps the
-    // episode title inside its row, so no hero accessory there.
-    private var heroTitleAccessory: AnyView? {
-        #if os(tvOS)
-        AnyView(tvEpisodeTitleView())
-        #else
-        nil
-        #endif
-    }
-
-    private var episodesBottomPadding: CGFloat {
-        #if os(tvOS)
-        24
-        #else
-        56
-        #endif
-    }
-
-    private func heroTitle(fallback: String) -> String {
-        #if os(tvOS)
-        // The show's clear-logo is the hero title on tvOS (matching the show
-        // page); this text only shows when Plex has no logo, so use the show name.
-        return viewModel.showTitle ?? fallback
-        #else
-        return fallback
-        #endif
-    }
-
-    // tvOS only falls back to title text when the show has no clear logo; keep it
-    // to a single line so the banner height stays put. iOS keeps two lines.
-    private var heroTitleLineLimit: Int {
-        #if os(tvOS)
-        1
-        #else
-        2
-        #endif
-    }
-
-    #if os(tvOS)
-    private var focusedTVEpisode: PlexEpisode? {
-        viewModel.displayEpisodes.first { $0.ratingKey == focusedTVEpisodeKey }
-            ?? viewModel.nextEpisodeToPlay
-            ?? viewModel.displayEpisodes.first
-    }
-
-    private var selectedTVEpisodeDetails: PlexMediaDetails? {
-        if viewModel.focusedEpisodeDetails?.ratingKey == focusedTVEpisode?.ratingKey {
-            return viewModel.focusedEpisodeDetails
-        }
-
-        if viewModel.nextEpisodeDetails?.ratingKey == focusedTVEpisode?.ratingKey {
-            return viewModel.nextEpisodeDetails
-        }
-
-        return nil
-    }
-
-    private var selectedTVEpisodeRoles: [PlexRole] {
-        selectedTVEpisodeDetails?.roles ?? []
-    }
-
-    // Both bands are fixed so the banner doesn't jump while zapping the episode
-    // row, so they have to be re-derived whenever the type scale moves. With the
-    // reduced tvOS scale the metadata band holds a 25pt meta line + 4pt gap + two
-    // 23pt summary lines (~92pt), and the cast band a 33pt header + 10pt gap + a
-    // 144pt avatar + 14pt gap + two 23pt text lines + 12pt vertical padding
-    // (~288pt). Both used to clip their last line; they now fit it exactly.
-    private var tvEpisodeHeroMetadataHeight: CGFloat { 92 }
-    private var tvEpisodeCastSectionHeight: CGFloat { 288 }
-
-    // The focused episode's name, sitting under the show logo. Kept to a single
-    // (truncated) line and non-animated so the banner doesn't grow/shrink or
-    // cross-fade as the user zaps the episode row.
-    @ViewBuilder
-    private func tvEpisodeTitleView() -> some View {
-        Text(focusedTVEpisode?.title ?? "")
-            .font(DuskFont.TV.heroSubtitle)
-            .foregroundStyle(Color.duskTextPrimary)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .transaction { transaction in
-                transaction.disablesAnimations = true
-            }
-    }
-
-    @ViewBuilder
-    private func tvEpisodeHeroMetadata(_ details: PlexMediaDetails) -> some View {
-        Group {
-            if let episode = focusedTVEpisode {
-                // The episode name sits above in the title accessory, so this box
-                // carries the supporting metadata: an "Episode N · 45 min · air
-                // date" tagline (same styling as the rest of the app) and summary.
-                VStack(alignment: .leading, spacing: 4) {
-                    if let metaLine = tvEpisodeMetaLine(episode) {
-                        Text(metaLine)
-                            .font(DuskFont.TV.metadata)
-                            .foregroundStyle(Color.primary.opacity(0.78))
-                            .lineLimit(1)
-                    }
-
-                    if let summary = episode.summary, !summary.isEmpty {
-                        Text(summary)
-                            .font(DuskFont.TV.caption)
-                            .foregroundStyle(Color.primary.opacity(0.76))
-                            .lineSpacing(3)
-                            .lineLimit(2)
-                            .frame(maxWidth: 720, alignment: .leading)
-                    }
-                }
-            } else {
-                metadataTagline(details)
-            }
-        }
-        .frame(height: tvEpisodeHeroMetadataHeight, alignment: .topLeading)
-        .clipped()
-        .transaction { transaction in
-            transaction.disablesAnimations = true
-        }
-    }
-
-    private func tvEpisodeMetaLine(_ episode: PlexEpisode) -> String? {
-        [viewModel.episodeLabel(episode), viewModel.episodeSubtitle(episode)]
-            .compactMap { $0 }
-            .joined(separator: " · ")
-            .nilIfEmpty
-    }
-
-    @ViewBuilder
-    private func tvEpisodeCastSection() -> some View {
-        ZStack(alignment: .topLeading) {
-            if !selectedTVEpisodeRoles.isEmpty {
-                DetailCastSection(
-                    roles: selectedTVEpisodeRoles,
-                    serverID: viewModel.serverID,
-                    plexService: plexService,
-                    title: "Episode Cast"
-                )
-                .transition(.opacity)
-            }
-        }
-        .frame(
-            maxWidth: .infinity,
-            minHeight: tvEpisodeCastSectionHeight,
-            maxHeight: tvEpisodeCastSectionHeight,
-            alignment: .topLeading
-        )
-        .clipped()
-        .animation(.easeInOut(duration: 0.16), value: selectedTVEpisodeDetails?.ratingKey)
-    }
-    #endif
 
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
@@ -426,12 +152,6 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        #if os(tvOS)
-        HStack(spacing: detailHeroActionSpacing) {
-            seasonPlayActions(label: viewModel.playButtonShortLabel)
-            watchedButton()
-        }
-        #else
         // Primary fills the stack width; secondary row is centered beneath it.
         VStack(alignment: .center, spacing: detailHeroActionSpacing) {
             seasonPlayActions(label: viewModel.playButtonShortLabel)
@@ -445,19 +165,16 @@ struct SeasonDetailView: View {
                 watchedButton()
             }
         }
-        .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
-        #endif
+        .detailHeroActionStackFrame(isCompactPhone: usesFullWidthDetailActionButtons(for: sizeClass))
     }
 
     private func seasonPlayActions(label: String) -> some View {
         SeasonHeroActions(
-            nextEpisode: heroPlayEpisode,
+            nextEpisode: viewModel.nextEpisodeToPlay,
             playButtonLabel: label,
-            nextEpisodePlayableVersions: heroPlayEpisodeVersions,
-            nextEpisodeRoute: heroPlayEpisodeRoute,
-            nextEpisodeMenuLabel: heroPlayEpisodeMenuLabel,
-            showRoute: viewModel.showID.map { viewModel.detailRoute(type: .show, id: $0) },
-            usesFullWidthActionButtons: fillsActionWidth,
+            nextEpisodePlayableVersions: viewModel.nextEpisodePlayableVersions,
+            nextEpisodeRoute: viewModel.nextEpisodeRoute,
+            nextEpisodeMenuLabel: viewModel.nextEpisodeMenuLabel,
             onPlay: { episode in
                 guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
                 Task {
@@ -492,115 +209,15 @@ struct SeasonDetailView: View {
         .accessibilityLabel(viewModel.isSeasonWatched ? "Mark Season Unwatched" : "Mark Season Watched")
     }
 
-    // The episode the hero Play button targets. iOS plays the "next up" episode;
-    // tvOS doubles as an episode browser, so it plays whatever episode is focused
-    // in the row — keeping the button in sync with the banner the user is reading.
-    private var heroPlayEpisode: PlexEpisode? {
-        #if os(tvOS)
-        focusedTVEpisode
-        #else
-        viewModel.nextEpisodeToPlay
-        #endif
-    }
-
-    private var heroPlayEpisodeVersions: [PlexMedia] {
-        #if os(tvOS)
-        selectedTVEpisodeDetails?.media.filter { !$0.parts.isEmpty } ?? []
-        #else
-        viewModel.nextEpisodePlayableVersions
-        #endif
-    }
-
-    private var heroPlayEpisodeRoute: AppNavigationRoute? {
-        #if os(tvOS)
-        focusedTVEpisode.map { viewModel.detailRoute(type: .episode, id: $0.id) }
-        #else
-        viewModel.nextEpisodeRoute
-        #endif
-    }
-
-    private var heroPlayEpisodeMenuLabel: String {
-        #if os(tvOS)
-        if let episode = focusedTVEpisode, let label = viewModel.episodeLabel(episode) {
-            return "Go to \(label)"
-        }
-        return "Go to Episode"
-        #else
-        viewModel.nextEpisodeMenuLabel
-        #endif
-    }
-
-    private var usesFullWidthActionButtons: Bool {
-        usesFullWidthDetailActionButtons(for: sizeClass)
-    }
-
-    // The primary label fills its container on all iOS layouts (the action stack
-    // owns the final width); tvOS keeps content-sized buttons in an inline row.
-    private var fillsActionWidth: Bool {
-        #if os(tvOS)
-        false
-        #else
-        true
-        #endif
-    }
-
     @ViewBuilder
     private func episodesSection(width: CGFloat) -> some View {
         if !viewModel.displayEpisodes.isEmpty {
             let contentWidth = max(width - (horizontalPadding * 2), 280)
-            let artworkWidth: CGFloat = {
-                #if os(tvOS)
-                min(max(contentWidth * 0.44, 240), 360)
-                #else
-                min(max(contentWidth * 0.48, 170), 320)
-                #endif
-            }()
+            let artworkWidth = min(max(contentWidth * 0.48, 170), 320)
             let imageWidth = Int(artworkWidth.rounded(.up))
             let imageHeight = Int((artworkWidth / (16.0 / 9.0)).rounded(.up))
             let showsInlineSummary = usesInlineEpisodeSummaryLayout && contentWidth >= 700
 
-            #if os(tvOS)
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Episodes")
-                    .font(DuskFont.sectionHeader(ios: .headline))
-                    .foregroundStyle(Color.primary)
-
-                ScrollView(.horizontal, showsIndicators: false) {
-                    LazyHStack(alignment: .top, spacing: 28) {
-                        ForEach(viewModel.displayEpisodes) { episode in
-                            TVSeasonEpisodeCard(
-                                episode: episode,
-                                imageURL: viewModel.episodeImageURL(episode, width: imageWidth, height: imageHeight),
-                                progress: viewModel.progress(for: episode),
-                                isUnavailableOffline: viewModel.isUnavailableOffline(episode),
-                                isWatched: viewModel.isWatched(episode),
-                                artworkWidth: artworkWidth,
-                                onFocus: {
-                                    focusTVEpisode(episode)
-                                },
-                                onPlay: {
-                                    guard !viewModel.constrainsPlaybackToOfflineAvailability || viewModel.isPlayableOffline(episode) else { return }
-                                    Task {
-                                        await playback.play(
-                                            id: episode.id,
-                                            resumeOffsetMilliseconds: episode.viewOffset,
-                                            resumeOffsetDurationMilliseconds: episode.duration,
-                                            placeholder: PlaybackPlaceholder(episode: episode)
-                                        )
-                                    }
-                                }
-                            )
-                            .id(episode.ratingKey)
-                            .contextMenu {
-                                episodeContextMenu(episode)
-                            }
-                        }
-                    }
-                    .padding(.vertical, 12)
-                }
-                .scrollClipDisabled()
-            }
-            #else
             VStack(alignment: .leading, spacing: 16) {
                 Text("Episodes")
                     .font(DuskFont.sectionHeader(ios: .headline))
@@ -643,59 +260,11 @@ struct SeasonDetailView: View {
                     }
                 }
             }
-            #endif
         }
     }
-
-    #if os(tvOS)
-    @MainActor
-    private func loadInitialTVEpisodeDetailsIfNeeded() async {
-        guard focusedTVEpisodeKey == nil, let episode = focusedTVEpisode else { return }
-        setFocusedTVEpisodeKey(episode.ratingKey)
-        await viewModel.focusEpisode(episode)
-    }
-
-    @MainActor
-    private func focusTVEpisode(_ episode: PlexEpisode) {
-        guard focusedTVEpisodeKey != episode.ratingKey else { return }
-
-        // Debounce the committed focus. The banner tracks the focused episode, so
-        // updating it rebuilds the whole page; doing that on every card while the
-        // user zaps through the row quickly makes the outer ScrollView drift
-        // downward even though focus stays on the row. The per-card focus
-        // highlight is driven locally by @FocusState, so it still reacts
-        // instantly — only the banner waits until the user settles on a card.
-        tvEpisodeFocusTask?.cancel()
-        tvEpisodeFocusTask = Task {
-            do {
-                try await Task.sleep(nanoseconds: 120_000_000)
-            } catch {
-                return
-            }
-
-            guard !Task.isCancelled else { return }
-            setFocusedTVEpisodeKey(episode.ratingKey)
-            await viewModel.focusEpisode(episode)
-        }
-    }
-
-    @MainActor
-    private func setFocusedTVEpisodeKey(_ ratingKey: String) {
-        var transaction = Transaction()
-        transaction.disablesAnimations = true
-
-        withTransaction(transaction) {
-            focusedTVEpisodeKey = ratingKey
-        }
-    }
-    #endif
 
     private var usesInlineEpisodeSummaryLayout: Bool {
-        #if os(iOS)
         UIDevice.current.userInterfaceIdiom == .pad
-        #else
-        false
-        #endif
     }
 
     @ViewBuilder
@@ -759,251 +328,44 @@ struct SeasonDetailView: View {
 
 }
 
-private struct SeasonEpisodeRow: View {
-    let episode: PlexEpisode
-    let destination: AppNavigationRoute
-    let imageURL: URL?
-    let label: String?
-    let subtitle: String?
-    let progress: Double?
-    let downloadStatus: DownloadStatus?
-    let isPlayableOffline: Bool
-    let isUnavailableOffline: Bool
-    let isWatched: Bool
-    let isUsingCachedData: Bool
-    let showsOfflineAvailability: Bool
-    let constrainsPlaybackToOfflineAvailability: Bool
-    let artworkWidth: CGFloat
-    let showsInlineSummary: Bool
-    let onPlay: () -> Void
-
-    var body: some View {
-        #if os(tvOS)
-        TVSeasonEpisodeRow(
-            episode: episode,
-            destination: destination,
-            imageURL: imageURL,
-            label: label,
-            subtitle: subtitle,
-            progress: progress,
-            downloadStatus: downloadStatus,
-            isPlayableOffline: isPlayableOffline,
-            isUnavailableOffline: isUnavailableOffline,
-            isWatched: isWatched,
-            isUsingCachedData: isUsingCachedData,
-            showsOfflineAvailability: showsOfflineAvailability,
-            constrainsPlaybackToOfflineAvailability: constrainsPlaybackToOfflineAvailability,
-            artworkWidth: artworkWidth,
-            showsInlineSummary: showsInlineSummary
-        )
-        #else
-        IOSSeasonEpisodeRow(
-            episode: episode,
-            destination: destination,
-            imageURL: imageURL,
-            label: label,
-            subtitle: subtitle,
-            progress: progress,
-            downloadStatus: downloadStatus,
-            isPlayableOffline: isPlayableOffline,
-            isUnavailableOffline: isUnavailableOffline,
-            isWatched: isWatched,
-            isUsingCachedData: isUsingCachedData,
-            showsOfflineAvailability: showsOfflineAvailability,
-            constrainsPlaybackToOfflineAvailability: constrainsPlaybackToOfflineAvailability,
-            artworkWidth: artworkWidth,
-            showsInlineSummary: showsInlineSummary,
-            onPlay: onPlay
-        )
-        #endif
-    }
-}
-
 private struct SeasonHeroActions: View {
     let nextEpisode: PlexEpisode?
     let playButtonLabel: String
     let nextEpisodePlayableVersions: [PlexMedia]
     let nextEpisodeRoute: AppNavigationRoute?
     let nextEpisodeMenuLabel: String
-    let showRoute: AppNavigationRoute?
-    let usesFullWidthActionButtons: Bool
     let onPlay: (PlexEpisode) -> Void
     let onPlayVersion: (PlexEpisode, PlexMedia) -> Void
 
     var body: some View {
-        let layout = usesFullWidthActionButtons
-            ? AnyLayout(VStackLayout(spacing: detailHeroActionSpacing))
-            : AnyLayout(HStackLayout(spacing: detailHeroActionSpacing))
-
-        layout {
-            Button {
-                guard let nextEpisode else { return }
-                onPlay(nextEpisode)
-            } label: {
-                DetailHeroPrimaryActionButtonLabel(
-                    title: playButtonLabel,
-                    systemImage: "play.fill",
-                    fillsWidth: usesFullWidthActionButtons
-                )
-            }
-            .detailHeroNativePrimaryButtonStyle()
-            .contextMenu {
-                if let nextEpisode {
-                    PlayVersionContextMenu(versions: nextEpisodePlayableVersions) { version in
-                        onPlayVersion(nextEpisode, version)
-                    }
-                }
-
-                if let nextEpisodeRoute {
-                    NavigationLink(value: nextEpisodeRoute) {
-                        Label(nextEpisodeMenuLabel, systemImage: "play.rectangle")
-                    }
-                }
-            }
-
-            #if os(tvOS)
-            if let showRoute {
-                NavigationLink(value: showRoute) {
-                    DetailHeroSecondaryIconLabel(systemImage: "tv.fill")
-                }
-                .detailHeroNativeSecondaryButtonStyle()
-                .accessibilityLabel("Go to Show")
-            }
-            #endif
-        }
-    }
-}
-
-#if os(tvOS)
-private struct TVSeasonEpisodeCard: View {
-    let episode: PlexEpisode
-    let imageURL: URL?
-    let progress: Double?
-    let isUnavailableOffline: Bool
-    let isWatched: Bool
-    let artworkWidth: CGFloat
-    let onFocus: () -> Void
-    let onPlay: () -> Void
-
-    @FocusState private var isFocused: Bool
-
-    private var artworkHeight: CGFloat {
-        artworkWidth / (16.0 / 9.0)
-    }
-
-    private var artworkShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-    }
-
-    private var episodeNumberLabel: String? {
-        MediaTextFormatter.seasonEpisodeLabel(season: episode.parentIndex, episode: episode.index)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
-            Button(action: onPlay) {
-                SeasonEpisodePosterArtwork(
-                    imageURL: imageURL,
-                    progress: progress,
-                    artworkWidth: artworkWidth,
-                    showsPlayOverlay: false,
-                    isUnavailableOffline: isUnavailableOffline
-                )
-                .contentShape(.contextMenuPreview, artworkShape)
-            }
-            .duskSuppressTVOSButtonChrome()
-            .focused($isFocused)
-            .duskTVOSFocusEffectShape(artworkShape, scales: false)
-            .accessibilityLabel("Play \(episode.title)")
-            .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
-
-            PosterCardText(
-                title: episode.title,
-                subtitle: episodeNumberLabel,
-                width: artworkWidth,
-                isWatched: isWatched
+        Button {
+            guard let nextEpisode else { return }
+            onPlay(nextEpisode)
+        } label: {
+            DetailHeroPrimaryActionButtonLabel(
+                title: playButtonLabel,
+                systemImage: "play.fill",
+                fillsWidth: true
             )
         }
-        .frame(width: artworkWidth, alignment: .topLeading)
-        .duskTVOSFocusedScale(isFocused)
-        .zIndex(isFocused ? 1 : 0)
-        .onChange(of: isFocused) { _, newValue in
-            if newValue {
-                onFocus()
-            }
-        }
-    }
-}
-
-private struct TVSeasonEpisodeRow: View {
-    let episode: PlexEpisode
-    let destination: AppNavigationRoute
-    let imageURL: URL?
-    let label: String?
-    let subtitle: String?
-    let progress: Double?
-    let downloadStatus: DownloadStatus?
-    let isPlayableOffline: Bool
-    let isUnavailableOffline: Bool
-    let isWatched: Bool
-    let isUsingCachedData: Bool
-    let showsOfflineAvailability: Bool
-    let constrainsPlaybackToOfflineAvailability: Bool
-    let artworkWidth: CGFloat
-    let showsInlineSummary: Bool
-
-    private let posterDetailsSpacing: CGFloat = 56
-
-    private var artworkHeight: CGFloat {
-        artworkWidth / (16.0 / 9.0)
-    }
-
-    private var artworkShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: 16, style: .continuous)
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .top, spacing: posterDetailsSpacing) {
-                NavigationLink(value: destination) {
-                    SeasonEpisodePosterArtwork(
-                        imageURL: imageURL,
-                        progress: progress,
-                        artworkWidth: artworkWidth,
-                        showsPlayOverlay: false,
-                        isUnavailableOffline: isUnavailableOffline
-                    )
-                    .contentShape(.contextMenuPreview, artworkShape)
+        .detailHeroNativePrimaryButtonStyle()
+        .contextMenu {
+            if let nextEpisode {
+                PlayVersionContextMenu(versions: nextEpisodePlayableVersions) { version in
+                    onPlayVersion(nextEpisode, version)
                 }
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(artworkShape)
-                .accessibilityLabel("View \(episode.title)")
-                .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
-
-                SeasonEpisodeTextContent(
-                    episode: episode,
-                    label: label,
-                    subtitle: subtitle,
-                    downloadStatus: downloadStatus,
-                    isPlayableOffline: isPlayableOffline,
-                    isUnavailableOffline: isUnavailableOffline,
-                    isWatched: isWatched,
-                    isUsingCachedData: isUsingCachedData,
-                    showsOfflineAvailability: showsOfflineAvailability,
-                    showsInlineSummary: true,
-                    inlineSummaryLineLimit: 5
-                )
-                .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
-            SeasonEpisodeDivider()
+            if let nextEpisodeRoute {
+                NavigationLink(value: nextEpisodeRoute) {
+                    Label(nextEpisodeMenuLabel, systemImage: "play.rectangle")
+                }
+            }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
-#endif
 
-private struct IOSSeasonEpisodeRow: View {
+private struct SeasonEpisodeRow: View {
     let episode: PlexEpisode
     let destination: AppNavigationRoute
     let imageURL: URL?
@@ -1045,8 +407,6 @@ private struct IOSSeasonEpisodeRow: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(constrainsPlaybackToOfflineAvailability && !isPlayableOffline)
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(artworkShape)
                 .accessibilityLabel("Play \(episode.title)")
                 .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
 
@@ -1066,8 +426,6 @@ private struct IOSSeasonEpisodeRow: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Rectangle())
                 .frame(maxWidth: .infinity, alignment: .topLeading)
             }
 
@@ -1078,8 +436,6 @@ private struct IOSSeasonEpisodeRow: View {
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Rectangle())
             }
 
             SeasonEpisodeDivider()
@@ -1118,7 +474,6 @@ private struct SeasonEpisodeTextContent: View {
     let isUsingCachedData: Bool
     let showsOfflineAvailability: Bool
     let showsInlineSummary: Bool
-    var inlineSummaryLineLimit: Int = 3
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1151,7 +506,7 @@ private struct SeasonEpisodeTextContent: View {
             }
 
             if showsInlineSummary {
-                SeasonEpisodeSummaryText(episode: episode, lineLimit: inlineSummaryLineLimit)
+                SeasonEpisodeSummaryText(episode: episode, lineLimit: 3)
             }
         }
     }
@@ -1202,3 +557,4 @@ private struct SeasonEpisodeDivider: View {
             .frame(height: 1)
     }
 }
+#endif

@@ -456,11 +456,8 @@ struct HomeTVView: View {
 
     private func heroDetailsLabel(for item: PlexItem) -> String {
         switch item.type {
-        case .episode:
-            return "Episode Details"
-        case .season:
-            return "Season Details"
-        case .show:
+        case .episode, .season, .show:
+            // Episodes and seasons open the show page too (on their own season).
             return "Show Details"
         case .movie:
             return "Movie Details"

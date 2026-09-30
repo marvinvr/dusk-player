@@ -37,6 +37,16 @@ struct MediaDetailDestinationView: View {
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
+        #if os(tvOS)
+        // tvOS has one page per show: a show, season, or episode route all open
+        // it, on the season (and episode) the route points at.
+        case .show:
+            seriesDetail(entry: .show)
+        case .season:
+            seriesDetail(entry: .season)
+        case .episode:
+            seriesDetail(entry: .episode)
+        #else
         case .show:
             ShowDetailView(
                 id: id,
@@ -45,12 +55,6 @@ struct MediaDetailDestinationView: View {
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 prefersOfflineAvailability: prefersOfflineAvailability
-            )
-        case .person:
-            ActorDetailView(
-                person: PlexPersonReference(personID: id.ratingKey, name: "Actor", thumb: nil),
-                serverID: id.serverID,
-                plexService: plexService
             )
         case .season:
             SeasonDetailView(
@@ -66,6 +70,13 @@ struct MediaDetailDestinationView: View {
                 plexService: plexService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
+            )
+        #endif
+        case .person:
+            ActorDetailView(
+                person: PlexPersonReference(personID: id.ratingKey, name: "Actor", thumb: nil),
+                serverID: id.serverID,
+                plexService: plexService
             )
         case .clip:
             // Clips normally route through `.video`; this catches legacy
@@ -85,4 +96,18 @@ struct MediaDetailDestinationView: View {
             )
         }
     }
+
+    #if os(tvOS)
+    private func seriesDetail(entry: SeriesDetailViewModel.Entry) -> some View {
+        SeriesDetailView(
+            entry: entry,
+            id: id,
+            plexService: plexService,
+            seerrService: seerrService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager,
+            prefersOfflineAvailability: prefersOfflineAvailability
+        )
+    }
+    #endif
 }

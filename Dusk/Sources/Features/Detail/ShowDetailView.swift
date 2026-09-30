@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import SwiftUI
 
 struct ShowDetailView: View {
@@ -65,33 +66,14 @@ struct ShowDetailView: View {
     @ViewBuilder
     private func contentView(_ details: PlexMediaDetails) -> some View {
         GeometryReader { geometry in
-            let heroBackgroundWidth: CGFloat = {
-                #if os(tvOS)
-                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
-                #else
-                geometry.size.width
-                #endif
-            }()
-            let heroBackgroundLeadingInset: CGFloat = {
-                #if os(tvOS)
-                geometry.safeAreaInsets.leading
-                #else
-                0
-                #endif
-            }()
-
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     heroSection(
                         details,
                         topInset: geometry.safeAreaInsets.top,
-                        containerWidth: heroBackgroundWidth,
-                        containerHeight: geometry.size.height,
-                        backgroundLeadingInset: heroBackgroundLeadingInset
+                        containerWidth: geometry.size.width,
+                        containerHeight: geometry.size.height
                     )
-#if os(tvOS)
-                    .focusSection()
-#endif
 
                     if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         Text(summary)
@@ -110,9 +92,6 @@ struct ShowDetailView: View {
 
                     seasonsSection(width: geometry.size.width)
                         .padding(.top, 40)
-#if os(tvOS)
-                        .focusSection()
-#endif
 
                     if let roles = details.roles, !roles.isEmpty {
                         DetailCastSection(
@@ -129,10 +108,6 @@ struct ShowDetailView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
-            #if os(tvOS)
-            .scrollClipDisabled()
-            #endif
-            .duskTVOSPageBackground()
         }
     }
 
@@ -141,8 +116,7 @@ struct ShowDetailView: View {
         _ details: PlexMediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
-        containerHeight: CGFloat,
-        backgroundLeadingInset: CGFloat = 0
+        containerHeight: CGFloat
     ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
@@ -153,7 +127,6 @@ struct ShowDetailView: View {
             descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
-            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase
         ) {
             VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
@@ -229,13 +202,6 @@ struct ShowDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        #if os(tvOS)
-        HStack(spacing: detailHeroActionSpacing) {
-            playButton()
-            downloadButton()
-            watchedButton()
-        }
-        #else
         // Primary fills the stack width; secondary row is centered beneath it.
         VStack(alignment: .center, spacing: detailHeroActionSpacing) {
             playButton()
@@ -246,7 +212,6 @@ struct ShowDetailView: View {
             }
         }
         .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)
-        #endif
     }
 
     @ViewBuilder
@@ -267,7 +232,7 @@ struct ShowDetailView: View {
                 DetailHeroPrimaryActionButtonLabel(
                     title: viewModel.playButtonShortLabel,
                     systemImage: "play.fill",
-                    fillsWidth: fillsActionWidth
+                    fillsWidth: true
                 )
             }
             .detailHeroNativePrimaryButtonStyle()
@@ -322,15 +287,6 @@ struct ShowDetailView: View {
         usesFullWidthDetailActionButtons(for: sizeClass)
     }
 
-    // The primary label fills its container on all iOS layouts (the action stack
-    // owns the final width); tvOS keeps content-sized buttons in an inline row.
-    private var fillsActionWidth: Bool {
-        #if os(tvOS)
-        false
-        #else
-        true
-        #endif
-    }
 
     @ViewBuilder
     private func seasonsSection(width: CGFloat) -> some View {
@@ -420,3 +376,4 @@ struct ShowDetailView: View {
         }
     }
 }
+#endif

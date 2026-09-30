@@ -373,7 +373,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
 - Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
-  details, season, and show routes when available. Its optional
+  details, season, and show routes when available (on tvOS `contextMenuSeasonRoute` /
+  `contextMenuShowRoute` are nil, because the details route already opens the one
+  show page). Its optional
   `onRemoveFromContinueWatching` adds Plex's "Remove from Continue Watching" action
   (server `PUT /actions/removeFromContinueWatching`); the hero supplies it because its
   items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`
@@ -491,7 +493,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 ## Detail Screens
 
 - Detail entry is split by domain: movie, show, season, episode, video (clip), and
-  actor detail views each have their own `@Observable` model.
+  actor detail views each have their own `@Observable` model. tvOS is the exception
+  for TV content: it has no separate show/season/episode screens. `MediaDetailDestinationView`
+  sends all three routes to `SeriesDetailView`, and `ShowDetailView`, `SeasonDetailView`,
+  `EpisodeDetailView` (+ its model) are compiled out of tvOS (`#if !os(tvOS)`).
 - Clips route to `VideoDetailView` via `.video`/`.downloadedVideo` routes
   (`AppNavigationRoute.destination(for:)` branches on `item.isClip`) — never to
   `MovieDetailView`. It is a trimmed movie page: hero metadata line is
@@ -538,28 +543,37 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `SeasonDetailViewModel` loads season details and episodes, computes the next episode,
   sorts offline-available episodes first when appropriate, and records offline watch
   mutations.
-- `SeasonDetailView` uses a tvOS-only horizontal episode shelf. Each card shows the
-  episode title with a "Season X · Episode N" subtitle and a watched checkmark beside
-  the title (via the shared `PosterCardText`), matching the season cards; partially
-  watched episodes keep the in-poster progress bar. The tvOS season hero mirrors the
-  show hero: the show's clear-logo is the title artwork (`showTitleLogoURL`, falling
-  back to the show name), so it drops the iOS show-name supertitle link. The focused
-  episode's name rides just beneath the logo as a "somewhat prominent" title accessory,
-  with its "Episode N · 45 min · air date" tagline and summary in the subtitle slot.
-  Focused episode cards update the hero artwork, that episode title/metadata block, and
-  the episode cast row inside stable-height regions, and the committed focus is debounced
-  so rapid remote navigation does not shift the scroll position; selecting a tvOS episode
-  card starts playback directly while iOS keeps the vertical episode list and
-  detail-navigation behavior.
-- `EpisodeDetailViewModel` handles single-episode metadata, parent show/season links,
-  watch toggles, and offline availability.
+- `SeriesDetailView` (tvOS only) is the one page per show. `SeriesDetailViewModel`
+  composes a `ShowDetailViewModel` (seasons, Seerr gaps, show watch state) with a
+  `SeasonDetailViewModel` for the season on screen; it does not re-implement either.
+  The route decides where it opens: a show opens on its first regular season with
+  something unwatched (Specials only when nothing else exists), a season on itself,
+  and an episode on its season with that episode in the banner and the row scrolled
+  to it. For season/episode routes the season paints first and the show (pills)
+  loads after it; the pills share a fixed-height slot with the plain "Episodes"
+  header so the row never jumps. Season pills sit above the horizontal episode row
+  (only when there are 2+ seasons); picking one loads that season and swaps it in
+  only once loaded (the row dims meanwhile), so the page never blanks. A Seerr-only
+  season pill opens its request page. Each episode card shows the title with a
+  "Season X · Episode N" subtitle and a watched checkmark (`PosterCardText`); the
+  hero's clear-logo title, focused-episode name/metadata/summary, backdrop, and the
+  "Episode Cast" row follow the focused card inside stable-height regions, with the
+  focus commit debounced so rapid remote navigation does not shift the scroll
+  position. Selecting a card, or the hero Play/Resume, plays the focused episode;
+  the eye button toggles the season on screen. The row is only scrolled
+  programmatically when the season changes — never on focus or next-up changes.
+- `SeasonDetailView` (iOS/iPadOS) keeps the vertical episode list with per-episode
+  detail navigation.
+- `EpisodeDetailViewModel` (iOS/iPadOS) handles single-episode metadata, parent
+  show/season links, watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role
   matches. Keep this search behavior local to actor detail unless Plex gets a stronger
   people endpoint.
 - Use `PlayVersionContextMenu` for alternate media versions; it filters out unplayable
   versions with no parts.
 - "Download Subtitles" (Plex-proxied OpenSubtitles) is a secondary action on movie,
-  episode, and video detail. iOS/iPadOS put it in the Play button's `.contextMenu`
+  episode (iOS/iPadOS only — tvOS has no episode page; the player covers it), and
+  video detail. iOS/iPadOS put it in the Play button's `.contextMenu`
   next to Play Version; tvOS gets a `captions.bubble` icon button in the hero action
   row, because context menus are awkward there. It is gated on
   `<Model>.canDownloadSubtitles` — `PlexService.canDownloadSubtitles(serverID:)` (owner of

@@ -1,3 +1,4 @@
+#if !os(tvOS)
 import Foundation
 
 @MainActor
@@ -202,3 +203,4 @@ extension EpisodeDetailViewModel {
         }
     }
 }
+#endif

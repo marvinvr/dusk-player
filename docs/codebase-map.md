@@ -149,6 +149,9 @@ Detail:
 
 - Each media type has a view and view model.
 - `MediaDetailDestinationView` routes `PlexMediaType` to the right detail screen.
+  On tvOS, show, season, and episode routes all land on `SeriesDetailView` (one
+  page per show with season pills); the separate show/season/episode views are
+  iOS/iPadOS-only.
 - Shared detail UI belongs in `DetailSharedViews.swift` only when multiple
   detail screens use it.
 - Offline-aware detail behavior lives in the view models through

@@ -306,12 +306,22 @@ extension PlexItem {
         PlexItemID(serverID: serverID, ratingKey: ratingKey)
     }
 
+    // tvOS has one page per show that every episode/season/show route opens, so
+    // the item's own details entry already lands there; separate season and show
+    // entries would just open the same page again.
     var contextMenuSeasonRoute: AppNavigationRoute? {
+        #if os(tvOS)
+        return nil
+        #else
         guard type == .episode, let parentRatingKey else { return nil }
         return .media(type: .season, id: relativeID(parentRatingKey))
+        #endif
     }
 
     var contextMenuShowRoute: AppNavigationRoute? {
+        #if os(tvOS)
+        return nil
+        #else
         switch type {
         case .episode:
             guard let grandparentRatingKey else { return nil }
@@ -322,5 +332,6 @@ extension PlexItem {
         default:
             return nil
         }
+        #endif
     }
 }
