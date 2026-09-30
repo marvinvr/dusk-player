@@ -286,8 +286,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   cursor vanishes and nothing is selectable). Do not re-enable tvOS rotation without
   first moving the play button to a stable focusable view outside the sliding slides.
   Discrete hero moves must mount the incoming slide at its off-screen offset before
-  advancing animation progress, and overlapping remote commands are queued instead of
-  replacing an in-flight slide. Publish prefetched artwork as each request completes;
+  advancing animation progress. On iOS overlapping moves are queued behind the
+  in-flight slide. On tvOS a remote press never waits: the in-flight slide is finished
+  in place and the new one starts immediately, with a shorter (0.32s) front-loaded
+  ease-out curve instead of iOS's 0.5s `easeInOut`, and backdrops are decoded off the
+  main thread (`byPreparingForDisplay`) during prefetch so the first frame of a slide
+  never stalls on a JPEG decode. Publish prefetched artwork as each request completes;
   waiting for the entire batch lets one slow image make other slides pop in late.
   Extend it carefully; it is stateful and timing-sensitive.
 - On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic

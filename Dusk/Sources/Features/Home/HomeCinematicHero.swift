@@ -128,6 +128,15 @@ struct HomeCinematicHero: View {
 
     private let heroRotationInterval: UInt64 = 7_000_000_000
 
+    /// Duration of a user-driven hero move (remote press, pager tap, chevron).
+    /// tvOS is shorter: every Siri Remote click waits on this slide, so the
+    /// iOS-paced 0.5s read as lag there.
+    #if os(tvOS)
+    private let heroPressTransitionDuration: TimeInterval = 0.32
+    #else
+    private let heroPressTransitionDuration: TimeInterval = 0.5
+    #endif
+
     var body: some View {
         let resolvedIndex = resolvedHeroIndex
         let heroWidth = pixelAlignedLength(containerSize.width)
@@ -600,7 +609,7 @@ struct HomeCinematicHero: View {
                 to: index,
                 itemCount: heroItemIDs.count
             ),
-            duration: 0.5
+            duration: heroPressTransitionDuration
         )
     }
 
@@ -731,7 +740,7 @@ struct HomeCinematicHero: View {
         moveHero(
             to: (currentHeroIndex - 1 + heroCount) % heroCount,
             direction: .backward,
-            duration: 0.5
+            duration: heroPressTransitionDuration
         )
     }
 
@@ -743,7 +752,7 @@ struct HomeCinematicHero: View {
         moveHero(
             to: (currentHeroIndex + 1) % heroCount,
             direction: .forward,
-            duration: 0.5
+            duration: heroPressTransitionDuration
         )
     }
 
@@ -823,7 +832,15 @@ struct HomeCinematicHero: View {
                 group.addTask {
                     do {
                         let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
+                        #if os(tvOS)
+                        // Decode the full-screen backdrop here, off the main
+                        // thread. Left lazy, it decodes on the first frame of
+                        // the slide that reveals it and stalls the animation
+                        // right as the press lands.
+                        return (ratingKey, await image.byPreparingForDisplay() ?? image)
+                        #else
                         return (ratingKey, image)
+                        #endif
                     } catch {
                         return (ratingKey, nil)
                     }
@@ -960,12 +977,22 @@ struct HomeCinematicHero: View {
         guard items.indices.contains(index), index != currentHeroIndex else { return }
 
         if transitioningHeroIndex != nil {
+            #if os(tvOS)
+            // A remote press never waits for the slide in flight: land it where
+            // it is headed and start the new one now. Queueing made quick
+            // presses sit behind the whole previous slide (and dropped every
+            // press past the first queued one). With the front-loaded curve the
+            // in-flight slide is nearly settled by the time a second press can
+            // land, so finishing it in place is a small, fast jump.
+            resetHeroSlideState()
+            #else
             pendingHeroTransition = PendingHeroTransition(
                 index: index,
                 direction: direction,
                 duration: duration
             )
             return
+            #endif
         }
 
         resetHeroDragState()
@@ -987,7 +1014,7 @@ struct HomeCinematicHero: View {
             await Task.yield()
             guard heroSlideRevision == slideRevision else { return }
 
-            withAnimation(.easeInOut(duration: duration)) {
+            withAnimation(heroSlideAnimation(duration: duration)) {
                 heroSlideProgress = 1
             }
 
@@ -1009,6 +1036,17 @@ struct HomeCinematicHero: View {
                 )
             }
         }
+    }
+
+    private func heroSlideAnimation(duration: TimeInterval) -> Animation {
+        #if os(tvOS)
+        // Front-loaded ease-out: the slide is already moving fast on the first
+        // frame after the press and spends its time settling. `easeInOut`
+        // barely moves for its first ~100ms, which made clicks feel ignored.
+        .timingCurve(0.16, 0.84, 0.3, 1, duration: duration)
+        #else
+        .easeInOut(duration: duration)
+        #endif
     }
 
     private func heroSlideOffset(for role: HeroSlideRole, width: CGFloat) -> CGFloat {
