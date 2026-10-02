@@ -160,11 +160,14 @@ struct SeerrSettingsView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             }
             Spacer()
-            Circle()
-                .fill(seerrService.isConnected ? Color.duskAccent : Color.duskTextSecondary.opacity(0.5))
-                .frame(width: 9, height: 9)
+            ConnectionStatusDot(tone: seerrStatusTone)
         }
         .frame(minHeight: 52)
+    }
+
+    private var seerrStatusTone: ConnectionStatusTone {
+        if seerrService.lastConnectionError != nil { return .bad }
+        return seerrService.isConnected ? .good : .neutral
     }
 
     private var tvRowDivider: some View {

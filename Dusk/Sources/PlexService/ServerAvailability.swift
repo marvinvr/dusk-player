@@ -120,6 +120,15 @@ extension PlexService {
     }
 }
 
+/// What a status dot means: green works, yellow works but slowly (relay), red
+/// is broken, grey is nothing to report (off, idle, still connecting).
+enum ConnectionStatusTone: Equatable {
+    case good
+    case degraded
+    case bad
+    case neutral
+}
+
 /// The words Dusk uses for one server's state and ownership.
 ///
 /// Shared so the Server Priority list, an inline "server is offline" note, and
@@ -139,6 +148,17 @@ enum ServerStatusText {
             "Offline"
         case .disabled:
             "Disabled"
+        }
+    }
+
+    static func tone(for state: ServerConnectionState) -> ConnectionStatusTone {
+        switch state {
+        case let .connected(connection):
+            connection.isRelay ? .degraded : .good
+        case .unauthorized, .offline:
+            .bad
+        case .idle, .connecting, .disabled:
+            .neutral
         }
     }
 

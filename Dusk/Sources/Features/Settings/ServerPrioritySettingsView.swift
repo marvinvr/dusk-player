@@ -153,10 +153,11 @@ struct ServerPrioritySettingsView: View {
 
                             Spacer(minLength: 24)
 
-                            Text(row.status)
-                                .foregroundStyle(
-                                    row.isConnected ? Color.duskAccent : Color.duskTextSecondary
-                                )
+                            HStack(spacing: 12) {
+                                ConnectionStatusDot(tone: row.tone, size: 14)
+                                Text(row.status)
+                                    .foregroundStyle(Color.duskTextSecondary)
+                            }
                         }
                         .frame(minHeight: 72)
 
@@ -323,8 +324,10 @@ private struct ServerPriorityRow: View {
                     Text("·")
                         .foregroundStyle(Color.duskTextSecondary)
 
+                    ConnectionStatusDot(tone: row.tone, size: 7)
+
                     Text(row.status)
-                        .foregroundStyle(row.isConnected ? Color.duskAccent : Color.duskTextSecondary)
+                        .foregroundStyle(Color.duskTextSecondary)
                 }
                 .font(.caption)
             }
@@ -345,6 +348,31 @@ private struct ServerPriorityRow: View {
     }
 }
 #endif
+
+// MARK: - Status dot
+
+/// Shared with the Seerr status row. Deliberately not the coral accent: next to
+/// a status word, coral reads as an error.
+struct ConnectionStatusDot: View {
+    let tone: ConnectionStatusTone
+    var size: CGFloat = 9
+
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: size, height: size)
+            .accessibilityHidden(true)
+    }
+
+    private var color: Color {
+        switch tone {
+        case .good: .green
+        case .degraded: .yellow
+        case .bad: .red
+        case .neutral: Color.duskTextSecondary.opacity(0.5)
+        }
+    }
+}
 
 // MARK: - tvOS position labels
 

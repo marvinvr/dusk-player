@@ -20,8 +20,8 @@ final class ServerPrioritySettingsViewModel {
         /// Disabled.
         let status: String
         let isEnabled: Bool
-        /// Drives the accent-colored status text; only a live session earns it.
-        let isConnected: Bool
+        /// Color of the status dot.
+        let tone: ConnectionStatusTone
     }
 
     private let plexService: PlexService
@@ -63,7 +63,9 @@ final class ServerPrioritySettingsViewModel {
                     ? "Connecting…"
                     : ServerStatusText.label(for: state),
                 isEnabled: priority.isEnabled(serverID),
-                isConnected: state.isConnected
+                tone: pendingServerIDs.contains(serverID)
+                    ? .neutral
+                    : ServerStatusText.tone(for: state)
             )
         }
     }
