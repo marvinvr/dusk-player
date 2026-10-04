@@ -142,6 +142,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                 ) {
                     contextMenuContent(item)
                 }
+                .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
             if let showAllRoute {
@@ -150,6 +151,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                     width: posterWidth,
                     imageAspectRatio: imageAspectRatio
                 )
+                .carouselItemFocusLock(isLeadingItem: items.isEmpty)
             }
         }
     }
@@ -214,6 +216,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                 ) {
                     contextMenuContent(item)
                 }
+                .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
             if let showAllRoute {
@@ -222,6 +225,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                     width: posterWidth,
                     imageAspectRatio: imageAspectRatio
                 )
+                .carouselItemFocusLock(isLeadingItem: items.isEmpty)
             }
         }
     }

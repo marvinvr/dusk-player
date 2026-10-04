@@ -42,11 +42,13 @@ struct LiveTVHomeShelf: View {
                                 .duskTVOSFocusEffectShape(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 )
+                                .carouselItemFocusLock(isLeadingItem: program.id == currentPrograms.first?.1.id)
                             }
                         }
                         .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
                     }
                     .scrollIndicators(.hidden)
+                    .carouselLeadingFocusLock(leadingInset: DuskPosterMetrics.carouselHorizontalPadding)
                 }
             }
         }

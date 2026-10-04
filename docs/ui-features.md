@@ -359,6 +359,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     the shelves' focus section is not strictly nearest-first. `firstShelfID` must
     mirror `shelves()`, including `LiveTVHomeShelf`'s "nothing on now" check, or the
     lock points at a shelf that renders nothing and the down-press dead-ends.
+    Within that first shelf only the **first card** is reachable: Home sets
+    `carouselLeadingItemFocusLock` on it, because the engine entered the shelf on
+    the third card. Carousels honour the lock through
+    `carouselLeadingFocusLock(leadingInset:)` on their scroll view (it also scrolls
+    a locked row back to its leading edge while it is off screen, and only passes
+    the lock on while the first item is in view, since a lazy stack may not have it
+    materialised) and `carouselItemFocusLock(isLeadingItem:)` on each item.
+    `MediaCarousel` and `LiveTVHomeShelf` do both; a new shelf type on Home must too.
   - **Never add a programmatic scroll on the same focus change.** It stacks on top
     of the focus engine's scroll instead of replacing it. The old choreography did
     exactly that (`ScrollPosition.scrollTo` from `onChange(of: focusedTarget)`,

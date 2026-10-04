@@ -278,7 +278,8 @@ struct HomeTVView: View {
 
     /// The shelf a down-press from the hero must land on, while the page has
     /// not yet come to rest at the fold. `nil` once it has, and every shelf is
-    /// reachable again.
+    /// reachable again. Within that shelf only the first item is reachable
+    /// (`HomeTVShelfFocus.leadingItemOnly`).
     ///
     /// The focus engine alone does not guarantee that the hero's down-press
     /// ends on the first shelf. Focus keeps moving while the page is still
@@ -290,6 +291,10 @@ struct HomeTVView: View {
     /// can go. Nothing visible changes: those shelves are below the screen
     /// while the hero is up, and none of their button styles dim when
     /// disabled.
+    ///
+    /// The same goes for the cards of the first shelf: the focus engine
+    /// entered it on the third card, not the first, so the rest of that shelf
+    /// is locked as well (`carouselLeadingItemFocusLock`).
     private var shelfLockedForHeroExit: HomeTVShelfID? {
         hasScrolledPastHero ? nil : firstShelfID
     }
@@ -322,17 +327,18 @@ struct HomeTVView: View {
 
     @ViewBuilder
     private func shelves(onlyReachableShelf: HomeTVShelfID?) -> some View {
-        let isReachable = { (shelf: HomeTVShelfID) in
-            onlyReachableShelf == nil || onlyReachableShelf == shelf
+        let focus = { (shelf: HomeTVShelfID) -> HomeTVShelfFocus in
+            guard let onlyReachableShelf else { return .reachable }
+            return onlyReachableShelf == shelf ? .leadingItemOnly : .unreachable
         }
 
         ServerOutageNote(offlineServerNames: offlineServerNames)
             .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
-            .homeTVShelfFocusable(isReachable(.outageNote))
+            .homeTVShelfFocus(focus(.outageNote))
 
         if showsLiveTV {
             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
-                .homeTVShelfFocusable(isReachable(.liveTV))
+                .homeTVShelfFocus(focus(.liveTV))
         }
 
         ForEach(viewModel.hubs) { hub in
@@ -370,7 +376,7 @@ struct HomeTVView: View {
                         }
                     )
                 }
-                .homeTVShelfFocusable(isReachable(.hub(hub.id)))
+                .homeTVShelfFocus(focus(.hub(hub.id)))
             }
         }
 
@@ -398,7 +404,7 @@ struct HomeTVView: View {
                         }
                     )
                 }
-                .homeTVShelfFocusable(isReachable(.personalized(shelf.id)))
+                .homeTVShelfFocus(focus(.personalized(shelf.id)))
             }
         }
     }
@@ -602,13 +608,22 @@ private enum HomeTVShelfID: Hashable {
     case personalized(AnyHashable)
 }
 
+/// How much of a shelf the focus engine can reach. See
+/// `HomeTVView.shelfLockedForHeroExit`.
+private enum HomeTVShelfFocus {
+    case reachable
+    /// The shelf the hero's down-press lands on: only its first item.
+    case leadingItemOnly
+    case unreachable
+}
+
 private extension View {
-    /// Takes a whole shelf out of the focus engine's reach without changing
-    /// how it looks. See `HomeTVView.shelfLockedForHeroExit`.
+    /// Limits what of a shelf can take focus without changing how it looks.
     @ViewBuilder
-    func homeTVShelfFocusable(_ isFocusable: Bool) -> some View {
+    func homeTVShelfFocus(_ focus: HomeTVShelfFocus) -> some View {
         #if os(tvOS)
-        disabled(!isFocusable)
+        disabled(focus == .unreachable)
+            .environment(\.carouselLeadingItemFocusLock, focus == .leadingItemOnly)
         #else
         self
         #endif
