@@ -36,12 +36,34 @@ struct HomeTVView: View {
     /// `HomeTVFoldSnapping` which side of the fold a focus move starts from.
     @State private var isHeroShowing = true
     /// Whether the page has come all the way off the hero and rests at (or
-    /// past) the fold. Until then only the first shelf can take focus; see
-    /// `shelfLockedForHeroExit`.
+    /// past) the fold.
     @State private var hasScrolledPastHero = false
-    /// Only `settleFold` scrolls through this, and only once the page is still.
-    /// The hero ⇄ shelves move itself is the focus engine's own scroll; see
-    /// `HomeTVFoldSnapping` for why nothing else may scroll alongside it.
+    /// Whether the shelves can take focus. They cannot while the hero has it:
+    /// the only way from the hero into the shelves is `beginHeroExit`, never
+    /// the focus engine. Latched, not derived from the scroll offset, so a
+    /// shelf is never disabled while one of its cards holds focus.
+    @State private var shelvesUnlocked = false
+    @State private var heroExit = HeroExitPhase.idle
+    /// The shelf the running hero exit lands on. Fixed when the exit starts:
+    /// a shelf that loads in above it mid-exit must not take the landing
+    /// over, because that would disable the shelf focus is arriving on.
+    @State private var heroExitShelf: HomeTVShelfID?
+    @State private var heroExitTimeout: Task<Void, Never>?
+
+    /// The hero's down-press, step by step. See `beginHeroExit`.
+    private enum HeroExitPhase {
+        case idle
+        /// Home is scrolling the page to the fold. Focus is still on the
+        /// play button and every shelf is still unreachable.
+        case scrolling
+        /// The page is at the fold. The first shelf's first item is asked to
+        /// take focus and is the only thing below the hero that can.
+        case landing
+    }
+    /// `beginHeroExit` scrolls through this (the hero's down-press), and
+    /// `settleFold` once the page is still. The move back up to the hero is
+    /// the focus engine's own scroll; see `HomeTVFoldSnapping` for why
+    /// nothing else may scroll alongside that one.
     @State private var scrollPosition = ScrollPosition(idType: Int.self)
     @State private var foldSettle = HomeTVFoldSettle()
 
@@ -115,6 +137,7 @@ struct HomeTVView: View {
                             autoRotates: false,
                             supportsDragNavigation: false,
                             selectionResetRevision: heroSelectionResetRevision,
+                            onMoveDown: { beginHeroExit(heroHeight: heroHeight) },
                             primaryAction: { item, callbacks in
                                 AnyView(
                                     Button {
@@ -134,7 +157,8 @@ struct HomeTVView: View {
                                         TVRemoteSwipeCapture(
                                             isEnabled: focusedTarget == .heroPrimaryAction,
                                             onSwipeLeft: callbacks.showPrevious,
-                                            onSwipeRight: callbacks.showNext
+                                            onSwipeRight: callbacks.showNext,
+                                            onMoveDown: { beginHeroExit(heroHeight: heroHeight) }
                                         )
                                     )
                                     #endif
@@ -183,9 +207,7 @@ struct HomeTVView: View {
                             .padding(.top, DuskPosterMetrics.pageSectionSpacing)
                     }
 
-                    shelvesStack(
-                        onlyReachableShelf: heroItems.isEmpty ? nil : shelfLockedForHeroExit
-                    )
+                    shelvesStack(hasHero: !heroItems.isEmpty)
                         .padding(
                             .top,
                             heroItems.isEmpty
@@ -211,7 +233,8 @@ struct HomeTVView: View {
             .scrollTargetBehavior(
                 HomeTVFoldSnapping(
                     foldY: heroItems.isEmpty ? nil : heroHeight,
-                    startsAboveFold: focusedTarget == .heroPrimaryAction || isHeroShowing
+                    startsAboveFold: focusedTarget == .heroPrimaryAction || isHeroShowing,
+                    pinsToFold: heroExit != .idle
                 )
             )
             .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
@@ -225,6 +248,14 @@ struct HomeTVView: View {
                 return metrics.offset >= min(heroHeight, metrics.maxOffset) - 2
             } action: { _, isPast in
                 hasScrolledPastHero = isPast
+                if isPast, heroExit == .scrolling {
+                    heroExit = .landing
+                }
+            }
+            .onPreferenceChange(CarouselLeadingItemFocusedKey.self) { hasLanded in
+                if hasLanded {
+                    finishHeroExit(heroHeight: heroHeight)
+                }
             }
             // Only a page with a hero has somewhere to return to: without one
             // there is no reliable focus target, so Back stays the system's.
@@ -235,6 +266,19 @@ struct HomeTVView: View {
             }
             .onChange(of: heroItems.isEmpty) { _, isEmpty in
                 if isEmpty { isScrolledOffTop = false }
+            }
+            // Without a hero nothing locks the shelves. Keeping the latch open
+            // then also covers a hero that arrives late: the shelves stay
+            // reachable (one of their cards may hold focus) until the play
+            // button has actually taken it.
+            .onChange(of: heroItems.isEmpty, initial: true) { _, isEmpty in
+                guard isEmpty else { return }
+                cancelHeroExit()
+                foldSettle.pendingSettle?.cancel()
+                shelvesUnlocked = true
+            }
+            .onDisappear {
+                cancelHeroExit()
             }
             .onScrollGeometryChange(for: HomeTVScrollMetrics.self) { scrollGeometry in
                 HomeTVScrollMetrics(scrollGeometry)
@@ -255,7 +299,20 @@ struct HomeTVView: View {
             #endif
             .duskTVOSPageBackground()
             .defaultFocus($focusedTarget, .heroPrimaryAction)
-            .onChange(of: focusedTarget) { _, _ in
+            .onChange(of: focusedTarget) { _, target in
+                if target == .heroPrimaryAction {
+                    shelvesUnlocked = false
+                    // Focus came back to the play button after the landing
+                    // was requested: the user went back up. Withdraw the
+                    // request so the card does not take focus again.
+                    if heroExit == .landing {
+                        cancelHeroExit()
+                    }
+                } else if heroExit == .scrolling {
+                    // Focus left the play button mid-scroll (up to the tab
+                    // bar). The card must not pull it back at the fold.
+                    cancelHeroExit()
+                }
                 // A move the fold snapping pinned in place scrolls nothing, so
                 // no geometry change would schedule the settle check.
                 scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: !heroItems.isEmpty)
@@ -269,6 +326,7 @@ struct HomeTVView: View {
             // up, and `settleFold` finishes at the very top if the snapping
             // stops at the fold. A `scrollTo` here would stack with it.
             .onChange(of: scrollToTopRevision) { _, _ in
+                cancelHeroExit()
                 Task { await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty) }
             }
             .task(id: showsLiveTV) {
@@ -286,44 +344,22 @@ struct HomeTVView: View {
     /// the focus engine then finds no target and the down-press is a dead end.
     /// A plain stack costs one extra layout pass and makes the move reliable.
     @ViewBuilder
-    private func shelvesStack(onlyReachableShelf: HomeTVShelfID?) -> some View {
+    private func shelvesStack(hasHero: Bool) -> some View {
         #if os(tvOS)
         VStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves(onlyReachableShelf: onlyReachableShelf)
+            shelves(hasHero: hasHero)
         }
         #else
         LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves(onlyReachableShelf: onlyReachableShelf)
+            shelves(hasHero: hasHero)
         }
         #endif
     }
 
-    /// The shelf a down-press from the hero must land on, while the page has
-    /// not yet come to rest at the fold. `nil` once it has, and every shelf is
-    /// reachable again. Within that shelf only the first item is reachable
-    /// (`HomeTVShelfFocus.leadingItemOnly`).
-    ///
-    /// The focus engine alone does not guarantee that the hero's down-press
-    /// ends on the first shelf. Focus keeps moving while the page is still
-    /// scrolling: a Siri Remote swipe carries momentum, and every extra step
-    /// goes one row further, so a single flick from the play button ended
-    /// three or four rows down. Entering the shelves' focus section is not
-    /// strictly nearest-first either. Disabling every other shelf until the
-    /// page rests at the fold leaves the first shelf as the only place focus
-    /// can go. Nothing visible changes: those shelves are below the screen
-    /// while the hero is up, and none of their button styles dim when
-    /// disabled.
-    ///
-    /// The same goes for the cards of the first shelf: the focus engine
-    /// entered it on the third card, not the first, so the rest of that shelf
-    /// is locked as well (`carouselLeadingItemFocusLock`).
-    private var shelfLockedForHeroExit: HomeTVShelfID? {
-        hasScrolledPastHero ? nil : firstShelfID
-    }
-
-    /// The first shelf `shelves()` actually renders. Mirrors its conditions,
-    /// including `LiveTVHomeShelf`'s own "nothing on right now" check: locking
-    /// focus to a shelf that renders nothing would dead-end the down-press.
+    /// The shelf the hero's down-press lands on: the first one `shelves()`
+    /// actually renders. Mirrors its conditions, including `LiveTVHomeShelf`'s
+    /// own "nothing on right now" check: a shelf that renders nothing has no
+    /// first item to focus, and the down-press would bounce back to the hero.
     private var firstShelfID: HomeTVShelfID? {
         if !offlineServerNames.isEmpty {
             return .outageNote
@@ -348,10 +384,19 @@ struct HomeTVView: View {
     }
 
     @ViewBuilder
-    private func shelves(onlyReachableShelf: HomeTVShelfID?) -> some View {
+    private func shelves(hasHero: Bool) -> some View {
+        let landingShelf = heroExit == .idle ? firstShelfID : heroExitShelf
         let focus = { (shelf: HomeTVShelfID) -> HomeTVShelfFocus in
-            guard let onlyReachableShelf else { return .reachable }
-            return onlyReachableShelf == shelf ? .leadingItemOnly : .unreachable
+            guard hasHero else { return .reachable }
+            // Landing outranks the latch: the first item's focus opens the
+            // latch right away, but the rest stays out of reach until the
+            // exit is over.
+            if heroExit == .landing {
+                return shelf == landingShelf ? .landing : .unreachable()
+            }
+            guard !shelvesUnlocked else { return .reachable }
+            guard shelf == landingShelf else { return .unreachable() }
+            return .unreachable(heroExit == .scrolling ? .rewind : .rewindWhenHidden)
         }
 
         ServerOutageNote(offlineServerNames: offlineServerNames)
@@ -445,10 +490,89 @@ struct HomeTVView: View {
         #endif
     }
 
+    /// The hero's down-press. Home runs it itself, start to finish, and it
+    /// always ends on the first item of the first shelf.
+    ///
+    /// The focus engine is deliberately kept out of it. Left to find its own
+    /// target below the hero it landed on the third card, or several rows
+    /// down, and every attempt to fence it in moved the problem somewhere
+    /// else. So while the hero has focus no shelf can take it
+    /// (`shelvesUnlocked`), which means a down-press finds no target and
+    /// arrives here instead: through the hero's `onMoveCommand`, and through
+    /// the remote recognizers behind the play button.
+    ///
+    /// 1. Scroll the page to the fold. Focus stays on the play button.
+    /// 2. At the fold, ask the first shelf's first item to take focus. It is
+    ///    on screen by then, so it exists (the rows are lazy) and the focus
+    ///    engine has nothing left to scroll.
+    /// 3. Once it holds focus, unlock the other shelves.
+    ///
+    /// If the item never takes focus, the timeout ends the attempt and
+    /// `settleFold` brings the page back to the hero.
+    private func beginHeroExit(heroHeight: CGFloat) {
+        guard heroExit == .idle, !shelvesUnlocked, let landingShelf = firstShelfID else { return }
+
+        heroExitShelf = landingShelf
+        heroExit = hasScrolledPastHero ? .landing : .scrolling
+        withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
+            scrollPosition.scrollTo(y: heroHeight)
+        }
+
+        heroExitTimeout?.cancel()
+        heroExitTimeout = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(1500))
+            guard !Task.isCancelled, heroExit != .idle else { return }
+            endHeroExit(heroHeight: heroHeight)
+        }
+    }
+
+    /// The first shelf's first item took focus.
+    private func finishHeroExit(heroHeight: CGFloat) {
+        guard heroExit == .landing else { return }
+
+        // Open the latch now, so nothing that ends the exit early (Home
+        // going away because the card was selected, say) can leave the
+        // focused card in a locked shelf.
+        shelvesUnlocked = true
+        heroExitTimeout?.cancel()
+        heroExitTimeout = Task { @MainActor in
+            // One remote gesture can deliver more than one move. Hold the
+            // other shelves and cards back a moment longer so the extra ones
+            // have nowhere to go.
+            try? await Task.sleep(for: .milliseconds(250))
+            guard !Task.isCancelled, heroExit == .landing else { return }
+            heroExit = .idle
+            scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: true)
+        }
+    }
+
+    /// The exit ran out of time without the first item reporting focus.
+    private func endHeroExit(heroHeight: CGFloat) {
+        // While landing, the first shelf's first item is the only thing below
+        // the hero that can take focus. So focus having left the play button
+        // with the page at the fold means it landed after all, and keeping
+        // the shelves locked would pull them out from under it. Otherwise
+        // they stay locked and `settleFold` brings the hero back.
+        if heroExit == .landing, hasScrolledPastHero, focusedTarget != .heroPrimaryAction {
+            shelvesUnlocked = true
+        }
+        heroExit = .idle
+        scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: true)
+    }
+
+    /// Drops a running hero exit without touching the latch: Back, a hero
+    /// focus reset, focus returning to the play button, or Home going away.
+    /// The shelves stay as they are and `settleFold` puts the page right.
+    private func cancelHeroExit() {
+        heroExitTimeout?.cancel()
+        heroExitTimeout = nil
+        heroExit = .idle
+    }
+
     private func scheduleFoldSettle(heroHeight: CGFloat, hasHeroItems: Bool) {
+        foldSettle.pendingSettle?.cancel()
         guard hasHeroItems else { return }
 
-        foldSettle.pendingSettle?.cancel()
         foldSettle.pendingSettle = Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(200))
             guard !Task.isCancelled else { return }
@@ -456,34 +580,33 @@ struct HomeTVView: View {
         }
     }
 
-    /// Safety net behind `HomeTVFoldSnapping`: once the page has stopped
-    /// moving, make sure it rests on one of its two stops, the full hero or
-    /// the first shelf at the fold.
+    /// Safety net: once the page has stopped moving, make sure it rests where
+    /// its focus state says it should.
     ///
-    /// The snapping reads the focus engine's proposed offset, and where the
-    /// focus engine puts a newly focused item is its own business. If it ever
-    /// proposes something the snapping misreads, this is what repairs it: the
-    /// focused play button with the hero scrolled away, or a sliver of hero
-    /// left above the first shelf. It only runs when the page is still, so it
-    /// can never become a second scroll racing the focus engine's, which is
-    /// what caused the old multi-row overshoot. With well-behaved proposals it
-    /// never scrolls at all.
+    /// - Shelves locked (focus is on the hero, or a hero exit failed): the
+    ///   full hero. Nothing below it can take focus, so resting anywhere else
+    ///   would strand the user.
+    /// - Shelves unlocked: at or past the fold, never on a sliver of hero.
+    ///
+    /// The move back up to the hero is the focus engine's scroll, bent by
+    /// `HomeTVFoldSnapping`; where the engine puts a newly focused item is its
+    /// own business, and this repairs a proposal the snapping misread. It only
+    /// runs when the page is still and no hero exit is under way, so it never
+    /// races another scroll. Normally it does nothing.
     private func settleFold(heroHeight: CGFloat) {
+        guard heroExit == .idle else { return }
+
         let metrics = foldSettle.metrics
         // A short page may not scroll far enough to reach the fold at all.
         let fold = min(heroHeight, metrics.maxOffset)
         guard fold > 1 else { return }
 
-        if focusedTarget == .heroPrimaryAction {
+        if !shelvesUnlocked {
             guard metrics.offset > 1 else { return }
             withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
                 scrollPosition.scrollTo(edge: .top)
             }
         } else if metrics.offset > 1, metrics.offset < fold - 1 {
-            // Focus is off the hero (nothing on the hero but the play button
-            // takes focus) while part of the hero is still on screen. The tab
-            // bar never lands here: focus reaches it either from the hero at
-            // rest or from a shelf with the page at or past the fold.
             withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
                 scrollPosition.scrollTo(y: fold)
             }
@@ -494,6 +617,7 @@ struct HomeTVView: View {
     private func requestHeroPrimaryFocusIfNeeded(hasHeroItems: Bool) async {
         guard hasHeroItems else { return }
 
+        cancelHeroExit()
         // Reset the home focus scope after the hero enters the hierarchy so both
         // initial launch and re-entry from the tab bar prefer the hero action.
         focusedTarget = nil
@@ -585,11 +709,20 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
     /// render, so it describes the page as it was *before* the focus move that
     /// triggered the scroll.
     var startsAboveFold: Bool
+    /// A hero exit is under way (`HomeTVView.beginHeroExit`): the page is
+    /// going to the fold and nowhere else, whatever the focus engine proposes
+    /// when the first card takes focus.
+    var pinsToFold = false
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
         // Only the vertical page scroll, never the shelves' own carousels.
         guard let foldY, foldY > 0, context.axes.contains(.vertical) else { return }
         let proposedY = target.rect.minY
+
+        if pinsToFold {
+            target.rect.origin.y = foldY
+            return
+        }
 
         if startsAboveFold {
             // The play button is the only thing on the hero that takes focus,
@@ -630,22 +763,39 @@ private enum HomeTVShelfID: Hashable {
     case personalized(AnyHashable)
 }
 
-/// How much of a shelf the focus engine can reach. See
-/// `HomeTVView.shelfLockedForHeroExit`.
-private enum HomeTVShelfFocus {
+/// How much of a shelf can take focus. See `HomeTVView.beginHeroExit`.
+private enum HomeTVShelfFocus: Equatable {
     case reachable
-    /// The shelf the hero's down-press lands on: only its first item.
-    case leadingItemOnly
-    case unreachable
+    /// Out of the focus engine's reach. The first shelf also gets told to
+    /// bring its row back to the first item, ready for the next landing.
+    case unreachable(CarouselLeadingItemRequest = .none)
+    /// The hero's down-press is landing here: only the first item can take
+    /// focus, and it is asked to.
+    case landing
+
+    var isDisabled: Bool {
+        if case .unreachable = self { return true }
+        return false
+    }
+
+    var request: CarouselLeadingItemRequest {
+        switch self {
+        case .reachable: .none
+        case .unreachable(let request): request
+        case .landing: .focus
+        }
+    }
 }
 
 private extension View {
-    /// Limits what of a shelf can take focus without changing how it looks.
-    @ViewBuilder
+    /// Limits what of a shelf can take focus without changing how it looks:
+    /// none of the shelves' button styles dim when disabled.
     func homeTVShelfFocus(_ focus: HomeTVShelfFocus) -> some View {
         #if os(tvOS)
-        disabled(focus == .unreachable)
-            .environment(\.carouselLeadingItemFocusLock, focus == .leadingItemOnly)
+        // One view for every case: a `switch` here would remount the shelf,
+        // and with it its scroll position, whenever the case changes.
+        disabled(focus.isDisabled)
+            .environment(\.carouselLeadingItemRequest, focus.request)
         #else
         self
         #endif
@@ -734,6 +884,9 @@ private struct TVRemoteSwipeCapture: UIViewRepresentable {
     let isEnabled: Bool
     let onSwipeLeft: () -> Void
     let onSwipeRight: () -> Void
+    /// A down swipe or a down click. Belt and braces next to the hero's
+    /// `onMoveCommand`: either one starting the hero exit is enough.
+    let onMoveDown: () -> Void
 
     func makeUIView(context: Context) -> SwipeCaptureView {
         let view = SwipeCaptureView()
@@ -741,7 +894,8 @@ private struct TVRemoteSwipeCapture: UIViewRepresentable {
         view.update(
             isEnabled: isEnabled,
             onSwipeLeft: onSwipeLeft,
-            onSwipeRight: onSwipeRight
+            onSwipeRight: onSwipeRight,
+            onMoveDown: onMoveDown
         )
         return view
     }
@@ -750,7 +904,8 @@ private struct TVRemoteSwipeCapture: UIViewRepresentable {
         uiView.update(
             isEnabled: isEnabled,
             onSwipeLeft: onSwipeLeft,
-            onSwipeRight: onSwipeRight
+            onSwipeRight: onSwipeRight,
+            onMoveDown: onMoveDown
         )
     }
 }
@@ -770,9 +925,30 @@ private final class SwipeCaptureView: UIView, UIGestureRecognizerDelegate {
         return recognizer
     }()
 
+    private lazy var swipeDownRecognizer: UISwipeGestureRecognizer = {
+        let recognizer = UISwipeGestureRecognizer(target: self, action: #selector(handleSwipe(_:)))
+        recognizer.direction = .down
+        recognizer.delegate = self
+        return recognizer
+    }()
+    /// The click on the bottom edge of the remote's clickpad. Presses only:
+    /// with touches allowed it would also fire for a tap on the touch surface.
+    private lazy var pressDownRecognizer: UITapGestureRecognizer = {
+        let recognizer = UITapGestureRecognizer(target: self, action: #selector(handlePressDown))
+        recognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.downArrow.rawValue)]
+        recognizer.allowedTouchTypes = []
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    private var recognizers: [UIGestureRecognizer] {
+        [swipeLeftRecognizer, swipeRightRecognizer, swipeDownRecognizer, pressDownRecognizer]
+    }
+
     private var isSwipeCaptureEnabled = false
     private var onSwipeLeft: () -> Void = {}
     private var onSwipeRight: () -> Void = {}
+    private var onMoveDown: () -> Void = {}
 
     override func didMoveToSuperview() {
         super.didMoveToSuperview()
@@ -795,11 +971,15 @@ private final class SwipeCaptureView: UIView, UIGestureRecognizerDelegate {
     func update(
         isEnabled: Bool,
         onSwipeLeft: @escaping () -> Void,
-        onSwipeRight: @escaping () -> Void
+        onSwipeRight: @escaping () -> Void,
+        onMoveDown: @escaping () -> Void
     ) {
         isSwipeCaptureEnabled = isEnabled
+        swipeDownRecognizer.isEnabled = isEnabled
+        pressDownRecognizer.isEnabled = isEnabled
         self.onSwipeLeft = onSwipeLeft
         self.onSwipeRight = onSwipeRight
+        self.onMoveDown = onMoveDown
         attachRecognizersIfNeeded()
     }
 
@@ -819,9 +999,17 @@ private final class SwipeCaptureView: UIView, UIGestureRecognizerDelegate {
             onSwipeLeft()
         case .right:
             onSwipeRight()
+        case .down:
+            onMoveDown()
         default:
             break
         }
+    }
+
+    @objc
+    private func handlePressDown() {
+        guard isSwipeCaptureEnabled else { return }
+        onMoveDown()
     }
 
     private func attachRecognizersIfNeeded() {
@@ -829,14 +1017,14 @@ private final class SwipeCaptureView: UIView, UIGestureRecognizerDelegate {
         guard attachedView !== targetView else { return }
 
         detachRecognizers()
-        targetView.addGestureRecognizer(swipeLeftRecognizer)
-        targetView.addGestureRecognizer(swipeRightRecognizer)
+        recognizers.forEach(targetView.addGestureRecognizer)
         attachedView = targetView
     }
 
     private func detachRecognizers() {
-        attachedView?.removeGestureRecognizer(swipeLeftRecognizer)
-        attachedView?.removeGestureRecognizer(swipeRightRecognizer)
+        if let attachedView {
+            recognizers.forEach(attachedView.removeGestureRecognizer)
+        }
         attachedView = nil
     }
 }

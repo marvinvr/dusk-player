@@ -39,35 +39,59 @@ struct MediaCarousel<Content: View>: View {
     }
 }
 
+/// tvOS: what Home asks of the shelf its hero's down-press lands on.
+///
+/// Home never lets the focus engine pick that landing spot (it picked the
+/// third card, or a row further down). It scrolls the page itself and then
+/// asks the shelf's first item to take focus. See `HomeTVView.beginHeroExit`.
+enum CarouselLeadingItemRequest {
+    case none
+    /// Scroll back to the first item, but only while the row is off screen.
+    case rewindWhenHidden
+    /// Scroll back to the first item now.
+    case rewind
+    /// Scroll back to the first item, focus it, and keep every other item
+    /// out of the focus engine's reach.
+    case focus
+}
+
 extension EnvironmentValues {
-    /// tvOS: while true, only a carousel's first item can take focus.
-    ///
-    /// Home sets it on its first shelf while the full-screen hero is up, so the
-    /// hero's down-press lands on that shelf's first card. Left to itself, the
-    /// focus engine enters the shelves' focus section on whichever card it
-    /// likes (it picked the third). A carousel honours it with
-    /// `carouselLeadingFocusLock(leadingInset:)` on its scroll view and
-    /// `carouselItemFocusLock(isLeadingItem:)` on every item.
-    @Entry var carouselLeadingItemFocusLock = false
+    /// A carousel honours it with `carouselLeadingFocusLock(leadingInset:)` on
+    /// its scroll view, `carouselItemFocusLock(isLeadingItem:)` on every item,
+    /// and `carouselLeadingFocusTarget()` on the focusable view of an item.
+    @Entry var carouselLeadingItemRequest = CarouselLeadingItemRequest.none
+}
+
+/// Whether the item a `.focus` request asked for now holds focus.
+struct CarouselLeadingItemFocusedKey: PreferenceKey {
+    static let defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
 }
 
 extension View {
-    /// Applies `carouselLeadingItemFocusLock` to a carousel's horizontal scroll
+    /// Applies `carouselLeadingItemRequest` to a carousel's horizontal scroll
     /// view. `leadingInset` is the content's leading padding.
     ///
-    /// While the lock is requested and the carousel is off screen, it scrolls
-    /// back to its leading edge, so a row the user had scrolled along offers
-    /// its first item again by the time the lock matters. The lock only reaches
-    /// the items while the first one is in view: it sits in a lazy stack, and
-    /// locking focus to an item that is not materialised would dead-end the
-    /// move into the carousel.
+    /// The first item sits in a lazy stack, so it only exists while the row is
+    /// at its leading edge. Until a row asked to `.focus` has been rewound, its
+    /// items only see `.rewind`: every item but the first is already out of
+    /// reach, and the first one is asked for focus once it is in view.
     func carouselLeadingFocusLock(leadingInset: CGFloat) -> some View {
         modifier(CarouselLeadingFocusLock(leadingInset: leadingInset))
     }
 
-    /// Marks one carousel item for `carouselLeadingItemFocusLock`.
+    /// Marks one carousel item for `carouselLeadingItemRequest`.
     func carouselItemFocusLock(isLeadingItem: Bool) -> some View {
         modifier(CarouselItemFocusLock(isLeadingItem: isLeadingItem))
+    }
+
+    /// Put this on the focusable view of a carousel item (the button, not its
+    /// container). It takes focus when a `.focus` request reaches it.
+    func carouselLeadingFocusTarget() -> some View {
+        modifier(CarouselLeadingFocusTarget())
     }
 }
 
@@ -75,7 +99,7 @@ private struct CarouselLeadingFocusLock: ViewModifier {
     let leadingInset: CGFloat
 
     #if os(tvOS)
-    @Environment(\.carouselLeadingItemFocusLock) private var isRequested
+    @Environment(\.carouselLeadingItemRequest) private var request
     @State private var scrollPosition = ScrollPosition()
     @State private var isLeadingItemInView = true
     @State private var isOnScreen = true
@@ -93,21 +117,33 @@ private struct CarouselLeadingFocusLock: ViewModifier {
             }
             .onScrollVisibilityChange(threshold: 0.01) { isVisible in
                 isOnScreen = isVisible
-                returnToLeadingEdgeIfHidden()
+                rewindIfRequested()
             }
-            .onChange(of: isRequested) { _, _ in
-                returnToLeadingEdgeIfHidden()
+            .onChange(of: request) { _, _ in
+                rewindIfRequested()
             }
-            .environment(\.carouselLeadingItemFocusLock, isRequested && isLeadingItemInView)
+            .environment(
+                \.carouselLeadingItemRequest,
+                request == .focus ? (isLeadingItemInView ? .focus : .rewind) : .none
+            )
         #else
         content
         #endif
     }
 
     #if os(tvOS)
-    /// Only while nobody can see it, so the row never visibly jumps.
-    private func returnToLeadingEdgeIfHidden() {
-        guard isRequested, !isOnScreen, !isLeadingItemInView else { return }
+    private func rewindIfRequested() {
+        switch request {
+        case .none:
+            return
+        case .rewindWhenHidden:
+            // Nobody can see it, so the row never visibly jumps.
+            guard !isOnScreen else { return }
+        case .rewind, .focus:
+            break
+        }
+
+        guard !isLeadingItemInView else { return }
         scrollPosition.scrollTo(edge: .leading)
     }
     #endif
@@ -117,17 +153,45 @@ private struct CarouselItemFocusLock: ViewModifier {
     let isLeadingItem: Bool
 
     #if os(tvOS)
-    @Environment(\.carouselLeadingItemFocusLock) private var isLocked
+    @Environment(\.carouselLeadingItemRequest) private var request
     #endif
 
     func body(content: Content) -> some View {
         #if os(tvOS)
-        // `.disabled` takes the item out of the focus engine's reach. The
-        // poster cards' chrome-suppressed style ignores `isEnabled`, so they do
-        // not dim; the Live TV cards use the system `.plain` style, which may.
-        // Either way a locked row is only on screen while the page scrolls
-        // from the hero to the fold.
-        content.disabled(isLocked && !isLeadingItem)
+        content
+            .disabled(request != .none && !isLeadingItem)
+            .environment(\.carouselLeadingItemRequest, isLeadingItem ? request : .none)
+        #else
+        content
+        #endif
+    }
+}
+
+private struct CarouselLeadingFocusTarget: ViewModifier {
+    #if os(tvOS)
+    @Environment(\.carouselLeadingItemRequest) private var request
+    @FocusState private var isFocused: Bool
+    #endif
+
+    func body(content: Content) -> some View {
+        #if os(tvOS)
+        let wantsFocus = request == .focus
+
+        content
+            .focused($isFocused)
+            // A task rather than `onChange`, so an item that only materialises
+            // after the request was made still answers it.
+            .task(id: wantsFocus) {
+                guard wantsFocus else { return }
+                isFocused = true
+                // An item that has only just materialised may not be in the
+                // focus system yet. Withdrawing the request cancels this.
+                try? await Task.sleep(for: .milliseconds(120))
+                if !Task.isCancelled, !isFocused {
+                    isFocused = true
+                }
+            }
+            .preference(key: CarouselLeadingItemFocusedKey.self, value: wantsFocus && isFocused)
         #else
         content
         #endif

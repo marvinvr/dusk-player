@@ -39,6 +39,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             }
             .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
+            .carouselLeadingFocusTarget()
             .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .contextMenu {
                 contextMenuContent()
@@ -146,6 +147,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             }
             .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
+            .carouselLeadingFocusTarget()
             .duskTVOSFocusEffectShape(artworkShape, scales: false)
             .contextMenu {
                 contextMenuContent()

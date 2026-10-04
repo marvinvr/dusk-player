@@ -121,6 +121,8 @@ struct ServerOutageNote: View {
                     Task { await connections.refresh() }
                 }
                 .duskSuppressTVOSButtonChrome()
+                // On tvOS Home this can be the first thing under the hero.
+                .carouselLeadingFocusTarget()
             }
             .font(.footnote)
             .foregroundStyle(Color.duskTextSecondary)

@@ -135,6 +135,10 @@ struct HomeCinematicHero: View {
     var autoRotates = true
     var supportsDragNavigation = false
     let selectionResetRevision: Int
+    /// tvOS: a down-press that the focus engine had no target for. `HomeTVView`
+    /// keeps its shelves out of the engine's reach while the hero has focus,
+    /// so every down-press from the hero ends up here.
+    var onMoveDown: (() -> Void)? = nil
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
@@ -756,9 +760,10 @@ struct HomeCinematicHero: View {
         case .right:
             guard heroItemIDs.count > 1 else { return }
             showNextHero()
-        case .up, .down:
-            // Vertical moves belong to the focus engine. `HomeTVView` shapes
-            // the scroll they cause with its fold snapping.
+        case .down:
+            onMoveDown?()
+        case .up:
+            // Belongs to the focus engine (the tab bar).
             break
         @unknown default:
             break

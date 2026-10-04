@@ -36,6 +36,7 @@ struct ShowAllCarouselTile: View {
         }
         .duskSuppressTVOSButtonChrome()
         .focused($isFocused)
+        .carouselLeadingFocusTarget()
         .duskTVOSFocusEffectShape(shape, scales: false)
         .frame(width: width, alignment: .topLeading)
         .duskTVOSFocusedScale(isFocused)

@@ -344,50 +344,58 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     and omitted entirely when there is nothing below the hero. Keep it out of
     `HomeCinematicHero`'s per-item slide — mounting it there would re-create it on
     every hero change and disturb the focus binding.
-  - Hero ⇄ shelves scrolling is **the focus engine's own scroll, bent by a
+  - **Hero → shelves is Home's own sequence, not the focus engine's**
+    (`HomeTVView.beginHeroExit`). Left to find its own target below the hero, the
+    engine landed on the third card of the first shelf, or several rows down, and
+    every attempt to fence it in (disable the other shelves, then the other cards)
+    moved the problem. So the engine no longer gets a say:
+    - While the hero has focus, **every shelf is `.disabled`** (`shelvesUnlocked`
+      is false). A down-press therefore has no target and reaches Home instead,
+      through the hero's `onMoveCommand` (`HomeCinematicHero.onMoveDown`) and
+      through the down-swipe / down-click recognizers in `TVRemoteSwipeCapture`.
+      Either is enough; the second is redundancy against a dead end.
+    - `beginHeroExit` scrolls the page to the fold itself (`.scrolling`), and at
+      the fold (`.landing`) sets `carouselLeadingItemRequest = .focus` on
+      `firstShelfID`'s shelf. That shelf's first item takes focus through its own
+      `@FocusState` (`carouselLeadingFocusTarget()`), every other item in the row
+      is disabled, and the row is rewound to its start first so the lazy stack has
+      the item. The item reports back through `CarouselLeadingItemFocusedKey`,
+      which opens the latch; the exit itself ends 250ms later and only then are
+      the other shelves and cards reachable. If nothing takes focus within 1.5s
+      the attempt ends and `settleFold` returns the page to the hero. The landing
+      shelf is fixed when the exit starts (`heroExitShelf`), and Back, a hero
+      focus reset, focus returning to the play button, and Home disappearing all
+      go through `cancelHeroExit`.
+    - `shelvesUnlocked` is **latched**: it only drops when focus is back on the
+      play button, and it stays open while there is no hero. Never derive shelf enablement from the scroll offset — a shelf
+      that is disabled while one of its cards holds focus makes the engine pick a
+      new focus item on its own.
+    - A carousel that can be Home's first shelf must apply
+      `carouselLeadingFocusLock(leadingInset:)` to its scroll view,
+      `carouselItemFocusLock(isLeadingItem:)` to each item, and
+      `carouselLeadingFocusTarget()` to each item's focusable view.
+      `MediaCarousel` + the poster cards, `ShowAllCarouselTile`, `LiveTVHomeShelf`,
+      and `ServerOutageNote`'s Retry button do. `firstShelfID` must mirror
+      `shelves()`, including `LiveTVHomeShelf`'s "nothing on now" check.
+    - Shelf button styles must not dim when disabled (the shelves are disabled
+      while they scroll away under a re-focused hero).
+  - **Shelves → hero is the focus engine's own scroll, bent by a
     `ScrollTargetBehavior`** (`HomeTVFoldSnapping`, Apple's fold-snapping pattern
     from the "Creating a tvOS media catalog app in SwiftUI" sample). On tvOS the
     offset the focus engine is about to scroll to when it reveals a newly focused
-    item goes through `updateTarget` first. From the hero, any real scroll is focus
-    leaving for the shelves, so it lands at the fold (`heroHeight`: first shelf at
-    the top of the display) — but a target already past the fold is left alone,
-    never pulled back up: it means focus went past the first shelf (swipe momentum
-    or a second press while the hero was still showing), and pinning it parked focus
-    off screen below the visible rows. From below the fold, a target short of the fold either
-    reveals the whole hero (it would show more than half of it, i.e. focus is going
-    back to the low play button) or stays at the fold (the focus engine nudging the
-    first shelf). Past the fold nothing is touched. Which side a scroll starts from
-    comes from the last render: play button focused, or the hero still covering half
-    the screen.
-  - **The hero's down-press can only reach the first shelf.** Until the page rests
-    at the fold (`hasScrolledPastHero`), every shelf except the first rendered one
-    (`firstShelfID`: outage note, Live TV, first hub, first personalized shelf) is
-    `.disabled`, which takes it out of the focus engine's reach without dimming
-    anything. The engine alone kept landing three or four rows down: a swipe's
-    momentum keeps stepping focus while the page is still scrolling, and entering
-    the shelves' focus section is not strictly nearest-first. `firstShelfID` must
-    mirror `shelves()`, including `LiveTVHomeShelf`'s "nothing on now" check, or the
-    lock points at a shelf that renders nothing and the down-press dead-ends.
-    Within that first shelf only the **first card** is reachable: Home sets
-    `carouselLeadingItemFocusLock` on it, because the engine entered the shelf on
-    the third card. Carousels honour the lock through
-    `carouselLeadingFocusLock(leadingInset:)` on their scroll view (it also scrolls
-    a locked row back to its leading edge while it is off screen, and only passes
-    the lock on while the first item is in view, since a lazy stack may not have it
-    materialised) and `carouselItemFocusLock(isLeadingItem:)` on each item.
-    `MediaCarousel` and `LiveTVHomeShelf` do both; a new shelf type on Home must too.
-  - **Never add a programmatic scroll on the same focus change.** It stacks on top
-    of the focus engine's scroll instead of replacing it. The old choreography did
-    exactly that (`ScrollPosition.scrollTo` from `onChange(of: focusedTarget)`,
-    id-anchored first, then offset-based) and threw a single down-press from the
-    hero several rows past the first shelf.
-  - `settleFold` is the only programmatic scroll left. It runs 200ms after the page
-    stops moving (a geometry-change debounce, so it never races the focus engine),
-    and only repairs a page resting between its two stops: focused play button with
-    the hero scrolled away → back to the top, focus off the hero with a sliver of
-    hero on screen → to the fold. With the focus engine proposing what the snapping
-    expects, it never scrolls. The per-frame metrics and pending check live in a
-    class (`HomeTVFoldSettle`) so scrolling does not re-render Home every frame.
+    item goes through `updateTarget` first. From below the fold, a target short of
+    the fold either reveals the whole hero (it would show more than half of it, i.e.
+    focus is going back to the low play button) or stays at the fold (the focus
+    engine nudging the first shelf). Past the fold nothing is touched. During a
+    hero exit every target is pinned to the fold (`pinsToFold`).
+  - **Never add a programmatic scroll on a focus change the engine made.** It
+    stacks on top of the engine's reveal scroll instead of replacing it; that threw
+    the page several rows past the first shelf. The hero exit is safe because the
+    order is reversed: scroll first, with focus parked on the play button, and
+    focus only once the target is already on screen.
+  - `settleFold` runs 200ms after the page stops moving, never during a hero exit.
+    Shelves locked → the page rests on the full hero; shelves unlocked → at or past
+    the fold, never on a sliver of hero. Normally it does nothing.
   - The shelf stack is a plain `VStack` on tvOS, not a `LazyVStack`: with the hero
     filling the screen the first shelf starts exactly at the fold, and an
     unmaterialised lazy stack turns the down-press into a dead end.
