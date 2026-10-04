@@ -76,6 +76,9 @@ struct MainTabIOSShell<Content: View>: View {
 struct MainTabTVShell<Content: View>: View {
     let tabs: [MainTabItem]
     let selection: Binding<MainTabItem>
+    /// Runs on a Siri Remote Back press at the root of the selected tab; `nil`
+    /// leaves the press to the system. See `MainTabView.rootBackAction`.
+    let rootBackAction: (() -> Void)?
     let content: (MainTabItem) -> Content
 
     var body: some View {
@@ -95,8 +98,114 @@ struct MainTabTVShell<Content: View>: View {
         }
         .tint(Color.duskTVTabBarTint)
         .background(Color.duskBackground.ignoresSafeArea())
+        #if os(tvOS)
+        .background {
+            DuskTVRootBackInterceptor(action: rootBackAction)
+                .frame(width: 0, height: 0)
+        }
+        #endif
     }
 }
+
+#if os(tvOS)
+/// Zero-size helper that takes the Siri Remote's Back press away from the
+/// system at the root of a tab, where tvOS would otherwise leave the app.
+///
+/// SwiftUI's `onExitCommand` cannot do this: it only fires while focus is in
+/// the tab's content, and Back with focus on the tab bar goes straight to the
+/// system. A Back-only tap recognizer on the tab bar controller's view sees
+/// the press wherever focus is in the shell, tab bar included. Anything
+/// presented on top (the player, sheets, menus) lives outside that view, so
+/// it never sees their presses.
+///
+/// The recognizer refuses the press, leaving the system's behaviour intact,
+/// whenever there is no action or the selected tab has a pushed screen: the
+/// navigation stack's own pop must win there.
+private struct DuskTVRootBackInterceptor: UIViewControllerRepresentable {
+    let action: (() -> Void)?
+
+    func makeUIViewController(context: Context) -> DuskTVRootBackController {
+        DuskTVRootBackController()
+    }
+
+    func updateUIViewController(_ uiViewController: DuskTVRootBackController, context: Context) {
+        uiViewController.action = action
+        uiViewController.installIfNeeded()
+    }
+}
+
+private final class DuskTVRootBackController: UIViewController, UIGestureRecognizerDelegate {
+    var action: (() -> Void)?
+
+    private weak var shellTabBarController: UITabBarController?
+
+    private lazy var recognizer: UITapGestureRecognizer = {
+        let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleBack))
+        recognizer.allowedPressTypes = [NSNumber(value: UIPress.PressType.menu.rawValue)]
+        // Presses only: a tap on the remote's touch surface is not Back.
+        recognizer.allowedTouchTypes = []
+        recognizer.delegate = self
+        return recognizer
+    }()
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        installIfNeeded()
+    }
+
+    /// Attaches the recognizer to the shell's tab bar controller, moving it if
+    /// SwiftUI has rebuilt that controller since the last look.
+    func installIfNeeded() {
+        guard let tabBarController = resolvedTabBarController() else { return }
+        guard recognizer.view !== tabBarController.view else { return }
+        recognizer.view?.removeGestureRecognizer(recognizer)
+        tabBarController.view.addGestureRecognizer(recognizer)
+        shellTabBarController = tabBarController
+    }
+
+    @objc private func handleBack() {
+        action?()
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
+        guard action != nil, let tabBarController = shellTabBarController else { return false }
+        guard tabBarController.presentedViewController == nil else { return false }
+        let selected = tabBarController.selectedViewController ?? tabBarController
+        return !Self.hasPushedScreen(in: selected)
+    }
+
+    /// Whether any navigation stack inside `controller` shows more than its
+    /// root. SwiftUI's `NavigationStack` is a `UINavigationController` under
+    /// the hood, which also covers `NavigationLink(destination:)` pushes that
+    /// never appear in the tab's `NavigationPath`.
+    private static func hasPushedScreen(in controller: UIViewController) -> Bool {
+        if let navigationController = controller as? UINavigationController,
+           navigationController.viewControllers.count > 1 {
+            return true
+        }
+        return controller.children.contains { hasPushedScreen(in: $0) }
+    }
+
+    private func resolvedTabBarController() -> UITabBarController? {
+        // The helper sits beside the `TabView`, not inside it, so the tab bar
+        // controller is not in its parent chain. Search from the window root.
+        guard let root = view.window?.rootViewController else { return nil }
+        return Self.firstTabBarController(in: root)
+    }
+
+    private static func firstTabBarController(in controller: UIViewController) -> UITabBarController? {
+        if let tabBarController = controller as? UITabBarController {
+            return tabBarController
+        }
+        for child in controller.children {
+            if let tabBarController = firstTabBarController(in: child) {
+                return tabBarController
+            }
+        }
+        return nil
+    }
+}
+#endif
 
 /// Zero-size helper that keeps the tvOS tab bar tinted with
 /// `Color.duskTVTabBarTint`.

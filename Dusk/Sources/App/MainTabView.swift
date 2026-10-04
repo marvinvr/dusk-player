@@ -18,6 +18,10 @@ struct MainTabView: View {
     @State private var morePath = NavigationPath()
     @State private var librariesViewModel: LibrariesViewModel?
     @State private var liveTVViewModel: LiveTVViewModel?
+    #if os(tvOS)
+    @State private var isHomeScrolledOffTop = false
+    @State private var homeScrollToTopRevision = 0
+    #endif
 
     var body: some View {
         @Bindable var bindablePlayback = playback
@@ -75,11 +79,35 @@ struct MainTabView: View {
     @ViewBuilder
     private var shellView: some View {
         #if os(tvOS)
-        MainTabTVShell(tabs: availableTabs, selection: tabSelection, content: tabRootView(for:))
+        MainTabTVShell(
+            tabs: availableTabs,
+            selection: tabSelection,
+            rootBackAction: rootBackAction,
+            content: tabRootView(for:)
+        )
         #else
         MainTabIOSShell(tabs: availableTabs, selection: tabSelection, content: tabRootView(for:))
         #endif
     }
+
+    #if os(tvOS)
+    /// What the Siri Remote's Back press does at the root of a tab, or `nil`
+    /// to leave it to the system.
+    ///
+    /// By default Back at a tab root leaves the app, which feels wrong
+    /// anywhere but Home. So every other tab goes back to Home, and Home
+    /// scrolled down goes back to its hero. Only Home at its top leaves the
+    /// app. Pushed screens keep the system's pop: the shell also checks the
+    /// real navigation stack, because settings rows push without the path.
+    private var rootBackAction: (() -> Void)? {
+        guard path(for: selectedTab).isEmpty else { return nil }
+        if selectedTab != .home {
+            return { activate(.home) }
+        }
+        guard isHomeScrolledOffTop else { return nil }
+        return { homeScrollToTopRevision += 1 }
+    }
+    #endif
 
     private var hasDownloads: Bool {
         DownloadsFeature.isVisible && !downloadManager.records.isEmpty
@@ -176,11 +204,21 @@ struct MainTabView: View {
     private func tabRootView(for tab: MainTabItem) -> some View {
         switch tab {
         case .home:
+            #if os(tvOS)
+            HomeView(
+                path: $homePath,
+                isSelected: selectedTab == .home,
+                liveTVViewModel: resolvedLiveTVViewModel,
+                isScrolledOffTop: $isHomeScrolledOffTop,
+                scrollToTopRevision: homeScrollToTopRevision
+            )
+            #else
             HomeView(
                 path: $homePath,
                 isSelected: selectedTab == .home,
                 liveTVViewModel: resolvedLiveTVViewModel
             )
+            #endif
         case .library(let libraryType):
             if let librariesViewModel {
                 LibrariesView(

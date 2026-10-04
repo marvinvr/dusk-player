@@ -11,6 +11,12 @@ struct HomeView: View {
     @Binding var path: NavigationPath
     let isSelected: Bool
     let liveTVViewModel: LiveTVViewModel
+    /// tvOS: set while the page is scrolled away from its top, so the tab
+    /// shell can send the Siri Remote's Back press back to the hero instead
+    /// of letting it leave the app.
+    var isScrolledOffTop: Binding<Bool> = .constant(false)
+    /// tvOS: bumped by the tab shell to bring the page back to the hero.
+    var scrollToTopRevision = 0
     @State private var viewModel: HomeViewModel?
     @State private var heroSelectionResetRevision = 0
 
@@ -86,6 +92,8 @@ struct HomeView: View {
             heroSelectionResetRevision: heroSelectionResetRevision,
             liveTVViewModel: liveTVViewModel,
             showsLiveTV: preferences.showsLiveTVOnHome,
+            isScrolledOffTop: isScrolledOffTop,
+            scrollToTopRevision: scrollToTopRevision,
             playLiveTV: playLiveTV,
             play: play
         )

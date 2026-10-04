@@ -21,6 +21,10 @@ struct HomeTVView: View {
     let heroSelectionResetRevision: Int
     let liveTVViewModel: LiveTVViewModel
     let showsLiveTV: Bool
+    /// Reports whether the page is scrolled away from its top. See
+    /// `HomeView.isScrolledOffTop`.
+    @Binding var isScrolledOffTop: Bool
+    let scrollToTopRevision: Int
     let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
     let play: (PlexItem) -> Void
 
@@ -222,6 +226,11 @@ struct HomeTVView: View {
             } action: { _, isPast in
                 hasScrolledPastHero = isPast
             }
+            .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
+                HomeTVScrollMetrics(scrollGeometry).offset > 1
+            } action: { _, isOffTop in
+                isScrolledOffTop = isOffTop
+            }
             .onScrollGeometryChange(for: HomeTVScrollMetrics.self) { scrollGeometry in
                 HomeTVScrollMetrics(scrollGeometry)
             } action: { _, metrics in
@@ -248,6 +257,9 @@ struct HomeTVView: View {
             }
             .task(id: heroItemIDs) {
                 await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
+            }
+            .onChange(of: scrollToTopRevision) { _, _ in
+                Task { await returnToTop(hasHeroItems: !heroItems.isEmpty) }
             }
             .task(id: showsLiveTV) {
                 guard showsLiveTV else { return }
@@ -480,6 +492,24 @@ struct HomeTVView: View {
         resetFocus(in: homeFocusScope)
         #endif
         focusedTarget = .heroPrimaryAction
+    }
+
+    /// The Siri Remote's Back press while the page is scrolled down: go back
+    /// to the hero (or, without one, to the top).
+    ///
+    /// This only moves focus. The focus engine's reveal scroll, bent by
+    /// `HomeTVFoldSnapping`, carries the page up, and `settleFold` finishes it
+    /// at the very top if the snapping stops at the fold. A `scrollTo` here
+    /// would stack with that reveal scroll.
+    @MainActor
+    private func returnToTop(hasHeroItems: Bool) async {
+        if hasHeroItems {
+            await requestHeroPrimaryFocusIfNeeded(hasHeroItems: true)
+        } else {
+            #if os(tvOS)
+            resetFocus(in: homeFocusScope)
+            #endif
+        }
     }
 
     private func fullDisplayWidth(fallback: CGFloat) -> CGFloat {
