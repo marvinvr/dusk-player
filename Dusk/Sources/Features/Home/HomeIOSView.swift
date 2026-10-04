@@ -3,6 +3,7 @@ import SwiftUI
 import UIKit
 
 struct HomeIOSView: View {
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
@@ -38,7 +39,7 @@ struct HomeIOSView: View {
                             viewModel: viewModel,
                             containerSize: geometry.size,
                             topInset: geometry.safeAreaInsets.top,
-                            layout: .ios,
+                            layout: heroLayout,
                             autoRotates: true,
                             supportsDragNavigation: true,
                             selectionResetRevision: heroSelectionResetRevision,
@@ -202,6 +203,14 @@ struct HomeIOSView: View {
                 .duskNavigationBarTitleDisplayModeLarge()
                 .toolbarBackground(.visible, for: .navigationBar)
         }
+    }
+
+    /// Regular-width iPad gets the near-full-screen hero; iPhone and compact
+    /// iPad multitasking keep the shorter banner.
+    private var heroLayout: HomeCinematicHeroLayout {
+        UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular
+            ? .iPad
+            : .ios
     }
 
     private var showsCinematicHero: Bool {

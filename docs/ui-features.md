@@ -152,13 +152,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   a hero that owns the whole display — it holds full strength to ~86% and only
   vignettes across the last stretch. Every case must still reach, and hold, zero
   alpha before the hero's bottom edge; that is what makes the HDR seam impossible.
-  On iOS the overlay's own scrim strength is selectable via its `style`: the home hero
-  keeps the default `.standard`, while the movie/show/season/episode detail heroes pass
+  On iOS the overlay's own scrim strength is selectable via its `style`: the iPhone home
+  hero keeps the default `.standard`, the regular-width iPad home hero uses `.cinematic`
+  (short top band for the status bar/toolbar, nearly clear middle, darkening and the
+  `duskBackground` fade held to the lower third), while the movie/show/season/episode detail heroes pass
   `.soft` to hold the darkening and bottom fade off until the lower third so more of the
   backdrop reads through behind the title block. `.standard` and `.soft` differ on iOS
   only — on tvOS both render the long-standing full-strength vertical scrim. The one
   overlay style that changes tvOS is `.cinematic` (0.10 → 0.20@55% → 0.62@82% →
-  0.88), used **only** by the full-screen tvOS home hero so the artwork stays nearly
+  0.88), used **only** by the home hero (full-screen on tvOS, near-full-screen on iPad) so the artwork stays nearly
   unscrimmed above the title block; the shared leading ramp is unchanged. Do not
   repoint the detail heroes at it.
   Never paint `Color.duskBackground` (gradient or solid) inside a hero subtree on
@@ -294,6 +296,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   never stalls on a JPEG decode. Publish prefetched artwork as each request completes;
   waiting for the entire batch lets one slow image make other slides pop in late.
   Extend it carefully; it is stateful and timing-sensitive.
+- On iPad (regular width) the home hero uses `HomeCinematicHeroLayout.iPad`: it fills
+  the scroll viewport down to the bottom inset (`heroHeightFactor: 1`), so at rest only
+  the first shelf's header and poster tops peek in below it — that peek is iPad's
+  scroll affordance. Portrait is capped at a square (`maxHeightToWidthRatio: 1`) so a
+  16:9 backdrop isn't cropped to a sliver. iPhone and compact-width iPad multitasking
+  keep `.ios`. `HomeIOSView.heroLayout` makes the choice.
 - On tvOS, `HomeCinematicHero` pixel-aligns its render size and caps image dynamic
   range to standard to avoid real-device HDR/SDR seams between the backdrop fade and
   the shelves below.

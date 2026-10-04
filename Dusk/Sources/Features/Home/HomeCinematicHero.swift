@@ -11,6 +11,10 @@ struct HomeCinematicHeroLayout {
     /// `topInset` addition — the caller already sized the container to the whole
     /// display). tvOS uses this for the full-bleed cinematic home hero.
     var fillsContainerHeight: Bool = false
+    /// Caps the factor-derived height (before `topInset`) at this multiple of
+    /// the container width, so a tall portrait iPad doesn't crop a 16:9
+    /// backdrop down to a sliver. Ignored with `fillsContainerHeight`.
+    var maxHeightToWidthRatio: CGFloat? = nil
     var maxContentWidth: CGFloat = 620
     var contentHorizontalPadding: CGFloat = 20
     var contentTopPadding: CGFloat = 64
@@ -39,6 +43,35 @@ struct HomeCinematicHeroLayout {
     var summaryLineSpacing: CGFloat = 4
 
     static let ios = HomeCinematicHeroLayout(summaryLineLimit: 2)
+    /// iPad (regular width): a near-full-screen take on the tvOS hero. It fills
+    /// the scroll viewport down to the bottom inset, so only the first shelf's
+    /// header and the top of its posters peek in under it — enough of a hint
+    /// that the page scrolls, since iPad has no tvOS-style "More" affordance.
+    /// Portrait is held to a square (`maxHeightToWidthRatio`) to keep the
+    /// backdrop's crop sane, and `.cinematic` keeps the artwork nearly clear
+    /// above the title block.
+    static let iPad = HomeCinematicHeroLayout(
+        heroHeightFactor: 1,
+        heroHeightRange: 560 ... 1200,
+        maxHeightToWidthRatio: 1,
+        maxContentWidth: 680,
+        contentHorizontalPadding: 32,
+        contentTopPadding: 64,
+        contentBottomPaddingWithPager: 64,
+        contentBottomPaddingWithoutPager: 36,
+        actionsTopPadding: 6,
+        pagerHorizontalPadding: 32,
+        pagerBottomPadding: 32,
+        titleFontSize: 54,
+        titleLogoMaxWidth: 520,
+        titleLogoMaxHeight: 136,
+        backdropOverlayStyle: .cinematic,
+        titleBlockSpacingMovie: 16,
+        titleBlockSpacingOther: 12,
+        episodeTitleFont: .title2.weight(.semibold),
+        metadataFont: .callout.weight(.medium),
+        summaryLineLimit: 3
+    )
     /// Apple TV: the hero owns the **entire** screen. Heights come from the
     /// container (`fillsContainerHeight`), and the paddings below are measured
     /// from the real display edges, not from a banner box:
@@ -147,7 +180,8 @@ struct HomeCinematicHero: View {
             ? containerSize.height
             : min(
                 max(containerSize.height * layout.heroHeightFactor, layout.heroHeightRange.lowerBound),
-                layout.heroHeightRange.upperBound
+                layout.heroHeightRange.upperBound,
+                layout.maxHeightToWidthRatio.map { containerSize.width * $0 } ?? .infinity
             ) + topInset
         let heroHeight = pixelAlignedLength(rawHeroHeight)
         let backdropWidth = Int(heroWidth.rounded(.up))

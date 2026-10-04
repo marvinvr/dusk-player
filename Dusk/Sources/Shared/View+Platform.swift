@@ -619,20 +619,21 @@ struct DetailHeroBackdrop: View {
 /// `.standard` and `.soft` differ on iOS only; on tvOS both render the same
 /// full-strength vertical scrim they always have, and rely on
 /// `duskHeroBackdropBottomFade()` for the bottom transition. `.cinematic` is the
-/// one style that changes the tvOS scrim, and only the tvOS home hero uses it.
+/// one style that changes the tvOS scrim; only the home hero uses it (tvOS, and
+/// the iPad layout on iOS).
 enum DuskHeroOverlayStyle {
-    /// Full-strength scrim. Used by the iOS home cinematic hero, whose rotating
+    /// Full-strength scrim. Used by the iPhone home cinematic hero, whose rotating
     /// backdrops need a dependable dark base for the overlaid text.
     case standard
     /// Lighter scrim that lets more of the backdrop read through. Used by the
     /// movie/show/season/episode detail heroes, where the artwork should lead
     /// and the title block sits in the lower third over a still-solid base.
     case soft
-    /// Full-screen tvOS home hero. The backdrop *is* the screen, so the top two
-    /// thirds stay nearly clear and the darkening is deferred to the lower
-    /// third, where the title block, pager and scroll hint live. tvOS-only in
-    /// practice; on iOS it resolves to `.standard`'s curves so the enum stays
-    /// total.
+    /// Full-screen home hero (tvOS, and the near-full-screen iPad layout). The
+    /// backdrop *is* the screen, so the top two thirds stay nearly clear and
+    /// the darkening is deferred to the lower third, where the title block,
+    /// pager and scroll hint live. On iOS it also adds a short top band behind
+    /// the status bar and toolbar.
     case cinematic
 
     #if os(tvOS)
@@ -662,11 +663,21 @@ enum DuskHeroOverlayStyle {
     /// upper two thirds close to clear and only ramps up behind the title block.
     var verticalDarkeningStops: [Gradient.Stop] {
         switch self {
-        case .standard, .cinematic:
+        case .standard:
             return [
                 .init(color: Color.black.opacity(0.18), location: 0),
                 .init(color: Color.black.opacity(0.56), location: 0.62),
                 .init(color: Color.black.opacity(0.86), location: 1),
+            ]
+        case .cinematic:
+            // A short top band keeps the status bar and toolbar legible; the
+            // middle stays nearly clear and the darkening waits for the title block.
+            return [
+                .init(color: Color.black.opacity(0.30), location: 0),
+                .init(color: Color.black.opacity(0.08), location: 0.14),
+                .init(color: Color.black.opacity(0.12), location: 0.50),
+                .init(color: Color.black.opacity(0.42), location: 0.78),
+                .init(color: Color.black.opacity(0.72), location: 1),
             ]
         case .soft:
             return [
@@ -685,7 +696,17 @@ enum DuskHeroOverlayStyle {
     /// simply holds the fade off until the lower third.
     var bottomBackgroundFadeStops: [Gradient.Stop] {
         switch self {
-        case .standard, .cinematic:
+        case .cinematic:
+            return [
+                .init(color: Color.duskBackground.opacity(0), location: 0),
+                .init(color: Color.duskBackground.opacity(0), location: 0.58),
+                .init(color: Color.duskBackground.opacity(0.10), location: 0.70),
+                .init(color: Color.duskBackground.opacity(0.36), location: 0.81),
+                .init(color: Color.duskBackground.opacity(0.72), location: 0.90),
+                .init(color: Color.duskBackground, location: 0.96),
+                .init(color: Color.duskBackground, location: 1),
+            ]
+        case .standard:
             return [
                 .init(color: Color.duskBackground.opacity(0), location: 0),
                 .init(color: Color.duskBackground.opacity(0), location: 0.20),
