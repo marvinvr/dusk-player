@@ -69,6 +69,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (`AccentColorTV`, matching `Color.duskTVTabBarTint`) so the window tint has no
   coral to hand down; SwiftUI content keeps Sunset Coral through the root
   `.tint(Color.duskAccent)` in `DuskApp`.
+- tvOS Back (Siri Remote Menu) at a tab root goes to Home, and on Home
+  scrolled down it returns focus to the hero; only Home at its top leaves the
+  app. `MainTabView.rootBackAction` decides, `DuskTVRootBackInterceptor` (a
+  Menu-only tap recognizer on the `UITabBarController`'s view) catches the
+  press with focus in the content or on the tab bar. The recognizer refuses
+  the press whenever the selected tab has a pushed screen, checked on the real
+  `UINavigationController` because Settings rows push with
+  `NavigationLink(destination:)`, outside the tab's `NavigationPath`.
+  `onExitCommand` cannot do this: it never sees Back with focus on the tab bar.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
   only when multiple features need to navigate to them.
 - Use `NavigationLink(value:)` with `AppNavigationRoute` for media/person/library flows.

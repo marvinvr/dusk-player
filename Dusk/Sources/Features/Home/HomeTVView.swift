@@ -226,10 +226,15 @@ struct HomeTVView: View {
             } action: { _, isPast in
                 hasScrolledPastHero = isPast
             }
+            // Only a page with a hero has somewhere to return to: without one
+            // there is no reliable focus target, so Back stays the system's.
             .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
-                HomeTVScrollMetrics(scrollGeometry).offset > 1
+                !heroItems.isEmpty && HomeTVScrollMetrics(scrollGeometry).offset > 1
             } action: { _, isOffTop in
                 isScrolledOffTop = isOffTop
+            }
+            .onChange(of: heroItems.isEmpty) { _, isEmpty in
+                if isEmpty { isScrolledOffTop = false }
             }
             .onScrollGeometryChange(for: HomeTVScrollMetrics.self) { scrollGeometry in
                 HomeTVScrollMetrics(scrollGeometry)
@@ -258,8 +263,13 @@ struct HomeTVView: View {
             .task(id: heroItemIDs) {
                 await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty)
             }
+            // The Siri Remote's Back press while the page is scrolled down.
+            // This only moves focus back to the hero: the focus engine's
+            // reveal scroll, bent by `HomeTVFoldSnapping`, carries the page
+            // up, and `settleFold` finishes at the very top if the snapping
+            // stops at the fold. A `scrollTo` here would stack with it.
             .onChange(of: scrollToTopRevision) { _, _ in
-                Task { await returnToTop(hasHeroItems: !heroItems.isEmpty) }
+                Task { await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty) }
             }
             .task(id: showsLiveTV) {
                 guard showsLiveTV else { return }
@@ -492,24 +502,6 @@ struct HomeTVView: View {
         resetFocus(in: homeFocusScope)
         #endif
         focusedTarget = .heroPrimaryAction
-    }
-
-    /// The Siri Remote's Back press while the page is scrolled down: go back
-    /// to the hero (or, without one, to the top).
-    ///
-    /// This only moves focus. The focus engine's reveal scroll, bent by
-    /// `HomeTVFoldSnapping`, carries the page up, and `settleFold` finishes it
-    /// at the very top if the snapping stops at the fold. A `scrollTo` here
-    /// would stack with that reveal scroll.
-    @MainActor
-    private func returnToTop(hasHeroItems: Bool) async {
-        if hasHeroItems {
-            await requestHeroPrimaryFocusIfNeeded(hasHeroItems: true)
-        } else {
-            #if os(tvOS)
-            resetFocus(in: homeFocusScope)
-            #endif
-        }
     }
 
     private func fullDisplayWidth(fallback: CGFloat) -> CGFloat {

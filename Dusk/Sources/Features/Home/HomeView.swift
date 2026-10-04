@@ -45,6 +45,11 @@ struct HomeView: View {
                     FeatureLoadingView()
                 }
             }
+            // The scrolled-down report comes from the page itself, so it goes
+            // stale once a loading, error, or outage state replaces the page.
+            .onChange(of: showsPlatformContent) { _, isShowing in
+                if !isShowing { isScrolledOffTop.wrappedValue = false }
+            }
             // Keyed on the merged-content revision: Home has to reload when a
             // server connects or drops, when priority changes, and when the
             // profile changes — the tab shell mounts before any of that.
@@ -110,6 +115,13 @@ struct HomeView: View {
             play: play
         )
         #endif
+    }
+
+    /// Mirrors the branches in `body`: whether the page itself is on screen.
+    private var showsPlatformContent: Bool {
+        guard let viewModel else { return false }
+        if viewModel.hasLoadedContent { return true }
+        return availability.isReady && !viewModel.isLoading && viewModel.error == nil
     }
 
     private var availability: ServerAvailability {
