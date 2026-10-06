@@ -41,17 +41,21 @@ struct MediaCarousel<Content: View>: View {
 
 /// tvOS: what Home asks of the shelf its hero's down-press lands on.
 ///
-/// Home never lets the focus engine pick that landing spot (it picked the
-/// third card, or a row further down). It scrolls the page itself and then
-/// asks the shelf's first item to take focus. See `HomeTVView.beginHeroExit`.
+/// Home does not let the focus engine's own pick stand (it picked the third
+/// card, or a row further down). It scrolls the page to the fold and asks the
+/// shelf's first item to take focus. See `HomeTVView.beginHeroExit`.
+///
+/// None of this disables anything. A row with nothing focusable left in it
+/// is stood in for by a focusable filler item, and a move into that filler
+/// ends wherever UIKit then decides.
 enum CarouselLeadingItemRequest {
     case none
     /// Scroll back to the first item, but only while the row is off screen.
     case rewindWhenHidden
     /// Scroll back to the first item now.
     case rewind
-    /// Scroll back to the first item, focus it, and keep every other item
-    /// out of the focus engine's reach.
+    /// Scroll back to the first item and focus it; again on every bump of
+    /// `carouselLeadingFocusGeneration` while the request stands.
     case focus
 }
 
@@ -60,6 +64,19 @@ extension EnvironmentValues {
     /// its scroll view, `carouselItemFocusLock(isLeadingItem:)` on every item,
     /// and `carouselLeadingFocusTarget()` on the focusable view of an item.
     @Entry var carouselLeadingItemRequest = CarouselLeadingItemRequest.none
+    /// Bumped by whoever made a `.focus` request to have the item take focus
+    /// again after it lost it. The requester decides, not the item: a request
+    /// it has just withdrawn must not be answered by a stale re-assertion.
+    @Entry var carouselLeadingFocusGeneration = 0
+}
+
+/// Whether any carousel item holds focus.
+struct CarouselItemFocusedKey: PreferenceKey {
+    static let defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
 }
 
 /// Whether the item a `.focus` request asked for now holds focus.
@@ -77,13 +94,14 @@ extension View {
     ///
     /// The first item sits in a lazy stack, so it only exists while the row is
     /// at its leading edge. Until a row asked to `.focus` has been rewound, its
-    /// items only see `.rewind`: every item but the first is already out of
-    /// reach, and the first one is asked for focus once it is in view.
+    /// items only see `.rewind`; the first one is asked for focus once it is in
+    /// view.
     func carouselLeadingFocusLock(leadingInset: CGFloat) -> some View {
         modifier(CarouselLeadingFocusLock(leadingInset: leadingInset))
     }
 
-    /// Marks one carousel item for `carouselLeadingItemRequest`.
+    /// Marks one carousel item for `carouselLeadingItemRequest`: only the
+    /// leading item sees the request.
     func carouselItemFocusLock(isLeadingItem: Bool) -> some View {
         modifier(CarouselItemFocusLock(isLeadingItem: isLeadingItem))
     }
@@ -159,7 +177,6 @@ private struct CarouselItemFocusLock: ViewModifier {
     func body(content: Content) -> some View {
         #if os(tvOS)
         content
-            .disabled(request != .none && !isLeadingItem)
             .environment(\.carouselLeadingItemRequest, isLeadingItem ? request : .none)
         #else
         content
@@ -170,6 +187,7 @@ private struct CarouselItemFocusLock: ViewModifier {
 private struct CarouselLeadingFocusTarget: ViewModifier {
     #if os(tvOS)
     @Environment(\.carouselLeadingItemRequest) private var request
+    @Environment(\.carouselLeadingFocusGeneration) private var generation
     @FocusState private var isFocused: Bool
     #endif
 
@@ -181,7 +199,7 @@ private struct CarouselLeadingFocusTarget: ViewModifier {
             .focused($isFocused)
             // A task rather than `onChange`, so an item that only materialises
             // after the request was made still answers it.
-            .task(id: wantsFocus) {
+            .task(id: wantsFocus ? generation : nil) {
                 guard wantsFocus else { return }
                 isFocused = true
                 // An item that has only just materialised may not be in the
@@ -192,6 +210,7 @@ private struct CarouselLeadingFocusTarget: ViewModifier {
                 }
             }
             .preference(key: CarouselLeadingItemFocusedKey.self, value: wantsFocus && isFocused)
+            .preference(key: CarouselItemFocusedKey.self, value: isFocused)
         #else
         content
         #endif

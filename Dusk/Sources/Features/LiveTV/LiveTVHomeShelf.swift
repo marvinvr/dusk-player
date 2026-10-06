@@ -38,10 +38,6 @@ struct LiveTVHomeShelf: View {
                                         )
                                     )
                                 }
-                                // tvOS: Home disables this shelf while its
-                                // hero is up, and `.plain` may dim a disabled
-                                // button. The innermost style wins.
-                                .duskSuppressTVOSButtonChrome()
                                 .buttonStyle(.plain)
                                 .duskTVOSFocusEffectShape(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)

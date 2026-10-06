@@ -35,29 +35,32 @@ struct HomeTVView: View {
     /// Whether the hero still covers at least half the screen. Tells
     /// `HomeTVFoldSnapping` which side of the fold a focus move starts from.
     @State private var isHeroShowing = true
-    /// Whether the page has come all the way off the hero and rests at (or
-    /// past) the fold.
-    @State private var hasScrolledPastHero = false
-    /// Whether the shelves can take focus. They cannot while the hero has it:
-    /// the only way from the hero into the shelves is `beginHeroExit`, never
-    /// the focus engine. Latched, not derived from the scroll offset, so a
-    /// shelf is never disabled while one of its cards holds focus.
+    /// Whether focus has settled below the hero. Closed while the play button
+    /// has focus; opened once the hero's down-press has landed on the first
+    /// shelf's first item (`beginHeroExit`). Latched, not derived from the
+    /// scroll offset. Tells `settleFold` which end the page belongs at, and a
+    /// card taking focus while it is closed means the focus engine moved
+    /// down from the hero on its own, which starts the landing.
     @State private var shelvesUnlocked = false
     @State private var heroExit = HeroExitPhase.idle
     /// The shelf the running hero exit lands on. Fixed when the exit starts:
     /// a shelf that loads in above it mid-exit must not take the landing
-    /// over, because that would disable the shelf focus is arriving on.
+    /// over from under the card focus is arriving on.
     @State private var heroExitShelf: HomeTVShelfID?
     @State private var heroExitTimeout: Task<Void, Never>?
+    /// See `carouselLeadingFocusGeneration`.
+    @State private var heroExitFocusGeneration = 0
+    /// `requestHeroPrimaryFocusIfNeeded` is moving focus back to the play
+    /// button. A card that holds focus for a moment in between is not the
+    /// focus engine moving down from the hero.
+    @State private var isReturningToHero = false
 
-    /// The hero's down-press, step by step. See `beginHeroExit`.
+    /// The hero's down-press. See `beginHeroExit`.
     private enum HeroExitPhase {
         case idle
-        /// Home is scrolling the page to the fold. Focus is still on the
-        /// play button and every shelf is still unreachable.
-        case scrolling
-        /// The page is at the fold. The first shelf's first item is asked to
-        /// take focus and is the only thing below the hero that can.
+        /// The page is going to the fold and the first shelf's first item is
+        /// asked to take focus, and to take it back from any further move
+        /// the same gesture delivers.
         case landing
     }
     /// `beginHeroExit` scrolls through this (the hero's down-press), and
@@ -208,6 +211,7 @@ struct HomeTVView: View {
                     }
 
                     shelvesStack(hasHero: !heroItems.isEmpty)
+                        .environment(\.carouselLeadingFocusGeneration, heroExitFocusGeneration)
                         .padding(
                             .top,
                             heroItems.isEmpty
@@ -242,20 +246,23 @@ struct HomeTVView: View {
             } action: { _, isShowing in
                 isHeroShowing = isShowing
             }
-            .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
-                let metrics = HomeTVScrollMetrics(scrollGeometry)
-                // A short page may not scroll far enough to reach the fold.
-                return metrics.offset >= min(heroHeight, metrics.maxOffset) - 2
-            } action: { _, isPast in
-                hasScrolledPastHero = isPast
-                if isPast, heroExit == .scrolling {
-                    heroExit = .landing
-                }
-            }
             .onPreferenceChange(CarouselLeadingItemFocusedKey.self) { hasLanded in
                 if hasLanded {
                     finishHeroExit(heroHeight: heroHeight)
+                } else if heroExit == .landing, shelvesUnlocked, focusedTarget != .heroPrimaryAction {
+                    // The first item had focus and lost it to a further move
+                    // of the same gesture while the landing is still open.
+                    // Not to the play button: that is the user going back up,
+                    // and `focusedTarget` has already withdrawn the request.
+                    heroExitFocusGeneration += 1
                 }
+            }
+            // The focus engine moved focus from the play button into a shelf
+            // by itself. Wherever it put it, the landing takes over. Same as
+            // `onMoveDown`, which may or may not have fired already.
+            .onPreferenceChange(CarouselItemFocusedKey.self) { isCardFocused in
+                guard isCardFocused, !heroItems.isEmpty, !shelvesUnlocked, !isReturningToHero else { return }
+                beginHeroExit(heroHeight: heroHeight)
             }
             // Only a page with a hero has somewhere to return to: without one
             // there is no reliable focus target, so Back stays the system's.
@@ -308,10 +315,6 @@ struct HomeTVView: View {
                     if heroExit == .landing {
                         cancelHeroExit()
                     }
-                } else if heroExit == .scrolling {
-                    // Focus left the play button mid-scroll (up to the tab
-                    // bar). The card must not pull it back at the fold.
-                    cancelHeroExit()
                 }
                 // A move the fold snapping pinned in place scrolls nothing, so
                 // no geometry change would schedule the settle check.
@@ -387,16 +390,9 @@ struct HomeTVView: View {
     private func shelves(hasHero: Bool) -> some View {
         let landingShelf = heroExit == .idle ? firstShelfID : heroExitShelf
         let focus = { (shelf: HomeTVShelfID) -> HomeTVShelfFocus in
-            guard hasHero else { return .reachable }
-            // Landing outranks the latch: the first item's focus opens the
-            // latch right away, but the rest stays out of reach until the
-            // exit is over.
-            if heroExit == .landing {
-                return shelf == landingShelf ? .landing : .unreachable()
-            }
-            guard !shelvesUnlocked else { return .reachable }
-            guard shelf == landingShelf else { return .unreachable() }
-            return .unreachable(heroExit == .scrolling ? .rewind : .rewindWhenHidden)
+            guard hasHero, shelf == landingShelf else { return .reachable() }
+            if heroExit == .landing { return .landing }
+            return .reachable(shelvesUnlocked ? .none : .rewindWhenHidden)
         }
 
         ServerOutageNote(offlineServerNames: offlineServerNames)
@@ -490,30 +486,41 @@ struct HomeTVView: View {
         #endif
     }
 
-    /// The hero's down-press. Home runs it itself, start to finish, and it
-    /// always ends on the first item of the first shelf.
+    /// The hero's down-press. Whatever the focus engine does with it, the
+    /// landing ends on the first item of the first shelf.
     ///
-    /// The focus engine is deliberately kept out of it. Left to find its own
-    /// target below the hero it landed on the third card, or several rows
-    /// down, and every attempt to fence it in moved the problem somewhere
-    /// else. So while the hero has focus no shelf can take it
-    /// (`shelvesUnlocked`), which means a down-press finds no target and
-    /// arrives here instead: through the hero's `onMoveCommand`, and through
-    /// the remote recognizers behind the play button.
+    /// The focus engine is not fenced out, and must not be: a shelf with
+    /// nothing focusable in it (disabled, or a lazy row not yet realised) is
+    /// stood in for by a filler item that *is* focusable. The press moves
+    /// focus into the filler, the play button's binding drops to nil, and
+    /// UIKit then picks a target of its own, which is how three rounds of
+    /// `.disabled` fences each landed somewhere else (third card, fifth row).
+    /// Measured in the simulator with a replica of this screen; see
+    /// `docs/ui-features.md`.
     ///
-    /// 1. Scroll the page to the fold. Focus stays on the play button.
-    /// 2. At the fold, ask the first shelf's first item to take focus. It is
-    ///    on screen by then, so it exists (the rows are lazy) and the focus
-    ///    engine has nothing left to scroll.
-    /// 3. Once it holds focus, unlock the other shelves.
+    /// So the press is left alone and overruled instead. It reaches here two
+    /// ways, in either order, and the first one wins:
+    /// - the hero's `onMoveCommand(.down)` (which fires whether or not the
+    ///   engine moved focus) and the remote recognizers behind the play
+    ///   button;
+    /// - a shelf card taking focus while `shelvesUnlocked` is closed, i.e.
+    ///   the engine moved down by itself.
     ///
-    /// If the item never takes focus, the timeout ends the attempt and
-    /// `settleFold` brings the page back to the hero.
+    /// 1. Scroll the page to the fold. `HomeTVFoldSnapping` pins every
+    ///    scroll the engine makes meanwhile to the fold as well.
+    /// 2. Ask the first shelf's first item to take focus. It answers as soon
+    ///    as it exists (the rows are lazy; the fold brings it on screen).
+    /// 3. Once it holds focus, open the latch. The landing stays open 250 ms
+    ///    more, and any further move of the same gesture that pulls focus
+    ///    off the item in that time is answered by asking it again
+    ///    (`heroExitFocusGeneration`).
+    ///
+    /// If the item never answers, the timeout returns focus to the hero.
     private func beginHeroExit(heroHeight: CGFloat) {
         guard heroExit == .idle, !shelvesUnlocked, let landingShelf = firstShelfID else { return }
 
         heroExitShelf = landingShelf
-        heroExit = hasScrolledPastHero ? .landing : .scrolling
+        heroExit = .landing
         withAnimation(.easeInOut(duration: foldSettleAnimationDuration)) {
             scrollPosition.scrollTo(y: heroHeight)
         }
@@ -528,17 +535,20 @@ struct HomeTVView: View {
 
     /// The first shelf's first item took focus.
     private func finishHeroExit(heroHeight: CGFloat) {
-        guard heroExit == .landing else { return }
+        // Once per exit: the item reporting focus again after a re-assertion
+        // must not push the deadline back, or a gesture that keeps delivering
+        // moves would keep the landing open for as long as it lasts.
+        guard heroExit == .landing, !shelvesUnlocked else { return }
 
         // Open the latch now, so nothing that ends the exit early (Home
-        // going away because the card was selected, say) can leave the
-        // focused card in a locked shelf.
+        // going away because the card was selected, say) can leave it
+        // closed with focus on a card.
         shelvesUnlocked = true
         heroExitTimeout?.cancel()
         heroExitTimeout = Task { @MainActor in
-            // One remote gesture can deliver more than one move. Hold the
-            // other shelves and cards back a moment longer so the extra ones
-            // have nowhere to go.
+            // One remote gesture can deliver more than one move. Keep the
+            // request standing a moment longer so the item takes focus back
+            // from the extra ones.
             try? await Task.sleep(for: .milliseconds(250))
             guard !Task.isCancelled, heroExit == .landing else { return }
             heroExit = .idle
@@ -547,17 +557,18 @@ struct HomeTVView: View {
     }
 
     /// The exit ran out of time without the first item reporting focus.
+    ///
+    /// Back to the hero, whatever has focus. Focus may be on some card the
+    /// focus engine picked, but the page has been pinned to the fold the
+    /// whole time, so that card can be anywhere below the screen; the only
+    /// place both focus and page are known to agree is the hero.
     private func endHeroExit(heroHeight: CGFloat) {
-        // While landing, the first shelf's first item is the only thing below
-        // the hero that can take focus. So focus having left the play button
-        // with the page at the fold means it landed after all, and keeping
-        // the shelves locked would pull them out from under it. Otherwise
-        // they stay locked and `settleFold` brings the hero back.
-        if heroExit == .landing, hasScrolledPastHero, focusedTarget != .heroPrimaryAction {
-            shelvesUnlocked = true
-        }
         heroExit = .idle
-        scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: true)
+        if focusedTarget == .heroPrimaryAction {
+            scheduleFoldSettle(heroHeight: heroHeight, hasHeroItems: true)
+        } else {
+            Task { await requestHeroPrimaryFocusIfNeeded(hasHeroItems: true) }
+        }
     }
 
     /// Drops a running hero exit without touching the latch: Back, a hero
@@ -583,10 +594,10 @@ struct HomeTVView: View {
     /// Safety net: once the page has stopped moving, make sure it rests where
     /// its focus state says it should.
     ///
-    /// - Shelves locked (focus is on the hero, or a hero exit failed): the
-    ///   full hero. Nothing below it can take focus, so resting anywhere else
-    ///   would strand the user.
-    /// - Shelves unlocked: at or past the fold, never on a sliver of hero.
+    /// - Latch closed (focus is on the play button): the full hero. Resting
+    ///   anywhere else would leave the focused button off screen.
+    /// - Latch open (focus is below the hero): at or past the fold, never on
+    ///   a sliver of hero.
     ///
     /// The move back up to the hero is the focus engine's scroll, bent by
     /// `HomeTVFoldSnapping`; where the engine puts a newly focused item is its
@@ -618,6 +629,8 @@ struct HomeTVView: View {
         guard hasHeroItems else { return }
 
         cancelHeroExit()
+        isReturningToHero = true
+        defer { isReturningToHero = false }
         // Reset the home focus scope after the hero enters the hierarchy so both
         // initial launch and re-entry from the tab bar prefer the hero action.
         focusedTarget = nil
@@ -733,15 +746,14 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
             // low because the first thing below the fold can be small, like
             // the outage note's Retry button.
             //
-            // Never pull a target that is already past the fold back up to it.
-            // That target reveals something below the first shelf: a swipe
-            // with momentum, or a second press, moved focus on while the hero
-            // was still showing (`startsAboveFold` is the last render, so it
-            // lags the scroll). Pinning it would park focus off screen below
-            // the visible rows, and the next press would then jump to it.
-            // Every shelf item sits below the fold, so moving a target short
-            // of the fold down to it keeps the focused item on screen.
-            target.rect.origin.y = proposedY < foldY * 0.15 ? 0 : max(proposedY, foldY)
+            //
+            // A target past the fold is the focus engine revealing whatever
+            // it picked below the first shelf on its own. That pick never
+            // stands: `HomeTVView.beginHeroExit` moves focus to the first
+            // shelf's first item, which sits exactly at the fold, so the page
+            // goes to the fold and nowhere else. Letting the target through
+            // would scroll rows down and back again.
+            target.rect.origin.y = proposedY < foldY * 0.15 ? 0 : foldY
         } else if proposedY < foldY {
             // Below the fold, stopping anywhere short of it would leave a
             // sliver of hero on screen. A target that shows more than half of
@@ -763,39 +775,34 @@ private enum HomeTVShelfID: Hashable {
     case personalized(AnyHashable)
 }
 
-/// How much of a shelf can take focus. See `HomeTVView.beginHeroExit`.
+/// What Home asks of a shelf. See `HomeTVView.beginHeroExit`.
+///
+/// Nothing here ever disables a shelf. A shelf with nothing focusable in it
+/// (every card disabled, or a lazy row with nothing realised yet) is still a
+/// focus target: SwiftUI stands a filler item in for it, the down-press moves
+/// focus into the filler, and UIKit then picks a new focus target on its own,
+/// which is how the press ended rows down. Every earlier attempt fenced the
+/// focus engine with `.disabled` and ran straight into that.
 private enum HomeTVShelfFocus: Equatable {
-    case reachable
-    /// Out of the focus engine's reach. The first shelf also gets told to
-    /// bring its row back to the first item, ready for the next landing.
-    case unreachable(CarouselLeadingItemRequest = .none)
-    /// The hero's down-press is landing here: only the first item can take
-    /// focus, and it is asked to.
+    /// The first shelf, while the hero has focus, is told to bring its row
+    /// back to the first item while off screen, ready for the next landing.
+    case reachable(CarouselLeadingItemRequest = .none)
+    /// The hero's down-press is landing here: the first item is asked to take
+    /// focus and to keep it until the landing is over.
     case landing
-
-    var isDisabled: Bool {
-        if case .unreachable = self { return true }
-        return false
-    }
 
     var request: CarouselLeadingItemRequest {
         switch self {
-        case .reachable: .none
-        case .unreachable(let request): request
+        case .reachable(let request): request
         case .landing: .focus
         }
     }
 }
 
 private extension View {
-    /// Limits what of a shelf can take focus without changing how it looks:
-    /// none of the shelves' button styles dim when disabled.
     func homeTVShelfFocus(_ focus: HomeTVShelfFocus) -> some View {
         #if os(tvOS)
-        // One view for every case: a `switch` here would remount the shelf,
-        // and with it its scroll position, whenever the case changes.
-        disabled(focus.isDisabled)
-            .environment(\.carouselLeadingItemRequest, focus.request)
+        environment(\.carouselLeadingItemRequest, focus.request)
         #else
         self
         #endif
