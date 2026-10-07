@@ -363,7 +363,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
       pick that does not match the layout is a filler re-resolution.
     So the press is left alone and its result replaced:
     - `beginHeroExit` starts from either the hero's `onMoveCommand` /
-      `TVRemoteSwipeCapture` recognizers, or from a shelf card taking focus while
+      `TVRemoteSwipeCapture`'s down-click recognizer, or from a shelf card taking focus while
       the latch is closed (`CarouselItemFocusedKey`), whichever comes first. It
       scrolls the page to the fold and sets `carouselLeadingItemRequest = .focus`
       on `firstShelfID`'s shelf (`.landing`). That shelf's first item takes focus
@@ -381,6 +381,19 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
       to the play button, and Home disappearing go through `cancelHeroExit`, and
       `requestHeroPrimaryFocusIfNeeded` suppresses the card-focus trigger while it
       runs (`isReturningToHero`).
+    - **A down move only leaves the hero when it is deliberate.** While Select
+      or Play/Pause is held on the play button, and for 300ms after release
+      (`HomeTVHeroPressGuard`), no trigger starts the exit: a thumb rolling on
+      the clickpad as it clicks Play otherwise carried the press to a card. If
+      the engine already moved focus off the play button (into a shelf's
+      filler), focus is handed straight back, and `HomeTVFoldSnapping` holds the
+      page at the hero meanwhile so it does not dip to the fold and back. The
+      press is observed by a never-recognizing recognizer on the **window**
+      (`HeroPressObserver`): recognizers on `TVRemoteSwipeCapture`'s superview
+      never see remote presses (measured in the simulator, neither Select nor
+      the down arrow). There is no down-swipe recognizer: touch-surface moves
+      down are the focus engine's, with the system threshold (the user's
+      Touch Surface Tracking setting).
     - `shelvesUnlocked` is **latched**: it means "focus has settled below the
       hero". It drops when focus is back on the play button and stays open while
       there is no hero. It drives `settleFold` and the engine-driven trigger
