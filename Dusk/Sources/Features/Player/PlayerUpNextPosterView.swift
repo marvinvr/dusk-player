@@ -47,22 +47,28 @@ struct PlayerUpNextPosterView: View {
                     card(textColumnWidth: Metrics.textColumnWidth(fitting: geometry.size.width))
                 }
             }
-            .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
+            .padding(.horizontal, PlayerOverlayLayout.bottomTrailingHorizontalPadding)
             .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: controlsVisible))
         }
         .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: controlsVisible)
-        .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea(edges: PlayerOverlayLayout.bottomTrailingIgnoredSafeAreaEdges)
     }
 
     // MARK: - Card
 
     private func card(textColumnWidth: CGFloat) -> some View {
         #if os(tvOS)
-        // No focus glow: the card is selected for as long as the HUD is
-        // hidden, so the shared white glow would render as a permanent
-        // oversized halo. The 1.05x scale is enough feedback on its own.
+        // Lifted like a focused tvOS card — scale plus a soft dark drop
+        // shadow — rather than the shared white glow: the card is selected for
+        // as long as the HUD is hidden, so a glow would be a permanent halo.
         cardContent(textColumnWidth: textColumnWidth)
-            .duskTVOSFocusedScale(isSelected, glow: false)
+            .scaleEffect(isSelected ? PlayerTVHUDLayout.bottomTrailingSelectedScale : 1)
+            .shadow(
+                color: .black.opacity(isSelected ? 0.4 : 0),
+                radius: isSelected ? 24 : 0,
+                y: isSelected ? 14 : 0
+            )
+            .animation(PlayerTVHUDLayout.selectionAnimation, value: isSelected)
             .accessibilityAddTraits(.isButton)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint("Press Select to play now, Down to dismiss")
@@ -103,7 +109,7 @@ struct PlayerUpNextPosterView: View {
             }
 
             if presentation.isTimed {
-                countdownBar
+                countdownBar(width: Metrics.thumbnailWidth + Metrics.contentSpacing + textColumnWidth)
             }
         }
         .padding(Metrics.cardPadding)
@@ -111,18 +117,35 @@ struct PlayerUpNextPosterView: View {
             cardShape
                 .fill(.ultraThinMaterial)
                 .overlay {
-                    cardShape.fill(Color.black.opacity(0.18))
+                    cardShape.fill(cardTint)
                 }
         }
         .overlay {
             cardShape
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(.white.opacity(cardBorderOpacity), lineWidth: 1)
         }
         .clipShape(cardShape)
-        // Deliberately tight: on tvOS the card also carries the focus glow from
-        // `duskTVOSFocusedScale`, so anything heavier reads as a hard black halo
-        // over bright video.
+        #if !os(tvOS)
         .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
+        #endif
+    }
+
+    /// tvOS brightens the platter while the card owns Select, the way a
+    /// focused tvOS platter lightens; iOS keeps one darkened glass.
+    private var cardTint: Color {
+        #if os(tvOS)
+        isSelected ? Color.white.opacity(0.14) : Color.black.opacity(0.22)
+        #else
+        Color.black.opacity(0.18)
+        #endif
+    }
+
+    private var cardBorderOpacity: Double {
+        #if os(tvOS)
+        isSelected ? 0.28 : 0.12
+        #else
+        0.12
+        #endif
     }
 
     /// Three fixed rows — eyebrow, title, metadata — so the card keeps one
@@ -134,7 +157,7 @@ struct PlayerUpNextPosterView: View {
                 Text("UP NEXT")
                     .font(Metrics.eyebrowFont)
                     .tracking(1.2)
-                    .foregroundStyle(Color.duskAccent)
+                    .foregroundStyle(Metrics.eyebrowColor)
                     .lineLimit(1)
                     .layoutPriority(1)
 
@@ -158,7 +181,7 @@ struct PlayerUpNextPosterView: View {
             if let metadataText {
                 Text(metadataText)
                     .font(Metrics.metaFont.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.7))
+                    .foregroundStyle(.white.opacity(Metrics.metaOpacity))
                     .lineLimit(1)
             }
         }
@@ -230,7 +253,10 @@ struct PlayerUpNextPosterView: View {
 
     /// Spans the card's full inner width under both columns, so the countdown
     /// reads as the card draining rather than as a stray hairline in the text.
-    private var countdownBar: some View {
+    ///
+    /// The width is explicit: the bar's `GeometryReader` is greedy, and left to
+    /// itself it stretched the whole card across the screen.
+    private func countdownBar(width: CGFloat) -> some View {
         let progress = min(max(presentation.countdownProgress ?? 0, 0), 1)
 
         return GeometryReader { geometry in
@@ -239,12 +265,12 @@ struct PlayerUpNextPosterView: View {
                     .fill(Color.white.opacity(0.16))
 
                 Capsule()
-                    .fill(Color.duskAccent)
+                    .fill(Metrics.countdownFill)
                     .frame(width: geometry.size.width * progress)
                     .animation(.linear(duration: 0.1), value: progress)
             }
         }
-        .frame(height: Metrics.countdownBarHeight)
+        .frame(width: width, height: Metrics.countdownBarHeight)
     }
 
     // MARK: - Data
@@ -308,24 +334,28 @@ struct PlayerUpNextPosterView: View {
 
 private enum Metrics {
     #if os(tvOS)
-    static let thumbnailWidth: CGFloat = 240
-    static let cardCornerRadius: CGFloat = 34
-    static let cardPadding: CGFloat = 18
-    static let contentSpacing: CGFloat = 20
-    static let preferredTextColumnWidth: CGFloat = 320
+    static let thumbnailWidth: CGFloat = 256
+    static let cardCornerRadius: CGFloat = 32
+    static let cardPadding: CGFloat = 16
+    static let contentSpacing: CGFloat = 22
+    static let preferredTextColumnWidth: CGFloat = 330
     static let minimumTextColumnWidth: CGFloat = 240
-    static let textRowSpacing: CGFloat = 6
-    static let countdownSpacing: CGFloat = 16
+    static let textRowSpacing: CGFloat = 4
+    static let countdownSpacing: CGFloat = 14
     static let countdownBarHeight: CGFloat = 6
     static let playSymbolSize: CGFloat = 24
     static let playSymbolPadding: CGFloat = 14
     static let playCircleSize: CGFloat = 52
-    // Explicit sizes: tvOS's semantic text styles (.title3/.subheadline/…) map
-    // to much larger points than iOS, which made this compact overlay card read
-    // as oversized. These are tuned for the card, not inherited from the scale.
-    static let eyebrowFont: Font = .system(size: 19, weight: .bold)
-    static let titleFont: Font = .system(size: 29, weight: .semibold)
-    static let metaFont: Font = .system(size: 20, weight: .regular)
+    // On the `DuskFont` tvOS ladder: badge eyebrow, compact player title,
+    // card subtitle — the same steps the play bar's own title uses.
+    static let eyebrowFont: Font = DuskFont.TV.badge
+    static let titleFont: Font = DuskFont.TV.playerTitleCompact
+    static let metaFont: Font = DuskFont.TV.cardSubtitle
+    // Monochrome like the play bar and the TV app's own player chrome: a
+    // secondary-label eyebrow and a white countdown, no brand coral.
+    static let eyebrowColor: Color = .white.opacity(0.6)
+    static let metaOpacity: Double = 0.6
+    static let countdownFill: Color = .white
     #else
     static let thumbnailWidth: CGFloat = 132
     static let cardCornerRadius: CGFloat = 24
@@ -342,6 +372,9 @@ private enum Metrics {
     static let eyebrowFont: Font = .caption2.weight(.bold)
     static let titleFont: Font = .subheadline.weight(.semibold)
     static let metaFont: Font = .caption2
+    static let eyebrowColor: Color = .duskAccent
+    static let metaOpacity: Double = 0.7
+    static let countdownFill: Color = .duskAccent
     #endif
 
     static var thumbnailHeight: CGFloat {
@@ -358,7 +391,7 @@ private enum Metrics {
     /// gives width back when the player itself is narrower than the preferred
     /// card.
     static func textColumnWidth(fitting containerWidth: CGFloat) -> CGFloat {
-        let chrome = PlayerOverlayLayout.controlsHorizontalPadding * 2
+        let chrome = PlayerOverlayLayout.bottomTrailingHorizontalPadding * 2
             + cardPadding * 2
             + thumbnailWidth
             + contentSpacing

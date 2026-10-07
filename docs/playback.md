@@ -1511,22 +1511,35 @@ so the whole live HUD is derived from one instant.
 - The poster and the Skip Intro button share
   `PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible:)`: they rest near
   the bottom edge while the HUD is hidden and animate up above the play bar when
-  the controls come up.
+  the controls come up. On tvOS both insets, the trailing gutter and the
+  transition come from `PlayerTVHUDLayout` (`bottomTrailing*`): the overlays
+  share the bar's trailing edge and clear the action row, like AVKit's
+  contextual actions. AVKit's own `contextualActions` / content proposals are
+  not an option — they need `AVPlayerViewController`, which the custom HUD
+  replaced (VLCKit sessions have no `AVPlayerItem`).
+- tvOS look (no coral, matching the monochrome play bar): the Skip chip is
+  `PlayerTVSkipChip`, a text-only capsule that is a white platter with a dark
+  label while it owns Select (HUD hidden) and dark glass while the HUD is up;
+  the auto-skip countdown sweeps across it. The poster lifts (scale + dark drop
+  shadow, brighter platter) instead of glowing. The full-screen overlay uses the
+  system `.bordered` buttons and puts Close in the action row beside Play,
+  because tvOS has no pointer to reach a top-trailing corner button.
 - Poster layout: concentric corners (the still's radius is
   `cardCornerRadius - cardPadding`) and a fixed three-row text column — eyebrow,
   title, metadata — so the card keeps one height for its whole lifetime. The
   countdown occupies the eyebrow's trailing slot (`8s`, or `Playing…` once
   starting) plus a bar spanning the card's full inner width beneath both
-  columns; it is never an extra text row. The column width is clamped against
+  columns (explicitly sized — its `GeometryReader` otherwise stretches the card
+  across the screen); it is never an extra text row. The column width is clamped against
   the player's own width so the card still fits a narrow viewport.
 - Overlay layout: one vertically centered content block sized from **both** axes
   (`UpNextLayoutMetrics.previewSize`). The still is the smaller of a share of the
   width and a share of the height, because the player is watched in landscape as
   often as portrait; a width-only rule pushed the details off the bottom of an
   iPhone in landscape. Narrow or portrait containers stack the still over the
-  details, wide ones put them side by side, and tvOS is always side by side. The
-  close button anchors to the screen's top-trailing safe area, not to the content
-  block. The next episode's artwork also backs the screen as a blurred wash.
+  details, wide ones put them side by side, and tvOS is always side by side. On
+  iOS the close button anchors to the screen's top-trailing safe area, not to the
+  content block (tvOS puts it beside Play). The next episode's artwork also backs the screen as a blurred wash.
 - The overlay's forward action is a labeled capsule ("Play Now" while a countdown
   is running, "Keep Watching" otherwise), not an icon over the still: white glass
   with a dark label on both platforms, because the screen is near-black whatever

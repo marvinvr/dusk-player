@@ -36,14 +36,21 @@ struct PlayerUpNextOverlayView: View {
                     .padding(.top, metrics.topPadding)
                     .padding(.bottom, metrics.bottomPadding)
 
+                #if !os(tvOS)
                 closeButton(metrics: metrics)
                     .padding(.top, metrics.closeTopInset)
                     .padding(.trailing, metrics.closeTrailingInset)
+                #endif
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .background { background }
         }
         .ignoresSafeArea()
+        #if os(tvOS)
+        // The screen is near-black in either appearance mode; the system
+        // buttons must resolve their unfocused platter for a dark surface.
+        .environment(\.colorScheme, .dark)
+        #endif
     }
 
     // MARK: - Background
@@ -92,6 +99,7 @@ struct PlayerUpNextOverlayView: View {
                 endPoint: .bottomTrailing
             )
 
+            #if !os(tvOS)
             RadialGradient(
                 colors: [
                     Color.duskAccent.opacity(0.14),
@@ -101,6 +109,7 @@ struct PlayerUpNextOverlayView: View {
                 startRadius: 20,
                 endRadius: 620
             )
+            #endif
         }
         .clipped()
         .ignoresSafeArea()
@@ -169,7 +178,7 @@ struct PlayerUpNextOverlayView: View {
                 Text(eyebrowText)
                     .font(metrics.eyebrowFont)
                     .tracking(1.4)
-                    .foregroundStyle(Color.duskAccent)
+                    .foregroundStyle(Self.eyebrowColor)
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
 
@@ -203,7 +212,16 @@ struct PlayerUpNextOverlayView: View {
                 countdown(metrics: metrics)
             }
 
+            #if os(tvOS)
+            // tvOS has no pointer to reach a corner button, so Close sits in the
+            // action row beside Play, like a detail hero's secondary circle.
+            HStack(spacing: 20) {
+                playButton(metrics: metrics)
+                closeButton(metrics: metrics)
+            }
+            #else
             playButton(metrics: metrics)
+            #endif
 
             if let errorMessage = presentation.errorMessage {
                 Text(errorMessage)
@@ -222,7 +240,9 @@ struct PlayerUpNextOverlayView: View {
                 if presentation.isStarting {
                     ProgressView()
                         .controlSize(.small)
+                        #if !os(tvOS)
                         .tint(.black)
+                        #endif
                 } else {
                     Image(systemName: "play.fill")
                         .font(metrics.actionFont.weight(.semibold))
@@ -232,12 +252,15 @@ struct PlayerUpNextOverlayView: View {
                     .font(metrics.actionFont)
                     .lineLimit(1)
             }
-            .foregroundStyle(.black)
-            .frame(maxWidth: metrics.actionFillsWidth ? .infinity : nil, minHeight: metrics.actionMinHeight)
             #if os(tvOS)
+            // The system button colours the label: white on the unfocused
+            // platter, dark on the focused white one.
             // Matches the detail hero primary: a contained width so the button
             // does not hug a two-word label in a left-aligned column.
             .frame(minWidth: 300)
+            #else
+            .foregroundStyle(.black)
+            .frame(maxWidth: metrics.actionFillsWidth ? .infinity : nil, minHeight: metrics.actionMinHeight)
             #endif
             .contentShape(Capsule())
         }
@@ -253,6 +276,15 @@ struct PlayerUpNextOverlayView: View {
     }
 
     private func closeButton(metrics: UpNextLayoutMetrics) -> some View {
+        #if os(tvOS)
+        Button(action: onDismiss) {
+            Image(systemName: "xmark")
+                .font(metrics.closeIconFont)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.circle)
+        .accessibilityLabel("Close Player")
+        #else
         Button(action: onDismiss) {
             Image(systemName: "xmark")
                 .font(metrics.closeIconFont)
@@ -266,6 +298,7 @@ struct PlayerUpNextOverlayView: View {
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Circle())
         .accessibilityLabel("Close Player")
+        #endif
     }
 
     private func countdown(metrics: UpNextLayoutMetrics) -> some View {
@@ -295,7 +328,7 @@ struct PlayerUpNextOverlayView: View {
                             .fill(Color.white.opacity(0.16))
 
                         Capsule()
-                            .fill(Color.duskAccent)
+                            .fill(Self.countdownFill)
                             .frame(width: geometry.size.width * visualState.progress)
                             .animation(.linear(duration: 0.1), value: visualState.progress)
                     }
@@ -359,6 +392,16 @@ struct PlayerUpNextOverlayView: View {
         return "Keep Watching"
     }
 
+    // tvOS is monochrome like the play bar and the TV app's own end-of-episode
+    // screen; iOS keeps the brand coral.
+    #if os(tvOS)
+    private static let eyebrowColor: Color = .white.opacity(0.6)
+    private static let countdownFill: Color = .white
+    #else
+    private static let eyebrowColor: Color = .duskAccent
+    private static let countdownFill: Color = .duskAccent
+    #endif
+
     private static func countdownLabel(for seconds: Int) -> String {
         "Plays in \(max(seconds, 0))s"
     }
@@ -391,17 +434,20 @@ private struct CountdownVisualState {
 // MARK: - Primary Action Style
 
 private extension View {
-    /// A white glass capsule with a dark label. The Up Next screen is always a
-    /// near-black surface regardless of the app's appearance mode, so this one
-    /// keeps a fixed light lean instead of `Color.duskPrimaryButtonTint`, which
-    /// would resolve to a dark capsule on a dark screen in Light mode.
+    /// iOS: a white glass capsule with a dark label. The Up Next screen is
+    /// always a near-black surface regardless of the app's appearance mode, so
+    /// this one keeps a fixed light lean instead of `Color.duskPrimaryButtonTint`,
+    /// which would resolve to a dark capsule on a dark screen in Light mode.
     @ViewBuilder
     func upNextPrimaryButtonStyle() -> some View {
         #if os(tvOS)
-        // A custom style rather than `.glassProminent`: the system focus
-        // highlight forces the fill *and* the label to white, which would render
-        // the focused button as white-on-white.
-        self.buttonStyle(UpNextPrimaryTVButtonStyle())
+        // The plain system button, not `.glassProminent`: its focus highlight
+        // forces the fill *and* the label to white (white-on-white). `.bordered`
+        // is the tvOS standard — a translucent platter that turns white with a
+        // dark label and lifts when focused, the same as the Close circle.
+        self
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
         #else
         if #available(iOS 26.0, *) {
             self
@@ -419,34 +465,6 @@ private extension View {
         #endif
     }
 }
-
-#if os(tvOS)
-private struct UpNextPrimaryTVButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Content(configuration: configuration)
-    }
-
-    private struct Content: View {
-        let configuration: ButtonStyleConfiguration
-        @Environment(\.isFocused) private var isFocused
-
-        var body: some View {
-            configuration.label
-                .padding(.horizontal, 30)
-                .padding(.vertical, 14)
-                .glassEffect(.regular.tint(Color.white.opacity(0.9)), in: Capsule())
-                .scaleEffect(isFocused ? 1.05 : 1.0)
-                .shadow(
-                    color: isFocused ? Color.white.opacity(0.34) : .clear,
-                    radius: isFocused ? 16 : 0,
-                    y: isFocused ? 6 : 0
-                )
-                .opacity(configuration.isPressed ? 0.86 : 1.0)
-                .animation(.easeOut(duration: 0.18), value: isFocused)
-        }
-    }
-}
-#endif
 
 // MARK: - Layout
 
@@ -531,7 +549,7 @@ private struct UpNextLayoutMetrics {
         let metadataFont: Font = .system(size: 23, weight: .medium)
         let summaryFont: Font = .system(size: 25, weight: .regular)
         let countdownFont: Font = .system(size: 23, weight: .semibold)
-        let actionFont: Font = .system(size: 25, weight: .semibold)
+        let actionFont: Font = DuskFont.TV.buttonLabel
         let summaryLineLimit = 3
         let blockSpacing: CGFloat = 26
         let headerSpacing: CGFloat = 10

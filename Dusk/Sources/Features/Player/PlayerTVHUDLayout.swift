@@ -44,6 +44,38 @@ enum PlayerTVHUDLayout {
     /// Height of the bottom scrim behind the HUD.
     static let backdropHeight: CGFloat = 320
 
+    // MARK: - Bottom-trailing overlays
+
+    // The Skip Intro chip and the Up Next card sit where AVKit puts its
+    // contextual actions: trailing-aligned with the bar, resting at the
+    // title-safe bottom margin while the HUD is hidden and riding just above
+    // the action row while it is up.
+
+    /// Line height of the `metadata` elapsed / remaining readouts under the bar.
+    static let readoutRowHeight: CGFloat = 30
+    /// Gap between the top of the action row and an overlay riding above it.
+    static let bottomTrailingOverlayGap: CGFloat = 24
+    /// Bottom inset of a bottom-trailing overlay while the HUD is up.
+    static let bottomTrailingRaisedInset: CGFloat = bottomInset
+        + readoutRowHeight
+        + barLabelSpacing
+        + barRowHeight
+        + titleBottomSpacing
+        + actionButtonDiameter
+        + bottomTrailingOverlayGap
+    /// Bottom inset of a bottom-trailing overlay while the HUD is hidden: the
+    /// tvOS title-safe bottom margin.
+    static let bottomTrailingRestingInset: CGFloat = 60
+    /// Scale of the chip / card while it owns Select. Matches the app's tvOS
+    /// focus scale.
+    static let bottomTrailingSelectedScale: CGFloat = 1.05
+
+    /// Skip chip: same height as the circular action buttons, so every control
+    /// in the bottom-trailing corner shares one size.
+    static let skipChipHeight: CGFloat = actionButtonDiameter
+    static let skipChipHorizontalPadding: CGFloat = 36
+    static let skipChipMinWidth: CGFloat = 220
+
     // MARK: - Panel
 
     /// Fraction of the screen height the settings sheet occupies.
@@ -102,6 +134,8 @@ enum PlayerTVHUDLayout {
     static let headGrowAnimation: Animation = .spring(response: 0.28, dampingFraction: 0.82)
     static let panelTransition: Animation = .spring(response: 0.36, dampingFraction: 0.9)
     static let selectionAnimation: Animation = .easeOut(duration: 0.18)
+    /// How the bottom-trailing overlays rise above / settle below the HUD.
+    static let bottomTrailingRepositionAnimation: Animation = .smooth(duration: 0.3)
 
     /// Respects Reduce Motion the way the rest of the app does (see
     /// `HomeCinematicHero`): the state change still happens, it just stops

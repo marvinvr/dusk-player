@@ -8,16 +8,29 @@ enum PlayerOverlayLayout {
     // raised above the play bar while the controls are up. Keep the raised
     // inset in sync with the controls' bottom bar height.
     #if os(tvOS)
-    // Clears the whole bottom HUD: bottom inset + the bar row and its
-    // readouts + the title block's spacing + the action row.
-    static let skipMarkerRaisedBottomInset: CGFloat = 200
-    static let skipMarkerRestingBottomInset: CGFloat = 60
+    // Derived from the play bar's own geometry so the overlays clear the
+    // action row and share the bar's trailing edge (see `PlayerTVHUDLayout`).
+    static let skipMarkerRaisedBottomInset: CGFloat = PlayerTVHUDLayout.bottomTrailingRaisedInset
+    static let skipMarkerRestingBottomInset: CGFloat = PlayerTVHUDLayout.bottomTrailingRestingInset
+    static let bottomTrailingHorizontalPadding: CGFloat = PlayerTVHUDLayout.horizontalInset
+    static let skipMarkerRepositionAnimation: Animation = PlayerTVHUDLayout.bottomTrailingRepositionAnimation
+    /// Fades in growing out of the screen corner, the way AVKit's contextual
+    /// actions appear, instead of sliding the full screen width.
+    static var bottomTrailingTransition: AnyTransition {
+        .opacity.combined(with: .scale(scale: 0.94, anchor: .bottomTrailing))
+    }
+    /// The overlays measure their insets from the screen edges, like the HUD.
+    static let bottomTrailingIgnoredSafeAreaEdges: Edge.Set = .all
     #else
     static let skipMarkerRaisedBottomInset: CGFloat = 108
     static let skipMarkerRestingBottomInset: CGFloat = 48
-    #endif
-
+    static let bottomTrailingHorizontalPadding: CGFloat = controlsHorizontalPadding
     static let skipMarkerRepositionAnimation: Animation = .snappy(duration: 0.35)
+    static var bottomTrailingTransition: AnyTransition {
+        .move(edge: .trailing).combined(with: .opacity)
+    }
+    static let bottomTrailingIgnoredSafeAreaEdges: Edge.Set = .bottom
+    #endif
 
     static func skipMarkerBottomInset(controlsVisible: Bool) -> CGFloat {
         controlsVisible ? skipMarkerRaisedBottomInset : skipMarkerRestingBottomInset
@@ -617,7 +630,7 @@ private struct PlayerSessionView: View {
                 if let marker = viewModel.activeSkipMarker,
                    viewModel.playbackError == nil {
                     skipMarkerOverlay(marker)
-                        .transition(.move(edge: .trailing).combined(with: .opacity))
+                        .transition(PlayerOverlayLayout.bottomTrailingTransition)
                 }
 
                 if let poster = playback.upNextPoster,
@@ -630,7 +643,7 @@ private struct PlayerSessionView: View {
                         onPlayNow: { playback.playUpNextPosterNow() },
                         onDismiss: { playback.dismissUpNextPoster(userInitiated: true) }
                     )
-                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .transition(PlayerOverlayLayout.bottomTrailingTransition)
                 }
 
                 if !hasVisiblePlaybackError {
@@ -1057,10 +1070,13 @@ private struct PlayerSessionView: View {
                 // remote by the focus engine and would fight the input bridge.
                 // The chip is "selected" while the HUD is hidden, and the
                 // controller turns Select into `handleSkipMarker`.
-                skipMarkerButtonLabel(marker)
-                    .duskTVOSFocusedScale(isTVBottomTrailingControlSelected, glow: false)
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel(marker.skipButtonTitle ?? "Skip")
+                PlayerTVSkipChip(
+                    title: marker.skipButtonTitle ?? "Skip",
+                    countdownProgress: viewModel.autoSkipCountdownProgress,
+                    isSelected: isTVBottomTrailingControlSelected
+                )
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel(marker.skipButtonTitle ?? "Skip")
                 #else
                 Button {
                     handleSkipMarker(marker)
@@ -1072,12 +1088,13 @@ private struct PlayerSessionView: View {
             }
         }
         .id(marker.id)
-        .padding(.horizontal, PlayerOverlayLayout.controlsHorizontalPadding)
+        .padding(.horizontal, PlayerOverlayLayout.bottomTrailingHorizontalPadding)
         .padding(.bottom, PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: viewModel.showControls))
         .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: viewModel.showControls)
-        .ignoresSafeArea(edges: .bottom)
+        .ignoresSafeArea(edges: PlayerOverlayLayout.bottomTrailingIgnoredSafeAreaEdges)
     }
 
+    #if !os(tvOS)
     private func skipMarkerButtonLabel(_ marker: PlexMarker) -> some View {
         HStack(spacing: 10) {
             Image(systemName: marker.isCredits ? "forward.end.fill" : "chevron.forward.2")
@@ -1087,13 +1104,8 @@ private struct PlayerSessionView: View {
                 .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
         }
         .foregroundStyle(.white)
-        #if os(tvOS)
-        .padding(.horizontal, 22)
-        .padding(.vertical, 15)
-        #else
         .padding(.horizontal, 18)
         .padding(.vertical, 13)
-        #endif
         .background {
             ZStack(alignment: .leading) {
                 skipMarkerButtonShape
@@ -1123,10 +1135,8 @@ private struct PlayerSessionView: View {
         RoundedRectangle(cornerRadius: 100, style: .continuous)
     }
 
-    // Skip Intro / Skip Credits uses the same translucent native styling on
-    // every platform. tvOS used to render a heavy black fill with an
-    // accent-colored countdown, which read as flat and non-native next to the
-    // iPad capsule; tvOS keeps the shared focus scale without its glow.
+    // tvOS draws its own chip (`PlayerTVSkipChip`), shaped like AVKit's
+    // contextual action instead of this translucent capsule.
     private var skipMarkerButtonBackgroundColor: Color {
         .white.opacity(0.08)
     }
@@ -1150,6 +1160,7 @@ private struct PlayerSessionView: View {
     private var skipMarkerShadowYOffset: CGFloat {
         8
     }
+    #endif
 
     private func errorOverlay(_ error: PlaybackError) -> some View {
         VStack(spacing: 16) {
