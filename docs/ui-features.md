@@ -381,19 +381,43 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
       to the play button, and Home disappearing go through `cancelHeroExit`, and
       `requestHeroPrimaryFocusIfNeeded` suppresses the card-focus trigger while it
       runs (`isReturningToHero`).
-    - **A down move only leaves the hero when it is deliberate.** While Select
-      or Play/Pause is held on the play button, and for 300ms after release
-      (`HomeTVHeroPressGuard`), no trigger starts the exit: a thumb rolling on
-      the clickpad as it clicks Play otherwise carried the press to a card. If
-      the engine already moved focus off the play button (into a shelf's
-      filler), focus is handed straight back, and `HomeTVFoldSnapping` holds the
-      page at the hero meanwhile so it does not dip to the fold and back. The
-      press is observed by a never-recognizing recognizer on the **window**
-      (`HeroPressObserver`): recognizers on `TVRemoteSwipeCapture`'s superview
-      never see remote presses (measured in the simulator, neither Select nor
-      the down arrow). There is no down-swipe recognizer: touch-surface moves
-      down are the focus engine's, with the system threshold (the user's
-      Touch Surface Tracking setting).
+    - **A down move only leaves the hero when it is deliberate.** The engine
+      moves focus off the play button for a thumb that merely drifts on the
+      touch surface: the travel it needs before focus leaves an item scales with
+      the item's size, and the play button is a fifth of a card's height. Nothing
+      in UIKit raises that threshold for one item (focus guides and UIKit decoy
+      views are never consulted for moves between SwiftUI items — measured in
+      the simulator), so Home measures the gesture itself:
+      - An invisible focusable **catch strip** (`heroDownCatch`, 100pt tall, the
+        display's width, focusable only while the latch is closed) sits directly
+        under the play button inside the hero's focus section, so the engine's down move lands
+        there instead of on a card rows below. `catchHeroDownMove` then asks
+        `HomeTVHeroDownGate` and either hands focus straight back to the play
+        button (a drift: the page never moved, only the focus ring blinks for a
+        frame) or starts the exit. It also hands back anything arriving from
+        below (the engine coming up from the first shelf, if the strip is present).
+      - `HomeTVHeroDownGate` is fed by two never-recognizing recognizers on the
+        **window** (`HeroPressObserver` for Select / Play-Pause / the clickpad's
+        down click, `HeroTouchObserver` for the indirect touch's travel and
+        velocity); recognizers on `TVRemoteSwipeCapture`'s superview never see
+        remote presses (measured in the simulator). Never while Select / Play-Pause
+        is held on the play button or for 300ms after (a thumb rolling on the
+        clickpad as it clicks Play); otherwise a move counts when a down click is
+        in flight or just ended, or the touch has travelled ≥ `deliberateTravel`
+        (160 window pt) down or peaked faster than `deliberateVelocity`
+        (1500 pt/s) — a touch that ended less than 300ms ago is judged by how it
+        ended — or nothing has touched the surface lately. A move refused as a
+        drift is retried by Home itself if the same touch then qualifies
+        (`noteRefusedMove` / `onQualifiedAfterRefusal`), so leaving the hero never
+        depends on the engine attempting a second move. The two limits are set by
+        feel; adjust them there.
+      - Every exit trigger (`catchHeroDownMove`, `onMoveCommand`,
+        `CarouselItemFocusedKey`) asks the gate; a move it refuses after the
+        engine already left the play button is answered by
+        `requestHeroPrimaryFocusIfNeeded`, and `HomeTVFoldSnapping` holds the page
+        at the hero meanwhile so it does not dip to the fold and back. There is no
+        down-swipe recognizer: a raw `UISwipeGestureRecognizer` fires alongside a
+        click and below the engine's own threshold.
     - `shelvesUnlocked` is **latched**: it means "focus has settled below the
       hero". It drops when focus is back on the play button and stays open while
       there is no hero. It drives `settleFold` and the engine-driven trigger

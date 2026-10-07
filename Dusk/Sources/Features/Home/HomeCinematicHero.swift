@@ -135,9 +135,9 @@ struct HomeCinematicHero: View {
     var autoRotates = true
     var supportsDragNavigation = false
     let selectionResetRevision: Int
-    /// tvOS: a down-press that the focus engine had no target for. `HomeTVView`
-    /// keeps its shelves out of the engine's reach while the hero has focus,
-    /// so every down-press from the hero ends up here.
+    /// tvOS: the hero's `onMoveCommand(.down)`. It fires for every down move
+    /// from the play button, whether or not the focus engine moved focus for
+    /// it; `HomeTVView` decides what the move amounts to.
     var onMoveDown: (() -> Void)? = nil
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
