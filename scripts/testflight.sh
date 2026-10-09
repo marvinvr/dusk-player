@@ -5,17 +5,19 @@
 #
 #   ref         commit or ref to build (default: origin/main, fetched first). Built from
 #               `git archive`, so uncommitted changes never end up in a build.
-#   --platform  one of the platforms in SCHEMES below, or `all` (default: all)
+#   --platform  one of the platforms in SCHEMES below, or `all` (default: all, built in parallel)
 #   --dry-run   archive, sign and export the .ipa locally, no upload
 #   --no-wait   upload, but don't wait for App Store Connect processing
 #
-# One result line per platform; the last line of output is always one of:
+# Platforms run in parallel, each in its own DerivedData, so their App Store Connect processing
+# waits overlap. Progress lines are prefixed `[testflight <platform>]`; the result lines come at
+# the end, one per platform, OKs first, so the last line of output is always one of:
 #   TESTFLIGHT OK platform=<p> build=<n> state=VALID id=<build id> commit=<sha>
 #   TESTFLIGHT FAIL platform=<p> code=<n> reason=<text> log=<dir>
 # Exit codes: 0 ok · 1 unexpected · 2 usage · 3 signing (profile missing / expired / invalid,
 # capability mismatch) · 4 archive (compile) · 5 export/upload · 6 processing INVALID ·
 # 7 processing timeout · 8 source (ref, xcodegen, prepare) · 9 already running · 10 credentials.
-# With several platforms the script stops at the first failure.
+# A failing platform does not stop the others; the exit code is the one of the last line.
 #
 # Nothing secret or machine specific lives here. Credentials come from the environment or
 # from an env file (ASC_ENV_FILE, default ~/.config/testflight/env):
@@ -45,16 +47,21 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;; --no-wait) WAIT=0 ;;
     --platform) WANT="${2:-}"; shift ;; --platform=*) WANT="${1#*=}" ;;
-    -h|--help) sed -n '2,30p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
     -*) echo "TESTFLIGHT FAIL platform=- code=2 reason=unknown option $1 log=-"; exit 2 ;;
     *) REF="$1" ;;
   esac
   shift
 done
 
-WORK=""; LOCK=""
-fail() { echo "TESTFLIGHT FAIL platform=$PLAT code=$1 reason=$2 log=${WORK:--}"; exit "$1"; }
-say() { echo "[testflight] $*"; }
+WORK=""; LOCK=""; RESULT=""  # RESULT: the platform's result file, set inside its background job
+fail() {
+  local line="TESTFLIGHT FAIL platform=$PLAT code=$1 reason=$2 log=${WORK:--}"
+  if [ -n "$RESULT" ]; then echo "$line" >"$RESULT"; else echo "$line"; fi
+  exit "$1"
+}
+ok() { echo "TESTFLIGHT OK platform=$PLAT $*" >"$RESULT"; }
+say() { if [ "$PLAT" = - ]; then echo "[testflight] $*"; else echo "[testflight $PLAT] $*"; fi; }
 
 SELECTED=""
 for pair in $SCHEMES; do
@@ -97,6 +104,10 @@ if [ -f project.yml ]; then
   xcodegen generate >>"$LOG" 2>&1 || fail 8 "xcodegen failed (see build.log)"
 fi
 XCPROJ=$(ls -d *.xcodeproj 2>/dev/null | head -1); [ -n "$XCPROJ" ] || fail 8 "no .xcodeproj"
+# Once for all platforms: all targets (extensions are build dependencies, not scheme members);
+# plan() keeps the platform's apps + extensions.
+xcodebuild -project "$XCPROJ" -alltargets -configuration Release \
+  -showBuildSettings -json >"$WORK/settings.json" 2>>"$LOG" || fail 8 "could not read build settings (see build.log)"
 
 # --- the API + signing helper (python3 stdlib) ---
 cat >"$WORK/tf.py" <<'PY'
@@ -203,60 +214,54 @@ TF="python3 -I $WORK/tf.py"
 errors() { grep -E 'error:|error -|Error Domain|failed' "$1" | grep -v -i warning | awk '!seen[$0]++' | head -4 | tr '\n' ' ' | cut -c1-500; }
 is_signing() { grep -qiE 'provisioning profile|signing certificate|entitlement|code ?sign|no profiles? for' <<<"$1"; }
 
-unlocked=0
-unlock() {
-  [ $unlocked -eq 1 ] || [ -z "${SIGNING_KEYCHAIN:-}" ] && return 0
-  local kc="${SIGNING_KEYCHAIN/#\~/$HOME}"
+# Unlocked once, before the platforms fork; it stays unlocked for 2 h of inactivity.
+if [ -n "${SIGNING_KEYCHAIN:-}" ]; then
+  KC="${SIGNING_KEYCHAIN/#\~/$HOME}"
   if [ -n "${SIGNING_KEYCHAIN_PASSWORD_FILE:-}" ]; then
-    security unlock-keychain -p "$(cat "${SIGNING_KEYCHAIN_PASSWORD_FILE/#\~/$HOME}")" "$kc" || fail 3 "could not unlock $kc"
+    security unlock-keychain -p "$(cat "${SIGNING_KEYCHAIN_PASSWORD_FILE/#\~/$HOME}")" "$KC" || fail 3 "could not unlock $KC"
   fi
-  security set-keychain-settings -t 7200 -l "$kc" 2>/dev/null
-  unlocked=1
-}
+  security set-keychain-settings -t 7200 -l "$KC" 2>/dev/null
+fi
 
-build_one() {  # <platform> <scheme>
+build_one() {  # <platform> <scheme>, run as a background job with RESULT set
   PLAT=$1; local scheme=$2 dir="$WORK/$1" dest
   case "$PLAT" in ios) dest='generic/platform=iOS' ;; tvos) dest='generic/platform=tvOS' ;; *) fail 2 "unknown platform $PLAT" ;; esac
   mkdir -p "$dir"
 
-  say "$PLAT: checking signing ..."
-  # All targets (extensions are build dependencies, not scheme members); plan() keeps this platform's apps + extensions.
-  xcodebuild -project "$XCPROJ" -alltargets -configuration Release \
-    -showBuildSettings -json >"$dir/settings.json" 2>>"$LOG" || fail 8 "could not read build settings (see build.log)"
+  say "checking signing ..."
   local msg rc
-  msg=$($TF plan "$dir/settings.json" "$dir" "$PLAT" 2>&1); rc=$?
+  msg=$($TF plan "$WORK/settings.json" "$dir" "$PLAT" 2>&1); rc=$?
   [ $rc -eq 0 ] || fail "$rc" "$msg"
   say "$msg"
   local app_id; app_id=$(cat "$dir/app_id")
-  unlock
 
-  say "$PLAT: archiving $scheme ..."
+  say "archiving $scheme ..."
   xcodebuild -project "$XCPROJ" -scheme "$scheme" -configuration Release -destination "$dest" \
-    -archivePath "$dir/App.xcarchive" -derivedDataPath "$WORK/DerivedData" -xcconfig "$dir/signing.xcconfig" \
+    -archivePath "$dir/App.xcarchive" -derivedDataPath "$dir/DerivedData" -xcconfig "$dir/signing.xcconfig" \
     archive >"$dir/archive.log" 2>&1 || {
     local e; e=$(errors "$dir/archive.log"); is_signing "$e" && fail 3 "archive signing failed: $e"; fail 4 "archive failed: $e"; }
 
   local prev; prev=$($TF latest "$app_id" "$PLAT" | cut -d' ' -f1)
   [ $DRY -eq 1 ] && plutil -replace destination -string export "$dir/ExportOptions.plist"
-  say "$PLAT: $([ $DRY -eq 1 ] && echo 'exporting (dry run, no upload)' || echo 'exporting + uploading') ..."
+  say "$([ $DRY -eq 1 ] && echo 'exporting (dry run, no upload)' || echo 'exporting + uploading') ..."
   xcodebuild -exportArchive -archivePath "$dir/App.xcarchive" -exportOptionsPlist "$dir/ExportOptions.plist" \
     -exportPath "$dir/export" -authenticationKeyPath "$ASC_KEY_PATH" -authenticationKeyID "$ASC_KEY_ID" \
     -authenticationKeyIssuerID "$ASC_ISSUER_ID" >"$dir/export.log" 2>&1 || {
     local e; e=$(errors "$dir/export.log"); is_signing "$e" && fail 3 "export signing failed: $e"; fail 5 "export/upload failed: $e"; }
 
   if [ $DRY -eq 1 ]; then
-    echo "TESTFLIGHT OK platform=$PLAT build=dry-run state=EXPORTED ipa=$(ls "$dir"/export/*.ipa 2>/dev/null | head -1) commit=${SHA:0:7}"; return
+    ok "build=dry-run state=EXPORTED ipa=$(ls "$dir"/export/*.ipa 2>/dev/null | head -1) commit=${SHA:0:7}"; return
   fi
-  if [ $WAIT -eq 0 ]; then echo "TESTFLIGHT OK platform=$PLAT build=? state=UPLOADED id=? commit=${SHA:0:7}"; return; fi
+  if [ $WAIT -eq 0 ]; then ok "build=? state=UPLOADED id=? commit=${SHA:0:7}"; return; fi
 
-  say "$PLAT: uploaded, waiting for App Store Connect processing ..."
+  say "uploaded, waiting for App Store Connect processing ..."
   local id num state
-  for _ in $(seq 1 90); do
-    sleep 30
+  for _ in $(seq 1 135); do
+    sleep 20
     read -r id num state <<<"$($TF latest "$app_id" "$PLAT")"
     if [ "$id" != "$prev" ] && [ "$id" != "-" ]; then
       case "$state" in
-        VALID) echo "TESTFLIGHT OK platform=$PLAT build=$num state=VALID id=$id commit=${SHA:0:7}"; return ;;
+        VALID) ok "build=$num state=VALID id=$id commit=${SHA:0:7}"; return ;;
         INVALID|FAILED) fail 6 "build $num is $state (App Store Connect mails the details)" ;;
       esac
     fi
@@ -264,5 +269,23 @@ build_one() {  # <platform> <scheme>
   fail 7 "processing not finished after 45 min (last: build ${num:-?} ${state:-?})"
 }
 
-for pair in $SELECTED; do build_one "${pair%%:*}" "${pair#*:}"; done
-rm -rf "$WORK/DerivedData" "$WORK/src"   # keeps archives, logs and (dry run) the .ipa
+# Background jobs ignore SIGINT, so Ctrl-C / a stop has to take their xcodebuilds down explicitly.
+kill_tree() { local c; for c in $(pgrep -P "$1"); do kill_tree "$c"; done; kill "$1" 2>/dev/null; }
+trap 'for j in $(jobs -p); do kill_tree "$j"; done; echo "TESTFLIGHT FAIL platform=- code=1 reason=interrupted log=$WORK"; exit 1' INT TERM
+for pair in $SELECTED; do
+  ( RESULT="$WORK/${pair%%:*}.result"; build_one "${pair%%:*}" "${pair#*:}" ) &
+done
+wait
+
+OKS=""; FAILS=""; CODE=0
+for pair in $SELECTED; do
+  p=${pair%%:*}
+  line=$(cat "$WORK/$p.result" 2>/dev/null) || line="TESTFLIGHT FAIL platform=$p code=1 reason=no result (job died) log=$WORK"
+  case "$line" in
+    "TESTFLIGHT OK "*) OKS="$OKS$line"$'\n' ;;
+    *) FAILS="$FAILS$line"$'\n'; CODE=${line#*code=}; CODE=${CODE%% *} ;;
+  esac
+done
+printf '%s' "$OKS$FAILS"
+[ "$CODE" -eq 0 ] && rm -rf "${WORK:?}"/*/DerivedData "${WORK:?}/src"   # keeps archives, logs and (dry run) the .ipa
+exit "$CODE"

@@ -127,14 +127,18 @@ scripts/testflight.sh [ref] [--platform ios|tvos|all] [--dry-run] [--no-wait]
 
 - `ref`: commit or ref, default `origin/main` (fetched first). The build comes from `git archive`
   of that commit, so local changes never end up in it.
-- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`) or `all` (default), one after the other.
+- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`) or `all` (default). With `all` both
+  platforms run in parallel, each with its own DerivedData, so their uploads and App Store Connect
+  processing waits overlap (~10 min → ~5 min; the archives themselves don't compete for the CPU).
+  Progress lines are prefixed `[testflight ios]` / `[testflight tvos]`, details in each platform's
+  `archive.log` / `export.log` in the work dir. One failing platform doesn't stop the other.
 - `--dry-run`: archive, sign and export the `.ipa` locally, no upload. `--no-wait`: upload only.
 - Before building it copies the checkout's `Frameworks/*.xcframework` into the build copy and runs
   `ci_scripts/ci_post_clone.sh` (verifies VLCKit or downloads the pinned version, installs the Metal toolchain).
 - Apple assigns the build number (`manageAppVersionAndBuildNumber`); versions in the repo are
   never changed. A VALID build lands in the internal TestFlight group automatically.
 
-One line per platform; the last line is always `TESTFLIGHT OK platform=<p> build=<n> state=VALID id=<build id> commit=<sha>` or
+One result line per platform at the end, OKs first; the last line (and so the exit code) is always `TESTFLIGHT OK platform=<p> build=<n> state=VALID id=<build id> commit=<sha>` or
 `TESTFLIGHT FAIL platform=<p> code=<n> reason=<text> log=<work dir>`.
 
 | Exit | Meaning |
