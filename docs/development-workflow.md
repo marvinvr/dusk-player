@@ -90,7 +90,8 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 
 ## VLCKit Bootstrap
 
-- Xcode Cloud runs `ci_scripts/ci_post_clone.sh`, which calls
+- Xcode Cloud (no longer used for releases) ran `ci_scripts/ci_post_clone.sh`, and `scripts/testflight.sh`
+  runs the same installer. `ci_post_clone.sh` calls
   `ci_scripts/install_vlckit.sh` to fetch both pinned framework archives before
   any target builds.
 - The archives are checksum-verified. Network, TLS, and CDN transfer failures
@@ -114,6 +115,57 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   `xcrun --sdk iphoneos metal --version`, not with the exit code of either
   command — that is what the script checks, and it fails the post-clone step
   loudly rather than letting the build die in `CompileMetalFile`.
+
+## TestFlight (`scripts/testflight.sh`)
+
+Builds a commit, signs it for the App Store and uploads it to TestFlight, then waits until
+App Store Connect has processed it. Replaces Xcode Cloud. Also the mmux process **TestFlight** (`mmux start TestFlight`).
+
+```bash
+scripts/testflight.sh [ref] [--platform ios|tvos|all] [--dry-run] [--no-wait]
+```
+
+- `ref`: commit or ref, default `origin/main` (fetched first). The build comes from `git archive`
+  of that commit, so local changes never end up in it.
+- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`) or `all` (default), one after the other.
+- `--dry-run`: archive, sign and export the `.ipa` locally, no upload. `--no-wait`: upload only.
+- Before building it copies the checkout's `Frameworks/*.xcframework` into the build copy and runs
+  `ci_scripts/ci_post_clone.sh` (verifies VLCKit or downloads the pinned version, installs the Metal toolchain).
+- Apple assigns the build number (`manageAppVersionAndBuildNumber`); versions in the repo are
+  never changed. A VALID build lands in the internal TestFlight group automatically.
+
+One line per platform; the last line is always `TESTFLIGHT OK platform=<p> build=<n> state=VALID id=<build id> commit=<sha>` or
+`TESTFLIGHT FAIL platform=<p> code=<n> reason=<text> log=<work dir>`.
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | OK (VALID, or EXPORTED with `--dry-run`) |
+| 2 | Usage |
+| 3 | Signing: no valid App Store profile for a bundle id (e.g. a new extension), profile expired or INVALID in App Store Connect (capabilities changed), entitlement or app group missing from the profile |
+| 4 | Archive (compile) failed, see `archive.log` |
+| 5 | Export / upload failed, see `export.log` |
+| 6 | Processing ended INVALID (App Store Connect mails the details) |
+| 7 | Processing not finished after 45 min (the build may still turn VALID) |
+| 8 | Source: unknown ref, `xcodegen`, build settings |
+| 9 | Another build of this repo is running |
+| 10 | Credentials missing |
+| 1 | Unexpected error |
+
+Setup (once per machine, nothing of it in the repo): an env file at `ASC_ENV_FILE` (default
+`~/.config/testflight/env`, mode 600) or the same variables in the environment:
+
+```bash
+ASC_KEY_ID=<App Store Connect API key id>
+ASC_ISSUER_ID=<issuer id>
+ASC_KEY_PATH=<path to the .p8>
+SIGNING_KEYCHAIN=<optional: keychain with the "Apple Distribution" identity>
+SIGNING_KEYCHAIN_PASSWORD_FILE=<optional: file with its password>
+```
+
+plus an installed App Store provisioning profile per bundle id and platform (iOS and tvOS are separate profiles) (app and every extension), made
+with that distribution certificate. The script picks the newest matching one, checks it is
+ACTIVE in App Store Connect and covers the target's entitlements, and signs manually with it
+(the project itself keeps automatic signing).
 
 ## Verification Commands
 
