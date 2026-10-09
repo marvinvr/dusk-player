@@ -85,19 +85,24 @@
           ],
           "displayPrice" : "1.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "A2B00001-0001-4001-8001-000000000011",
           "introductoryOffer" : null,
           "localizations" : [
             {
               "description" : "Ongoing support, cancel anytime.",
-              "displayName" : "Monthly Supporter",
+              "displayName" : "Front Row Monthly",
               "locale" : "en_US"
+            },
+            {
+              "description" : "Laufende Unterstützung, jederzeit kündbar.",
+              "displayName" : "Front Row monatlich",
+              "locale" : "de"
             }
           ],
           "productID" : "supporter.monthly",
           "recurringSubscriptionPeriod" : "P1M",
-          "referenceName" : "Monthly Supporter",
+          "referenceName" : "Front Row Monthly",
           "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
           "type" : "RecurringSubscription"
         },
@@ -110,19 +115,84 @@
           ],
           "displayPrice" : "14.99",
           "familyShareable" : false,
-          "groupNumber" : 1,
+          "groupNumber" : 2,
           "internalID" : "A2B00002-0002-4002-8002-000000000012",
           "introductoryOffer" : null,
           "localizations" : [
             {
               "description" : "Ongoing support, cancel anytime.",
-              "displayName" : "Yearly Supporter",
+              "displayName" : "Front Row Yearly",
               "locale" : "en_US"
+            },
+            {
+              "description" : "Laufende Unterstützung, jederzeit kündbar.",
+              "displayName" : "Front Row jährlich",
+              "locale" : "de"
             }
           ],
           "productID" : "supporter.yearly",
           "recurringSubscriptionPeriod" : "P1Y",
-          "referenceName" : "Yearly Supporter",
+          "referenceName" : "Front Row Yearly",
+          "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "4.99",
+          "familyShareable" : true,
+          "groupNumber" : 1,
+          "internalID" : "A2B00003-0003-4003-8003-000000000013",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Top-tier support + 2 exclusive app icons.",
+              "displayName" : "Director's Cut Monthly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Größte Unterstützung + 2 exklusive Icons.",
+              "displayName" : "Director's Cut monatlich",
+              "locale" : "de"
+            }
+          ],
+          "productID" : "directorscut.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Director's Cut Monthly",
+          "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "39.99",
+          "familyShareable" : true,
+          "groupNumber" : 1,
+          "internalID" : "A2B00004-0004-4004-8004-000000000014",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Top-tier support + 2 exclusive app icons.",
+              "displayName" : "Director's Cut Yearly",
+              "locale" : "en_US"
+            },
+            {
+              "description" : "Größte Unterstützung + 2 exklusive Icons.",
+              "displayName" : "Director's Cut jährlich",
+              "locale" : "de"
+            }
+          ],
+          "productID" : "directorscut.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Director's Cut Yearly",
           "subscriptionGroupID" : "A2B00000-0000-4000-8000-000000000010",
           "type" : "RecurringSubscription"
         }

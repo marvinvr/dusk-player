@@ -2,8 +2,8 @@ import SwiftUI
 
 #if os(iOS)
 /// Grid picker for the alternate app icons, opened from Settings → Appearance.
-/// Locked tiles route non-supporters to the supporter sheet instead of
-/// applying the icon.
+/// Two groups: the icons every supporter keeps, and the Director's Cut
+/// exclusives. Locked tiles open the supporter sheet instead of applying.
 struct AppIconPickerView: View {
     @Environment(SupporterStore.self) private var store
     @Environment(AnalyticsClient.self) private var analytics: AnalyticsClient?
@@ -19,18 +19,22 @@ struct AppIconPickerView: View {
                 Color.duskBackground.ignoresSafeArea()
 
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        LazyVGrid(columns: columns, spacing: 20) {
-                            ForEach(DuskAppIcon.allCases) { icon in
-                                tile(for: icon)
-                            }
-                        }
+                    VStack(alignment: .leading, spacing: 28) {
+                        iconGroup(
+                            title: "Supporter Icons",
+                            icons: DuskAppIcon.supporterIcons,
+                            footnote: store.isSupporter
+                                ? "Thanks for supporting Dusk — these are yours for good."
+                                : "Alternate icons are a small thank-you for supporters. Everything else in Dusk stays free."
+                        )
 
-                        Text(store.isSupporter
-                            ? "Thanks for supporting Dusk — enjoy the icons."
-                            : "Alternate icons are a small thank-you for supporters. Everything else in Dusk stays free.")
-                            .font(.caption)
-                            .foregroundStyle(Color.duskTextSecondary)
+                        iconGroup(
+                            title: "Director's Cut Exclusives",
+                            icons: DuskAppIcon.directorsCutIcons,
+                            footnote: store.hasDirectorsCut
+                                ? "Included with your Director's Cut subscription. If it ends, Dusk switches back to the default icon."
+                                : "Eclipse and Velvet unlock while a Director's Cut subscription is active."
+                        )
                     }
                     .padding(20)
                 }
@@ -48,14 +52,35 @@ struct AppIconPickerView: View {
             }
         }
         .onAppear { currentIcon = DuskAppIcon.current }
+        .onChange(of: store.activeTier) { _, _ in currentIcon = DuskAppIcon.current }
         .sheet(isPresented: $showsSupporterSheet) {
             SupporterView(context: .settings)
         }
     }
 
+    private func iconGroup(title: String, icons: [DuskAppIcon], footnote: String) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text(title)
+                .font(.footnote.weight(.semibold))
+                .textCase(.uppercase)
+                .tracking(0.6)
+                .foregroundStyle(Color.duskTextSecondary)
+
+            LazyVGrid(columns: columns, alignment: .leading, spacing: 20) {
+                ForEach(icons) { icon in
+                    tile(for: icon)
+                }
+            }
+
+            Text(footnote)
+                .font(.caption)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+    }
+
     private func tile(for icon: DuskAppIcon) -> some View {
         let isSelected = currentIcon == icon
-        let isLocked = icon.requiresSupporter && !store.isSupporter
+        let isLocked = !store.isUnlocked(icon)
         let shape = RoundedRectangle(cornerRadius: 20, style: .continuous)
 
         return Button {

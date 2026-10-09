@@ -167,6 +167,7 @@ struct DuskApp: App {
                 .onChange(of: scenePhase) { _, newPhase in
                     if newPhase == .active {
                         analytics.recordAppOpenedIfNeeded()
+                        Task { await supporterStore.sceneDidBecomeActive() }
                     }
 
                     if newPhase == .active,

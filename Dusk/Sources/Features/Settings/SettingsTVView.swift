@@ -32,7 +32,8 @@ struct SettingsTVView: View {
                     TVSettingsActionRow(
                         title: supporterStore.isSupporter ? "You're a Supporter ❤️" : "Support Dusk",
                         tint: Color.duskTextPrimary,
-                        showsChevron: true
+                        showsChevron: supporterStore.activeTier == nil,
+                        detail: supporterStore.activeTier?.displayName
                     ) {
                         showsSupporterSheet = true
                     }

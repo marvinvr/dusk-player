@@ -35,7 +35,7 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-iOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: DuskIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconEclipse DuskIconVelvet
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
@@ -67,6 +67,8 @@ targets:
           - DuskIconMono.icon
           - DuskIconAurora.icon
           - DuskIconGoldenHour.icon
+          - DuskIconEclipse.icon
+          - DuskIconVelvet.icon
           - LaunchScreen.storyboard
     settings:
       base:
@@ -100,6 +102,41 @@ targets:
         name: Verify embedded VLCKit is not stale
         basedOnDependencyAnalysis: false
 
+  # Unit tests, hosted by the app so StoreKitTest can drive Dusk.storekit.
+  DuskTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: DuskTests
+      - path: Dusk/Support/Dusk.storekit
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Dusk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Dusk"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - target: Dusk
+
+  DuskTests-tvOS:
+    type: bundle.unit-test
+    platform: tvOS
+    sources:
+      - path: DuskTests
+      - path: Dusk/Support/Dusk.storekit
+        buildPhase: resources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app.tests
+        GENERATE_INFOPLIST_FILE: true
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Dusk.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Dusk"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - target: Dusk-tvOS
+
 # Explicit schemes so the StoreKit configuration file is attached to Run;
 # without it the supporter purchases can't be exercised in the simulator.
 schemes:
@@ -110,6 +147,10 @@ schemes:
     run:
       config: Debug
       storeKitConfiguration: Dusk/Support/Dusk.storekit
+    test:
+      config: Debug
+      targets:
+        - DuskTests
     profile:
       config: Release
     analyze:
@@ -124,6 +165,10 @@ schemes:
     run:
       config: Debug
       storeKitConfiguration: Dusk/Support/Dusk.storekit
+    test:
+      config: Debug
+      targets:
+        - DuskTests-tvOS
     profile:
       config: Release
     analyze:

@@ -3,11 +3,14 @@ import StoreKit
 
 /// The supporter-tier product catalog. Everything in Dusk stays free; these
 /// exist purely so people can chip in. Tips are consumables so they can be
-/// bought again at any time; subscriptions live in one App Store group so a
-/// user can switch between monthly and yearly.
+/// bought again at any time; subscriptions live in one App Store group
+/// ("Dusk Supporter") with two levels — Front Row and the higher Director's
+/// Cut — so StoreKit handles upgrades, downgrades and monthly/yearly switches.
 enum SupporterProduct: String, CaseIterable {
     case monthly = "supporter.monthly"
     case yearly = "supporter.yearly"
+    case directorsCutMonthly = "directorscut.monthly"
+    case directorsCutYearly = "directorscut.yearly"
     case tipCoffee = "tip.coffee"
     case tipGenerous = "tip.generous"
     case tipLegendary = "tip.legendary"
@@ -15,11 +18,19 @@ enum SupporterProduct: String, CaseIterable {
 
     static var allIDs: [String] { allCases.map(\.rawValue) }
 
-    var isSubscription: Bool {
+    /// Subscription level; nil for tips.
+    var tier: SupporterTier? {
         switch self {
-        case .monthly, .yearly: true
-        case .tipCoffee, .tipGenerous, .tipLegendary, .tipPatron: false
+        case .monthly, .yearly: .frontRow
+        case .directorsCutMonthly, .directorsCutYearly: .directorsCut
+        case .tipCoffee, .tipGenerous, .tipLegendary, .tipPatron: nil
         }
+    }
+
+    var isSubscription: Bool { tier != nil }
+
+    var isYearly: Bool {
+        self == .yearly || self == .directorsCutYearly
     }
 
     /// Stable display order within the purchase sheet.
@@ -27,10 +38,12 @@ enum SupporterProduct: String, CaseIterable {
         switch self {
         case .monthly: 0
         case .yearly: 1
-        case .tipCoffee: 2
-        case .tipGenerous: 3
-        case .tipLegendary: 4
-        case .tipPatron: 5
+        case .directorsCutMonthly: 2
+        case .directorsCutYearly: 3
+        case .tipCoffee: 4
+        case .tipGenerous: 5
+        case .tipLegendary: 6
+        case .tipPatron: 7
         }
     }
 }
@@ -38,13 +51,17 @@ enum SupporterProduct: String, CaseIterable {
 /// Owns all StoreKit 2 state for the supporter tier.
 ///
 /// Supporter status is intentionally monotonic: any verified purchase — one
-/// tip or one month of subscription, ever — makes the user a supporter
-/// permanently, even after the subscription lapses. Tips are consumables, so
-/// reinstall survival relies on `SKIncludeConsumableInAppPurchaseHistory`
-/// (set in both Info.plists) which makes finished consumables appear in
-/// `Transaction.all`. The last-known status is cached in UserDefaults so the
-/// settings UI renders correctly offline, and the cache is never downgraded
-/// from `true` to `false` by a transient empty history.
+/// tip or one month of either subscription level, ever — makes the user a
+/// supporter permanently, even after the subscription lapses. Tips are
+/// consumables, so reinstall survival relies on
+/// `SKIncludeConsumableInAppPurchaseHistory` (set in both Info.plists) which
+/// makes finished consumables appear in `Transaction.all`. The last-known
+/// status is cached in UserDefaults so the settings UI renders correctly
+/// offline, and the cache is never downgraded from `true` to `false` by a
+/// transient empty history.
+///
+/// Director's Cut is the one thing that is *not* monotonic: its exclusive app
+/// icons only stay unlocked while that level is active (`activeTier`).
 @MainActor
 @Observable
 final class SupporterStore {
@@ -52,9 +69,10 @@ final class SupporterStore {
         static let isSupporter = "supporterIsSupporter"
         static let supporterSince = "supporterSince"
         static let tipCount = "supporterTipCount"
+        static let directorsCutExpiration = "supporterDirectorsCutExpiration"
     }
 
-    /// Subscription products in display order (monthly, yearly). Empty until loaded.
+    /// Subscription products of both levels in display order. Empty until loaded.
     private(set) var subscriptionProducts: [Product] = []
     /// One-time tip products in ascending price order. Empty until loaded.
     private(set) var tipProducts: [Product] = []
@@ -64,7 +82,20 @@ final class SupporterStore {
     private(set) var isSupporter: Bool
     private(set) var supporterSince: Date?
     private(set) var tipCount: Int
-    private(set) var hasActiveSubscription = false
+    /// Highest subscription level currently in force; nil when none is.
+    private(set) var activeTier: SupporterTier?
+    private(set) var activeProductID: String?
+    private(set) var activeExpirationDate: Date?
+    /// Renewal info for the active subscription (pending downgrade, cancelled).
+    private(set) var renewalPlan: SupporterRenewalPlan?
+    /// Last known end of a Director's Cut period, cached so a transient empty
+    /// history read can't make the exclusive-icon check think it lapsed.
+    private(set) var lastKnownDirectorsCutExpiration: Date?
+
+    var hasActiveSubscription: Bool { activeTier != nil }
+    var hasDirectorsCut: Bool { activeTier == .directorsCut }
+    /// Director's Cut is active but set to renew into Front Row.
+    var pendingDowngradeTier: SupporterTier? { renewalPlan?.pendingDowngrade(from: activeTier) }
 
     /// Product ID of an in-flight purchase, for per-row spinners.
     private(set) var purchasingProductID: String?
@@ -74,15 +105,18 @@ final class SupporterStore {
     private(set) var lastErrorMessage: String?
 
     private var updatesTask: Task<Void, Never>?
+    private var expirationTask: Task<Void, Never>?
     private var started = false
     private let analytics: AnalyticsClient?
+    private let defaults: UserDefaults
 
-    init(analytics: AnalyticsClient? = nil) {
+    init(analytics: AnalyticsClient? = nil, defaults: UserDefaults = .standard) {
         self.analytics = analytics
-        let defaults = UserDefaults.standard
+        self.defaults = defaults
         isSupporter = defaults.bool(forKey: Keys.isSupporter)
         supporterSince = defaults.object(forKey: Keys.supporterSince) as? Date
         tipCount = defaults.integer(forKey: Keys.tipCount)
+        lastKnownDirectorsCutExpiration = defaults.object(forKey: Keys.directorsCutExpiration) as? Date
     }
 
     /// Kicks off the transaction listener, loads products, and reconciles
@@ -95,6 +129,13 @@ final class SupporterStore {
         await finishUnfinishedTransactions()
         await refreshEntitlements()
         await loadProducts()
+    }
+
+    /// Subscriptions can lapse while the app is in the background without a
+    /// transaction update, so re-read entitlements whenever the app returns.
+    func sceneDidBecomeActive() async {
+        guard started else { return }
+        await refreshEntitlements()
     }
 
     // MARK: - Products
@@ -113,6 +154,11 @@ final class SupporterStore {
         } catch {
             productsUnavailable = subscriptionProducts.isEmpty && tipProducts.isEmpty
         }
+    }
+
+    /// Monthly then yearly product of one subscription level.
+    func products(for tier: SupporterTier) -> [Product] {
+        subscriptionProducts.filter { SupporterProduct(rawValue: $0.id)?.tier == tier }
     }
 
     // MARK: - Purchasing
@@ -162,50 +208,123 @@ final class SupporterStore {
 
     /// Recomputes supporter status from the App Store transaction history.
     func refreshEntitlements() async {
-        var activeSubscription = false
+        var current: [SupporterTransactionRecord] = []
+        var currentTransactions: [String: Transaction] = [:]
         for await result in Transaction.currentEntitlements {
             guard let transaction = try? verified(result),
-                  let product = SupporterProduct(rawValue: transaction.productID),
-                  product.isSubscription,
-                  transaction.revocationDate == nil else { continue }
-            activeSubscription = true
+                  SupporterProduct(rawValue: transaction.productID)?.isSubscription == true else { continue }
+            current.append(Self.record(for: transaction))
+            currentTransactions[transaction.productID] = transaction
         }
 
-        var anySupport = false
-        var earliestPurchase: Date?
-        var tips = 0
+        var history: [SupporterTransactionRecord] = []
         for await result in Transaction.all {
             guard let transaction = try? verified(result),
-                  let product = SupporterProduct(rawValue: transaction.productID),
-                  transaction.revocationDate == nil else { continue }
-            anySupport = true
-            let purchaseDate = transaction.originalPurchaseDate
-            earliestPurchase = min(earliestPurchase ?? purchaseDate, purchaseDate)
-            if !product.isSubscription {
-                tips += max(transaction.purchasedQuantity, 1)
-            }
+                  SupporterProduct(rawValue: transaction.productID) != nil else { continue }
+            history.append(Self.record(for: transaction))
         }
 
-        hasActiveSubscription = activeSubscription
+        let entitlements = SupporterEntitlements.resolve(current: current, history: history)
+        apply(entitlements)
+
+        var plan: SupporterRenewalPlan?
+        if let productID = entitlements.activeProductID,
+           let status = await currentTransactions[productID]?.subscriptionStatus,
+           case .verified(let renewalInfo) = status.renewalInfo {
+            plan = SupporterRenewalPlan(
+                nextProductID: renewalInfo.autoRenewPreference,
+                willAutoRenew: renewalInfo.willAutoRenew,
+                renewalDate: renewalInfo.renewalDate ?? entitlements.activeExpirationDate
+            )
+        }
+        renewalPlan = plan
+
+        scheduleExpirationRefresh()
+        enforceExclusiveIconAccess()
+    }
+
+    /// Folds one entitlement snapshot into the cached status. Supporter status
+    /// only ever gains evidence; the active level always follows the snapshot.
+    func apply(_ entitlements: SupporterEntitlements) {
+        activeTier = entitlements.activeTier
+        activeProductID = entitlements.activeProductID
+        activeExpirationDate = entitlements.activeExpirationDate
+
         // Once a supporter, always a supporter — never downgrade the cached
         // flag just because the history read came back empty (offline, sandbox
         // hiccups). New evidence only ever adds.
-        if anySupport || activeSubscription {
+        if entitlements.hasAnySupport || entitlements.activeTier != nil {
             isSupporter = true
         }
-        if let earliestPurchase {
+        if let earliestPurchase = entitlements.earliestPurchase {
             supporterSince = min(supporterSince ?? earliestPurchase, earliestPurchase)
         }
-        tipCount = max(tipCount, tips)
+        tipCount = max(tipCount, entitlements.tipCount)
+
+        // A non-empty history is authoritative for the Director's Cut period
+        // (it reflects refunds); an empty one keeps the cached value.
+        if !entitlements.historyWasEmpty {
+            lastKnownDirectorsCutExpiration = entitlements.latestDirectorsCutExpiration
+        }
+        if entitlements.activeTier == .directorsCut, let expiration = entitlements.activeExpirationDate {
+            lastKnownDirectorsCutExpiration = max(lastKnownDirectorsCutExpiration ?? expiration, expiration)
+        }
 
         persistCache()
     }
 
+    /// True when an exclusive Director's Cut icon is no longer covered.
+    func shouldRevertExclusiveIcon(now: Date = Date()) -> Bool {
+        SupporterEntitlements.shouldRevertExclusiveIcon(
+            activeTier: activeTier,
+            lastKnownDirectorsCutExpiration: lastKnownDirectorsCutExpiration,
+            now: now
+        )
+    }
+
+    /// Switches back to the default icon once Director's Cut has lapsed while
+    /// one of its exclusive icons is set. iOS shows its own "You have changed
+    /// the icon" alert for any icon change; there is no in-app UI for this.
+    /// Not awaited: the system call only returns once that alert is dismissed,
+    /// which would stall every entitlement refresh behind it. If the app isn't
+    /// active the switch fails and is retried on the next activation.
+    private func enforceExclusiveIconAccess() {
+        #if os(iOS)
+        guard DuskAppIcon.current.requiresDirectorsCut, shouldRevertExclusiveIcon() else { return }
+        Task { try? await DuskAppIcon.select(.dusk) }
+        #endif
+    }
+
+    /// Re-reads entitlements right after the active period ends so a lapse
+    /// while the app is open locks the exclusive icons without a relaunch.
+    private func scheduleExpirationRefresh() {
+        expirationTask?.cancel()
+        guard let expiration = activeExpirationDate else { return }
+        let delay = expiration.timeIntervalSinceNow + 1
+        guard delay > 0, delay < 60 * 60 * 24 * 2 else { return }
+        expirationTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            guard !Task.isCancelled else { return }
+            await self?.refreshEntitlements()
+        }
+    }
+
     private func persistCache() {
-        let defaults = UserDefaults.standard
         defaults.set(isSupporter, forKey: Keys.isSupporter)
         defaults.set(supporterSince, forKey: Keys.supporterSince)
         defaults.set(tipCount, forKey: Keys.tipCount)
+        defaults.set(lastKnownDirectorsCutExpiration, forKey: Keys.directorsCutExpiration)
+    }
+
+    private static func record(for transaction: Transaction) -> SupporterTransactionRecord {
+        SupporterTransactionRecord(
+            productID: transaction.productID,
+            originalPurchaseDate: transaction.originalPurchaseDate,
+            expirationDate: transaction.expirationDate,
+            revocationDate: transaction.revocationDate,
+            isUpgraded: transaction.isUpgraded,
+            purchasedQuantity: transaction.purchasedQuantity
+        )
     }
 
     // MARK: - Transaction plumbing

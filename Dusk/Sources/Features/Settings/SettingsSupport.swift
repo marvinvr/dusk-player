@@ -23,9 +23,9 @@ enum SettingsSupport {
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
     #if os(tvOS)
-    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons on iPhone and iPad as a thank-you."
+    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons on iPhone and iPad as a thank-you — Director's Cut adds two exclusive ones."
     #else
-    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you."
+    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you — Director's Cut adds two exclusive ones."
     #endif
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let aboutMeURL = URL(string: "https://marvinvr.ch")!

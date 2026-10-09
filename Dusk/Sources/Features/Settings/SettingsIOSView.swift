@@ -57,7 +57,9 @@ struct SettingsIOSView: View {
                 } label: {
                     SettingsAboutRow(
                         title: supporterStore.isSupporter ? "You're a Supporter" : "Support Dusk",
-                        subtitle: supporterStore.isSupporter
+                        subtitle: supporterStore.hasDirectorsCut
+                            ? "Director's Cut — thank you for making Dusk possible ❤️"
+                            : supporterStore.isSupporter
                             ? "Thank you for making Dusk possible ❤️"
                             : "Free, no ads, no tracking — chip in if you like it",
                         systemImage: "heart.fill",
