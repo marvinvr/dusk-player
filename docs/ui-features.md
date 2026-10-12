@@ -507,6 +507,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   they sit inside a shared card). Any new tvOS settings row must carry that band, or
   it will be invisible when focused (`.duskSuppressTVOSButtonChrome()` strips the
   system focus effect, leaving no indicator on its own).
+- `TVSettingsMenuRow` pushes its own option list (`TVSettingsOptionList`) through a
+  plain `NavigationLink`. Do not switch it back to `Picker` with
+  `.pickerStyle(.navigationLink)`: on tvOS 27 that style pushes an empty list with
+  nothing focusable, so focus drops to the tab bar and Back exits the app with a
+  black screen left over Settings (1.6.2 fix).
 - When the signed-in account has multiple Plex Home members, both settings
   platforms show a Plex Home section with the current user, `Switch User`, and
   `Automatically Sign In`. The switch action reuses the startup picker as a
