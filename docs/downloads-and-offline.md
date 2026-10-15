@@ -59,6 +59,56 @@ DownloadActionButton
   -> completeDownload(.completed + relativeVideoPath)
 ```
 
+### Explicit Offline Quality
+
+Movies, episodes, seasons, and shows present a native quality picker. Original
+is the default and keeps the direct-file path; clips also keep Original. The
+Source Version Resolution preference still selects an existing source version.
+An explicit 320p–1080p bitrate preset asks Plex to prepare a smaller offline
+copy. This does not change playback quality or start streaming transcodes.
+
+`DownloadedMediaRecord.downloadQuality` defaults to Original for old snapshots.
+Expanded episodes retain hierarchy and preset immediately; existing records keep
+their own preset, and a partial show/season retry inherits the scope's saved
+choice. A failed download's explicit retry resets its server job and recovery
+budget while preserving source media/part IDs and quality. Pause keeps the job.
+
+`PlexService+Downloads` owns the Download Queue API (PMS 1.41.9+). Each record
+persists a unique client identifier before creating its user/client-scoped
+queue. The queue ID is saved before add; listing that dedicated queue recovers
+an add whose response was lost. Every operation uses captured server credentials
+and checks the owning Home profile. Media indices are resolved from fresh
+metadata by saved media ID, so source reordering cannot select another version.
+
+Conversion uses the Generic profile with a **static** HTTP MKV/H.264/AAC target,
+`partIndex=-1` for a joined file, and no subtitle burn-in. Polling reports
+separate preparation progress. Before native handoff, the decision must confirm
+the requested container/codecs; a ready-file HEAD supplies its actual size when
+available. Dusk never substitutes the original file after conversion failure.
+Two server preparations may run alongside the configured native transfer slots.
+An expired job/file may be regenerated twice automatically; explicit Retry
+starts a new recovery budget. A prepared file can expire while paused, too.
+
+Preparation requires the app to run; suspension delays polling/handoff until
+the app resumes. Queue/client/item identity survives relaunch. Once handed off,
+the existing background URLSession owns transfer. Cancellation and completion
+enqueue item-only cleanup; pending cleanup persists across offline periods and
+profile switches and runs only with its owner's credentials. A cancellation
+during add waits for that operation to unwind, then resolves any unknown item
+through its dedicated queue. Never delete a whole server queue.
+
+Converted files are saved as `.mkv` and validated against the prepared file's
+size, never the original part's size. Persisted converted media supplies offline
+engine selection, while original media/part IDs retain version identity. Source
+stream IDs and codec/HDR fields must not label converted tracks; VLC discovers
+the downloaded file's tracks. Subtitle refresh preserves that separation, and
+AirPlay handoff returns to the original server media metadata.
+
+Converted copies may omit embedded subtitles. Dusk does not currently cache
+external subtitle sidecars for either download mode; choose Original to retain
+the source's embedded tracks. Subtitles downloaded while connected can still be
+mounted during local playback.
+
 Every queue API is keyed by `PlexItemID`, and `DownloadScope` carries it too:
 rating keys collide across servers, so a record is only ever matched by server +
 rating key. `DownloadManager.record(for:)` is strict about this: an id without a
@@ -201,7 +251,7 @@ dismiss the sheet before appending the media destination to the Downloads tab
 navigation path, so detail screens are shown in the full tab stack rather than
 inside the sheet.
 `MainTabView` shows the Downloads tab only when visible and records exist.
-`SettingsIOSView` owns quality, Wi-Fi Only, concurrency, storage reserve, usage,
+`SettingsIOSView` owns source-version resolution, Wi-Fi Only, concurrency, storage reserve, usage,
 manual sync, and delete-all. `MediaDetailDestinationView` passes managers into
 detail view models and marks routes from Downloads with
 `prefersOfflineAvailability`.
@@ -245,3 +295,9 @@ detail loading, local artwork, local playback, downloaded-version engine
 selection, and pending sync banners. For Swift source changes, run the
 compile-only `xcodebuild` command from `AGENTS.md`; docs-only changes do not
 need a build.
+
+Protocol/decision fixtures and legacy-record migration coverage live in
+`DuskTests/PlexDownloadQueueTests.swift`. Compile-only verification does not
+establish live-server behavior: before release, verify conversion permissions,
+multiple versions, expiry, profile switching, cancellation during add/poll/file
+transfer, full offline MKV playback, and iOS background relaunch with a real PMS.

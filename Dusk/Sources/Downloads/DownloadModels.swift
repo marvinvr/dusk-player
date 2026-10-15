@@ -1,5 +1,46 @@
 import Foundation
 
+/// An explicit offline conversion choice, independent of playback quality.
+enum DownloadQuality: String, Codable, CaseIterable, Identifiable, Sendable {
+    case original, p1080High, p1080, p720, p720Low, p480, p320
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .original: "Original"
+        case .p1080High: "1080p · 12 Mbps"
+        case .p1080: "1080p · 8 Mbps"
+        case .p720: "720p · 4 Mbps"
+        case .p720Low: "720p · 2 Mbps"
+        case .p480: "480p · 1 Mbps"
+        case .p320: "320p · 0.7 Mbps"
+        }
+    }
+
+    var bitrate: Int? {
+        switch self {
+        case .original: nil
+        case .p1080High: 12000
+        case .p1080: 8000
+        case .p720: 4000
+        case .p720Low: 2000
+        case .p480: 1000
+        case .p320: 700
+        }
+    }
+
+    var resolution: String? {
+        switch self {
+        case .original: nil
+        case .p1080High, .p1080: "1920x1080"
+        case .p720, .p720Low: "1280x720"
+        case .p480: "720x480"
+        case .p320: "576x320"
+        }
+    }
+}
+
 enum DownloadStatus: String, Codable, Sendable {
     case queued
     case preparing
@@ -146,6 +187,20 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var artPath: String?
     var mediaID: Int?
     var partID: Int?
+    var downloadQuality: DownloadQuality = .original
+    /// Persisted before any server mutation; each request owns its own Plex queue.
+    var queueClientIdentifier: String? = nil
+    var plexDownloadQueueID: String? = nil
+    var plexDownloadItemID: String? = nil
+    var preparationProgress: Double? = nil
+    var preparationRetryCount: Int = 0
+    /// Encoded separately to retain the record's Hashable conformance. Source
+    /// media/part IDs above remain stable even when the prepared file expires.
+    var convertedMediaData: Data? = nil
+
+    var convertedMedia: PlexMedia? {
+        convertedMediaData.flatMap { try? JSONDecoder().decode(PlexMedia.self, from: $0) }
+    }
     var relativeVideoPath: String?
     var resumeDataPath: String?
     var downloadTaskIdentifier: Int?
@@ -167,6 +222,8 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
         case grandparentRatingKey, grandparentTitle
         case thumbPath, artPath
         case mediaID, partID
+        case downloadQuality, queueClientIdentifier, plexDownloadQueueID, plexDownloadItemID
+        case preparationProgress, preparationRetryCount, convertedMediaData
         case relativeVideoPath, resumeDataPath, downloadTaskIdentifier, wasPausedForProfileSwitch
         case status, progress, downloadedBytes, totalBytes
         case errorMessage, addedAt, updatedAt
@@ -230,6 +287,13 @@ extension DownloadedMediaRecord {
         artPath = try container.decodeIfPresent(String.self, forKey: .artPath)
         mediaID = try container.decodeIfPresent(Int.self, forKey: .mediaID)
         partID = try container.decodeIfPresent(Int.self, forKey: .partID)
+        downloadQuality = try container.decodeIfPresent(DownloadQuality.self, forKey: .downloadQuality) ?? .original
+        queueClientIdentifier = try container.decodeIfPresent(String.self, forKey: .queueClientIdentifier)
+        plexDownloadQueueID = try container.decodeIfPresent(String.self, forKey: .plexDownloadQueueID)
+        plexDownloadItemID = try container.decodeIfPresent(String.self, forKey: .plexDownloadItemID)
+        preparationProgress = try container.decodeIfPresent(Double.self, forKey: .preparationProgress)
+        preparationRetryCount = try container.decodeIfPresent(Int.self, forKey: .preparationRetryCount) ?? 0
+        convertedMediaData = try container.decodeIfPresent(Data.self, forKey: .convertedMediaData)
         relativeVideoPath = try container.decodeIfPresent(String.self, forKey: .relativeVideoPath)
         resumeDataPath = try container.decodeIfPresent(String.self, forKey: .resumeDataPath)
         downloadTaskIdentifier = try container.decodeIfPresent(Int.self, forKey: .downloadTaskIdentifier)
@@ -274,4 +338,15 @@ struct DownloadedShowSummary: Identifiable, Hashable {
 
 struct DownloadStoreSnapshot: Codable, Sendable {
     var records: [DownloadedMediaRecord] = []
+    var pendingQueueRemovals: [DownloadQueueRemoval]? = nil
+}
+
+/// Cleanup survives an offline cancellation or a Plex Home profile switch.
+struct DownloadQueueRemoval: Codable, Sendable, Hashable {
+    let profileID: String
+    let serverID: String
+    let clientIdentifier: String
+    let ratingKey: String
+    let queueID: String?
+    let itemID: String?
 }

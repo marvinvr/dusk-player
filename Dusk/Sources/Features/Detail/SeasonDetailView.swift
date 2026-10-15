@@ -7,6 +7,7 @@ struct SeasonDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: SeasonDetailViewModel
+    @State private var episodeToDownload: PlexEpisode?
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
@@ -54,6 +55,14 @@ struct SeasonDetailView: View {
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active, viewModel.details != nil else { return }
             Task { await viewModel.refresh() }
+        }
+        .sheet(item: $episodeToDownload) { episode in
+            DownloadQualitySelectionSheet { quality in
+                episodeToDownload = nil
+                Task {
+                    await downloadManager.queueDownload(episode: episode, quality: quality)
+                }
+            }
         }
     }
 
@@ -316,9 +325,7 @@ struct SeasonDetailView: View {
                 )
             } else {
                 Button {
-                    Task {
-                        await downloadManager.queueDownload(episode: episode)
-                    }
+                    episodeToDownload = episode
                 } label: {
                     Label("Download Episode", systemImage: "arrow.down.circle")
                 }

@@ -91,6 +91,9 @@ final class DownloadManager {
     @ObservationIgnored private var connectedServerIDs: Set<String> = []
     @ObservationIgnored private var networkMonitorQueue = DispatchQueue(label: "com.dusk.networkMonitor")
     @ObservationIgnored private var queueTask: Task<Void, Never>?
+    @ObservationIgnored private var preparationTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var pendingQueueRemovals: [DownloadQueueRemoval] = []
+    @ObservationIgnored private var cleanupTask: Task<Void, Never>?
     @ObservationIgnored private var lastProgressPersistDates: [String: Date] = [:]
     @ObservationIgnored private var speedEstimates: [String: SmoothedDownloadSpeed] = [:]
     @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
@@ -109,7 +112,9 @@ final class DownloadManager {
         self.fileStore = fileStore
         self.metadataCache = PlexMetadataCache(fileStore: fileStore)
         try? fileStore.prepareRootDirectory()
-        storedRecords = fileStore.loadSnapshot().records
+        let snapshot = fileStore.loadSnapshot()
+        storedRecords = snapshot.records
+        pendingQueueRemovals = snapshot.pendingQueueRemovals ?? []
         rekeyLegacyServerIdentifiers()
         reconcileCompletedFiles()
         _ = transferController
@@ -403,33 +408,40 @@ final class DownloadManager {
         }.count
     }
 
-    func queueDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false) async {
+    func queueDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false, quality: DownloadQuality? = nil) async {
+        let initiatingProfileID = plexService.activeProfileID
+        let scope = DownloadScope(id: id, type: type)
+        let retainedQuality = record(for: id)?.downloadQuality ?? relatedRecords(for: scope).first?.downloadQuality
+        let quality = isClip || type == .clip ? .original : (quality ?? retainedQuality ?? .original)
         do {
             switch type {
             case .movie, .episode, .clip:
-                try await queueSingleDownload(id: id, type: type, isClip: isClip)
+                try await queueSingleDownload(id: id, type: type, isClip: isClip, quality: quality)
             case .season:
-                try await queueSeasonDownload(season: id)
+                try await queueSeasonDownload(season: id, quality: quality)
             case .show:
-                try await queueShowDownload(show: id)
+                try await queueShowDownload(show: id, quality: quality)
             default:
                 break
             }
             removeAggregatePlaceholder(for: DownloadScope(id: id, type: type))
             processQueueIfNeeded()
         } catch {
-            guard !(error is CancellationError) else { return }
-            upsertFailedPlaceholder(id: id, type: type, isClip: isClip, error: error)
+            guard !(error is CancellationError), !isProfileSwitching,
+                  initiatingProfileID == plexService.activeProfileID else { return }
+            upsertFailedPlaceholder(id: id, type: type, isClip: isClip, quality: quality, error: error)
         }
     }
 
-    func queueDownload(episode: PlexEpisode) async {
+    func queueDownload(episode: PlexEpisode, quality: DownloadQuality = .original) async {
+        let initiatingProfileID = plexService.activeProfileID
         do {
-            try await queueEpisodeDownload(episode)
+            try await queueEpisodeDownload(episode, quality: quality)
             processQueueIfNeeded()
         } catch {
-            guard !(error is CancellationError) else { return }
-            upsertFailedPlaceholder(id: episode.id, type: .episode, error: error)
+            guard !(error is CancellationError), !isProfileSwitching,
+                  initiatingProfileID == plexService.activeProfileID else { return }
+            upsertFailedPlaceholder(id: episode.id, type: .episode, quality: quality, error: error)
         }
     }
 
@@ -504,7 +516,8 @@ final class DownloadManager {
         var resumedProfileQueue = false
         for index in storedRecords.indices
         where storedRecords[index].accountProfileID == activeProfileID
-            && storedRecords[index].wasPausedForProfileSwitch {
+            && storedRecords[index].wasPausedForProfileSwitch
+            && storedRecords[index].status == .paused {
             storedRecords[index].wasPausedForProfileSwitch = false
             storedRecords[index].status = .queued
             storedRecords[index].downloadTaskIdentifier = nil
@@ -538,6 +551,13 @@ final class DownloadManager {
     private func retryDownload(globalKey: String) {
         guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }) else { return }
         fileStore.deleteResumeData(relativePath: storedRecords[index].resumeDataPath)
+        enqueueQueueRemoval(for: storedRecords[index])
+        storedRecords[index].queueClientIdentifier = nil
+        storedRecords[index].plexDownloadQueueID = nil
+        storedRecords[index].plexDownloadItemID = nil
+        storedRecords[index].convertedMediaData = nil
+        storedRecords[index].preparationProgress = nil
+        storedRecords[index].preparationRetryCount = 0
         storedRecords[index].status = .queued
         storedRecords[index].progress = 0
         storedRecords[index].downloadedBytes = 0
@@ -562,6 +582,7 @@ final class DownloadManager {
             return
         }
 
+        preparationTasks[globalKey]?.cancel()
         storedRecords[index].wasPausedForProfileSwitch = forProfileSwitch
         if let taskIdentifier = storedRecords[index].downloadTaskIdentifier {
             if forProfileSwitch {
@@ -599,6 +620,10 @@ final class DownloadManager {
     private func resumeDownload(globalKey: String) {
         guard let index = storedRecords.firstIndex(where: { $0.globalKey == globalKey }),
               storedRecords[index].status.canResume else {
+            return
+        }
+        if storedRecords[index].status == .failed {
+            retryDownload(globalKey: globalKey)
             return
         }
         storedRecords[index].status = .queued
@@ -676,6 +701,11 @@ final class DownloadManager {
     /// the current network state and the Wi-Fi Only preference.
     /// Called automatically when the network path changes and should also be
     /// called externally when `preferences.downloadsWifiOnly` is toggled.
+    func resumePendingWork() {
+        evaluateNetworkConstraints()
+        processQueueIfNeeded()
+    }
+
     func evaluateNetworkConstraints() {
         if preferences.downloadsWifiOnly && isNetworkConstrained {
             if !isQueuePaused {
@@ -725,8 +755,14 @@ final class DownloadManager {
     ) -> (media: PlexMedia, part: PlexMediaPart)? {
         guard let record = record(for: id),
               record.status == .completed,
-              selectedMediaID == nil || selectedMediaID == record.mediaID,
-              let mediaID = record.mediaID,
+              selectedMediaID == nil || selectedMediaID == record.mediaID else {
+            return nil
+        }
+        if record.downloadQuality != .original {
+            guard let media = record.convertedMedia, let part = media.parts.first else { return nil }
+            return (media, part)
+        }
+        guard let mediaID = record.mediaID,
               let partID = record.partID,
               let media = details.media.first(where: { $0.id == mediaID }),
               let part = media.parts.first(where: { $0.id == partID }) else {
@@ -898,7 +934,7 @@ final class DownloadManager {
             ?? plexService.pool.connection(for: serverID)?.name
     }
 
-    private func queueSingleDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false) async throws {
+    private func queueSingleDownload(id: PlexItemID, type: PlexMediaType, isClip: Bool = false, quality: DownloadQuality = .original) async throws {
         guard type == .movie || type == .episode || type == .clip else { return }
         guard !isProfileSwitching,
               plexService.isSessionReady,
@@ -909,7 +945,8 @@ final class DownloadManager {
         let ratingKey = id.ratingKey
 
         if let existing = record(for: PlexItemID(serverID: serverID, ratingKey: ratingKey)),
-           existing.status == .completed || existing.status.isActive {
+           existing.status != .cancelled {
+            if existing.status.canResume { resumeDownload(globalKey: existing.globalKey) }
             return
         }
 
@@ -935,6 +972,7 @@ final class DownloadManager {
             artPath: cachedDetails?.art,
             mediaID: nil,
             partID: nil,
+            downloadQuality: quality,
             relativeVideoPath: nil,
             resumeDataPath: nil,
             downloadTaskIdentifier: nil,
@@ -950,7 +988,7 @@ final class DownloadManager {
         upsert(record)
     }
 
-    private func queueEpisodeDownload(_ episode: PlexEpisode) async throws {
+    private func queueEpisodeDownload(_ episode: PlexEpisode, quality: DownloadQuality = .original) async throws {
         guard !isProfileSwitching,
               plexService.isSessionReady,
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
@@ -959,7 +997,8 @@ final class DownloadManager {
         let serverID = try downloadServerID(for: episode.id)
 
         if let existing = record(for: PlexItemID(serverID: serverID, ratingKey: episode.ratingKey)),
-           existing.status == .completed || existing.status.isActive {
+           existing.status != .cancelled {
+            if existing.status.canResume { resumeDownload(globalKey: existing.globalKey) }
             return
         }
 
@@ -989,6 +1028,7 @@ final class DownloadManager {
             artPath: cachedDetails?.art ?? episode.art,
             mediaID: nil,
             partID: nil,
+            downloadQuality: quality,
             relativeVideoPath: nil,
             resumeDataPath: nil,
             downloadTaskIdentifier: nil,
@@ -1007,7 +1047,8 @@ final class DownloadManager {
     /// Season and show downloads expand into per-episode records on the SAME
     /// server the season/show was opened from; children never inherit the
     /// primary server.
-    private func queueSeasonDownload(season: PlexItemID) async throws {
+    private func queueSeasonDownload(season: PlexItemID, quality: DownloadQuality) async throws {
+        let profileID = plexService.activeProfileID
         let serverID = try downloadServerID(for: season)
         let seasonDetails = try await fetchAndCacheDetails(ratingKey: season.ratingKey, serverID: serverID)
         if let showKey = seasonDetails.parentRatingKey {
@@ -1030,14 +1071,13 @@ final class DownloadManager {
         await cacheArtwork(for: episodes, serverID: serverID)
 
         for episode in episodes {
-            try await queueSingleDownload(
-                id: PlexItemID(serverID: serverID, ratingKey: episode.ratingKey),
-                type: .episode
-            )
+            guard profileID == plexService.activeProfileID, !isProfileSwitching else { throw CancellationError() }
+            try await queueEpisodeDownload(episode, quality: quality)
         }
     }
 
-    private func queueShowDownload(show: PlexItemID) async throws {
+    private func queueShowDownload(show: PlexItemID, quality: DownloadQuality) async throws {
+        let profileID = plexService.activeProfileID
         let serverID = try downloadServerID(for: show)
         _ = try await fetchAndCacheDetails(ratingKey: show.ratingKey, serverID: serverID)
         let seasons = try await fetchAndCacheChildren(
@@ -1049,8 +1089,10 @@ final class DownloadManager {
         await cacheArtwork(for: seasons, serverID: serverID)
 
         for season in seasons {
+            guard profileID == plexService.activeProfileID, !isProfileSwitching else { throw CancellationError() }
             try await queueSeasonDownload(
-                season: PlexItemID(serverID: serverID, ratingKey: season.ratingKey)
+                season: PlexItemID(serverID: serverID, ratingKey: season.ratingKey),
+                quality: quality
             )
         }
     }
@@ -1063,34 +1105,45 @@ final class DownloadManager {
         }
     }
 
+    private var occupiedTransferSlots: Int {
+        records.filter {
+            $0.status == .downloading || ($0.status == .preparing && $0.downloadQuality == .original)
+        }.count
+    }
+
     private func processQueue() async {
         isProcessingQueue = true
         defer {
             isProcessingQueue = false
             queueTask = nil
         }
-
+        processPendingQueueRemovals()
         guard plexService.isSessionReady,
               plexService.activeProfileID?.nilIfEmpty != nil,
-              !isProfileSwitching,
-              !isQueuePaused,
-              activeDownloadCount < preferences.maximumActiveDownloads.rawValue else {
-            return
-        }
+              !isReconcilingTransfers, !isProfileSwitching, !isQueuePaused else { return }
 
-        // A record whose server is offline or switched off is not an error: it
-        // stays queued (and its completed siblings stay playable) until that
-        // server connects again, which re-runs the queue.
-        while plexService.isSessionReady,
-              !isProfileSwitching,
-              !isQueuePaused,
-              activeDownloadCount < preferences.maximumActiveDownloads.rawValue,
-              let next = records.first(where: {
-                  $0.status == .queued
-                      && !deletingDownloadIDs.contains($0.globalKey)
-                      && isServerConnected($0.serverID)
-              }) {
-            await startDownload(record: next)
+        // Limit server conversions separately so preparing a long movie does
+        // not prevent an Original download from using a free transfer slot.
+        for next in records where next.status == .queued {
+            guard preparationTasks[next.globalKey] == nil,
+                  !deletingDownloadIDs.contains(next.globalKey),
+                  isServerConnected(next.serverID) else { continue }
+            if next.downloadQuality == .original {
+                guard occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue else { continue }
+            } else {
+                guard records.filter({ $0.status == .preparing && $0.downloadQuality != .original }).count < 2 else { continue }
+            }
+            update(globalKey: next.globalKey) {
+                $0.status = .preparing
+                $0.errorMessage = nil
+                $0.updatedAt = .now
+            }
+            preparationTasks[next.globalKey] = Task { [weak self] in
+                guard let self else { return }
+                await self.startDownload(record: next)
+                self.preparationTasks.removeValue(forKey: next.globalKey)
+                self.processQueueIfNeeded()
+            }
         }
     }
 
@@ -1098,80 +1151,50 @@ final class DownloadManager {
         plexService.pool.connection(for: serverID) != nil
     }
 
-    private func startDownload(record: DownloadedMediaRecord) async {
-        guard !Task.isCancelled,
+    /// Rechecked after every suspension, before changing state or handing off
+    /// a file. A late response must never restart a paused/cancelled request.
+    private func checkPreparation(_ record: DownloadedMediaRecord) throws {
+        try Task.checkCancellation()
+        guard !isProfileSwitching, !isQueuePaused,
               record.accountProfileID == plexService.activeProfileID,
               plexService.isSessionReady,
-              let connection = plexService.pool.connection(for: record.serverID) else {
-            return
-        }
-        update(globalKey: record.globalKey) { item in
-            item.status = .preparing
-            item.errorMessage = nil
-            item.updatedAt = .now
-        }
+              self.record(globalKey: record.globalKey)?.status == .preparing,
+              !deletingDownloadIDs.contains(record.globalKey) else { throw CancellationError() }
+        guard isServerConnected(record.serverID) else { throw PlexServiceError.noServerConnected }
+    }
 
+    private func startDownload(record: DownloadedMediaRecord) async {
         do {
+            try checkPreparation(record)
             let details: PlexMediaDetails
-            if let accountProfileID = record.accountProfileID,
-               let cachedDetails = metadataCache.mediaDetails(
-                    accountProfileID: accountProfileID,
-                    serverID: record.serverID,
-                    ratingKey: record.ratingKey
-               ) {
-                details = cachedDetails
+            // Conversion needs live ordering: mediaIndex is positional, while
+            // the persisted source mediaID identifies the chosen version.
+            if record.downloadQuality == .original,
+               let accountProfileID = record.accountProfileID,
+               let cached = metadataCache.mediaDetails(accountProfileID: accountProfileID,
+                                                       serverID: record.serverID, ratingKey: record.ratingKey) {
+                details = cached
             } else {
-                details = try await fetchAndCacheDetails(
-                    ratingKey: record.ratingKey,
-                    serverID: record.serverID
-                )
+                details = try await fetchAndCacheDetails(ratingKey: record.ratingKey, serverID: record.serverID)
             }
-
-            guard !Task.isCancelled,
-                  record.accountProfileID == plexService.activeProfileID,
-                  plexService.isSessionReady,
-                  isServerConnected(record.serverID) else {
-                update(globalKey: record.globalKey) { item in
-                    item.status = .queued
-                    item.downloadTaskIdentifier = nil
-                    item.updatedAt = .now
-                }
-                return
-            }
-
+            try checkPreparation(record)
             guard details.type == .movie || details.type == .episode || details.type == .clip else {
                 throw PlexServiceError.decodingError("Downloads are only supported for movies, episodes, and videos.")
             }
-
             if details.type == .episode {
                 try await cacheEpisodeContext(details, serverID: record.serverID)
+                try checkPreparation(record)
             }
-
-            guard !Task.isCancelled,
-                  !isProfileSwitching,
-                  record.accountProfileID == plexService.activeProfileID,
-                  plexService.isSessionReady,
-                  isServerConnected(record.serverID) else {
-                throw CancellationError()
+            let media: PlexMedia?
+            if let sourceID = record.mediaID, record.downloadQuality != .original {
+                media = details.media.first { $0.id == sourceID }
+            } else {
+                media = details.media.first(where: { $0.id == record.mediaID })
+                    ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution)
             }
-
-            let media = details.media.first(where: { $0.id == record.mediaID })
-                ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution)
-            guard let media,
-                  let part = media.parts.first(where: { $0.id == record.partID }) ?? media.parts.first else {
-                throw PlexServiceError.decodingError("Cached media part missing for \(record.title)")
+            guard let media, let part = media.parts.first(where: { $0.id == record.partID }) ?? media.firstAvailablePart else {
+                throw PlexServiceError.decodingError("The selected source version is no longer available. Cancel and download again to choose another version.")
             }
-
-            guard let sourceURL = plexService.directPlayURL(for: part, serverID: record.serverID) else {
-                throw PlexServiceError.invalidURL
-            }
-
-            guard let latestRecord = self.record(globalKey: record.globalKey),
-                  latestRecord.status == .preparing,
-                  !deletingDownloadIDs.contains(record.globalKey) else {
-                return
-            }
-
             update(globalKey: record.globalKey) { item in
                 item.title = details.title
                 item.isClip = item.isClip || details.isClip
@@ -1183,63 +1206,246 @@ final class DownloadManager {
                 item.artPath = details.art
                 item.mediaID = media.id
                 item.partID = part.id
-                item.totalBytes = part.size.map(Int64.init) ?? item.totalBytes
                 item.updatedAt = .now
             }
-
-            guard let accountProfileID = record.accountProfileID else {
-                throw PlexServiceError.notAuthenticated
+            var request: URLRequest
+            let transferPart: PlexMediaPart
+            if record.downloadQuality != .original {
+                guard let mediaIndex = details.media.firstIndex(where: { $0.id == media.id }) else {
+                    throw PlexServiceError.invalidURL
+                }
+                let prepared = try await prepareConvertedDownload(record: record, sourceMedia: media, mediaIndex: mediaIndex)
+                try checkPreparation(record)
+                guard let preparedPart = prepared.media.parts.first else { throw PlexServiceError.invalidURL }
+                transferPart = preparedPart
+                request = prepared.request
+                let encodedMedia = try JSONEncoder().encode(prepared.media)
+                update(globalKey: record.globalKey) {
+                    $0.convertedMediaData = encodedMedia
+                    $0.preparationProgress = 1
+                    $0.totalBytes = prepared.expectedBytes
+                }
+                // A background transfer may outlive this process. Its output
+                // metadata must be durable before URLSession takes ownership.
+                try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+            } else {
+                guard let connection = plexService.pool.connection(for: record.serverID),
+                      let sourceURL = plexService.directPlayURL(for: part, serverID: record.serverID) else {
+                    throw PlexServiceError.invalidURL
+                }
+                request = URLRequest(url: sourceURL)
+                plexService.applyHeaders(to: &request, token: connection.token)
+                transferPart = part
             }
-            _ = try fileStore.targetVideoURL(
-                accountProfileID: accountProfileID,
-                for: details,
-                part: part
-            )
-            var request = URLRequest(url: sourceURL)
+            try checkPreparation(record)
+            guard let latest = self.record(globalKey: record.globalKey), let profileID = record.accountProfileID else {
+                throw CancellationError()
+            }
+            _ = try fileStore.targetVideoURL(accountProfileID: profileID, for: details, part: transferPart)
+            try validateAvailableStorage(for: transferPart)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
             request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
-            // The token belongs to the record's own server; the primary one's
-            // would be rejected (or, worse, accepted for a different title).
-            plexService.applyHeaders(to: &request, token: connection.token)
-            try validateAvailableStorage(for: part)
-
-            let resumeData = fileStore.resumeData(relativePath: latestRecord.resumeDataPath)
-            let taskIdentifier = transferController.start(
-                request: request,
-                resumeData: resumeData,
-                globalKey: record.globalKey
-            )
-
-            if resumeData != nil {
-                fileStore.deleteResumeData(relativePath: latestRecord.resumeDataPath)
-            }
-
-            update(globalKey: record.globalKey) { item in
-                item.status = .downloading
-                item.downloadTaskIdentifier = taskIdentifier
-                item.resumeDataPath = nil
-                item.totalBytes = part.size.map(Int64.init) ?? item.totalBytes
-                item.updatedAt = .now
+            let resumeData = fileStore.resumeData(relativePath: latest.resumeDataPath)
+            let taskIdentifier = transferController.start(request: request, resumeData: resumeData, globalKey: record.globalKey)
+            if resumeData != nil { fileStore.deleteResumeData(relativePath: latest.resumeDataPath) }
+            update(globalKey: record.globalKey) {
+                $0.status = .downloading
+                $0.downloadTaskIdentifier = taskIdentifier
+                $0.resumeDataPath = nil
+                $0.totalBytes = transferPart.size.map(Int64.init)
+                $0.updatedAt = .now
             }
         } catch {
-            if error is CancellationError
-                || isProfileSwitching
+            // Pause/profile switch owns its state; leave it untouched even if
+            // URLSession reports cancellation as a generic network error.
+            guard let latest = self.record(globalKey: record.globalKey), latest.status == .preparing,
+                  !deletingDownloadIDs.contains(record.globalKey) else { return }
+            if error is CancellationError || Task.isCancelled || isProfileSwitching
                 || record.accountProfileID != plexService.activeProfileID {
-                update(globalKey: record.globalKey) { item in
-                    item.status = .queued
-                    item.downloadTaskIdentifier = nil
-                    item.updatedAt = .now
-                }
                 return
             }
-            update(globalKey: record.globalKey) { item in
-                item.status = .failed
-                item.downloadTaskIdentifier = nil
-                item.errorMessage = downloadErrorMessage(for: error)
-                item.updatedAt = .now
+            update(globalKey: record.globalKey) {
+                $0.status = .failed
+                $0.downloadTaskIdentifier = nil
+                $0.errorMessage = downloadErrorMessage(for: error)
+                $0.updatedAt = .now
             }
-            processQueueIfNeeded()
+        }
+    }
+
+    private func prepareConvertedDownload(
+        record: DownloadedMediaRecord, sourceMedia: PlexMedia, mediaIndex: Int
+    ) async throws -> PlexPreparedDownload {
+        guard let profileID = record.accountProfileID else { throw PlexServiceError.notAuthenticated }
+        try checkPreparation(record)
+        guard var latest = self.record(globalKey: record.globalKey) else { throw CancellationError() }
+        if latest.queueClientIdentifier == nil {
+            latest.queueClientIdentifier = UUID().uuidString
+            upsert(latest)
+        }
+        // Retry this checked write even if a previous persistence attempt
+        // failed after assigning the in-memory identity.
+        try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+        let context = try plexService.captureDownloadQueueContext(
+            serverID: record.serverID, profileID: profileID, clientIdentifier: latest.queueClientIdentifier!
+        )
+        do {
+            let queueID: String
+            if let existing = latest.plexDownloadQueueID {
+                queueID = existing
+            } else {
+                queueID = try await plexService.createDownloadQueue(context: context)
+                update(globalKey: record.globalKey) { $0.plexDownloadQueueID = queueID }
+                try checkPreparation(record)
+            }
+            try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+            let itemID: String
+            if let existing = latest.plexDownloadItemID {
+                itemID = existing
+            } else {
+                itemID = try await plexService.addDownloadQueueItem(
+                    context: context, queueID: queueID, ratingKey: record.ratingKey,
+                    mediaIndex: mediaIndex, quality: record.downloadQuality
+                )
+                // Save a late add even after a pause. If cancelled, remember
+                // cleanup independently of the deleted download record.
+                if self.record(globalKey: record.globalKey) == nil || deletingDownloadIDs.contains(record.globalKey) {
+                    enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
+                        clientIdentifier: latest.queueClientIdentifier!, ratingKey: record.ratingKey, queueID: queueID, itemID: itemID))
+                } else {
+                    update(globalKey: record.globalKey) { $0.plexDownloadItemID = itemID }
+                }
+                try checkPreparation(record)
+            }
+            while true {
+                try checkPreparation(record)
+                // Conversion can outlive a LAN/remote endpoint change or token
+                // refresh. Capture the current connection for each poll, while
+                // keeping the durable client and owning profile unchanged.
+                let pollContext = try plexService.captureDownloadQueueContext(
+                    serverID: record.serverID, profileID: profileID, clientIdentifier: latest.queueClientIdentifier!
+                )
+                let item = try await plexService.downloadQueueItem(context: pollContext, queueID: queueID, itemID: itemID)
+                try checkPreparation(record)
+                guard item.key == "/library/metadata/\(record.ratingKey)" else {
+                    throw PlexDownloadQueueError.invalidResponse("Plex returned a different item for this download.")
+                }
+                update(globalKey: record.globalKey) { $0.preparationProgress = item.progress }
+                switch item.status {
+                case .available:
+                    // Retain the server item until a native slot is free.
+                    // Poll again after waiting so expired files are noticed.
+                    if occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue {
+                        let prepared = try await plexService.preparedDownload(
+                            context: pollContext, queueID: queueID, itemID: itemID, sourceMedia: sourceMedia
+                        )
+                        try checkPreparation(record)
+                        // Another preparation may have claimed the last slot
+                        // while the decision request was in flight.
+                        if occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue { return prepared }
+                    }
+                case .expired:
+                    throw PlexDownloadQueueError.expired
+                case .error:
+                    throw PlexDownloadQueueError.preparationFailed(item.error ?? "Plex could not prepare this quality. Try Original or check server transcoding permissions.")
+                case .deciding, .waiting, .processing:
+                    break
+                }
+                try await Task.sleep(for: .seconds(2))
+            }
+        } catch PlexDownloadQueueError.expired {
+            try checkPreparation(record)
+            guard resetExpiredPreparation(globalKey: record.globalKey) else { throw PlexDownloadQueueError.expired }
+            // Re-enter through startDownload to resolve the saved media ID
+            // against fresh ordering before adding another server job.
+            update(globalKey: record.globalKey) { $0.status = .queued }
+            throw CancellationError()
+        }
+    }
+
+    /// Bounded recovery also applies when a prepared file expires during a
+    /// paused/background transfer. Source identity and selected quality survive.
+    @discardableResult
+    private func resetExpiredPreparation(globalKey: String) -> Bool {
+        guard let record = record(globalKey: globalKey), record.downloadQuality != .original,
+              record.preparationRetryCount < 2 else { return false }
+        enqueueQueueRemoval(for: record)
+        fileStore.deleteResumeData(relativePath: record.resumeDataPath)
+        update(globalKey: globalKey) {
+            $0.queueClientIdentifier = nil
+            $0.plexDownloadQueueID = nil
+            $0.plexDownloadItemID = nil
+            $0.convertedMediaData = nil
+            $0.preparationProgress = nil
+            $0.preparationRetryCount += 1
+            $0.resumeDataPath = nil
+            $0.downloadTaskIdentifier = nil
+            $0.progress = 0
+            $0.downloadedBytes = 0
+            $0.totalBytes = nil
+        }
+        return true
+    }
+
+    private func enqueueQueueRemoval(for record: DownloadedMediaRecord) {
+        guard let profileID = record.accountProfileID, let clientID = record.queueClientIdentifier else { return }
+        enqueueQueueRemoval(DownloadQueueRemoval(profileID: profileID, serverID: record.serverID,
+            clientIdentifier: clientID, ratingKey: record.ratingKey,
+            queueID: record.plexDownloadQueueID, itemID: record.plexDownloadItemID))
+    }
+
+    private func enqueueQueueRemoval(_ removal: DownloadQueueRemoval) {
+        if !pendingQueueRemovals.contains(removal) {
+            pendingQueueRemovals.append(removal)
+            persist()
+        }
+        processPendingQueueRemovals()
+    }
+
+    private func processPendingQueueRemovals() {
+        guard cleanupTask == nil, !isProfileSwitching else { return }
+        cleanupTask = Task { [weak self] in
+            guard let self else { return }
+            let batch = self.pendingQueueRemovals
+            defer {
+                self.cleanupTask = nil
+                // Process newly appended entries without spinning on failures.
+                if self.pendingQueueRemovals.contains(where: { !batch.contains($0) }) {
+                    self.processPendingQueueRemovals()
+                }
+            }
+            for removal in batch {
+                let globalKey = DownloadedMediaRecord.globalKey(accountProfileID: removal.profileID,
+                    serverID: removal.serverID, ratingKey: removal.ratingKey)
+                guard self.preparationTasks[globalKey] == nil,
+                      removal.profileID == self.plexService.activeProfileID,
+                      let context = try? self.plexService.captureDownloadQueueContext(
+                        serverID: removal.serverID, profileID: removal.profileID, clientIdentifier: removal.clientIdentifier
+                      ) else { continue }
+                do {
+                    let queueID: String
+                    if let existing = removal.queueID { queueID = existing }
+                    else { queueID = try await self.plexService.createDownloadQueue(context: context) }
+                    if let itemID = removal.itemID {
+                        try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: itemID)
+                    } else {
+                        // Covers cancellation/termination after PMS accepted add
+                        // but before its response could be persisted.
+                        let items = try await self.plexService.downloadQueueItems(context: context, queueID: queueID)
+                        for item in items where item.key == "/library/metadata/\(removal.ratingKey)" {
+                            try await self.plexService.removeDownloadQueueItem(context: context, queueID: queueID, itemID: item.id)
+                        }
+                    }
+                    self.pendingQueueRemovals.removeAll { $0 == removal }
+                    self.persist()
+                } catch PlexDownloadQueueError.expired {
+                    self.pendingQueueRemovals.removeAll { $0 == removal }
+                    self.persist()
+                } catch {
+                    // Retry only under the owning profile when it reconnects.
+                }
+            }
         }
     }
 
@@ -1249,8 +1455,20 @@ final class DownloadManager {
         temporaryURL: URL,
         response: DownloadTransferResponse?
     ) async {
-        guard let record = record(globalKey: globalKey) else {
+        guard let record = record(globalKey: globalKey),
+              record.downloadTaskIdentifier == taskIdentifier,
+              !deletingDownloadIDs.contains(globalKey),
+              record.status == .downloading || record.status == .paused else {
             try? FileManager.default.removeItem(at: temporaryURL)
+            return
+        }
+
+        if record.downloadQuality != .original,
+           let status = response?.statusCode, [404, 410].contains(status),
+           resetExpiredPreparation(globalKey: globalKey) {
+            try? FileManager.default.removeItem(at: temporaryURL)
+            update(globalKey: globalKey) { $0.status = record.status == .paused ? .paused : .queued }
+            processQueueIfNeeded()
             return
         }
 
@@ -1264,8 +1482,9 @@ final class DownloadManager {
                 throw PlexServiceError.decodingError("Cached metadata missing for \(record.title)")
             }
 
-            let media = details.media.first(where: { $0.id == record.mediaID })
-                ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution)
+            let media = record.downloadQuality != .original ? record.convertedMedia
+                : (details.media.first(where: { $0.id == record.mediaID })
+                    ?? StreamResolver.selectMediaVersion(from: details.media, preferredMaxResolution: preferences.downloadMaxResolution))
             guard let media,
                   let part = media.parts.first(where: { $0.id == record.partID }) ?? media.parts.first else {
                 throw PlexServiceError.decodingError("Cached media part missing for \(record.title)")
@@ -1284,27 +1503,32 @@ final class DownloadManager {
             try? FileManager.default.removeItem(at: targetURL)
             try FileManager.default.moveItem(at: temporaryURL, to: targetURL)
             fileStore.deleteResumeData(relativePath: record.resumeDataPath)
-            if record.accountProfileID == plexService.activeProfileID,
-               plexService.isSessionReady {
-                await cacheArtwork(for: details, serverID: record.serverID)
-            }
-
             update(globalKey: globalKey) { item in
                 item.status = .completed
+                item.wasPausedForProfileSwitch = false
                 item.progress = 1
                 item.downloadedBytes = item.totalBytes ?? item.downloadedBytes
                 item.relativeVideoPath = fileStore.relativePath(for: targetURL)
                 item.resumeDataPath = nil
                 item.downloadTaskIdentifier = nil
-                item.mediaID = media.id
-                item.partID = part.id
+                // Keep original media/part identity for version selection.
                 item.errorMessage = nil
                 item.updatedAt = .now
+            }
+            enqueueQueueRemoval(for: record)
+            update(globalKey: globalKey) {
+                $0.plexDownloadQueueID = nil
+                $0.plexDownloadItemID = nil
+                $0.queueClientIdentifier = nil
+            }
+            if record.accountProfileID == plexService.activeProfileID, plexService.isSessionReady {
+                await cacheArtwork(for: details, serverID: record.serverID)
             }
         } catch {
             try? FileManager.default.removeItem(at: temporaryURL)
             update(globalKey: globalKey) { item in
                 item.status = .failed
+                item.wasPausedForProfileSwitch = false
                 item.downloadTaskIdentifier = nil
                 item.errorMessage = downloadErrorMessage(for: error)
                 item.updatedAt = .now
@@ -1503,9 +1727,8 @@ final class DownloadManager {
     }
 
     private func validateAvailableStorage(for part: PlexMediaPart) throws {
-        guard let expectedSize = part.size.map(Int64.init),
-              expectedSize > 0,
-              let availableBytes = fileStore.availableStorageBytes() else {
+        let expectedSize = max(0, part.size.map(Int64.init) ?? 0)
+        guard let availableBytes = fileStore.availableStorageBytes() else {
             return
         }
 
@@ -1794,6 +2017,7 @@ final class DownloadManager {
             update(globalKey: globalKey) { item in
                 guard item.status != .completed && item.status != .cancelled else { return }
                 item.status = .failed
+                item.wasPausedForProfileSwitch = false
                 item.downloadTaskIdentifier = nil
                 item.errorMessage = downloadErrorMessage(for: error)
                 item.updatedAt = .now
@@ -1848,7 +2072,7 @@ final class DownloadManager {
     private func resolvedGlobalKey(_ globalKey: String?, taskIdentifier: Int) -> String? {
         if let globalKey,
            let record = storedRecords.first(where: { $0.globalKey == globalKey }) {
-            return record.globalKey
+            return record.downloadTaskIdentifier == taskIdentifier ? record.globalKey : nil
         }
         if let record = storedRecords.first(where: { $0.downloadTaskIdentifier == taskIdentifier }) {
             return record.globalKey
@@ -1981,6 +2205,9 @@ final class DownloadManager {
     }
 
     private func expectedVideoSize(for record: DownloadedMediaRecord) -> Int64? {
+        if record.downloadQuality != .original {
+            return record.convertedMedia?.parts.first?.size.map(Int64.init) ?? record.totalBytes
+        }
         guard let accountProfileID = record.accountProfileID,
               let details = metadataCache.mediaDetails(
                 accountProfileID: accountProfileID,
@@ -2037,7 +2264,7 @@ final class DownloadManager {
         return error.localizedDescription
     }
 
-    private func upsertFailedPlaceholder(id: PlexItemID, type: PlexMediaType, isClip: Bool = false, error: Error) {
+    private func upsertFailedPlaceholder(id: PlexItemID, type: PlexMediaType, isClip: Bool = false, quality: DownloadQuality = .original, error: Error) {
         guard let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
               let serverID = try? downloadServerID(for: id) else {
             return
@@ -2060,6 +2287,7 @@ final class DownloadManager {
             artPath: nil,
             mediaID: nil,
             partID: nil,
+            downloadQuality: quality,
             relativeVideoPath: nil,
             resumeDataPath: nil,
             downloadTaskIdentifier: nil,
@@ -2114,6 +2342,8 @@ final class DownloadManager {
         guard !recordsToDelete.isEmpty else { return }
 
         for record in recordsToDelete {
+            preparationTasks[record.globalKey]?.cancel()
+            enqueueQueueRemoval(for: record)
             deletingDownloadIDs.insert(record.globalKey)
             if let taskIdentifier = record.downloadTaskIdentifier {
                 transferController.cancel(taskIdentifier: taskIdentifier)
@@ -2142,7 +2372,7 @@ final class DownloadManager {
     }
 
     private func persist() {
-        try? fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords))
+        try? fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
     }
 }
 

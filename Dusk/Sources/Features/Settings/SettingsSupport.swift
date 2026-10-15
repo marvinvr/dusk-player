@@ -14,7 +14,7 @@ enum SettingsSupport {
     #else
     static let playbackAdvancedFooterText = "Dolby Atmos & Spatial Audio plays Atmos and surround Dolby tracks in MKV and similar files through Apple's player, which enables spatial audio on AirPods. HDR & Dolby Vision does the same for HDR10, HDR10+, HLG and Dolby Vision video on HDR screens. Your Plex server repackages the file on the fly without re-encoding it, so video quality stays the original's. Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
     #endif
-    static let downloadsFooterText = "Download Quality selects which Plex media version is saved. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
+    static let downloadsFooterText = "Source Version Resolution selects the existing Plex media version used for a download. Choose a conversion quality when starting a download. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
     static let navigationFooterText = "Choose which library and Live TV destinations appear in the navigation bar and the order they use. Library Order sets the order of your libraries everywhere in Dusk; it is saved to your Plex account, so other Plex apps use it too. Server Priority decides which of your servers Dusk uses, and which one plays a title that is on more than one."
     static let homeFooterText = "Show currently airing Live TV channels on Home. The Live TV tab is not affected."
     static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app."

@@ -14,6 +14,7 @@ struct DownloadActionButton: View {
     @Environment(DownloadManager.self) private var downloadManager
     @State private var isStartingDownload = false
     @State private var isShowingDeleteConfirmation = false
+    @State private var isShowingQualitySelection = false
 
     /// Server-scoped identity of the item the button acts on. Rating keys
     /// collide across servers, so the download record must be found by both.
@@ -60,6 +61,12 @@ struct DownloadActionButton: View {
                 }
             } message: {
                 Text(deleteConfirmationMessage)
+            }
+            .sheet(isPresented: $isShowingQualitySelection) {
+                DownloadQualitySelectionSheet { quality in
+                    isShowingQualitySelection = false
+                    startDownload(quality: quality)
+                }
             }
             .onChange(of: state.status) { _, newStatus in
                 if newStatus != nil {
@@ -188,9 +195,16 @@ struct DownloadActionButton: View {
             retry()
         } else if state.status == .completed {
             isShowingDeleteConfirmation = true
+        } else if supportsQualitySelection {
+            isShowingQualitySelection = true
         } else {
-            startDownload()
+            startDownload(quality: .original)
         }
+    }
+
+    private var supportsQualitySelection: Bool {
+        guard !isClip else { return false }
+        return type == .movie || type == .episode || type == .season || type == .show
     }
 
     private var deleteConfirmationTitle: String {
@@ -231,10 +245,10 @@ struct DownloadActionButton: View {
         }
     }
 
-    private func startDownload() {
+    private func startDownload(quality: DownloadQuality? = nil) {
         isStartingDownload = true
         Task {
-            await downloadManager.queueDownload(id: id, type: type, isClip: isClip)
+            await downloadManager.queueDownload(id: id, type: type, isClip: isClip, quality: quality)
             isStartingDownload = false
         }
     }
@@ -244,6 +258,51 @@ struct DownloadActionButton: View {
             startDownload()
         } else {
             downloadManager.retryDownload(id: id)
+        }
+    }
+}
+
+struct DownloadQualitySelectionSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedQuality = DownloadQuality.original
+
+    let onDownload: (DownloadQuality) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("Quality", selection: $selectedQuality) {
+                        ForEach(DownloadQuality.allCases) { quality in
+                            Text(quality.displayName)
+                                .tag(quality)
+                        }
+                    }
+                    .pickerStyle(.inline)
+                } footer: {
+                    Text("Original saves the source file without converting it. Other qualities ask your Plex server to prepare a converted copy. Converted copies may omit embedded subtitles; Original keeps the source file’s tracks.")
+                }
+
+                Section {
+                    Label("Keep Dusk open while Plex prepares the video. Once ready, the download can continue in the background.", systemImage: "info.circle")
+                        .font(DuskFont.caption(ios: .footnote))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            .navigationTitle("Download Quality")
+            .duskNavigationBarTitleDisplayModeInline()
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Download") {
+                        onDownload(selectedQuality)
+                    }
+                }
+            }
         }
     }
 }

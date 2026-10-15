@@ -1012,7 +1012,7 @@ extension PlaybackCoordinator {
                 attemptID: UUID(),
                 details: details,
                 ratingKey: ratingKey,
-                media: debugInfo.media,
+                media: details.media[mediaIndex],
                 part: part,
                 playbackURL: result.url,
                 sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
@@ -1209,9 +1209,34 @@ extension PlaybackCoordinator {
             return nil
         }
 
-        guard let media = details.media.first(where: { $0.id == debugInfo.media.id }) ?? details.media.first,
-              let part = media.parts.first(where: { $0.id == debugInfo.part.id }) ?? media.parts.first else {
+        guard var media = details.media.first(where: { $0.id == debugInfo.media.id }) ?? details.media.first,
+              var part = media.parts.first(where: { $0.id == debugInfo.part.id }) ?? media.parts.first else {
             return nil
+        }
+
+        if activePlaybackUsesLocalDownload,
+           let convertedMedia = downloadManager?.record(
+               for: PlexItemID(serverID: activePlaybackServerID, ratingKey: ratingKey)
+           )?.convertedMedia,
+           let convertedPart = convertedMedia.parts.first(where: { $0.id == debugInfo.part.id }) {
+            // The server still describes the original file. Only its sidecars
+            // can be mounted on the local conversion; copying its audio/video
+            // or embedded subtitle metadata would mislabel VLC's new tracks.
+            let sidecars = part.streams.filter { $0.streamType == .subtitle && $0.key != nil }
+            media = convertedMedia
+            part = PlexMediaPart(
+                id: convertedPart.id,
+                key: convertedPart.key,
+                file: convertedPart.file,
+                size: convertedPart.size,
+                container: convertedPart.container,
+                duration: convertedPart.duration,
+                videoProfile: convertedPart.videoProfile,
+                audioProfile: convertedPart.audioProfile,
+                accessible: convertedPart.accessible,
+                exists: convertedPart.exists,
+                streams: sidecars
+            )
         }
 
         activeItemDetails = details
