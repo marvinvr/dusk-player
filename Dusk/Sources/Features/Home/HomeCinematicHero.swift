@@ -24,6 +24,9 @@ struct HomeCinematicHeroLayout {
     var actionsBottomPadding: CGFloat = 0
     var pagerHorizontalPadding: CGFloat = 20
     var pagerBottomPadding: CGFloat = 28
+    /// Most pager pills shown at once. Past it the pager becomes a sliding
+    /// window, see `HomeHeroPagerWindow`.
+    var pagerMaxVisibleItems: Int = 7
     var titleFontSize: CGFloat = 42
     var titleLogoMaxWidth: CGFloat = 420
     var titleLogoMaxHeight: CGFloat = 108
@@ -62,6 +65,7 @@ struct HomeCinematicHeroLayout {
         actionsTopPadding: 6,
         pagerHorizontalPadding: 32,
         pagerBottomPadding: 32,
+        pagerMaxVisibleItems: 9,
         titleFontSize: 54,
         titleLogoMaxWidth: 520,
         titleLogoMaxHeight: 136,
@@ -95,6 +99,7 @@ struct HomeCinematicHeroLayout {
         actionsBottomPadding: 8,
         pagerHorizontalPadding: 56,
         pagerBottomPadding: 78,
+        pagerMaxVisibleItems: 10,
         titleFontSize: DuskFont.TV.Size.heroTitle,
         titleLogoMaxWidth: 640,
         titleLogoMaxHeight: 150,
@@ -154,7 +159,7 @@ struct HomeCinematicHero: View {
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
 
-    @State private var currentHeroIndex = 0
+    @State private var currentHeroIndex = Self.initialHeroIndex
     @State private var heroRotationRevision = 0
     @State private var isHeroRotationPaused = false
     @State private var heroRotationStartedAt = Date()
@@ -224,13 +229,17 @@ struct HomeCinematicHero: View {
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
-
+        }
+        // An overlay, not a ZStack sibling: the pager must never size the
+        // hero. As a sibling, a pager wider than the screen (one pill per
+        // Continue Watching item) widened the whole ZStack and pushed the
+        // centred title block and Play button off the right edge.
+        .overlay(alignment: heroContentBlockAlignment) {
             if items.count > 1 {
                 heroPager(currentIndex: resolvedIndex)
                     .padding(.leading, contentLeadingInset + layout.pagerHorizontalPadding)
                     .padding(.trailing, contentTrailingInset + layout.pagerHorizontalPadding)
                     .padding(.bottom, layout.pagerBottomPadding)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: heroContentBlockAlignment)
             }
         }
         .frame(height: heroHeight)
@@ -438,6 +447,14 @@ struct HomeCinematicHero: View {
             showPrevious: showPreviousHero,
             showNext: showNextHero
         )
+    }
+
+    private static var initialHeroIndex: Int {
+        #if DEBUG
+        ScreenshotMode.heroIndex ?? 0
+        #else
+        0
+        #endif
     }
 
     private var resolvedHeroIndex: Int {
@@ -699,13 +716,20 @@ struct HomeCinematicHero: View {
 
     @ViewBuilder
     private func pagerContent(currentIndex: Int, date: Date?) -> some View {
-        HStack(spacing: 8) {
-            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+        let window = HomeHeroPagerWindow(
+            count: items.count,
+            currentIndex: currentIndex,
+            maxVisible: layout.pagerMaxVisibleItems
+        )
+
+        let pills = HStack(spacing: 8) {
+            ForEach(Array(window.range), id: \.self) { index in
                 #if os(tvOS)
                 HomeHeroPagerPill(
                     isActive: index == currentIndex,
                     progress: pagerProgress(for: index, currentIndex: currentIndex, date: date)
                 )
+                .scaleEffect(window.scale(for: index))
                 .accessibilityHidden(true)
                 #else
                 Button {
@@ -715,14 +739,37 @@ struct HomeCinematicHero: View {
                         isActive: index == currentIndex,
                         progress: pagerProgress(for: index, currentIndex: currentIndex, date: date)
                     )
-                    .accessibilityLabel(Text(viewModel.displayTitle(for: item)))
+                    .scaleEffect(window.scale(for: index))
                 }
                 .buttonStyle(.plain)
-                .duskSuppressTVOSButtonChrome()
-                .duskTVOSFocusEffectShape(Capsule())
+                .transition(.scale.combined(with: .opacity))
                 #endif
             }
         }
+        .animation(.snappy(duration: 0.3), value: window.range)
+
+        #if os(tvOS)
+        pills
+        #else
+        // One adjustable element, like UIPageControl, instead of a button per
+        // item that the window may be hiding.
+        pills
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text("Continue Watching"))
+            .accessibilityValue(
+                Text("\(viewModel.displayTitle(for: items[currentIndex])), \(currentIndex + 1) of \(items.count)")
+            )
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment:
+                    selectHero(at: (currentIndex + 1) % items.count)
+                case .decrement:
+                    selectHero(at: (currentIndex - 1 + items.count) % items.count)
+                @unknown default:
+                    break
+                }
+            }
+        #endif
     }
 
     private func pagerProgress(for index: Int, currentIndex: Int, date: Date?) -> Double {
@@ -983,7 +1030,7 @@ struct HomeCinematicHero: View {
     private func resetHeroSelection(restartRotation: Bool = true) {
         resetHeroSlideState()
         resetHeroDragState()
-        currentHeroIndex = 0
+        currentHeroIndex = Self.initialHeroIndex
         #if os(tvOS)
         tvPagePosition.scrollTo(edge: .leading)
         #endif

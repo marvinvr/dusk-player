@@ -146,6 +146,34 @@ struct HomeHeroSecondaryActionButtonLabel: View {
     }
 }
 
+/// The pager pills on screen when the hero has more items than
+/// `maxVisible`, in the manner of `UIPageControl`: a fixed number of slots that
+/// slides to keep the current item centred, with the outermost pills shrunk on
+/// a side where more items lie beyond. The pager's width is therefore bounded
+/// however long Continue Watching grows.
+struct HomeHeroPagerWindow {
+    let range: Range<Int>
+    private let count: Int
+
+    init(count: Int, currentIndex: Int, maxVisible: Int) {
+        let visible = min(max(count, 0), max(maxVisible, 1))
+        let start = min(max(currentIndex - visible / 2, 0), max(count, 0) - visible)
+        range = start ..< start + visible
+        self.count = count
+    }
+
+    func scale(for index: Int) -> CGFloat {
+        let fromLeadingEdge = range.lowerBound > 0 ? index - range.lowerBound : .max
+        let fromTrailingEdge = range.upperBound < count ? range.upperBound - 1 - index : .max
+
+        switch min(fromLeadingEdge, fromTrailingEdge) {
+        case 0: return 0.5
+        case 1: return 0.75
+        default: return 1
+        }
+    }
+}
+
 struct HomeHeroPagerPill: View {
     let isActive: Bool
     let progress: Double

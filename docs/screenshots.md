@@ -28,6 +28,7 @@ by launch arguments:
 | `-DuskScreenshotSeerr <url>` | Acts as signed in to a demo Seerr at that URL (Keychain untouched) |
 | `-DuskScreenshotPlayerSheet audio\|subtitles` | iOS player: opens that picker once the tracks are in and keeps it open |
 | `-DuskScreenshotUpNext <seconds>` | Episode player shot: raises the full-screen Up Next for the next episode; every Up Next countdown stops at that many seconds |
+| `-DuskScreenshotHeroIndex <n>` | iOS/iPadOS Home hero opens on item `n` instead of the first (rotation is off in screenshot mode) |
 | `-DuskScreenshotTVInputs "wait:3500,up,panel:subtitles"` | tvOS player: synthetic Siri Remote input (`pan:<points>` leaves the play bar scrubbing) |
 
 Hooks: `PlexService` (plex.tv base + token), `MainTabView` (routing + sheet),

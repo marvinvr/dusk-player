@@ -24,6 +24,7 @@ enum ScreenshotMode {
         static let seerr = "DuskScreenshotSeerr"
         static let upNext = "DuskScreenshotUpNext"
         static let playerSheet = "DuskScreenshotPlayerSheet"
+        static let heroIndex = "DuskScreenshotHeroIndex"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -62,6 +63,13 @@ enum ScreenshotMode {
     static var frozenUpNextSeconds: Int? {
         guard isActive, defaults.object(forKey: Key.upNext) != nil else { return nil }
         return max(defaults.integer(forKey: Key.upNext), 1)
+    }
+
+    /// `-DuskScreenshotHeroIndex <n>`: the iOS/iPadOS Home hero opens on that
+    /// item instead of the first (rotation is off in screenshot mode).
+    static var heroIndex: Int? {
+        guard isActive, defaults.object(forKey: Key.heroIndex) != nil else { return nil }
+        return max(defaults.integer(forKey: Key.heroIndex), 0)
     }
 
     enum Screen: String {

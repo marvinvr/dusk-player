@@ -291,6 +291,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   rotation while `PlaybackCoordinator.showPlayer` is true and restarts it fresh on
   return, so opening the player no longer advances the hero in the background.
   Rotation also respects Reduce Motion, scene phase, and drag interaction.
+  The hero is Home's only Continue Watching surface (iOS shows every item, tvOS
+  caps at 10), so the pager is a `UIPageControl`-style sliding window
+  (`HomeHeroPagerWindow`): at most `pagerMaxVisibleItems` pills (iPhone 7,
+  iPad 9, tvOS 10), the current one centred, the outer two shrunk on a side with
+  more items beyond. On iOS it is one adjustable accessibility element. The
+  pager is an `.overlay` of the hero so it can never size it: as a `ZStack`
+  sibling, one pill per item once widened the hero past the screen.
   **tvOS pages natively, through focus.** On tvOS every hero item
   is a full-width page of one horizontal `ScrollView` (`HomeCinematicHero.tvPages`,
   a plain `HStack`: the page focus moves to must exist before it is on screen), and
