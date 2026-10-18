@@ -1701,15 +1701,157 @@ so the whole live HUD is derived from one instant.
   Bar"). The playhead and thumbnail move during the swipe, but the video
   position keeps tracking actual playback until Select commits. If BIF loading
   or parsing fails, the controls keep their existing no-preview behavior.
-- Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
-  episode 1 of a season. The episode check comes from the active
-  `PlexMediaDetails.index`, so missing episode numbers are treated as not the
-  first episode. It waits for the player's saved settings to load before arming
-  a countdown and checks the current mode again before skipping.
-- **Auto-skip fires at most once per marker per playback session.** Skipping a
-  marker — by countdown or by tapping Skip Intro — records its id in
-  `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never
-  arms a countdown for a spent marker again. The button still appears, so the
+- Intro auto-skip honors `AutoSkipIntroMode`: off, always, or skip repeated
+  intros. The last setting retains `alwaysExceptFirstEpisode` as its stored
+  value. Only that mode samples episodes; the unconditional mode retains its
+  five-second courtesy countdown. Saved settings must be configured before
+  arming, and live preferences are checked immediately before seeking.
+- Repeated-intro recognition samples four times per second for the first fourteen
+  seconds of the Plex marker, then twice per second while playback advances.
+  The denser prefix is calibrated on moving anime shots at different capture
+  phases; keeping it short leaves the recording cap sufficient for long openings.
+  Cadence follows marker position, including on resume, so later queries and
+  references have comparable density.
+  `IntroFrameHasher` gives both engines the same
+  unpadded sRGB/luminance normalization and 128-bit horizontal/vertical gradient
+  hash. Quality requires central contrast of at least 6 luminance levels and
+  mean spatial gradient of at least 0.75, retaining structured fading images
+  while rejecting blank and nearly uniform pictures; consecutive near-identical
+  frames contribute one piece of evidence. AVPlayer supplies displayed-frame
+  timestamps. Matching includes the newest displayed timestamp even when it
+  leads the periodically published clock; a lead over 0.5 seconds is rejected.
+  The final seek still checks the live engine clock and settings.
+  VLC snapshots use the midpoint of request/completion media times,
+  with bounded uncertainty (at most 0.5 seconds); uncertain captures are dropped.
+  Capture and the final seek use `PlaybackEngine.isReadyForIntroFrameSampling`.
+  AVPlayer requires playing without buffering. VLC also permits capture during
+  cache-level buffering notifications after two advancing clock updates, with
+  progress no older than 0.5 seconds. Pending seeks, pauses, clock jumps and
+  frozen-clock refills block capture; load/seek/recovery discard progress.
+  Never gate VLC intro sampling directly on its raw `isBuffering` flag: normal
+  network playback can keep that flag set (see `audio-silence-postmortem.md`).
+- `IntroOpeningFingerprintMatcher` evaluates as soon as four usable frames
+  arrive. It aligns ordered one-to-one frame pairs with gaps up to two seconds,
+  a fitted clock rate within 0.9–1.1 and marker-relative offset within two
+  seconds. Three evidence profiles permit earlier decisions:
+
+  | Query window | Strong pairs | Strong span | Coverage | Visual groups | Maximum mean distance | Strong distance |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | 1.25 s | 4 | 0.75 s | 80% | 2 | 0.12 | 0.26 |
+  | 2 s | 6 | 1.25 s | 75% | 3 | 0.28 | 0.36 |
+  | 5 s | 6 | 4 s | 80% | 3 | 0.15 | 0.26 |
+
+  The profiles are named `shortSequenceRequirements`, `motionTolerantRequirements`
+  and `fullWindowRequirements` in the matcher. Other matching, image-quality,
+  observation and capture tunables are named constants on their owning types;
+  player sampling/checkpoint controls live in `IntroRecognitionConfiguration`
+  and VLC snapshot controls in `IntroSnapshotConfiguration`.
+
+  Coverage includes weaker aligned bridges (distance at most 0.40), and every
+  gate in a profile must pass. Short sequences need close hashes; the middle
+  profile tolerates motion with more independent evidence. Matrices run off
+  the main actor through `IntroFingerprintMatchingWorker`.
+- `IntroOpeningObservation` evaluates throughout the normal five-second courtesy
+  countdown, including confirmation. It can skip at the deadline on a fresh
+  complete alignment; there is no additional one-second wait. The newest
+  captured frame must participate strongly, and repeated evaluation of an old
+  capture cannot confirm. Pause/buffering stop capture and seeking; seek,
+  scrubbing, preference changes, marker departure and spent markers cancel the
+  pending action. No references means immediate play-through with the manual
+  button. Missing recognition at five seconds does not force a skip: sampling
+  may continue until twelve seconds, then play-through becomes terminal while
+  learning continues.
+- Played openings remain separate factual recordings, including ambiguous
+  comparisons. Up to 256 timestamped samples cover the opening, so a resumed
+  episode can match a later segment. Eligible recordings (eight independent
+  frames, five seconds, three visual groups) are saved and extended; detaching
+  or manually skipping saves adequate partial evidence. `IntroFingerprintStore`
+  attempts the first save after every accepted frame until eligible, then
+  checkpoints every twenty additional frames and flushes on detach. Five
+  seconds means the span between usable captures, so an initial dark fade can
+  delay learning beyond five seconds after marker entry. The store
+  scopes its version-3 cache to viewer profile, Plex server and season, and
+  stores episode, part, observation and playback-session provenance. It bounds
+  each season to sixteen recordings and the archive to 2 MiB. Version-1/2 caches
+  are ignored and relearned. No frames or videos persist in the app cache.
+- Intro cache lifetime is independent of season completion: finishing all
+  currently available episodes retains hashes, including for airing seasons.
+  Explicit season/show unwatch actions clear the affected profile/server scopes
+  only after the corresponding Plex write succeeds. Show resets include known
+  cached seasons plus children resolved before the write; alternates reset only
+  on servers where their write succeeds. Failed/unknown metadata never causes a
+  server-wide purge. Account sign-out clears its known Home profiles and cached
+  account-associated profiles; switching Home members retains their separate data.
+- `PlexService+IntroFingerprints` owns hierarchy registration and reset targets.
+  `IntroFingerprintStore` keeps optional, backward-compatible season context in
+  the version-3 archive (up to 256 contexts, 512 episode IDs per snapshot, still
+  within the 2 MiB archive cap). Existing recordings need no hash migration.
+  Each recording retains show/account ownership even if its context is evicted.
+  Episode edits update a persisted local watch-state overlay without clearing
+  season hashes. Offline queue replay never repeats cache resets; newer local
+  edits win over delayed retries. Known queued season/show resets apply once
+  at local acceptance. The existing aggregate detail actions still require Plex
+  success; this does not introduce offline season/show controls.
+- Resets advance an in-memory generation for each affected season. The current
+  item's generation is frozen in `IntroOpeningSessionState`, so sampling,
+  asynchronous comparison completion, automatic seeking and detach/checkpoint
+  saves reject invalidated references. That item plays through after a reset;
+  learning resumes in a new item session. Resetting the cache never restores a
+  session's spent intro skip.
+- A complete live `getEpisodes` response can detect a reset made elsewhere:
+  unchanged, nonempty membership must go from at least two watched episodes to
+  none. Partial/paginated/missing data, membership changes, single-episode changes
+  and an initially unwatched season are inconclusive. Local watch-state overlays
+  remain effective until Plex acknowledges them or a matching snapshot arrives,
+  preventing delayed sync from looking like another reset. Aggregate retries
+  also suppress their corresponding remote reset snapshot without deleting newer
+  hashes. Reads predating local changes and responses from an outgoing
+  profile are ignored. No extra polling or cross-device hash synchronization is
+  introduced; resets elsewhere become detectable on a later full season refresh,
+  and single-episode seasons require an explicit reset in Dusk.
+- `PlaybackCoordinator.introOpeningSessionState` retains continuous observations
+  and their frozen reference sets across presentation/engine rebuilds. Current
+  playback recordings are excluded even after a rebuild, preventing self-match.
+  Identical prefixes of distinct openings remain indistinguishable until they
+  diverge; the matcher cannot guarantee detection of changes later in the song.
+- Repeated-intro diagnostics use the `AutoSkipIntro` log category, with engine
+  capture details in `VLCKitEngine` or `AVPlayerEngine`. The trace records the
+  loaded mode, Plex marker ranges and episode/season identity, why a countdown
+  starts or stops, each frame request/result, saved fingerprint counts, and the
+  matcher's alignment distance, coverage, span, diversity, clock fit, query
+  window and latest strong-match timestamp. Filter device logs for `AutoSkipIntro`
+  to distinguish missing markers or identity from dropped frame samples,
+  incomplete capture, and a genuine non-match. Logs contain Plex item
+  keys and marker timings, but never playback URLs or tokens.
+  Configuration and decision entries include view-model identity to distinguish
+  the active presentation from transient SwiftUI model construction. Decisions
+  explicitly report `intro-waiting-for-playback` versus `intro-playback-ready`.
+- Direct offline verification: `scripts/probe-intro-fingerprints.sh` compiles
+  production hashing/matching/policy/store sources into a standalone macOS
+  probe. It exercises synthetic guards and saved media fingerprints: two
+  Apothecary Diaries openings at three sampling phases plus twelve unrelated
+  openings, including anime and live action. All 24 positive cases must skip
+  in 5–5.25 seconds; all 408 negative pairs must remain unskipped through their
+  recorded footage. An explicit persisted 12 → 13 → 14 sequence checks the
+  opening change: with only episode 12 remembered, episode 13 plays through,
+  checkpoints cannot self-match, and episode 14 recognizes the newly learned
+  opening (5–5.5 seconds across the three capture phases). Direct media mode
+  also compares episodes 12 and 13 against each other's full intro recordings.
+  These controls do not establish a global false-match rate.
+  The versioned fixture contains hashes and timestamps, without frames, file
+  paths or credentials. See `scripts/fixtures/README.md` for provenance and the
+  fixture format. New descriptor versions require regenerated fixtures.
+  To also exercise extraction and both image adapters with local media, run
+  `scripts/probe-intro-fingerprints.sh scripts/fixtures/apothecary-intros.json
+  '/path/to/season'`. That mode requires ffmpeg; neither mode launches Dusk,
+  a test runner or a simulator.
+- **Intro auto-skip fires at most once per item playback session.** Recognition
+  and countdown completion share `performAutomaticIntroSkip`, which sets
+  `IntroOpeningSessionState.hasSkippedIntro` before invoking the skip callback.
+  Manual skips set the same flag. Seeking, reconfiguration and player/engine
+  rebuilds cannot restore that automatic skip, even if marker IDs change or a
+  callback delays its seek. Skipping also records the marker id in
+  `PlaybackCoordinator.spentAutoSkipMarkerIDs`. The button still appears, so the
   viewer can skip by hand as often as they like. Two failure modes this closes:
   a post-skip seek that is still buffering leaves the position inside the marker
   and used to re-arm the countdown immediately, and a deliberate rewind into the
@@ -1719,7 +1861,13 @@ so the whole live HUD is derived from one instant.
   cleared when the next session commits or the player is torn down, so reopening
   an episode gets a fresh auto-skip. `PlayerViewModel` is seeded with it in
   `configureAutomaticTrackSelection` and reports new entries through
-  `autoSkipSpentHandler`.
+  `autoSkipSpentHandler`. The shared session flag resets with
+  `introOpeningSessionState` when a new item commits or the player is torn down.
+- Repeated-intro classification also records its marker id in the coordinator
+  for the current item. This separate resolved set includes first, incomplete,
+  and ambiguous openings, so a quality or engine rebuild cannot classify the
+  same still-playing marker again and turn it into a repeat. It resets with the
+  item session and does not mean the marker was skipped.
 - Playback controls start visible for orientation, then `PlayerViewModel`
   owns one auto-hide deadline/task for the whole session. Sync arms it once
   playback has started, every user reveal resets it, and it keeps retrying
@@ -2091,8 +2239,8 @@ so the whole live HUD is derived from one instant.
 - Active UI defaults: intro auto-skip mode, credits auto-skip, double-tap seek,
   continuous play, and the iOS Episode Buttons (`playerEpisodeButtonsEnabled`,
   default off; no tvOS toggle).
-- New installs default intro auto-skip to always except episode 1 of each
-  season; existing stored intro-skip preferences are preserved.
+- New installs default to Skip Repeated Intros. The setting retains the legacy
+  `alwaysExceptFirstEpisode` stored value, so existing preferences are preserved.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.
 - `spatialAudioRemuxEnabled` (default on; "Dolby Atmos" on tvOS, "Dolby Atmos &
   Spatial Audio" on iOS, under Playback Advanced) gates the Atmos remux.

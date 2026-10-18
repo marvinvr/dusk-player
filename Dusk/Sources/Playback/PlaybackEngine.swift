@@ -80,6 +80,17 @@ protocol PlaybackEngine: AnyObject {
     /// seek to that offset once loaded (resume playback).
     func load(source: PlaybackSource)
     func configureVideoEnhancement(_ request: VideoEnhancementRequest)
+    /// Installs a consumer for on-demand, low-rate frame samples used by
+    /// automatic intro recognition. Engines must not emit samples while the
+    /// handler is nil.
+    func setIntroFrameSampleHandler(_ handler: (@MainActor (IntroFrameSample) -> Void)?)
+    /// Requests one sample from the currently rendered frame. A result is
+    /// delivered through `setIntroFrameSampleHandler`; engines may drop a
+    /// request if a frame is not currently available.
+    func requestIntroFrameSample()
+    /// Whether intro capture and a recognition-driven seek may run now. VLC
+    /// uses recent clock progress to tolerate cache-level buffering events.
+    var isReadyForIntroFrameSampling: Bool { get }
     func play()
     func pause()
     func stop()
@@ -228,6 +239,12 @@ protocol PlaybackEngine: AnyObject {
     func startPictureInPicture()
     func stopPictureInPicture()
 
+}
+
+extension PlaybackEngine {
+    func setIntroFrameSampleHandler(_ handler: (@MainActor (IntroFrameSample) -> Void)?) {}
+    func requestIntroFrameSample() {}
+    var isReadyForIntroFrameSampling: Bool { state == .playing && !isBuffering }
 }
 
 extension PlaybackEngine {

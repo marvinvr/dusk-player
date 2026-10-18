@@ -55,6 +55,12 @@ final class PlaybackCoordinator {
     /// (quality switch, delivery-ladder fallback, Picture in Picture restore);
     /// cleared when the next item's session commits.
     @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
+    /// Intro markers whose opening has already been classified during this
+    /// item. Kept separate from spent IDs because a first occurrence is played
+    /// through, yet must not be reclassified after an engine rebuild.
+    @ObservationIgnored var resolvedIntroFingerprintMarkerIDs: Set<Int> = []
+    /// A per-item owner shared by successive player presentations/engines.
+    @ObservationIgnored var introOpeningSessionState = IntroOpeningSessionState()
     /// The Dolby Vision 7 → 8.1 conversion failed for the item now playing,
     /// so its remux is rebuilt (and kept) without it. Reset for each new item.
     @ObservationIgnored var isDolbyVision7ConversionSuppressed = false
@@ -744,6 +750,12 @@ final class PlaybackCoordinator {
     /// the credits poster when its auto-advance is armed or dismissed.
     func noteAutoSkipSpent(markerID: Int) {
         spentAutoSkipMarkerIDs.insert(markerID)
+    }
+
+    /// Records that fingerprint recognition finished for this intro marker.
+    /// Unlike a spent marker, this does not mean Dusk or the viewer skipped it.
+    func noteIntroFingerprintResolved(markerID: Int) {
+        resolvedIntroFingerprintMarkerIDs.insert(markerID)
     }
 
     /// Records the live play/pause state so the Up Next poster countdown can

@@ -10,10 +10,32 @@ has a separate boundary documented in `docs/seerr-integration.md`.
   reporting, direct-play/transcode URLs, and image helpers.
 - `Models/` owns Plex response shapes plus app-level playback models.
 - `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
-- Plex is the source of truth. Do not persist metadata except for explicit
-  offline/download support.
+- Plex is the source of truth. Do not persist Plex content metadata beyond
+  explicit offline/download support.
+- The repeated-intro recognizer keeps a small derived cache in UserDefaults.
+  It stores the viewer, Plex server and season keys needed for isolation, versioned
+  perceptual hashes, and no descriptive item metadata or frame images; see the
+  playback flow below and `docs/playback.md`.
 - No generic provider abstraction. Seerr is not a media provider. Add focused
   Plex methods in the existing same-type extension files.
+
+## Repeated-Intro Fingerprint Cache
+
+`IntroFingerprintStore` persists the signatures Dusk has learned while
+episodes play. Each entry is scoped to the active viewer profile, Plex server
+machine identifier and season rating key. If any identity is missing, Dusk does
+not classify or skip automatically. Matches cannot cross viewers, servers or
+seasons.
+
+The version-3 UserDefaults archive contains scope keys, episode/part/marker
+provenance, observation and playback-session IDs, and timestamped 128-bit
+gradient hashes with quality and timing uncertainty. Source frames are discarded
+after hashing. Recordings survive sessions and launches, bounded to sixteen per
+season and 2 MiB overall; obsolete formats are ignored and relearned. This cache
+is separate from the coordinator's per-session spent-marker and resolved IDs.
+Current-session recordings cannot become their own references, and unknown,
+incomplete or ambiguous evidence never triggers a skip. See `docs/playback.md`
+for capture, alignment and learning behavior.
 
 ## Multi-Server Model
 Dusk is connected to **every enabled server at once**. There is no "current
@@ -262,6 +284,12 @@ Pitfalls:
 - Pass the item's `serverID` through. A call that falls back to the primary for
   an item that came from another server reads the wrong library, and with
   colliding rating keys it can silently read the *wrong item*.
+- Watch-state writes and offline timeline replay pin `expectedSession` as well
+  as server identity. `rawServerRequest` checks it before sends and after auth/
+  endpoint recovery, so an outgoing profile cannot resume a write using the
+  replacement profile's connection. Intro-cache reset targets are captured
+  before unwatch and applied only after success in that same session; see
+  `playback.md` for lifetime/reconciliation rules.
 - Keep primary-account, active-account, and server-token usage distinct. Home
   membership/switch calls use the primary account, `plex.tv` resources use the
   active account, and per-server APIs use that server's token.

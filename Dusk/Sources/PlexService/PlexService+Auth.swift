@@ -55,6 +55,8 @@ extension PlexService {
     }
 
     func signOut() {
+        let profiles = Set(homeUsers.map(\.stableProfileID) + [activeProfileID, primaryProfileID].compactMap { $0 })
+        IntroFingerprintStore.shared.removeProfiles(profiles, accountProfileID: primaryProfileID)
         tearDownServerSessions(forgetServers: true)
         clearAuthToken()
     }

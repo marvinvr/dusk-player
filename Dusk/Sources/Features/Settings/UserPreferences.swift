@@ -684,18 +684,7 @@ enum AutoSkipIntroMode: String, CaseIterable, Identifiable {
         switch self {
         case .off: "Off"
         case .always: "Always"
-        case .alwaysExceptFirstEpisode: "Always Except First Episode"
-        }
-    }
-
-    func shouldAutoSkipIntro(isFirstEpisodeInSeason: Bool) -> Bool {
-        switch self {
-        case .off:
-            false
-        case .always:
-            true
-        case .alwaysExceptFirstEpisode:
-            !isFirstEpisodeInSeason
+        case .alwaysExceptFirstEpisode: "Skip Repeated Intros"
         }
     }
 }

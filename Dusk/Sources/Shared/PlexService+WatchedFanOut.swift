@@ -20,13 +20,18 @@ extension PlexService {
     /// caller can surface it. The other copies are best effort — a server that
     /// refuses must not make the action look like it failed.
     func setWatchedAcrossServers(_ watched: Bool, id: PlexItemID) async throws {
-        try await setWatched(watched, ratingKey: id.ratingKey, serverID: id.serverID)
+        let initiatingSession = serverSessionToken
+        let targetID = try resolveServerID(id.serverID)
+        let instances = alternates.instances(of: id)
+        try await setWatched(watched, ratingKey: id.ratingKey, serverID: targetID)
 
-        for instance in alternates.instances(of: id) {
+        for instance in instances {
+            guard initiatingSession == serverSessionToken else { throw CancellationError() }
+            try Task.checkCancellation()
             guard let serverID = instance.serverID,
                   // Never twice on one server: a same-server "alternate" is a
                   // different item that only shares a weak content key.
-                  serverID != id.serverID,
+                  serverID != targetID,
                   pool.connection(for: serverID) != nil else {
                 continue
             }

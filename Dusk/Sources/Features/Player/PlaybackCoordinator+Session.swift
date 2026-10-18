@@ -562,6 +562,8 @@ extension PlaybackCoordinator {
             upNextPoster = nil
             // A new item gets its own one-shot auto-skips.
             spentAutoSkipMarkerIDs = []
+            resolvedIntroFingerprintMarkerIDs = []
+            introOpeningSessionState = IntroOpeningSessionState()
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
@@ -1832,6 +1834,8 @@ extension PlaybackCoordinator {
         upNextPoster = nil
         clearAdjacentEpisodes()
         spentAutoSkipMarkerIDs = []
+        resolvedIntroFingerprintMarkerIDs = []
+        introOpeningSessionState = IntroOpeningSessionState()
         engine?.onPlaybackEnded = nil
         engine?.setPictureInPictureDelegate(nil)
         nowPlayingController.endSession()

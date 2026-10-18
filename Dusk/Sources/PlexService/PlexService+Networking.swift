@@ -117,8 +117,14 @@ extension PlexService {
         path: String,
         queryItems: [URLQueryItem]? = nil,
         timeoutInterval: TimeInterval? = nil,
-        serverID: String? = nil
+        serverID: String? = nil,
+        expectedSession: ServerSessionToken? = nil
     ) async throws -> Data {
+        func validateSession() throws {
+            if let expectedSession, expectedSession != serverSessionToken { throw CancellationError() }
+            try Task.checkCancellation()
+        }
+        try validateSession()
         let targetID = try resolveServerID(serverID)
 
         // A server the user switched off is not a server that is merely down:
@@ -130,6 +136,7 @@ extension PlexService {
         if pool.connection(for: targetID) == nil {
             try await refreshServerAuthorization(serverID: targetID)
         }
+        try validateSession()
 
         do {
             return try await sendRawServerRequest(
@@ -140,9 +147,11 @@ extension PlexService {
                 serverID: targetID
             )
         } catch let error as PlexServiceError where error == .unauthorized {
+            try validateSession()
             plexAuthLogger.notice("Server request unauthorized for \(path, privacy: .public); attempting token refresh")
             pool.markUnauthorized(serverID: targetID)
             try await refreshServerAuthorization(serverID: targetID)
+            try validateSession()
             do {
                 return try await sendRawServerRequest(
                     method: method,
@@ -152,11 +161,13 @@ extension PlexService {
                     serverID: targetID
                 )
             } catch let retryError as PlexServiceError where retryError == .unauthorized {
+                try validateSession()
                 // Leave the rest of the pool alone; only this server is out.
                 pool.markUnauthorized(serverID: targetID)
                 throw retryError
             }
         } catch let error as PlexServiceError where shouldRefreshServerEndpoint(after: error) {
+            try validateSession()
             // A cancelled request is not a broken endpoint. URLSession reports
             // cancellation as an ordinary transport failure, so without this a
             // superseded screen load would re-probe every server it still had
@@ -165,6 +176,7 @@ extension PlexService {
             try Task.checkCancellation()
             plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
             try await recoverServer(serverID: targetID)
+            try validateSession()
             return try await sendRawServerRequest(
                 method: method,
                 path: path,

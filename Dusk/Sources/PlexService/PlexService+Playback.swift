@@ -135,7 +135,8 @@ extension PlexService {
         timeMs: Int,
         durationMs: Int,
         sessionIdentifier: String? = nil,
-        serverID: String? = nil
+        serverID: String? = nil,
+        expectedSession: ServerSessionToken? = nil
     ) async throws {
         let stateString: String
         switch state {
@@ -166,30 +167,45 @@ extension PlexService {
         _ = try await rawServerRequest(
             path: "/:/timeline",
             queryItems: queryItems,
-            serverID: serverID
+            serverID: serverID,
+            expectedSession: expectedSession
         )
     }
 
-    func scrobble(ratingKey: String, serverID: String? = nil) async throws {
+    func scrobble(ratingKey: String, serverID: String? = nil, updatesIntroWatchState: Bool = true) async throws {
+        let targetID = try resolveServerID(serverID)
+        let initiatingSession = serverSessionToken
         _ = try await rawServerRequest(
             path: "/:/scrobble",
             queryItems: [
                 URLQueryItem(name: "key", value: ratingKey),
                 URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
             ],
-            serverID: serverID
+            serverID: targetID,
+            expectedSession: initiatingSession
         )
+        if updatesIntroWatchState, initiatingSession == serverSessionToken, let profile = initiatingSession.profileID {
+            IntroFingerprintStore.shared.noteEpisodeWatchState(viewerProfileID: profile, serverID: targetID,
+                                                               episodeRatingKey: ratingKey, watched: true, confirmed: true)
+        }
     }
 
-    func unscrobble(ratingKey: String, serverID: String? = nil) async throws {
+    func unscrobble(ratingKey: String, serverID: String? = nil, resetsIntroFingerprints: Bool = true) async throws {
+        let targetID = try resolveServerID(serverID)
+        let initiatingSession = serverSessionToken
+        let reset = resetsIntroFingerprints ? await prepareIntroFingerprintReset(ratingKey: ratingKey, serverID: targetID) : nil
+        guard initiatingSession == serverSessionToken else { throw CancellationError() }
+        try Task.checkCancellation()
         _ = try await rawServerRequest(
             path: "/:/unscrobble",
             queryItems: [
                 URLQueryItem(name: "key", value: ratingKey),
                 URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
             ],
-            serverID: serverID
+            serverID: targetID,
+            expectedSession: initiatingSession
         )
+        if initiatingSession == serverSessionToken, let reset { applyIntroFingerprintReset(reset) }
     }
 
     func setWatched(_ watched: Bool, ratingKey: String, serverID: String? = nil) async throws {

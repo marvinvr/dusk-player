@@ -100,11 +100,39 @@ extension PlexService {
     }
 
     func getSeasons(showKey: String, serverID: String? = nil) async throws -> [PlexSeason] {
-        try await fetchMetadata(path: "/library/metadata/\(showKey)/children", serverID: serverID)
+        let targetID = try resolveServerID(serverID)
+        let initiatingSession = serverSessionToken
+        let seasons: [PlexSeason] = try await fetchMetadata(path: "/library/metadata/\(showKey)/children", serverID: targetID)
+        if initiatingSession == serverSessionToken, let profile = initiatingSession.profileID {
+            for season in seasons {
+                IntroFingerprintStore.shared.registerSeason(
+                    .init(viewerProfileID: profile, serverID: targetID, seasonRatingKey: season.ratingKey),
+                    showRatingKey: showKey, accountProfileID: primaryProfileID
+                )
+            }
+        }
+        return seasons
     }
 
     func getEpisodes(seasonKey: String, serverID: String? = nil) async throws -> [PlexEpisode] {
-        try await fetchMetadata(path: "/library/metadata/\(seasonKey)/children", serverID: serverID)
+        let targetID = try resolveServerID(serverID)
+        let initiatingSession = serverSessionToken
+        let store = IntroFingerprintStore.shared
+        let metadataGeneration = store.metadataGeneration
+        let data = try await rawServerRequest(path: "/library/metadata/\(seasonKey)/children", serverID: targetID)
+        let container = try decodeJSON(MetadataResponse<PlexEpisode>.self, from: data, serverID: targetID).MediaContainer
+        let episodes = container.Metadata ?? []
+        if initiatingSession == serverSessionToken, metadataGeneration == store.metadataGeneration,
+           !Task.isCancelled, let profile = initiatingSession.profileID,
+           (container.offset ?? 0) == 0, (container.totalSize ?? container.size) == episodes.count,
+           Set(episodes.map(\.ratingKey)).count == episodes.count,
+           episodes.allSatisfy({ $0.parentRatingKey == seasonKey }) {
+            let key = IntroFingerprintSeasonKey(viewerProfileID: profile, serverID: targetID, seasonRatingKey: seasonKey)
+            store.registerSeason(key, showRatingKey: episodes.first?.grandparentRatingKey, accountProfileID: primaryProfileID)
+            store.observeSeason(key, episodeIDs: Set(episodes.map(\.ratingKey)),
+                                watchedEpisodeIDs: Set(episodes.filter(\.isWatched).map(\.ratingKey)))
+        }
+        return episodes
     }
 
     /// Every episode of a show, across all its seasons, in one request.
@@ -274,6 +302,7 @@ extension PlexService {
         serverID: String? = nil
     ) async throws -> PlexMediaDetails {
         let targetID = try resolveServerID(serverID)
+        let initiatingSession = serverSessionToken
         let data = try await getMediaDetailsPayload(
             ratingKey: ratingKey,
             checkFiles: checkFiles,
@@ -284,6 +313,10 @@ extension PlexService {
 
         guard let details = items.first else {
             throw PlexServiceError.decodingError("No metadata found for ratingKey \(ratingKey)")
+        }
+
+        if initiatingSession == serverSessionToken, !Task.isCancelled, let profile = initiatingSession.profileID {
+            registerIntroFingerprintHierarchy(details, profileID: profile)
         }
 
         return details

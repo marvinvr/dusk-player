@@ -213,6 +213,8 @@ final class OfflinePlaybackSyncManager {
     }
 
     private func sync(_ action: OfflinePlaybackSyncAction) async throws {
+        let initiatingSession = plexService.serverSessionToken
+        guard action.accountProfileID == initiatingSession.profileID else { throw CancellationError() }
         switch action.kind {
         case .progress:
             try await plexService.submitTimeline(
@@ -220,15 +222,22 @@ final class OfflinePlaybackSyncManager {
                 state: playbackState(for: action.plexState),
                 timeMs: action.viewOffsetMs ?? 0,
                 durationMs: action.durationMs ?? 0,
-                serverID: action.serverID
+                serverID: action.serverID,
+                expectedSession: initiatingSession
             )
+            guard initiatingSession == plexService.serverSessionToken else { throw CancellationError() }
             if action.shouldMarkWatched {
-                try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+                try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID, updatesIntroWatchState: false)
             }
         case .watched:
-            try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+            try await plexService.scrobble(ratingKey: action.ratingKey, serverID: action.serverID, updatesIntroWatchState: false)
         case .unwatched:
-            try await plexService.unscrobble(ratingKey: action.ratingKey, serverID: action.serverID)
+            // Replay only the server write. Never reset hashes learned since
+            // the original local edit on each retry.
+            if let profile = action.accountProfileID {
+                IntroFingerprintStore.shared.noteUnwatchReplay(viewerProfileID: profile, serverID: action.serverID, ratingKey: action.ratingKey)
+            }
+            try await plexService.unscrobble(ratingKey: action.ratingKey, serverID: action.serverID, resetsIntroFingerprints: false)
         }
     }
 
@@ -307,6 +316,17 @@ final class OfflinePlaybackSyncManager {
                 updatedAt: .now
             ))
         }
+        if kind == .unwatched || kind == .watched || shouldMarkWatched {
+            IntroFingerprintStore.shared.noteEpisodeWatchState(
+                viewerProfileID: activeProfileID, serverID: serverID,
+                episodeRatingKey: ratingKey, watched: kind != .unwatched
+            )
+        }
+        if kind == .unwatched {
+            // Aggregate actions clear known season/show scopes exactly once,
+            // at local acceptance. An episode ID never matches those scopes.
+            IntroFingerprintStore.shared.removeItem(viewerProfileID: activeProfileID, serverID: serverID, ratingKey: ratingKey)
+        }
         persist()
     }
 
@@ -323,6 +343,13 @@ final class OfflinePlaybackSyncManager {
             return
         }
         storedActions[index].needsSync = false
+        if let profile = action.accountProfileID,
+           action.kind == .unwatched || action.kind == .watched || action.shouldMarkWatched {
+            IntroFingerprintStore.shared.noteEpisodeWatchState(
+                viewerProfileID: profile, serverID: action.serverID, episodeRatingKey: action.ratingKey,
+                watched: action.kind != .unwatched, confirmed: true
+            )
+        }
         storedActions[index].attemptCount = 0
         storedActions[index].lastAttemptAt = .now
         storedActions[index].updatedAt = .now

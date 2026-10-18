@@ -271,6 +271,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// is rendering; a real refill freezes the clock and stops the count on
     /// its own.
     private var steadyPlaybackTicks = 0
+    private var introPlaybackProgress = IntroPlaybackProgress()
     private var pendingSeekStartedAt: Date?
     /// One-shot: an audio-output disturbance (load, stall recovery, or a
     /// seek — every seek flushes the output) schedules a single pause→play
@@ -370,6 +371,27 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoOutput: DuskVLCRawVideoOutput?
+    @ObservationIgnored private var introFrameSampleHandler: (@MainActor (IntroFrameSample) -> Void)?
+    @ObservationIgnored private var pendingIntroFrameSnapshot: PendingIntroFrameSnapshot?
+    @ObservationIgnored private var introFrameSnapshotTimeoutTask: Task<Void, Never>?
+    @ObservationIgnored private var introFrameSnapshotFailures = 0
+    @ObservationIgnored private var introFrameSnapshotRetryAfter: Date?
+
+    private enum IntroSnapshotConfiguration {
+        static let maximumFailures = 3
+        static let width: Int32 = 160
+        static let height: Int32 = 90
+        static let timeout: TimeInterval = 2
+        static let pollingInterval: Duration = .milliseconds(100)
+        static let retryDelay: TimeInterval = 1
+        static let delayedCleanupInterval: Duration = .seconds(3)
+    }
+
+    private struct PendingIntroFrameSnapshot {
+        let id: UUID
+        let path: URL
+        let mediaTime: TimeInterval
+    }
 
     /// Shared libvlc instance. On the stable 3.x line the iOS/tvOS audio
     /// output IS the classic pull-model AudioUnit module — the
@@ -455,6 +477,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func load(source: PlaybackSource) {
+        resetIntroFrameSnapshotState()
         loadValidationTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
@@ -482,6 +505,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         clearPendingSeek()
         pendingStartPosition = source.startPosition
         steadyPlaybackTicks = 0
+        introPlaybackProgress.reset()
         availableSubtitleTracks = []
         availableAudioTracks = []
         selectedAudioTrackID = nil
@@ -555,6 +579,153 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
     }
 
+    func setIntroFrameSampleHandler(_ handler: (@MainActor (IntroFrameSample) -> Void)?) {
+        introFrameSampleHandler = handler
+        if handler == nil {
+            vlcKitEngineLogger.notice("Intro frame sample handler removed")
+            abandonPendingIntroFrameSnapshot()
+        } else {
+            vlcKitEngineLogger.notice("Intro frame sample handler installed failures=\(self.introFrameSnapshotFailures)")
+        }
+    }
+
+    var isReadyForIntroFrameSampling: Bool {
+        introPlaybackProgress.allowsCapture(
+            isPlaying: state == .playing, isBuffering: isBuffering,
+            hasPendingSeek: pendingSeekTarget != nil, at: ProcessInfo.processInfo.systemUptime
+        )
+    }
+
+    func requestIntroFrameSample() {
+        guard introFrameSampleHandler != nil else {
+            vlcKitEngineLogger.notice("Intro frame request dropped: no handler")
+            return
+        }
+        guard introFrameSnapshotFailures < IntroSnapshotConfiguration.maximumFailures,
+              introFrameSnapshotRetryAfter.map({ Date() >= $0 }) ?? true else {
+            vlcKitEngineLogger.notice("Intro frame request deferred after snapshot failures=\(self.introFrameSnapshotFailures)")
+            return
+        }
+        guard pendingIntroFrameSnapshot == nil else {
+            vlcKitEngineLogger.notice("Intro frame request dropped: previous snapshot is still pending")
+            return
+        }
+        guard isReadyForIntroFrameSampling else {
+            vlcKitEngineLogger.notice(
+                "Intro frame request deferred engineState=\(String(describing: self.state), privacy: .public) buffering=\(self.isBuffering) pendingSeek=\(self.pendingSeekTarget != nil)"
+            )
+            return
+        }
+
+        let path = FileManager.default.temporaryDirectory
+            .appendingPathComponent("dusk-intro-frame-\(UUID().uuidString)")
+            .appendingPathExtension("png")
+        let request = PendingIntroFrameSnapshot(
+            id: UUID(),
+            path: path,
+            mediaTime: currentTime
+        )
+        vlcKitEngineLogger.notice(
+            "Intro frame snapshot requested mediaTime=\(request.mediaTime, format: .fixed(precision: 3))"
+        )
+        pendingIntroFrameSnapshot = request
+        mediaPlayer.saveVideoSnapshot(at: path.path, withWidth: IntroSnapshotConfiguration.width, andHeight: IntroSnapshotConfiguration.height)
+
+        introFrameSnapshotTimeoutTask?.cancel()
+        introFrameSnapshotTimeoutTask = Task { @MainActor [weak self] in
+            let deadline = Date().addingTimeInterval(IntroSnapshotConfiguration.timeout)
+            while Date() < deadline {
+                guard let self,
+                      self.pendingIntroFrameSnapshot?.id == request.id else {
+                    return
+                }
+                if let image = UIImage(contentsOfFile: request.path.path) {
+                    self.finishIntroFrameSnapshot(
+                        request,
+                        hash: IntroFrameHasher.hash(image: image)
+                    )
+                    return
+                }
+                do {
+                    try await Task.sleep(for: IntroSnapshotConfiguration.pollingInterval)
+                } catch {
+                    return
+                }
+            }
+            guard let self,
+                  self.pendingIntroFrameSnapshot?.id == request.id else { return }
+            self.introFrameSnapshotFailures += 1
+            self.introFrameSnapshotRetryAfter = Date().addingTimeInterval(IntroSnapshotConfiguration.retryDelay)
+            self.pendingIntroFrameSnapshot = nil
+            self.introFrameSnapshotTimeoutTask = nil
+            // Snapshot completion can arrive after the deadline; use the same
+            // delayed cleanup as cancellation so late PNGs do not accumulate.
+            self.removeIntroSnapshotFile(request.path)
+            vlcKitEngineLogger.error(
+                "Intro frame snapshot timed out mediaTime=\(request.mediaTime, format: .fixed(precision: 3)); sampling retries with a bounded failure budget"
+            )
+        }
+    }
+
+    private func finishIntroFrameSnapshot(
+        _ request: PendingIntroFrameSnapshot,
+        hash: IntroFrameSignature?
+    ) {
+        guard pendingIntroFrameSnapshot?.id == request.id else { return }
+        pendingIntroFrameSnapshot = nil
+        introFrameSnapshotTimeoutTask?.cancel()
+        introFrameSnapshotTimeoutTask = nil
+        try? FileManager.default.removeItem(at: request.path)
+
+        guard let handler = introFrameSampleHandler else {
+            vlcKitEngineLogger.notice(
+                "Intro frame snapshot completed after handler removal mediaTime=\(request.mediaTime, format: .fixed(precision: 3))"
+            )
+            return
+        }
+        guard let hash else {
+            vlcKitEngineLogger.error(
+                "Intro frame snapshot could not be hashed mediaTime=\(request.mediaTime, format: .fixed(precision: 3))"
+            )
+            return
+        }
+        vlcKitEngineLogger.notice(
+            "Intro frame sample delivered mediaTime=\(request.mediaTime, format: .fixed(precision: 3))"
+        )
+        let completionTime = currentTime
+        guard isReadyForIntroFrameSampling,
+              let sample = IntroFrameSample.snapshot(requestTime: request.mediaTime, completionTime: completionTime, signature: hash) else {
+            vlcKitEngineLogger.notice("Intro frame dropped: snapshot timing uncertain request=\(request.mediaTime, format: .fixed(precision: 3)) completion=\(completionTime, format: .fixed(precision: 3))")
+            return
+        }
+        introFrameSnapshotFailures = 0
+        introFrameSnapshotRetryAfter = nil
+        handler(sample)
+    }
+
+    private func abandonPendingIntroFrameSnapshot() {
+        introFrameSnapshotTimeoutTask?.cancel()
+        introFrameSnapshotTimeoutTask = nil
+        if let request = pendingIntroFrameSnapshot {
+            removeIntroSnapshotFile(request.path)
+        }
+        pendingIntroFrameSnapshot = nil
+    }
+
+    private func removeIntroSnapshotFile(_ path: URL) {
+        try? FileManager.default.removeItem(at: path)
+        Task { @MainActor in
+            try? await Task.sleep(for: IntroSnapshotConfiguration.delayedCleanupInterval)
+            try? FileManager.default.removeItem(at: path)
+        }
+    }
+
+    private func resetIntroFrameSnapshotState() {
+        setIntroFrameSampleHandler(nil)
+        introFrameSnapshotFailures = 0
+        introFrameSnapshotRetryAfter = nil
+    }
+
     func play() {
         guard coordinatedItemIdentifier == nil else {
             delegatingPlaybackCoordinator.coordinateRateChange(to: 1, options: [])
@@ -619,6 +790,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         mediaPlayer.pause()
         state = .paused
         steadyPlaybackTicks = 0
+        introPlaybackProgress.reset()
         syncRendererPlaybackState()
     }
 
@@ -684,6 +856,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func stop() {
+        resetIntroFrameSnapshotState()
         loadValidationTask?.cancel()
         loadValidationTask = nil
         videoRefreshTask?.cancel()
@@ -881,6 +1054,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingSeekStartedAt = Date()
         currentTime = clampedPosition
         steadyPlaybackTicks = 0
+        introPlaybackProgress.reset()
         // Every seek flushes the audio output; if the flush leaves it in a
         // silent-but-"healthy" state, the settle revive brings it back once
         // playback is steady again (one revive per burst of seeks — arming is
@@ -934,6 +1108,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingStartPosition = recoveryPosition
         hasAppliedStartPosition = recoveryPosition <= 0
         steadyPlaybackTicks = 0
+        introPlaybackProgress.reset()
         hasReportedPlaybackEnded = false
         availableSubtitleTracks = []
         availableAudioTracks = []
@@ -1322,6 +1497,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     fileprivate func handleStateChange(_ vlcState: VLCMediaPlayerState) {
         logStateChange(vlcState)
         switch vlcState {
+        case .paused, .stopped, .ended, .error:
+            introPlaybackProgress.reset()
+        default:
+            break
+        }
+        switch vlcState {
         case .opening, .buffering:
             // Do NOT reset steadyPlaybackTicks here: libvlc fires buffering
             // events continuously on network streams (cache-level updates),
@@ -1495,6 +1676,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         }
 
         if shouldAcceptUpdatedTime(updatedTime) {
+            if vlcReportedPlaying, pendingSeekTarget == nil {
+                introPlaybackProgress.record(mediaTime: updatedTime, at: ProcessInfo.processInfo.systemUptime)
+            } else {
+                introPlaybackProgress.reset()
+            }
             if vlcReportedPlaying, pendingSeekTarget == nil, updatedTime > currentTime {
                 steadyPlaybackTicks += 1
                 let requiredTicks = isInitialAudioWarmup ? 4 : 1
@@ -2365,6 +2551,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         audioRevivePhase = .awaitingPauseConfirmation
         audioReviveResumeAttempts = 0
         steadyPlaybackTicks = 0
+        introPlaybackProgress.reset()
 
         let attemptLabel = currentAttemptContext?.attemptLabel ?? "unknown"
         vlcKitEngineLogger.notice(
@@ -2733,6 +2920,7 @@ extension VLCKitEngine: VLCMediaPlayerDelegate {
             self?.updateTime(timeMs: timeMs, lengthMs: lengthMs)
         }
     }
+
 }
 
 private struct VLCPlayerRepresentable: UIViewRepresentable {

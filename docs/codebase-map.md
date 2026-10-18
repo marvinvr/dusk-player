@@ -15,7 +15,7 @@ Dusk/Sources
                        the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
   Playback/            PlaybackEngine protocol, AVPlayer/VLCKit engines, resolver,
-                       VLCKit build capabilities (TrueHD)
+                       intro fingerprints, VLCKit build capabilities (TrueHD)
     DolbyVision7/      Dolby Vision 7 → 8.1: loopback HLS proxy, fMP4 init/fragment
                        and playlist rewriting, DoviBridge over Native/DuskDovi
   Downloads/           Queue, file store, metadata cache, offline sync
@@ -183,6 +183,15 @@ Player:
   stay in the coordinator and use Plex HLS plus AVPlayer, so receivers do not
   need Dusk installed.
 - `PlayerView` and `PlayerViewModel` own on-screen player interaction.
+  `PlayerViewModel+IntroRecognition` drives sampling and guarded skip decisions;
+  `Playback/IntroFrameHasher`, `IntroOpeningFingerprintMatcher`,
+  `IntroOpeningObservation` and `IntroFingerprintStore` own normalization,
+  sequence alignment, per-observation policy and the scoped recording cache.
+  The coordinator retains observation state across player rebuilds. See
+  `docs/playback.md` for thresholds, provenance and the offline media probe.
+  `PlexService+IntroFingerprints` resolves profile/server-scoped cache resets
+  around watch-state writes. `IntroFingerprintStore` owns reset generations,
+  persisted hierarchy/watch-state context and conservative season reconciliation.
 - `ShowTrackPreferences` owns semantic per-show track matching and profile/server/
   show-scoped persistence; `PlaybackCoordinator+ShowTracks` records explicit
   choices and syncs per-part selections to Plex. See `docs/playback.md`.

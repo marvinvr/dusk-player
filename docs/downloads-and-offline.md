@@ -238,6 +238,14 @@ on launch and active scene phase, stops its retry loop outside active phase, and
 uses per-action backoff. `markSynced` preserves newer local edits when an older
 sync attempt completes late.
 
+Accepted local watch edits update the intro cache's episode-state overlay once.
+Known queued season/show unwatch scopes are cleared at that acceptance point;
+ordinary episode unwatch leaves the season's fingerprints intact. Sync retries
+disable intro-cache side effects for scrobble/unscrobble and pin the initiating
+profile through server recovery. A delayed action must never clear newly learned
+hashes or replace a newer local watch-state overlay. The existing aggregate
+season/show detail actions still use the online success path.
+
 Actions recorded before Plex Home support are adopted by the original linked
 profile during the one-time migration; they must not be left as unscoped
 actions. Switching users pauses the outgoing profile's queue and leaves failed

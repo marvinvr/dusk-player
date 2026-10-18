@@ -722,13 +722,19 @@ private struct PlayerSessionView: View {
                 selectedSubtitleStreamID: playback.activeSubtitleStreamID,
                 pendingExternalSubtitleStreamID: playback.consumePendingExternalSubtitleStreamID(),
                 explicitTrackSelection: playback.consumePendingExplicitTrackSelection() ?? playback.rememberedShowTrackSelection(),
-                spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs
+                spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs,
+                resolvedIntroFingerprintMarkerIDs: playback.resolvedIntroFingerprintMarkerIDs,
+                introOpeningSessionState: playback.introOpeningSessionState,
+                viewerProfileID: playback.plexService.activeProfileID
             )
             viewModel.autoSkipHandler = { marker in
                 handleSkipMarker(marker)
             }
             viewModel.autoSkipSpentHandler = { markerID in
                 playback.noteAutoSkipSpent(markerID: markerID)
+            }
+            viewModel.introFingerprintResolvedHandler = { markerID in
+                playback.noteIntroFingerprintResolved(markerID: markerID)
             }
             viewModel.upNextPosterHandler = { creditsMarker in
                 handleReachedCreditsMarker(creditsMarker)

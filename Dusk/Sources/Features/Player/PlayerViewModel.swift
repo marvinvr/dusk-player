@@ -1,5 +1,11 @@
 import Foundation
+import OSLog
 import SwiftUI
+
+let autoSkipIntroLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+    category: "AutoSkipIntro"
+)
 
 struct PlayerSeekFeedbackPresentation: Equatable {
     enum Direction: Equatable {
@@ -85,7 +91,6 @@ final class PlayerViewModel {
     var preferredAudioLanguage: String?
     var subtitleForcedOnly = false
     var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
-    var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
     /// Markers this episode has already skipped once, seeded from the
@@ -94,9 +99,16 @@ final class PlayerViewModel {
     /// auto-skip countdown: seeking back into the intro shows the button again,
     /// but the jump forward is the viewer's to make.
     @ObservationIgnored var spentAutoSkipMarkerIDs: Set<Int> = []
+    /// Fingerprint decisions completed for this episode. Unlike spent marker
+    /// IDs, this also includes first openings that played through.
+    @ObservationIgnored var resolvedIntroFingerprintMarkerIDs: Set<Int> = []
+    /// Deduplicates the auto-skip eligibility trace emitted by the 250 ms sync
+    /// loop; the trace should describe transitions, not flood the device log.
+    @ObservationIgnored var lastAutoSkipDiagnosticSnapshot: String?
     /// Reports a newly spent auto-skip back to the coordinator, which owns the
     /// per-episode record.
     var autoSkipSpentHandler: (@MainActor (Int) -> Void)?
+    var introFingerprintResolvedHandler: (@MainActor (Int) -> Void)?
     /// Fires when the reached credits marker changes (nil when leaving the
     /// credits, e.g. a seek back before the marker). The player forwards it to
     /// the coordinator, which resolves the next episode and shows/hides the
@@ -170,6 +182,19 @@ final class PlayerViewModel {
     @ObservationIgnored var controlsInteractionHoldCount = 0
     @ObservationIgnored nonisolated(unsafe) var seekFeedbackTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) var autoSkipCountdownTask: Task<Void, Never>?
+    @ObservationIgnored private(set) var introFingerprintStore: IntroFingerprintStore
+    @ObservationIgnored var introFingerprintSeasonKey: IntroFingerprintSeasonKey?
+    @ObservationIgnored var currentEpisodeRatingKey: String?
+    @ObservationIgnored var currentMediaType: PlexMediaType?
+    @ObservationIgnored var introOpeningSessionState = IntroOpeningSessionState()
+    @ObservationIgnored var introFrameSamplingMarkerID: Int?
+    @ObservationIgnored var introFrameSamplingGeneration = UUID()
+    @ObservationIgnored var lastIntroFrameRequestTime: TimeInterval?
+    @ObservationIgnored var lastIntroPlaybackTime: TimeInterval?
+    @ObservationIgnored var lastIntroPlaybackWallTime: Date?
+    @ObservationIgnored var introFingerprintMatchingTask: Task<Void, Never>?
+    @ObservationIgnored var introFingerprintSampleRequestCount = 0
+    @ObservationIgnored var introFrameSamplingTask: Task<Void, Never>?
     /// Preferences store used to persist the per-orientation zoom-to-fill
     /// choice. Set from `configureAutomaticTrackSelection` on appear.
     @ObservationIgnored var userPreferences: UserPreferences?
@@ -180,9 +205,11 @@ final class PlayerViewModel {
     init(
         engine: any PlaybackEngine,
         markers: [PlexMarker] = [],
-        liveTVContext: PlexLivePlaybackContext? = nil
+        liveTVContext: PlexLivePlaybackContext? = nil,
+        introFingerprintStore: IntroFingerprintStore? = nil
     ) {
         self.engine = engine
+        self.introFingerprintStore = introFingerprintStore ?? .shared
         self.engineView = engine.makePlayerView()
         self.lastPlayerViewGeneration = engine.playerViewGeneration
         self.markers = markers.sorted { $0.startTimeOffset < $1.startTimeOffset }
@@ -195,20 +222,21 @@ final class PlayerViewModel {
         controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
         autoSkipCountdownTask?.cancel()
+        introFrameSamplingTask?.cancel()
+        introFingerprintMatchingTask?.cancel()
     }
 
     func cleanup() {
         syncTimer?.invalidate()
         controlsAutoHideTask?.cancel()
         seekFeedbackTask?.cancel()
-        autoSkipCountdownTask?.cancel()
+        cancelAutoSkipCountdown()
         syncTimer = nil
         controlsAutoHideTask = nil
         controlsAutoHideDeadline = nil
         controlsInteractionHoldCount = 0
         isControlsInteractionHeld = false
         seekFeedbackTask = nil
-        autoSkipCountdownTask = nil
         showQualityPicker = false
         bufferingPresentationHandler?(false)
         bufferingStartedAt = nil
@@ -233,7 +261,10 @@ final class PlayerViewModel {
         selectedSubtitleStreamID: Int? = nil,
         pendingExternalSubtitleStreamID: Int? = nil,
         explicitTrackSelection: ExplicitTrackSelection? = nil,
-        spentAutoSkipMarkerIDs: Set<Int> = []
+        spentAutoSkipMarkerIDs: Set<Int> = [],
+        resolvedIntroFingerprintMarkerIDs: Set<Int> = [],
+        introOpeningSessionState: IntroOpeningSessionState? = nil,
+        viewerProfileID: String? = nil
     ) {
         userPreferences = preferences
         // Apply the saved zoom-to-fill choice now that preferences are known.
@@ -252,9 +283,53 @@ final class PlayerViewModel {
         preferredAudioLanguage = Self.normalizedLanguageCode(preferences.defaultAudioLanguage)
         subtitleForcedOnly = preferences.subtitleForcedOnly
         subtitleFontSize = preferences.subtitleFontSize
-        autoSkipIntroMode = preferences.autoSkipIntroMode
-        isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
+        let nextAutoSkipIntroMode = preferences.autoSkipIntroMode
+        let nextMediaType = mediaDetails?.type
+        let nextEpisodeRatingKey = mediaDetails?.type == .episode ? mediaDetails?.ratingKey : nil
+        let nextFingerprintSeasonKey = mediaDetails.flatMap {
+            IntroFingerprintSeasonKey(mediaDetails: $0, viewerProfileID: viewerProfileID)
+        }
+        let episodeChanged = currentMediaType != nextMediaType
+            || currentEpisodeRatingKey != nextEpisodeRatingKey
+            || introFingerprintSeasonKey != nextFingerprintSeasonKey
+        if episodeChanged {
+            cancelAutoSkipCountdown(reason: "configuration-changed")
+        } else if autoSkipIntroMode != nextAutoSkipIntroMode {
+            cancelAutoSkipCountdown(reason: "saved-mode-changed")
+        }
+        if episodeChanged {
+            self.resolvedIntroFingerprintMarkerIDs = []
+        }
+        if let introOpeningSessionState {
+            self.introOpeningSessionState = introOpeningSessionState
+        } else if episodeChanged {
+            self.introOpeningSessionState = IntroOpeningSessionState()
+        }
+        autoSkipIntroMode = nextAutoSkipIntroMode
+        currentMediaType = nextMediaType
+        currentEpisodeRatingKey = nextEpisodeRatingKey
+        introFingerprintSeasonKey = nextFingerprintSeasonKey
+        if let key = nextFingerprintSeasonKey {
+            introFingerprintStore.registerSeason(key, showRatingKey: mediaDetails?.grandparentRatingKey)
+            if self.introOpeningSessionState.fingerprintCacheGeneration == nil {
+                self.introOpeningSessionState.fingerprintCacheGeneration = introFingerprintStore.generation(for: key)
+            }
+        }
         self.spentAutoSkipMarkerIDs = spentAutoSkipMarkerIDs
+        if markers.contains(where: { $0.isIntro && spentAutoSkipMarkerIDs.contains($0.id) }) {
+            self.introOpeningSessionState.hasSkippedIntro = true
+        }
+        self.resolvedIntroFingerprintMarkerIDs = resolvedIntroFingerprintMarkerIDs
+        lastAutoSkipDiagnosticSnapshot = nil
+        let markerSummary = markers.map {
+            "\($0.id):\($0.type) \(Double($0.startTimeOffset) / 1_000)-\(Double($0.endTimeOffset) / 1_000)s"
+        }.joined(separator: ",")
+        let seasonIdentity = nextFingerprintSeasonKey.map {
+            "server=\($0.serverID) season=\($0.seasonRatingKey)"
+        } ?? "unavailable"
+        autoSkipIntroLogger.notice(
+            "Configured model=\(ObjectIdentifier(self).debugDescription, privacy: .public) mode=\(nextAutoSkipIntroMode.rawValue, privacy: .public) type=\(String(describing: nextMediaType), privacy: .public) episode=\(nextEpisodeRatingKey ?? "unavailable", privacy: .public) fingerprintScope=\(seasonIdentity, privacy: .public) markers=[\(markerSummary, privacy: .public)] engineState=\(String(describing: self.state), privacy: .public) engineTime=\(self.engine.currentTime, format: .fixed(precision: 3)) buffering=\(self.engine.isBuffering) spent=\(self.spentAutoSkipMarkerIDs.sorted().description, privacy: .public) resolved=\(self.resolvedIntroFingerprintMarkerIDs.sorted().description, privacy: .public)"
+        )
         hasConfiguredAutomaticTrackSelection = true
         hasAppliedAutomaticAudioSelection = false
         hasAppliedAutomaticSubtitleSelection = false

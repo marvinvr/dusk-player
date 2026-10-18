@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 
 extension PlayerViewModel {
@@ -10,7 +11,9 @@ extension PlayerViewModel {
     private static let pendingPlaybackStateGracePeriod: TimeInterval = 0.35
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
     private static let markerSkipPadding: TimeInterval = 0.5
-    private static let autoSkipCountdownDuration: TimeInterval = 5.0
+    private static let autoSkipCountdownDuration = IntroOpeningObservation.courtesyDelay
+    private static let maximumAutoSkipCountdownTick: TimeInterval = 0.25
+    private static let autoSkipCountdownPollingInterval: Duration = .milliseconds(50)
     private static let bufferingIndicatorDelay: TimeInterval = 2.0
     private static let stallRecoveryDelay: TimeInterval = 12.0
     private static let stallRecoveryCooldown: TimeInterval = 8.0
@@ -227,12 +230,15 @@ extension PlayerViewModel {
 
     func skipActiveMarker() {
         guard let marker = activeSkipMarker else { return }
-        cancelAutoSkipCountdown()
+        cancelAutoSkipCountdown(reason: "skip-activated")
         // Skipped once, by Dusk or by the viewer: this marker's auto-skip is
         // spent for the rest of the session.
         noteAutoSkipSpent(for: marker)
 
         let targetTime = (TimeInterval(marker.endTimeOffset) / 1000.0) + Self.markerSkipPadding
+        autoSkipIntroLogger.notice(
+            "Seeking past marker id=\(marker.id) type=\(marker.type, privacy: .public) from=\(self.displayPosition, format: .fixed(precision: 3)) to=\(targetTime, format: .fixed(precision: 3)) episode=\(self.currentEpisodeRatingKey ?? "unavailable", privacy: .public) mode=\(self.autoSkipIntroMode.rawValue, privacy: .public)"
+        )
         seek(to: targetTime, revealControls: true)
     }
 
@@ -240,11 +246,13 @@ extension PlayerViewModel {
     /// here — they are handled by the bottom-right Up Next poster instead of a
     /// skip button.
     func handleSkipMarker(_ marker: PlexMarker) {
-        cancelAutoSkipCountdown()
+        cancelAutoSkipCountdown(reason: "skip-marker-action")
         skipActiveMarker()
     }
 
     func beginScrub() {
+        finishIntroObservation(reason: "scrubbing", resolve: true, discardSegment: true)
+        cancelAutoSkipCountdown(reason: "scrubbing")
         isScrubbing = true
         scrubPosition = currentTime
         cancelScheduledHide()
@@ -261,7 +269,7 @@ extension PlayerViewModel {
     func commitScrub(shouldPlay: Bool) {
         let targetPosition = scrubPosition
         // Final position the user deliberately chose — seek frame-accurately.
-        engine.seek(to: targetPosition, precise: true)
+        seek(to: targetPosition, revealControls: false, precise: true)
         isScrubbing = false
 
         if shouldPlay {
@@ -358,7 +366,12 @@ extension PlayerViewModel {
     /// remote skip jumps into the engine's fast keyframe-tolerant path.
     func seek(to position: TimeInterval, revealControls: Bool, precise: Bool = true) {
         let clampedPosition = clampedSeekPosition(position)
-
+        if introFrameSamplingMarkerID != nil {
+            finishIntroObservation(reason: "seek", resolve: true, discardSegment: true)
+        }
+        // Any deliberate seek starts a separate recording, including a return
+        // to a marker whose sampler was detached when playback left it.
+        introOpeningSessionState.observations.removeAll()
         engine.seek(to: clampedPosition, precise: precise)
 
         if revealControls {
@@ -393,38 +406,78 @@ extension PlayerViewModel {
 
     func updateAutoSkipState() {
         guard hasConfiguredAutomaticTrackSelection else {
-            cancelAutoSkipCountdown()
+            logAutoSkipDecision(reason: "configuration-not-ready", marker: nil)
+            cancelAutoSkipCountdown(reason: "configuration-not-ready")
             return
         }
-
-        let marker = activeSkipMarker
-
-        guard let marker, !isScrubbing else {
-            if autoSkipCountdownMarkerID != nil {
-                cancelAutoSkipCountdown()
+        if let preferences = userPreferences, autoSkipIntroMode != preferences.autoSkipIntroMode {
+            cancelAutoSkipCountdown(reason: "saved-mode-changed")
+            autoSkipIntroMode = preferences.autoSkipIntroMode
+        }
+        guard let marker = activeSkipMarker else {
+            logAutoSkipDecision(reason: "no-active-marker", marker: nil)
+            cancelAutoSkipCountdown(reason: "left-marker")
+            return
+        }
+        guard !isScrubbing else {
+            finishIntroObservation(reason: "scrubbing", resolve: true, discardSegment: true)
+            cancelAutoSkipCountdown(reason: "scrubbing")
+            return
+        }
+        guard marker.isIntro, shouldAutoSkipIntroMarkers,
+              !introOpeningSessionState.hasSkippedIntro,
+              !spentAutoSkipMarkerIDs.contains(marker.id) else {
+            logAutoSkipDecision(reason: autoSkipIntroMode == .off ? "mode-off" : "marker-ineligible-or-spent", marker: marker)
+            cancelAutoSkipCountdown(reason: "marker-ineligible-or-spent")
+            return
+        }
+        if shouldClassifyIntroFingerprint {
+            guard isIntroFingerprintCacheCurrent else {
+                logAutoSkipDecision(reason: "fingerprint-cache-reset", marker: marker)
+                cancelAutoSkipCountdown(reason: "fingerprint-cache-reset")
+                return
             }
+            logAutoSkipDecision(
+                reason: engine.isReadyForIntroFrameSampling ? "intro-playback-ready" : "intro-waiting-for-playback",
+                marker: marker
+            )
+            updateIntroRecognition(for: marker)
             return
         }
-
-        // One auto-skip per marker per session. Without this the countdown
-        // re-arms the moment the position lands back inside the marker — which
-        // happens on its own while a post-skip seek is still buffering, and
-        // again whenever the viewer deliberately rewinds into the intro.
-        let shouldAutoSkip = marker.isIntro &&
-            shouldAutoSkipIntroMarkers &&
-            !spentAutoSkipMarkerIDs.contains(marker.id)
-
-        guard shouldAutoSkip else {
-            if autoSkipCountdownMarkerID != nil {
-                cancelAutoSkipCountdown()
-            }
-            return
+        if autoSkipCountdownMarkerID != marker.id {
+            logAutoSkipDecision(reason: "countdown-arming", marker: marker)
+            startAutoSkipCountdown(for: marker)
         }
+    }
 
-        // Already counting down for this marker
-        if autoSkipCountdownMarkerID == marker.id { return }
+    private func logAutoSkipDecision(reason: String, marker: PlexMarker?) {
+        let markerIdentity = marker.map {
+            "\($0.id):\($0.type):\($0.startTimeOffset)-\($0.endTimeOffset)"
+        } ?? "none"
+        let seasonIdentity = introFingerprintSeasonKey.map {
+            "\($0.serverID):\($0.seasonRatingKey)"
+        } ?? "unavailable"
+        let spent = marker.map { spentAutoSkipMarkerIDs.contains($0.id) } ?? false
+        let resolved = marker.map { resolvedIntroFingerprintMarkerIDs.contains($0.id) } ?? false
+        let snapshot = [
+            reason,
+            autoSkipIntroMode.rawValue,
+            String(describing: currentMediaType),
+            currentEpisodeRatingKey ?? "unavailable",
+            seasonIdentity,
+            markerIdentity,
+            String(describing: state),
+            String(isBuffering),
+            String(isScrubbing),
+            String(spent),
+            String(resolved),
+        ].joined(separator: "|")
+        guard snapshot != lastAutoSkipDiagnosticSnapshot else { return }
+        lastAutoSkipDiagnosticSnapshot = snapshot
 
-        startAutoSkipCountdown(for: marker)
+        autoSkipIntroLogger.notice(
+            "Decision model=\(ObjectIdentifier(self).debugDescription, privacy: .public) reason=\(reason, privacy: .public) mode=\(self.autoSkipIntroMode.rawValue, privacy: .public) type=\(String(describing: self.currentMediaType), privacy: .public) episode=\(self.currentEpisodeRatingKey ?? "unavailable", privacy: .public) fingerprintScope=\(seasonIdentity, privacy: .public) marker=\(markerIdentity, privacy: .public) state=\(String(describing: self.state), privacy: .public) buffering=\(self.isBuffering) scrubbing=\(self.isScrubbing) spent=\(spent) resolved=\(resolved) position=\(self.displayPosition, format: .fixed(precision: 3))"
+        )
     }
 
     private func updateBufferingPresentation(now: Date) {
@@ -625,91 +678,95 @@ extension PlayerViewModel {
         engine.recoverFromStall()
     }
 
+    /// The unconditional mode retains its normal five-second courtesy delay.
+    /// Repeated openings use the independent streaming recognition state machine.
     private func startAutoSkipCountdown(for marker: PlexMarker) {
-        cancelAutoSkipCountdown()
+        cancelAutoSkipCountdown(reason: "new-unconditional-countdown")
         autoSkipCountdownMarkerID = marker.id
         autoSkipCountdownProgress = 0
-
         autoSkipCountdownTask = Task { @MainActor [weak self] in
-            guard let self else { return }
-            let duration = Self.autoSkipCountdownDuration
-            let startedAt = Date()
-            var pausedAt: Date?
-            var accumulatedPausedTime: TimeInterval = 0
-
-            while true {
-                if Task.isCancelled { return }
-
+            var elapsed: TimeInterval = 0
+            var previous = Date()
+            while !Task.isCancelled {
+                guard let self, self.autoSkipCountdownMarkerID == marker.id,
+                      self.hasConfiguredAutomaticTrackSelection,
+                      self.shouldAutoSkipIntroMarkers, !self.shouldClassifyIntroFingerprint,
+                      self.userPreferences?.autoSkipIntroMode == self.autoSkipIntroMode,
+                      self.activeSkipMarker?.id == marker.id, !self.isScrubbing,
+                      !self.introOpeningSessionState.hasSkippedIntro,
+                      !self.spentAutoSkipMarkerIDs.contains(marker.id) else { return }
                 let now = Date()
-                if self.state == .paused {
-                    pausedAt = pausedAt ?? now
-                    do {
-                        try await Task.sleep(for: .milliseconds(50))
-                    } catch { return }
-                    continue
+                if self.state != .paused { elapsed += min(Self.maximumAutoSkipCountdownTick, now.timeIntervalSince(previous)) }
+                previous = now
+                self.autoSkipCountdownProgress = min(1, elapsed / Self.autoSkipCountdownDuration)
+                if elapsed >= Self.autoSkipCountdownDuration {
+                    self.cancelAutoSkipCountdown(reason: "unconditional-countdown-complete")
+                    self.performAutomaticIntroSkip(for: marker)
+                    return
                 }
-
-                if let pausedAt {
-                    accumulatedPausedTime += now.timeIntervalSince(pausedAt)
-                }
-
-                pausedAt = nil
-
-                let elapsed = now.timeIntervalSince(startedAt) - accumulatedPausedTime
-                let progress = min(max(elapsed / duration, 0), 1)
-                self.autoSkipCountdownProgress = progress
-
-                if progress >= 1 { break }
-
-                do {
-                    try await Task.sleep(for: .milliseconds(50))
-                } catch { return }
-            }
-
-            if Task.isCancelled { return }
-
-            guard self.autoSkipCountdownMarkerID == marker.id else { return }
-
-            guard let currentMarker = self.activeSkipMarker,
-                  currentMarker.id == marker.id else {
-                self.cancelAutoSkipCountdown()
-                return
-            }
-
-            guard self.hasConfiguredAutomaticTrackSelection,
-                  !self.isScrubbing,
-                  currentMarker.isIntro,
-                  self.shouldAutoSkipIntroMarkers,
-                  !self.spentAutoSkipMarkerIDs.contains(currentMarker.id) else {
-                self.cancelAutoSkipCountdown()
-                return
-            }
-
-            self.autoSkipCountdownMarkerID = nil
-            self.autoSkipCountdownProgress = nil
-
-            if let handler = self.autoSkipHandler {
-                handler(currentMarker)
-            } else {
-                self.skipActiveMarker()
+                do { try await Task.sleep(for: Self.autoSkipCountdownPollingInterval) }
+                catch { return }
             }
         }
     }
 
     private var shouldAutoSkipIntroMarkers: Bool {
-        autoSkipIntroMode.shouldAutoSkipIntro(isFirstEpisodeInSeason: isFirstEpisodeInSeason)
+        switch autoSkipIntroMode {
+        case .off:
+            return false
+        case .always:
+            return true
+        case .alwaysExceptFirstEpisode:
+            // Keep the legacy behavior for known non-episode markers. Episodes
+            // and items without metadata need identity to classify safely.
+            guard let currentMediaType else { return false }
+            return currentMediaType != .episode || introFingerprintSeasonKey != nil
+        }
+    }
+
+    var shouldClassifyIntroFingerprint: Bool {
+        autoSkipIntroMode == .alwaysExceptFirstEpisode
+            && currentMediaType == .episode
+            && currentEpisodeRatingKey != nil
+            && introFingerprintSeasonKey != nil
+    }
+
+    /// Claim the session's automatic skip before invoking a callback, which may
+    /// seek asynchronously or rebuild the player. Manual button taps bypass
+    /// this guard so a viewer can still choose to skip after rewinding.
+    func performAutomaticIntroSkip(for marker: PlexMarker) {
+        guard marker.isIntro, activeSkipMarker?.id == marker.id,
+              !shouldClassifyIntroFingerprint || isIntroFingerprintCacheCurrent,
+              !introOpeningSessionState.hasSkippedIntro,
+              !spentAutoSkipMarkerIDs.contains(marker.id) else { return }
+        noteAutoSkipSpent(for: marker)
+        if let handler = autoSkipHandler { handler(marker) }
+        else { skipActiveMarker() }
     }
 
     /// Burns this marker's one-shot auto-skip for the session and tells the
     /// coordinator, which keeps the record across player rebuilds.
     private func noteAutoSkipSpent(for marker: PlexMarker) {
+        if marker.isIntro { introOpeningSessionState.hasSkippedIntro = true }
         guard spentAutoSkipMarkerIDs.insert(marker.id).inserted else { return }
+        autoSkipIntroLogger.notice(
+            "Marker marked spent marker=\(marker.id) episode=\(self.currentEpisodeRatingKey ?? "unavailable", privacy: .public)"
+        )
         autoSkipSpentHandler?(marker.id)
     }
 
-    func cancelAutoSkipCountdown() {
+    func noteIntroFingerprintResolved(for marker: PlexMarker) {
+        guard resolvedIntroFingerprintMarkerIDs.insert(marker.id).inserted else { return }
+        autoSkipIntroLogger.notice(
+            "Fingerprint classification resolved marker=\(marker.id) episode=\(self.currentEpisodeRatingKey ?? "unavailable", privacy: .public) resolvedMarkers=\(self.resolvedIntroFingerprintMarkerIDs.sorted().description, privacy: .public)"
+        )
+        introFingerprintResolvedHandler?(marker.id)
+    }
+
+    func cancelAutoSkipCountdown(reason: String = "cancelled") {
         autoSkipCountdownTask?.cancel()
         autoSkipCountdownTask = nil
+        finishIntroObservation(reason: reason, resolve: true)
         autoSkipCountdownMarkerID = nil
         autoSkipCountdownProgress = nil
     }

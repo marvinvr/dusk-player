@@ -76,6 +76,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored private var enhancedVideoOutput: AVPlayerItemVideoOutput?
+    @ObservationIgnored private var introFrameSampleOutput: AVPlayerItemVideoOutput?
+    @ObservationIgnored private var introFrameSampleOutputItem: AVPlayerItem?
+    @ObservationIgnored private var introFrameSampleHandler: (@MainActor (IntroFrameSample) -> Void)?
     @ObservationIgnored private var needsEnhancedVideoRefresh = false
     private var isRenderingNativeSubtitles = false
     /// Front for `.spatialAudio` sessions (see `RemuxHLSLoader`). The
@@ -188,6 +191,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func load(source: PlaybackSource) {
         loadValidationTask?.cancel()
         stopDolbyVision7Proxy()
+        removeIntroFrameSampleOutput()
         removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -282,6 +286,80 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         #endif
     }
 
+    func setIntroFrameSampleHandler(_ handler: (@MainActor (IntroFrameSample) -> Void)?) {
+        introFrameSampleHandler = handler
+        if handler == nil {
+            avPlayerEngineLogger.notice("Intro frame sample handler removed")
+            removeIntroFrameSampleOutput()
+        } else {
+            avPlayerEngineLogger.notice("Intro frame sample handler installed")
+        }
+    }
+
+    func requestIntroFrameSample() {
+        guard state == .playing else {
+            avPlayerEngineLogger.notice(
+                "Intro frame request dropped engineState=\(String(describing: self.state), privacy: .public)"
+            )
+            return
+        }
+        guard let handler = introFrameSampleHandler else {
+            avPlayerEngineLogger.notice("Intro frame request dropped: no handler")
+            return
+        }
+        guard let item = player.currentItem else {
+            avPlayerEngineLogger.notice("Intro frame request dropped: no current item")
+            return
+        }
+
+        let output: AVPlayerItemVideoOutput
+        if let existingOutput = introFrameSampleOutput,
+           introFrameSampleOutputItem === item {
+            output = existingOutput
+        } else {
+            removeIntroFrameSampleOutput()
+            let newOutput = AVPlayerItemVideoOutput(pixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferMetalCompatibilityKey as String: true,
+            ])
+            item.add(newOutput)
+            introFrameSampleOutput = newOutput
+            introFrameSampleOutputItem = item
+            output = newOutput
+        }
+
+        let itemTime = player.currentTime()
+        guard itemTime.isValid, itemTime.seconds.isFinite else {
+            avPlayerEngineLogger.notice("Intro frame request dropped: invalid media time")
+            return
+        }
+        var displayTime = CMTime.invalid
+        guard let pixelBuffer = output.copyPixelBuffer(
+            forItemTime: itemTime,
+            itemTimeForDisplay: &displayTime
+        ) else {
+            avPlayerEngineLogger.notice(
+                "Intro frame unavailable mediaTime=\(itemTime.seconds, format: .fixed(precision: 3)); AVPlayerItemVideoOutput returned no pixel buffer"
+            )
+            return
+        }
+        guard let hash = IntroFrameHasher.hash(pixelBuffer: pixelBuffer) else {
+            avPlayerEngineLogger.error(
+                "Intro frame could not be hashed mediaTime=\(itemTime.seconds, format: .fixed(precision: 3)) pixelFormat=\(CVPixelBufferGetPixelFormatType(pixelBuffer))"
+            )
+            return
+        }
+
+        avPlayerEngineLogger.notice(
+            "Intro frame sample delivered mediaTime=\(itemTime.seconds, format: .fixed(precision: 3))"
+        )
+        guard displayTime.isValid, displayTime.seconds.isFinite else {
+            avPlayerEngineLogger.notice("Intro frame dropped: no displayed-frame timestamp")
+            return
+        }
+        handler(IntroFrameSample(mediaTime: displayTime.seconds, signature: hash))
+    }
+
     func play() {
         player.play()
     }
@@ -315,6 +393,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         loadValidationTask = nil
         stopDolbyVision7Proxy()
+        removeIntroFrameSampleOutput()
         removeEnhancedVideoOutput()
         player.pause()
         player.defaultRate = 1
@@ -394,6 +473,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
 
         loadValidationTask?.cancel()
+        removeIntroFrameSampleOutput()
         removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -912,6 +992,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         enhancedVideoOutput = nil
         needsEnhancedVideoRefresh = false
         videoEnhancementRenderer?.clear()
+    }
+
+    private func removeIntroFrameSampleOutput() {
+        if let output = introFrameSampleOutput,
+           let item = introFrameSampleOutputItem {
+            item.remove(output)
+        }
+        introFrameSampleOutput = nil
+        introFrameSampleOutputItem = nil
     }
 
     private func observeSubtitleSelection(for item: AVPlayerItem) {

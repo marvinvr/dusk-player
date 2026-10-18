@@ -1,0 +1,9 @@
+{
+  "clips": [
+    {"id":"e02", "file":"S01E02-Chilly Apothecary [8BFEA0FA].mkv", "start":1.238, "end":87.988, "opening":"a"},
+    {"id":"e03", "file":"S01E03-The Unsettling Matter of the Spirit [3B28F408].mkv", "start":0.990, "end":86.750, "opening":"a"},
+    {"id":"e12", "file":"S01E12-The Eunuch and the Courtesan [D971A45C].mkv", "start":0.990, "end":86.750, "opening":"a"},
+    {"id":"e13", "file":"S01E13-Serving in the Outer Court [C3B5A1BA].mkv", "start":94.088, "end":179.847, "opening":"b"},
+    {"id":"e14", "file":"S01E14-The New Pure Consort [4A26D007].mkv", "start":0.990, "end":88.731, "opening":"b"}
+  ]
+}
