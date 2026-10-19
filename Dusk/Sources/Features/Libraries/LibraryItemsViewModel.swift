@@ -75,6 +75,41 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
     }
 }
 
+/// Remembers the last sort picked per library (`PlexLibrary.id`),
+/// device-local. A stored sort the library type no longer offers falls back
+/// to the type's default.
+struct LibrarySortStore {
+    static let keyPrefix = "librarySort."
+
+    private let defaults: UserDefaults
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    func sort(for library: PlexLibrary) -> LibrarySortOption {
+        let options = LibrarySortOption.options(for: library.libraryType)
+        guard let stored = defaults.string(forKey: Self.key(forLibraryID: library.id))
+            .flatMap(LibrarySortOption.init(rawValue:)),
+            options.contains(stored) else {
+            return LibrarySortOption.defaultOption(for: library.libraryType)
+        }
+        return stored
+    }
+
+    func setSort(_ sort: LibrarySortOption, for library: PlexLibrary) {
+        if sort == LibrarySortOption.defaultOption(for: library.libraryType) {
+            defaults.removeObject(forKey: Self.key(forLibraryID: library.id))
+        } else {
+            defaults.set(sort.rawValue, forKey: Self.key(forLibraryID: library.id))
+        }
+    }
+
+    static func key(forLibraryID libraryID: String) -> String {
+        keyPrefix + libraryID
+    }
+}
+
 /// One fetched page and whether the query has more beyond it.
 private struct LibraryItemsPage {
     let items: [PlexItem]
@@ -98,6 +133,7 @@ final class LibraryItemsViewModel {
     /// per-channel grids of video libraries).
     private let collection: PlexLibraryCollection?
     private let preferredInitialGenre: LibraryGenreOption?
+    private let sortStore: LibrarySortStore
 
     private(set) var items: [PlexItem] = []
     private(set) var isLoading = false
@@ -106,6 +142,7 @@ final class LibraryItemsViewModel {
     private(set) var hasMoreItems = true
     private(set) var availableGenres: [LibraryGenreOption] = [.all]
     private(set) var selectedGenre: LibraryGenreOption = .all
+    /// Remembered per library.
     private(set) var selectedSort: LibrarySortOption = .titleAscending
 
     /// The first page is small so it lands fast; later pages are larger
@@ -129,14 +166,16 @@ final class LibraryItemsViewModel {
         library: PlexLibrary,
         plexService: PlexService,
         collection: PlexLibraryCollection? = nil,
-        initialGenre: LibraryGenreOption? = nil
+        initialGenre: LibraryGenreOption? = nil,
+        sortStore: LibrarySortStore = LibrarySortStore()
     ) {
         self.library = library
         self.plexService = plexService
         self.collection = collection
         self.preferredInitialGenre = initialGenre
         self.selectedGenre = initialGenre ?? .all
-        self.selectedSort = LibrarySortOption.defaultOption(for: library.libraryType)
+        self.selectedSort = sortStore.sort(for: library)
+        self.sortStore = sortStore
     }
 
     /// Every fetch on this screen is scoped to the library's own server.
@@ -228,6 +267,7 @@ final class LibraryItemsViewModel {
     func selectSort(_ sort: LibrarySortOption) async {
         guard selectedSort != sort else { return }
         selectedSort = sort
+        sortStore.setSort(sort, for: library)
         await reloadItems()
     }
 

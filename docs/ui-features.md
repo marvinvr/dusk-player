@@ -665,6 +665,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   video libraries default to Release Date (newest).
 - Use `LibraryGenreSupport` for Plex genre filter discovery, normalization, URL
   parameter extraction, and fallback matching. Do not compare genre strings ad hoc.
+- The grid's sort is remembered per library (`LibrarySortStore`, keyed on
+  `PlexLibrary.id`; a sort the type no longer offers falls back to its default).
 - `LibraryItemsViewModel` uses a `queryGeneration` guard so stale async page loads do
   not mutate current results. Preserve this pattern when adding filters.
 - Infinite scroll is triggered from `PlexItemPosterGrid.onItemAppear`; keep pagination
