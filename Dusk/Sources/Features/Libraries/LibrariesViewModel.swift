@@ -16,9 +16,25 @@ final class LibrariesViewModel {
     /// follows the order stored on the Plex account. Music and photo sections
     /// occupy slots in that order but are not browsable in Dusk, so they are
     /// filtered out here (and only here — the settings editor lists them).
+    /// So are "Other Videos" sections until they are known to hold something:
+    /// an empty one would otherwise put a Videos tab in front of everyone.
     var libraries: [PlexLibrary] {
-        plexService.libraryOrder.orderedSections.filter { $0.libraryType != nil }
+        plexService.libraryOrder.orderedSections.filter { library in
+            guard let type = library.libraryType else { return false }
+            return type != .video || videoLibraryHasItems[library.id] == true
+        }
     }
+
+    /// Any browsable section, counted or not, so an uncounted video section
+    /// does not read as "nothing loaded yet".
+    private var hasBrowsableSections: Bool {
+        plexService.libraryOrder.orderedSections.contains { $0.libraryType != nil }
+    }
+
+    /// Whether each video section (`PlexLibrary.id`) holds any items. Missing
+    /// means not counted yet, which keeps the section hidden; a failed count
+    /// shows it rather than hiding a library that may well have content.
+    private var videoLibraryHasItems: [String: Bool] = [:]
 
     private(set) var isLoading = false
     private(set) var error: String?
@@ -59,7 +75,13 @@ final class LibrariesViewModel {
             needsReload = true
             return
         }
-        guard force || libraries.isEmpty || loadedRevision != serverContentRevision else { return }
+        // Counting runs even when the sections are current: the shell's load
+        // is often cancelled by the next server connecting, and an uncounted
+        // video section must not stay hidden for the rest of the session.
+        guard force || !hasBrowsableSections || loadedRevision != serverContentRevision else {
+            await countVideoLibraryItems()
+            return
+        }
 
         var shouldForce = force
         repeat {
@@ -84,6 +106,40 @@ final class LibrariesViewModel {
             isLoading = false
             shouldForce = false
         } while needsReload || loadedRevision != serverContentRevision
+
+        await countVideoLibraryItems()
+    }
+
+    /// Counts the video sections not yet known to have items, so empty ones
+    /// stay hidden and get another look on the next load.
+    private func countVideoLibraryItems() async {
+        let uncounted = plexService.libraryOrder.orderedSections.filter {
+            $0.libraryType == .video && videoLibraryHasItems[$0.id] != true
+        }
+        guard !uncounted.isEmpty else { return }
+
+        await withTaskGroup(of: (String, Bool)?.self) { group in
+            for library in uncounted {
+                group.addTask { [plexService] in
+                    do {
+                        let count = try await plexService.getLibraryItemCount(
+                            sectionId: library.key,
+                            serverID: library.serverID
+                        )
+                        return (library.id, count > 0)
+                    } catch {
+                        // A cancelled load (the shell's task restarts as servers
+                        // connect) says nothing about the section: leave it
+                        // uncounted for the next load.
+                        return Task.isCancelled ? nil : (library.id, true)
+                    }
+                }
+            }
+            for await result in group {
+                guard let (libraryID, hasItems) = result else { continue }
+                videoLibraryHasItems[libraryID] = hasItems
+            }
+        }
     }
 
     func iconName(for library: PlexLibrary) -> String {

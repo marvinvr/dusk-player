@@ -42,6 +42,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Downloads appears only when visible and populated. Library-tab visibility and
   order are local `UserPreferences`; missing preferences preserve the original
   all-visible Movies / TV Shows / Videos / Live TV order.
+- Videos ("Other Videos" / clip sections, `PlexLibraryType.video`) only counts as
+  present once a section is known to hold items: `LibrariesViewModel` counts each
+  video section (`getLibraryItemCount`) and keeps empty or not-yet-counted ones out
+  of `libraries`, so an empty section never shows a Videos tab. A failed count shows
+  the section; a cancelled one is retried on the next load. Settings › Navigation
+  Tabs hides any destination, Videos included.
 - iOS/iPadOS use the modern native `Tab` API with SF Symbols and open Search
   from a circular trailing toolbar action on Home and immediately before Browse
   on each library root, leaving Search out of the tab bar. iPadOS keeps every

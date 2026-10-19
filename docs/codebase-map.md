@@ -136,7 +136,8 @@ Libraries:
   Its `libraries` is a read-through of `PlexService.libraryOrder.orderedSections`,
   so every library list follows the order stored on the Plex account — which now
   spans every connected server; it loads through `ensureLibraryOrderLoaded(force:)`
-  and never stores its own copy. `ServerLabeling` decides when a library has to
+  and never stores its own copy. Video sections stay out of it until counted
+  non-empty. `ServerLabeling` decides when a library has to
   name its server (same type, same title).
 - `LibrariesView` lands each type tab on `LibraryRecommendationsView` for all of
   that type's libraries, or on the grid / `LibraryTypeListView` when Settings ›
