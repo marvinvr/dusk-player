@@ -458,13 +458,15 @@ final class HomeViewModel {
         }
 
         let mergedHubs = HubMerge.merge(hubsByServer)
+        let collapsedHubs = HubMerge.collapsingRepeatedTitles(mergedHubs.hubs)
         let mergedContinueWatching = ContinueWatchingMerge.merge(continueWatchingByServer)
         plexService.registerAlternates(mergedHubs.alternates)
+        plexService.registerAlternates(collapsedHubs.alternates)
         plexService.registerAlternates(mergedContinueWatching.alternates)
 
         return (
             HomeHubArrangement.arrange(
-                hubs: mergedHubs.hubs,
+                hubs: collapsedHubs.hubs,
                 libraryOrder: libraryOrderIdentities()
             ),
             mergedContinueWatching.items

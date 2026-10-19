@@ -586,6 +586,12 @@ a heuristic content key can legitimately collide on one server.
   - `.libraryType` (one list per library, `GET /hubs/sections/{id}`): a type tab
     exists to show every library of that type as one screen, so rows of the same
     kind merge across libraries, same server or not.
+  - After the `.home` merge, `HubMerge.collapsingRepeatedTitles` folds Home rows
+    that share a normalized title into the first copy (items interleaved, capped
+    at the longest copy, every copy kept as a source for "Show All"). Some Plex
+    rows are generated per library under a title that does not name the library
+    — the seasonal "Oh, the Horror!" row exists once per movie library — so an
+    account with eleven movie libraries otherwise got eleven identical rows.
   - A merged row's `id` is the merge key (`PlexHub.mergeIdentity`), never the
     representative's `hubIdentifier`: that identifier carries one server's
     section id and two merged rows can carry the same one.

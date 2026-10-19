@@ -84,6 +84,65 @@ enum HubMerge {
         return MergedPlexHubs(hubs: merged, alternates: alternates)
     }
 
+    /// Folds Home rows that carry the same title into the first of them.
+    ///
+    /// `merge` keeps one row per library on purpose, but some Plex rows are
+    /// generated per library under a title that does not name the library —
+    /// the seasonal "Oh, the Horror!" row exists once for *every* movie library
+    /// on every server — so an account with eleven movie libraries got eleven
+    /// identical rows. Two rows with the same title are the same row to the
+    /// user, whichever library or server they came from.
+    ///
+    /// The folded row stays where its first copy was (its representative
+    /// library decides its block in `HomeHubArrangement`), interleaves the
+    /// copies' items and keeps every copy as a source, so "Show All" still
+    /// pages all of them. It holds no more items than its longest copy: one
+    /// row, not eleven rows end to end.
+    static func collapsingRepeatedTitles(_ hubs: [PlexHub]) -> MergedPlexHubs {
+        var groups: [[PlexHub]] = []
+        var groupIndexByTitle: [String: Int] = [:]
+
+        for hub in hubs {
+            let title = normalized(hub.title)
+            guard !title.isEmpty else {
+                groups.append([hub])
+                continue
+            }
+            if let index = groupIndexByTitle[title] {
+                groups[index].append(hub)
+            } else {
+                groupIndexByTitle[title] = groups.count
+                groups.append([hub])
+            }
+        }
+
+        guard groups.count < hubs.count else { return MergedPlexHubs(hubs: hubs, alternates: [:]) }
+
+        var collapsed: [PlexHub] = []
+        var alternates: [PlexContentKey: [PlexItemID]] = [:]
+
+        for group in groups {
+            guard let representative = group.first else { continue }
+            guard group.count > 1 else {
+                collapsed.append(representative)
+                continue
+            }
+
+            let mergedItems = PlexItemMerge.interleave(group.map(\.items))
+            alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
+            let limit = group.map(\.items.count).max() ?? 0
+            collapsed.append(
+                representative.merged(
+                    items: Array(mergedItems.items.prefix(limit)),
+                    sources: group.flatMap(\.sources),
+                    identity: "title:\(normalized(representative.title))"
+                )
+            )
+        }
+
+        return MergedPlexHubs(hubs: collapsed, alternates: alternates)
+    }
+
     /// Identity of a row: the hub identifier without its per-server section
     /// suffix plus the row's type, and — on Home — the library the row belongs
     /// to, because that suffix is the only thing that told two libraries of the
