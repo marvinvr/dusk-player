@@ -108,6 +108,15 @@ struct SettingsTVView: View {
 
                     tvRowDivider
 
+                    TVSettingsMenuRow(
+                        title: "Libraries Open To",
+                        options: LibraryLandingPage.allCases,
+                        selection: $preferences.libraryLandingPage,
+                        selectedTitle: preferences.libraryLandingPage.displayName
+                    ) { $0.displayName }
+
+                    tvRowDivider
+
                     TVSettingsNavigationRow(
                         title: "Library Order",
                         detail: SettingsSupport.libraryOrderSummary(plexService)

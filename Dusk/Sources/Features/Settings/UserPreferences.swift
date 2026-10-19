@@ -36,6 +36,7 @@ final class UserPreferences {
         static let appearanceMode = "appearanceMode"
         static let libraryTabOrder = "libraryTabOrder"
         static let hiddenLibraryTabs = "hiddenLibraryTabs"
+        static let libraryLandingPage = "libraryLandingPage"
         static let showsLiveTVOnHome = "showsLiveTVOnHome"
         static let downloadMaxResolution = "downloadMaxResolution"
         static let downloadsWifiOnly = "downloadsWifiOnly"
@@ -253,6 +254,12 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(showsLiveTVOnHome, forKey: Keys.showsLiveTVOnHome) }
     }
 
+    /// What a library opens to: its recommendations (the default) or the
+    /// full grid of its titles.
+    var libraryLandingPage: LibraryLandingPage {
+        didSet { UserDefaults.standard.set(libraryLandingPage.rawValue, forKey: Keys.libraryLandingPage) }
+    }
+
     /// Maximum version quality selected for downloads.
     var downloadMaxResolution: MaxResolution {
         didSet { UserDefaults.standard.set(downloadMaxResolution.rawValue, forKey: Keys.downloadMaxResolution) }
@@ -465,6 +472,8 @@ final class UserPreferences {
         self.appearanceMode = appearanceMode
         self.libraryTabOrder = libraryTabOrder
         self.hiddenLibraryTabs = hiddenLibraryTabs
+        self.libraryLandingPage = defaults.string(forKey: Keys.libraryLandingPage)
+            .flatMap(LibraryLandingPage.init(rawValue:)) ?? .recommended
         self.showsLiveTVOnHome = defaults.bool(forKey: Keys.showsLiveTVOnHome)
         self.downloadMaxResolution = downloadMaxResolution
         self.downloadsWifiOnly = downloadsWifiOnly
@@ -612,6 +621,20 @@ final class UserPreferences {
         }
 
         return nil
+    }
+}
+
+enum LibraryLandingPage: String, CaseIterable, Identifiable {
+    case recommended
+    case all
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .recommended: "Recommended"
+        case .all: "All (A–Z)"
+        }
     }
 }
 

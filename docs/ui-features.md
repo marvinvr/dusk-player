@@ -608,11 +608,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   screens, and reloads it on `plexService.serverContentRevision` because the available
   tabs derive from the merged library list. Avoid each tab independently discovering
   libraries.
-- `LibrariesView` is the direct Movies/Shows/Videos tab wrapper. The tab always lands
-  on `LibraryRecommendationsView` for **all** libraries of that type; with more than
-  one, a "Libraries" toolbar link opens `LibraryTypeListView` (the list of them). With
-  exactly one library it is the screen it has always been. (The old combined
-  `LibrariesHubView` tab is retired; every type gets its own tab.)
+- `LibrariesView` is the direct Movies/Shows/Videos tab wrapper. Where the tab lands
+  is Settings › Navigation › **Libraries Open To** (`UserPreferences.libraryLandingPage`,
+  device-local):
+  - **Recommended** (default): `LibraryRecommendationsView` for **all** libraries of
+    that type. Browse reaches every library's grid in one step: on tvOS a leading row
+    of glass buttons ("All Movies", one per library, then "Libraries" when there are
+    several) is the first thing under the tab bar, so focus lands there moving down;
+    on iOS a toolbar link with one library, or a Browse menu (each library's grid, then
+    "Libraries") with several. "Libraries" opens `LibraryTypeListView` for
+    per-library recommendations.
+  - **All (A–Z)**: one library opens straight on its `LibraryItemsView` grid, with a
+    "Recommended" link (iOS toolbar, tvOS last chip) back to its recommendations;
+    several open on `LibraryTypeListView`, whose rows then open grids.
+  The list's rows follow the same setting. (The old combined `LibrariesHubView` tab
+  is retired; every type gets its own tab.)
 - `LibraryRecommendationsViewModel` takes `libraries: [PlexLibrary]` and is the
   library-scoped home equivalent: `getLibraryHubs(...)` per library (fanned out, each
   routed to its own server), `HubMerge` across them, continue-watching hub extraction,

@@ -5,13 +5,22 @@ import UIKit
 
 struct LibraryRecommendationsView: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(PlexService.self) private var plexService
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: LibraryRecommendationsViewModel
+    #if os(iOS)
+    @State private var menuBrowseTarget: LibraryBrowseTarget?
+    #endif
 
     private let navigationTitle: String
-    /// Where "Browse" goes when this screen covers several libraries: the list
-    /// of them, because there is no single library to open.
+    /// The libraries "Browse" opens straight into: one button (tvOS) or menu
+    /// entry (iOS) each, so no library is more than one step from its tab.
+    private let browseTargets: [LibraryBrowseTarget]
+    /// The list of this screen's libraries, for their own recommendations.
     private let libraryListDestination: LibraryTypeListDestination?
+    /// iOS: pushes that list from the Browse menu, which cannot hold a
+    /// `NavigationLink`. The list's owner does the push.
+    private let showLibraryList: (() -> Void)?
 
     private let continueWatchingCardWidth: CGFloat = DuskPosterMetrics.continueWatchingWidth
     private let continueWatchingAspectRatio: CGFloat = 16.0 / 9.0
@@ -25,7 +34,9 @@ struct LibraryRecommendationsView: View {
             libraries: [library],
             plexService: plexService,
             navigationTitle: navigationTitle,
-            libraryListDestination: nil
+            browseTargets: [],
+            libraryListDestination: nil,
+            showLibraryList: nil
         )
     }
 
@@ -33,9 +44,13 @@ struct LibraryRecommendationsView: View {
         libraries: [PlexLibrary],
         plexService: PlexService,
         navigationTitle: String,
-        libraryListDestination: LibraryTypeListDestination?
+        browseTargets: [LibraryBrowseTarget],
+        libraryListDestination: LibraryTypeListDestination?,
+        showLibraryList: (() -> Void)?
     ) {
+        self.showLibraryList = showLibraryList
         self.navigationTitle = navigationTitle
+        self.browseTargets = browseTargets
         self.libraryListDestination = libraryListDestination
         _viewModel = State(initialValue: LibraryRecommendationsViewModel(
             libraries: libraries,
@@ -72,8 +87,11 @@ struct LibraryRecommendationsView: View {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 SearchToolbarLink()
 
-                browseLibraryButton(labelText: "Browse Library")
+                browseLibraryButton
             }
+        }
+        .navigationDestination(item: $menuBrowseTarget) { target in
+            LibraryItemsView(library: target.library, plexService: plexService)
         }
         #endif
         .duskNavigationTitle(navigationTitle)
@@ -84,10 +102,12 @@ struct LibraryRecommendationsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 #if os(tvOS)
-                HStack {
-                    Spacer()
-                    browseLibraryButton(labelText: "Browse")
+                // Leading and first in the page, so it is where focus lands
+                // when moving down from the tab bar.
+                HStack(spacing: 20) {
+                    browseLibraryButtons
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
                 .padding(.top, DuskPosterMetrics.carouselHeaderSpacing)
                 .padding(.bottom, DuskPosterMetrics.carouselHeaderSpacing)
@@ -170,24 +190,67 @@ struct LibraryRecommendationsView: View {
         .duskTVOSPageBackground()
     }
 
-    /// One library: browse it. Several: open the list of them, because there
-    /// is no single library the button could mean.
+    /// The libraries "Browse" offers. A screen opened for one library (from
+    /// the library list) browses that library.
+    private var resolvedBrowseTargets: [LibraryBrowseTarget] {
+        browseTargets.isEmpty
+            ? [LibraryBrowseTarget(library: viewModel.library, title: viewModel.library.title)]
+            : browseTargets
+    }
+
+    #if os(tvOS)
+    /// One button per library, straight to its grid, then "Libraries" for
+    /// the per-library recommendations when there are several.
     @ViewBuilder
-    private func browseLibraryButton(labelText: String) -> some View {
+    private var browseLibraryButtons: some View {
+        ForEach(resolvedBrowseTargets, id: \.self) { target in
+            styledBrowseLink(
+                NavigationLink(value: AppNavigationRoute.library(target.library)) {
+                    browseLabel("All \(target.title)")
+                }
+            )
+        }
+
         if let libraryListDestination, viewModel.isMultiLibrary {
             styledBrowseLink(
                 NavigationLink(value: libraryListDestination) {
                     browseLabel("Libraries")
                 }
             )
+        }
+    }
+    #else
+    /// One library: browse it. Several: a menu of them, each straight to its
+    /// grid, plus the list for their own recommendations.
+    @ViewBuilder
+    private var browseLibraryButton: some View {
+        let targets = resolvedBrowseTargets
+
+        if targets.count > 1 {
+            Menu {
+                ForEach(targets, id: \.self) { target in
+                    Button(target.title) {
+                        menuBrowseTarget = target
+                    }
+                }
+
+                if let showLibraryList {
+                    Divider()
+
+                    Button("Libraries", systemImage: "list.bullet", action: showLibraryList)
+                }
+            } label: {
+                browseLabel("Browse")
+            }
         } else {
             styledBrowseLink(
                 NavigationLink(value: AppNavigationRoute.library(viewModel.library)) {
-                    browseLabel(labelText)
+                    browseLabel("Browse Library")
                 }
             )
         }
     }
+    #endif
 
     @ViewBuilder
     private func browseLabel(_ labelText: String) -> some View {

@@ -9,6 +9,13 @@ struct LibraryTypeListDestination: Hashable {
     let libraryType: PlexLibraryType
 }
 
+/// One library a type tab can browse straight into, with the title the
+/// library list uses for it (server-labelled when titles collide).
+struct LibraryBrowseTarget: Hashable {
+    let library: PlexLibrary
+    let title: String
+}
+
 struct LibrariesView: View {
     let libraryType: PlexLibraryType
     let viewModel: LibrariesViewModel
@@ -24,8 +31,10 @@ struct LibrariesView: View {
 
 struct LibrariesRootContent: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(UserPreferences.self) private var preferences
     let libraryType: PlexLibraryType
     let viewModel: LibrariesViewModel
+    @State private var showsLibraryList = false
 
     var body: some View {
         rootContent
@@ -36,6 +45,9 @@ struct LibrariesRootContent: View {
             }
             .navigationDestination(for: LibraryTypeListDestination.self) { destination in
                 LibraryTypeListView(libraryType: destination.libraryType, viewModel: viewModel)
+            }
+            .navigationDestination(isPresented: $showsLibraryList) {
+                LibraryTypeListView(libraryType: libraryType, viewModel: viewModel)
             }
     }
 
@@ -57,6 +69,19 @@ struct LibrariesRootContent: View {
             errorView(message: error)
         } else if libraries.isEmpty {
             emptyView
+        } else if preferences.libraryLandingPage == .all {
+            // "All (A–Z)": one library opens straight on its grid; several
+            // open on the list of them, whose rows then open their grids.
+            if libraries.count == 1 {
+                LibraryItemsView(
+                    library: libraries[0],
+                    plexService: plexService,
+                    showsRecommendationsLink: true
+                )
+                .id(libraries[0].id)
+            } else {
+                LibraryTypeListView(libraryType: libraryType, viewModel: viewModel)
+            }
         } else {
             // The tab always lands on recommendations, merged across every
             // library of this type on every server. With one library this is
@@ -66,9 +91,13 @@ struct LibrariesRootContent: View {
                 libraries: libraries,
                 plexService: plexService,
                 navigationTitle: libraryType.tabTitle,
+                browseTargets: libraries.map {
+                    LibraryBrowseTarget(library: $0, title: viewModel.displayTitle(for: $0))
+                },
                 libraryListDestination: libraries.count > 1
                     ? LibraryTypeListDestination(libraryType: libraryType)
-                    : nil
+                    : nil,
+                showLibraryList: libraries.count > 1 ? { showsLibraryList = true } : nil
             )
             .id(libraries.map(\.id).joined(separator: "|"))
         }
@@ -109,6 +138,7 @@ struct LibrariesRootContent: View {
 
 /// Every library of one type, in the account's cross-server order.
 struct LibraryTypeListView: View {
+    @Environment(UserPreferences.self) private var preferences
     let libraryType: PlexLibraryType
     let viewModel: LibrariesViewModel
 
@@ -121,7 +151,7 @@ struct LibraryTypeListView: View {
                     .padding(.horizontal, 4)
 
                 ForEach(libraries) { library in
-                    NavigationLink(value: AppNavigationRoute.libraryRecommendations(library)) {
+                    NavigationLink(value: route(for: library)) {
                         LibraryRowContent(library: library, vm: viewModel)
                     }
                     .duskSuppressTVOSButtonChrome()
@@ -135,6 +165,21 @@ struct LibraryTypeListView: View {
         .background(Color.duskBackground.ignoresSafeArea())
         .duskNavigationTitle(libraryType.tabTitle)
         .duskNavigationBarTitleDisplayModeLarge()
+        #if os(iOS)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                SearchToolbarLink()
+            }
+        }
+        #endif
+    }
+
+    /// A row opens its library the way Settings › Libraries Open To says.
+    private func route(for library: PlexLibrary) -> AppNavigationRoute {
+        switch preferences.libraryLandingPage {
+        case .recommended: .libraryRecommendations(library)
+        case .all: .library(library)
+        }
     }
 }
 

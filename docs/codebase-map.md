@@ -139,8 +139,9 @@ Libraries:
   and never stores its own copy. `ServerLabeling` decides when a library has to
   name its server (same type, same title).
 - `LibrariesView` lands each type tab on `LibraryRecommendationsView` for all of
-  that type's libraries; `LibraryTypeListView` is the list behind it when there
-  is more than one.
+  that type's libraries, or on the grid / `LibraryTypeListView` when Settings ›
+  Libraries Open To is All (A–Z); `LibraryTypeListView` is the list of a type's
+  libraries when there is more than one.
 - `LibraryItemsViewModel` owns paged item loading, sorting, genre filtering, and
   optional collection scoping (`LibraryCollectionItemsView`).
 - `LibraryRecommendationsViewModel` takes one *or several* libraries of the same

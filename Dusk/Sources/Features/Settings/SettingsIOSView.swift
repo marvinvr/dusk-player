@@ -154,6 +154,13 @@ struct SettingsIOSView: View {
                     }
                 }
 
+                Picker("Libraries Open To", selection: $preferences.libraryLandingPage) {
+                    ForEach(LibraryLandingPage.allCases) { page in
+                        Text(page.displayName).tag(page)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
                 NavigationLink {
                     LibraryOrderSettingsView()
                 } label: {
