@@ -67,6 +67,10 @@ final class LibraryRecommendationsViewModel {
         precondition(!libraries.isEmpty, "A recommendations screen needs at least one library")
         self.libraries = libraries
         self.plexService = plexService
+
+        if let snapshot = LibraryRecommendationsSnapshot.cached(for: libraries, profileID: plexService.activeProfileID) {
+            restore(snapshot)
+        }
     }
 
     var isVideoLibrary: Bool {
@@ -133,18 +137,55 @@ final class LibraryRecommendationsViewModel {
 
         hasLoadedOnce = true
         isLoading = false
+        storeSnapshot()
+    }
+
+    /// Ends the spinner as soon as there is something to show, while the
+    /// slower rows are still loading.
+    private func publishFirstPaint() {
+        guard hasAnyContent else { return }
+        hasLoadedOnce = true
+        isLoading = false
     }
 
     /// Movie/show libraries: Plex hubs plus genre-engine personalized shelves.
+    ///
+    /// The hub rows are painted the moment they arrive. The personalized
+    /// shelves take many section-wide queries — on a library of tens of
+    /// thousands of titles that is many seconds — and are added below them
+    /// when they are ready instead of holding the whole screen on a spinner.
+    /// They only start once the hubs are in: on a large library the server's
+    /// database is the bottleneck, and their queries would otherwise queue in
+    /// front of the rows the user is waiting for.
     private func loadStandardLibraryContent(isInitialLoad: Bool, generation: Int) async throws {
-        async let fetchedHubsTask = fetchLibraryHubs()
-        async let personalizedShelvesTask = loadPersonalizedShelves()
+        let processedHubs = await processHubs(await fetchLibraryHubs())
+        guard !Task.isCancelled, generation == loadGeneration else { return }
 
-        let processedHubs = await processHubs(await fetchedHubsTask)
-        let recommendationResult = await personalizedShelvesTask
+        let hasHubContent = !processedHubs.hubs.isEmpty || !processedHubs.continueWatching.isEmpty
+
+        // A refresh that came back with nothing is a failed refresh, not an
+        // emptied library: keep what is on screen rather than blanking it.
+        if isInitialLoad || hasHubContent {
+            apply(isInitialLoad: isInitialLoad) {
+                self.hubs = processedHubs.hubs
+                self.channelShelves = []
+                self.rediscoverItems = []
+                self.continueWatching = processedHubs.continueWatching
+                self.continueWatchingTitle = processedHubs.continueWatchingTitle
+                // Shelves already on screen (a refresh) stay until their
+                // replacements arrive, minus anything now in Continue Watching.
+                self.personalizedShelves = self.filterPersonalizedShelves(
+                    self.personalizedShelves,
+                    excluding: processedHubs.continueWatching
+                )
+            }
+            publishFirstPaint()
+        }
+
+        let recommendationResult = await loadPersonalizedShelves()
         let filteredPersonalizedShelves = filterPersonalizedShelves(
             recommendationResult.shelves,
-            excluding: processedHubs.continueWatching
+            excluding: continueWatching
         )
 
         if filteredPersonalizedShelves.isEmpty {
@@ -152,23 +193,11 @@ final class LibraryRecommendationsViewModel {
         }
 
         guard !Task.isCancelled, generation == loadGeneration else { return }
+        guard isInitialLoad || !filteredPersonalizedShelves.isEmpty else { return }
 
-        // A refresh that came back with nothing is a failed refresh, not an
-        // emptied library: keep what is on screen rather than blanking it.
-        guard isInitialLoad
-            || !processedHubs.hubs.isEmpty
-            || !processedHubs.continueWatching.isEmpty
-            || !filteredPersonalizedShelves.isEmpty else {
-            return
-        }
-
-        apply(isInitialLoad: isInitialLoad) {
-            self.hubs = processedHubs.hubs
+        // Added after first paint, so animated in rather than popping.
+        apply(isInitialLoad: !hasLoadedOnce) {
             self.personalizedShelves = filteredPersonalizedShelves
-            self.channelShelves = []
-            self.rediscoverItems = []
-            self.continueWatching = processedHubs.continueWatching
-            self.continueWatchingTitle = processedHubs.continueWatchingTitle
         }
     }
 
@@ -176,30 +205,32 @@ final class LibraryRecommendationsViewModel {
     /// history/genre scoring is expensive and meaningless for clips) and load
     /// channel rows plus a seeded Rediscover row instead.
     private func loadVideoLibraryContent(isInitialLoad: Bool, generation: Int) async throws {
-        async let fetchedHubsTask = fetchLibraryHubs()
-        async let videoShelvesTask = loadVideoShelves()
-
-        let processedHubs = await processHubs(await fetchedHubsTask)
-        let videoShelves = await videoShelvesTask
-
+        let processedHubs = await processHubs(await fetchLibraryHubs())
         guard !Task.isCancelled, generation == loadGeneration else { return }
 
-        // Same rule as above: an empty answer on a refresh keeps the screen.
+        // Same rules as above: hubs paint first, the channel rows follow, and
+        // an empty answer on a refresh keeps the screen.
+        if isInitialLoad || !processedHubs.hubs.isEmpty || !processedHubs.continueWatching.isEmpty {
+            apply(isInitialLoad: isInitialLoad) {
+                self.hubs = processedHubs.hubs
+                self.personalizedShelves = []
+                self.continueWatching = processedHubs.continueWatching
+                self.continueWatchingTitle = processedHubs.continueWatchingTitle
+            }
+            publishFirstPaint()
+        }
+
+        let videoShelves = await loadVideoShelves()
+        guard !Task.isCancelled, generation == loadGeneration else { return }
         guard isInitialLoad
-            || !processedHubs.hubs.isEmpty
-            || !processedHubs.continueWatching.isEmpty
             || !videoShelves.channelShelves.isEmpty
             || !videoShelves.rediscoverItems.isEmpty else {
             return
         }
 
-        apply(isInitialLoad: isInitialLoad) {
-            self.hubs = processedHubs.hubs
-            self.personalizedShelves = []
+        apply(isInitialLoad: !hasLoadedOnce) {
             self.channelShelves = videoShelves.channelShelves
             self.rediscoverItems = videoShelves.rediscoverItems
-            self.continueWatching = processedHubs.continueWatching
-            self.continueWatchingTitle = processedHubs.continueWatchingTitle
         }
     }
 
@@ -235,12 +266,40 @@ final class LibraryRecommendationsViewModel {
         }
     }
 
+    /// How many libraries load their rows at the same time. A type tab can
+    /// cover a dozen libraries; one after another, their rows took minutes on
+    /// large libraries, all at once they would swamp a server.
+    private static let concurrentLibraryLoads = 3
+
+    /// Runs `load` for every library, a few at a time, and returns the results
+    /// in library order.
+    private func loadPerLibrary<Result: Sendable>(
+        _ load: @escaping @Sendable @MainActor (PlexLibrary) async -> Result
+    ) async -> [Result] {
+        let libraries = self.libraries
+
+        return await withTaskGroup(of: (Int, Result).self) { group in
+            var results: [Result?] = Array(repeating: nil, count: libraries.count)
+
+            for (index, library) in libraries.enumerated() {
+                if index >= Self.concurrentLibraryLoads, let (done, result) = await group.next() {
+                    results[done] = result
+                }
+                group.addTask { (index, await load(library)) }
+            }
+            for await (index, result) in group {
+                results[index] = result
+            }
+            return results.compactMap { $0 }
+        }
+    }
+
     private func loadPersonalizedShelves() async -> LibraryRecommendationLoadResult {
-        var results: [LibraryRecommendationLoadResult] = []
-        for library in libraries {
-            let engine = LibraryRecommendationEngine(library: library, plexService: plexService)
-            let result = (try? await engine.loadResult(itemsPerShelf: maxRecentlyAddedItems)) ?? .empty
-            results.append(result)
+        let service = plexService
+        let itemsPerShelf = maxRecentlyAddedItems
+        let results = await loadPerLibrary { library in
+            let engine = LibraryRecommendationEngine(library: library, plexService: service)
+            return (try? await engine.loadResult(itemsPerShelf: itemsPerShelf)) ?? .empty
         }
         return LibraryRecommendationLoadResult.merging(results)
     }
@@ -249,21 +308,15 @@ final class LibraryRecommendationsViewModel {
         channelShelves: [LibraryChannelRow],
         rediscoverItems: [PlexItem]
     ) {
-        var channelRows: [LibraryChannelRow] = []
-        var rediscoverLists: [[PlexItem]] = []
-
-        for library in libraries {
-            let loader = LibraryVideoShelfLoader(library: library, plexService: plexService)
-            let result = await loader.load()
-            channelRows.append(
-                contentsOf: result.channelShelves.map {
-                    LibraryChannelRow(library: library, shelf: $0)
-                }
-            )
-            rediscoverLists.append(result.rediscoverItems)
+        let service = plexService
+        let results = await loadPerLibrary { library in
+            (library, await LibraryVideoShelfLoader(library: library, plexService: service).load())
         }
 
-        return (channelRows, PlexItemMerge.interleave(rediscoverLists).items)
+        let channelRows = results.flatMap { library, result in
+            result.channelShelves.map { LibraryChannelRow(library: library, shelf: $0) }
+        }
+        return (channelRows, PlexItemMerge.interleave(results.map(\.1.rediscoverItems)).items)
     }
 
     /// Merges each library's rows into one set, then expands the Recently Added
@@ -285,6 +338,32 @@ final class LibraryRecommendationsViewModel {
         let continueWatchingTitle = continueWatchingHub.map(normalizedContinueWatchingTitle(for:)) ?? "Continue Watching"
 
         return (recommendationHubs, continueWatchingItems, continueWatchingTitle)
+    }
+
+    private func storeSnapshot() {
+        guard hasAnyContent else { return }
+        LibraryRecommendationsSnapshot.store(
+            LibraryRecommendationsSnapshot(
+                hubs: hubs,
+                personalizedShelves: personalizedShelves,
+                channelShelves: channelShelves,
+                rediscoverItems: rediscoverItems,
+                continueWatching: continueWatching,
+                continueWatchingTitle: continueWatchingTitle
+            ),
+            for: libraries,
+            profileID: plexService.activeProfileID
+        )
+    }
+
+    private func restore(_ snapshot: LibraryRecommendationsSnapshot) {
+        hubs = snapshot.hubs
+        personalizedShelves = snapshot.personalizedShelves
+        channelShelves = snapshot.channelShelves
+        rediscoverItems = snapshot.rediscoverItems
+        continueWatching = snapshot.continueWatching
+        continueWatchingTitle = snapshot.continueWatchingTitle
+        hasLoadedOnce = true
     }
 
     private func apply(isInitialLoad: Bool, _ updates: () -> Void) {
@@ -394,7 +473,12 @@ final class LibraryRecommendationsViewModel {
         expandedHubs.reserveCapacity(hubs.count)
 
         for hub in hubs {
-            guard isRecentlyAddedHub(hub), hub.isPageable else {
+            // The row was already fetched at `hubFetchCount`, which covers what
+            // the screen shows; only a short row that has more is fetched again.
+            // On a large library every hub request is a section-wide query.
+            guard isRecentlyAddedHub(hub), hub.isPageable,
+                  visibleItems(in: hub).count < maxRecentlyAddedItems,
+                  hub.hasMoreOnAnySource else {
                 expandedHubs.append(hub)
                 continue
             }
@@ -550,5 +634,35 @@ extension LibraryRecommendationLoadResult {
                 shelfCount: shelves.count
             )
         )
+    }
+}
+
+/// The last rows a recommendations screen showed, kept for the app's lifetime
+/// so a screen that is rebuilt — a second server connecting re-keys the type
+/// tab, a library is opened again from the list — paints at once and refreshes
+/// underneath instead of starting from a spinner.
+@MainActor
+struct LibraryRecommendationsSnapshot {
+    let hubs: [PlexHub]
+    let personalizedShelves: [LibraryPersonalizedShelf]
+    let channelShelves: [LibraryChannelRow]
+    let rediscoverItems: [PlexItem]
+    let continueWatching: [PlexItem]
+    let continueWatchingTitle: String
+
+    private static var cache: [String: LibraryRecommendationsSnapshot] = [:]
+
+    /// Keyed on the profile as well: Continue Watching and the personalized
+    /// rows belong to whoever is signed in, not to the library.
+    private static func key(for libraries: [PlexLibrary], profileID: String?) -> String {
+        ([profileID ?? ""] + libraries.map(\.id)).joined(separator: "|")
+    }
+
+    static func cached(for libraries: [PlexLibrary], profileID: String?) -> LibraryRecommendationsSnapshot? {
+        cache[key(for: libraries, profileID: profileID)]
+    }
+
+    static func store(_ snapshot: LibraryRecommendationsSnapshot, for libraries: [PlexLibrary], profileID: String?) {
+        cache[key(for: libraries, profileID: profileID)] = snapshot
     }
 }

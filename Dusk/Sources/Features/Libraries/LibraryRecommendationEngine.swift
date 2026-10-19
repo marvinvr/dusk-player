@@ -113,16 +113,35 @@ struct LibraryRecommendationEngine {
             )
         }
 
+        // Every genre's pool loads at once: on a large library each pool is a
+        // few section-wide queries, and running them one genre after another
+        // is what kept this screen on a spinner. Titles are de-duplicated
+        // afterwards, in rank order, so a higher-ranked row keeps a title.
+        let rankedGenres = Array(scoredGenres.prefix(shelfLimit))
+        let pools = await withTaskGroup(of: (Int, [PlexItem]).self) { group in
+            for (index, scoredGenre) in rankedGenres.enumerated() {
+                group.addTask {
+                    let pool = (try? await loadCandidatePool(
+                        for: scoredGenre.genre,
+                        itemsPerShelf: itemsPerShelf,
+                        preferServerGenreFilter: !usesRawGenreInference
+                    )) ?? []
+                    return (index, pool)
+                }
+            }
+
+            var pools = Array(repeating: [PlexItem](), count: rankedGenres.count)
+            for await (index, pool) in group {
+                pools[index] = pool
+            }
+            return pools
+        }
+
         var shelves: [LibraryPersonalizedShelf] = []
         var usedTitles = RecommendationSeenTitles()
 
-        for scoredGenre in scoredGenres.prefix(shelfLimit) {
-            let items = (try? await loadCandidates(
-                for: scoredGenre.genre,
-                usedTitles: usedTitles,
-                itemsPerShelf: itemsPerShelf,
-                preferServerGenreFilter: !usesRawGenreInference
-            )) ?? []
+        for (scoredGenre, pool) in zip(rankedGenres, pools) {
+            let items = Array(pool.filter { !usedTitles.contains($0) }.prefix(itemsPerShelf))
 
             guard items.count >= min(2, itemsPerShelf) else { continue }
 
@@ -156,19 +175,10 @@ struct LibraryRecommendationEngine {
         availableGenres: [LibraryGenreOption]
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
+        let genresByIdentity = await signalGenres(for: signals)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(
-                ratingKey: signal.ratingKey,
-                serverID: signal.serverID
-            ) else {
-                recommendationLogger.debug(
-                    "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
-                )
-                return []
-            }
-
-            return LibraryGenreSupport.matchedGenres(
-                for: details.genres ?? [],
+            LibraryGenreSupport.matchedGenres(
+                for: genresByIdentity[signal.identity] ?? [],
                 availableGenres: availableGenres
             )
         }
@@ -178,18 +188,43 @@ struct LibraryRecommendationEngine {
         from history: [PlexPlaybackHistoryEntry]
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
+        let genresByIdentity = await signalGenres(for: signals)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(
-                ratingKey: signal.ratingKey,
-                serverID: signal.serverID
-            ) else {
-                recommendationLogger.debug(
-                    "Skipping ratingKey \(signal.ratingKey, privacy: .public) because metadata could not be loaded"
-                )
-                return []
+            LibraryGenreSupport.inferredGenres(from: genresByIdentity[signal.identity] ?? [])
+        }
+    }
+
+    /// The genre tags of the titles scoring looks at, fetched concurrently: one
+    /// metadata request per title, which in series added up to seconds before
+    /// any row could be built.
+    private func signalGenres(
+        for signals: [RecommendationTasteSignal]
+    ) async -> [String: [PlexTag]] {
+        let service = plexService
+        let scored = Array(signals.prefix(RecommendationGenreScoring.maxSignals))
+
+        return await withTaskGroup(of: (String, [PlexTag]?).self) { group in
+            for signal in scored {
+                group.addTask {
+                    let details = try? await service.getMediaDetails(
+                        ratingKey: signal.ratingKey,
+                        serverID: signal.serverID
+                    )
+                    return (signal.identity, details.map { $0.genres ?? [] })
+                }
             }
 
-            return LibraryGenreSupport.inferredGenres(from: details.genres ?? [])
+            var genres: [String: [PlexTag]] = [:]
+            for await (identity, tags) in group {
+                if let tags {
+                    genres[identity] = tags
+                } else {
+                    recommendationLogger.debug(
+                        "Skipping \(identity, privacy: .public) because metadata could not be loaded"
+                    )
+                }
+            }
+            return genres
         }
     }
 
@@ -302,16 +337,16 @@ struct LibraryRecommendationEngine {
         return Array(watchedFallbackItems.prefix(40))
     }
 
-    private func loadCandidates(
+    /// A shuffled pool of candidates for one genre row, larger than the row so
+    /// titles another row already shows can be dropped afterwards.
+    private func loadCandidatePool(
         for genre: LibraryGenreOption,
-        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int,
         preferServerGenreFilter: Bool
     ) async throws -> [PlexItem] {
         if preferServerGenreFilter, let genreValue = genre.value {
             let serverFilteredCandidates = try await loadServerFilteredCandidates(
                 for: genreValue,
-                usedTitles: usedTitles,
                 itemsPerShelf: itemsPerShelf
             )
 
@@ -322,14 +357,12 @@ struct LibraryRecommendationEngine {
 
         return try await loadLocallyFilteredCandidates(
             for: genre,
-            usedTitles: usedTitles,
             itemsPerShelf: itemsPerShelf
         )
     }
 
     private func loadServerFilteredCandidates(
         for genreValue: String,
-        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int
     ) async throws -> [PlexItem] {
         let filters = ["genre": genreValue]
@@ -351,7 +384,7 @@ struct LibraryRecommendationEngine {
         )
 
         var pool: [PlexItem] = []
-        var seen = usedTitles
+        var seen = RecommendationSeenTitles()
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -377,15 +410,11 @@ struct LibraryRecommendationEngine {
             }
         }
 
-        return Array(
-            seededShuffle(pool, seed: dailySeed(for: "\(genreValue)|items"))
-                .prefix(itemsPerShelf)
-        )
+        return seededShuffle(pool, seed: dailySeed(for: "\(genreValue)|items"))
     }
 
     private func loadLocallyFilteredCandidates(
         for genre: LibraryGenreOption,
-        usedTitles: RecommendationSeenTitles,
         itemsPerShelf: Int
     ) async throws -> [PlexItem] {
         let totalCount = try await plexService.getLibraryItemCount(
@@ -405,7 +434,7 @@ struct LibraryRecommendationEngine {
         )
 
         var pool: [PlexItem] = []
-        var seen = usedTitles
+        var seen = RecommendationSeenTitles()
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
@@ -431,10 +460,7 @@ struct LibraryRecommendationEngine {
             }
         }
 
-        return Array(
-            seededShuffle(pool, seed: dailySeed(for: "\(genre.title)|local-items"))
-                .prefix(itemsPerShelf)
-        )
+        return seededShuffle(pool, seed: dailySeed(for: "\(genre.title)|local-items"))
     }
 
     /// Keys on the *server* plus the rating key: the same numeric key means a
@@ -522,12 +548,12 @@ struct LibraryRecommendationEngine {
     }
 }
 
-struct LibraryRecommendationLoadResult {
+struct LibraryRecommendationLoadResult: Sendable {
     let shelves: [LibraryPersonalizedShelf]
     let diagnostics: LibraryRecommendationDiagnostics
 }
 
-struct LibraryRecommendationDiagnostics {
+struct LibraryRecommendationDiagnostics: Sendable {
     let candidateGenreCount: Int
     let historyCount: Int
     let historyGenreCount: Int

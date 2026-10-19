@@ -25,6 +25,9 @@ struct RecommendationScoredGenre: Sendable {
 
 @MainActor
 enum RecommendationGenreScoring {
+    /// How many of the strongest taste signals are scored.
+    static let maxSignals = 18
+
     static func scoreGenres(
         from signals: [RecommendationTasteSignal],
         minimumScore: Double = 0.35,
@@ -34,7 +37,7 @@ enum RecommendationGenreScoring {
 
         var genreScores: [String: RecommendationScoredGenre] = [:]
 
-        for signal in signals.prefix(18) {
+        for signal in signals.prefix(maxSignals) {
             let genres = await genresForSignal(signal)
             addScores(
                 for: genres,

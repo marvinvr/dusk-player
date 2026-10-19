@@ -619,6 +619,20 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   recently-added expansion, and personalized shelves from `LibraryRecommendationEngine`
   merged per genre (`LibraryRecommendationLoadResult.merging`). A merged personalized
   row has no "Show All" because no single library list is behind it.
+- **Large libraries (tens of thousands of titles).** On a big PMS every section query
+  (`/all` with a sort or filter, counts, `/hubs/sections`) costs the server a walk of the
+  whole section however small the page, and the database is the bottleneck. So the
+  screen is two-phase: the hub rows (Continue Watching, Recently Added, …) paint as
+  soon as `/hubs/sections` answers, and only *then* do the personalized shelves start
+  (genre counts, candidate pages, history); they are animated in below when ready.
+  Never fold the shelves back into the first paint — that is what kept a 60k-title
+  library on a spinner for minutes. Inside the engine, taste-signal metadata and the
+  genre pools load concurrently, libraries of a type tab load three at a time, and
+  Recently Added is only re-fetched when the hub came back shorter than the row. The
+  last rows per profile + library set are kept in memory
+  (`LibraryRecommendationsSnapshot`), so a rebuilt screen paints at once and refreshes
+  underneath. Reproduce with a mock PMS that synthesizes the library and charges a
+  per-row scan cost per section query (see `docs/development-workflow.md`).
 - A failing server never blanks the others: the sections load commits per server and
   only throws when every server failed.
 - `.video` libraries never run the genre engine. Their shelves come from
