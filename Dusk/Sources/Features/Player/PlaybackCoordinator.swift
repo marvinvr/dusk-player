@@ -43,6 +43,9 @@ final class PlaybackCoordinator {
     /// when not in credits, when there is no next episode, or while the
     /// full-screen `upNextPresentation` is showing instead.
     var upNextPoster: UpNextPosterPresentation?
+    /// The server's pre-roll videos while they play ahead of a movie; nil
+    /// otherwise. See `PlaybackCoordinator+Prerolls`.
+    var prerollPlayback: PrerollPlayback?
     /// Previous / Next Episode targets for the episode now playing; nil for
     /// anything that is not a library episode (movies, clips, Live TV).
     var adjacentEpisodes: PlaybackAdjacentEpisodes?
@@ -637,6 +640,14 @@ final class PlaybackCoordinator {
             resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
             selectedMediaID: selectedMediaID,
             restrictToItemServer: restrictToItemServer,
+            prerollFeature: PrerollPlayback.Feature(
+                id: id,
+                startPositionOverride: startPositionOverride,
+                resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+                resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
+                selectedMediaID: selectedMediaID,
+                restrictToItemServer: restrictToItemServer
+            ),
             attemptID: attemptID
         )
 
@@ -670,6 +681,7 @@ final class PlaybackCoordinator {
         cancelUpNextPosterCountdown()
         upNextPresentation = nil
         upNextPoster = nil
+        prerollPlayback = nil
         clearAdjacentEpisodes()
 
         engine?.onPlaybackEnded = nil

@@ -163,7 +163,16 @@ struct PlayerView: View {
     var body: some View {
         ZStack {
             Group {
-                if let engine = playback.engine,
+                if playback.prerollPlayback != nil,
+                   let engine = playback.engine,
+                   let playbackSource = playback.playbackSource {
+                    PlayerPrerollView(
+                        engine: engine,
+                        playbackSource: playbackSource,
+                        presentationID: playback.playerPresentationID
+                    )
+                    .id(playback.playerPresentationID)
+                } else if let engine = playback.engine,
                    let playbackSource = playback.playbackSource {
                     PlayerSessionView(
                         engine: engine,

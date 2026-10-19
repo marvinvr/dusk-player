@@ -1638,6 +1638,56 @@ so the whole live HUD is derived from one instant.
 - `PlaybackNowPlayingController` is iOS-only and owns AVAudioSession,
   MPNowPlayingInfoCenter, remote commands, route/interruption handling, and art.
 
+## Cinema Pre-rolls
+Dusk plays the pre-roll videos a server owner set up in Plex (Settings →
+Extras → "Cinema Trailer pre-roll video") in front of a movie, the way official
+Plex clients do. There is no app setting: the server decides.
+
+- Request: `PlexService.cinemaPrerolls` creates a play queue
+  (`POST /playQueues?type=video&uri=server://<machineID>/com.plexapp.plugins.library/library/metadata/<ratingKey>&extrasPrefixCount=0&repeat=0&own=1`).
+  The server puts its extras in front of the movie; everything ahead of the
+  movie's rating key that is a `clip` plays, in order. Comma vs. semicolon in
+  the server preference (play all vs. pick one at random) is resolved by the
+  server. A server with no pre-roll answers with the movie alone and playback
+  carries on unchanged after that one request.
+- `extrasPrefixCount` is the number of cinema *trailers* ahead of the
+  pre-roll, and in Plex it is a per-client setting, not a server one (no
+  server preference holds a count). Dusk sends
+  0 ("pre-roll only"). Any positive count would start playing library trailers
+  for most servers, because "trailers from library" is on by default — that
+  is a client option Dusk deliberately does not have. Leaving the parameter
+  out returns no extras at all.
+- Gate (in `startPlaybackSession`, after the details fetch, only when
+  `beginPlayback` passed a `prerollFeature`): a `movie` that is not a Videos
+  clip (`subtype == "clip"`), starting from the beginning (Play with no
+  detail/initiating offset, or Play From Start), online (no local download), no
+  AirPlay route, no SharePlay. Up Next, quality switches, delivery fallbacks and
+  every other replay never pass `prerollFeature`. A failed lookup is logged
+  and ignored.
+- Playback (`PlaybackCoordinator+Prerolls`): pre-rolls are a phase *before*
+  the movie's session. Each plays by direct play from its part URL on the
+  engine `StreamResolver.evaluate` picks, with `ratingKey == nil`, so no
+  timeline, scrobble, resume or scene-phase report ever names a pre-roll; only
+  the movie carries watch state. Now Playing (iOS) shows the pre-roll and the
+  audio session stays up across the hand-off. After the last one,
+  `startFeatureAfterPrerolls` drops back to the movie's loading placeholder and
+  replays the original request through `runPlaybackAttempt` (server walk,
+  resume rules and all).
+- UI (`PlayerPrerollView`, chosen by `PlayerView` while `prerollPlayback` is
+  set): the video, a Skip chip where Skip Intro sits (tvOS `PlayerTVSkipChip`,
+  drawn selected) and the way out (iOS close button, tvOS Menu). Skip — iOS tap,
+  tvOS Select or right — goes to the next pre-roll, or to the movie after the
+  last. iOS tap on the video and tvOS Play/Pause toggle pause. A pre-roll whose
+  engine errors is skipped the same way; there is no transcode fallback for
+  pre-rolls. `advancePreroll(from:)` is pinned to the pre-roll's
+  `playerPresentationID`, so an end-of-file callback racing a Skip or an error
+  cannot skip two.
+- Verification: a scratch copy of the screenshot mock (`dusk-screenshots`)
+  answering `/playQueues` with clips is enough to exercise the whole flow in
+  the simulator via `-DuskScreenshotScreen player` (which goes through
+  `beginPlayback`); the stock mock answers it with an empty container, which
+  means "no pre-roll".
+
 ## Settings and Preferences
 - Playback preferences live in `UserPreferences` and persist to UserDefaults.
 - Session-start defaults: `maxResolution`, `videoEnhancementMode`, forced
@@ -1688,6 +1738,8 @@ so the whole live HUD is derived from one instant.
   `Playback/RemuxHLSLoader.swift`.
 - Session orchestration: `PlaybackCoordinator+Session.swift`; timeline:
   `PlaybackCoordinator+Timeline.swift`; Up Next: `PlaybackCoordinator+UpNext.swift`.
+- Cinema pre-rolls: `PlexService+PlayQueue.swift`, `PlaybackCoordinator+Prerolls.swift`,
+  `PlayerPrerollView.swift`, gate in `startPlaybackSession`.
 - Display mode matching (tvOS): `Features/Player/DisplayModeMatcher.swift`,
   applied and reset from `PlaybackCoordinator+Session.swift`.
 - Player UI: `Features/Player/`; keep platform differences in platform overlays.
