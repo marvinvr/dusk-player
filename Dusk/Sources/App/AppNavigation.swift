@@ -60,8 +60,7 @@ struct AppNavigationDestinationView: View {
             LibraryItemsView(
                 library: library,
                 plexService: plexService,
-                initialGenre: genre,
-                preferLocalGenreFiltering: true
+                initialGenre: genre
             )
         case .libraryCollection(let library, let collection):
             LibraryCollectionItemsView(library: library, collection: collection)

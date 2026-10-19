@@ -13,15 +13,13 @@ struct LibraryItemsView: View {
         library: PlexLibrary,
         plexService: PlexService,
         collection: PlexLibraryCollection? = nil,
-        initialGenre: LibraryGenreOption? = nil,
-        preferLocalGenreFiltering: Bool = false
+        initialGenre: LibraryGenreOption? = nil
     ) {
         _viewModel = State(initialValue: LibraryItemsViewModel(
             library: library,
             plexService: plexService,
             collection: collection,
-            initialGenre: initialGenre,
-            preferLocalGenreFiltering: preferLocalGenreFiltering
+            initialGenre: initialGenre
         ))
     }
 

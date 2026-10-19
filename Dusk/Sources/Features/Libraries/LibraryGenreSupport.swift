@@ -36,6 +36,24 @@ enum LibraryGenreSupport {
         return [.all] + genres
     }
 
+    /// The server's own option for `genre`: the same filter value, or failing
+    /// that the same title (a genre inferred from item tags carries the tag as
+    /// its value, which Plex's genre filter does not take).
+    static func serverOption(
+        matching genre: LibraryGenreOption,
+        in serverGenres: [LibraryGenreOption]
+    ) -> LibraryGenreOption? {
+        let candidates = serverGenres.filter { $0.value != nil }
+        guard genre.value != nil else { return nil }
+
+        if let exact = candidates.first(where: { $0.value == genre.value }) {
+            return exact
+        }
+
+        let title = normalizeGenreTitle(genre.title)
+        return candidates.first { normalizeGenreTitle($0.title) == title }
+    }
+
     static func matchedGenres(
         for tags: [PlexTag],
         availableGenres: [LibraryGenreOption],

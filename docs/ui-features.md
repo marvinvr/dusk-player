@@ -642,9 +642,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   hubs, secondary hubs, channel rows, Rediscover — all 16:9.
 - `LibraryItemsView` is the browse grid for a concrete library, genre, or collection
   route; `.video` libraries use the 16:9 grid metrics.
-- `LibraryItemsViewModel` handles pagination, sort, genre selection, optional local
-  genre filtering, and optional collection scoping (`LibraryCollectionItemsView`
-  delegates to it). Sort options are per-kind via `LibrarySortOption.options(for:)`;
+- `LibraryItemsViewModel` handles pagination, sort, genre selection, local genre
+  matching as a last resort, and optional collection scoping (`LibraryCollectionItemsView`
+  delegates to it). Paging is server-side (`X-Plex-Container-Start/Size`, sort and
+  filters as query parameters): a 50-item first page, then 100-item pages prefetched
+  half a page before the end. Without a preselected genre the first page does not wait
+  for the genre list. A genre handed in from a recommendation row is resolved to the
+  server's own filter value (`LibraryGenreSupport.serverOption`, by value or title);
+  only a genre the server has no filter for is matched locally, on the listing's tags,
+  scanning at most 10 × 200 titles per grid page from a resumable offset — never the
+  whole library, never per-item metadata requests. Sort options are per-kind via `LibrarySortOption.options(for:)`;
   video libraries default to Release Date (newest).
 - Use `LibraryGenreSupport` for Plex genre filter discovery, normalization, URL
   parameter extraction, and fallback matching. Do not compare genre strings ad hoc.

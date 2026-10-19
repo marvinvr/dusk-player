@@ -75,6 +75,15 @@ enum LibrarySortOption: String, CaseIterable, Identifiable {
     }
 }
 
+/// One fetched page and whether the query has more beyond it.
+private struct LibraryItemsPage {
+    let items: [PlexItem]
+    let hasMore: Bool
+    /// Locally matched genres only: the server offset the next page's scan
+    /// resumes from.
+    var nextScanOffset: Int?
+}
+
 private struct LibraryItemsQuery: Hashable {
     let genreValue: String?
     let sort: LibrarySortOption
@@ -89,7 +98,6 @@ final class LibraryItemsViewModel {
     /// per-channel grids of video libraries).
     private let collection: PlexLibraryCollection?
     private let preferredInitialGenre: LibraryGenreOption?
-    private let preferLocalGenreFiltering: Bool
 
     private(set) var items: [PlexItem] = []
     private(set) var isLoading = false
@@ -100,23 +108,33 @@ final class LibraryItemsViewModel {
     private(set) var selectedGenre: LibraryGenreOption = .all
     private(set) var selectedSort: LibrarySortOption = .titleAscending
 
-    private let pageSize = 50
+    /// The first page is small so it lands fast; later pages are larger
+    /// because on a big library every page costs the server a section-wide
+    /// query, however few items it returns.
+    private let firstPageSize = 50
+    private let pageSize = 100
+    /// A locally matched genre scans the library in pages of this size, and at
+    /// most this many pages per grid page, so a rare genre can never turn one
+    /// scroll into a walk over tens of thousands of titles.
+    private let localScanPageSize = 200
+    private let maxLocalScanPagesPerLoad = 10
     private var hasLoadedBrowseOptions = false
+    /// The genre filter values the server offered. A selected genre that is
+    /// one of them is filtered by Plex; anything else is matched locally.
+    private var serverGenreValues: Set<String> = []
     private var queryGeneration = 0
-    private var genreMatchCache: [String: Bool] = [:]
+    private var localScanOffset = 0
 
     init(
         library: PlexLibrary,
         plexService: PlexService,
         collection: PlexLibraryCollection? = nil,
-        initialGenre: LibraryGenreOption? = nil,
-        preferLocalGenreFiltering: Bool = false
+        initialGenre: LibraryGenreOption? = nil
     ) {
         self.library = library
         self.plexService = plexService
         self.collection = collection
         self.preferredInitialGenre = initialGenre
-        self.preferLocalGenreFiltering = preferLocalGenreFiltering
         self.selectedGenre = initialGenre ?? .all
         self.selectedSort = LibrarySortOption.defaultOption(for: library.libraryType)
     }
@@ -159,10 +177,22 @@ final class LibraryItemsViewModel {
     }
 
     func loadItems() async {
-        await loadBrowseOptionsIfNeeded()
+        guard items.isEmpty else {
+            await loadBrowseOptionsIfNeeded()
+            return
+        }
 
-        guard items.isEmpty else { return }
-        await reloadItems()
+        // A preselected genre has to be matched to the server's genre filter
+        // before the first page, or it would be scanned for locally. Without
+        // one, the first page does not wait for the genre list.
+        if selectedGenre != .all {
+            await loadBrowseOptionsIfNeeded()
+            await reloadItems()
+        } else {
+            async let browseOptions: Void = loadBrowseOptionsIfNeeded()
+            await reloadItems()
+            await browseOptions
+        }
     }
 
     func reloadItems() async {
@@ -171,11 +201,12 @@ final class LibraryItemsViewModel {
         error = nil
 
         do {
-            let fetched = try await fetchItems(start: 0, query: currentQuery)
+            let page = try await fetchItems(start: 0, query: currentQuery)
             guard generation == queryGeneration else { return }
 
-            items = fetched
-            hasMoreItems = fetched.count >= pageSize
+            items = page.items
+            hasMoreItems = page.hasMore
+            localScanOffset = page.nextScanOffset ?? 0
         } catch {
             guard generation == queryGeneration else { return }
 
@@ -213,9 +244,12 @@ final class LibraryItemsViewModel {
     }
 
     func loadMoreIfNeeded(currentItem: PlexItem) async {
+        // Only the tail is searched: with thousands of titles loaded, a scan
+        // of the whole list on every cell appearance is main-thread work that
+        // grows with the scroll. Half a page ahead keeps wide tvOS/iPad grids
+        // from reaching the end before the next page lands.
         guard hasMoreItems, !isLoadingMore,
-              let index = items.firstIndex(where: { $0.id == currentItem.id }),
-              index >= items.count - 10
+              items.suffix(pageSize / 2).contains(where: { $0.id == currentItem.id })
         else { return }
 
         let generation = queryGeneration
@@ -226,11 +260,12 @@ final class LibraryItemsViewModel {
         defer { isLoadingMore = false }
 
         do {
-            let fetched = try await fetchItems(start: start, query: query)
+            let page = try await fetchItems(start: start, query: query)
             guard generation == queryGeneration else { return }
 
-            items.append(contentsOf: fetched)
-            hasMoreItems = fetched.count >= pageSize
+            items.append(contentsOf: page.items)
+            hasMoreItems = page.hasMore
+            localScanOffset = page.nextScanOffset ?? localScanOffset
         } catch {
             guard generation == queryGeneration else { return }
             hasMoreItems = false
@@ -260,10 +295,10 @@ final class LibraryItemsViewModel {
         return queryGeneration
     }
 
-    private func fetchItems(start: Int, query: LibraryItemsQuery) async throws -> [PlexItem] {
-        if query.genreValue != nil, preferLocalGenreFiltering {
+    private func fetchItems(start: Int, query: LibraryItemsQuery) async throws -> LibraryItemsPage {
+        if let genreValue = query.genreValue, !serverGenreValues.contains(genreValue) {
             return try await fetchLocallyFilteredItems(
-                start: start,
+                scanOffset: start == 0 ? 0 : localScanOffset,
                 query: query,
                 genre: selectedGenre
             )
@@ -278,70 +313,62 @@ final class LibraryItemsViewModel {
         return ["collection": collection.key]
     }
 
-    private func fetchServerFilteredItems(start: Int, query: LibraryItemsQuery) async throws -> [PlexItem] {
+    private func fetchServerFilteredItems(start: Int, query: LibraryItemsQuery) async throws -> LibraryItemsPage {
         var filters = baseFilters
 
         if let genreValue = query.genreValue {
             filters["genre"] = genreValue
         }
 
-        return try await plexService.getLibraryItems(
+        let size = start == 0 ? firstPageSize : pageSize
+        let items = try await plexService.getLibraryItems(
             sectionId: library.key,
             start: start,
-            size: pageSize,
+            size: size,
             sort: query.sort.plexValue,
             filters: filters,
             serverID: serverID
         )
+        return LibraryItemsPage(items: items, hasMore: items.count >= size)
     }
 
+    /// A genre the server has no filter value for (a genre inferred from item
+    /// tags): the library is scanned page by page in the chosen sort and
+    /// matched on the genre tags the listing already carries, resuming where
+    /// the previous page stopped.
     private func fetchLocallyFilteredItems(
-        start: Int,
+        scanOffset: Int,
         query: LibraryItemsQuery,
         genre: LibraryGenreOption
-    ) async throws -> [PlexItem] {
-        let totalCount = try await plexService.getLibraryItemCount(
-            sectionId: library.key,
-            filters: baseFilters,
-            serverID: serverID
-        )
-        guard totalCount > 0 else { return [] }
-
+    ) async throws -> LibraryItemsPage {
+        let wanted = scanOffset == 0 ? firstPageSize : pageSize
         var matchedItems: [PlexItem] = []
-        let neededMatchCount = start + pageSize
-        let serverPageSize = pageSize
-        let pageCount = Int(ceil(Double(totalCount) / Double(serverPageSize)))
+        var offset = scanOffset
 
-        guard pageCount > 0 else { return [] }
-
-        for page in 0..<pageCount {
+        for _ in 0..<maxLocalScanPagesPerLoad {
             let fetchedItems = try await plexService.getLibraryItems(
                 sectionId: library.key,
-                start: page * serverPageSize,
-                size: serverPageSize,
+                start: offset,
+                size: localScanPageSize,
                 sort: query.sort.plexValue,
                 filters: baseFilters,
                 serverID: serverID
             )
+            offset += fetchedItems.count
 
-            guard !fetchedItems.isEmpty else { break }
+            matchedItems.append(contentsOf: fetchedItems.filter { item in
+                LibraryGenreSupport.containsGenre(item.genres ?? [], matching: genre)
+            })
 
-            for item in fetchedItems {
-                guard await itemMatchesGenre(item, genre: genre) else { continue }
-                matchedItems.append(item)
-
-                if matchedItems.count >= neededMatchCount {
-                    return Array(matchedItems.dropFirst(start).prefix(pageSize))
-                }
+            if fetchedItems.count < localScanPageSize {
+                return LibraryItemsPage(items: matchedItems, hasMore: false, nextScanOffset: offset)
             }
-
-            if fetchedItems.count < serverPageSize {
+            if matchedItems.count >= wanted {
                 break
             }
         }
 
-        guard matchedItems.count > start else { return [] }
-        return Array(matchedItems.dropFirst(start).prefix(pageSize))
+        return LibraryItemsPage(items: matchedItems, hasMore: true, nextScanOffset: offset)
     }
 
     private func loadBrowseOptionsIfNeeded() async {
@@ -354,8 +381,15 @@ final class LibraryItemsViewModel {
                 serverID: serverID,
                 plexService: plexService
             )
+            serverGenreValues = Set(loadedGenres.compactMap(\.value))
 
-            if let preferredInitialGenre,
+            // A genre handed in from a recommendation row may be an item tag
+            // ("Thriller") rather than the server's filter value: resolve it to
+            // the server's own option so Plex filters it.
+            if selectedGenre != .all,
+               let serverGenre = LibraryGenreSupport.serverOption(matching: selectedGenre, in: loadedGenres) {
+                selectedGenre = serverGenre
+            } else if let preferredInitialGenre,
                preferredInitialGenre != .all,
                !loadedGenres.contains(preferredInitialGenre) {
                 loadedGenres.insert(preferredInitialGenre, at: min(1, loadedGenres.count))
@@ -369,34 +403,5 @@ final class LibraryItemsViewModel {
                 availableGenres = [.all]
             }
         }
-    }
-
-    private func itemMatchesGenre(
-        _ item: PlexItem,
-        genre: LibraryGenreOption
-    ) async -> Bool {
-        let cacheKey = "\(genre.id)|\(item.id.storageKey)"
-
-        if let cached = genreMatchCache[cacheKey] {
-            return cached
-        }
-
-        let matches: Bool
-
-        if let genres = item.genres,
-           LibraryGenreSupport.containsGenre(genres, matching: genre) {
-            matches = true
-        } else if let details = try? await plexService.getMediaDetails(
-            ratingKey: item.ratingKey,
-            serverID: item.serverID ?? serverID
-        ),
-                  let genres = details.genres {
-            matches = LibraryGenreSupport.containsGenre(genres, matching: genre)
-        } else {
-            matches = false
-        }
-
-        genreMatchCache[cacheKey] = matches
-        return matches
     }
 }
