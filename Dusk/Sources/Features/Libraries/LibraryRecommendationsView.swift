@@ -270,7 +270,9 @@ struct LibraryRecommendationsView: View {
             .controlSize(.small)
             .buttonBorderShape(.capsule)
             .buttonStyle(.glass)
-            .tint(Color.primary)
+            // nil, never a colour: an explicit tint recolours the label too,
+            // so the focused light glass went white-on-white.
+            .tint(nil)
         #else
         link
             .buttonStyle(.plain)
