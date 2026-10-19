@@ -112,6 +112,8 @@ struct ShowAllCarouselTile: View {
 }
 
 struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
+    @Environment(PlexService.self) private var plexService
+
     let title: String
     let items: [PlexItem]
     var posterWidth: CGFloat = DuskPosterMetrics.carouselPosterWidth
@@ -135,7 +137,12 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                 PosterNavigationCard(
                     route: AppNavigationRoute.destination(for: item),
                     imageURL: posterURL(item, imageWidth, imageHeight),
-                    title: item.title,
+                    fallbackImageURL: item.fallbackPosterImageURL(
+                        plexService: plexService,
+                        width: imageWidth,
+                        height: imageHeight
+                    ),
+                    title: item.posterCardTitle,
                     subtitle: subtitle(item),
                     progress: progress(item),
                     width: posterWidth,
@@ -233,6 +240,8 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
 }
 
 struct PlexItemPosterGrid<ContextMenuContent: View>: View {
+    @Environment(PlexService.self) private var plexService
+
     let items: [PlexItem]
     let layout: AdaptivePosterGridLayout
     var rowSpacing: CGFloat = DuskPosterMetrics.detailGridRowSpacing
@@ -252,7 +261,12 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
                 PosterNavigationCard(
                     route: AppNavigationRoute.destination(for: item),
                     imageURL: posterURL(item, imageWidth, imageHeight),
-                    title: item.title,
+                    fallbackImageURL: item.fallbackPosterImageURL(
+                        plexService: plexService,
+                        width: imageWidth,
+                        height: imageHeight
+                    ),
+                    title: item.posterCardTitle,
                     subtitle: subtitle(item),
                     progress: progress(item),
                     width: layout.posterWidth,

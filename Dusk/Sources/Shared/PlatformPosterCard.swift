@@ -3,6 +3,8 @@ import SwiftUI
 struct PosterNavigationCard<ContextMenuContent: View>: View {
     let route: AppNavigationRoute
     let imageURL: URL?
+    /// Loaded when `imageURL` fails; see `PlexItem.fallbackPosterPath`.
+    var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?
     var progress: Double?
@@ -28,6 +30,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             NavigationLink(value: route) {
                 PosterArtwork(
                     imageURL: imageURL,
+                    fallbackImageURL: fallbackImageURL,
                     progress: progress,
                     width: width,
                     imageAspectRatio: imageAspectRatio,
@@ -59,6 +62,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
         NavigationLink(value: route) {
             PosterCard(
                 imageURL: imageURL,
+                fallbackImageURL: fallbackImageURL,
                 title: title,
                 subtitle: subtitle,
                 progress: progress,

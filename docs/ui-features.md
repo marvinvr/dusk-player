@@ -284,6 +284,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   intentional and "Show all" (`.hub`) shows the whole merged row rather than the
   primary server's share of it. `PlexHub.isPageable` / `hasMoreOnAnySource` /
   `totalSourceSize` are the merged-row equivalents of `key` / `more` / `size`.
+- TV Recently Added rows hold seasons and episodes, not just shows: a new episode in an
+  old show arrives as that season (or episode). Poster cards (`PlexItemPosterCarouselSection`,
+  `PlexItemPosterGrid`) title them by their show (`PlexItem.posterCardTitle`) with the
+  numbering underneath (`hubPosterSubtitle` on Home: "Season 6", "S6 · E3"), and a
+  season whose own poster fails to load falls back to the show's (`fallbackPosterPath`
+  → `DuskAsyncImage(fallbackURL:)`): Plex can send a season poster path even when the
+  season has none (unconfirmed against a real PMS; the show poster also covers any other failure). Home keeps one card per show in Recently Added (`oneCardPerShow`).
 - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS focus-driven
   paging, image preloading, title-logo fallback, pager state, and motion
   reduction. iOS enables automatic rotation (`autoRotates: true`): the hero advances

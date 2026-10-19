@@ -4,6 +4,7 @@ struct PosterArtwork: View {
     static let cornerRadius: CGFloat = 16
 
     let imageURL: URL?
+    var fallbackImageURL: URL? = nil
     var progress: Double?
     var width: CGFloat = 130
     var imageAspectRatio: CGFloat = 2.0 / 3.0
@@ -17,7 +18,7 @@ struct PosterArtwork: View {
     }
 
     var body: some View {
-        DuskAsyncImage(url: imageURL) { phase in
+        DuskAsyncImage(url: imageURL, fallbackURL: fallbackImageURL) { phase in
             switch phase {
             case .success(let image):
                 image
@@ -199,6 +200,7 @@ struct PosterCardText: View {
 /// Reusable poster card with async image, title, and optional progress bar.
 struct PosterCard: View {
     let imageURL: URL?
+    var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?
     /// 0...1 progress for partially watched items. Nil hides the bar.
@@ -214,6 +216,7 @@ struct PosterCard: View {
         VStack(alignment: .leading, spacing: 6) {
             PosterArtwork(
                 imageURL: imageURL,
+                fallbackImageURL: fallbackImageURL,
                 progress: progress,
                 width: width,
                 imageAspectRatio: imageAspectRatio,

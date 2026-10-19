@@ -16,7 +16,8 @@ enum SearchMediaResult: Identifiable {
 
     var title: String {
         switch self {
-        case .plex(let item): item.title
+        // A season's own title is its numbering, which the subtitle carries.
+        case .plex(let item): item.type == .season ? item.posterCardTitle : item.title
         case .seerr(let item): item.displayTitle
         }
     }

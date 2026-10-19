@@ -143,7 +143,7 @@ struct HomeIOSView: View {
                     for: hub,
                     maxRecentlyAddedItems: recentlyAddedInlineItemLimit
                 ) ? AppNavigationRoute.hub(hub) : nil,
-                subtitle: { isVideoHub ? $0.standardPosterSubtitle : $0.year.map(String.init) },
+                subtitle: { isVideoHub ? $0.standardPosterSubtitle : $0.hubPosterSubtitle },
                 posterURL: { item, width, height in
                     viewModel.posterURL(for: item, width: width, height: height)
                 }

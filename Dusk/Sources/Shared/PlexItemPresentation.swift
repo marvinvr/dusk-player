@@ -5,6 +5,21 @@ extension PlexItem {
         MediaTextFormatter.progress(durationMs: duration, offsetMs: viewOffset)
     }
 
+    /// The title under a poster. A season or episode on its own in a row
+    /// (Recently Added, mostly) is known by its show — "Season 6" alone says
+    /// nothing — so it takes the show's title and leaves the numbering to the
+    /// subtitle (`standardPosterSubtitle`).
+    var posterCardTitle: String {
+        switch type {
+        case .season:
+            return parentTitle?.nilIfEmpty ?? title
+        case .episode:
+            return grandparentTitle?.nilIfEmpty ?? title
+        default:
+            return title
+        }
+    }
+
     var continueWatchingDisplayTitle: String {
         if type == .episode, let show = grandparentTitle {
             return show
@@ -44,8 +59,25 @@ extension PlexItem {
                 return MediaTextFormatter.seasonCount(childCount)?.lowercased()
             }
             return year.map(String.init)
+        case .season:
+            return title.nilIfEmpty ?? MediaTextFormatter.seasonEpisodeLabel(season: index, episode: nil)
         case .episode:
             return MediaTextFormatter.seasonEpisodeLabel(season: parentIndex, episode: index) ?? grandparentTitle
+        default:
+            return year.map(String.init)
+        }
+    }
+
+    /// Home's poster rows show a year under movies and shows, but a season or
+    /// episode needs its numbering there because its title is the show's
+    /// ("S6 · E3": the long form does not fit under a poster).
+    var hubPosterSubtitle: String? {
+        switch type {
+        case .season:
+            return standardPosterSubtitle
+        case .episode:
+            return MediaTextFormatter.compactSeasonEpisodeLabel(season: parentIndex, episode: index)
+                ?? standardPosterSubtitle
         default:
             return year.map(String.init)
         }
@@ -73,6 +105,11 @@ extension PlexItem {
     @MainActor
     func posterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
         plexService.imageURL(for: preferredPosterPath, serverID: serverID, width: width, height: height)
+    }
+
+    @MainActor
+    func fallbackPosterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
+        plexService.imageURL(for: fallbackPosterPath, serverID: serverID, width: width, height: height)
     }
 
     @MainActor

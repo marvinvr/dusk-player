@@ -688,7 +688,25 @@ final class HomeViewModel {
         let items = visibleItems(in: hub)
 
         guard isRecentlyAddedHub(hub) else { return items }
-        return Array(items.prefix(maxRecentlyAddedItems))
+        return Array(oneCardPerShow(items).prefix(maxRecentlyAddedItems))
+    }
+
+    /// Plex lists a new season and a newer episode of the same show, or two of
+    /// its seasons, as separate Recently Added entries. Home keeps the newest
+    /// one per show, the way Plex's own clients group them.
+    private func oneCardPerShow(_ items: [PlexItem]) -> [PlexItem] {
+        var seenShows: Set<PlexItemID> = []
+        return items.filter { item in
+            let showRatingKey: String?
+            switch item.type {
+            case .show: showRatingKey = item.ratingKey
+            case .season: showRatingKey = item.parentRatingKey
+            case .episode: showRatingKey = item.grandparentRatingKey
+            default: return true
+            }
+            guard let showRatingKey else { return true }
+            return seenShows.insert(PlexItemID(serverID: item.serverID, ratingKey: showRatingKey)).inserted
+        }
     }
 
     /// A merged row is pageable when any of its sources is, and its total size

@@ -13,6 +13,8 @@ struct DuskAsyncImage<Content: View>: View {
     @Environment(PlexService.self) private var plexService
 
     let url: URL?
+    /// Tried once when `url` fails, before the phase becomes `.failure`.
+    var fallbackURL: URL? = nil
     @ViewBuilder let content: (DuskAsyncImagePhase) -> Content
 
     @State private var phase = DuskAsyncImagePhase.empty
@@ -38,6 +40,13 @@ struct DuskAsyncImage<Content: View>: View {
             guard !Task.isCancelled else { return }
             phase = .success(Image(uiImage: image))
         } catch {
+            guard !Task.isCancelled else { return }
+            if let fallbackURL, fallbackURL != url,
+               let image = try? await DuskImageLoader.shared.image(for: fallbackURL, using: plexService) {
+                guard !Task.isCancelled else { return }
+                phase = .success(Image(uiImage: image))
+                return
+            }
             guard !Task.isCancelled else { return }
             phase = .failure(error)
         }

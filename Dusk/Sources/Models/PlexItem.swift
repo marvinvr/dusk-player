@@ -208,6 +208,15 @@ extension PlexItem {
         }
     }
 
+    /// What a poster card shows when `preferredPosterPath` does not load. A
+    /// season's own poster can be missing on the server while Plex still sends
+    /// its path, so a new season of an old show in Recently Added would be a
+    /// blank card; the show's poster stands in for it.
+    var fallbackPosterPath: String? {
+        guard type == .season, let parentThumb, parentThumb != preferredPosterPath else { return nil }
+        return parentThumb
+    }
+
     /// Best available landscape-style image path for feature rows.
     var preferredLandscapePath: String? {
         switch type {
