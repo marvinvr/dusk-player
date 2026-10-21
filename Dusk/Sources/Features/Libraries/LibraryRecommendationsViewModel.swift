@@ -150,30 +150,90 @@ final class LibraryRecommendationsViewModel {
 
     /// Movie/show libraries: Plex hubs plus genre-engine personalized shelves.
     ///
-    /// The hub rows are painted the moment they arrive. The personalized
-    /// shelves take many section-wide queries — on a library of tens of
-    /// thousands of titles that is many seconds — and are added below them
-    /// when they are ready instead of holding the whole screen on a spinner.
-    /// They only start once the hubs are in: on a large library the server's
-    /// database is the bottleneck, and their queries would otherwise queue in
-    /// front of the rows the user is waiting for.
+    /// On a large library `/hubs/sections` is the server's most expensive
+    /// read, so an empty screen first paints the library's Recently Added
+    /// row from its promoted rows, which cost a fraction of it, and the full
+    /// hub rows replace it when they arrive.
+    ///
+    /// The personalized shelves take many section-wide queries and are added
+    /// below when they are ready instead of holding the screen on a spinner.
+    /// They get going once the hubs are in, or once the hubs have had
+    /// `hubsHeadStart`: the server's database is the bottleneck, so their
+    /// queries should not queue in front of the rows the user is waiting for,
+    /// but on a slow server the hubs alone can take minutes.
     private func loadStandardLibraryContent(isInitialLoad: Bool, generation: Int) async throws {
-        let processedHubs = await processHubs(await fetchLibraryHubs())
+        let hubsTask = Task { [weak self] in await self?.fetchLibraryHubs() ?? [] }
+        let promotedTask = isInitialLoad
+            ? Task { [weak self] in await self?.fetchLibraryHubs(promotedOnly: true) ?? [] }
+            : nil
+        try await withTaskCancellationHandler {
+            if let promotedTask {
+                if await Self.finishesFirst(promotedTask, before: hubsTask) {
+                    await applyHubs(await promotedTask.value, isInitialLoad: isInitialLoad, generation: generation)
+                } else {
+                    promotedTask.cancel()
+                }
+            }
+            let hubsArrivedEarly = await Self.finishes(hubsTask, within: Self.hubsHeadStart)
+            if hubsArrivedEarly {
+                await applyHubs(await hubsTask.value, isInitialLoad: isInitialLoad, generation: generation)
+            }
+            async let lateHubs: Void = {
+                guard !hubsArrivedEarly else { return }
+                await self.applyHubs(await hubsTask.value, isInitialLoad: isInitialLoad, generation: generation)
+            }()
+            try await loadShelvesAfterHubs(isInitialLoad: isInitialLoad, generation: generation)
+            await lateHubs
+        } onCancel: {
+            hubsTask.cancel()
+            promotedTask?.cancel()
+        }
+    }
+
+    /// How long the hub rows get to themselves before the other rows start.
+    private static let hubsHeadStart: Duration = .seconds(8)
+
+    /// Whether `task` finishes before `other`. Cancels neither, and returns
+    /// as soon as the first one is done.
+    private static func finishesFirst<Value: Sendable>(
+        _ task: Task<Value, Never>,
+        before other: Task<Value, Never>
+    ) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let first = FirstResume(continuation)
+            Task { _ = await task.value; first.resume(true) }
+            Task { _ = await other.value; first.resume(false) }
+        }
+    }
+
+    /// Whether `task` finishes within `limit`. Never cancels `task`.
+    private static func finishes<Value: Sendable>(_ task: Task<Value, Never>, within limit: Duration) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let first = FirstResume(continuation)
+            Task { _ = await task.value; first.resume(true) }
+            Task { try? await Task.sleep(for: limit); first.resume(false) }
+        }
+    }
+
+    private func applyHubs(_ fetchedHubs: [[PlexHub]], isInitialLoad: Bool, generation: Int) async {
+        let processedHubs = await processHubs(fetchedHubs)
         guard !Task.isCancelled, generation == loadGeneration else { return }
 
         let hasHubContent = !processedHubs.hubs.isEmpty || !processedHubs.continueWatching.isEmpty
 
-        // A refresh that came back with nothing is a failed refresh, not an
-        // emptied library: keep what is on screen rather than blanking it.
-        if isInitialLoad || hasHubContent {
-            apply(isInitialLoad: isInitialLoad) {
+        // Hub rows that came back with nothing failed (or were slow to the
+        // point of a timeout), they did not empty the library: keep what is on
+        // screen rather than blanking it.
+        if hasHubContent || !hasAnyContent {
+            apply(isInitialLoad: !hasLoadedOnce) {
                 self.hubs = processedHubs.hubs
                 self.channelShelves = []
                 self.rediscoverItems = []
                 self.continueWatching = processedHubs.continueWatching
                 self.continueWatchingTitle = processedHubs.continueWatchingTitle
-                // Shelves already on screen (a refresh) stay until their
-                // replacements arrive, minus anything now in Continue Watching.
+                // Shelves already on screen (a refresh or rows that beat
+                // slow hubs) stay until their replacements arrive, minus
+                // anything now in Continue Watching.
                 self.personalizedShelves = self.filterPersonalizedShelves(
                     self.personalizedShelves,
                     excluding: processedHubs.continueWatching
@@ -181,7 +241,9 @@ final class LibraryRecommendationsViewModel {
             }
             publishFirstPaint()
         }
+    }
 
+    private func loadShelvesAfterHubs(isInitialLoad: Bool, generation: Int) async throws {
         let recommendationResult = await loadPersonalizedShelves()
         let filteredPersonalizedShelves = filterPersonalizedShelves(
             recommendationResult.shelves,
@@ -199,6 +261,8 @@ final class LibraryRecommendationsViewModel {
         apply(isInitialLoad: !hasLoadedOnce) {
             self.personalizedShelves = filteredPersonalizedShelves
         }
+        // First paint when slow hubs are still out.
+        publishFirstPaint()
     }
 
     /// Video libraries skip the genre recommendation engine entirely (its
@@ -241,7 +305,7 @@ final class LibraryRecommendationsViewModel {
     /// `/hubs/sections/{id}` for every library this screen covers, all at once,
     /// each routed to its own server. A library that fails contributes nothing
     /// rather than failing the screen.
-    private func fetchLibraryHubs() async -> [[PlexHub]] {
+    private func fetchLibraryHubs(promotedOnly: Bool = false) async -> [[PlexHub]] {
         let service = plexService
         let count = hubFetchCount
         let libraries = self.libraries
@@ -249,11 +313,17 @@ final class LibraryRecommendationsViewModel {
         return await withTaskGroup(of: (Int, [PlexHub]).self) { group in
             for (index, library) in libraries.enumerated() {
                 group.addTask {
-                    let hubs = (try? await service.getLibraryHubs(
-                        sectionId: library.key,
-                        count: count,
-                        serverID: library.serverID
-                    )) ?? []
+                    let hubs = promotedOnly
+                        ? (try? await service.getLibraryRecentlyAddedHub(
+                            sectionId: library.key,
+                            count: count,
+                            serverID: library.serverID
+                        )) ?? []
+                        : (try? await service.getLibraryHubs(
+                            sectionId: library.key,
+                            count: count,
+                            serverID: library.serverID
+                        )) ?? []
                     return (index, hubs)
                 }
             }
@@ -664,5 +734,25 @@ struct LibraryRecommendationsSnapshot {
 
     static func store(_ snapshot: LibraryRecommendationsSnapshot, for libraries: [PlexLibrary], profileID: String?) {
         cache[key(for: libraries, profileID: profileID)] = snapshot
+    }
+}
+
+/// Resumes a continuation once, with whichever caller gets there first.
+/// A task group cannot race two `Task.value`s: it waits for every child, and a
+/// child awaiting another task's value does not stop when cancelled.
+private final class FirstResume<Value: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    init(_ continuation: CheckedContinuation<Value, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ value: Value) {
+        lock.lock()
+        let continuation = self.continuation
+        self.continuation = nil
+        lock.unlock()
+        continuation?.resume(returning: value)
     }
 }

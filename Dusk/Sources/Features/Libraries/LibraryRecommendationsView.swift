@@ -62,6 +62,11 @@ struct LibraryRecommendationsView: View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
 
+            #if os(tvOS)
+            // The browse buttons lead the page and have to be reachable while
+            // the rows load: on a big library that can take a long time.
+            contentView
+            #else
             if !viewModel.hasLoadedOnce,
                viewModel.error == nil,
                !viewModel.hasAnyContent {
@@ -69,6 +74,7 @@ struct LibraryRecommendationsView: View {
             } else {
                 contentView
             }
+            #endif
         }
         .task {
             await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
@@ -119,6 +125,10 @@ struct LibraryRecommendationsView: View {
                         Task { await viewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit) }
                     }
                     .padding(.top, 40)
+                } else if !viewModel.hasAnyContent, !viewModel.hasLoadedOnce {
+                    FeatureLoadingView()
+                        .frame(maxWidth: .infinity)
+                        .padding(.top, 80)
                 } else if !viewModel.hasAnyContent {
                     emptyView
                         .padding(.top, 40)

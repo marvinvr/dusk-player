@@ -103,6 +103,24 @@ extension PlexService {
         )
     }
 
+    /// A library's Recently Added row from its promoted rows, at a fraction
+    /// of the cost of `getLibraryHubs` (0.5s against 10s on the same server),
+    /// so a big library paints before its full hub rows are in.
+    func getLibraryRecentlyAddedHub(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [PlexHub] {
+        let hubs = try await fetchHubs(
+            path: "/hubs/promoted",
+            queryItems: [
+                URLQueryItem(name: "contentDirectoryID", value: sectionId),
+                URLQueryItem(name: "count", value: String(count)),
+                URLQueryItem(name: "includeGuids", value: "1"),
+            ],
+            serverID: serverID
+        )
+        // Continue Watching and On Deck here are account-wide rows; this
+        // library's own arrive with the full hub rows.
+        return hubs.filter { $0.hubIdentifier?.hasSuffix(".recentlyadded.\(sectionId)") == true }
+    }
+
     func getSeasons(showKey: String, serverID: String? = nil) async throws -> [PlexSeason] {
         try await fetchMetadata(path: "/library/metadata/\(showKey)/children", serverID: serverID)
     }
