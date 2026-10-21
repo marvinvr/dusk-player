@@ -441,6 +441,16 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 - Date guide requests use the advertised grid key with repeated
   `channelGridKey` values plus `date=yyyy-MM-dd`. `getLiveTVGuide` batches
   station keys to keep URLs bounded.
+- Grid items list every airing in `Media`; `PlexLiveTVLineup(provider:channels:programs:)`
+  splits them into one program per airing and files each through
+  `PlexLiveChannelMatcher`: identifiers first (`gridKey`, `channelIdentifier`,
+  `channelID` against the channel's `gridKey`/`id`/`identifier`/`key`), then
+  channel number, call sign and title only when they name exactly one channel.
+  Which key a provider uses is not uniform (issue #17: HDHomeRun lineup with
+  an empty guide; its real response shape is still unconfirmed).
+- A channel is always tunable, with or without guide data: tune with a nil
+  program. On tvOS a guide row needs a focusable card even when empty, or
+  focus cannot move down the list.
 - Tuning is `POST /livetv/dvrs/{dvrID}/channels/{channel-id}/tune`. The channel
   `id` from the lineup is Plex's internal DVR mapping key; never substitute the
   display-only `vcn` value. Send a distinct `X-Plex-Session-Identifier` with the

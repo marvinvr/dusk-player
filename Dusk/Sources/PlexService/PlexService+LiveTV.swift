@@ -39,7 +39,7 @@ extension PlexService {
             path: provider.watchNowKey,
             serverID: serverID ?? liveTVServerID
         )
-        return makeLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
 
     func getLiveTVGuide(
@@ -69,7 +69,7 @@ extension PlexService {
             programs.append(contentsOf: batchPrograms)
         }
 
-        return makeLiveTVLineup(provider: provider, channels: channels, programs: programs)
+        return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
 
     func tuneLiveTV(
@@ -180,27 +180,6 @@ extension PlexService {
             optimizedForStreaming: nil,
             parts: [part]
         )
-    }
-
-    private func makeLiveTVLineup(
-        provider: PlexLiveTVProvider,
-        channels: [PlexLiveChannel],
-        programs: [PlexLiveProgram]
-    ) -> PlexLiveTVLineup {
-        let programsByChannel = Dictionary(grouping: programs) { program in
-            program.channelGridKey ?? program.channelIdentifier ?? ""
-        }
-        let guides = channels.map { channel in
-            let channelPrograms = (
-                programsByChannel[channel.gridKey]
-                    ?? programsByChannel[channel.id]
-                    ?? []
-            ).sorted {
-                ($0.beginsAt ?? .distantPast) < ($1.beginsAt ?? .distantPast)
-            }
-            return PlexLiveChannelGuide(channel: channel, programs: channelPrograms)
-        }
-        return PlexLiveTVLineup(provider: provider, guides: guides)
     }
 
     private static func channelSortKey(_ channel: PlexLiveChannel) -> [Int] {

@@ -52,7 +52,9 @@ struct LiveTVRootContent: View {
                 canPlay: program.isAiring(),
                 play: {
                     selectedProgram = nil
-                    play(program: program)
+                    if let channel = channel(for: program) {
+                        play(channel: channel, program: program)
+                    }
                 }
             )
         }
@@ -68,7 +70,7 @@ struct LiveTVRootContent: View {
                         guide: guide,
                         imageURL: viewModel.imageURL,
                         selectProgram: { selectedProgram = $0 },
-                        play: { play(program: $0, channel: guide.channel) }
+                        play: { play(channel: guide.channel, program: $0) }
                     )
                 }
             }
@@ -109,20 +111,18 @@ struct LiveTVRootContent: View {
         .scrollIndicators(.hidden)
     }
 
-    private func play(program: PlexLiveProgram, channel preferredChannel: PlexLiveChannel? = nil) {
-        guard program.isAiring(),
-              let lineup = viewModel.lineup,
-              let channel = preferredChannel ?? channel(for: program) else { return }
+    /// A channel is always tunable; the program only labels the session and
+    /// is dropped unless it is on now. Guide data is optional (issue #17).
+    private func play(channel: PlexLiveChannel, program: PlexLiveProgram?) {
+        guard let lineup = viewModel.lineup else { return }
+        let program = program.flatMap { $0.isAiring() ? $0 : nil }
         Task {
             await playback.playLiveTV(channel: channel, program: program, lineup: lineup)
         }
     }
 
     private func channel(for program: PlexLiveProgram) -> PlexLiveChannel? {
-        viewModel.lineup?.channels.first {
-            $0.gridKey == program.channelGridKey ||
-                $0.id == program.channelIdentifier
-        }
+        viewModel.lineup?.channel(for: program)
     }
 
     private func dateLabel(_ date: Date) -> String {
@@ -137,7 +137,7 @@ struct LiveTVChannelGuideRow: View {
     let guide: PlexLiveChannelGuide
     let imageURL: (String?, Int, Int) -> URL?
     let selectProgram: (PlexLiveProgram) -> Void
-    let play: (PlexLiveProgram) -> Void
+    let play: (PlexLiveProgram?) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -158,24 +158,34 @@ struct LiveTVChannelGuideRow: View {
 
                 Spacer()
 
-                if let current = guide.currentProgram() {
-                    Button {
-                        play(current)
-                    } label: {
-                        Label("Watch", systemImage: "play.fill")
-                            #if !os(tvOS)
-                            .foregroundStyle(Color.duskPrimaryActionLabel)
-                            #endif
-                    }
-                    .detailHeroNativePrimaryButtonStyle()
+                Button {
+                    play(guide.currentProgram())
+                } label: {
+                    Label("Watch", systemImage: "play.fill")
+                        #if !os(tvOS)
+                        .foregroundStyle(Color.duskPrimaryActionLabel)
+                        #endif
                 }
+                .detailHeroNativePrimaryButtonStyle()
             }
 
             if guide.programs.isEmpty {
-                Text("No program information")
-                    .font(DuskFont.caption(ios: .subheadline))
-                    .foregroundStyle(Color.duskTextSecondary)
-                    .frame(height: 120)
+                // Still a card, not a caption: the channel tunes without a
+                // guide, and on tvOS a row with nothing focusable stops the
+                // focus engine from moving down the list.
+                Button {
+                    play(nil)
+                } label: {
+                    LiveTVProgramCard(
+                        program: nil,
+                        imageURL: nil,
+                        channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
+                    )
+                }
+                .buttonStyle(.plain)
+                .duskTVOSFocusEffectShape(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                )
             } else {
                 ScrollView(.horizontal) {
                     LazyHStack(spacing: 12) {
@@ -228,7 +238,9 @@ struct LiveTVChannelGuideRow: View {
 }
 
 struct LiveTVProgramCard: View {
-    let program: PlexLiveProgram
+    /// Nil for a channel without guide data; the card then offers the channel
+    /// itself.
+    let program: PlexLiveProgram?
     let imageURL: URL?
     /// Shown when the program carries no artwork of its own, which is common
     /// on XMLTV and cloud lineups. A centered channel logo says what the card
@@ -260,10 +272,14 @@ struct LiveTVProgramCard: View {
             )
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(program.displayTitle)
+                Text(program?.displayTitle ?? "Watch Live")
                     .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
                     .lineLimit(2)
-                if let beginsAt = program.beginsAt, let endsAt = program.endsAt {
+                if program == nil {
+                    Text("No program information")
+                        .font(DuskFont.cardSubtitle(ios: .caption))
+                        .foregroundStyle(.white.opacity(0.78))
+                } else if let beginsAt = program?.beginsAt, let endsAt = program?.endsAt {
                     Text("\(beginsAt.formatted(date: .omitted, time: .shortened)) – \(endsAt.formatted(date: .omitted, time: .shortened))")
                         .font(DuskFont.cardSubtitle(ios: .caption))
                         .foregroundStyle(.white.opacity(0.78))
@@ -272,7 +288,7 @@ struct LiveTVProgramCard: View {
             .foregroundStyle(.white)
             .padding(12)
 
-            if let progress = program.progress(), program.isAiring() {
+            if let program, let progress = program.progress(), program.isAiring() {
                 VStack {
                     Spacer()
                     GeometryReader { proxy in
