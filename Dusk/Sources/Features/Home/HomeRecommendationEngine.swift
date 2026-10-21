@@ -125,6 +125,8 @@ struct HomeRecommendationEngine {
 
         // Keyed by `library.id`, never by `library.key`: section keys are
         // per-server counters and two servers' "3" would share one entry.
+        // A library whose genre list failed to load gets no entry, and no
+        // genre rows this time (see `loadCandidates`).
         for library in libraries {
             if let genres = try? await LibraryGenreSupport.loadGenreOptions(
                 sectionId: library.key,
@@ -132,8 +134,6 @@ struct HomeRecommendationEngine {
                 plexService: plexService
             ) {
                 genresByLibrary[library.id] = genres
-            } else {
-                genresByLibrary[library.id] = [.all]
             }
         }
 
@@ -331,9 +331,14 @@ struct HomeRecommendationEngine {
         let librarySeed = libraries.map(\.id).joined(separator: ",")
 
         for library in libraries {
+            // No genre list means the server could not answer one, typically a
+            // big library on a busy server timing out. Matching titles one by
+            // one instead would cost a detail request per title, one after
+            // another, on exactly that server.
+            guard let availableGenres = availableGenresByLibrary[library.id] else { continue }
             let matchedLibraryGenre = matchingLibraryGenre(
                 for: genre,
-                availableGenres: availableGenresByLibrary[library.id] ?? [.all]
+                availableGenres: availableGenres
             )
 
             let libraryItems: [PlexItem]
