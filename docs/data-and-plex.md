@@ -441,9 +441,11 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   `tv.plex.providers.epg.*` identifiers.
 - Load stations from the provider's `/lineups/dvr/channels` path and currently
   airing programs from `/watchnow/all`.
-- Date guide requests use the advertised grid key with repeated
-  `channelGridKey` values plus `date=yyyy-MM-dd`. `getLiveTVGuide` batches
-  station keys to keep URLs bounded.
+- Date guide requests use the advertised grid key with ONE `channelGridKey`
+  plus `date=yyyy-MM-dd` per channel (`getLiveTVGuide` runs a few at a time).
+  Plex answers only for the last of repeated `channelGridKey` values (checked
+  on PMS 1.43.5 with XMLTV and cloud guides) and returns nothing for comma
+  lists. Plex drops airings that already ended, so today's grid starts now.
 - Grid items list every airing in `Media`; `PlexLiveTVLineup(provider:channels:programs:)`
   splits them into one program per airing and files each through
   `PlexLiveChannelMatcher`: identifiers first (`gridKey`, `channelIdentifier`,

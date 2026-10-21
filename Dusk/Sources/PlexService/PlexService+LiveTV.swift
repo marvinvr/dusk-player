@@ -96,27 +96,70 @@ extension PlexService {
         serverID: String? = nil
     ) async throws -> PlexLiveTVLineup {
         let dateValue = Self.liveTVDateFormatter.string(from: date)
-        var programs: [PlexLiveProgram] = []
+        let targetID = serverID ?? provider.serverID ?? liveTVServerID
 
-        // Plex accepts several repeated channel keys. Keeping batches modest
-        // avoids oversized URLs on lineups with hundreds of stations.
-        for batchStart in stride(from: 0, to: channels.count, by: 20) {
-            let batchEnd = min(batchStart + 20, channels.count)
-            let batch = channels[batchStart..<batchEnd]
-            var queryItems = batch.map {
-                URLQueryItem(name: "channelGridKey", value: $0.gridKey)
+        // One request per channel: the grid answers only for the LAST of
+        // repeated `channelGridKey` values (XMLTV and cloud guides alike), so
+        // batching left every channel but one per batch empty (issue #17).
+        // A few run at a time so long lineups stay quick.
+        let results = await withTaskGroup(of: Result<[PlexLiveProgram], Error>.self) { group in
+            var pending = channels.makeIterator()
+            for _ in 0..<Self.liveTVGuideConcurrency {
+                guard let channel = pending.next() else { break }
+                group.addTask {
+                    await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
+                }
             }
-            queryItems.append(URLQueryItem(name: "date", value: dateValue))
+            var results: [Result<[PlexLiveProgram], Error>] = []
+            for await result in group {
+                results.append(result)
+                if let channel = pending.next() {
+                    group.addTask {
+                        await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
+                    }
+                }
+            }
+            return results
+        }
 
-            let batchPrograms: [PlexLiveProgram] = try await fetchMetadata(
-                path: provider.gridKey,
-                queryItems: queryItems,
-                serverID: serverID ?? provider.serverID ?? liveTVServerID
-            )
-            programs.append(contentsOf: batchPrograms)
+        // A channel whose guide failed keeps an empty (still tunable) row;
+        // only a guide that failed for every channel is an error.
+        var programs: [PlexLiveProgram] = []
+        var firstError: Error?
+        for result in results {
+            switch result {
+            case .success(let channelPrograms):
+                programs.append(contentsOf: channelPrograms)
+            case .failure(let error):
+                firstError = firstError ?? error
+            }
+        }
+        if let firstError, !results.contains(where: { if case .success = $0 { true } else { false } }) {
+            throw firstError
         }
 
         return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
+    }
+
+    private func liveTVGridPrograms(
+        provider: PlexLiveTVProvider,
+        channel: PlexLiveChannel,
+        date: String,
+        serverID: String?
+    ) async -> Result<[PlexLiveProgram], Error> {
+        do {
+            let programs: [PlexLiveProgram] = try await fetchMetadata(
+                path: provider.gridKey,
+                queryItems: [
+                    URLQueryItem(name: "channelGridKey", value: channel.gridKey),
+                    URLQueryItem(name: "date", value: date),
+                ],
+                serverID: serverID
+            )
+            return .success(programs)
+        } catch {
+            return .failure(error)
+        }
     }
 
     func tuneLiveTV(
@@ -235,6 +278,8 @@ extension PlexService {
             .compactMap { Int($0) }
         return components.isEmpty ? [Int.max] : components
     }
+
+    private static let liveTVGuideConcurrency = 6
 
     private static let liveTVDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
