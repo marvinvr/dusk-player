@@ -88,6 +88,9 @@ extension PlexService {
         return values.compactMap { PlexLibraryCollection(filterValue: $0, serverID: targetID) }
     }
 
+    /// A library's hub rows. On a library of tens of thousands of titles this
+    /// is the server's most expensive read (10s on a 43k-movie test server,
+    /// far longer on slower hardware), so it gets more than the usual 30s.
     func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [PlexHub] {
         try await fetchHubs(
             path: "/hubs/sections/\(sectionId)",
@@ -95,6 +98,7 @@ extension PlexService {
                 URLQueryItem(name: "count", value: String(count)),
                 URLQueryItem(name: "includeGuids", value: "1"),
             ],
+            timeoutInterval: 90,
             serverID: serverID
         )
     }

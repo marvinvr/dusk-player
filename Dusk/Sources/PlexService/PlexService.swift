@@ -87,6 +87,10 @@ final class PlexService {
 
     let clientIdentifier: String
     let session: URLSession
+    /// For the few server reads allowed to outlast `session`'s 30s budget
+    /// (`rawServerRequest(timeoutInterval:)` above `requestResourceTimeout`).
+    /// Separate so every other call keeps failing fast on a dead endpoint.
+    let slowQuerySession: URLSession
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
@@ -124,14 +128,20 @@ final class PlexService {
     static let serverRecoveryCooldown: TimeInterval = 30
     static let authenticationPropagationRetryWindow: TimeInterval = 20
     static let authenticationPropagationRetryAttempts = 20
+    /// The shared session's whole-request budget.
+    static let requestResourceTimeout: TimeInterval = 30
 
     init() {
         let config = URLSessionConfiguration.default
         config.urlCache = AppImageCache.shared
         config.waitsForConnectivity = true
         config.timeoutIntervalForRequest = 15
-        config.timeoutIntervalForResource = 30
+        config.timeoutIntervalForResource = Self.requestResourceTimeout
         self.session = URLSession(configuration: config)
+        let slowQueryConfig = URLSessionConfiguration.default
+        slowQueryConfig.waitsForConnectivity = true
+        slowQueryConfig.timeoutIntervalForResource = 120
+        self.slowQuerySession = URLSession(configuration: slowQueryConfig)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 

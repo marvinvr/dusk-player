@@ -130,6 +130,7 @@ extension PlexService {
         if pool.connection(for: targetID) == nil {
             try await refreshServerAuthorization(serverID: targetID)
         }
+        let endpoint = pool.connection(for: targetID)?.baseURL
 
         do {
             return try await sendRawServerRequest(
@@ -164,7 +165,14 @@ extension PlexService {
             // which drops its content out of every merged screen.
             try Task.checkCancellation()
             plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
-            try await recoverServer(serverID: targetID)
+            let recovered = try await recoverServer(serverID: targetID)
+            // Timed out on an address that still answers its probe: the query
+            // was slow, the connection is fine. Plex keeps working on the
+            // abandoned query, so sending it again only queues a second copy
+            // behind the first, which then fails the same way twice as late.
+            if error == .requestTimedOut, recovered.baseURL == endpoint {
+                throw error
+            }
             return try await sendRawServerRequest(
                 method: method,
                 path: path,
@@ -219,7 +227,8 @@ extension PlexService {
         }
         applyHeaders(to: &request, token: connection.token)
 
-        return try await executeRequest(request)
+        let needsSlowQuerySession = (timeoutInterval ?? 0) > Self.requestResourceTimeout
+        return try await executeRequest(request, using: needsSlowQuerySession ? slowQuerySession : nil)
     }
 
     private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
@@ -259,10 +268,16 @@ extension PlexService {
     func fetchHubs(
         path: String,
         queryItems: [URLQueryItem]? = nil,
+        timeoutInterval: TimeInterval? = nil,
         serverID: String? = nil
     ) async throws -> [PlexHub] {
         let targetID = try resolveServerID(serverID)
-        let data = try await rawServerRequest(path: path, queryItems: queryItems, serverID: targetID)
+        let data = try await rawServerRequest(
+            path: path,
+            queryItems: queryItems,
+            timeoutInterval: timeoutInterval,
+            serverID: targetID
+        )
         let response = try decodeJSON(HubResponse.self, from: data, serverID: targetID)
         return response.MediaContainer.Hub ?? []
     }
@@ -281,14 +296,17 @@ extension PlexService {
 
     func executeRequest(
         _ request: URLRequest,
-        retriesFreshAuthentication: Bool = true
+        retriesFreshAuthentication: Bool = true,
+        using session: URLSession? = nil
     ) async throws -> Data {
         let operation: () async throws -> Data = {
             let data: Data
             let response: URLResponse
 
             do {
-                (data, response) = try await self.session.data(for: request)
+                (data, response) = try await (session ?? self.session).data(for: request)
+            } catch let error as URLError where error.code == .timedOut {
+                throw PlexServiceError.requestTimedOut
             } catch {
                 throw PlexServiceError.networkError(error.localizedDescription)
             }

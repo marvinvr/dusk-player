@@ -43,6 +43,11 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
         }
     }
 
+    /// A request that got no answer in time. Kept a `networkError` so every
+    /// caller that already handles network failures treats it the same way;
+    /// only the request layer tells it apart (see `rawServerRequest`).
+    static let requestTimedOut = PlexServiceError.networkError("The request timed out.")
+
     /// The stored Plex account session is missing or rejected. Retrying the
     /// failed request cannot recover it; the user has to sign in again.
     var requiresReauthentication: Bool {
