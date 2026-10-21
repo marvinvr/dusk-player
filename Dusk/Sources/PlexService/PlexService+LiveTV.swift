@@ -1,12 +1,58 @@
 import Foundation
 
 extension PlexService {
-    /// Live TV comes from one server only (v1): the highest-priority connected
-    /// one. A DVR lineup is server-specific, tuners are a scarce per-server
-    /// resource, and merging two guides has no sane UI yet — so everything here
-    /// defaults to this server rather than fanning out.
+    /// Live TV comes from one server only (v1). A DVR lineup is
+    /// server-specific, tuners are a scarce per-server resource, and merging
+    /// two guides has no sane UI yet — so everything here runs against the
+    /// server discovery found the DVR on (`PlexLiveTVProvider.serverID`), and
+    /// only falls back to the highest-priority connected one.
     var liveTVServerID: String? {
         pool.primary?.serverID
+    }
+
+    /// The Live TV provider of the highest-priority connected server that has
+    /// one. The DVR is often not on the primary server (or the primary is not
+    /// the first to connect), so every connected server is asked. Throws only
+    /// when no server answered at all, so the caller retries later.
+    func discoverLiveTVProvider() async throws -> PlexLiveTVProvider? {
+        let serverIDs = pool.connections.map(\.serverID)
+        guard !serverIDs.isEmpty else { throw PlexServiceError.noServerConnected }
+
+        let results = await withTaskGroup(of: (String, Result<PlexLiveTVProvider?, Error>).self) { group in
+            for serverID in serverIDs {
+                group.addTask {
+                    do {
+                        return (serverID, .success(try await self.getLiveTVProvider(serverID: serverID)))
+                    } catch {
+                        return (serverID, .failure(error))
+                    }
+                }
+            }
+            var results: [String: Result<PlexLiveTVProvider?, Error>] = [:]
+            for await (serverID, result) in group {
+                results[serverID] = result
+            }
+            return results
+        }
+
+        var firstError: Error?
+        var anyServerAnswered = false
+        for serverID in serverIDs {
+            switch results[serverID] {
+            case .success(let provider?):
+                return provider
+            case .success(nil):
+                anyServerAnswered = true
+            case .failure(let error):
+                firstError = firstError ?? error
+            case nil:
+                break
+            }
+        }
+        if let firstError, !anyServerAnswered {
+            throw firstError
+        }
+        return nil
     }
 
     func getLiveTVProvider(serverID: String? = nil) async throws -> PlexLiveTVProvider? {
@@ -15,14 +61,15 @@ extension PlexService {
         let response = try decodeJSON(PlexMediaProvidersResponse.self, from: data, serverID: targetID)
         return response.MediaContainer.MediaProvider?
             .compactMap(\.liveTVProvider)
-            .first
+            .first?
+            .on(serverID: targetID)
     }
 
     func getLiveTVChannels(
         provider: PlexLiveTVProvider,
         serverID: String? = nil
     ) async throws -> [PlexLiveChannel] {
-        let targetID = try resolveServerID(serverID ?? liveTVServerID)
+        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let data = try await rawServerRequest(path: provider.channelsKey, serverID: targetID)
         let response = try decodeJSON(PlexLiveChannelsResponse.self, from: data, serverID: targetID)
         return (response.MediaContainer.Channel ?? []).sorted {
@@ -37,7 +84,7 @@ extension PlexService {
     ) async throws -> PlexLiveTVLineup {
         let programs: [PlexLiveProgram] = try await fetchMetadata(
             path: provider.watchNowKey,
-            serverID: serverID ?? liveTVServerID
+            serverID: serverID ?? provider.serverID ?? liveTVServerID
         )
         return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
@@ -64,7 +111,7 @@ extension PlexService {
             let batchPrograms: [PlexLiveProgram] = try await fetchMetadata(
                 path: provider.gridKey,
                 queryItems: queryItems,
-                serverID: serverID ?? liveTVServerID
+                serverID: serverID ?? provider.serverID ?? liveTVServerID
             )
             programs.append(contentsOf: batchPrograms)
         }
@@ -77,7 +124,7 @@ extension PlexService {
         channel: PlexLiveChannel,
         serverID: String? = nil
     ) async throws -> PlexLiveTuneResult {
-        let targetID = try resolveServerID(serverID ?? liveTVServerID)
+        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let path = "/livetv/dvrs/\(provider.dvrID)/channels/\(channel.tuneIdentifier)/tune"
         let playbackSessionIdentifier = UUID().uuidString
         let data = try await rawServerRequest(

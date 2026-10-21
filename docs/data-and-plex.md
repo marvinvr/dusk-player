@@ -432,8 +432,11 @@ Where to edit:
 
 Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 
-- Live TV uses the highest-priority enabled server only (v1). Discover that
-  server's EPG provider through `/media/providers`.
+- Live TV uses one server only (v1): the highest-priority connected server
+  whose `/media/providers` lists an EPG provider. Every connected server is
+  asked, the provider carries that `serverID`, and all channel/grid/tune calls
+  go back to it. Discovery only latches once a DVR is found; "none" is
+  re-checked whenever the connected servers change.
   The provider advertises its grid path and DVR identifier; do not hard-code
   `tv.plex.providers.epg.*` identifiers.
 - Load stations from the provider's `/lineups/dvr/channels` path and currently
@@ -613,7 +616,7 @@ a heuristic content key can legitimately collide on one server.
   stay distinct, ordered by the account's `pinnedSources`, and the server name is
   shown **only** when another library of the same type has the same title
   (`ServerLabeling`). A single-server account must look exactly as it did before.
-- Live TV uses the highest-priority enabled server only.
+- Live TV uses the highest-priority connected server that has a DVR.
 
 ## Model Conventions
 - List, hub, and search rows use `PlexItem`; full metadata uses

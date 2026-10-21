@@ -21,12 +21,15 @@ final class LiveTVViewModel {
         self.plexService = plexService
     }
 
+    /// Runs whenever the set of connected servers changes. Only a found DVR
+    /// ends discovery: "no Live TV" may just mean its server hasn't connected
+    /// yet, and latching that hid the tab for the whole session.
     func discover() async {
         guard !discoveryCompleted else { return }
         do {
-            provider = try await plexService.getLiveTVProvider()
+            provider = try await plexService.discoverLiveTVProvider()
             isAvailable = provider != nil
-            discoveryCompleted = true
+            discoveryCompleted = provider != nil
         } catch {
             // Live TV is optional. A discovery failure must not block the rest
             // of Dusk, but opening the destination can retry and show details.
@@ -46,11 +49,10 @@ final class LiveTVViewModel {
 
         do {
             if provider == nil {
-                provider = try await plexService.getLiveTVProvider()
+                provider = try await plexService.discoverLiveTVProvider()
             }
             guard let provider else {
                 isAvailable = false
-                discoveryCompleted = true
                 lineup = nil
                 return
             }
@@ -79,11 +81,10 @@ final class LiveTVViewModel {
 
         do {
             if provider == nil {
-                provider = try await plexService.getLiveTVProvider()
+                provider = try await plexService.discoverLiveTVProvider()
             }
             guard let provider else {
                 isAvailable = false
-                discoveryCompleted = true
                 return
             }
             isAvailable = true
@@ -107,12 +108,10 @@ final class LiveTVViewModel {
 
     func imageURL(for path: String?, width: Int, height: Int) -> URL? {
         // Explicit because `imageURL` falls back to the primary server, while
-        // the endpoints above resolve `liveTVServerID` themselves. Both are the
-        // same server today; routing the art by hand keeps it that way if Live
-        // TV ever stops being pinned to the highest-priority server.
+        // the DVR may live on another one.
         plexService.imageURL(
             for: path,
-            serverID: plexService.liveTVServerID,
+            serverID: provider?.serverID ?? plexService.liveTVServerID,
             width: width,
             height: height
         )

@@ -68,8 +68,8 @@ blocking wall, and Downloads stays reachable throughout.
 `PlayerView` as a full-screen cover when `PlaybackCoordinator.showPlayer` is
 true. App-wide routes are declared in `AppNavigationRoute`; new top-level
 destinations should normally be added there. Content tabs cover library types
-(Movies, TV Shows, Videos) and Live TV when the highest-priority connected
-server exposes it, with visibility and order supplied by `UserPreferences`;
+(Movies, TV Shows, Videos) and Live TV when any connected server exposes
+it, with visibility and order supplied by `UserPreferences`;
 iOS/iPadOS expose Search from Home/library toolbars, while
 tvOS keeps it as a flat destination. iPadOS keeps every remaining destination
 flat. On iPhone, content beyond the first three visible destinations and any

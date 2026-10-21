@@ -6,8 +6,16 @@ struct PlexLiveTVProvider: Sendable, Hashable, Identifiable {
     let title: String
     let dvrID: Int
     let gridKey: String
+    /// The server this DVR lives on; every Live TV call goes back to it.
+    var serverID: String?
 
     var id: String { identifier }
+
+    func on(serverID: String) -> PlexLiveTVProvider {
+        var provider = self
+        provider.serverID = serverID
+        return provider
+    }
 
     var channelsKey: String {
         "\(identifier.hasPrefix("/") ? "" : "/")\(identifier)/lineups/dvr/channels"
@@ -585,7 +593,9 @@ struct PlexMediaProvidersResponse: Decodable {
     }
 
     struct Feature: Decodable {
-        let type: String
+        // Optional so one odd feature can't fail the whole provider list, and
+        // with it Live TV discovery.
+        let type: String?
         let key: String?
     }
 }
