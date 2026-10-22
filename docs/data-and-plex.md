@@ -186,6 +186,12 @@ Discovery behavior to preserve:
   a hung LAN address when away. Do not regress this back to a sequential loop.
   Servers race each other too (`ServerPool.connectAll`, max four at a time), and
   the two levels are independent.
+  Once a probe race chooses a winner, it freezes that decision, cancels the
+  remaining children and explicitly drains their results (including the grace
+  timer) before leaving the group. Keep that drain: it avoids implicit wait-all
+  teardown during cancelled child completions, a suspected source of the iOS 27
+  startup `__cxa_pure_virtual` crash. The crash has no app frame and does not
+  establish a specific call site; this is a defensive runtime workaround.
 - The winning connection URI is remembered per server
   (`PlexLastGoodConnectionURI.<machineID>`) and floated to the front of *its own
   priority tier* on the next connect, never across tiers. Locality is read off

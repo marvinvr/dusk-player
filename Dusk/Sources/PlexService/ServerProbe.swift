@@ -99,6 +99,7 @@ enum ServerProbe {
             var sawUnauthorized = false
             var lastFailure = "Could not connect to \(serverName)"
             var graceStarted = false
+            var selectedResolution: ConnectionResolution?
 
             func winner() -> ConnectionResolution? {
                 guard let bestIndex, let plan = planByIndex[bestIndex] else { return nil }
@@ -113,6 +114,13 @@ enum ServerProbe {
             }
 
             for await event in group {
+                // Freeze the decision, then explicitly consume every cancelled
+                // child's completion before leaving the group. In particular,
+                // the grace timer is still a child even after all probes finish.
+                // This avoids the implicit wait-all teardown path on a winning
+                // probe (the suspected iOS 27 task-group completion crash).
+                guard selectedResolution == nil else { continue }
+
                 switch event {
                 case let .probe(index, result):
                     pending.remove(index)
@@ -121,7 +129,7 @@ enum ServerProbe {
                         if bestIndex == nil || index < bestIndex! {
                             bestIndex = index
                         }
-                        if !graceStarted {
+                        if !graceStarted, !bestIsUnbeatable() {
                             graceStarted = true
                             group.addTask {
                                 try? await Task.sleep(for: grace)
@@ -134,25 +142,27 @@ enum ServerProbe {
                     }
 
                     if bestIsUnbeatable(), let resolution = winner() {
+                        selectedResolution = resolution
                         group.cancelAll()
-                        return resolution
                     }
                 case .graceElapsed:
                     // A better candidate was still pending, but we've waited long
                     // enough — go with the best working connection we have.
                     if let resolution = winner() {
+                        selectedResolution = resolution
                         group.cancelAll()
-                        return resolution
                     }
                 }
 
                 if pending.isEmpty {
-                    break
+                    // There may still be a grace timer. Cancel and drain it,
+                    // rather than breaking out with a child outstanding.
+                    group.cancelAll()
                 }
             }
 
+            if let selectedResolution { return selectedResolution }
             if let resolution = winner() {
-                group.cancelAll()
                 return resolution
             }
             if sawUnauthorized {
