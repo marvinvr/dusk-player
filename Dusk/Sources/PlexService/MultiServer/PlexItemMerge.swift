@@ -25,6 +25,30 @@ struct MergedPlexItems: Sendable {
 /// drop anything — a heuristic content key (title/year, used when a server sends
 /// no guids) can legitimately collide for two different items on one server.
 enum PlexItemMerge {
+    /// Movie additions form one timeline across libraries/servers. Interleaving
+    /// puts an old library's newest movie ahead of another library's newer ones.
+    /// Keep Plex's single-source order and TV's episode/season grouping intact.
+    static func hubItems(_ lists: [[PlexItem]], for hub: PlexHub) -> MergedPlexItems {
+        let isRecentlyAdded = hub.hubIdentifier?.lowercased().contains(".recentlyadded.") == true
+            || hub.title.lowercased().contains("recently added")
+        guard lists.count > 1, hub.type == "movie", isRecentlyAdded else {
+            return interleave(lists)
+        }
+
+        // Explicit offsets preserve source priority and Plex's order for ties
+        // (including missing dates). Never substitute update or release dates.
+        let sorted = lists.flatMap { $0 }.enumerated().sorted { lhs, rhs in
+            let leftDate = lhs.element.addedAt ?? Int.min
+            let rightDate = rhs.element.addedAt ?? Int.min
+            return leftDate == rightDate ? lhs.offset < rhs.offset : leftDate > rightDate
+        }
+        var placed: Set<PlexContentKey> = []
+        let items = sorted.compactMap { entry -> PlexItem? in
+            placed.insert(entry.element.contentKey).inserted ? entry.element : nil
+        }
+        return MergedPlexItems(items: items, alternates: alternates(in: lists))
+    }
+
     /// Deduplicates by content key and visits the servers round-robin, so a row
     /// leads with the highest-priority server's newest item but still shows what
     /// the others have without scrolling to the end.

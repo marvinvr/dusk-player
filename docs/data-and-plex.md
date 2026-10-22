@@ -587,7 +587,12 @@ a heuristic content key can legitimately collide on one server.
   other copies are registered as alternates (in rank order) for playback fallback.
 - Hubs: keyed on `hubIdentifier` with its trailing numeric section suffix
   stripped, plus type (normalized title as fallback). Deduped by content key and
-  round-robin interleaved in priority order. `PlexHub.sources` records each
+  round-robin interleaved in priority order, except merged Recently Added Movies:
+  `PlexItemMerge.hubItems` sorts those by `addedAt` descending before deduplication
+  (newest copy wins; ties keep source priority/order; missing dates come last).
+  This applies to full and promoted hub rows, repeated-title folding before its
+  cap, inline expansion, and Show All. Single-source rows and TV grouping retain
+  Plex's order; update/release dates never replace `addedAt`. `PlexHub.sources` records each
   contributing (serverID, key, size, more) so "Show All" can page each source and
   re-merge. `HubMerge.Mode` decides what "the same row" means, and getting it
   wrong makes whole libraries disappear from Home:
@@ -602,7 +607,7 @@ a heuristic content key can legitimately collide on one server.
     exists to show every library of that type as one screen, so rows of the same
     kind merge across libraries, same server or not.
   - After the `.home` merge, `HubMerge.collapsingRepeatedTitles` folds Home rows
-    that share a normalized title into the first copy (items interleaved, capped
+    that share a normalized title into the first copy (items merged as above, capped
     at the longest copy, every copy kept as a source for "Show All"). Some Plex
     rows are generated per library under a title that does not name the library
     — the seasonal "Oh, the Horror!" row exists once per movie library — so an

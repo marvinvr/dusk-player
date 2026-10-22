@@ -70,7 +70,7 @@ enum HubMerge {
 
         for (index, group) in groups.enumerated() {
             guard let representative = group.first else { continue }
-            let mergedItems = PlexItemMerge.interleave(group.map(\.items))
+            let mergedItems = PlexItemMerge.hubItems(group.map(\.items), for: representative)
             alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
             merged.append(
                 representative.merged(
@@ -94,10 +94,11 @@ enum HubMerge {
     /// user, whichever library or server they came from.
     ///
     /// The folded row stays where its first copy was (its representative
-    /// library decides its block in `HomeHubArrangement`), interleaves the
+    /// library decides its block in `HomeHubArrangement`), merges the
     /// copies' items and keeps every copy as a source, so "Show All" still
     /// pages all of them. It holds no more items than its longest copy: one
-    /// row, not eleven rows end to end.
+    /// row, not eleven rows end to end. Recently Added Movies is sorted by
+    /// addition date before this limit; other rows are interleaved.
     static func collapsingRepeatedTitles(_ hubs: [PlexHub]) -> MergedPlexHubs {
         var groups: [[PlexHub]] = []
         var groupIndexByTitle: [String: Int] = [:]
@@ -128,7 +129,7 @@ enum HubMerge {
                 continue
             }
 
-            let mergedItems = PlexItemMerge.interleave(group.map(\.items))
+            let mergedItems = PlexItemMerge.hubItems(group.map(\.items), for: representative)
             alternates = PlexItemMerge.combine(alternates, mergedItems.alternates)
             let limit = group.map(\.items.count).max() ?? 0
             collapsed.append(

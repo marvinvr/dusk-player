@@ -145,7 +145,7 @@ extension PlexService {
             return results.sorted { $0.0 < $1.0 }.map(\.1)
         }
 
-        return PlexItemMerge.interleave(lists)
+        return PlexItemMerge.hubItems(lists, for: hub)
     }
 
     /// Records a merge's findings so playback can fall back to another server.
