@@ -131,16 +131,21 @@ final class PlexService {
     /// The shared session's whole-request budget.
     static let requestResourceTimeout: TimeInterval = 30
 
-    init() {
+    /// - Parameter urlProtocolClasses: Tests only: serves both sessions' requests.
+    init(urlProtocolClasses: [AnyClass]? = nil) {
         let config = URLSessionConfiguration.default
         config.urlCache = AppImageCache.shared
         config.waitsForConnectivity = true
         config.timeoutIntervalForRequest = 15
         config.timeoutIntervalForResource = Self.requestResourceTimeout
-        self.session = URLSession(configuration: config)
         let slowQueryConfig = URLSessionConfiguration.default
         slowQueryConfig.waitsForConnectivity = true
         slowQueryConfig.timeoutIntervalForResource = 120
+        if let urlProtocolClasses {
+            config.protocolClasses = urlProtocolClasses
+            slowQueryConfig.protocolClasses = urlProtocolClasses
+        }
+        self.session = URLSession(configuration: config)
         self.slowQuerySession = URLSession(configuration: slowQueryConfig)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()

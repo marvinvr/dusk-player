@@ -394,7 +394,9 @@ struct HomeTVView: View {
                 cancelHeroExit()
                 Task { await requestHeroPrimaryFocusIfNeeded(hasHeroItems: !heroItems.isEmpty) }
             }
-            .task(id: showsLiveTV) {
+            // Also keyed on the DVR: the first call often runs before any server
+            // has connected, and the shelf has to load once discovery finds it.
+            .task(id: LiveTVShelfLoadKey(isShown: showsLiveTV, providerID: liveTVViewModel.provider?.id)) {
                 guard showsLiveTV else { return }
                 await liveTVViewModel.loadNowPlaying(force: true)
             }

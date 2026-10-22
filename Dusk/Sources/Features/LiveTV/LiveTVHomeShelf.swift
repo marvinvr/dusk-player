@@ -55,3 +55,9 @@ struct LiveTVHomeShelf: View {
         }
     }
 }
+
+/// The `.task(id:)` key that (re)loads the Home Live TV shelf.
+struct LiveTVShelfLoadKey: Hashable {
+    let isShown: Bool
+    let providerID: String?
+}

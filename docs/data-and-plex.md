@@ -443,6 +443,18 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   asked, the provider carries that `serverID`, and all channel/grid/tune calls
   go back to it. Discovery only latches once a DVR is found; "none" is
   re-checked whenever the connected servers change.
+- Discovery (`discoverLiveTVProvider` → `LiveTVDiscovery`) is `.found`,
+  `.none` (every server answered without a DVR; 401/403/404 and an unreadable
+  list count as answers) or `.inconclusive` (a server timed out, 5xx'd or
+  dropped and no other has a DVR). `LiveTVViewModel.discover()` retries an
+  inconclusive pass with backoff (2s doubling to 60s) on its own shell task,
+  never behind the library load. 1.7.2 (4) hid Live TV for the session after
+  one slow or failed `/media/providers`, because a4ef6ea stopped re-sending
+  timed-out requests and nothing else asked again.
+- A pass decides once a DVR is found and every higher-priority server has
+  answered, or after a 2s grace, so an unreachable server can't hold the tab
+  back. `/media/providers` runs on `slowQuerySession` (its own connections,
+  120s budget) so it never queues behind Home's slow reads.
   The provider advertises its grid path and DVR identifier; do not hard-code
   `tv.plex.providers.epg.*` identifiers.
 - Load stations from the provider's `/lineups/dvr/channels` path and currently

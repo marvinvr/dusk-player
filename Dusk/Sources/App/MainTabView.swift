@@ -36,10 +36,15 @@ struct MainTabView: View {
                 if librariesViewModel == nil {
                     librariesViewModel = LibrariesViewModel(plexService: plexService)
                 }
+                await librariesViewModel?.loadLibraries()
+            }
+            // Live TV discovery on its own task: behind the library load, a
+            // slow section count or library order held the tab back, and a
+            // server connecting mid-load cancelled it before it ever ran.
+            .task(id: plexService.serverContentRevision) {
                 if liveTVViewModel == nil {
                     liveTVViewModel = LiveTVViewModel(plexService: plexService)
                 }
-                await librariesViewModel?.loadLibraries()
                 await liveTVViewModel?.discover()
             }
             // Teaches Siri the recently watched and added titles, again on

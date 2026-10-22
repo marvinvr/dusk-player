@@ -122,8 +122,9 @@ Home:
 
 Live TV:
 
-- `LiveTVViewModel` discovers the EPG provider, loads channels, and owns the
-  selected date's guide.
+- `LiveTVViewModel` discovers the EPG provider (retrying until a server has a
+  DVR or all have said no; `isAvailable` is `provider != nil`), loads
+  channels, and owns the selected date's guide.
 - `LiveTVView` renders current, past, and future schedule metadata. Only an
   airing program starts playback; arbitrary past guide entries are not recordings.
 - `PlexService+LiveTV` owns provider/channel/grid/tune endpoints and

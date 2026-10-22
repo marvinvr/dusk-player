@@ -12,52 +12,86 @@ extension PlexService {
 
     /// The Live TV provider of the highest-priority connected server that has
     /// one. The DVR is often not on the primary server (or the primary is not
-    /// the first to connect), so every connected server is asked. Throws only
-    /// when no server answered at all, so the caller retries later.
-    func discoverLiveTVProvider() async throws -> PlexLiveTVProvider? {
+    /// the first to connect), so every connected server is asked.
+    ///
+    /// A server that could not answer is not a server without a DVR: unless
+    /// another server has one, the pass is `.inconclusive` and the caller has
+    /// to ask again. Treating a single slow or failed `/media/providers` as
+    /// "no Live TV" hid the tab for the whole session (1.7.2).
+    func discoverLiveTVProvider() async -> LiveTVDiscovery {
         let serverIDs = pool.connections.map(\.serverID)
-        guard !serverIDs.isEmpty else { throw PlexServiceError.noServerConnected }
+        guard !serverIDs.isEmpty else { return .inconclusive(PlexServiceError.noServerConnected) }
 
-        let results = await withTaskGroup(of: (String, Result<PlexLiveTVProvider?, Error>).self) { group in
+        return await withTaskGroup(of: LiveTVDiscoveryEvent.self) { group in
             for serverID in serverIDs {
                 group.addTask {
                     do {
-                        return (serverID, .success(try await self.getLiveTVProvider(serverID: serverID)))
+                        return .answer(serverID, .success(try await self.getLiveTVProvider(serverID: serverID)))
                     } catch {
-                        return (serverID, .failure(error))
+                        return .answer(serverID, .failure(error))
                     }
                 }
             }
-            var results: [String: Result<PlexLiveTVProvider?, Error>] = [:]
-            for await (serverID, result) in group {
-                results[serverID] = result
-            }
-            return results
-        }
 
-        var firstError: Error?
-        var anyServerAnswered = false
-        for serverID in serverIDs {
-            switch results[serverID] {
-            case .success(let provider?):
-                return provider
-            case .success(nil):
-                anyServerAnswered = true
-            case .failure(let error):
-                firstError = firstError ?? error
-            case nil:
-                break
+            // Decide as soon as the answer can't change: every server answered,
+            // or a DVR turned up and every higher-priority server has answered
+            // (or had a short grace to). An unreachable server would otherwise
+            // hold the tab back for its whole timeout.
+            var results: [String: Result<PlexLiveTVProvider?, Error>] = [:]
+            var decision: LiveTVDiscovery?
+            var graceStarted = false
+            for await event in group {
+                // Like `ServerProbe`: freeze the decision, then drain every
+                // cancelled child instead of leaving the group early.
+                guard decision == nil else { continue }
+
+                switch event {
+                case let .answer(serverID, result):
+                    results[serverID] = result
+                case .graceElapsed:
+                    decision = LiveTVDiscovery(serverIDs: serverIDs, results: results)
+                }
+
+                if decision == nil {
+                    let partial = LiveTVDiscovery(serverIDs: serverIDs, results: results)
+                    if results.count == serverIDs.count {
+                        decision = partial
+                    } else if case .found(let provider) = partial {
+                        let higherPriority = serverIDs.prefix { $0 != provider.serverID }
+                        if higherPriority.allSatisfy({ results[$0] != nil }) {
+                            decision = partial
+                        } else if !graceStarted {
+                            graceStarted = true
+                            group.addTask {
+                                try? await Task.sleep(for: Self.liveTVDiscoveryGrace)
+                                return .graceElapsed
+                            }
+                        }
+                    }
+                }
+
+                if decision != nil {
+                    group.cancelAll()
+                }
             }
+            return decision ?? LiveTVDiscovery(serverIDs: serverIDs, results: results)
         }
-        if let firstError, !anyServerAnswered {
-            throw firstError
-        }
-        return nil
     }
 
     func getLiveTVProvider(serverID: String? = nil) async throws -> PlexLiveTVProvider? {
         let targetID = try resolveServerID(serverID ?? liveTVServerID)
-        let data = try await rawServerRequest(path: "/media/providers", serverID: targetID)
+        // A timeout above `requestResourceTimeout` sends this through
+        // `slowQuerySession`, i.e. its own connections to the server: on a big
+        // library Home's slow reads can fill the shared session's, and a cheap
+        // `/media/providers` queued behind them used up its 30s (1.7.2). That
+        // session's 120s budget is what ends a hung answer (measured; the 45s
+        // itself does not cut it off); `LiveTVViewModel.discover()` then asks
+        // again.
+        let data = try await rawServerRequest(
+            path: "/media/providers",
+            timeoutInterval: Self.liveTVDiscoveryTimeout,
+            serverID: targetID
+        )
         let response = try decodeJSON(PlexMediaProvidersResponse.self, from: data, serverID: targetID)
         return response.MediaContainer.MediaProvider?
             .compactMap(\.liveTVProvider)
@@ -280,6 +314,8 @@ extension PlexService {
     }
 
     private static let liveTVGuideConcurrency = 6
+    static let liveTVDiscoveryTimeout: TimeInterval = 45
+    private static let liveTVDiscoveryGrace: Duration = .seconds(2)
 
     private static let liveTVDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -289,4 +325,56 @@ extension PlexService {
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter
     }()
+}
+
+private enum LiveTVDiscoveryEvent: Sendable {
+    case answer(String, Result<PlexLiveTVProvider?, Error>)
+    case graceElapsed
+}
+
+/// The outcome of one Live TV discovery pass over the connected servers.
+enum LiveTVDiscovery {
+    /// The highest-priority server with a DVR answered.
+    case found(PlexLiveTVProvider)
+    /// Every connected server answered, and none has a DVR.
+    case none
+    /// No DVR found, but at least one server could not answer. Ask again.
+    case inconclusive(Error)
+
+    /// `serverIDs` in priority order. A found DVR wins over servers that failed,
+    /// even higher-priority ones: a DVR in hand is better than a guess.
+    init(serverIDs: [String], results: [String: Result<PlexLiveTVProvider?, Error>]) {
+        var failure: Error?
+        for serverID in serverIDs {
+            switch results[serverID] {
+            case .success(let provider?):
+                self = .found(provider)
+                return
+            case .success(nil):
+                break
+            case .failure(let error) where !Self.meansNoLiveTV(error):
+                failure = failure ?? error
+            case .failure:
+                break
+            case nil:
+                failure = failure ?? PlexServiceError.noServerConnected
+            }
+        }
+        self = failure.map { .inconclusive($0) } ?? .none
+    }
+
+    /// Answers that will not change by asking again: the server refuses this
+    /// user its providers (a managed or shared user), or sends a list Dusk
+    /// cannot read. Everything else (timeouts, 5xx, a dropped connection,
+    /// cancellation) says nothing about the DVR.
+    private static func meansNoLiveTV(_ error: Error) -> Bool {
+        switch error as? PlexServiceError {
+        case .unauthorized, .decodingError:
+            true
+        case .httpError(let statusCode):
+            [401, 403, 404].contains(statusCode)
+        default:
+            false
+        }
+    }
 }
