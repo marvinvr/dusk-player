@@ -45,7 +45,7 @@
 		<string>_plexmediasvr._tcp</string>
 	</array>
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>Dusk uses your local network to connect to Plex servers on your Wi-Fi.</string>
+	<string>Dusk uses your local network to connect to Plex and Seerr servers on your Wi-Fi.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

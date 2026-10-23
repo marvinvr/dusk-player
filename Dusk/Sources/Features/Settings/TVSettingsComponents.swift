@@ -375,6 +375,7 @@ struct TVSettingsExternalLinkRow: View {
 
 struct TVSettingsURLFieldRow: View {
     let prompt: String
+    var placeholder: String?
     @Binding var text: String
     let isDisabled: Bool
     @FocusState private var isFocused: Bool
@@ -407,7 +408,7 @@ struct TVSettingsURLFieldRow: View {
         .tvSettingsRowFocusHighlight(isFocused)
         .disabled(isDisabled)
         .alert("Seerr Server URL", isPresented: $showsEditor) {
-            TextField(prompt, text: $draft)
+            TextField(placeholder ?? prompt, text: $draft)
                 .textContentType(.URL)
                 .autocorrectionDisabled()
             Button("Save") {

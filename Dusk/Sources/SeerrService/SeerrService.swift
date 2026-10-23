@@ -5,6 +5,7 @@ import Foundation
 final class SeerrService {
     private static let defaultsBaseURLKey = "SeerrBaseURL"
     private static let defaultsServerIDKey = "SeerrPlexServerID"
+    private static let trustDefaultsKey = "SeerrTrustedCertificates"
 
     private let plexService: PlexService
     private let sessionDelegate: SeerrURLSessionDelegate
@@ -25,11 +26,14 @@ final class SeerrService {
         self.sessionDelegate = SeerrURLSessionDelegate()
 
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.waitsForConnectivity = true
-        configuration.timeoutIntervalForRequest = 15
-        configuration.timeoutIntervalForResource = 30
+        configuration.waitsForConnectivity = false
+        configuration.timeoutIntervalForRequest = 10
+        configuration.timeoutIntervalForResource = 20
         configuration.httpShouldSetCookies = false
         configuration.httpCookieStorage = nil
+        if let stored = UserDefaults.standard.dictionary(forKey: Self.trustDefaultsKey) as? [String: String] {
+            sessionDelegate.replacePins(stored)
+        }
         self.session = URLSession(
             configuration: configuration,
             delegate: sessionDelegate,
@@ -135,17 +139,11 @@ final class SeerrService {
                 cookies: &cookies
             )
         } catch let error as SeerrServiceError {
-            if case .permissionDenied = error {
-                throw SeerrServiceError.plexUserNotAllowed
-            }
-            if case .authenticationRequired = error {
-                throw SeerrServiceError.plexUserNotAllowed
-            }
-            throw error
+            throw SeerrServiceError.mapLogin(error)
         }
 
         guard cookies["connect.sid"] != nil else {
-            throw SeerrServiceError.invalidResponse
+            throw SeerrServiceError.missingSession
         }
 
         configuredBaseURL = baseURL
@@ -167,34 +165,46 @@ final class SeerrService {
     }
 
     func resolveServerURL(serverURLString: String) async throws -> URL {
-        let candidates = try Self.connectionCandidates(from: serverURLString)
-        var lastError: (any Error)?
-
-        for baseURL in candidates {
-            var cookies: [String: String] = [:]
-            do {
-                let settings: SeerrPublicSettings = try await send(
-                    baseURL: baseURL,
-                    path: "api/v1/settings/public",
-                    cookies: &cookies
-                )
-                guard settings.initialized,
-                      settings.isPlexServer,
-                      settings.mediaServerLogin else {
-                    throw SeerrServiceError.plexLoginUnavailable
-                }
-                return baseURL
-            } catch let error as SeerrServiceError {
-                if case .plexLoginUnavailable = error {
-                    throw error
-                }
-                lastError = error
-            } catch {
-                lastError = error
-            }
+        let candidates = try SeerrServerURL.candidates(from: serverURLString)
+        let permission: SeerrLocalNetworkGate.Status
+        if let host = candidates.first?.host {
+            permission = await SeerrLocalNetworkGate.status(for: host)
+        } else {
+            permission = .notRequired
         }
 
-        throw lastError ?? SeerrServiceError.invalidServerURL
+        do {
+            let resolved = try await SeerrProbe.resolve(
+                rawURL: serverURLString,
+                session: session,
+                delegate: sessionDelegate
+            )
+            // A fresh Seerr has no media server yet. Its first Plex sign-in
+            // creates the admin, so `initialized` is not required here.
+            guard resolved.settings.acceptsPlexLogin else {
+                throw SeerrServiceError.plexLoginUnavailable
+            }
+            return resolved.baseURL
+        } catch let error as SeerrServiceError {
+            if permission == .denied, error.isReachabilityFailure {
+                throw SeerrServiceError.localNetworkDenied
+            }
+            throw error
+        } catch {
+            let mapped = mapTransport(error)
+            if permission == .denied, mapped.isReachabilityFailure {
+                throw SeerrServiceError.localNetworkDenied
+            }
+            throw mapped
+        }
+    }
+
+    func trustCertificate(host: String, port: Int, fingerprint: String) {
+        let key = SeerrServerURL.trustKey(host: host, port: port)
+        sessionDelegate.allow(key: key, fingerprint: fingerprint)
+        var stored = UserDefaults.standard.dictionary(forKey: Self.trustDefaultsKey) as? [String: String] ?? [:]
+        stored[key] = fingerprint
+        UserDefaults.standard.set(stored, forKey: Self.trustDefaultsKey)
     }
 
     func disconnect() async {
@@ -346,56 +356,7 @@ final class SeerrService {
     }
 
     static func normalizedBaseURL(from value: String) throws -> URL {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw SeerrServiceError.invalidServerURL
-        }
-
-        let candidate = trimmed.contains("://") ? trimmed : "https://\(trimmed)"
-        return try normalizedExplicitBaseURL(from: candidate)
-    }
-
-    private static func connectionCandidates(from value: String) throws -> [URL] {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            throw SeerrServiceError.invalidServerURL
-        }
-
-        if trimmed.contains("://") {
-            return [try normalizedExplicitBaseURL(from: trimmed)]
-        }
-
-        return [
-            try normalizedExplicitBaseURL(from: "https://\(trimmed)"),
-            try normalizedExplicitBaseURL(from: "http://\(trimmed)"),
-        ]
-    }
-
-    private static func normalizedExplicitBaseURL(from value: String) throws -> URL {
-        guard var components = URLComponents(string: value),
-              let scheme = components.scheme?.lowercased(),
-              ["http", "https"].contains(scheme),
-              components.host?.nilIfEmpty != nil,
-              components.user == nil,
-              components.password == nil else {
-            throw SeerrServiceError.invalidServerURL
-        }
-
-        components.query = nil
-        components.fragment = nil
-        while components.path.count > 1, components.path.hasSuffix("/") {
-            components.path.removeLast()
-        }
-        if components.path == "/" {
-            components.path = ""
-        }
-        components.scheme = scheme
-        components.host = components.host?.lowercased()
-
-        guard let url = components.url else {
-            throw SeerrServiceError.invalidServerURL
-        }
-        return url
+        try SeerrServerURL.normalizedBaseURL(from: value)
     }
 
     private func ensureConnected() async throws {
@@ -478,7 +439,7 @@ final class SeerrService {
             cookies: &stored.cookies
         )
         guard stored.cookies["connect.sid"] != nil else {
-            throw SeerrServiceError.invalidResponse
+            throw SeerrServiceError.missingSession
         }
         currentUser = user
     }
@@ -656,7 +617,7 @@ final class SeerrService {
 
         var request = URLRequest(url: url)
         request.httpMethod = method
-        request.timeoutInterval = 30
+        request.timeoutInterval = 10
         request.setValue("application/json", forHTTPHeaderField: "Accept")
 
         if let body {
@@ -675,28 +636,31 @@ final class SeerrService {
             request.setValue(xsrfToken, forHTTPHeaderField: "X-XSRF-TOKEN")
         }
 
-        let (data, response) = try await session.data(for: request)
+        sessionDelegate.prepareForRequest()
+        let data: Data
+        let response: URLResponse
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch {
+            throw mapTransport(error)
+        }
         guard let httpResponse = response as? HTTPURLResponse else {
             throw SeerrServiceError.invalidResponse
         }
 
-        var updatedCookies = cookies
-        let headerFields = httpResponse.allHeaderFields.reduce(into: [String: String]()) { result, element in
-            guard let key = element.key as? String,
-                  let value = element.value as? String else {
-                return
-            }
-            result[key] = value
-        }
-        for cookie in HTTPCookie.cookies(withResponseHeaderFields: headerFields, for: url) {
-            if cookie.value.isEmpty || cookie.expiresDate.map({ $0 <= .now }) == true {
-                updatedCookies.removeValue(forKey: cookie.name)
-            } else {
-                updatedCookies[cookie.name] = cookie.value
-            }
-        }
-
+        let updatedCookies = SeerrServerURL.mergingCookies(cookies, response: httpResponse, url: url)
         return (data, httpResponse, updatedCookies)
+    }
+
+    private func mapTransport(_ error: Error) -> SeerrServiceError {
+        if let failure = sessionDelegate.takeTrustFailure() {
+            return .tlsUntrusted(
+                host: failure.host,
+                port: failure.port,
+                fingerprint: failure.fingerprint
+            )
+        }
+        return .classifyTransport(error)
     }
 
     private func endpointURL(
@@ -704,14 +668,7 @@ final class SeerrService {
         path: String,
         queryItems: [URLQueryItem] = []
     ) -> URL? {
-        var url = baseURL
-        for component in path.split(separator: "/", omittingEmptySubsequences: true) {
-            url.appendPathComponent(String(component))
-        }
-        guard !queryItems.isEmpty else { return url }
-        var components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        components?.queryItems = queryItems
-        return components?.url
+        SeerrServerURL.endpointURL(base: baseURL, path: path, queryItems: queryItems)
     }
 
     private func validate(response: HTTPURLResponse, data: Data) throws {
@@ -720,6 +677,14 @@ final class SeerrService {
                 .flatMap { $0.message?.nilIfEmpty ?? $0.error?.nilIfEmpty }
                 ?? "There are no new seasons available to request."
             throw SeerrServiceError.noSeasonsAvailable(message)
+        }
+
+        if (300..<400).contains(response.statusCode) {
+            let location = response.value(forHTTPHeaderField: "Location") ?? ""
+            if SeerrServerURL.isLoginLocation(location) {
+                throw SeerrServiceError.authenticationRequired("Seerr redirected to its login page.")
+            }
+            throw SeerrServiceError.serverError("Seerr redirected the request.")
         }
 
         guard !(200...299).contains(response.statusCode) else { return }
@@ -758,35 +723,4 @@ private extension SeerrStoredSession {
     }
 }
 
-private final class SeerrURLSessionDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest,
-        completionHandler: @escaping (URLRequest?) -> Void
-    ) {
-        guard let originalURL = task.currentRequest?.url,
-              let redirectedURL = request.url,
-              Self.sameOrigin(originalURL, redirectedURL) else {
-            completionHandler(nil)
-            return
-        }
-        completionHandler(request)
-    }
 
-    private static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
-        lhs.scheme?.lowercased() == rhs.scheme?.lowercased() &&
-            lhs.host?.lowercased() == rhs.host?.lowercased() &&
-            effectivePort(lhs) == effectivePort(rhs)
-    }
-
-    private static func effectivePort(_ url: URL) -> Int? {
-        if let port = url.port { return port }
-        switch url.scheme?.lowercased() {
-        case "https": return 443
-        case "http": return 80
-        default: return nil
-        }
-    }
-}

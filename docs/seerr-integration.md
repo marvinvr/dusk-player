@@ -20,23 +20,46 @@ backend and must stay a focused optional integration.
 
 ## Connection Flow
 
-The user enters one Seerr base URL in Settings. An address without a scheme is
-probed over HTTPS first and HTTP second; an explicit `https://` or `http://`
-address is used exactly as entered. Dusk resolves the public endpoint before
-asking the user to confirm that it may send the active Plex credential to the
-resolved host. Dusk then:
+The user enters one Seerr base URL in Settings. The field placeholder is
+`http://192.168.1.10:5055`. Dusk normalizes the text before opening a connection:
+
+- `192.168.1.10:5055`, `http://192.168.1.10:5055/`, and `http://host/seerr/api/v1`
+  become one base URL. A trailing slash and a trailing `/api/v1` are removed.
+  A reverse-proxy base path such as `/seerr` is kept. Requests are appended to
+  that path, so the URL does not gain a double slash.
+- An address with `http://` or `https://` is used as entered, including its port.
+  IPv6 is accepted as `[address]:port` or a bare address without a port.
+- An IP address, `localhost`, a single-label name, or a local suffix
+  (`.local`, `.lan`, `.home`, `.internal`) without a scheme uses HTTP only.
+- Any other hostname without a scheme is tried as HTTPS, then HTTP.
+
+Dusk resolves `/api/v1/settings/public` before asking the user to confirm that
+it may send the active Plex credential to the resolved host. An HTTP response
+that redirects to HTTPS on the same host is followed, and that HTTPS URL is
+what gets stored. A redirect to another host, an HTTPS-to-HTTP downgrade, or a
+redirect to `/login` is rejected. Connect requests time out after about 10
+seconds and do not wait for general network connectivity. Dusk then:
 
 1. fetches `/api/v1/settings/public`;
-2. requires an initialized Plex-backed Seerr with media-server login enabled;
-3. posts the active Plex Home account token to `/api/v1/auth/plex`;
+2. accepts Plex sign-in when the server is a Plex Seerr with media-server login
+   enabled, or a fresh Seerr that has not chosen a media server yet (the first
+   `POST /api/v1/auth/plex` creates the admin; `initialized` is not required);
+3. posts the active Plex Home account token to `/api/v1/auth/plex` and reads
+   `connect.sid` from the response (including when the host is an IP address);
 4. stores the returned session cookies in Keychain;
 5. verifies/restores sessions through `/api/v1/auth/me`.
 
 There is no browser, local Seerr password, or API-key mode. This keeps tvOS setup
 to URL entry using the system keyboard (including iPhone Remote keyboard input).
-HTTP URLs are allowed for local deployments, but probing never sends a Plex
-credential and the confirmation explicitly warns when the resolved credential
-transport is unencrypted. On tvOS the URL editor is a flat settings row with
+Plex-token login is the only sign-in. It has to work against a fresh Seerr, not
+only one that has already finished the setup wizard. HTTP URLs are allowed for
+local deployments, but probing never sends a Plex credential and the confirmation
+explicitly warns when the resolved credential transport is unencrypted. A
+self-signed HTTPS certificate on a LAN host fails with a TLS error and a
+"Trust this certificate" action that pins that leaf certificate for the host
+and port. The connect screen reports a specific failure: unreachable, nothing
+listening on that port, not a Seerr server, login redirect, unauthorized,
+local network permission denied, or TLS. On tvOS the URL editor is a flat settings row with
 appearance-aware text and the shared row focus treatment. Selecting it opens a
 system text-entry alert and keyboard. Do not put a live `TextField` back inside
 the section card: tvOS forces focused inline text fields into a white editing
@@ -101,8 +124,9 @@ wrong series. Seerr failures are ignored so Plex detail loading remains intact.
 ## Invariants And Traps
 
 - Never send the Plex token before the user confirms the exact normalized host.
-- Redirects are accepted only within the same origin to prevent credential or
-  session-cookie leakage.
+- Redirects stay on the same host. HTTP may upgrade to HTTPS. HTTPS must not
+  downgrade, and a different host is refused, so a credential or session cookie
+  cannot leak. A redirect to `/login` is not followed.
 - Keep session cookies in Keychain and the non-secret base URL/server binding in
   UserDefaults.
 - A 401 refreshes the session once through Plex sign-in; a real 403 remains a

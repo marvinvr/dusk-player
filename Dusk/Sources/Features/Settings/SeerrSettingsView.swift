@@ -35,7 +35,11 @@ struct SeerrSettingsView: View {
     private var iosContent: some View {
         List {
             Section {
-                TextField("Server URL", text: $viewModel.serverURL)
+                TextField(
+                    "Server URL",
+                    text: $viewModel.serverURL,
+                    prompt: Text(SeerrServerURL.placeholder)
+                )
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .keyboardType(.URL)
@@ -45,7 +49,7 @@ struct SeerrSettingsView: View {
             } header: {
                 Text("Server")
             } footer: {
-                Text("Enter the address you use for Seerr.")
+                Text("Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder).")
             }
             .listRowBackground(Color.duskSurface)
 
@@ -54,6 +58,12 @@ struct SeerrSettingsView: View {
                     Text(errorMessage)
                         .font(.footnote)
                         .foregroundStyle(Color.duskTextSecondary)
+                    if viewModel.showsTrustCertificate {
+                        Button("Trust this certificate") {
+                            Task { await viewModel.trustPendingCertificate(using: seerrService) }
+                        }
+                        .disabled(viewModel.isWorking)
+                    }
                 }
                 .listRowBackground(Color.duskSurface)
             }
@@ -91,10 +101,11 @@ struct SeerrSettingsView: View {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 TVSettingsSection(
                     title: "Server",
-                    footer: "Enter the address you use for Seerr."
+                    footer: "Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder)."
                 ) {
                     TVSettingsURLFieldRow(
                         prompt: "Server URL",
+                        placeholder: SeerrServerURL.placeholder,
                         text: $viewModel.serverURL,
                         isDisabled: seerrService.isConnected || viewModel.isWorking
                     )
@@ -114,6 +125,15 @@ struct SeerrSettingsView: View {
                                 minHeight: TVSettingsMetrics.rowMinHeight,
                                 alignment: .leading
                             )
+                        if viewModel.showsTrustCertificate {
+                            tvRowDivider
+                            TVSettingsActionRow(
+                                title: "Trust this certificate",
+                                isLoading: viewModel.isWorking
+                            ) {
+                                Task { await viewModel.trustPendingCertificate(using: seerrService) }
+                            }
+                        }
                     }
                 }
 

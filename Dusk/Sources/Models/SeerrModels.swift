@@ -24,6 +24,10 @@ enum SeerrMediaRequestStatus: Int, Codable, Sendable, Hashable {
 }
 
 struct SeerrPublicSettings: Decodable, Sendable {
+    /// Seerr's `MediaServerType.NOT_CONFIGURED`. A fresh install stays here
+    /// until the first Plex sign-in creates the admin account.
+    static let mediaServerNotConfigured = 4
+
     let initialized: Bool
     let applicationTitle: String?
     let mediaServerLogin: Bool
@@ -33,6 +37,33 @@ struct SeerrPublicSettings: Decodable, Sendable {
 
     var isPlexServer: Bool {
         mediaServerType == 1
+    }
+
+    /// Plex-token login is the only sign-in Dusk uses. A fresh server accepts
+    /// it before setup finishes. A Jellyfin or Emby server does not.
+    var acceptsPlexLogin: Bool {
+        if mediaServerType == Self.mediaServerNotConfigured { return true }
+        return isPlexServer && mediaServerLogin
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case initialized
+        case applicationTitle
+        case mediaServerLogin
+        case mediaServerType
+        case partialRequestsEnabled
+        case enableSpecialEpisodes
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        // `initialized` is the marker that this JSON is Seerr's public settings.
+        initialized = try container.decode(Bool.self, forKey: .initialized)
+        applicationTitle = try container.decodeIfPresent(String.self, forKey: .applicationTitle)
+        mediaServerLogin = try container.decodeIfPresent(Bool.self, forKey: .mediaServerLogin) ?? true
+        mediaServerType = try container.decodeIfPresent(Int.self, forKey: .mediaServerType) ?? 1
+        partialRequestsEnabled = try container.decodeIfPresent(Bool.self, forKey: .partialRequestsEnabled) ?? false
+        enableSpecialEpisodes = try container.decodeIfPresent(Bool.self, forKey: .enableSpecialEpisodes) ?? false
     }
 }
 
