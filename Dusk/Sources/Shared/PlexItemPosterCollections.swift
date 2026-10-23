@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(tvOS)
+import UIKit
+#endif
 
 /// Trailing shelf affordance that opens the carousel's full list.
 ///
@@ -256,31 +259,200 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
         let imageWidth = Int(layout.posterWidth.rounded(.up))
         let imageHeight = Int((layout.posterWidth / imageAspectRatio).rounded(.up))
 
+        #if os(tvOS)
+        // One focus section per row, matching a native tvOS grid. Down from a
+        // column the next row does not fill enters that section and lands on
+        // its nearest poster. The empty columns are a focus guide so the
+        // section actually extends under them (issue #24).
+        LazyVStack(alignment: .leading, spacing: rowSpacing) {
+            ForEach(tvRows) { row in
+                tvRow(row, imageWidth: imageWidth, imageHeight: imageHeight)
+            }
+        }
+        #else
         LazyVGrid(columns: layout.columns, alignment: .leading, spacing: rowSpacing) {
             ForEach(items) { item in
-                PosterNavigationCard(
-                    route: AppNavigationRoute.destination(for: item),
-                    imageURL: posterURL(item, imageWidth, imageHeight),
-                    fallbackImageURL: item.fallbackPosterImageURL(
-                        plexService: plexService,
-                        width: imageWidth,
-                        height: imageHeight
-                    ),
-                    title: item.posterCardTitle,
-                    subtitle: subtitle(item),
-                    progress: progress(item),
-                    width: layout.posterWidth,
-                    imageAspectRatio: imageAspectRatio
-                ) {
-                    contextMenuContent(item)
-                }
-                .onAppear {
-                    onItemAppear(item)
-                }
+                card(for: item, imageWidth: imageWidth, imageHeight: imageHeight)
             }
+        }
+        #endif
+    }
+
+    #if os(tvOS)
+    private var columnCount: Int {
+        max(layout.columns.count, 1)
+    }
+
+    private var columnSpacing: CGFloat {
+        layout.columns.first?.spacing ?? DuskPosterMetrics.gridSpacing
+    }
+
+    private var tvRows: [TVPosterRow] {
+        let count = columnCount
+        var rows: [TVPosterRow] = []
+        var index = items.startIndex
+        while index < items.endIndex {
+            let end = items.index(index, offsetBy: count, limitedBy: items.endIndex) ?? items.endIndex
+            let slice = Array(items[index..<end])
+            if let first = slice.first {
+                rows.append(TVPosterRow(id: first.id, items: slice))
+            }
+            index = end
+        }
+        return rows
+    }
+
+    private func tvRow(_ row: TVPosterRow, imageWidth: Int, imageHeight: Int) -> some View {
+        let missing = columnCount - row.items.count
+        let artworkHeight = layout.posterWidth / max(imageAspectRatio, 0.01)
+        let guideWidth = CGFloat(missing) * layout.posterWidth
+            + CGFloat(max(missing - 1, 0)) * columnSpacing
+
+        return HStack(alignment: .top, spacing: columnSpacing) {
+            ForEach(row.items) { item in
+                card(for: item, imageWidth: imageWidth, imageHeight: imageHeight)
+            }
+
+            if missing > 0 {
+                TVGridRowFocusGuide()
+                    .frame(width: guideWidth, height: artworkHeight)
+                    .accessibilityHidden(true)
+            }
+        }
+        .focusSection()
+    }
+    #endif
+
+    private func card(for item: PlexItem, imageWidth: Int, imageHeight: Int) -> some View {
+        PosterNavigationCard(
+            route: AppNavigationRoute.destination(for: item),
+            imageURL: posterURL(item, imageWidth, imageHeight),
+            fallbackImageURL: item.fallbackPosterImageURL(
+                plexService: plexService,
+                width: imageWidth,
+                height: imageHeight
+            ),
+            title: item.posterCardTitle,
+            subtitle: subtitle(item),
+            progress: progress(item),
+            width: layout.posterWidth,
+            imageAspectRatio: imageAspectRatio
+        ) {
+            contextMenuContent(item)
+        }
+        .onAppear {
+            onItemAppear(item)
         }
     }
 }
+
+#if os(tvOS)
+/// One row of a poster grid. Identified by its first item so paging does not
+/// rebuild the rows above it.
+private struct TVPosterRow: Identifiable {
+    let id: PlexItemID
+    let items: [PlexItem]
+}
+
+/// Occupies the columns a short row does not fill. A move into that space
+/// continues to the row's last poster instead of stopping.
+private struct TVGridRowFocusGuide: UIViewRepresentable {
+    func makeUIView(context: Context) -> TVGridFocusGuideHost {
+        TVGridFocusGuideHost()
+    }
+
+    func updateUIView(_ uiView: TVGridFocusGuideHost, context: Context) {
+        uiView.scheduleRetarget()
+    }
+}
+
+private final class TVGridFocusGuideHost: UIView {
+    private let guide = UIFocusGuide()
+    private var retargetScheduled = false
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        isAccessibilityElement = false
+        backgroundColor = .clear
+        addLayoutGuide(guide)
+        NSLayoutConstraint.activate([
+            guide.leadingAnchor.constraint(equalTo: leadingAnchor),
+            guide.trailingAnchor.constraint(equalTo: trailingAnchor),
+            guide.topAnchor.constraint(equalTo: topAnchor),
+            guide.bottomAnchor.constraint(equalTo: bottomAnchor),
+        ])
+        guide.isEnabled = false
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        scheduleRetarget()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // Stop once a poster is attached. `updateUIView` retargets if the
+        // row is reused; assigning the guide from every layout pass loops.
+        if !guide.isEnabled {
+            scheduleRetarget()
+        }
+    }
+
+    func scheduleRetarget() {
+        guard !retargetScheduled else { return }
+        retargetScheduled = true
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.retargetScheduled = false
+            self.retarget()
+        }
+    }
+
+    private func retarget() {
+        guard window != nil, bounds.width > 1, bounds.height > 1 else { return }
+        var ancestor: UIView? = superview
+        for _ in 0..<8 {
+            guard let container = ancestor else { break }
+            let mine = convert(bounds, to: container)
+            let candidates = focusableDescendants(of: container).filter { view in
+                let frame = view.convert(view.bounds, to: container)
+                let overlapsVertically = frame.maxY > mine.minY + 4 && frame.minY < mine.maxY - 4
+                return overlapsVertically && frame.midX < mine.minX && frame.width > 40 && frame.height > 40
+            }
+            if let target = candidates.max(by: { lhs, rhs in
+                lhs.convert(lhs.bounds, to: container).maxX < rhs.convert(rhs.bounds, to: container).maxX
+            }) {
+                if guide.preferredFocusEnvironments.first as? UIView !== target {
+                    guide.preferredFocusEnvironments = [target]
+                }
+                guide.isEnabled = true
+                return
+            }
+            ancestor = container.superview
+        }
+    }
+
+    private func focusableDescendants(of root: UIView) -> [UIView] {
+        var found: [UIView] = []
+        var stack = root.subviews
+        while let view = stack.popLast() {
+            if view === self || view.isDescendant(of: self) { continue }
+            // Ancestors of the guide are the row itself, not a poster.
+            if view.canBecomeFocused, !isDescendant(of: view) {
+                found.append(view)
+            }
+            stack.append(contentsOf: view.subviews)
+        }
+        return found
+    }
+}
+#endif
 
 extension PlexItemPosterGrid where ContextMenuContent == EmptyView {
     init(

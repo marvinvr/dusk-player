@@ -191,6 +191,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
   The floating iPad tab bar can sit over hero artwork, so its selected label must
   resolve against the tab bar material instead of the page's light appearance.
+- On tvOS, each horizontal hub row (`MediaCarousel`, and the Live TV shelf) is a
+  `.focusSection()` on the scrolling row. Up or Down from any card moves to the
+  nearest item in the neighbouring row. Do not send that move through the leading
+  card: once the row has scrolled, geometry only finds a neighbour above the first
+  item (issue #24). The same section is on the show page's episode row.
+- Library and View All grids (`PlexItemPosterGrid`) are one `.focusSection()` per
+  row on tvOS, not one `LazyVGrid`. A short last row keeps a focus guide in the
+  empty columns, sized like the missing posters, so the section extends under them
+  and Down from a column with no cell lands on the nearest poster in that row.
+  iOS stays a `LazyVGrid`.
 - On tvOS, library poster cells (`PosterNavigationCard` and `PosterActionCard`,
   shared by library grids, hub rows, collections, and search) use
   `duskTVOSSystemPosterButton()`: `.buttonStyle(.card)`, a rounded-rectangle border
@@ -726,7 +736,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - On tvOS, keep focusable detail rows in separate `.focusSection()` groups. Hero
   actions, expandable summaries, season/episode grids, and cast shelves should move
   vertically to the next visible row instead of letting the focus engine skip to a
-  lower but more horizontally aligned item.
+  lower but more horizontally aligned item. The episode strip's own scroll view is a
+  focus section too, so Up from any episode leaves the row.
 - Detail screens use hidden inline navigation bars over hero artwork. Keep
   `.toolbarColorScheme(.dark, for: .navigationBar)` and hidden toolbar backgrounds unless
   the screen is no longer hero-led.
@@ -943,10 +954,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Prefer separate platform composition files for large differences:
   `HomeIOSView`/`HomeTVView`, `SettingsIOSView`/`SettingsTVView`.
 - Prefer shared modifiers/helpers for small differences.
-- tvOS often needs larger poster metrics, explicit focus sections, `scrollClipDisabled`,
-  explicit page backgrounds, system card focus on library posters (custom focus stays on
-  episode and cast artwork), glass button styles for primary actions, and default focus
-  restoration.
+- tvOS often needs larger poster metrics, explicit focus sections (one per hub row
+  and one per library-grid row, with a focus guide filling a short last row),
+  `scrollClipDisabled`, explicit page backgrounds, system card focus on library posters
+  (custom focus stays on episode and cast artwork), glass button styles for primary
+  actions, and default focus restoration.
 - For tvOS detail pages, use focus sections as vertical row boundaries when a row's first
   focusable item may be horizontally offset from the current control.
 - iOS often needs navigation title display modes, searchable placement tuning, status bar

@@ -32,6 +32,11 @@ struct MediaCarousel<Content: View>: View {
                 .padding(.bottom, DuskPosterMetrics.carouselBottomPadding)
             }
             #if os(tvOS)
+            // One section per row. Up or Down from any card — including one
+            // scrolled away from the leading edge — moves to the nearest item
+            // in the row above or below. Leaving the move to geometry traps
+            // it on the first card (issue #24).
+            .focusSection()
             .scrollClipDisabled()
             #endif
             .carouselLeadingFocusLock(leadingInset: horizontalPadding)

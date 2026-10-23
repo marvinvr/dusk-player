@@ -395,6 +395,9 @@ struct SeriesDetailView: View {
                 .padding(.vertical, 12)
             }
             .scrollClipDisabled()
+            // The row is its own section so Up from a later episode leaves
+            // the row. Geometry alone only finds a target above the first one.
+            .focusSection()
             // Start each season's row on the episode the page opened on. Keyed on
             // the season only: re-scrolling when next-up moves (after playback)
             // would pull the row out from under the card that has focus.

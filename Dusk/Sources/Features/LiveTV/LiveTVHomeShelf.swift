@@ -49,6 +49,9 @@ struct LiveTVHomeShelf: View {
                         .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
                     }
                     .scrollIndicators(.hidden)
+                    #if os(tvOS)
+                    .focusSection()
+                    #endif
                     .carouselLeadingFocusLock(leadingInset: DuskPosterMetrics.carouselHorizontalPadding)
                 }
             }
