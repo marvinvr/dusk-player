@@ -197,8 +197,9 @@ screens); `homeHeroNativeButtonStyle()` + `HomeHeroActionButtonLabel(fillsWidth:
 
 ## 4. Interaction States
 
-* **Focus (tvOS):** the system focus effect for system controls. Custom cards
-  scale slightly with a subtle neutral glow; custom rows lift with a
+* **Focus (tvOS):** the system focus effect for system controls. Library poster
+  cells use the system card focus (lift, scale, parallax, shadow). Other custom
+  cards scale slightly with a subtle neutral glow; custom rows lift with a
   `TextPrimary`-at-low-opacity band. No coloured outlines.
 * **Selected / active:** bold or full-opacity `TextPrimary` against dimmer
   siblings, or an inverted `TextPrimary` fill with a `Background` label (Live TV

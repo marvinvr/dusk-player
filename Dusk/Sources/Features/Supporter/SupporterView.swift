@@ -476,8 +476,10 @@ struct SupporterView: View {
 
                     SupporterIconShowcase()
                         .padding(.leading, TVSettingsMetrics.contentInset)
+                        .focusSection()
 
                     tvPurchaseSections
+                        .focusSection()
 
                     TVSettingsSection(
                         title: "Manage",
@@ -505,6 +507,7 @@ struct SupporterView: View {
                             }
                         }
                     }
+                    .focusSection()
                 }
                 .frame(maxWidth: 980, alignment: .leading)
                 .padding(.horizontal, 60)
@@ -1027,13 +1030,16 @@ struct SupporterIconShowcase: View {
                 .padding(.horizontal, Self.labelInset)
 
             #if os(tvOS)
-            // Not focusable on tvOS, so it can't scroll: the exclusives get
-            // their own row instead of hiding past the trailing edge.
+            // Two labeled rows, each a focus section. The tiles are buttons
+            // so Up from the purchase rows always has a focusable target and
+            // the scroll view can bring the icons back on screen. Alternate
+            // icons still only apply on iPhone and iPad.
             HStack(alignment: .top, spacing: Self.tileSpacing) {
                 ForEach(DuskAppIcon.supporterIcons) { icon in
                     tile(for: icon)
                 }
             }
+            .focusSection()
 
             Text("Subscriber Exclusives")
                 .font(DuskFont.groupHeader(ios: .footnote.weight(.semibold)))
@@ -1047,6 +1053,7 @@ struct SupporterIconShowcase: View {
                     tile(for: icon)
                 }
             }
+            .focusSection()
             #else
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(alignment: .top, spacing: Self.tileSpacing) {
@@ -1095,8 +1102,7 @@ struct SupporterIconShowcase: View {
         #endif
     }
 
-    @ViewBuilder
-    private func tile(for icon: DuskAppIcon) -> some View {
+    private func tileLabel(for icon: DuskAppIcon) -> some View {
         VStack(spacing: 6) {
             iconArtwork(for: icon)
 
@@ -1105,11 +1111,24 @@ struct SupporterIconShowcase: View {
                 .foregroundStyle(icon.requiresSubscription ? Color.duskTextPrimary : Color.duskTextSecondary)
                 .lineLimit(1)
         }
-        #if os(iOS)
-        .onTapGesture {
-            guard store.isUnlocked(icon) else { return }
-            apply(icon)
+    }
+
+    @ViewBuilder
+    private func tile(for icon: DuskAppIcon) -> some View {
+        #if os(tvOS)
+        Button(action: {}) {
+            tileLabel(for: icon)
         }
+        .buttonStyle(.card)
+        .buttonBorderShape(.roundedRectangle(radius: tileSize * 0.22))
+        .hoverEffect(.highlight)
+        .accessibilityLabel("\(icon.displayName) app icon")
+        #else
+        tileLabel(for: icon)
+            .onTapGesture {
+                guard store.isUnlocked(icon) else { return }
+                apply(icon)
+            }
         #endif
     }
 

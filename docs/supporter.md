@@ -122,9 +122,13 @@ credentials — only call it from an explicit user action.
 - `SupporterIconShowcase` (in `SupporterView.swift`) previews all icons inside
   the sheet — the classic set, a hairline, then the subscriber exclusives
   (locked unless the subscription is active); on iOS unlocked tiles apply
-  directly. tvOS can't scroll the non-focusable strip, so it shows the
-  exclusives as a second labeled row. `AppIconPickerView` groups the same way ("Supporter Icons" /
-  "Subscriber Exclusives"); locked tiles open the supporter sheet.
+  directly. tvOS shows the exclusives as a second labeled row. Each row is a
+  `.focusSection()` of `.card` buttons (icons still only apply on iPhone and
+  iPad) so Up from the purchase rows always has a focusable target and the
+  scroll view can bring the icons back on screen. The purchase block and the
+  Manage section are focus sections too; the header is not. `AppIconPickerView`
+  groups the same way ("Supporter Icons" / "Subscriber Exclusives"); locked
+  tiles open the supporter sheet.
 
 ## Prompt Schedule
 

@@ -191,16 +191,24 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
   The floating iPad tab bar can sit over hero artwork, so its selected label must
   resolve against the tab bar material instead of the page's light appearance.
-- On tvOS, poster, episode, and cast artwork controls should use
-  `duskSuppressTVOSButtonChrome()` plus `duskTVOSFocusEffectShape`. Avoid SwiftUI's
-  `.plain`, `.borderless`, `.glass`, and `.card` button styles directly here because
-  real Apple TV hardware can draw gray/white system focus plates. When a poster card
-  has labels below the artwork, keep the artwork as the actual control but apply
-  `duskTVOSFocusedScale` to the outer card so the full poster container grows with
-  a tight neutral white glow and without gaining a button background.
+- On tvOS, library poster cells (`PosterNavigationCard` and `PosterActionCard`,
+  shared by library grids, hub rows, collections, and search) use
+  `duskTVOSSystemPosterButton()`: `.buttonStyle(.card)`, a rounded-rectangle border
+  matching `PosterArtwork.cornerRadius`, and `.hoverEffect(.highlight)`. That is the
+  system lift, scale, parallax, and shadow. Keep the title outside the button. Do not
+  apply `duskSuppressTVOSButtonChrome()`, `duskTVOSFocusEffectShape`, or
+  `focusEffectDisabled()` to these cells — a custom button style replaces the system
+  effect. iOS keeps `.buttonStyle(.plain)` so the iPad pointer hover stays the system one.
+- Episode and cast artwork still use `duskSuppressTVOSButtonChrome()` plus
+  `duskTVOSFocusEffectShape`. Avoid SwiftUI's `.plain`, `.borderless`, `.glass`, and
+  `.card` button styles on those controls because real Apple TV hardware can draw
+  gray/white system focus plates behind non-poster artwork. When those cards have
+  labels below the artwork, keep the artwork as the actual control and apply
+  `duskTVOSFocusedScale` to the outer card so it grows with a tight neutral white glow.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
   `duskNavigationTitle`, title display modes, list background/separator suppression,
-  status-bar helpers, tvOS button chrome suppression, and tvOS focus effect shape.
+  status-bar helpers, tvOS button chrome suppression, the system poster button, and
+  tvOS focus effect shape.
 
 ## Home
 
@@ -936,8 +944,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `HomeIOSView`/`HomeTVView`, `SettingsIOSView`/`SettingsTVView`.
 - Prefer shared modifiers/helpers for small differences.
 - tvOS often needs larger poster metrics, explicit focus sections, `scrollClipDisabled`,
-  explicit page backgrounds, plain/custom poster focus, glass button styles for primary
-  actions, and default focus restoration.
+  explicit page backgrounds, system card focus on library posters (custom focus stays on
+  episode and cast artwork), glass button styles for primary actions, and default focus
+  restoration.
 - For tvOS detail pages, use focus sections as vertical row boundaries when a row's first
   focusable item may be horizontally offset from the current control.
 - iOS often needs navigation title display modes, searchable placement tuning, status bar

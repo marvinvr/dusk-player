@@ -82,6 +82,24 @@ extension View {
         #endif
     }
 
+    /// Native tvOS poster focus: the system card lifts, scales, and
+    /// parallax-shadows the artwork. A custom button style
+    /// (`duskSuppressTVOSButtonChrome`) replaces that effect, and
+    /// `focusEffectDisabled()` removes the parallax, so library poster
+    /// cells must use this instead. iOS is unchanged — `.plain` on the
+    /// card keeps the iPad pointer hover.
+    @ViewBuilder
+    func duskTVOSSystemPosterButton() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.card)
+            .buttonBorderShape(.roundedRectangle(radius: PosterArtwork.cornerRadius))
+            .hoverEffect(.highlight)
+        #else
+        self
+        #endif
+    }
+
     @ViewBuilder
     func duskTVOSFocusEffectShape<S: Shape>(_ shape: S, scales: Bool = true) -> some View {
         #if os(tvOS)
