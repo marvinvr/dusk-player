@@ -61,11 +61,16 @@ struct PlexServer: Codable, Sendable, Identifiable {
         connections = try container.decodeIfPresent([PlexConnection].self, forKey: .connections) ?? []
     }
 
-    /// Returns connections sorted by preference: local first, then remote, then relay.
+    /// Returns connections sorted by preference: local first, then remote, then
+    /// relay. Within the local tier, Docker-style bridge addresses go last.
     var sortedConnections: [PlexConnection] {
         connections.sorted { lhs, rhs in
             if lhs.sortPriority != rhs.sortPriority {
                 return lhs.sortPriority < rhs.sortPriority
+            }
+
+            if lhs.isLikelyContainerBridgeAddress != rhs.isLikelyContainerBridgeAddress {
+                return !lhs.isLikelyContainerBridgeAddress
             }
 
             if lhs.isHTTPS != rhs.isHTTPS {
@@ -122,9 +127,29 @@ struct PlexConnection: Codable, Sendable, Hashable {
     }
 
     var sortPriority: Int {
-        if local && !relay { return 0 }
-        if !local && !relay { return 1 }
+        if isOnLocalNetwork { return 0 }
+        if !relay { return 1 }
         return 2
+    }
+
+    /// Whether this endpoint reaches the server over the local network: plex.tv
+    /// flags it `local`, or its address is a private one (a custom server URL or
+    /// a LAN address plex.tv did not flag). A relay never is.
+    var isOnLocalNetwork: Bool {
+        guard !relay else { return false }
+        if local { return true }
+        let hosts = [address, URL(string: uri)?.host].compactMap { $0 }
+        return hosts.contains { Self.isPrivateAddress(Self.plexDirectIPAddress(in: $0) ?? $0) }
+    }
+
+    /// 172.17–31.x is where Docker puts its bridge networks, and a containerised
+    /// server advertises that address as `local`. It is usually unreachable from
+    /// other devices — but it is also an ordinary private LAN range, so it is
+    /// only tried after the other local addresses, never dropped.
+    var isLikelyContainerBridgeAddress: Bool {
+        let octets = address.split(separator: ".")
+        guard octets.count == 4, octets[0] == "172", let second = Int(octets[1]) else { return false }
+        return (17...31).contains(second)
     }
 
     var isHTTPS: Bool {
@@ -137,13 +162,6 @@ struct PlexConnection: Codable, Sendable, Hashable {
             .replacingOccurrences(of: "-", with: ":")
             .lowercased()
 
-        if normalized.hasPrefix("172.") {
-            let octets = normalized.split(separator: ".")
-            if octets.count > 1, let secondOctet = Int(octets[1]), (17...31).contains(secondOctet) {
-                return true
-            }
-        }
-
         if normalized == "::" || normalized == "0000:0000:0000:0000:0000:0000:0000:0000" {
             return true
         }
@@ -153,6 +171,36 @@ struct PlexConnection: Codable, Sendable, Hashable {
         }
 
         return false
+    }
+
+    /// The IP a plex.direct host name encodes ("192-168-1-10.<hash>.plex.direct",
+    /// IPv6 with dashes for colons), or nil for any other host.
+    static func plexDirectIPAddress(in host: String) -> String? {
+        let lowered = host.lowercased()
+        guard lowered.hasSuffix(".plex.direct"),
+              let label = lowered.split(separator: ".").first else {
+            return nil
+        }
+        let dotted = label.replacingOccurrences(of: "-", with: ".")
+        if dotted.split(separator: ".").count == 4 { return dotted }
+        return label.replacingOccurrences(of: "-", with: ":")
+    }
+
+    /// RFC 1918, loopback, link-local and IPv6 unique-local addresses.
+    static func isPrivateAddress(_ address: String) -> Bool {
+        let normalized = address
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .lowercased()
+        let octets = normalized.split(separator: ".", omittingEmptySubsequences: false).compactMap { Int($0) }
+        if octets.count == 4 {
+            switch (octets[0], octets[1]) {
+            case (10, _), (127, _), (192, 168), (169, 254): return true
+            case (172, 16...31): return true
+            default: return false
+            }
+        }
+        guard normalized.contains(":") else { return false }
+        return normalized == "::1" || normalized.hasPrefix("fc") || normalized.hasPrefix("fd")
     }
 
     var httpFallbackURI: String? {

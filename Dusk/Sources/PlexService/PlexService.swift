@@ -19,9 +19,6 @@ final class PlexService {
     var activeAccountToken: String?
     var authTokenUpdatedAt: Date?
     var currentUser: PlexUser?
-    /// Cached account entitlement: nil = unknown/not fetched, true/false = known.
-    /// Drives the remote-streaming (Plex Pass) restriction check.
-    var accountSubscriptionActive: Bool?
     var homeUsers: [PlexHomeUser] = []
     var activeHomeUser: PlexHomeUser?
     var homeBootstrapCompleted = false

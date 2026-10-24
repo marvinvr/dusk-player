@@ -11,7 +11,6 @@ extension PlexService {
         if primaryAccountToken != normalizedToken {
             tearDownServerSessions(forgetServers: true)
             currentUser = nil
-            accountSubscriptionActive = nil
             resetHomeSession(clearPreference: true)
         }
         primaryAccountToken = normalizedToken
@@ -35,7 +34,6 @@ extension PlexService {
         activeAccountToken = nil
         authTokenUpdatedAt = nil
         currentUser = nil
-        accountSubscriptionActive = nil
         KeychainHelper.delete(key: Self.keychainTokenKey)
         resetHomeSession(clearPreference: true)
         plexAuthLogger.notice("Cleared Plex auth token")

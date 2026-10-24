@@ -8,45 +8,20 @@ import Foundation
 /// item, keeps the ones whose server is actually usable right now, and orders
 /// them by the user's Server Priority.
 ///
-/// A server that would trip Plex's remote-streaming restriction is demoted to
-/// the back rather than dropped — it is still playable on the server's own LAN,
-/// and it is the only copy some accounts have. The Plex Pass message is
-/// therefore only the answer when *every* candidate is restricted.
+/// Plex's remote-streaming rule is not judged here: only the server knows
+/// whether a request counts as remote and who holds which pass, so every
+/// candidate is tried (see `RemotePlaybackRefusal`).
 @MainActor
 struct PlaybackSourceResolver {
-    struct Candidate: Equatable, Sendable {
-        let id: PlexItemID
-        /// Playing this one needs a Plex Pass the account does not have.
-        let isRemoteStreamingRestricted: Bool
-
-        var serverID: String? { id.serverID }
-    }
-
     struct Resolution: Equatable {
-        /// Usable instances, best first, restricted servers last.
-        let candidates: [Candidate]
+        /// Usable instances, best first.
+        let identifiers: [PlexItemID]
         /// The instance the caller asked for, with a missing server filled in.
         /// Callers compare candidates against this to tell the copy the user
         /// actually picked from its fallbacks.
         let requestedID: PlexItemID
-        /// The Plex Pass message the restricted candidates would fail with, if
-        /// any candidate is restricted at all.
-        let restrictionMessage: String?
 
-        var isEmpty: Bool { candidates.isEmpty }
-        var identifiers: [PlexItemID] { candidates.map(\.id) }
-
-        /// Every usable copy needs an entitlement the account does not have, so
-        /// playing any of them would fail with the same Plex Pass error.
-        var isFullyRestricted: Bool {
-            !candidates.isEmpty && candidates.allSatisfy(\.isRemoteStreamingRestricted)
-        }
-
-        /// The walk ends on the restricted block (restricted candidates always
-        /// sort last), so this also answers "were all remaining ones restricted".
-        var hasRestrictedCandidate: Bool {
-            candidates.contains(where: \.isRemoteStreamingRestricted)
-        }
+        var isEmpty: Bool { identifiers.isEmpty }
     }
 
     let plexService: PlexService
@@ -63,7 +38,7 @@ struct PlaybackSourceResolver {
         for id: PlexItemID,
         restrictToItemServer: Bool = false,
         prefersRequestedInstance: Bool = false
-    ) async -> Resolution {
+    ) -> Resolution {
         let instances = restrictToItemServer
             ? [id]
             : plexService.alternates.instances(of: id)
@@ -91,26 +66,7 @@ struct PlaybackSourceResolver {
             usable.insert(requested, at: 0)
         }
 
-        var allowed: [Candidate] = []
-        var restricted: [Candidate] = []
-        var restrictionMessage: String?
-
-        for instance in usable {
-            if let restriction = await plexService.remoteStreamingRestriction(
-                forServerID: instance.serverID
-            ) {
-                restrictionMessage = restriction.message
-                restricted.append(Candidate(id: instance, isRemoteStreamingRestricted: true))
-            } else {
-                allowed.append(Candidate(id: instance, isRemoteStreamingRestricted: false))
-            }
-        }
-
-        return Resolution(
-            candidates: allowed + restricted,
-            requestedID: requested,
-            restrictionMessage: restrictionMessage
-        )
+        return Resolution(identifiers: usable, requestedID: requested)
     }
 
     /// An item that reached playback without a server (an unstamped offline

@@ -13,6 +13,9 @@ enum PlaybackSessionOutcome {
     /// fetch failed, the server is gone, there is no playable part, the
     /// transcode decision failed, or no URL could be built.
     case hardFailure(String)
+    /// The server refused the stream over a connection that leaves its local
+    /// network: Plex's remote-streaming rule (see `RemotePlaybackRefusal`).
+    case refusedRemotely
     /// A newer attempt or a dismissal took over while this one loaded.
     case superseded
 }
@@ -47,26 +50,12 @@ extension PlaybackCoordinator {
         attemptID: UUID
     ) async -> Bool {
         let isPlayableOffline = downloadManager?.isPlayableOffline(id: id) == true
-        let resolution = await PlaybackSourceResolver(plexService: plexService).resolve(
+        let resolution = PlaybackSourceResolver(plexService: plexService).resolve(
             for: id,
             // An explicitly chosen media version only exists on its own server.
             restrictToItemServer: restrictToItemServer || selectedMediaID != nil,
             prefersRequestedInstance: (resumeOffsetMilliseconds ?? 0) > 0
         )
-        guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
-
-        // Every usable copy needs an entitlement the account doesn't have, so
-        // say so once instead of letting each server fail in turn. A completed
-        // download plays regardless — it needs no server at all.
-        if resolution.isFullyRestricted,
-           let restrictionMessage = resolution.restrictionMessage,
-           !isPlayableOffline {
-            playbackSessionLogger.notice(
-                "Blocking remote playback for \(id.storageKey, privacy: .public): every candidate server is remote-streaming restricted"
-            )
-            loadError = restrictionMessage
-            return false
-        }
 
         var candidates = resolution.identifiers
         if isPlayableOffline {
@@ -81,29 +70,51 @@ extension PlaybackCoordinator {
         }
 
         var firstFailureMessage: String?
+        var wasRefusedRemotely = false
 
         for (index, candidate) in candidates.enumerated() {
             let isLastCandidate = index == candidates.index(before: candidates.endIndex)
-            let outcome = await startPlaybackSession(
-                id: candidate,
-                startPositionOverride: startPositionOverride,
-                resumeOffsetMilliseconds: resumeOffsetMilliseconds,
-                resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
-                // Only the copy the offset was measured on may use it blindly.
-                // Both spellings count: the resolver fills in a missing server.
-                carriesRequestedOffset: candidate == id || candidate == resolution.requestedID,
-                selectedMediaID: selectedMediaID,
-                prerollFeature: prerollFeature,
-                attemptID: attemptID,
-                fetchDeadline: isLastCandidate ? nil : Self.candidateFetchDeadline
-            )
+            func start() async -> PlaybackSessionOutcome {
+                await startPlaybackSession(
+                    id: candidate,
+                    startPositionOverride: startPositionOverride,
+                    resumeOffsetMilliseconds: resumeOffsetMilliseconds,
+                    resumeOffsetDurationMilliseconds: resumeOffsetDurationMilliseconds,
+                    // Only the copy the offset was measured on may use it blindly.
+                    // Both spellings count: the resolver fills in a missing server.
+                    carriesRequestedOffset: candidate == id || candidate == resolution.requestedID,
+                    selectedMediaID: selectedMediaID,
+                    prerollFeature: prerollFeature,
+                    attemptID: attemptID,
+                    fetchDeadline: isLastCandidate ? nil : Self.candidateFetchDeadline
+                )
+            }
+
+            var outcome = await start()
+            // A LAN address can lose the connection race (a slow wake-up, a
+            // network change the session has not caught up with); Plex then
+            // judges the stream remote. Re-race once and retry over the LAN.
+            if case .refusedRemotely = outcome,
+               await plexService.reconnectOverLocalNetwork(serverID: candidate.serverID) {
+                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+                playbackSessionLogger.notice(
+                    "Plex refused \(candidate.storageKey, privacy: .public) as remote playback; retrying over the local network"
+                )
+                outcome = await start()
+            }
 
             switch outcome {
             case .started:
                 return true
             case .superseded:
                 return false
-            case let .hardFailure(message):
+            case .refusedRemotely, .hardFailure:
+                var message = "Plex refused remote playback"
+                if case let .hardFailure(failure) = outcome {
+                    message = failure
+                } else {
+                    wasRefusedRemotely = true
+                }
                 firstFailureMessage = firstFailureMessage ?? message
                 guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
                 if !isLastCandidate {
@@ -114,14 +125,11 @@ extension PlaybackCoordinator {
             }
         }
 
-        // The walk ends on the restricted candidates (they always sort last), so
-        // when there were any, the last thing that stood between the viewer and
-        // the item was the missing Plex Pass — a more useful answer than the
-        // first server's own error.
-        if !isPlayableOffline,
-           resolution.hasRestrictedCandidate,
-           let restrictionMessage = resolution.restrictionMessage {
-            loadError = restrictionMessage
+        // A server that refused the stream as remote has the one answer the
+        // viewer can act on (be home, or get a pass); it beats another
+        // server's generic error.
+        if wasRefusedRemotely {
+            loadError = RemotePlaybackRefusal.message
             return false
         }
 
@@ -170,6 +178,9 @@ extension PlaybackCoordinator {
             activeTranscodeSessionID = nil
         }
 
+        // Plex enforces its remote-streaming rule on the stream, not on the
+        // metadata: a refused details fetch is some other problem.
+        var didFetchDetails = false
         do {
             let details: PlexMediaDetails
             if !suppressLocalDownload,
@@ -191,6 +202,8 @@ extension PlaybackCoordinator {
                     }
                 }
             }
+
+            didFetchDetails = true
 
             // A newer attempt or a dismissal can supersede this one during the
             // metadata fetch; bail before building any playback state.
@@ -287,9 +300,6 @@ extension PlaybackCoordinator {
                 playbackDecision = .localDownload
                 usesLocalDownload = true
             } else {
-                // The Plex Pass remote-streaming gate is resolved per candidate
-                // by `PlaybackSourceResolver` before we get here, so a
-                // restricted server is only reached when it is the last resort.
                 if wantsAirPlay, plexService.pool.connection(for: itemServerID) == nil {
                     return .hardFailure("Connect to the matching Plex server to AirPlay this item.")
                 }
@@ -304,6 +314,9 @@ extension PlaybackCoordinator {
                 sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
                 playbackDecision = .directPlay
                 usesLocalDownload = false
+                if !wantsAirPlay {
+                    try await plexService.checkRemoteDirectPlayAccess(directPlayURL, serverID: itemServerID)
+                }
 
                 if wantsAirPlay {
                     let mediaIndex = details.media.firstIndex { $0.id == media.id } ?? 0
@@ -635,6 +648,9 @@ extension PlaybackCoordinator {
             playbackSessionLogger.error(
                 "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
+            if didFetchDetails, plexService.isRemotePlaybackRefusal(error, serverID: itemServerID) {
+                return .refusedRemotely
+            }
             return .hardFailure(error.localizedDescription)
         }
     }
@@ -1503,7 +1519,66 @@ extension PlaybackCoordinator {
             playbackSessionLogger.error(
                 "Server-stream fallback failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
             )
+            if plexService.isRemotePlaybackRefusal(error, serverID: activePlaybackServerID) {
+                await recoverFromRemotePlaybackRefusal(
+                    details: details,
+                    ratingKey: ratingKey,
+                    media: media,
+                    part: part,
+                    debugInfo: debugInfo,
+                    startPosition: resumePosition,
+                    expectedPresentationID: expectedPresentationID
+                )
+            }
         }
+    }
+
+    /// Plex refused the server stream as remote playback, which also explains
+    /// why direct play died. When the server answers on the LAN after all,
+    /// direct play restarts there; otherwise the session ends on the
+    /// explanation instead of a generic engine error.
+    private func recoverFromRemotePlaybackRefusal(
+        details: PlexMediaDetails,
+        ratingKey: String,
+        media: PlexMedia,
+        part: PlexMediaPart,
+        debugInfo: PlaybackDebugInfo,
+        startPosition: TimeInterval,
+        expectedPresentationID: UUID
+    ) async {
+        let serverID = activePlaybackServerID
+        let isLocalNow = await plexService.reconnectOverLocalNetwork(serverID: serverID)
+        guard !didFinalizeCurrentSession,
+              playerPresentationID == expectedPresentationID,
+              self.ratingKey == ratingKey else {
+            return
+        }
+
+        if isLocalNow, let directPlayURL = plexService.directPlayURL(for: part, serverID: serverID) {
+            activateReplacementAttempt(
+                transitionLabel: "retrying direct play over the local network after Plex refused remote playback",
+                attemptID: UUID(),
+                details: details,
+                ratingKey: ratingKey,
+                media: media,
+                part: part,
+                playbackURL: directPlayURL,
+                sanitizedURL: plexService.sanitizedPlaybackURLString(for: directPlayURL),
+                playbackDecision: .directPlay,
+                engineType: debugInfo.engine,
+                resolverReason: "Plex refused remote playback; direct play over the local network",
+                videoEnhancementRequest: .disabled,
+                startPosition: startPosition
+            )
+            return
+        }
+
+        finalizeCurrentPlaybackSession(markCompleted: false)
+        engine?.onPlaybackEnded = nil
+        engine?.setPictureInPictureDelegate(nil)
+        engine?.stop()
+        engine = nil
+        loadError = RemotePlaybackRefusal.message
     }
 
     /// Fire-and-forget `/video/:/transcode/universal/stop` for Plex session

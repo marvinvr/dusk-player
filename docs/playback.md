@@ -146,9 +146,10 @@ so the whole live HUD is derived from one instant.
 
 - An item can exist on several connected servers. `PlaybackSourceResolver`
   builds the candidate list — the item itself plus its merge `alternates`,
-  filtered to currently connected servers and sorted by strict server priority —
-  and a server tripping the remote-streaming Plex Pass restriction is demoted to
-  last rather than dropped.
+  filtered to currently connected servers and sorted by strict server priority.
+  Plex's remote-streaming rule is not judged up front: a server that refuses the
+  stream as remote gets one LAN re-race and retry, and only then the Plex Pass /
+  Remote Watch Pass explanation (see `data-and-plex.md` → Remote streaming).
 - **The requested instance always represents its own server.** An alternate on
   the *same* server is never substituted for it: two items can share a weak
   (heuristic) content key — two guid-less clips both called "Trailer" — and

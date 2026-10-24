@@ -99,12 +99,6 @@ extension PlexService {
         // The library-order cache is keyed on the connected servers in priority
         // order, so it invalidates itself when that set or its order changes;
         // nothing has to be dropped here.
-        if pool.primary != nil {
-            // Best-effort: learn the account's remote-streaming entitlement in
-            // the background so the player can warn instantly later.
-            Task { await self.loadAccountEntitlementIfNeeded() }
-        }
-
         return pool.connections
     }
 

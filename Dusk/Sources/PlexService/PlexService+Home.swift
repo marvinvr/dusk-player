@@ -51,7 +51,6 @@ extension PlexService {
             activeAccountToken = primaryAccountToken
             activeHomeUser = nil
             currentUser = nil
-            accountSubscriptionActive = nil
             homeSelectionRequested = true
             hasRememberedHomeUserToken = false
             KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
@@ -126,7 +125,6 @@ extension PlexService {
         activeAccountToken = switchedToken
         activeHomeUser = user
         currentUser = nil
-        accountSubscriptionActive = nil
         authTokenUpdatedAt = Date()
         homeSelectionRequested = false
         automaticHomeSignIn = remember
@@ -222,7 +220,6 @@ extension PlexService {
         activeAccountToken = primaryAccountToken
         activeHomeUser = homeUser
         currentUser = nil
-        accountSubscriptionActive = nil
         homeSelectionRequested = false
         KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
         hasRememberedHomeUserToken = false

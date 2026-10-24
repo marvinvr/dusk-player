@@ -12,7 +12,7 @@ struct PlexServerConnection: Sendable, Hashable, Identifiable {
     let serverID: String
     let name: String
     /// True when the signed-in account owns this server, as opposed to it being
-    /// shared with them. Drives the Plex Pass remote-streaming check.
+    /// shared with them.
     let owned: Bool
     /// Owner name for a shared server ("Shared by X"); nil for owned servers.
     let sourceTitle: String?
@@ -25,8 +25,7 @@ struct PlexServerConnection: Sendable, Hashable, Identifiable {
 
     /// True only when we positively know the session runs over the LAN.
     var isLocal: Bool {
-        guard let connection else { return false }
-        return connection.local && !connection.relay
+        connection?.isOnLocalNetwork == true
     }
 
     /// True only when we positively know the session runs over Plex's relay.
@@ -39,6 +38,6 @@ struct PlexServerConnection: Sendable, Hashable, Identifiable {
     /// session is never wrongly treated as being away from home.
     var isRemote: Bool {
         guard let connection else { return false }
-        return !connection.local
+        return !connection.isOnLocalNetwork
     }
 }

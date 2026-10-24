@@ -162,8 +162,8 @@ Plex Home invariants:
   current-user lookup, metadata, history, and playback use the active token.
 - Select the Home identity before discovering servers; members can have
   different server/library access.
-- A switch clears the whole pool (`tearDownServerSessions()`) and invalidates current-user,
-  entitlement, and library-order caches. Server tokens belong to the identity
+- A switch clears the whole pool (`tearDownServerSessions()`) and invalidates current-user
+  and library-order caches. Server tokens belong to the identity
   that obtained them, so the teardown also forgets the token, base URL and
   last-good connection of **every** known server — the ones in the stored
   priority order and snapshots included, not just the ones this launch
@@ -177,7 +177,13 @@ Plex Home invariants:
 
 Discovery behavior to preserve:
 - Connections sort local non-relay, remote non-relay, relay; HTTPS wins within
-  a priority. HTTP fallbacks and unreachable-address filtering are built in.
+  a priority. "Local" is `PlexConnection.isOnLocalNetwork`: plex.tv's `local`
+  flag **or** a private address (RFC 1918, loopback, link-local, IPv6 ULA; for
+  plex.direct hosts the IP encoded in the name), never a relay. Docker-style
+  172.17–31.x addresses sort last inside the local tier — they are also a real
+  LAN range, so they are never dropped (dropping them once left such homes with
+  only remote connections). `::` and `fe80:` are filtered; HTTP fallbacks are
+  built in.
 - Each server's candidates are probed **concurrently** (`ServerProbe`) and the
   highest-priority one that works is committed. The race is priority-preserving:
   a success is only committed once no higher-priority candidate can still win —
@@ -228,18 +234,30 @@ Discovery behavior to preserve:
   existed — so it queues another one behind it. It is published in the
   environment, so any screen can offer a retry with `refresh()`.
 
-Remote-streaming entitlement (Plex Pass): since April 2025 Plex only allows
-remote playback of personal video media when the server owner (or the streaming
-user) holds an active Plex Pass / Remote Watch Pass; local streaming stays free.
-`PlexService+Entitlement.swift` reads the account's `subscription.active` from
-`/api/v2/user` (cached in `accountSubscriptionActive`) and
-`remoteStreamingRestriction(forServerID:)` returns `.ownerNeedsPlexPass` only for
-an **owned** server reached **remotely** with a positively-inactive subscription.
-The entitlement is account-wide but the *restriction is per server*, because
-ownership and locality differ per session: one server can be restricted while
-another plays fine. The playback source resolver demotes a restricted server to
-last and only shows the Plex Pass message when every candidate is restricted.
-Unknown/shared cases never pre-empt playback.
+Remote streaming (Plex Pass / Remote Watch Pass): since 2025 Plex only streams
+personal video outside the server's network when the owner has Plex Pass or the
+viewer has Plex Pass or a Remote Watch Pass; local playback stays free. **Dusk
+never gates this itself** (`PlexService+RemotePlayback.swift`). It used to, from
+the account's `subscription.active` and the connection's `local` flag, and that
+blocked people at home (a public/plex.direct address that is really NAT
+loopback, an unflagged LAN address) and people who had the pass (Remote Watch
+Pass is not in `subscription`; the owner's pass covers shared users). Only the
+server knows who is entitled and whether a request is local, so playback always
+runs and Plex decides:
+- `isRemotePlaybackRefusal(_:serverID:)`: an HTTP 403 on a *playback* request
+  (after the metadata fetch) over a connection that is not `isLocal`. Any other
+  failure is reported as itself.
+- Direct play on a non-LAN session first asks for one byte of the file
+  (`checkRemoteDirectPlayAccess`): AVPlayer handed a 403 URL never errors, it
+  just spins, so without this a refusal is an endless spinner.
+- On a refusal, `reconnectOverLocalNetwork(serverID:)` re-races that server's
+  connections (only if it advertises a LAN one) and the attempt is retried once
+  when the session now runs over the LAN — at session start and in the
+  direct-play → server-stream fallback. Otherwise the player shows
+  `RemotePlaybackRefusal.message`.
+- Plex does not document the refusal's exact shape; 403 is the assumption.
+  Revisit with a real refusal log if users still see generic errors away from
+  home.
 
 ## Request And Decode Helpers
 File: `PlexService+Networking.swift`.
