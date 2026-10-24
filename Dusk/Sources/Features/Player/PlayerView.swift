@@ -1644,6 +1644,9 @@ private struct PlayerKeyboardShortcutBridge: UIViewRepresentable {
 private final class PlayerKeyboardShortcutView: UIView {
     var isShortcutEnabled = false {
         didSet {
+            // `updateUIView` assigns this on every SwiftUI update; only a real
+            // change may touch the responder chain.
+            guard isShortcutEnabled != oldValue else { return }
             refreshFirstResponderStatus()
         }
     }
@@ -1691,17 +1694,22 @@ private final class PlayerKeyboardShortcutView: UIView {
         onTogglePlayPause?()
     }
 
+    /// Always deferred. This runs from `updateUIView`, inside a SwiftUI
+    /// transaction, and resigning there re-enters it: UIKit asks the hosting
+    /// view `canBecomeFirstResponder`, which flushes the transaction, which
+    /// updates this view again. On iOS 27 that loop never ends, so opening a
+    /// player sheet (Quality, Audio, Subtitles) froze the app.
     private func refreshFirstResponderStatus() {
         guard window != nil else { return }
 
-        if isShortcutEnabled {
-            guard !isFirstResponder else { return }
-            DispatchQueue.main.async { [weak self] in
-                guard let self, self.isShortcutEnabled, self.window != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.window != nil else { return }
+            if self.isShortcutEnabled {
+                guard !self.isFirstResponder else { return }
                 self.becomeFirstResponder()
+            } else if self.isFirstResponder {
+                self.resignFirstResponder()
             }
-        } else if isFirstResponder {
-            resignFirstResponder()
         }
     }
 }

@@ -484,6 +484,12 @@ so the whole live HUD is derived from one instant.
   asks `PlexService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
   and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and
   resumes from the same position without finalizing or scrobbling the session.
+- iOS trap: every player sheet (Quality, Audio, Subtitles, Get Info) turns
+  off the space-bar shortcut view (`PlayerKeyboardShortcutView`), which
+  resigns first responder. That resign must stay deferred and change-only:
+  done synchronously inside `updateUIView` it re-enters the SwiftUI
+  transaction through `_UIHostingView.canBecomeFirstResponder` and froze the
+  app on iOS 27 the moment a sheet opened (issue #25, "quality fails to set").
 - Transcoded playback uses AVPlayer by default because the server emits HLS.
   `forceVLCKit` still forces VLCKit for debugging. Dusk currently advertises
   H.264/AAC for manual Plex HLS transcodes; direct-play HEVC remains supported,
