@@ -530,6 +530,9 @@ File: `PlexService+Images.swift`.
 - Call `plexService.imageURL(for:width:height:)` from view models/UI helpers.
 - With dimensions, URLs go through `/photo/:/transcode` using display-scaled
   pixel dimensions, `minSize=1`, and `upscale=0`.
+- The transcode `url` is the server-relative path (`transcodeSourceURLString`),
+  as Plex Web sends it. With the server's own absolute URL the server fetches
+  itself, which 404s over a LAN address and left every poster blank at home.
 - Without dimensions, `directImageURL(for:)` builds the server-relative URL
   without embedding a token.
 - `imageRequestURLString(for:includeToken:)` accepts absolute URLs as-is and

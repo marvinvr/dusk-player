@@ -29,7 +29,7 @@ extension PlexService {
 
     func transcodedImageURL(for path: String, size: ImageRequestSize, serverID: String? = nil) -> URL? {
         guard let connection = pool.connection(for: serverID),
-              let originalURLString = imageRequestURLString(for: path, includeToken: true, serverID: serverID) else {
+              let originalURLString = transcodeSourceURLString(for: path, serverID: serverID) else {
             return nil
         }
 
@@ -241,6 +241,19 @@ extension PlexService {
         }
 
         return components.url?.absoluteString
+    }
+
+    /// The `url` for `/photo/:/transcode`. Library paths are sent relative, as
+    /// Plex Web does. Sending the server its own full URL breaks posters on a
+    /// LAN connection: the server fetches itself and gets a 404. Artwork that
+    /// is already a full URL is sent unchanged. nil for a library path when the
+    /// server is not connected.
+    func transcodeSourceURLString(for path: String, serverID: String? = nil) -> String? {
+        if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
+            return absoluteURL.absoluteString
+        }
+        guard pool.connection(for: serverID) != nil else { return nil }
+        return path.hasPrefix("/") ? path : "/" + path
     }
 
     func imageRequestSize(width: Int?, height: Int?) -> ImageRequestSize {
