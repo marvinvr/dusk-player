@@ -176,6 +176,14 @@ struct HomeCinematicHero: View {
     #if os(tvOS)
     /// The horizontal page scroll of the tvOS hero. See `tvPages`.
     @State private var tvPagePosition = ScrollPosition()
+    /// The page a jump left (`focusPage(at:)`), drawn over the hero while
+    /// it fades out.
+    @State private var jumpFadeItem: PlexItem?
+    @State private var jumpFadeOpacity: Double = 0
+    /// Height of a page's action row, so the fading page's text sits exactly
+    /// where it did. It has no buttons of its own: they would be a second
+    /// focus target bound to the same page.
+    @State private var heroActionsHeight: CGFloat = 0
     #endif
     #if canImport(UIKit)
     @State private var preloadedHeroBackdropImages: [String: UIImage] = [:]
@@ -422,6 +430,23 @@ struct HomeCinematicHero: View {
                 }
             }
         }
+        .overlay {
+            if let jumpFadeItem {
+                heroSlide(
+                    item: jumpFadeItem,
+                    heroHeight: heroHeight,
+                    backdropWidth: backdropWidth,
+                    backdropHeight: backdropHeight,
+                    contentWidth: contentWidth,
+                    reservesPagerSpace: items.count > 1,
+                    showsActions: false
+                )
+                .frame(width: heroWidth, height: heroHeight)
+                .opacity(jumpFadeOpacity)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+            }
+        }
         .scrollIndicators(.hidden)
         .contentMargins(.zero, for: .scrollContent)
         .scrollPosition($tvPagePosition)
@@ -527,7 +552,8 @@ struct HomeCinematicHero: View {
         backdropWidth: Int,
         backdropHeight: Int,
         contentWidth: CGFloat,
-        reservesPagerSpace: Bool
+        reservesPagerSpace: Bool,
+        showsActions: Bool = true
     ) -> some View {
         let metadata = viewModel.heroMetadata(for: item)
 
@@ -591,9 +617,22 @@ struct HomeCinematicHero: View {
                         .frame(maxWidth: contentWidth, alignment: heroContentFrameAlignment)
                 }
 
-                heroActions(for: item)
-                    .padding(.top, layout.actionsTopPadding)
-                    .padding(.bottom, layout.actionsBottomPadding)
+                Group {
+                    #if os(tvOS)
+                    if showsActions {
+                        heroActions(for: item)
+                            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height in
+                                heroActionsHeight = height
+                            }
+                    } else {
+                        Color.clear.frame(height: heroActionsHeight)
+                    }
+                    #else
+                    heroActions(for: item)
+                    #endif
+                }
+                .padding(.top, layout.actionsTopPadding)
+                .padding(.bottom, layout.actionsBottomPadding)
             }
             .padding(.leading, contentLeadingInset + layout.contentHorizontalPadding)
             .padding(.trailing, contentTrailingInset + layout.contentHorizontalPadding)
@@ -808,7 +847,7 @@ struct HomeCinematicHero: View {
 
             #if os(tvOS)
             let index = focusedItemKey.flatMap { heroItemIDs.firstIndex(of: $0) } ?? currentHeroIndex
-            onFocusItem?(items[(index + 1) % items.count])
+            focusPage(at: (index + 1) % items.count)
             #else
             moveHero(
                 to: (currentHeroIndex + 1) % heroItemIDs.count,
@@ -960,15 +999,51 @@ struct HomeCinematicHero: View {
                   let focusedIndex = heroItemIDs.firstIndex(of: focusedItemKey) else { return }
             let lastIndex = items.count - 1
             if direction == .right, focusedIndex == lastIndex, currentHeroIndex == lastIndex {
-                onFocusItem?(items[0])
+                focusPage(at: 0)
             } else if direction == .left, focusedIndex == 0, currentHeroIndex == 0 {
-                onFocusItem?(items[lastIndex])
+                focusPage(at: lastIndex)
             }
         case .up:
             // The focus engine's: the tab bar.
             break
         @unknown default:
             break
+        }
+    }
+
+    /// Moves focus to a page's play button: rotation, and the wrap-around
+    /// past either end.
+    ///
+    /// A neighbouring page is the focus engine's ordinary reveal-scroll. Any
+    /// page further away (the wrap, rotation going back to the start) would
+    /// make that scroll sweep across every full-screen page in between,
+    /// which is what made the wrap stutter. So the page scroll jumps there
+    /// first, unanimated, and the page left behind fades out on top. The
+    /// target button is then already on screen when it takes focus, so the
+    /// engine has nothing to scroll. Focus moves on the next turn of the run
+    /// loop, after the jump has been laid out.
+    private func focusPage(at index: Int) {
+        guard items.indices.contains(index) else { return }
+        let target = items[index]
+        guard abs(index - currentHeroIndex) > 1, items.indices.contains(currentHeroIndex) else {
+            onFocusItem?(target)
+            return
+        }
+
+        jumpFadeItem = items[currentHeroIndex]
+        jumpFadeOpacity = 1
+        var jump = Transaction()
+        jump.disablesAnimations = true
+        withTransaction(jump) {
+            tvPagePosition.scrollTo(x: CGFloat(index) * pixelAlignedLength(containerSize.width))
+        }
+        withAnimation(.easeOut(duration: accessibilityReduceMotion ? 0.2 : 0.35)) {
+            jumpFadeOpacity = 0
+        } completion: {
+            if jumpFadeOpacity == 0 { jumpFadeItem = nil }
+        }
+        DispatchQueue.main.async {
+            onFocusItem?(target)
         }
     }
     #endif

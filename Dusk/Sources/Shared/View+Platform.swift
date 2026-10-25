@@ -88,13 +88,18 @@ extension View {
     /// `focusEffectDisabled()` removes the parallax, so library poster
     /// cells must use this instead. iOS is unchanged — `.plain` on the
     /// card keeps the iPad pointer hover.
+    ///
+    /// No `.hoverEffect(.highlight)` on top, here or on the label: the card
+    /// style already is that effect. Stacked on every poster it doubled
+    /// Home's per-frame SwiftUI work, so the hero paged and the move down
+    /// into the shelves stuttered (1.7.4), and it covered the card's lift
+    /// with a flat sheen.
     @ViewBuilder
     func duskTVOSSystemPosterButton() -> some View {
         #if os(tvOS)
         self
             .buttonStyle(.card)
             .buttonBorderShape(.roundedRectangle(radius: PosterArtwork.cornerRadius))
-            .hoverEffect(.highlight)
         #else
         self
         #endif
