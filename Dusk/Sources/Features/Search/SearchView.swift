@@ -21,6 +21,10 @@ struct SearchRootContent: View {
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: SearchViewModel?
     @State private var isSearchPresented = false
+    #if os(tvOS)
+    @State private var resultsIdentity = 0
+    @State private var isReturningToKeyboard = false
+    #endif
 
     private let searchPrompt = "Movies, Shows, Actors..."
 
@@ -76,6 +80,20 @@ struct SearchRootContent: View {
 
         #if os(tvOS)
         carouselResults(vm)
+            // Back from the results edits the query again, like Apple's own
+            // apps; the shell's root Back handler lets this press through.
+            // SwiftUI cannot focus the tvOS search keyboard directly, so the
+            // focused card is rebuilt with nothing focusable in the results,
+            // and the search controller hands focus to its keyboard.
+            .disabled(isReturningToKeyboard)
+            .id(resultsIdentity)
+            .onExitCommand {
+                isReturningToKeyboard = true
+                resultsIdentity += 1
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    isReturningToKeyboard = false
+                }
+            }
             .searchable(text: $vm.query, prompt: searchPrompt)
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {

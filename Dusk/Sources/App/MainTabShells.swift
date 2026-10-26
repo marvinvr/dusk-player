@@ -122,7 +122,8 @@ struct MainTabTVShell<Content: View>: View {
 ///
 /// The recognizer refuses the press, leaving the system's behaviour intact,
 /// whenever there is no action or the selected tab has a pushed screen: the
-/// navigation stack's own pop must win there.
+/// navigation stack's own pop must win there. It also refuses while focus is
+/// in search results, where Back returns to the search keyboard instead.
 private struct DuskTVRootBackInterceptor: UIViewControllerRepresentable {
     let action: (() -> Void)?
 
@@ -173,7 +174,27 @@ private final class DuskTVRootBackController: UIViewController, UIGestureRecogni
         guard action != nil, let tabBarController = shellTabBarController else { return false }
         guard tabBarController.presentedViewController == nil else { return false }
         let selected = tabBarController.selectedViewController ?? tabBarController
-        return !Self.hasPushedScreen(in: selected)
+        guard !Self.hasPushedScreen(in: selected) else { return false }
+        let focusedItem = tabBarController.view.window?.windowScene?.focusSystem?.focusedItem
+        return !Self.isInSearchResults(focusedItem)
+    }
+
+    /// Whether `item` sits in a search controller's results rather than on
+    /// its keyboard. Back from the results goes to the search screen itself,
+    /// which moves focus up to the keyboard to edit the query.
+    private static func isInSearchResults(_ item: UIFocusItem?) -> Bool {
+        var lastController: UIViewController?
+        var environment: UIFocusEnvironment? = item
+        while let current = environment {
+            if let searchController = current as? UISearchController {
+                return lastController != nil && lastController === searchController.searchResultsController
+            }
+            if let controller = current as? UIViewController {
+                lastController = controller
+            }
+            environment = current.parentFocusEnvironment
+        }
+        return false
     }
 
     /// Whether any navigation stack inside `controller` shows more than its
