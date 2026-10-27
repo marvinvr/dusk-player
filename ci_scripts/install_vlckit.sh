@@ -31,13 +31,13 @@ EXTRACT_DIR="${BUILD_DIR}/vlckit-prebuilt"
 # reads the build stamp at runtime and sends TrueHD through Plex.
 # DUSK_VLCKIT_REQUIRE_DUSK=1 turns the fallback into an error (release builds:
 # scripts/testflight.sh sets it).
-VLCKIT_VERSION="3.7.3-dusk1"
+VLCKIT_VERSION="3.7.3-dusk2"
 DUSK_RELEASE_REPO="marvinvr/dusk-vlckit"
 DUSK_RELEASE_TAG="vlckit-${VLCKIT_VERSION}"
 IOS_ARCHIVE="MobileVLCKit-${VLCKIT_VERSION}.tar.xz"
-IOS_ARCHIVE_SHA256="430058379927262a22331c2a24f36904ccb3d055baa73ce4a90bcab2b68910a8"
+IOS_ARCHIVE_SHA256="e4a1114d51ee1512c8c7f4357f665b86aeca45ed0ec9620fb351564665c14f9d"
 TVOS_ARCHIVE="TVVLCKit-${VLCKIT_VERSION}.tar.xz"
-TVOS_ARCHIVE_SHA256="dd1f6964a6d5c30bb3382042241c15c8dcbe64b629283f1f883b73f0a3287d2e"
+TVOS_ARCHIVE_SHA256="5587f4898c70aca3fc3529849188e1a5a6b3d49938582ecfc584983c8faf9ba0"
 
 STOCK_VERSION="3.7.3-stock"
 STOCK_DOWNLOAD_BASE_URL="https://download.videolan.org/pub/cocoapods/prod"

@@ -1,0 +1,31 @@
+From 57d69ceef48b524397aadab575df6a752643ea6a Mon Sep 17 00:00:00 2001
+From: Dusk VLCKit Build <vlckit-build@dusk.invalid>
+Date: Tue, 27 Oct 2026 18:02:38 +0100
+Subject: [PATCH] posix: don't use pipe2() on Apple platforms
+
+The iOS/tvOS/macOS 27 SDKs declare pipe2() as available only from OS 27.
+A build against those SDKs with an older deployment target weak-links it,
+so vlc_pipe() calls a NULL pointer on iOS/tvOS/macOS 26 and earlier.
+---
+ src/posix/filesystem.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/src/posix/filesystem.c b/src/posix/filesystem.c
+index 68b407be75..33ad9047cc 100644
+--- a/src/posix/filesystem.c
++++ b/src/posix/filesystem.c
+@@ -220,7 +220,10 @@ int vlc_dup (int oldfd)
+ 
+ int vlc_pipe (int fds[2])
+ {
+-#ifdef HAVE_PIPE2
++/* Apple's SDK 27 declares pipe2(), but only for macOS/iOS/tvOS 27+. configure
++ * finds it, so a build made with that SDK weak-links pipe2 and jumps to NULL
++ * on every older OS. Use pipe() + FD_CLOEXEC on Apple platforms instead. */
++#if defined(HAVE_PIPE2) && !defined(__APPLE__)
+     return pipe2(fds, O_CLOEXEC);
+ #else
+     int ret = pipe(fds);
+-- 
+2.54.0 (Apple Git-157)
+

@@ -104,7 +104,7 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   are retried, with partial downloads resumed; do not weaken the checksum or
   replace this with an unverified framework fallback.
 - The archives are Dusk's own build (TrueHD), assets of the release
-  `vlckit-<version>` (currently `vlckit-3.7.3-dusk1`) in the PRIVATE repo
+  `vlckit-<version>` (currently `vlckit-3.7.3-dusk2`) in the PRIVATE repo
   `marvinvr/dusk-vlckit` — private on purpose: a public binary with the
   Dolby TrueHD decoder is a distribution Marvin decided against. The
   installer downloads them with `gh release download`, so it needs `gh` with a
@@ -122,6 +122,15 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   that file names the new version as soon as you pull, while the git-ignored
   frameworks (and the copies `scripts/testflight.sh` takes from the checkout)
   are still old. A stock fallback leaves `VLCKit-VERSION.txt` untouched.
+- `scripts/verify_embedded_vlckit.sh` (a post-build phase) also fails the
+  build when the embedded VLCKit weak-links libSystem functions older OS
+  versions lack, and `build_vlckit.sh` refuses to package such a build.
+  3.7.3-dusk1 was built with the Xcode 27 SDK, whose `pipe2` exists only on
+  iOS/tvOS/macOS 27. libvlc weak-linked it and jumped to NULL on its first
+  socket/pipe, i.e. every VLC network open, on tvOS 26 and on Macs running
+  macOS 26 (#27). Simulators cannot show this: they resolve libSystem
+  against the host macOS. dusk2 adds `vlc-patches/0102`, which makes
+  `vlc_pipe` use `pipe()` on Apple platforms.
 
 ## VLCKit Build
 
@@ -137,7 +146,8 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   `ci_scripts/vlc-patches/` (0100+) are appended to VLCKit's own libvlc
   series, which `buildMobileVLCKit.sh` git-am's onto vlc. 0100 re-enables
   TrueHD/MLP (read "Dolby TrueHD decoding" in `playback.md` for the licensing
-  decision), 0101 fixes tvOS multichannel output.
+  decision), 0101 fixes tvOS multichannel output, 0102 keeps libvlc off
+  `pipe2` (OS 27+ only, see VLCKit Bootstrap).
 - The script fails unless `libavcodec.a` defines `ff_truehd_decoder` and
   `ff_mlp_decoder`, stamps each framework's Info.plist (`DuskVLCKitBuild`,
   `DuskVLCKitTrueHD`, read by `VLCKitBuildInfo`), and writes

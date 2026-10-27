@@ -1167,7 +1167,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   (`DuskVLCKitBuild`, `DuskVLCKitTrueHD`). `VLCKitBuildInfo.decodesTrueHD`
   reads it from the loaded binary, so a stale stock framework in a local
   `Frameworks/` keeps the old routing instead of playing TrueHD silent.
-  Playback Info's "VLCKit Build" row shows `Dusk VLCKit 3.7.3-dusk1 (…,
+  Playback Info's "VLCKit Build" row shows `Dusk VLCKit 3.7.3-dusk2 (…,
   TrueHD)`; "Stock VLCKit 3.x" means the frameworks are stale.
 - libvlc 3.x tags TrueHD `trhd`, MLP `mlp `; `mlpa` was the 4.x alpha's
   TrueHD fourcc. `VLCKitEngine.trueHDAudioFourCCs` holds all three and only

@@ -100,7 +100,7 @@ struct AV1RoutingTests {
     }
 
     @Test func loadedDuskBuildHasDav1d() {
-        if VLCKitBuildInfo.duskBuild == "3.7.3-dusk1" {
+        if VLCKitBuildInfo.duskBuild?.hasPrefix("3.7.3-dusk") == true {
             #expect(VLCKitBuildInfo.decodesAV1)
         }
     }

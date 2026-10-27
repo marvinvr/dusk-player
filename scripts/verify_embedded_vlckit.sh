@@ -10,7 +10,9 @@
 # build failure with a clear message is cheaper.
 #
 # The check compares Mach-O LC_UUIDs (stable across re-signing, which the
-# embed step performs) between the embedded binary and the repo copy.
+# embed step performs) between the embedded binary and the repo copy. It also
+# rejects a VLCKit that weak-links libSystem functions newer than the OS
+# versions Dusk supports (see below).
 set -euo pipefail
 
 FRAMEWORKS_DIR="${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}"
@@ -44,6 +46,21 @@ REPO_BINARY="${PROJECT_DIR}/Frameworks/${REPO_SLICE}/${FRAMEWORK_NAME}.framework
 if [ ! -f "${EMBEDDED_BINARY}" ]; then
     echo "warning: ${FRAMEWORK_NAME} binary not found at ${EMBEDDED_BINARY}; skipping staleness check."
     exit 0
+fi
+
+# A VLCKit built with a newer SDK than its deployment target can weak-link
+# libSystem functions older OS versions lack: Dusk's 3.7.3-dusk1 build (Xcode
+# 27 SDK) weak-linked pipe2, which only exists on iOS/tvOS/macOS 27, and
+# crashed on the first network open on tvOS 26 and Mac (Designed for iPad) on
+# macOS 26 (#27). The allowed names are the ones VideoLAN's stock builds carry.
+new_weak_imports="$(xcrun nm -m "${EMBEDDED_BINARY}" 2>/dev/null |
+    grep -E '\(undefined\) weak external .*\(from libSystem\)' |
+    grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
+if [ -n "${new_weak_imports}" ]; then
+    echo "error: The embedded ${FRAMEWORK_NAME} weak-links libSystem functions that older OS versions do not have, so it crashes there:"
+    echo "${new_weak_imports}"
+    echo "error: Install the VLCKit this branch pins (Frameworks/VLCKit-VERSION.txt, ci_scripts/install_vlckit.sh)."
+    exit 1
 fi
 
 if [ ! -f "${REPO_BINARY}" ]; then

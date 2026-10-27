@@ -42,7 +42,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VLCKIT_REPO_URL="https://code.videolan.org/videolan/VLCKit.git"
 VLCKIT_TAG="3.7.3"
 VLCKIT_COMMIT="319ed2c0724e3d4c4d34889a62fef1ae269491bc"
-DUSK_VLCKIT_BUILD="dusk1"
+DUSK_VLCKIT_BUILD="dusk2"
 VERSION="${VLCKIT_TAG}-${DUSK_VLCKIT_BUILD}"
 
 WORK_DIR="${DUSK_VLCKIT_WORK_DIR:-${ROOT_DIR}/.build/vlckit}"
@@ -111,6 +111,31 @@ verify_truehd_contrib() {
     log "TrueHD/MLP decoders present in the ${osstyle} contribs."
 }
 
+# Fails when a slice weak-links a libSystem function that older OS versions do
+# not have. Xcode's SDK can declare functions newer than VLCKit's deployment
+# target (pipe2 is iOS/tvOS/macOS 27+); configure then picks them up, the
+# linker weak-imports them, and libvlc calls NULL on older OS versions (dusk1
+# crashed on every network open on tvOS 26 and macOS 26). The allowed names are
+# the ones VideoLAN's own stock builds carry, which are always resolvable.
+verify_no_new_libsystem_imports() {
+    local xcframework="$1"
+    local name="$2"
+    local slice weak
+
+    for slice in "${xcframework}"/*/"${name}.framework"; do
+        weak="$(nm -m "${slice}/${name}" 2>/dev/null |
+            grep -E '\(undefined\) weak external .*\(from libSystem\)' |
+            grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
+        if [ -n "${weak}" ]; then
+            echo "error: ${slice} weak-links libSystem functions that older OS versions lack:" >&2
+            echo "${weak}" >&2
+            echo "Patch libvlc (ci_scripts/vlc-patches) so it does not use them." >&2
+            exit 1
+        fi
+    done
+    log "${name}: no weak-linked libSystem functions."
+}
+
 # Marks every slice so the app can tell this build from a stock VLCKit at
 # runtime (VLCKitEngine reads DuskVLCKitTrueHD before treating TrueHD as
 # decodable).
@@ -149,6 +174,7 @@ package_platform() {
     mkdir -p "${staging}"
     cp -R "${built}" "${staging}/"
     find "${staging}" -type d -name dSYMs -prune -exec rm -rf {} +
+    verify_no_new_libsystem_imports "${staging}/${name}.xcframework" "${name}"
     stamp_framework "${staging}/${name}.xcframework" "${name}"
     cp "${src}/COPYING" "${staging}/COPYING.txt"
 
