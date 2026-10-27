@@ -51,7 +51,10 @@ struct SeerrSeasonDetailView: View {
                         title: season.name,
                         descriptionText: season.overview,
                         topInset: geometry.safeAreaInsets.top,
-                        containerWidth: geometry.size.width,
+                        // The backdrop runs under side insets (iPhone landscape,
+                        // iPhone Duo's vertical bar); the content stays inside them.
+                        containerWidth: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
+                        backgroundLeadingInset: geometry.safeAreaInsets.leading,
                         heroBaseHeight: min(max(geometry.size.height * 0.62, 470), 680)
                     ) {
                         VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
@@ -148,6 +151,7 @@ struct SeerrSeasonDetailView: View {
                     .padding(.bottom, 56)
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
+                .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .scrollIndicators(.hidden)
             .refreshable {

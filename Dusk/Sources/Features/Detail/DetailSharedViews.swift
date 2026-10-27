@@ -284,30 +284,44 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             #endif
         }()
 
+        let backdrop = ZStack {
+            DetailHeroBackdrop(
+                imageURL: backdropURL,
+                height: heroHeight,
+                keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading,
+                blursImage: blursBackdrop
+            )
+
+            DuskHeroBackdropOverlay(style: .soft)
+        }
+        .frame(width: containerWidth, height: heroHeight, alignment: .leading)
+        .duskHeroBackdropBottomFade()
+        .offset(x: -backgroundLeadingInset)
+        .allowsHitTesting(false)
+
+        let content = heroContent(titleArtworkHeight: titleArtworkHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, contentBottomPadding)
+            .padding(.top, contentTopPadding)
+
+        #if os(tvOS)
         ZStack(alignment: .bottomLeading) {
-            ZStack {
-                DetailHeroBackdrop(
-                    imageURL: backdropURL,
-                    height: heroHeight,
-                    keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading,
-                    blursImage: blursBackdrop
-                )
-
-                DuskHeroBackdropOverlay(style: .soft)
-            }
-            .frame(width: containerWidth, height: heroHeight, alignment: .leading)
-            .duskHeroBackdropBottomFade()
-            .offset(x: -backgroundLeadingInset)
-            .allowsHitTesting(false)
-
-            heroContent(titleArtworkHeight: titleArtworkHeight)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, contentBottomPadding)
-                .padding(.top, contentTopPadding)
+            backdrop
+            content
         }
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
+        #else
+        // A background, not a ZStack sibling: running under the side insets
+        // (iPhone landscape, iPhone Duo's vertical bar) makes the backdrop
+        // wider than the page, and as a sibling it widened the hero and pushed
+        // the centered iPhone column off the safe area's center.
+        content
+            .frame(height: heroHeight)
+            .frame(maxWidth: .infinity)
+            .background(alignment: .leading) { backdrop }
+        #endif
     }
 
     @ViewBuilder

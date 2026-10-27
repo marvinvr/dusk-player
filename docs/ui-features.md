@@ -1311,8 +1311,25 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   behavior, refreshable lists, Safari sheets, and compact action stacks.
 - tvOS should not rely on iOS-only `List` styling, context menu behavior, or touch drag
   gestures without a remote/focus alternative.
-- When a view measures full-bleed hero artwork on tvOS, account for safe-area leading and
-  trailing insets so backdrops span the visual screen.
+- Full-bleed hero artwork (Home hero, every detail hero) spans the safe-area leading and
+  trailing insets on both platforms: tvOS overscan, iPhone landscape, and iPhone Duo's
+  vertical bar. Pass `width + leading + trailing` as the container width, offset the
+  backdrop by `-leading`, and keep titles and buttons inside the insets. On iOS the
+  detail backdrop is a `.background` of the hero, not a `ZStack` sibling: as a sibling
+  the wider backdrop widened the hero and pushed the centered iPhone column off center.
+  Pin the page's `VStack` to `geometry.size.width` so the rows below stay page-wide.
+- iPhone Duo (iOS 27.1 SDK, Xcode 27.1 simulator "iPhone Duo"): the cover display
+  (466×678 pt) moves the status bar, Dynamic Island, toolbar items, and tab bar into a
+  vertical bar (84 pt; right edge in portrait, left in landscape). Standard bars adapt
+  by themselves; content must use the safe area per edge (never assume leading ==
+  trailing). The inner display is regular/regular with the phone idiom, so
+  `userInterfaceIdiom == .pad` checks give it the iPhone layouts. The player cover opts
+  out of the vertical bar (`playerHorizontalSystemBars()` →
+  `toolbarVerticalBehavior(.disabled)`, Apple's guidance for full-screen video); its
+  picker sheets keep the default because opting them out flipped the player's status
+  bar back to vertical behind a portrait sheet. Pose (open/fold) is only controllable
+  in DeviceHub, not via `simctl` or XCUITest, and the XCUITest rotation does not stick
+  on this device.
 
 ## Design And Style Rules
 

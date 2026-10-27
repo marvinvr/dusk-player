@@ -512,11 +512,14 @@ private struct UpNextLayoutMetrics {
         let contentWidth = min(availableWidth, maxContentWidth)
         // A tall, narrow container (iPhone portrait, iPad portrait) reads better
         // as a stacked still-over-text card; anything wide enough to keep a
-        // readable text column beside the still goes side by side.
+        // readable text column beside the still goes side by side. A landscape
+        // box never stacks, however narrow: iPhone Duo's cover display is
+        // 678×466 pt and a stacked card clipped the still and the button.
         #if os(tvOS)
         let usesVerticalLayout = false
         #else
-        let usesVerticalLayout = contentWidth < 600 || safeHeight > safeWidth * 1.05
+        let usesVerticalLayout = (contentWidth < 600 && safeHeight >= safeWidth)
+            || safeHeight > safeWidth * 1.05
         #endif
         let columnSpacing: CGFloat = isCompactWidth ? 20 : 32
 

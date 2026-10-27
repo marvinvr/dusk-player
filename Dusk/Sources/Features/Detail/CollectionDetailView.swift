@@ -52,20 +52,10 @@ struct CollectionDetailView: View {
 
     private var contentView: some View {
         GeometryReader { geometry in
-            let heroBackgroundWidth: CGFloat = {
-                #if os(tvOS)
-                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
-                #else
-                geometry.size.width
-                #endif
-            }()
-            let heroBackgroundLeadingInset: CGFloat = {
-                #if os(tvOS)
-                geometry.safeAreaInsets.leading
-                #else
-                0
-                #endif
-            }()
+            // The backdrop runs under side insets (iPhone landscape, iPhone
+            // Duo's vertical bar); the hero content stays inside them.
+            let heroBackgroundWidth = geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+            let heroBackgroundLeadingInset = geometry.safeAreaInsets.leading
             let layout = AdaptivePosterGridLayout.make(
                 containerWidth: geometry.size.width,
                 horizontalPadding: horizontalPadding,

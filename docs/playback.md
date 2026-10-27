@@ -2183,8 +2183,10 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   (`UpNextLayoutMetrics.previewSize`). The still is the smaller of a share of the
   width and a share of the height, because the player is watched in landscape as
   often as portrait; a width-only rule pushed the details off the bottom of an
-  iPhone in landscape. Narrow or portrait containers stack the still over the
-  details, wide ones put them side by side, and tvOS is always side by side. On
+  iPhone in landscape. Narrow portrait containers stack the still over the
+  details; anything wide, and every landscape box however narrow (iPhone Duo's
+  678×466 pt cover display clipped a stacked card), puts them side by side, and
+  tvOS is always side by side. On
   iOS the close button anchors to the screen's top-trailing safe area, not to the
   content block (tvOS puts it beside Play). The next episode's artwork also backs the screen as a blurred wash.
 - The overlay's forward action is a labeled capsule ("Play Now" while a countdown
@@ -2403,6 +2405,13 @@ Plex clients do. There is no app setting: the server decides.
   to the system. iPad and tvOS do not show the setting and do not force one.
   The preference default is `PlayerLandscapePreferenceTests`. A silent
   simulator check (no playback) is `PlayerLandscapeOrientationTests`.
+- iPhone Duo: the player cover disables the vertical bar
+  (`playerHorizontalSystemBars()`, iOS 27.1+). With it on, the cover display's
+  84 pt bar sat on the left in landscape and pushed the HUD off the centered
+  video; disabled, the reserved strip moves to the top (82 pt) and the HUD is
+  symmetric. The launch argument `-alwaysPlayInLandscape NO` is read as a string
+  and ignored (the preference reads `object(forKey:) as? Bool`); use
+  `-alwaysPlayInLandscape '<false/>'`.
 - New installs default intro auto-skip to always except episode 1 of each
   season; existing stored intro-skip preferences are preserved.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in their setters.

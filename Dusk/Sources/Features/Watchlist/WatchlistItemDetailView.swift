@@ -116,20 +116,10 @@ private struct WatchlistInfoPage: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let backgroundWidth: CGFloat = {
-                #if os(tvOS)
-                geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
-                #else
-                geometry.size.width
-                #endif
-            }()
-            let leadingInset: CGFloat = {
-                #if os(tvOS)
-                geometry.safeAreaInsets.leading
-                #else
-                0
-                #endif
-            }()
+            // The backdrop runs under side insets (iPhone landscape, iPhone
+            // Duo's vertical bar); the hero content stays inside them.
+            let backgroundWidth = geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing
+            let leadingInset = geometry.safeAreaInsets.leading
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {

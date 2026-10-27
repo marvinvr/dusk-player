@@ -243,6 +243,7 @@ struct PlayerView: View {
         // `PlaybackCoordinator.isIdleTimerSuppressed`.
         .playerIdleTimerDisabled(playback.isIdleTimerSuppressed)
         .modifier(PlayerPhoneLandscapeModifier())
+        .playerHorizontalSystemBars()
         #endif
         .playerSharePlayPresentation(isPlayer: true)
     }
@@ -1328,6 +1329,24 @@ private struct PlayerSessionView: View {
 private extension View {
     func playerIdleTimerDisabled(_ isDisabled: Bool) -> some View {
         modifier(PlayerIdleTimerModifier(isDisabled: isDisabled))
+    }
+
+    /// iPhone Duo's cover display moves the status bar and Dynamic Island
+    /// into a vertical bar, which in landscape sits on the left: an 84pt
+    /// leading inset that pushed the HUD and scrubber off the centred video.
+    /// Apple's guidance for a full-screen video player is to opt out; the
+    /// reserved strip then moves to the top (82pt, measured in the simulator)
+    /// and the HUD is symmetric again. No-op on every other iPhone and iPad.
+    /// The picker sheets keep the system default: opting them out as well
+    /// flipped the player's status bar back to the vertical axis behind a
+    /// portrait sheet, over the HUD's trailing buttons.
+    @ViewBuilder
+    func playerHorizontalSystemBars() -> some View {
+        if #available(iOS 27.1, *) {
+            toolbarVerticalBehavior(.disabled)
+        } else {
+            self
+        }
     }
 }
 

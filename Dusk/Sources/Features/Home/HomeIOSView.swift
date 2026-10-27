@@ -33,6 +33,12 @@ struct HomeIOSView: View {
     private var content: some View {
         GeometryReader { geometry in
             let heroItems = cinematicHeroItems
+            // The artwork runs under side insets (iPhone landscape, iPhone
+            // Duo's vertical bar) like the top one; the hero keeps its title,
+            // buttons, and pager inside them.
+            let heroLeadingInset = geometry.safeAreaInsets.leading
+            let heroTrailingInset = geometry.safeAreaInsets.trailing
+            let heroWidth = geometry.size.width + heroLeadingInset + heroTrailingInset
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
@@ -40,8 +46,10 @@ struct HomeIOSView: View {
                         HomeCinematicHero(
                             items: heroItems,
                             viewModel: viewModel,
-                            containerSize: geometry.size,
+                            containerSize: CGSize(width: heroWidth, height: geometry.size.height),
                             topInset: geometry.safeAreaInsets.top,
+                            contentLeadingInset: heroLeadingInset,
+                            contentTrailingInset: heroTrailingInset,
                             layout: heroLayout,
                             autoRotates: true,
                             supportsDragNavigation: true,
@@ -92,6 +100,8 @@ struct HomeIOSView: View {
                                 path.append(AppNavigationRoute.destination(for: item))
                             }
                         )
+                        .frame(width: heroWidth)
+                        .offset(x: -heroLeadingInset)
                     }
 
                     LazyVStack(alignment: .leading, spacing: 18) {
@@ -131,6 +141,7 @@ struct HomeIOSView: View {
                 }
                 .padding(.top, heroItems.isEmpty ? 16 : -geometry.safeAreaInsets.top)
                 .padding(.bottom, 24)
+                .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .scrollIndicators(.hidden)
         }

@@ -69,8 +69,11 @@ struct EpisodeDetailView: View {
                     heroSection(
                         details,
                         topInset: geometry.safeAreaInsets.top,
-                        containerWidth: geometry.size.width,
-                        containerHeight: geometry.size.height
+                        // The backdrop runs under side insets (iPhone landscape,
+                        // iPhone Duo's vertical bar); the content stays inside them.
+                        containerWidth: geometry.size.width + geometry.safeAreaInsets.leading + geometry.safeAreaInsets.trailing,
+                        containerHeight: geometry.size.height,
+                        backgroundLeadingInset: geometry.safeAreaInsets.leading
                     )
 
                     if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
@@ -120,7 +123,8 @@ struct EpisodeDetailView: View {
         _ details: PlexMediaDetails,
         topInset: CGFloat,
         containerWidth: CGFloat,
-        containerHeight: CGFloat
+        containerHeight: CGFloat,
+        backgroundLeadingInset: CGFloat
     ) -> some View {
         let heroBase = min(max(containerHeight * 0.72, 520), 760)
         let heroHeight = heroBase + topInset
@@ -131,6 +135,7 @@ struct EpisodeDetailView: View {
             descriptionText: details.summary,
             topInset: topInset,
             containerWidth: containerWidth,
+            backgroundLeadingInset: backgroundLeadingInset,
             heroBaseHeight: heroBase,
             // The season·episode marker rides directly under the title (so on iPad
             // it heads the right column), while the rest of the metadata stays in
