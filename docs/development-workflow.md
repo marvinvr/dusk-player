@@ -104,7 +104,7 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   are retried, with partial downloads resumed; do not weaken the checksum or
   replace this with an unverified framework fallback.
 - The archives are Dusk's own build (TrueHD), assets of the release
-  `vlckit-<version>` (currently `vlckit-3.7.3-dusk2`) in the PRIVATE repo
+  `vlckit-<version>` (currently `vlckit-3.7.3-dusk3`) in the PRIVATE repo
   `marvinvr/dusk-vlckit` — private on purpose: a public binary with the
   Dolby TrueHD decoder is a distribution Marvin decided against. The
   installer downloads them with `gh release download`, so it needs `gh` with a

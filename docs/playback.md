@@ -990,6 +990,11 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   JOC packets. Neither sample had a `chan` box; `dec3` described 3/2 + LFE.
   Do not add a speculative MP4 channel permutation to this verified copy path.
   These silent probes and compile checks do not verify a physical HDMI receiver.
+  The tvOS Simulator cannot exercise 0103 either: its route mirrors the Mac's
+  stereo output (`multichannel: source 6, route max 2`), so libvlc mixes to
+  stereo before the reorder. On the Simulator, AVPlayer reports E-AC-3 5.1 as
+  `layoutTag=8060934` (MPEG 5.1 C, the bitstream's native order), and manual
+  audio picks hold on both engines with a different preferred language set.
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible
   video, audio, and text subtitles. `VLCKitEngine` is the fallback for MKV,
   DTS/TrueHD audio (TrueHD with Dusk's own VLCKit build only), bitmap/complex
@@ -1206,7 +1211,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   (`DuskVLCKitBuild`, `DuskVLCKitTrueHD`). `VLCKitBuildInfo.decodesTrueHD`
   reads it from the loaded binary, so a stale stock framework in a local
   `Frameworks/` keeps the old routing instead of playing TrueHD silent.
-  Playback Info's "VLCKit Build" row shows `Dusk VLCKit 3.7.3-dusk2 (…,
+  Playback Info's "VLCKit Build" row shows `Dusk VLCKit 3.7.3-dusk3 (…,
   TrueHD)`; "Stock VLCKit 3.x" means the frameworks are stale.
 - libvlc 3.x tags TrueHD `trhd`, MLP `mlp `; `mlpa` was the 4.x alpha's
   TrueHD fourcc. `VLCKitEngine.trueHDAudioFourCCs` holds all three and only
