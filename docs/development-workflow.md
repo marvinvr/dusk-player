@@ -100,6 +100,15 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 - The archives are checksum-verified. Network, TLS, and CDN transfer failures
   are retried, with partial downloads resumed; do not weaken the checksum or
   replace this with an unverified framework fallback.
+- This branch ships stock VideoLAN 3.7.3. `scripts/testflight.sh` copies the
+  checkout's frameworks first, so the installer also replaces any framework
+  stamped `DuskVLCKitBuild` (main's own build), whatever `VLCKit-VERSION.txt`
+  says. 1.7.6 shipped main's `3.7.3-dusk1` that way and crashed on tvOS 26 and
+  macOS 26 (#27).
+- `scripts/verify_embedded_vlckit.sh` (a post-build phase) fails the build when
+  the embedded VLCKit weak-links libSystem functions older OS versions lack.
+  dusk1 was built with the Xcode 27 SDK and weak-linked `pipe2` (iOS/tvOS/macOS
+  27+ only), so libvlc jumped to NULL on its first socket/pipe on older systems.
 
 ## Metal Toolchain
 

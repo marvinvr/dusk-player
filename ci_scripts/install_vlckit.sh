@@ -42,7 +42,23 @@ cleanup() {
 
 trap cleanup EXIT
 
+# True when a slice carries the stamp of Dusk's own VLCKit build (main pins
+# 3.7.3-dusk*). This branch ships stock VideoLAN 3.7.3, and VLCKit-VERSION.txt
+# cannot tell them apart: scripts/testflight.sh copies the checkout's
+# frameworks without it, which shipped main's dusk1 build in 1.7.6 (#27).
+has_dusk_vlckit_stamp() {
+    local plist
+    for plist in "${IOS_FRAMEWORK_DIR}"/*/MobileVLCKit.framework/Info.plist \
+        "${TVOS_FRAMEWORK_DIR}"/*/TVVLCKit.framework/Info.plist; do
+        if /usr/libexec/PlistBuddy -c "Print :DuskVLCKitBuild" "${plist}" >/dev/null 2>&1; then
+            return 0
+        fi
+    done
+    return 1
+}
+
 has_expected_vlckit() {
+    ! has_dusk_vlckit_stamp &&
     [ -d "${IOS_FRAMEWORK_DIR}/ios-arm64" ] &&
     [ -d "${IOS_FRAMEWORK_DIR}/ios-arm64-simulator" ] &&
     [ -d "${TVOS_FRAMEWORK_DIR}/tvos-arm64" ] &&
