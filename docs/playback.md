@@ -289,6 +289,16 @@ so the whole live HUD is derived from one instant.
   uses the pending audio pick first. A later manual audio change does not
   re-run Auto.
 - A per-show remembered choice (below) is resolved first and always wins.
+- A manual audio pick wins for the current item, including movies: the view
+  model retains its manual-selection guard across reconfiguration, and the
+  coordinator carries the Plex stream ID across PiP/player and engine
+  replacements. A new item clears that session override; episodes still save
+  the semantic per-show preference. Server-rendered pickers update their local
+  server-selection snapshot immediately so synchronization cannot restore the
+  startup language while Plex prepares the replacement.
+- `AudioTrackSelectionTests` uses silent fake engines to cover deferred
+  automatic selection, repeated configuration, server-picker synchronization
+  and a movie's explicit selection reaching a replacement player.
 - `SubtitleSelectionPolicyTests` covers the modes, fallbacks, startup audio,
   legacy-setting migration, the Plex account profile decoding, and the
   first-launch audio language (device language, English only as fallback,
@@ -958,6 +968,28 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   stopped session so the temporary rate cannot leak across playback sessions.
 
 ## AVPlayer and VLCKit Split
+- On tvOS, `vlc-patches/0103` normalizes VLCKit's 5.1/7.1 PCM at the RemoteIO
+  input: MPEG 5.1 A (`L R C LFE Ls Rs`) / MPEG 7.1 C, with
+  `aout_CheckChannelReorder` and `ca_Play` moving the samples to match the tag.
+  VLC's WG4 5.1 order (`L R Ls Rs C LFE`) must not be handed to a standard-order
+  output with only a channel count. Both VLC 5.1 masks (side or rear surround
+  pair) map to MPEG 5.1 A; 7.1 keeps separate side/rear pairs. Other
+  layouts/platforms keep VLC's mapping.
+  `:stereo-mode=0` means Original (`AOUT_VAR_CHAN_UNSET`) on libvlc 3.x; other
+  values force a software downmix. Set it before play, never repeatedly on a
+  live output. [Apple's MPEG 5.1 A order](https://developer.apple.com/documentation/coreaudiotypes/kaudiochannellayouttag_mpeg_5_1_a)
+  defines the tag's sample order.
+- Plex's stream key is `audioChannelLayout`; `PlexStream.channelLayout` decodes
+  that and still accepts the old Dusk offline-cache key `channelLayout`.
+  This is metadata, not an instruction to reorder an encoded Dolby bitstream:
+  AVPlayer owns AC-3/E-AC-3 decoding and its log includes the decoded layout tag.
+- Issue #30 probe (plex-demo, storage:10012): rating keys 11 (plain E-AC-3)
+  and 10 (JOC) both returned video/audio `copy`, six channels, 48 kHz,
+  `5.1(side)` in source MKV and the first fMP4 HLS fragment. `ffprobe` packet
+  SHA-256 hashes matched across source/remux for the inspected 32 plain / 24
+  JOC packets. Neither sample had a `chan` box; `dec3` described 3/2 + LFE.
+  Do not add a speculative MP4 channel permutation to this verified copy path.
+  These silent probes and compile checks do not verify a physical HDMI receiver.
 - `AVPlayerEngine` is for MP4/MOV/M4V-style direct play with AV-compatible
   video, audio, and text subtitles. `VLCKitEngine` is the fallback for MKV,
   DTS/TrueHD audio (TrueHD with Dusk's own VLCKit build only), bitmap/complex
@@ -995,6 +1027,8 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   the setter succeeded: VLCKit discards libvlc's selection error result.
 - AVPlayer restores subtitles using the option's property-list identity in the
   replacement item's group, then reapplies after the initial resume seek.
+  Audio choices use the same property-list identity on an in-place stall
+  recovery, so rebuilding an item cannot restore its default language.
   Asynchronous track discovery must check the current item before publishing
   results, so an old item's groups cannot replace the live selection mapping.
 - Local subtitle picker checkmarks come only from the engine's reported

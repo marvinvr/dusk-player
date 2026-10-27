@@ -82,7 +82,7 @@ struct PlaybackIdleTimerTests {
 
         for shouldAutoplay in [false, true] {
             playback.upNextPresentation = UpNextPresentation(
-                episode: episode,
+                item: PlaybackQueueItem(episode: episode),
                 source: .playbackEnded,
                 shouldAutoplay: shouldAutoplay,
                 countdownDuration: 10,

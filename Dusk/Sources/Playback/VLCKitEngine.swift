@@ -1802,6 +1802,13 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         let media = VLCMedia(url: source.url)
 
+        #if os(tvOS)
+        // "Original" (AOUT_VAR_CHAN_UNSET) in libvlc 3.x is 0. Every other value
+        // forces a downmix before the AudioUnit sees the channel layout.
+        // Set once before output opens, never poke the live audio output.
+        media.addOption(":stereo-mode=0")
+        #endif
+
         applySubtitleStyling()
         applyNetworkBufferingOptions(to: media, locality: source.locality)
         // An in-place reopen restores what was playing; a fresh load uses the

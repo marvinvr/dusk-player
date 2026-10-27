@@ -106,6 +106,9 @@ final class PlayerViewModel {
     @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
     var hasConfiguredAutomaticTrackSelection = false
     var hasAppliedAutomaticAudioSelection = false
+    /// Retained across onAppear/configuration of this same player. Global
+    /// defaults are startup policy; they must never undo a picker action.
+    var userSelectedAudioTrack: AudioTrack?
     var hasAppliedAutomaticSubtitleSelection = false
     /// Sidecar subtitles mount a beat after the container's own tracks, so the
     /// one-shot automatic choice is re-evaluated exactly once after an external
@@ -243,7 +246,7 @@ final class PlayerViewModel {
         applyPersistedAspectFill()
         sourcePart = part
         self.usesServerTrackSelection = usesServerTrackSelection
-        serverSelectedAudioStreamID = selectedAudioStreamID
+        serverSelectedAudioStreamID = userSelectedAudioTrack?.id ?? selectedAudioStreamID
         serverSelectedSubtitleStreamID = selectedSubtitleStreamID
         pendingServerSubtitleRenditionSelection = usesServerTrackSelection
             && rendersServerSubtitleTrack
@@ -256,7 +259,7 @@ final class PlayerViewModel {
         isFirstEpisodeInSeason = mediaDetails?.type == .episode && mediaDetails?.index == 1
         self.spentAutoSkipMarkerIDs = spentAutoSkipMarkerIDs
         hasConfiguredAutomaticTrackSelection = true
-        hasAppliedAutomaticAudioSelection = false
+        hasAppliedAutomaticAudioSelection = userSelectedAudioTrack != nil
         hasAppliedAutomaticSubtitleSelection = false
         hasReappliedAutomaticSubtitleSelectionForExternalTracks = false
         hasUserSelectedSubtitleTrack = false

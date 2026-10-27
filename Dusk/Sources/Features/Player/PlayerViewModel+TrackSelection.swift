@@ -25,6 +25,7 @@ extension PlayerViewModel {
         }
 
         if usesServerTrackSelection {
+            serverSelectedSubtitleStreamID = track?.id
             selectedSubtitleTrackID = track?.id
             showSubtitlePicker = false
             plexTrackSelectionHandler?(selectedAudioTrackID, track?.id)
@@ -48,6 +49,7 @@ extension PlayerViewModel {
     }
 
     func selectAudio(_ track: AudioTrack) {
+        userSelectedAudioTrack = track
         if let streamID = track.plexStreamID {
             userTrackSelectionHandler?(.audio, streamID)
         }
@@ -55,6 +57,7 @@ extension PlayerViewModel {
         showAudioPicker = false
 
         if usesServerTrackSelection {
+            serverSelectedAudioStreamID = track.id
             selectedAudioTrackID = track.id
             plexTrackSelectionHandler?(track.plexStreamID ?? track.id, selectedSubtitleTrackID)
             return

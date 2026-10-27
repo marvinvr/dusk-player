@@ -8,6 +8,7 @@ extension PlaybackCoordinator {
         // A real pick is the viewer's to keep on the server, so the earlier
         // selection is no longer written back for that half.
         if type == .audio {
+            manuallySelectedAudioStreamID = streamID
             automaticServerSelectionRestore?.audioStreamID = nil
         } else if type == .subtitle {
             automaticServerSelectionRestore?.subtitleStreamID = nil
@@ -45,9 +46,16 @@ extension PlaybackCoordinator {
         )
     }
 
-    /// Also used after PiP re-presentation: the startup one-shot may already
-    /// have been consumed, but the show's choice must still beat global defaults.
+    /// A manual choice belongs to the current item, including movies. After
+    /// PiP re-presentation, fall back to the show's remembered choice only
+    /// when the viewer has not selected audio during this playback.
     func rememberedShowTrackSelection() -> ExplicitTrackSelection? {
+        if let manuallySelectedAudioStreamID {
+            return ExplicitTrackSelection(
+                audioStreamID: manuallySelectedAudioStreamID,
+                subtitleStreamID: activeSubtitleStreamID
+            )
+        }
         guard activeLiveTVContext == nil,
               activeItemDetails?.type == .episode,
               let scope = activeShowTrackScope,

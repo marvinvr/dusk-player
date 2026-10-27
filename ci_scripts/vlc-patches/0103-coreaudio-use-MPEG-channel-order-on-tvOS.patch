@@ -1,0 +1,54 @@
+From: Dusk Player <dusk@localhost>
+Subject: [PATCH] coreaudio: use explicit MPEG PCM channel order on tvOS
+
+VLC's WG4 order puts surrounds before center/LFE. Normalize the tvOS
+RemoteIO input to MPEG 5.1 A / 7.1 C and reorder PCM to match, rather than
+relying on a custom channel-description layout at the HDMI boundary.
+The other Apple platforms and non-surround layouts retain their mapping.
+
+--- a/modules/audio_output/coreaudio_common.c
++++ b/modules/audio_output/coreaudio_common.c
+@@ -24,6 +24,7 @@
+
+ #import "coreaudio_common.h"
+ #import <CoreAudio/CoreAudioTypes.h>
++#import <TargetConditionals.h>
+
+ static inline uint64_t
+ BytesToFrames(struct aout_sys_common *p_sys, size_t i_bytes)
+@@ -803,6 +804,35 @@
+     inlayout->mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
+     inlayout->mNumberChannelDescriptions = aout_FormatNbChannels(fmt);
+
++#if TARGET_OS_TV
++    /* RemoteIO/HDMI uses Core Audio's MPEG order. Do not rely on custom
++     * descriptions to permute VLC's WG4 PCM order (L R Ls Rs C LFE): on
++     * tvOS that can put the center samples in a surround speaker. Supply a
++     * standard layout tag AND reorder the samples to match that tag. */
++    if (fmt->i_physical_channels == AOUT_CHANS_5_1
++     || fmt->i_physical_channels == (AOUT_CHANS_5_0_MIDDLE | AOUT_CHAN_LFE)
++     || fmt->i_physical_channels == AOUT_CHANS_7_1)
++    {
++        const bool seven_one = fmt->i_physical_channels == AOUT_CHANS_7_1;
++        static const uint32_t mpeg_order[] = {
++            AOUT_CHAN_LEFT, AOUT_CHAN_RIGHT, AOUT_CHAN_CENTER, AOUT_CHAN_LFE,
++            AOUT_CHAN_MIDDLELEFT, AOUT_CHAN_MIDDLERIGHT,
++            AOUT_CHAN_REARLEFT, AOUT_CHAN_REARRIGHT, 0
++        };
++        inlayout->mChannelLayoutTag = seven_one
++            ? kAudioChannelLayoutTag_MPEG_7_1_C
++            : kAudioChannelLayoutTag_MPEG_5_1_A;
++        inlayout->mChannelBitmap = 0;
++        inlayout->mNumberChannelDescriptions = 0;
++        *inlayout_size = sizeof(AudioChannelLayout);
++        p_sys->chans_to_reorder = aout_CheckChannelReorder(NULL, mpeg_order,
++            fmt->i_physical_channels, p_sys->chan_table);
++        msg_Dbg(p_aout, "tvOS: MPEG %s PCM channel order, reordering %u channels",
++            seven_one ? "7.1" : "5.1", p_sys->chans_to_reorder);
++        return VLC_SUCCESS;
++    }
++#endif
++
+     bool swap_rear_surround = (fmt->i_physical_channels & AOUT_CHANS_7_0) == AOUT_CHANS_7_0;
+     if (swap_rear_surround)
+         msg_Dbg(p_aout, "swapping Surround and RearSurround channels "

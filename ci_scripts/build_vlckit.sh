@@ -42,7 +42,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VLCKIT_REPO_URL="https://code.videolan.org/videolan/VLCKit.git"
 VLCKIT_TAG="3.7.3"
 VLCKIT_COMMIT="319ed2c0724e3d4c4d34889a62fef1ae269491bc"
-DUSK_VLCKIT_BUILD="dusk2"
+DUSK_VLCKIT_BUILD="dusk3"
 VERSION="${VLCKIT_TAG}-${DUSK_VLCKIT_BUILD}"
 
 WORK_DIR="${DUSK_VLCKIT_WORK_DIR:-${ROOT_DIR}/.build/vlckit}"

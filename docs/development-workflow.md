@@ -147,7 +147,8 @@ Prefer existing files and same-type extension patterns for small additions. Add 
   series, which `buildMobileVLCKit.sh` git-am's onto vlc. 0100 re-enables
   TrueHD/MLP (read "Dolby TrueHD decoding" in `playback.md` for the licensing
   decision), 0101 fixes tvOS multichannel output, 0102 keeps libvlc off
-  `pipe2` (OS 27+ only, see VLCKit Bootstrap).
+  `pipe2` (OS 27+ only, see VLCKit Bootstrap), 0103 uses MPEG layout tags
+  plus matching PCM reordering for tvOS 5.1/7.1 (see `playback.md`).
 - The script fails unless `libavcodec.a` defines `ff_truehd_decoder` and
   `ff_mlp_decoder`, stamps each framework's Info.plist (`DuskVLCKitBuild`,
   `DuskVLCKitTrueHD`, read by `VLCKitBuildInfo`), and writes

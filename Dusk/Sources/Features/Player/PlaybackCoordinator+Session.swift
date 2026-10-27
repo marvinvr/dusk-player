@@ -622,6 +622,7 @@ extension PlaybackCoordinator {
             upNextPoster = nil
             // A new item gets its own one-shot auto-skips.
             spentAutoSkipMarkerIDs = []
+            manuallySelectedAudioStreamID = nil
             didFinalizeCurrentSession = false
             lastReportedTimeMs = 0
             lastReportedDurationMs = 0
@@ -1310,9 +1311,21 @@ extension PlaybackCoordinator {
         if case .serverStream = playbackDecision, StreamResolver.containsAV1(media) {
             remuxTrackSelection = ExplicitTrackSelection(audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID)
         }
+        // Engine swaps belong to the same item. A manual pick must also be
+        // the new engine's startup choice, before automatic selection runs.
+        let manualAudio = part.streams.first {
+            $0.streamType == .audio && $0.id == manuallySelectedAudioStreamID
+        }
+        if let manualAudio, !usesServerTrackSelection {
+            pendingExplicitTrackSelection = ExplicitTrackSelection(
+                audioStreamID: manualAudio.id, subtitleStreamID: activeSubtitleStreamID
+            )
+        }
         let preferredAudioTrackPosition: Int? = switch playbackDecision {
         case .directPlay, .localDownload:
-            audioTrackPositionOverride ?? PlayerViewModel.preferredAudioStreamPosition(
+            audioTrackPositionOverride ?? part.streams.filter { $0.streamType == .audio }
+                .firstIndex { $0.id == manualAudio?.id }
+                ?? PlayerViewModel.preferredAudioStreamPosition(
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             )
@@ -1326,7 +1339,7 @@ extension PlaybackCoordinator {
             shouldAutoPlay: shouldAutoPlay,
             context: attemptContext,
             preferredAudioTrackPosition: preferredAudioTrackPosition,
-            preferredAudioChannelCount: audioChannelCountOverride ?? PlayerViewModel.preferredAudioStreamChannelCount(
+            preferredAudioChannelCount: audioChannelCountOverride ?? manualAudio?.channels ?? PlayerViewModel.preferredAudioStreamChannelCount(
                 inPart: part,
                 preferredLanguage: preferences.defaultAudioLanguage
             ),
@@ -2033,6 +2046,7 @@ extension PlaybackCoordinator {
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
         activeAudioStreamID = nil
+        manuallySelectedAudioStreamID = nil
         activeSubtitleStreamID = nil
         remuxTrackSelection = nil
         pendingExternalSubtitleStreamID = nil

@@ -81,6 +81,9 @@ final class PlaybackCoordinator {
     /// Plex stream selections that must survive local → AirPlay handoffs. Engine
     /// ids are implementation-local, so the player maps them back to these ids.
     var activeAudioStreamID: Int?
+    /// A picker choice for this item, including movies. Survives player
+    /// presentation and engine replacements; cleared when a new item commits.
+    var manuallySelectedAudioStreamID: Int?
     var activeSubtitleStreamID: Int?
     /// Set while a remux session has Plex convert its audio (TrueHD and other
     /// codecs the fMP4 cannot carry). Rebuilding that remux around the same

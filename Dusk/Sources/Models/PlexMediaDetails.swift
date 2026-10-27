@@ -566,7 +566,8 @@ struct PlexStream: Codable, Sendable, Identifiable {
         case doviProfile = "DOVIProfile"
         case doviLevel = "DOVILevel"
         case doviBLCompatID = "DOVIBLCompatID"
-        case channels, channelLayout, samplingRate
+        case channels, samplingRate
+        case channelLayout = "audioChannelLayout"
         case isForced = "forced"
         case isHearingImpaired = "hearingImpaired"
         case key
@@ -674,9 +675,16 @@ struct PlexStream: Codable, Sendable, Identifiable {
         doviLevel = try container.decodeIfPresent(Int.self, forKey: .doviLevel)
         doviBLCompatID = try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
         channels = try container.decodeIfPresent(Int.self, forKey: .channels)
+        // Older offline snapshots used Dusk's property name as the JSON key.
+        let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
         channelLayout = try container.decodeIfPresent(String.self, forKey: .channelLayout)
+            ?? legacy.decodeIfPresent(String.self, forKey: .channelLayout)
         samplingRate = try container.decodeIfPresent(Int.self, forKey: .samplingRate)
         key = try container.decodeIfPresent(String.self, forKey: .key)
+    }
+
+    private enum LegacyCodingKeys: String, CodingKey {
+        case channelLayout
     }
 
     /// Plex sometimes sends Bool fields as Int (0/1) and sometimes as actual Bool.

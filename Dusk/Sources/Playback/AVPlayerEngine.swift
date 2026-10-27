@@ -115,6 +115,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// item. AVFoundation's property-list identity survives group recreation.
     private var hasRequestedSubtitleSelection = false
     private var requestedSubtitleOption: AVMediaSelectionOption?
+    private var requestedAudioOption: AVMediaSelectionOption?
 
     private var pendingStartPosition: TimeInterval?
     private var hasReportedPlaybackEnded = false
@@ -230,6 +231,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         pendingStartPosition = source.startPosition
         hasRequestedSubtitleSelection = false
         requestedSubtitleOption = nil
+        requestedAudioOption = nil
         hasReportedPlaybackEnded = false
 
         #if os(tvOS)
@@ -358,6 +360,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         currentSource = nil
         hasRequestedSubtitleSelection = false
         requestedSubtitleOption = nil
+        requestedAudioOption = nil
     }
 
     func seek(to position: TimeInterval) {
@@ -425,8 +428,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         hasReportedPlaybackEnded = false
         availableAudioTracks = []
         availableSubtitleTracks = []
-        audioOptionsByID = [:]
-        // Keep subtitle option identities until discovery replaces them: a
+        // Keep audio/subtitle option identities until discovery replaces them: a
         // picker already on screen may submit a choice during this rebuild.
         audioGroup = nil
         subtitleGroup = nil
@@ -554,9 +556,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     func selectAudioTrack(_ track: AudioTrack) {
+        guard let option = audioOptionsByID[track.id] else { return }
+        requestedAudioOption = option
         guard let item = player.currentItem,
-              let group = audioGroup,
-              let option = audioOptionsByID[track.id] else { return }
+              let group = audioGroup else { return }
         item.select(option, in: group)
         selectedAudioTrackID = track.id
     }
@@ -1086,7 +1089,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 ))
                 audioOptionsByID[i] = option
             }
-            let selectedOption = item.currentMediaSelection.selectedMediaOption(in: group)
+            let selectedOption = requestedAudioOption.flatMap {
+                group.mediaSelectionOption(withPropertyList: $0.propertyList())
+            } ?? item.currentMediaSelection.selectedMediaOption(in: group)
                 ?? group.defaultOption
                 ?? group.options.first
             if let selectedOption {
@@ -1144,8 +1149,12 @@ extension AVPlayerEngine {
         }
         let format = Self.fourCCString(streamDescription.mFormatID)
         let isAtmos = Self.formatListContains(Self.kAudioFormatEnhancedAC3JOC, in: description)
+        // Native decoding owns the compressed stream's channel layout. Log
+        // its actual tag rather than inferring a PCM order from Plex's count.
+        let layoutTag = CMAudioFormatDescriptionGetChannelLayout(description, sizeOut: nil)?
+            .pointee.mChannelLayoutTag
         avPlayerEngineLogger.notice(
-            "AVPlayer audio format \(format, privacy: .public), \(streamDescription.mChannelsPerFrame, privacy: .public) ch, Dolby Atmos: \(isAtmos ? "yes" : "no", privacy: .public)"
+            "AVPlayer audio format \(format, privacy: .public), \(streamDescription.mChannelsPerFrame, privacy: .public) ch, layoutTag=\(layoutTag.map(String.init) ?? "unspecified", privacy: .public), Dolby Atmos: \(isAtmos ? "yes" : "no", privacy: .public)"
         )
     }
 
