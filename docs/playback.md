@@ -267,7 +267,10 @@ so the whole live HUD is derived from one instant.
 - Audio: `defaultAudioLanguage` scopes the pre-start pick
   (`preferredAudioStreamPosition` and friends) and the runtime
   `preferredAudioTrack()`; "" (Original) keeps the part's selected/default
-  language and only re-ranks codecs inside it.
+  language and only re-ranks codecs inside it. `UserPreferences.storedAudioLanguage`
+  resolves it: the viewer's choice, then the Plex account, then the device
+  language (`Locale.preferredLanguages`, the same codes as subtitles), then
+  English. A stored choice, including Original and English, is not replaced.
 - Subtitles: `SubtitleSelectionPolicy` is the one rule for every path — the
   startup pick on Plex metadata (`PlayerViewModel.preferredSubtitleStreamID(inPart:policy:audioStream:)`,
   feeding direct-play routing, remux and AirPlay) and the runtime pick on engine
@@ -287,7 +290,9 @@ so the whole live HUD is derived from one instant.
   re-run Auto.
 - A per-show remembered choice (below) is resolved first and always wins.
 - `SubtitleSelectionPolicyTests` covers the modes, fallbacks, startup audio,
-  legacy-setting migration and the Plex account profile decoding.
+  legacy-setting migration, the Plex account profile decoding, and the
+  first-launch audio language (device language, English only as fallback,
+  stored choices left alone).
 
 ## Per-show Track Choices
 

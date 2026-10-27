@@ -224,6 +224,22 @@ struct SubtitleSelectionPolicyTests {
         #expect(fresh.language == (UserPreferences.systemPreferredSubtitleLanguageCode ?? "en"))
     }
 
+    @Test func audioLanguageFollowsTheDeviceUntilTheViewerChooses() throws {
+        let device = UserPreferences.systemPreferredSubtitleLanguageCode
+        #expect(try audioLanguage([:]) == (device ?? "en"))
+        #expect(try audioLanguage([:], systemLanguage: "ja") == "ja")
+        #expect(try audioLanguage([:], systemLanguage: nil) == "en")
+        #expect(try audioLanguage(["defaultAudioLanguage": "de"], systemLanguage: "ja") == "de")
+        #expect(try audioLanguage(["defaultAudioLanguage": ""], systemLanguage: "ja") == "")
+        #expect(try audioLanguage(["defaultAudioLanguage": "en"], systemLanguage: "ja") == "en")
+        #expect(try audioLanguage(["plexAccountAudioLanguage": "fr"], systemLanguage: "ja") == "fr")
+        #expect(try audioLanguage(["plexAccountAudioLanguage": ""], systemLanguage: "ja") == "")
+        #expect(try audioLanguage(
+            ["defaultAudioLanguage": "it", "plexAccountAudioLanguage": "fr"],
+            systemLanguage: "ja"
+        ) == "it")
+    }
+
     @Test func plexAccountDefaultsApplyOnlyToUntouchedSettings() throws {
         let account: [String: Any] = ["plexAccountSubtitleLanguage": "fr", "plexAccountSubtitleMode": "auto"]
         #expect(try stored(account) == .init(language: "fr", mode: .auto, forcedSubtitlesEnabled: true))
@@ -252,6 +268,19 @@ struct SubtitleSelectionPolicyTests {
         try JSONDecoder().decode(PlexMedia.self, from: Data("""
             {"id":1,"Part":[{"id":1,"key":"/clip","Stream":[\(streams)]}]}
             """.utf8)).parts[0]
+    }
+
+    private func audioLanguage(
+        _ values: [String: Any],
+        systemLanguage: String? = UserPreferences.systemPreferredSubtitleLanguageCode
+    ) throws -> String {
+        let suite = "SubtitleSelectionPolicyTests-audio-\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        for (key, value) in values {
+            defaults.set(value, forKey: key)
+        }
+        return UserPreferences.storedAudioLanguage(defaults: defaults, systemLanguage: systemLanguage)
     }
 
     private func stored(_ values: [String: Any]) throws -> UserPreferences.StoredSubtitleSettings {

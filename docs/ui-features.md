@@ -1220,6 +1220,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `plexAccount*` keys and applied through
   `UserPreferences.applyPlexAccountLanguageDefaults`, which never writes the
   viewer's own keys, so the account keeps steering until the viewer picks.
+  With neither a Dusk choice nor an account audio language, audio uses the
+  device language and English only as the last fallback
+  (`UserPreferences.storedAudioLanguage`), the same device-language step
+  subtitles already take.
 - `subtitleFontSize` (Audio & Subtitles › Size, Extra Small/Small/
   Medium/Large, Medium = the previous fixed size) scales locally rendered
   subtitles on both engines. It is also editable from the in-player gear menu

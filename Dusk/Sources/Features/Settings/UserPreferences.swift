@@ -455,9 +455,7 @@ final class UserPreferences {
         }
         let subtitleStyle = defaults.string(forKey: Keys.subtitleStyle)
             .flatMap(SubtitleStyle.init(rawValue:)) ?? .default
-        let defaultAudioLanguage = defaults.string(forKey: Keys.defaultAudioLanguage)
-            ?? defaults.string(forKey: Keys.accountAudioLanguage)
-            ?? "en"
+        let defaultAudioLanguage = Self.storedAudioLanguage(defaults: defaults)
         let continuousPlayEnabled = defaults.object(forKey: Keys.continuousPlayEnabled) as? Bool ?? true
         let continuousPlayCountdown = Self.storedContinuousPlayCountdown(
             forKey: Keys.continuousPlayCountdown,
@@ -716,6 +714,28 @@ final class UserPreferences {
         var language: String
         var mode: SubtitleMode
         var forcedSubtitlesEnabled: Bool
+    }
+
+    /// Preferred audio language. Order: the viewer's Audio & Subtitles choice
+    /// (including "" for Original), the cached Plex account language, then the
+    /// device language (`Locale.preferredLanguages`, the same codes subtitles
+    /// use), with English only when that yields nothing. A missing key is not
+    /// a choice, so a later account default can still apply; a stored value,
+    /// including English or Original, is left alone.
+    ///
+    /// `systemLanguage` exists so tests can pin the device language. Production
+    /// passes `systemPreferredSubtitleLanguageCode`.
+    static func storedAudioLanguage(
+        defaults: UserDefaults,
+        systemLanguage: String? = systemPreferredSubtitleLanguageCode
+    ) -> String {
+        if let chosen = defaults.string(forKey: Keys.defaultAudioLanguage) {
+            return chosen
+        }
+        if let account = defaults.string(forKey: Keys.accountAudioLanguage) {
+            return account
+        }
+        return systemLanguage ?? "en"
     }
 
     /// Resolves the subtitle settings in this order: the viewer's Dusk choice,
