@@ -1,4 +1,7 @@
 import SwiftUI
+#if os(tvOS)
+import CoreImage.CIFilterBuiltins
+#endif
 
 struct SignInView: View {
     @Environment(PlexService.self) private var plexService
@@ -76,61 +79,159 @@ struct SignInView: View {
         }
     }
 
+    #if os(tvOS)
+    /// Apple TV sign-in: a calm start screen, then the plex.tv/link code next
+    /// to a QR code that opens the link page on a phone with the code filled in.
+    @ViewBuilder
     private var tvSignInContent: some View {
+        if isSigningIn {
+            tvLinkContent
+                .transition(.opacity)
+        } else {
+            tvWelcomeContent
+                .transition(.opacity)
+        }
+    }
+
+    private var tvWelcomeContent: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 0)
+            Image("LaunchLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 150, height: 150)
 
-            VStack(spacing: 24) {
-                branding(
-                    iconSize: 112,
-                    titleFont: DuskFont.pageTitleRounded(
-                        ios: .system(size: 44, weight: .bold, design: .rounded)
-                    )
-                )
+            Text("Dusk")
+                .font(DuskFont.TV.pageTitleRounded)
+                .foregroundStyle(Color.duskTextPrimary)
+                .padding(.top, 28)
 
-                VStack(spacing: 10) {
-                    Text("Sign in with Plex")
-                        .font(DuskFont.sectionHeader(ios: .title2.weight(.semibold)))
-                        .foregroundStyle(Color.duskTextPrimary)
+            Text("Sign in with your Plex account to get started.")
+                .font(DuskFont.TV.pageSubtitle)
+                .foregroundStyle(Color.duskTextSecondary)
+                .multilineTextAlignment(.center)
+                .padding(.top, 12)
 
-                    Text("On another device, open plex.tv/link and enter the code shown below.")
-                        .font(DuskFont.pageSubtitle(ios: .title3))
-                        .foregroundStyle(Color.duskTextSecondary)
-                        .multilineTextAlignment(.center)
-                        .frame(maxWidth: 720)
-                }
-
-                signInError
-
-                if let linkPinCode {
-                    VStack(spacing: 12) {
-                        Text("plex.tv/link")
-                            .font(DuskFont.rowTitle(ios: .title3.weight(.semibold)))
-                            .foregroundStyle(Color.duskTextSecondary)
-
-                        Text(linkPinCode)
-                            .font(.system(size: 54, weight: .bold, design: .monospaced))
-                            .tracking(8)
-                            .foregroundStyle(Color.duskTextPrimary)
-                    }
-                    .padding(.horizontal, 54)
-                    .padding(.vertical, 28)
-                    .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 32, style: .continuous))
-                }
-
-                signInButton
-                    .frame(maxWidth: 520)
-
-                if isSigningIn {
-                    cancelButton
-                }
+            if let error {
+                Text(error)
+                    .font(DuskFont.TV.body)
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+                    .padding(.top, 24)
             }
 
-            Spacer(minLength: 0)
+            Button {
+                Task { await signIn() }
+            } label: {
+                Text("Sign in with Plex")
+                    .font(DuskFont.TV.buttonLabel)
+                    .frame(minWidth: 380)
+            }
+            .detailHeroNativePrimaryButtonStyle()
+            .padding(.top, 56)
         }
-        .padding(.horizontal, 40)
-        .padding(.vertical, 60)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    private var tvLinkContent: some View {
+        HStack(alignment: .center, spacing: 96) {
+            tvQRCodePanel
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Sign in with Plex")
+                    .font(DuskFont.TV.pageTitle)
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Text("Scan the QR code with your phone,\nor go to \(Text("plex.tv/link").foregroundStyle(Color.duskTextPrimary)) and enter this code.")
+                    .font(DuskFont.TV.pageSubtitle)
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .lineSpacing(4)
+                    .fixedSize()
+                    .padding(.top, 14)
+
+                tvCodeTiles
+                    .padding(.top, 44)
+
+                HStack(spacing: 14) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 28, height: 28)
+                    Text(linkPinCode == nil ? "Getting a code…" : "Waiting for approval…")
+                        .font(DuskFont.TV.caption)
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+                .padding(.top, 28)
+
+                HStack(spacing: 24) {
+                    Button {
+                        Task { await signIn() }
+                    } label: {
+                        Text("New Code")
+                            .font(DuskFont.TV.buttonLabel)
+                            .frame(minWidth: 220)
+                    }
+                    .detailHeroNativePrimaryButtonStyle()
+
+                    Button {
+                        cancelSignIn()
+                    } label: {
+                        Text("Cancel")
+                            .font(DuskFont.TV.buttonLabel)
+                            .frame(minWidth: 220)
+                    }
+                    .detailHeroNativePrimaryButtonStyle()
+                }
+                .padding(.top, 48)
+            }
+            .fixedSize()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The QR code on a white card (its quiet zone), so phones read it on the
+    /// dark background.
+    private var tvQRCodePanel: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 36, style: .continuous)
+                .fill(.white)
+
+            if let linkPinCode, let qrImage = SignInQRCode.image(for: Self.linkURL(code: linkPinCode)) {
+                Image(decorative: qrImage, scale: 1)
+                    .interpolation(.none)
+                    .resizable()
+                    .scaledToFit()
+                    .padding(36)
+            } else {
+                ProgressView()
+                    .tint(.black)
+            }
+        }
+        .frame(width: 480, height: 480)
+    }
+
+    /// The four-character code as separate glass tiles, so it reads from the
+    /// couch and can't be mistaken for a word.
+    private var tvCodeTiles: some View {
+        let characters = linkPinCode.map { $0.map(String.init) } ?? Array(repeating: " ", count: 4)
+        return HStack(spacing: 18) {
+            ForEach(Array(characters.enumerated()), id: \.offset) { _, character in
+                Text(character)
+                    .font(.system(size: 76, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .frame(width: 112, height: 136)
+                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+        }
+    }
+
+    /// plex.tv/link reads a `token` query parameter into its code field
+    /// (`PlexLinkClaim` → `PlexUtils.getParam("token")`); `plex.tv` 301s to
+    /// `www.plex.tv` with the query intact.
+    private static func linkURL(code: String) -> String {
+        "https://plex.tv/link?token=\(code)"
+    }
+    #else
+    private var tvSignInContent: some View { EmptyView() }
+    #endif
 
     private func branding(iconSize: CGFloat, titleFont: Font) -> some View {
         VStack(spacing: 16) {
@@ -314,3 +415,19 @@ struct SignInView: View {
     }
     #endif
 }
+
+#if os(tvOS)
+/// Renders a QR code at one pixel per module. The view scales it up with
+/// `.interpolation(.none)`, so the modules stay sharp at any size.
+enum SignInQRCode {
+    private static let context = CIContext()
+
+    static func image(for string: String) -> CGImage? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage else { return nil }
+        return context.createCGImage(output, from: output.extent)
+    }
+}
+#endif

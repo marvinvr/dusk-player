@@ -135,6 +135,11 @@ Flow:
    code stays on screen as the fallback and only the explicit Cancel button (or a
    real ~120 s poll-window timeout) ends it. Cancellation exits polling silently;
    the "Sign-in timed out" message is reserved for the full window elapsing.
+   On Apple TV there is no browser: the code screen shows the short PIN next to
+   a CoreImage QR code for `https://plex.tv/link?token=<code>`. The link page's
+   script (`PlexLinkClaim`) reads `token` (not `code`) into its code field, and
+   the `plex.tv` → `www.plex.tv` 301 keeps the query. New Code reruns
+   `signIn()`; Cancel goes back to the start screen.
 3. `checkPin(_:)` polls until `authToken` appears.
 4. `setAuthToken(_:)` stores the primary token and clears stale account/server
    state on account change.
