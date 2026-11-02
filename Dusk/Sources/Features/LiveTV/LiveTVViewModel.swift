@@ -9,12 +9,22 @@ final class LiveTVViewModel {
     private(set) var channels: [PlexLiveChannel] = []
     private(set) var lineup: PlexLiveTVLineup?
     private(set) var nowPlayingLineup: PlexLiveTVLineup?
-    private(set) var selectedDate = Calendar.current.startOfDay(for: .now)
+    /// 0 is "Now" (the next `LiveTVGuideWindow.lookahead` hours), 1 and up
+    /// are whole days after today. An offset, not a date: a date picked at
+    /// launch went stale on an Apple TV that keeps the app running for days.
+    private(set) var selectedDayOffset = 0
     private(set) var isLoading = false
     private(set) var isLoadingNowPlaying = false
     private(set) var error: String?
 
-    private var loadedDate: Date?
+    /// The full guide as fetched; `lineup` is it trimmed to the window.
+    private var fetchedLineup: PlexLiveTVLineup?
+    private var loadedWindow: LiveTVGuideWindow?
+    private var loadedAt: Date?
+    private var loadedDayOffset: Int?
+    /// A load asked for while another ran, e.g. a date picked mid-refresh.
+    /// It used to be dropped, leaving the guide on the old date.
+    private var reloadRequested = false
     /// The Plex Home profile the provider was found for.
     private var discoveredProfileID: String?
 
@@ -72,8 +82,11 @@ final class LiveTVViewModel {
         provider = nil
         channels = []
         lineup = nil
+        fetchedLineup = nil
         nowPlayingLineup = nil
-        loadedDate = nil
+        loadedWindow = nil
+        loadedAt = nil
+        loadedDayOffset = nil
     }
 
     /// The provider, discovering it first when no pass has found one yet.
@@ -86,9 +99,15 @@ final class LiveTVViewModel {
         return provider
     }
 
-    func load(force: Bool = false) async {
-        guard !isLoading else { return }
-        if !force, lineup != nil, Calendar.current.isDate(loadedDate ?? .distantPast, inSameDayAs: selectedDate) {
+    /// Loads the guide when it is missing, stale or for another selection.
+    /// Cheap to call on every appearance.
+    func load(force: Bool = false, now: Date = .now) async {
+        guard !isLoading else {
+            reloadRequested = true
+            return
+        }
+        guard force || needsReload(now: now) else {
+            trimToWindow(now: now)
             return
         }
 
@@ -96,24 +115,66 @@ final class LiveTVViewModel {
         error = nil
         defer { isLoading = false }
 
+        repeat {
+            reloadRequested = false
+            await fetchGuide(refreshChannels: force)
+        } while reloadRequested && !Task.isCancelled
+    }
+
+    /// Keeps the guide current while it is on screen: ended programs drop off
+    /// every minute, and the whole guide is refetched once it is
+    /// `refreshInterval` old. Runs until the calling task is cancelled.
+    func keepFresh() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .seconds(60))
+            guard !Task.isCancelled else { return }
+            await load()
+        }
+    }
+
+    private func needsReload(now: Date) -> Bool {
+        guard fetchedLineup != nil, let loadedAt, let loadedDayOffset else { return true }
+        return loadedDayOffset != selectedDayOffset
+            || !Calendar.current.isDate(loadedAt, inSameDayAs: now)
+            || now.timeIntervalSince(loadedAt) >= Self.refreshInterval
+    }
+
+    private func fetchGuide(refreshChannels: Bool) async {
+        let dayOffset = selectedDayOffset
+        let window = LiveTVGuideWindow.forDayOffset(dayOffset)
         do {
             guard let provider = try await resolveProvider() else {
                 lineup = nil
+                fetchedLineup = nil
                 return
             }
 
-            if channels.isEmpty || force {
+            if channels.isEmpty || refreshChannels {
                 channels = try await plexService.getLiveTVChannels(provider: provider)
             }
-            lineup = try await plexService.getLiveTVGuide(
+            let fetched = try await plexService.getLiveTVGuide(
                 provider: provider,
                 channels: channels,
-                date: selectedDate
+                dates: window.gridDays()
             )
-            loadedDate = selectedDate
+            // A newer selection is already queued; don't flash this one.
+            guard dayOffset == selectedDayOffset else { return }
+            fetchedLineup = fetched
+            loadedWindow = window
+            loadedAt = .now
+            loadedDayOffset = dayOffset
+            lineup = fetched.restricted(to: window)
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Drops what has ended from the "Now" guide without a refetch.
+    private func trimToWindow(now: Date) {
+        guard selectedDayOffset == 0, let fetchedLineup else { return }
+        let window = LiveTVGuideWindow(start: now, end: loadedWindow?.end ?? now.addingTimeInterval(LiveTVGuideWindow.lookahead))
+        let trimmed = fetchedLineup.restricted(to: window)
+        if trimmed != lineup { lineup = trimmed }
     }
 
     /// Feeds the Home shelf. Separate from `load()`'s flag: a guide load in
@@ -138,9 +199,10 @@ final class LiveTVViewModel {
         }
     }
 
-    func selectDate(_ date: Date) async {
-        selectedDate = Calendar.current.startOfDay(for: date)
-        await load(force: true)
+    func selectDayOffset(_ dayOffset: Int) async {
+        guard dayOffset != selectedDayOffset else { return }
+        selectedDayOffset = dayOffset
+        await load()
     }
 
     func imageURL(for path: String?, width: Int, height: Int) -> URL? {
@@ -154,11 +216,12 @@ final class LiveTVViewModel {
         )
     }
 
-    var dateOptions: [Date] {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        return (-1...7).compactMap { calendar.date(byAdding: .day, value: $0, to: today) }
-    }
+    /// "Now" plus the next week. No past days: Plex's grid drops airings that
+    /// have ended, so yesterday only ever came back empty.
+    var dayOffsetOptions: [Int] { Array(0...7) }
+
+    /// How old a fetched guide may get before it is fetched again.
+    static let refreshInterval: TimeInterval = 15 * 60
 
     private static let discoveryMaxRetryDelay: Duration = .seconds(60)
 }
