@@ -482,6 +482,16 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   Plex answers only for the last of repeated `channelGridKey` values (checked
   on PMS 1.43.5 with XMLTV and cloud guides) and returns nothing for comma
   lists. Plex drops airings that already ended, so today's grid starts now.
+- The guide shows a `LiveTVGuideWindow`, picked by day offset (never a stored
+  date): "Now" runs from the current time 12 hours ahead and asks for every
+  local day it crosses (`getLiveTVGuide(dates:)`, so late evening also gets
+  tomorrow's morning); later days run midnight to midnight. No past days:
+  they only ever came back empty. `LiveTVViewModel.load()` refetches when the
+  guide is 15 minutes old, the day changed or the selection changed, else just
+  trims ended programs; the view calls it on appearance and scene activation
+  and `keepFresh()` re-checks every minute while it is on screen. Issue #17:
+  a date captured at launch kept an Apple TV on an old day, and the
+  calendar-day window showed only the last hour of the evening.
 - Grid items list every airing in `Media`; `PlexLiveTVLineup(provider:channels:programs:)`
   splits them into one program per airing and files each through
   `PlexLiveChannelMatcher`: identifiers first (`gridKey`, `channelIdentifier`,
@@ -490,8 +500,15 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   Which key a provider uses is not uniform (issue #17: HDHomeRun lineup with
   an empty guide; its real response shape is still unconfirmed).
 - A channel is always tunable, with or without guide data: tune with a nil
-  program. On tvOS a guide row needs a focusable card even when empty, or
-  focus cannot move down the list.
+  program. On tvOS every row leads with a focusable channel card (Watch Live)
+  in line with the program cards: a Watch button in the row header was never
+  reached by focus, and a row with nothing focusable stops focus moving down.
+  Guide cards use the system `.card` style (no stacked `.hoverEffect`) plus a
+  lighter neutral platter on focus for artwork-less tiles.
+- The program sheet's Watch Live parks the request and plays it from the
+  sheet's `onDismiss` (the `PhotoBrowserView` pattern): presenting the player
+  while the sheet was still dismissing never started it on tvOS. The sheet
+  opens with Watch Live focused on tvOS.
 - Tuning is `POST /livetv/dvrs/{dvrID}/channels/{channel-id}/tune`. The channel
   `id` from the lineup is Plex's internal DVR mapping key; never substitute the
   display-only `vcn` value. Send a distinct `X-Plex-Session-Identifier` with the

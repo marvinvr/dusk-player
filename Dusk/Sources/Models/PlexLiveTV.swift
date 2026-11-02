@@ -400,6 +400,69 @@ struct PlexLiveTVLineup: Sendable, Hashable {
     func channel(for program: PlexLiveProgram) -> PlexLiveChannel? {
         guides.first { $0.programs.contains(program) }?.channel
     }
+
+    /// Keeps only programs that overlap `window`; channels stay listed (and
+    /// tunable) even when nothing of theirs is left.
+    func restricted(to window: LiveTVGuideWindow) -> PlexLiveTVLineup {
+        PlexLiveTVLineup(
+            provider: provider,
+            guides: guides.map { guide in
+                PlexLiveChannelGuide(
+                    channel: guide.channel,
+                    programs: guide.programs.filter { window.contains($0) }
+                )
+            }
+        )
+    }
+}
+
+/// The stretch of time the guide shows. "Now" starts at the current time and
+/// runs `lookahead` ahead, crossing midnight when it has to: a guide held to
+/// one calendar day showed only the last hour late in the evening, and an
+/// app left running overnight kept showing the day it was opened (issue #17).
+/// A later day runs from its midnight to the next.
+struct LiveTVGuideWindow: Hashable, Sendable {
+    let start: Date
+    let end: Date
+
+    static let lookahead: TimeInterval = 12 * 60 * 60
+
+    /// `dayOffset` 0 is "Now"; 1 and up are whole days after today.
+    static func forDayOffset(
+        _ dayOffset: Int,
+        now: Date = .now,
+        calendar: Calendar = .current
+    ) -> LiveTVGuideWindow {
+        guard dayOffset > 0 else {
+            return LiveTVGuideWindow(start: now, end: now.addingTimeInterval(lookahead))
+        }
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: dayOffset, to: today) ?? today
+        let end = calendar.date(byAdding: .day, value: 1, to: start)
+            ?? start.addingTimeInterval(24 * 60 * 60)
+        return LiveTVGuideWindow(start: start, end: end)
+    }
+
+    /// The local calendar days Plex's `date=` grid has to be asked for to
+    /// cover the window, oldest first.
+    func gridDays(calendar: Calendar = .current) -> [Date] {
+        var days: [Date] = []
+        var day = calendar.startOfDay(for: start)
+        while day < end {
+            days.append(day)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = next
+        }
+        return days
+    }
+
+    /// Whether `program` is on at any point inside the window. A program
+    /// without times is kept: dropping it would hide guide data the server
+    /// did send.
+    func contains(_ program: PlexLiveProgram) -> Bool {
+        guard let beginsAt = program.beginsAt, let endsAt = program.endsAt else { return true }
+        return endsAt > start && beginsAt < end
+    }
 }
 
 /// Decides which lineup channel a guide airing belongs to. Providers disagree

@@ -14,8 +14,18 @@ struct LiveTVView: View {
 
 struct LiveTVRootContent: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.scenePhase) private var scenePhase
     let viewModel: LiveTVViewModel
     @State private var selectedProgram: PlexLiveProgram?
+    /// Set by the program sheet's Watch Live and started once the sheet is
+    /// gone. Presenting the player while the sheet was still dismissing
+    /// dropped the presentation on tvOS, so nothing ever played (issue #17).
+    @State private var pendingPlay: PendingLivePlay?
+
+    private struct PendingLivePlay {
+        let channel: PlexLiveChannel
+        let program: PlexLiveProgram
+    }
 
     var body: some View {
         ZStack {
@@ -40,24 +50,38 @@ struct LiveTVRootContent: View {
         .duskNavigationTitle("Live TV")
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
+            // Reruns whenever the tab comes back, so a returning viewer gets
+            // a current guide, then keeps it current while it stays open.
             await viewModel.load()
+            await viewModel.keepFresh()
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active {
+                Task { await viewModel.load() }
+            }
         }
         .refreshable {
             await viewModel.load(force: true)
         }
-        .sheet(item: $selectedProgram) { program in
+        .sheet(item: $selectedProgram, onDismiss: playPending) { program in
             LiveTVProgramDetails(
                 program: program,
                 channel: channel(for: program),
                 canPlay: program.isAiring(),
                 play: {
-                    selectedProgram = nil
                     if let channel = channel(for: program) {
-                        play(channel: channel, program: program)
+                        pendingPlay = PendingLivePlay(channel: channel, program: program)
                     }
+                    selectedProgram = nil
                 }
             )
         }
+    }
+
+    private func playPending() {
+        guard let pending = pendingPlay else { return }
+        pendingPlay = nil
+        play(channel: pending.channel, program: pending.program)
     }
 
     private func guide(_ lineup: PlexLiveTVLineup) -> some View {
@@ -83,32 +107,54 @@ struct LiveTVRootContent: View {
     private var datePicker: some View {
         ScrollView(.horizontal) {
             HStack(spacing: 10) {
-                ForEach(viewModel.dateOptions, id: \.self) { date in
-                    Button {
-                        Task { await viewModel.selectDate(date) }
-                    } label: {
-                        Text(dateLabel(date))
-                            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
-                            .foregroundStyle(
-                                Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
-                                    ? Color.duskBackground
-                                    : Color.duskTextPrimary
-                            )
-                            .padding(.horizontal, 18)
-                            .frame(height: 42)
-                            .background(
-                                Calendar.current.isDate(date, inSameDayAs: viewModel.selectedDate)
-                                    ? Color.duskTextPrimary
-                                    : Color.duskSurface
-                            )
-                            .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                    .duskTVOSFocusEffectShape(Capsule())
+                ForEach(viewModel.dayOffsetOptions, id: \.self) { dayOffset in
+                    dayButton(dayOffset)
                 }
             }
+            #if os(tvOS)
+            // Room for the focused pill to lift without being clipped.
+            .padding(.vertical, 12)
+            #endif
         }
         .scrollIndicators(.hidden)
+        #if os(tvOS)
+        .scrollClipDisabled()
+        #endif
+    }
+
+    @ViewBuilder
+    private func dayButton(_ dayOffset: Int) -> some View {
+        let isSelected = dayOffset == viewModel.selectedDayOffset
+        #if os(tvOS)
+        // System glass: dark platter that lifts to white on focus. The picked
+        // day carries a checkmark instead of a fill, which would fight the
+        // focus state (STYLE.md: no tint for UI state).
+        Button {
+            Task { await viewModel.selectDayOffset(dayOffset) }
+        } label: {
+            if isSelected {
+                Label(dayLabel(dayOffset), systemImage: "checkmark")
+            } else {
+                Text(dayLabel(dayOffset))
+            }
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.capsule)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        #else
+        Button {
+            Task { await viewModel.selectDayOffset(dayOffset) }
+        } label: {
+            Text(dayLabel(dayOffset))
+                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
+                .foregroundStyle(isSelected ? Color.duskBackground : Color.duskTextPrimary)
+                .padding(.horizontal, 18)
+                .frame(height: 42)
+                .background(isSelected ? Color.duskTextPrimary : Color.duskSurface)
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        #endif
     }
 
     /// A channel is always tunable; the program only labels the session and
@@ -125,10 +171,11 @@ struct LiveTVRootContent: View {
         viewModel.lineup?.channel(for: program)
     }
 
-    private func dateLabel(_ date: Date) -> String {
-        if Calendar.current.isDateInToday(date) { return "Today" }
-        if Calendar.current.isDateInTomorrow(date) { return "Tomorrow" }
-        if Calendar.current.isDateInYesterday(date) { return "Yesterday" }
+    private func dayLabel(_ dayOffset: Int) -> String {
+        if dayOffset == 0 { return "Now" }
+        if dayOffset == 1 { return "Tomorrow" }
+        let calendar = Calendar.current
+        let date = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: .now)) ?? .now
         return date.formatted(.dateTime.weekday(.abbreviated).day())
     }
 }
@@ -158,57 +205,97 @@ struct LiveTVChannelGuideRow: View {
 
                 Spacer()
 
+                #if !os(tvOS)
                 Button {
                     play(guide.currentProgram())
                 } label: {
                     Label("Watch", systemImage: "play.fill")
-                        #if !os(tvOS)
                         .foregroundStyle(Color.duskPrimaryActionLabel)
-                        #endif
                 }
                 .detailHeroNativePrimaryButtonStyle()
+                #endif
             }
 
-            if guide.programs.isEmpty {
-                // Still a card, not a caption: the channel tunes without a
-                // guide, and on tvOS a row with nothing focusable stops the
-                // focus engine from moving down the list.
+            #if os(tvOS)
+            tvProgramsRow
+            #else
+            programsRow
+            #endif
+        }
+    }
+
+    #if os(tvOS)
+    /// On tvOS the channel itself leads the row as a card. A Watch button in
+    /// the header sat off to the right, above nothing, so the focus engine
+    /// never reached it and the only thing Select could do was open a
+    /// program's details (issue #17). Leading the row, it is where focus
+    /// lands coming down the guide, and Left from any program gets there.
+    private var tvProgramsRow: some View {
+        ScrollView(.horizontal) {
+            LazyHStack(spacing: 40) {
                 Button {
-                    play(nil)
+                    play(guide.currentProgram())
                 } label: {
-                    LiveTVProgramCard(
-                        program: nil,
-                        imageURL: nil,
-                        channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
+                    LiveTVChannelWatchCard(
+                        channel: guide.channel,
+                        currentProgram: guide.currentProgram(),
+                        logoURL: imageURL(guide.channel.thumb, 256, 256)
                     )
                 }
-                .buttonStyle(.plain)
-                .duskTVOSFocusEffectShape(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .liveTVCardButtonStyle()
+                .accessibilityLabel("Watch \(guide.channel.displayTitle) live")
+
+                ForEach(guide.programs) { program in
+                    programButton(program)
+                }
+            }
+            // Room for the system card lift.
+            .padding(.vertical, 24)
+        }
+        .scrollIndicators(.hidden)
+        .scrollClipDisabled()
+        .focusSection()
+    }
+    #endif
+
+    @ViewBuilder
+    private var programsRow: some View {
+        if guide.programs.isEmpty {
+            // Still a card, not a caption: the channel tunes without a
+            // guide.
+            Button {
+                play(nil)
+            } label: {
+                LiveTVProgramCard(
+                    program: nil,
+                    imageURL: nil,
+                    channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
                 )
-            } else {
-                ScrollView(.horizontal) {
-                    LazyHStack(spacing: 12) {
-                        ForEach(guide.programs) { program in
-                            Button {
-                                selectProgram(program)
-                            } label: {
-                                LiveTVProgramCard(
-                                    program: program,
-                                    imageURL: imageURL(program.preferredLandscapePath, 480, 270),
-                                    channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
-                                )
-                            }
-                            .buttonStyle(.plain)
-                            .duskTVOSFocusEffectShape(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            )
-                        }
+            }
+            .liveTVCardButtonStyle()
+        } else {
+            ScrollView(.horizontal) {
+                LazyHStack(spacing: 12) {
+                    ForEach(guide.programs) { program in
+                        programButton(program)
                     }
                 }
-                .scrollIndicators(.hidden)
             }
+            .scrollIndicators(.hidden)
         }
+    }
+
+    private func programButton(_ program: PlexLiveProgram) -> some View {
+        Button {
+            selectProgram(program)
+        } label: {
+            LiveTVProgramCard(
+                program: program,
+                imageURL: imageURL(program.preferredLandscapePath, 480, 270),
+                channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
+            )
+        }
+        .liveTVCardButtonStyle()
     }
 
     private var channelLogo: some View {
@@ -237,7 +324,83 @@ struct LiveTVChannelGuideRow: View {
     }
 }
 
+#if os(tvOS)
+/// The channel as a card: its logo, what is on, and a play glyph, so it reads
+/// as "watch this channel" rather than as another program.
+private struct LiveTVChannelWatchCard: View {
+    @Environment(\.isFocused) private var isFocused
+    let channel: PlexLiveChannel
+    let currentProgram: PlexLiveProgram?
+    let logoURL: URL?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .top) {
+                logo
+                Spacer()
+                Image(systemName: "play.fill")
+                    .font(DuskFont.glyphLarge(ios: .title2))
+            }
+            Spacer(minLength: 0)
+            Text("Watch Live")
+                .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
+                .lineLimit(1)
+            Text(currentProgram?.primaryDisplayTitle ?? "No program information")
+                .font(DuskFont.cardSubtitle(ios: .caption))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+        .foregroundStyle(Color.duskTextPrimary)
+        .padding(20)
+        .frame(width: LiveTVProgramCard.cardWidth, height: LiveTVProgramCard.cardHeight, alignment: .topLeading)
+        .background(LiveTVProgramCard.platter(isFocused: isFocused))
+        .clipShape(RoundedRectangle(cornerRadius: LiveTVProgramCard.cornerRadius, style: .continuous))
+    }
+
+    private var logo: some View {
+        Group {
+            if let logoURL {
+                DuskAsyncImage(url: logoURL) { phase in
+                    if case .success(let image) = phase {
+                        image.resizable().scaledToFit()
+                    } else {
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .frame(width: 96, height: 72, alignment: .leading)
+    }
+
+    private var placeholder: some View {
+        Image(systemName: "antenna.radiowaves.left.and.right")
+            .font(DuskFont.glyphLarge(ios: .title2))
+            .foregroundStyle(Color.duskTextSecondary)
+    }
+}
+#endif
+
+private extension View {
+    /// tvOS: the system card, which lifts, scales and highlights the focused
+    /// guide card like any poster in the app. A plain style with a custom
+    /// effect left the focused card barely distinguishable (issue #17). No
+    /// `.hoverEffect` on top: the card style already is that effect.
+    @ViewBuilder
+    func liveTVCardButtonStyle() -> some View {
+        #if os(tvOS)
+        self
+            .buttonStyle(.card)
+            .buttonBorderShape(.roundedRectangle(radius: LiveTVProgramCard.cornerRadius))
+        #else
+        self.buttonStyle(.plain)
+        #endif
+    }
+}
+
 struct LiveTVProgramCard: View {
+    @Environment(\.isFocused) private var isFocused
     /// Nil for a channel without guide data; the card then offers the channel
     /// itself.
     let program: PlexLiveProgram?
@@ -302,11 +465,11 @@ struct LiveTVProgramCard: View {
         }
         .frame(width: cardWidth, height: cardHeight)
         .background(Color.duskSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
     }
 
     private var placeholder: some View {
-        Color.duskSurface.overlay {
+        Self.platter(isFocused: isFocused).overlay {
             if let channelLogoURL {
                 DuskAsyncImage(url: channelLogoURL) { phase in
                     if case .success(let image) = phase {
@@ -330,7 +493,7 @@ struct LiveTVProgramCard: View {
             .foregroundStyle(Color.duskTextSecondary)
     }
 
-    private var cardWidth: CGFloat {
+    static var cardWidth: CGFloat {
         #if os(tvOS)
         360
         #else
@@ -338,13 +501,35 @@ struct LiveTVProgramCard: View {
         #endif
     }
 
-    private var cardHeight: CGFloat {
+    static var cardHeight: CGFloat {
         cardWidth * 9 / 16
     }
+
+    static let cornerRadius: CGFloat = 16
+
+    /// The card surface. Guides without artwork (most XMLTV and HDHomeRun
+    /// lineups) are rows of identical dark tiles, where the system card's lift
+    /// alone is easy to miss across the room, so the focused tile also turns
+    /// a lighter neutral grey, the way tvOS platters brighten on focus.
+    static func platter(isFocused: Bool) -> some View {
+        #if os(tvOS)
+        Color.duskSurface.overlay(Color.white.opacity(isFocused ? 0.22 : 0))
+        #else
+        Color.duskSurface
+        #endif
+    }
+
+    private var cardWidth: CGFloat { Self.cardWidth }
+    private var cardHeight: CGFloat { Self.cardHeight }
 }
 
 private struct LiveTVProgramDetails: View {
     @Environment(\.dismiss) private var dismiss
+    #if os(tvOS)
+    /// Watch Live is where Select should go first; the sheet otherwise opens
+    /// on Done.
+    @FocusState private var watchFocused: Bool
+    #endif
     let program: PlexLiveProgram
     let channel: PlexLiveChannel?
     let canPlay: Bool
@@ -391,6 +576,9 @@ private struct LiveTVProgramDetails: View {
                                 #endif
                         }
                         .detailHeroNativePrimaryButtonStyle()
+                        #if os(tvOS)
+                        .focused($watchFocused)
+                        #endif
                     } else {
                         Text(program.endsAt.map { $0 < .now } == true
                             ? "This program is no longer live."
@@ -403,6 +591,9 @@ private struct LiveTVProgramDetails: View {
                 .frame(maxWidth: 680, alignment: .leading)
             }
             .background(Color.duskBackground.ignoresSafeArea())
+            #if os(tvOS)
+            .defaultFocus($watchFocused, true)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

@@ -129,17 +129,30 @@ extension PlexService {
         date: Date,
         serverID: String? = nil
     ) async throws -> PlexLiveTVLineup {
-        let dateValue = Self.liveTVDateFormatter.string(from: date)
+        try await getLiveTVGuide(provider: provider, channels: channels, dates: [date], serverID: serverID)
+    }
+
+    /// The guide for every channel over each of `dates` (local calendar
+    /// days). Programs that span midnight come back for both days; the lineup
+    /// files each airing once.
+    func getLiveTVGuide(
+        provider: PlexLiveTVProvider,
+        channels: [PlexLiveChannel],
+        dates: [Date],
+        serverID: String? = nil
+    ) async throws -> PlexLiveTVLineup {
+        let dateValues = dates.map { Self.liveTVDateFormatter.string(from: $0) }
         let targetID = serverID ?? provider.serverID ?? liveTVServerID
+        let requests = channels.flatMap { channel in dateValues.map { (channel, $0) } }
 
         // One request per channel: the grid answers only for the LAST of
         // repeated `channelGridKey` values (XMLTV and cloud guides alike), so
         // batching left every channel but one per batch empty (issue #17).
         // A few run at a time so long lineups stay quick.
         let results = await withTaskGroup(of: Result<[PlexLiveProgram], Error>.self) { group in
-            var pending = channels.makeIterator()
+            var pending = requests.makeIterator()
             for _ in 0..<Self.liveTVGuideConcurrency {
-                guard let channel = pending.next() else { break }
+                guard let (channel, dateValue) = pending.next() else { break }
                 group.addTask {
                     await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
                 }
@@ -147,7 +160,7 @@ extension PlexService {
             var results: [Result<[PlexLiveProgram], Error>] = []
             for await result in group {
                 results.append(result)
-                if let channel = pending.next() {
+                if let (channel, dateValue) = pending.next() {
                     group.addTask {
                         await self.liveTVGridPrograms(provider: provider, channel: channel, date: dateValue, serverID: targetID)
                     }
