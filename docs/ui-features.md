@@ -133,6 +133,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   blur is deliberate over Plex's transcoder: it also covers downloaded artwork
   and never depends on a server honouring a parameter. Not covered: posters
   (show poster first), the player's loading backdrop and scrub previews.
+  With the setting on, the credits-time Up Next card
+  (`PlayerUpNextPosterView`) for an unwatched next episode becomes a compact
+  Skip-Credits-style glass chip instead: "Up Next · S2E5" + countdown sweep
+  (+ ✕ on iOS), no still and no title. Play now / dismiss work as on the card.
+  The full-screen Up Next screen keeps its title and synopsis (still blurred).
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
   `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
   progress, and route creation. Watch state comes from the item Plex sent with

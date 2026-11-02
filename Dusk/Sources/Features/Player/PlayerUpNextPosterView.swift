@@ -63,7 +63,7 @@ struct PlayerUpNextPosterView: View {
         // Lifted like a focused tvOS card — scale plus a soft dark drop
         // shadow — rather than the shared white glow: the card is selected for
         // as long as the HUD is hidden, so a glow would be a permanent halo.
-        cardContent(textColumnWidth: textColumnWidth)
+        content(textColumnWidth: textColumnWidth)
             .scaleEffect(isSelected ? PlayerTVHUDLayout.bottomTrailingSelectedScale : 1)
             .shadow(
                 color: .black.opacity(isSelected ? 0.4 : 0),
@@ -75,8 +75,8 @@ struct PlayerUpNextPosterView: View {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityHint("Press Select to play now, Down to dismiss")
         #else
-        cardContent(textColumnWidth: textColumnWidth)
-            .contentShape(cardShape)
+        content(textColumnWidth: textColumnWidth)
+            .contentShape(isCompact ? AnyShape(Capsule()) : AnyShape(cardShape))
             .offset(y: liveDragOffset)
             .opacity(dragOpacity)
             .animation(.interactiveSpring(response: 0.3, dampingFraction: 0.82), value: dragTranslation)
@@ -98,6 +98,119 @@ struct PlayerUpNextPosterView: View {
             .accessibilityLabel(accessibilityLabel)
             .accessibilityAddTraits(.isButton)
             .accessibilityHint("Swipe down to dismiss")
+            .accessibilityAction(named: "Dismiss", onDismiss)
+        #endif
+    }
+
+    @ViewBuilder
+    private func content(textColumnWidth: CGFloat) -> some View {
+        if isCompact {
+            compactChip
+        } else {
+            cardContent(textColumnWidth: textColumnWidth)
+        }
+    }
+
+    // MARK: - Compact (Blur Unwatched Episodes)
+
+    /// With Blur Unwatched Episodes on, an unwatched next episode gets a small
+    /// chip shaped like the Skip Credits chip it replaces instead of the card:
+    /// no still and no title, only "Up Next · S2E5", the countdown sweeping
+    /// across the platter and, on iOS, a dismiss button. Play now / dismiss
+    /// work exactly as on the card (tap or Select, swipe or Down).
+    private var compactChip: some View {
+        HStack(spacing: CompactMetrics.spacing) {
+            Group {
+                if presentation.isStarting {
+                    ProgressView()
+                        .tint(compactForeground)
+                        #if !os(tvOS)
+                        .controlSize(.small)
+                        #endif
+                } else {
+                    Image(systemName: "play.fill")
+                        .font(CompactMetrics.glyphFont)
+                }
+            }
+            .frame(width: CompactMetrics.glyphWidth)
+
+            Text(compactLabel)
+                .font(CompactMetrics.font)
+                .lineLimit(1)
+
+            if !presentation.isStarting, let secondsRemaining = presentation.secondsRemaining {
+                Text("\(secondsRemaining)s")
+                    .font(CompactMetrics.font.monospacedDigit())
+                    .opacity(0.7)
+            }
+
+            #if !os(tvOS)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.bold))
+                    .opacity(0.7)
+                    .frame(width: 28, height: 28)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityHidden(true)
+            #endif
+        }
+        .foregroundStyle(compactForeground)
+        .padding(.leading, CompactMetrics.leadingPadding)
+        .padding(.trailing, CompactMetrics.trailingPadding)
+        .frame(minHeight: CompactMetrics.height)
+        .background { compactCountdownFill }
+        .clipShape(Capsule())
+        .modifier(CompactChipGlass(isSelected: isSelected))
+    }
+
+    /// Same rule as the blurred stills: only an episode still ahead of the
+    /// viewer is hidden, so a rewatch keeps the full card.
+    private var isCompact: Bool {
+        blursUnwatchedEpisodes && presentation.item.isEpisode && !presentation.item.isWatched
+    }
+
+    private var compactForeground: Color {
+        #if os(tvOS)
+        isSelected ? Color.black.opacity(0.86) : Color.white
+        #else
+        Color.white
+        #endif
+    }
+
+    /// "Up Next · S2E5". A playlist mixes shows, so it names the show too.
+    private var compactLabel: String {
+        let item = presentation.item
+        let episode: String? = switch (item.parentIndex, item.index) {
+        case let (season?, episode?): "S\(season)E\(episode)"
+        case let (season?, nil): "S\(season)"
+        case let (nil, episode?): "E\(episode)"
+        default: nil
+        }
+        let show = presentation.queueTitle != nil ? item.grandparentTitle : nil
+        let detail = [show, episode].compactMap { $0 }.joined(separator: " ")
+        return detail.isEmpty ? "Up Next" : "Up Next · \(detail)"
+    }
+
+    @ViewBuilder
+    private var compactCountdownFill: some View {
+        if presentation.isTimed {
+            let progress = min(max(presentation.countdownProgress ?? 0, 0), 1)
+            GeometryReader { geometry in
+                Rectangle()
+                    .fill(compactCountdownColor)
+                    .frame(width: geometry.size.width * progress)
+                    .animation(.linear(duration: 0.1), value: progress)
+            }
+        }
+    }
+
+    private var compactCountdownColor: Color {
+        #if os(tvOS)
+        isSelected ? Color.black.opacity(0.12) : Color.white.opacity(0.2)
+        #else
+        Color.white.opacity(0.18)
         #endif
     }
 
@@ -329,7 +442,10 @@ struct PlayerUpNextPosterView: View {
     }
 
     private var accessibilityLabel: String {
-        presentation.item.isEpisode
+        if isCompact {
+            return "Play next episode, \(compactLabel)"
+        }
+        return presentation.item.isEpisode
             ? "Play next episode: \(presentation.item.title)"
             : "Play next: \(presentation.item.title)"
     }
@@ -349,6 +465,52 @@ struct PlayerUpNextPosterView: View {
         guard dragTranslation.height > 0 else { return 1 }
         return max(0.6, 1 - Double(dragTranslation.height) / 260)
     }
+    #endif
+}
+
+/// The compact chip's platter. tvOS matches `PlayerTVSkipChip` (light glass
+/// with a dark label while it owns Select, dark glass while the HUD is up);
+/// iOS uses native Liquid Glass where available and the skip chip's material
+/// capsule before iOS 26.
+private struct CompactChipGlass: ViewModifier {
+    let isSelected: Bool
+
+    func body(content: Content) -> some View {
+        #if os(tvOS)
+        content.glassEffect(
+            isSelected ? .regular.tint(.white.opacity(0.78)) : .regular.tint(.black.opacity(0.3)),
+            in: Capsule()
+        )
+        #else
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular.tint(.black.opacity(0.18)), in: Capsule())
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay { Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1) }
+                .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
+        }
+        #endif
+    }
+}
+
+private enum CompactMetrics {
+    #if os(tvOS)
+    static let font: Font = DuskFont.TV.buttonLabel
+    static let glyphFont: Font = .system(size: 22, weight: .semibold)
+    static let glyphWidth: CGFloat = 26
+    static let spacing: CGFloat = 14
+    static let height: CGFloat = PlayerTVHUDLayout.skipChipHeight
+    static let leadingPadding: CGFloat = 30
+    static let trailingPadding: CGFloat = 32
+    #else
+    static let font: Font = DuskFont.buttonLabel(ios: .subheadline.weight(.semibold))
+    static let glyphFont: Font = .footnote.weight(.semibold)
+    static let glyphWidth: CGFloat = 16
+    static let spacing: CGFloat = 8
+    static let height: CGFloat = 44
+    static let leadingPadding: CGFloat = 16
+    static let trailingPadding: CGFloat = 8
     #endif
 }
 
