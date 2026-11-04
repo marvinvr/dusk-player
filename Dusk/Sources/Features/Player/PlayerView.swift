@@ -955,8 +955,8 @@ private struct PlayerSessionView: View {
                 ratingKey: ratingKey,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
-                onDownloaded: { _ in
-                    await playback.refreshSubtitleStreamsAfterDownload()
+                onDownloaded: { result in
+                    await playback.refreshSubtitleStreamsAfterDownload(downloaded: result)
                 },
                 onDismiss: {
                     viewModel.showSubtitleSearch = false

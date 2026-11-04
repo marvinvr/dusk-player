@@ -132,6 +132,13 @@ final class PlayerViewModel {
     /// Cached because the track lists are rebuilt on every sync tick and
     /// building a stream URL is not free.
     @ObservationIgnored var externalSubtitleStreams: [(stream: PlexStream, url: URL)] = []
+    /// Sidecars Plex overwrote in place this session (same stream id and URL),
+    /// with how often. The count goes into the URL so the engine fetches the
+    /// new file instead of reusing the slave it already mounted.
+    @ObservationIgnored var externalSubtitleURLRevisions: [Int: Int] = [:]
+    /// URLs of the slaves those replacements superseded; their engine tracks
+    /// are hidden from the picker.
+    @ObservationIgnored var supersededExternalSubtitleURLs: Set<URL> = []
     /// One-shot guard for the undecodable-audio transcode fallback. Not reset
     /// by `configureAutomaticTrackSelection` so a re-presented player (e.g.
     /// returning from PiP) cannot restart the session a second time.
@@ -267,6 +274,8 @@ final class PlayerViewModel {
         // is selected as soon as the new engine has mounted it.
         self.pendingExternalSubtitleStreamID = pendingExternalSubtitleStreamID
         attachedExternalSubtitleStreamIDs = []
+        externalSubtitleURLRevisions = [:]
+        supersededExternalSubtitleURLs = []
         rebuildExternalSubtitleStreamIndex()
         syncTrackLists()
         applyAutomaticTrackSelectionIfNeeded()

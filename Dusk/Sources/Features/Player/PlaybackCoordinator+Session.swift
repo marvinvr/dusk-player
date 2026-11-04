@@ -1469,8 +1469,16 @@ extension PlaybackCoordinator {
     /// live VLCKit engine, handed to Plex for a server-rendered session, or
     /// reached by restarting the session on VLCKit. Returns the stream id it
     /// settled on, or nil when nothing new appeared (or nothing is playing).
+    ///
+    /// Plex keeps one downloaded subtitle per language: a second download in
+    /// the same language overwrites the sidecar in place, so the stream keeps
+    /// its id and no new one appears. `downloaded` lets that case fall back to
+    /// the sidecar in the downloaded language, which is then re-mounted.
     @discardableResult
-    func refreshSubtitleStreamsAfterDownload(selectingStreamID: Int? = nil) async -> Int? {
+    func refreshSubtitleStreamsAfterDownload(
+        selectingStreamID: Int? = nil,
+        downloaded: PlexSubtitleSearchResult? = nil
+    ) async -> Int? {
         guard !didFinalizeCurrentSession,
               let ratingKey,
               let debugInfo else {
@@ -1534,6 +1542,7 @@ extension PlaybackCoordinator {
         let addedStreamID = selectingStreamID
             ?? subtitleStreams.first(where: { $0.key != nil && !previousSubtitleStreamIDs.contains($0.id) })?.id
             ?? subtitleStreams.first(where: { !previousSubtitleStreamIDs.contains($0.id) })?.id
+            ?? replacedSubtitleStreamID(in: subtitleStreams, downloaded: downloaded)
 
         guard let addedStreamID else {
             // Still republish the part so the picker reflects the refetch.
@@ -1551,6 +1560,11 @@ extension PlaybackCoordinator {
             // remux carries them as WebVTT), so the id goes to Plex and the
             // HLS session is rebuilt around it.
             pendingExternalSubtitleStreamID = nil
+            // Same id when the sidecar was replaced in place: clear it so the
+            // session is still rebuilt around the new file.
+            if previousSubtitleStreamIDs.contains(addedStreamID) {
+                activeSubtitleStreamID = nil
+            }
             selectPlexStreamsForPlayback(
                 audioStreamID: activeAudioStreamID,
                 subtitleStreamID: addedStreamID
@@ -1566,6 +1580,22 @@ extension PlaybackCoordinator {
             switchToVLCKitForExternalSubtitle(streamID: addedStreamID)
         }
         return addedStreamID
+    }
+
+    /// The sidecar a same-language download overwrote: the one in the
+    /// downloaded language, preferring the active one, else the newest.
+    private func replacedSubtitleStreamID(
+        in subtitleStreams: [PlexStream],
+        downloaded: PlexSubtitleSearchResult?
+    ) -> Int? {
+        guard let language = PlayerViewModel.normalizedLanguageCode(
+            downloaded?.languageCode ?? downloaded?.language
+        ) else { return nil }
+        let candidates = subtitleStreams.filter {
+            $0.key != nil && PlayerViewModel.normalizedLanguageCode($0.languageCode ?? $0.language) == language
+        }
+        return candidates.first(where: { $0.id == activeSubtitleStreamID })?.id
+            ?? candidates.max(by: { $0.id < $1.id })?.id
     }
 
     /// Restarts the live session on VLCKit at the current position so a Plex

@@ -230,6 +230,15 @@ extension PlayerViewModel {
         sourcePart = part
         if let streamID {
             pendingExternalSubtitleStreamID = streamID
+            // Already mounted means Plex overwrote this sidecar in place (a
+            // second download in the same language): mount it again under a
+            // fresh URL so the engine fetches the new file.
+            if attachedExternalSubtitleStreamIDs.remove(streamID) != nil {
+                if let oldURL = externalSubtitleStreams.first(where: { $0.stream.id == streamID })?.url {
+                    supersededExternalSubtitleURLs.insert(oldURL)
+                }
+                externalSubtitleURLRevisions[streamID, default: 0] += 1
+            }
         }
         rebuildExternalSubtitleStreamIndex()
         attachExternalSubtitlesIfNeeded()
@@ -246,7 +255,11 @@ extension PlayerViewModel {
         externalSubtitleStreams = (sourcePart?.streams ?? [])
             .filter { $0.streamType == .subtitle && $0.key != nil }
             .compactMap { stream in
-                externalSubtitleURLProvider(stream).map { (stream: stream, url: $0) }
+                guard var url = externalSubtitleURLProvider(stream) else { return nil }
+                if !url.isFileURL, let revision = externalSubtitleURLRevisions[stream.id] {
+                    url.append(queryItems: [URLQueryItem(name: "duskRevision", value: String(revision))])
+                }
+                return (stream: stream, url: url)
             }
     }
 
@@ -488,6 +501,7 @@ extension PlayerViewModel {
 
         for track in engineTracks {
             if let externalURL = track.externalURL {
+                if supersededExternalSubtitleURLs.contains(externalURL) { continue }
                 guard let source = externalSubtitleStreams.first(where: { $0.url == externalURL })?.stream else {
                     merged.append(track)
                     continue
