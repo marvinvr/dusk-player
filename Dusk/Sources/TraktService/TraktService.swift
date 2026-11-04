@@ -409,7 +409,7 @@ final class TraktService {
         guard let current = accounts[profileID] else { return nil }
         do {
             let (data, status) = try await send(
-                requests.refresh(refreshToken: current.refreshToken, redirectURI: current.refreshRedirectURI)
+                requests.refresh(refreshToken: current.refreshToken, redirectURI: current.refreshRedirectURI(configuration))
             )
             if status == 200, let response = try? JSONDecoder().decode(TraktTokenResponse.self, from: data) {
                 let tokens = response.tokens(username: current.username, redirectURI: current.redirectURI)

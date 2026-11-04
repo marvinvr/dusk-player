@@ -7,7 +7,8 @@
 
 TRAKT_CLIENT_ID =
 TRAKT_CLIENT_SECRET =
-// iOS browser sign-in redirect; empty = device-code sign-in (as on tvOS).
+// Redirect URI registered on the Trakt app (refreshes; a custom scheme also
+// enables the iOS browser sign-in). See docs/trakt.md.
 TRAKT_REDIRECT_URI =
 
 #include? "Secrets.xcconfig"

@@ -27,7 +27,8 @@ else: no history import, no ratings, no watchlist, no other services.
 1. **Sign in**, one of two flows. Either way `GET /users/settings` then
    fetches the username, and the tokens are bound to the Plex profile that
    was active when sign-in started.
-   - **Browser (iOS/iPadOS, only when the build sets `TRAKT_REDIRECT_URI`)**:
+   - **Browser (iOS/iPadOS, only when `TRAKT_REDIRECT_URI` is a custom
+     scheme such as `dusk://trakt/callback`)**:
      OAuth authorization code. Connect opens
      `trakt.tv/oauth/authorize?response_type=code&client_id&redirect_uri&state`
      in `ASWebAuthenticationSession` (`prefersEphemeralWebBrowserSession =
@@ -39,8 +40,9 @@ else: no history import, no ratings, no watchlist, no other services.
      or it is rejected; `error=access_denied` → "denied". Then
      `POST /oauth/token` (`grant_type=authorization_code`, the same
      `redirect_uri`). Closing the sheet is a plain cancel, with no error.
-   - **Device code (tvOS always; iOS when `TRAKT_REDIRECT_URI` is empty or
-     unusable)**, redirect `urn:ietf:wg:oauth:2.0:oob`:
+   - **Device code (tvOS always; iOS when `TRAKT_REDIRECT_URI` is empty,
+     malformed or http(s) such as `http://localhost`)**. The device calls
+     send no redirect; only its refreshes do (see Tokens):
      `POST /oauth/device/code` → show `user_code` and a QR of
      `verification_url`, poll `POST /oauth/device/token` every `interval`
      seconds until 200 (400 pending, 429 slow down, 418 denied, 410 expired,
@@ -78,9 +80,13 @@ The trade-off is no "watching now" on Trakt.
   `.active`) and on every return to the foreground. Disconnecting drops the
   profile's pending entries.
 - **Tokens**: Trakt access tokens are short-lived; they are refreshed when
-  less than an hour remains, and once on a 401. A refresh repeats the
-  `redirect_uri` the grant was made with (`TraktTokens.redirectURI`; `nil`,
-  e.g. links from before this field existed, means the oob URI). A refresh answered with
+  less than an hour remains, and once on a 401. Trakt rejects a refresh
+  whose `redirect_uri` is not registered on the app. A browser grant
+  repeats its own redirect (`TraktTokens.redirectURI`). A device-code link
+  (`redirectURI == nil`, including links saved before the field existed)
+  sends `TRAKT_REDIRECT_URI` when it is set, whatever its scheme
+  (`TraktConfiguration.deviceRefreshRedirectURI`), and otherwise
+  `urn:ietf:wg:oauth:2.0:oob`. A refresh answered with
   400/401 means the grant is gone: the profile's account is removed and
   Settings shows "Not connected".
 - **Per profile**: a Plex Home user only ever writes to the Trakt account they
@@ -88,8 +94,7 @@ The trade-off is no "watching now" on Trakt.
 
 ## Build-time keys
 
-The Trakt client ID, secret and the optional iOS redirect URI are not in git
-(public repo):
+The Trakt client ID, secret and redirect URI are not in git (public repo):
 
 - `Dusk/Support/Keys.xcconfig` (committed, both app targets' `configFiles`)
   sets `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` / `TRAKT_REDIRECT_URI`
@@ -100,21 +105,28 @@ The Trakt client ID, secret and the optional iOS redirect URI are not in git
   ```
   TRAKT_CLIENT_ID = <Client ID>
   TRAKT_CLIENT_SECRET = <Client Secret>
-  TRAKT_REDIRECT_URI = dusk:/$()/trakt/callback
+  TRAKT_REDIRECT_URI = http:/$()/localhost
   ```
 
-- **`TRAKT_REDIRECT_URI` trap**: `//` starts a comment in an xcconfig, so a
-  literal `dusk://trakt/callback` is read as `dusk:`. Write the `//` as
-  `/$()/` (an empty expansion). `TraktConfiguration` rejects a value
-  without a host, and any http(s) one (`ASWebAuthenticationSession` cannot
-  catch those without associated domains), and falls back to the device
-  flow. Check the built `Info.plist` (`TraktRedirectURI`) when in doubt.
-- `TRAKT_REDIRECT_URI` empty or missing → iOS uses the device-code sign-in
-  exactly like tvOS. tvOS ignores the setting (only `Info-iOS.plist` has
-  the key).
+- **`TRAKT_REDIRECT_URI`** is the redirect registered on the Trakt app,
+  character for character:
+  - `http://localhost` (today: Trakt Development apps accept only
+    localhost redirects): iOS and tvOS sign in with the device code, and
+    refreshes send `http://localhost`.
+  - A custom scheme, e.g. `dusk://trakt/callback` (needs a Production app,
+    a request to Trakt support): iOS/iPadOS also switch to the in-app
+    browser sign-in. `ASWebAuthenticationSession` cannot catch http(s)
+    redirects without associated domains, which is why localhost does not.
+  - Empty: device code everywhere, refreshes send
+    `urn:ietf:wg:oauth:2.0:oob`, which must then be registered (Development
+    apps refuse it).
+- **xcconfig trap**: `//` starts a comment, so a literal `http://localhost`
+  is read as `http:`. Write the `//` as `/$()/` (an empty expansion).
+  `TraktConfiguration` treats a value without a host as unset. Check the
+  built `Info.plist` (`TraktRedirectURI`) when in doubt.
 - `Info-iOS.plist` / `Info-tvOS.plist` expose them as `TraktClientID` /
-  `TraktClientSecret` (+ `TraktRedirectURI`, iOS only);
-  `TraktConfiguration.current` reads them.
+  `TraktClientSecret` / `TraktRedirectURI`; `TraktConfiguration.current`
+  reads them (tvOS uses the redirect for refreshes only).
 - `scripts/testflight.sh` builds from `git archive`, so its `PREPARE` step
   copies `Dusk/Support/Secrets.xcconfig` from the clone it runs in. Without
   that file the build still succeeds and the Trakt row is simply hidden
@@ -130,19 +142,15 @@ At <https://trakt.tv/oauth/applications/new>:
 - **Name**: Dusk
 - **Description**: e.g. "Dusk, a Plex player for iPhone, iPad and Apple TV.
   Adds movies and episodes you finish to your Trakt history."
-- **Redirect URI**: both, one per line (Trakt checks the `redirect_uri` of
-  every authorize, token and refresh call against this list):
-
-  ```
-  urn:ietf:wg:oauth:2.0:oob
-  dusk://trakt/callback
-  ```
-
-  The second one must equal `TRAKT_REDIRECT_URI`. New Trakt apps start as
-  **Development** apps, which only accept `localhost` redirects. A custom
-  scheme needs a **Production** app, which is a request to Trakt support.
-  Until then, leave `TRAKT_REDIRECT_URI` empty, list only the oob URI, and
-  iOS uses the device code.
+- **Redirect URI** (Trakt checks the `redirect_uri` of every authorize,
+  token and refresh call against this list; one per line), and the same
+  value in `TRAKT_REDIRECT_URI`:
+  - Development app (all new apps; only localhost accepted, the oob URI
+    is refused too): `http://localhost`.
+  - Production app (via Trakt support), for the iOS browser sign-in:
+    `dusk://trakt/callback`, with `TRAKT_REDIRECT_URI =
+    dusk:/$()/trakt/callback`. Keep `http://localhost` (or the oob URI)
+    listed as well while older builds are in use.
 - **JavaScript (CORS) origins**: empty
 - **Permissions** (`/checkin`, `/scrobble`): leave unchecked, Dusk only uses
   `/sync/history`.

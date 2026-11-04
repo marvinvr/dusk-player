@@ -167,21 +167,35 @@ struct TraktMappingTests {
         appRedirectURI: "dusk://trakt/callback"
     )
 
+    private func configuration(redirect: String?) -> TraktConfiguration {
+        TraktConfiguration(
+            clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase, appRedirectURI: redirect
+        )
+    }
+
     @Test func redirectURISettingFallsBackToDeviceFlow() {
-        // No setting, or nothing usable: no browser sign-in.
+        // No setting, or nothing usable: device flow, oob refresh.
         #expect(builder.configuration.appRedirectURI == nil)
+        #expect(builder.configuration.registeredRedirectURI == nil)
         #expect(TraktAuthorization(configuration: builder.configuration) == nil)
-        for unusable in ["", "  ", "dusk:", "dusk:/", "not a url", "http://localhost/callback", "https://dusk-player.app/trakt"] {
-            let configuration = TraktConfiguration(
-                clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase, appRedirectURI: unusable
-            )
-            #expect(configuration.appRedirectURI == nil, "\(unusable)")
+        for malformed in ["", "  ", "dusk:", "dusk:/", "http:", "not a url"] {
+            let configuration = configuration(redirect: malformed)
+            #expect(configuration.registeredRedirectURI == nil, "\(malformed)")
+            #expect(configuration.appRedirectURI == nil, "\(malformed)")
+            #expect(configuration.deviceRefreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+        }
+        // http(s) (Trakt Development apps: localhost only) is registered but
+        // cannot drive the in-app browser.
+        for web in ["http://localhost", "https://localhost/callback"] {
+            let configuration = configuration(redirect: web)
+            #expect(configuration.registeredRedirectURI == web)
+            #expect(configuration.appRedirectURI == nil)
+            #expect(TraktAuthorization(configuration: configuration) == nil)
+            #expect(configuration.deviceRefreshRedirectURI == web)
         }
         #expect(browserConfiguration.appRedirectURI == "dusk://trakt/callback")
-        let trimmed = TraktConfiguration(
-            clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase,
-            appRedirectURI: " dusk://trakt/callback\n"
-        )
+        #expect(browserConfiguration.deviceRefreshRedirectURI == "dusk://trakt/callback")
+        let trimmed = configuration(redirect: " dusk://trakt/callback\n")
         #expect(trimmed.appRedirectURI == "dusk://trakt/callback")
     }
 
@@ -254,22 +268,29 @@ struct TraktMappingTests {
         ])
     }
 
-    @Test func refreshRepeatsTheGrantRedirect() throws {
+    @Test func refreshSendsARegisteredRedirect() throws {
         let data = Data(#"{"access_token":"a","refresh_token":"r","expires_in":86400,"created_at":1793000000}"#.utf8)
         let response = try JSONDecoder().decode(TraktTokenResponse.self, from: data)
+        let localhost = configuration(redirect: "http://localhost")
+        let unset = configuration(redirect: nil)
+
+        // Browser grant: repeats its own redirect.
         let browser = response.tokens(username: nil, redirectURI: "dusk://trakt/callback")
-        #expect(browser.refreshRedirectURI == "dusk://trakt/callback")
+        #expect(browser.refreshRedirectURI(localhost) == "dusk://trakt/callback")
+        // Device-code link: the configured redirect, else oob.
         let device = response.tokens(username: nil)
-        #expect(device.refreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+        #expect(device.redirectURI == nil)
+        #expect(device.refreshRedirectURI(localhost) == "http://localhost")
+        #expect(device.refreshRedirectURI(unset) == "urn:ietf:wg:oauth:2.0:oob")
 
-        let request = builder.refresh(refreshToken: "r", redirectURI: browser.refreshRedirectURI)
-        #expect((try json(request) as? [String: String])?["redirect_uri"] == "dusk://trakt/callback")
+        let request = builder.refresh(refreshToken: "r", redirectURI: device.refreshRedirectURI(localhost))
+        #expect((try json(request) as? [String: String])?["redirect_uri"] == "http://localhost")
 
-        // Tokens saved before `redirectURI` existed still decode (device flow).
+        // Tokens saved before `redirectURI` existed still decode as device links.
         let legacy = Data(#"{"accessToken":"a","refreshToken":"r","expiresAt":0}"#.utf8)
         let decoded = try JSONDecoder().decode(TraktTokens.self, from: legacy)
         #expect(decoded.redirectURI == nil)
-        #expect(decoded.refreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+        #expect(decoded.refreshRedirectURI(localhost) == "http://localhost")
     }
 
     @Test func devicePollStatusMapping() {

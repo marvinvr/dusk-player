@@ -1,6 +1,6 @@
 import Foundation
 
-/// The Trakt API app Dusk talks to. Client ID, secret and the optional iOS
+/// The Trakt API app Dusk talks to. Client ID, secret and the optional
 /// redirect URI are build-time values (`TRAKT_CLIENT_ID` /
 /// `TRAKT_CLIENT_SECRET` / `TRAKT_REDIRECT_URI` from the git-ignored
 /// `Dusk/Support/Secrets.xcconfig`, surfaced as Info.plist keys). A build
@@ -11,15 +11,20 @@ struct TraktConfiguration: Sendable, Equatable {
     let apiBase: URL
     /// Where the browser sign-in page lives (`trakt.tv`, not the API host).
     let webBase: URL
-    /// iOS authorization-code redirect (e.g. `dusk://trakt/callback`), exactly
-    /// as registered on the Trakt app. `nil` (unset, or not a custom-scheme
-    /// URL) means iOS uses the device-code flow like tvOS.
+    /// `TRAKT_REDIRECT_URI`, exactly as registered on the Trakt app (e.g.
+    /// `http://localhost` or `dusk://trakt/callback`); `nil` when unset or
+    /// malformed. Every token refresh must send a registered redirect, so
+    /// device-code links refresh with this one when it is set.
+    let registeredRedirectURI: String?
+    /// iOS authorization-code redirect: `registeredRedirectURI` when it is a
+    /// custom scheme (`ASWebAuthenticationSession` cannot catch http(s)
+    /// without associated domains). `nil` means the device-code flow.
     let appRedirectURI: String?
 
     static let productionAPIBase = URL(string: "https://api.trakt.tv")!
     static let productionWebBase = URL(string: "https://trakt.tv")!
-    /// Out-of-band redirect of the device flow. The Trakt app lists it next to
-    /// `appRedirectURI`, one per line.
+    /// Out-of-band redirect, used for refreshes only when no
+    /// `TRAKT_REDIRECT_URI` is set (Trakt Development apps reject it).
     static let deviceRedirectURI = "urn:ietf:wg:oauth:2.0:oob"
     static let apiVersion = "2"
 
@@ -34,24 +39,33 @@ struct TraktConfiguration: Sendable, Equatable {
         self.clientSecret = clientSecret
         self.apiBase = apiBase
         self.webBase = webBase
-        self.appRedirectURI = appRedirectURI.flatMap(Self.validatedRedirectURI)
+        let registered = appRedirectURI.flatMap(Self.validatedRedirectURI)
+        registeredRedirectURI = registered
+        self.appRedirectURI = registered.flatMap(Self.browserRedirectURI)
     }
 
     var isConfigured: Bool { !clientID.isEmpty && !clientSecret.isEmpty }
 
-    /// `ASWebAuthenticationSession` can only catch a custom scheme without
-    /// associated domains, so http(s) redirects (Trakt's localhost-only
-    /// development apps) are not usable and fall back to the device flow.
-    /// A value cut off at `//` by xcconfig comment parsing (`dusk:`) has no
-    /// host and is rejected too.
+    /// `redirect_uri` for refreshing a device-code link.
+    var deviceRefreshRedirectURI: String { registeredRedirectURI ?? Self.deviceRedirectURI }
+
+    /// Any URL with a scheme and host. A value cut off at `//` by xcconfig
+    /// comment parsing (`dusk:`, `http:`) has no host and is rejected.
     static func validatedRedirectURI(_ raw: String) -> String? {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URL(string: value),
-              let scheme = url.scheme?.lowercased(),
-              scheme != "http", scheme != "https",
+              url.scheme?.isEmpty == false,
               url.host()?.isEmpty == false else {
             return nil
         }
+        return value
+    }
+
+    /// The browser sign-in only works with a custom scheme; http(s) redirects
+    /// (Trakt Development apps accept only localhost) keep the device flow.
+    static func browserRedirectURI(_ value: String) -> String? {
+        guard let scheme = URL(string: value)?.scheme?.lowercased(),
+              scheme != "http", scheme != "https" else { return nil }
         return value
     }
 
@@ -72,11 +86,8 @@ struct TraktConfiguration: Sendable, Equatable {
             web = override
         }
         #endif
-        #if os(tvOS)
-        let redirect: String? = nil // tvOS has no browser: always the device flow
-        #else
+        // Read on tvOS too (refresh redirect); tvOS never opens a browser.
         let redirect = value("TraktRedirectURI").nilIfEmpty
-        #endif
         return TraktConfiguration(
             clientID: value("TraktClientID"),
             clientSecret: value("TraktClientSecret"),

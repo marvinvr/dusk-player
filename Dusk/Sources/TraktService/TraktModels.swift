@@ -138,12 +138,14 @@ struct TraktTokens: Codable, Sendable, Equatable {
     /// Absolute expiry (Trakt sends `created_at` + `expires_in`).
     var expiresAt: Date
     var username: String?
-    /// Redirect URI the grant was made with; a refresh must repeat it.
-    /// `nil` (device flow, or links made before the iOS browser sign-in)
-    /// means `TraktConfiguration.deviceRedirectURI`.
+    /// Redirect URI of a browser (authorization-code) grant; a refresh
+    /// repeats it. `nil` for device-code links, which refresh with
+    /// `TraktConfiguration.deviceRefreshRedirectURI`.
     var redirectURI: String?
 
-    var refreshRedirectURI: String { redirectURI ?? TraktConfiguration.deviceRedirectURI }
+    func refreshRedirectURI(_ configuration: TraktConfiguration) -> String {
+        redirectURI ?? configuration.deviceRefreshRedirectURI
+    }
 
     func expires(within interval: TimeInterval, now: Date = .now) -> Bool {
         expiresAt.timeIntervalSince(now) < interval
