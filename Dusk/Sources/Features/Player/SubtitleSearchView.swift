@@ -16,6 +16,7 @@ struct SubtitleSearchView: View {
         ratingKey: String,
         serverID: String?,
         preferredLanguageCode: String?,
+        onWillDownload: @escaping (PlexSubtitleSearchResult) async -> Void = { _ in },
         onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void,
         onDismiss: @escaping () -> Void
     ) {
@@ -24,6 +25,7 @@ struct SubtitleSearchView: View {
             ratingKey: ratingKey,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode,
+            onWillDownload: onWillDownload,
             onDownloaded: onDownloaded
         ))
         self.onDismiss = onDismiss

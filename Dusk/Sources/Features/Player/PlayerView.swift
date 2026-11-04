@@ -955,6 +955,9 @@ private struct PlayerSessionView: View {
                 ratingKey: ratingKey,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
+                onWillDownload: { result in
+                    await playback.prepareSubtitleDownload(result)
+                },
                 onDownloaded: { result in
                     await playback.refreshSubtitleStreamsAfterDownload(downloaded: result)
                 },

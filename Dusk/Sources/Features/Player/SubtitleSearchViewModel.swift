@@ -25,6 +25,9 @@ final class SubtitleSearchViewModel {
 
     private let plexService: PlexService
     private let onDownloaded: (PlexSubtitleSearchResult) async -> Void
+    /// Runs just before the download is requested, so the player can note
+    /// what the sidecar looked like and later tell when Plex replaced it.
+    private let onWillDownload: (PlexSubtitleSearchResult) async -> Void
 
     let ratingKey: String
     /// The server the item lives on; nil means the primary one.
@@ -43,9 +46,11 @@ final class SubtitleSearchViewModel {
         ratingKey: String,
         serverID: String? = nil,
         preferredLanguageCode: String?,
+        onWillDownload: @escaping (PlexSubtitleSearchResult) async -> Void = { _ in },
         onDownloaded: @escaping (PlexSubtitleSearchResult) async -> Void
     ) {
         self.plexService = plexService
+        self.onWillDownload = onWillDownload
         self.ratingKey = ratingKey
         self.serverID = serverID
         self.onDownloaded = onDownloaded
@@ -112,6 +117,7 @@ final class SubtitleSearchViewModel {
         guard !isBusy else { return }
 
         phase = .downloading(result.id)
+        await onWillDownload(result)
         do {
             try await plexService.downloadSubtitle(
                 ratingKey: ratingKey,

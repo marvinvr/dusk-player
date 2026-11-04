@@ -1492,9 +1492,11 @@ extension PlaybackCoordinator {
 
         let details: PlexMediaDetails
         do {
-            details = try await plexService.getMediaDetails(
+            details = try await fetchDetailsAfterSubtitleDownload(
                 ratingKey: ratingKey,
-                serverID: activePlaybackServerID
+                partID: debugInfo.part.id,
+                previousStreams: debugInfo.part.streams,
+                downloaded: selectingStreamID == nil ? downloaded : nil
             )
         } catch {
             playbackSessionLogger.error(
@@ -1580,6 +1582,88 @@ extension PlaybackCoordinator {
             switchToVLCKitForExternalSubtitle(streamID: addedStreamID)
         }
         return addedStreamID
+    }
+
+    /// Notes the contents of the sidecar a download is about to overwrite, so
+    /// the refresh afterwards can tell Plex's new file from the old one even
+    /// when Plex keeps the stream's id, key and titles.
+    func prepareSubtitleDownload(_ result: PlexSubtitleSearchResult) async {
+        subtitleDownloadBaselineDigest = nil
+        guard let debugInfo,
+              let streamID = replacedSubtitleStreamID(in: debugInfo.part.streams, downloaded: result),
+              let stream = debugInfo.part.streams.first(where: { $0.id == streamID }) else { return }
+        subtitleDownloadBaselineDigest = await sidecarDigest(of: stream)
+    }
+
+    /// Refetches the item until Plex has applied the download: the PUT returns
+    /// before Plex refreshed the item, so the first refetch can still list (and
+    /// serve) the previous sidecar. Stops at a new or changed sidecar in the
+    /// downloaded language, or a same-language file whose contents changed;
+    /// after ~6 s it settles for the latest refetch (the old behaviour).
+    private func fetchDetailsAfterSubtitleDownload(
+        ratingKey: String,
+        partID: Int,
+        previousStreams: [PlexStream],
+        downloaded: PlexSubtitleSearchResult?
+    ) async throws -> PlexMediaDetails {
+        let baselineDigest = subtitleDownloadBaselineDigest
+        subtitleDownloadBaselineDigest = nil
+        let language = PlayerViewModel.normalizedLanguageCode(downloaded?.languageCode ?? downloaded?.language)
+        let presentationID = playerPresentationID
+
+        var latest: PlexMediaDetails?
+        for delay in SubtitleDownloadApplication.pollDelays {
+            if delay > .zero {
+                try? await Task.sleep(for: delay)
+            }
+            if let latest, Task.isCancelled || didFinalizeCurrentSession
+                || self.ratingKey != ratingKey || playerPresentationID != presentationID {
+                return latest
+            }
+
+            let details: PlexMediaDetails
+            do {
+                details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: activePlaybackServerID)
+            } catch {
+                guard let latest else { throw error }
+                return latest
+            }
+            latest = details
+            // An explicit selection has nothing to wait for.
+            guard downloaded != nil else { return details }
+
+            let streams = details.media.flatMap(\.parts).first(where: { $0.id == partID })?.streams
+                ?? details.media.first?.parts.first?.streams
+                ?? []
+            if SubtitleDownloadApplication.hasNewSidecar(before: previousStreams, after: streams, language: language) {
+                return details
+            }
+            if let baselineDigest,
+               let streamID = replacedSubtitleStreamID(in: streams, downloaded: downloaded),
+               let stream = streams.first(where: { $0.id == streamID }),
+               let digest = await sidecarDigest(of: stream),
+               digest != baselineDigest {
+                return details
+            }
+        }
+
+        playbackSessionLogger.notice(
+            "Subtitle refresh for ratingKey \(ratingKey, privacy: .public) saw no applied download; using the latest refetch"
+        )
+        // Non-nil: the loop either returned, threw, or stored a refetch.
+        return latest!
+    }
+
+    /// SHA-256 of a sidecar's contents as Plex serves them right now, or nil
+    /// when it cannot be fetched quickly.
+    private func sidecarDigest(of stream: PlexStream) async -> Data? {
+        guard let key = stream.key?.nilIfEmpty else { return nil }
+        let data = try? await plexService.rawServerRequest(
+            path: key.hasPrefix("/") ? key : "/\(key)",
+            timeoutInterval: 4,
+            serverID: activePlaybackServerID
+        )
+        return data.map(SubtitleDownloadApplication.digest(of:))
     }
 
     /// The sidecar a same-language download overwrote: the one in the

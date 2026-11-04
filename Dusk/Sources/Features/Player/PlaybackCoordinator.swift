@@ -109,6 +109,10 @@ final class PlaybackCoordinator {
     /// part snapshot. The player observes it and re-reads the part's subtitle
     /// streams in place, without rebuilding the session.
     var externalSubtitleRefreshToken = UUID()
+    /// Digest of the sidecar a subtitle download is about to replace, taken
+    /// just before the request (see `prepareSubtitleDownload`). Consumed by
+    /// `refreshSubtitleStreamsAfterDownload`.
+    @ObservationIgnored var subtitleDownloadBaselineDigest: Data?
     /// True while a direct-play or remux attempt still has automatic recovery
     /// available. Used to keep a transient engine error
     /// hidden until that recovery attempt succeeds or definitively fails.
