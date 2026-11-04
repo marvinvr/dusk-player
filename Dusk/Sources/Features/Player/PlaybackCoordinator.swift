@@ -131,6 +131,8 @@ final class PlaybackCoordinator {
     let preferences: UserPreferences
     let downloadManager: DownloadManager?
     let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
+    /// Set once by `DuskApp`; receives each scrobbled movie/episode.
+    @ObservationIgnored var traktService: TraktService?
     @ObservationIgnored let nowPlayingController = PlaybackNowPlayingController()
     var ratingKey: String?
     /// The server the live session is actually playing from. Authoritative for

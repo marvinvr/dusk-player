@@ -98,6 +98,7 @@ struct DuskApp: App {
 
     @State private var plexService: PlexService
     @State private var seerrService: SeerrService
+    @State private var traktService: TraktService
     @State private var playbackCoordinator: PlaybackCoordinator
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
@@ -128,6 +129,9 @@ struct DuskApp: App {
             downloadManager: downloads,
             offlinePlaybackSyncManager: playbackSync
         )
+        let trakt = TraktService(plexService: service)
+        coordinator.traktService = trakt
+        _traktService = State(initialValue: trakt)
         _playbackCoordinator = State(initialValue: coordinator)
         // Siri's intents run in this process and reach the app through it.
         let siri = SiriPlaybackService(plexService: service, playback: coordinator)
@@ -146,6 +150,7 @@ struct DuskApp: App {
             ContentView()
                 .environment(plexService)
                 .environment(seerrService)
+                .environment(traktService)
                 .environment(playbackCoordinator)
                 .environment(downloadManager)
                 .environment(offlinePlaybackSyncManager)
@@ -197,6 +202,7 @@ struct DuskApp: App {
                     if newPhase == .active {
                         downloadManager.resumePendingWork()
                         analytics.recordAppOpenedIfNeeded()
+                        Task { await traktService.flushPending() }
                         Task { await supporterStore.sceneDidBecomeActive() }
                     }
 

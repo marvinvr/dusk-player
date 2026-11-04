@@ -85,6 +85,7 @@ extension PlaybackCoordinator {
         if activeLiveTVContext == nil,
            !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
             hasScrobbled = true
+            reportFinishedToTrakt()
             if activePlaybackUsesLocalDownload {
                 offlinePlaybackSyncManager?.recordProgress(
                     serverID: activePlaybackServerID,
@@ -103,6 +104,13 @@ extension PlaybackCoordinator {
                 }
             }
         }
+    }
+
+    /// Hands a scrobbled movie/episode to Trakt (when linked). Fire and forget:
+    /// `TraktService` only queues, so playback never waits on or sees Trakt.
+    func reportFinishedToTrakt() {
+        guard let traktService, let details = activeItemDetails, details.ratingKey == ratingKey else { return }
+        traktService.recordFinished(type: details.type, guid: details.guid, guids: details.guids)
     }
 
     func reportTimelineOrQueueOfflineSync(

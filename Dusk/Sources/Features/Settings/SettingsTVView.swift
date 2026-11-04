@@ -3,6 +3,7 @@ import SwiftUI
 struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(SeerrService.self) private var seerrService
+    @Environment(TraktService.self) private var traktService
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore
     let viewModel: SettingsViewModel
@@ -84,13 +85,21 @@ struct SettingsTVView: View {
 
                 TVSettingsSection(
                     title: "Integrations",
-                    footer: "Optionally add requestable movies and shows to search."
+                    footer: SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable)
                 ) {
                     TVSettingsNavigationRow(
                         title: "Seerr",
                         detail: seerrService.connectionSubtitle
                     ) {
                         SeerrSettingsView()
+                    }
+                    if traktService.isAvailable {
+                        TVSettingsNavigationRow(
+                            title: "Trakt",
+                            detail: traktService.connectionSubtitle
+                        ) {
+                            TraktSettingsView()
+                        }
                     }
                 }
 

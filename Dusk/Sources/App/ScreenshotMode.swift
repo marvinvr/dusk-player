@@ -29,6 +29,8 @@ enum ScreenshotMode {
         static let photoAlbum = "DuskScreenshotPhotoAlbum"
         static let photoViewer = "DuskScreenshotPhotoViewer"
         static let photoSlideshow = "DuskScreenshotPhotoSlideshow"
+        static let trakt = "DuskScreenshotTrakt"
+        static let traktSignIn = "DuskScreenshotTraktSignIn"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -67,6 +69,20 @@ enum ScreenshotMode {
         return defaults.string(forKey: Key.seerr)?.nilIfEmpty.flatMap(URL.init(string:))
     }
 
+    /// Replacement for `https://api.trakt.tv` (`-DuskScreenshotTrakt
+    /// http://127.0.0.1:47420`), a mock answering the device flow.
+    static var traktAPIBase: URL? {
+        guard isActive else { return nil }
+        return defaults.string(forKey: Key.trakt)?.nilIfEmpty.flatMap(URL.init(string:))
+    }
+
+    /// `-DuskScreenshotTraktSignIn 1`: Settings › Trakt starts the device-code
+    /// sign-in as soon as it opens (string check: launch-arg bools are unreliable).
+    static var startsTraktSignIn: Bool {
+        guard isActive, let value = defaults.string(forKey: Key.traktSignIn) else { return false }
+        return ["1", "yes", "true"].contains(value.lowercased())
+    }
+
     /// `-DuskScreenshotUpNext <seconds>`: a player shot of an episode raises the
     /// full-screen Up Next screen for the next one, and every Up Next countdown
     /// stops at that many seconds instead of starting the next episode.
@@ -84,6 +100,8 @@ enum ScreenshotMode {
 
     enum Screen: String {
         case home, movies, shows, photos, library, collections, detail, search, player, downloads, settings, serverPriority, hiddenLibraries, supporter, icons
+        /// Settings › Trakt.
+        case trakt
         /// The Playlists tab; `playlist` opens `-DuskScreenshotItem <playlist
         /// ratingKey>`; `playlistPlay` plays it from item
         /// `-DuskScreenshotPlaylistStart <n>`; `addToPlaylist` opens the
@@ -232,6 +250,9 @@ enum ScreenshotMode {
         case .hiddenLibraries:
             destination.tab = .settings
             destination.routes = [.screenshotHiddenLibraries]
+        case .trakt:
+            destination.tab = .settings
+            destination.routes = [.screenshotTrakt]
         case .supporter:
             destination.tab = .settings
             destination.sheet = .supporter

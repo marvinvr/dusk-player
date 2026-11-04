@@ -5,6 +5,7 @@ import UIKit
 struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(SeerrService.self) private var seerrService
+    @Environment(TraktService.self) private var traktService
     @Environment(UserPreferences.self) private var preferences
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
@@ -130,11 +131,24 @@ struct SettingsIOSView: View {
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }
+                if traktService.isAvailable {
+                    NavigationLink {
+                        TraktSettingsView()
+                    } label: {
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text("Trakt")
+                                .foregroundStyle(Color.duskTextPrimary)
+                            Text(traktService.connectionSubtitle)
+                                .font(.caption)
+                                .foregroundStyle(Color.duskTextSecondary)
+                        }
+                    }
+                }
             } header: {
                 Text("Integrations")
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
-                Text("Optionally add requestable movies and shows to search.")
+                Text(SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable))
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)

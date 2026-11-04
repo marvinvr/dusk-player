@@ -1180,6 +1180,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - The Integrations section links to `SeerrSettingsView`. Both platforms accept
   only a server URL and connect using the active Plex identity; tvOS uses native
   keyboard/Remote input rather than a browser login.
+- Integrations also links to `TraktSettingsView` when the build carries Trakt
+  keys (`TraktService.isAvailable`); see `docs/trakt.md`.
 - `SettingsViewModel` is for transient settings UI state: Home-user picker
   presentation, image cache status, and app version. Server state belongs to
   `ServerPrioritySettingsViewModel`.

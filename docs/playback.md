@@ -2153,6 +2153,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   scrobbles it; its HLS clock is a sliding window rather than item progress.
 - Scrobble happens once when progress exceeds 90 percent of duration, either
   during periodic reporting or during finalization.
+- The same scrobble moment hands the item to `TraktService`
+  (`reportFinishedToTrakt`) when the profile linked Trakt; fire and forget,
+  see `docs/trakt.md`.
 - Local-download playback does not call Plex directly. It records progress or
   watch state in `OfflinePlaybackSyncManager`, which syncs pending actions when
   the matching server is available.

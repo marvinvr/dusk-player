@@ -1,0 +1,11 @@
+// Build-time API keys for the Dusk and Dusk-tvOS app targets.
+//
+// The real values live in the git-ignored Dusk/Support/Secrets.xcconfig
+// (copy Secrets.example.xcconfig). scripts/testflight.sh copies that file
+// from the clone it runs in into the build checkout. Without it the keys stay
+// empty and the features that need them are hidden. See docs/trakt.md.
+
+TRAKT_CLIENT_ID =
+TRAKT_CLIENT_SECRET =
+
+#include? "Secrets.xcconfig"

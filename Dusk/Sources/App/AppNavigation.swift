@@ -41,6 +41,8 @@ enum AppNavigationRoute: Hashable {
     case screenshotServerPriority
     /// Screenshot mode only: Settings › Libraries › Hidden Libraries.
     case screenshotHiddenLibraries
+    /// Screenshot mode only: Settings › Trakt.
+    case screenshotTrakt
     #endif
 
     static func destination(for item: PlexItem) -> Self {
@@ -167,6 +169,8 @@ struct AppNavigationDestinationView: View {
             ServerPrioritySettingsView()
         case .screenshotHiddenLibraries:
             HiddenLibrariesSettingsView()
+        case .screenshotTrakt:
+            TraktSettingsView()
         #endif
         }
     }

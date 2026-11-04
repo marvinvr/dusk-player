@@ -21,6 +21,11 @@ targets:
   Dusk:
     type: application
     platform: iOS
+    # Build-time API keys (Trakt); real values come from the git-ignored
+    # Dusk/Support/Secrets.xcconfig it optionally includes. See docs/trakt.md.
+    configFiles:
+      Debug: Dusk/Support/Keys.xcconfig
+      Release: Dusk/Support/Keys.xcconfig
     sources:
       - path: Dusk/Sources
       - path: Dusk/Resources
@@ -58,6 +63,11 @@ targets:
   Dusk-tvOS:
     type: application
     platform: tvOS
+    # Build-time API keys (Trakt); real values come from the git-ignored
+    # Dusk/Support/Secrets.xcconfig it optionally includes. See docs/trakt.md.
+    configFiles:
+      Debug: Dusk/Support/Keys.xcconfig
+      Release: Dusk/Support/Keys.xcconfig
     sources:
       - path: Dusk/Sources
       - path: Dusk/Resources

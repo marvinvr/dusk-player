@@ -18,7 +18,7 @@ by launch arguments:
 | --- | --- |
 | `-DuskScreenshotMode YES` | Signs in with a fake account token (Keychain untouched); hero rotation off |
 | `-DuskScreenshotPlexTV <url>` | Replaces `https://plex.tv` (`PlexService.plexTVBase`) |
-| `-DuskScreenshotScreen <name>` | `home`, `movies`, `shows`, `library`, `collections`, `detail`, `search`, `player`, `downloads`, `settings`, `serverPriority`, `hiddenLibraries`, `supporter`, `icons`, `playlists`, `playlist`, `playlistPlay`, `addToPlaylist` |
+| `-DuskScreenshotScreen <name>` | `home`, `movies`, `shows`, `library`, `collections`, `detail`, `search`, `player`, `downloads`, `settings`, `serverPriority`, `hiddenLibraries`, `trakt`, `supporter`, `icons`, `playlists`, `playlist`, `playlistPlay`, `addToPlaylist` |
 | `-DuskScreenshotPlaylistStart <n>` | `playlistPlay` (with `-DuskScreenshotItem <playlist rk>`): plays the playlist from item `n`; `addToPlaylist` opens the item's page with the Add to Playlist sheet |
 | `-DuskScreenshotItem <ratingKey>` / `-DuskScreenshotItemType <type>` | Item for `detail`/`player`; type also picks the `library` tab |
 | `-DuskScreenshotPlayOffset <seconds>` | Exact player start position, ignoring the resume point |
@@ -26,6 +26,7 @@ by launch arguments:
 | `-DuskScreenshotSearch <query>` | Pre-filled search |
 | `-DuskScreenshotDownloads movie:<rk>,episode:<rk>` | Queues real downloads |
 | `-DuskScreenshotSeedDownloads movie:<rk>,season:<rk>` | Records finished downloads (metadata and artwork through the normal cache path, a sparse placeholder file); `season:` expands to its episodes |
+| `-DuskScreenshotTrakt <url>` | Replaces `https://api.trakt.tv` (a mock answering the device flow); `-DuskScreenshotTraktSignIn 1` starts sign-in when Settings › Trakt opens (screen `trakt`; the build also needs Trakt keys in `Dusk/Support/Secrets.xcconfig`) |
 | `-DuskScreenshotSeerr <url>` | Acts as signed in to a demo Seerr at that URL (Keychain untouched) |
 | `-DuskScreenshotPlayerSheet audio\|subtitles` | iOS player: opens that picker once the tracks are in and keeps it open |
 | `-DuskScreenshotUpNext <seconds>` | Episode player shot: raises the full-screen Up Next for the next episode; every Up Next countdown stops at that many seconds |

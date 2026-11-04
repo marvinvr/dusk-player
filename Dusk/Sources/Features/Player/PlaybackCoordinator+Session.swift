@@ -1990,6 +1990,7 @@ extension PlaybackCoordinator {
                snapshot.durationMs > 0,
                snapshot.timeMs > Int(Double(snapshot.durationMs) * 0.9) {
                 hasScrobbled = true
+                reportFinishedToTrakt()
                 if activePlaybackUsesLocalDownload {
                     offlinePlaybackSyncManager?.recordProgress(
                         serverID: activePlaybackServerID,

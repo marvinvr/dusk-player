@@ -43,7 +43,9 @@ export EXTERNAL_SKIP_VERSIONS="1.8.*"  # space separated version globs kept inte
 # reuse the checkout's copy, then the Xcode Cloud post-clone step verifies it (or downloads the pinned
 # version) and makes sure the Metal toolchain is installed. Release builds must carry Dusk's VLCKit
 # (TrueHD), so the stock-VLCKit fallback is an error here (needs gh access to marvinvr/dusk-vlckit).
-PREPARE='mkdir -p Frameworks && cp -R "$REPO"/Frameworks/*.xcframework Frameworks/ 2>/dev/null; DUSK_VLCKIT_REQUIRE_DUSK=1 ci_scripts/ci_post_clone.sh'
+# Build-time API keys (Trakt) are not in git either: the git-ignored Dusk/Support/Secrets.xcconfig is
+# copied from the checkout; without it the build still succeeds with Trakt hidden (docs/trakt.md).
+PREPARE='mkdir -p Frameworks && cp -R "$REPO"/Frameworks/*.xcframework Frameworks/ 2>/dev/null; { cp "$REPO"/Dusk/Support/Secrets.xcconfig Dusk/Support/ 2>/dev/null || echo "[testflight] WARNING: no Dusk/Support/Secrets.xcconfig, Trakt is hidden in this build" >&2; }; DUSK_VLCKIT_REQUIRE_DUSK=1 ci_scripts/ci_post_clone.sh'
 # -------------------------------------------------------------------------------------------
 
 REPO=$(cd "$(dirname "$0")" && git rev-parse --show-toplevel) || { echo "TESTFLIGHT FAIL code=8 reason=not in a git repo log=-"; exit 8; }

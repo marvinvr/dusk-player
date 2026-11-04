@@ -51,3 +51,6 @@ Carthage/Build/
 .claude/
 
 AGENTS.local.md
+
+# Build-time API keys (see Dusk/Support/Keys.xcconfig, docs/trakt.md)
+Dusk/Support/Secrets.xcconfig
