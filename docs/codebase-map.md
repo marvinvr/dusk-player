@@ -14,7 +14,7 @@ Dusk/Sources
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
-  TraktService/        Optional Trakt link per Plex profile: device sign-in, tokens,
+  TraktService/        Optional Trakt link per Plex profile: sign-in, tokens,
                        finished-item history queue (see docs/trakt.md)
   Playback/            PlaybackEngine protocol, AVPlayer/VLCKit engines, resolver,
                        VLCKit build capabilities (TrueHD)

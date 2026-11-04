@@ -8,26 +8,43 @@ else: no history import, no ratings, no watchlist, no other services.
 
 - `TraktService/TraktService.swift`: `@Observable` service in the environment
   (constructed in `DuskApp`, also handed to `PlaybackCoordinator.traktService`).
-  Owns the device-code sign-in, the per-profile tokens, the retry queue and
-  the `/sync/history` calls.
+  Owns the sign-in (browser or device code, see Flow), the per-profile
+  tokens, the retry queue and the `/sync/history` calls.
 - `TraktService/TraktModels.swift`: `TraktHistoryMapper` (Plex guids → Trakt
-  ids), `TraktRequestBuilder` (every request, headers and bodies), API DTOs.
+  ids), `TraktAuthorization` (iOS authorize URL + `state`, callback check),
+  `TraktRequestBuilder` (every request, headers and bodies), API DTOs.
   Both pure and covered by `DuskTests/TraktMappingTests.swift`.
 - `TraktService/TraktStores.swift`: tokens in the Keychain
   (`TraktAccounts`, a `[plexProfileID: TraktTokens]` map) and the pending
   history queue in UserDefaults (`TraktPendingHistory`).
 - `Features/Settings/TraktSettingsView.swift`: Settings › Integrations ›
-  Trakt. iOS shows the code and opens `trakt.tv/activate` in Safari; tvOS
+  Trakt. iOS with browser sign-in: status + Connect/Disconnect only. iOS
+  without it: shows the code and opens `trakt.tv/activate` in Safari. tvOS
   swaps to the same QR + code-tile layout as the Plex sign-in.
 
 ## Flow
 
-1. **Sign in** (device flow, OAuth redirect `urn:ietf:wg:oauth:2.0:oob`):
-   `POST /oauth/device/code` → show `user_code` and a QR of
-   `verification_url`, poll `POST /oauth/device/token` every `interval`
-   seconds until 200 (400 pending, 429 slow down, 418 denied, 410 expired,
-   404/409 invalid). Then `GET /users/settings` for the username. Tokens are
-   bound to the Plex profile that was active when sign-in started.
+1. **Sign in**, one of two flows. Either way `GET /users/settings` then
+   fetches the username, and the tokens are bound to the Plex profile that
+   was active when sign-in started.
+   - **Browser (iOS/iPadOS, only when the build sets `TRAKT_REDIRECT_URI`)**:
+     OAuth authorization code. Connect opens
+     `trakt.tv/oauth/authorize?response_type=code&client_id&redirect_uri&state`
+     in `ASWebAuthenticationSession` (`prefersEphemeralWebBrowserSession =
+     false`, so an existing trakt.tv login in Safari is reused). The session
+     catches the redirect's custom scheme itself, so iOS does not register
+     it in `CFBundleURLTypes`. tvOS registers `dusk://` for Top Shelf links,
+     which is no clash because the callback check also matches host and path.
+     The callback must carry the same random `state` (32 bytes, base64url)
+     or it is rejected; `error=access_denied` → "denied". Then
+     `POST /oauth/token` (`grant_type=authorization_code`, the same
+     `redirect_uri`). Closing the sheet is a plain cancel, with no error.
+   - **Device code (tvOS always; iOS when `TRAKT_REDIRECT_URI` is empty or
+     unusable)**, redirect `urn:ietf:wg:oauth:2.0:oob`:
+     `POST /oauth/device/code` → show `user_code` and a QR of
+     `verification_url`, poll `POST /oauth/device/token` every `interval`
+     seconds until 200 (400 pending, 429 slow down, 418 denied, 410 expired,
+     404/409 invalid).
 2. **Finished item**: both scrobble sites (`reportCurrentTimeline` and
    `finalizeCurrentPlaybackSession`, the 90 % rule, `hasScrobbled` keeps it to
    once per session) call `reportFinishedToTrakt()`. Local downloads included;
@@ -61,7 +78,9 @@ The trade-off is no "watching now" on Trakt.
   `.active`) and on every return to the foreground. Disconnecting drops the
   profile's pending entries.
 - **Tokens**: Trakt access tokens are short-lived; they are refreshed when
-  less than an hour remains, and once on a 401. A refresh answered with
+  less than an hour remains, and once on a 401. A refresh repeats the
+  `redirect_uri` the grant was made with (`TraktTokens.redirectURI`; `nil`,
+  e.g. links from before this field existed, means the oob URI). A refresh answered with
   400/401 means the grant is gone: the profile's account is removed and
   Settings shows "Not connected".
 - **Per profile**: a Plex Home user only ever writes to the Trakt account they
@@ -69,21 +88,33 @@ The trade-off is no "watching now" on Trakt.
 
 ## Build-time keys
 
-The Trakt client ID and secret are not in git (public repo):
+The Trakt client ID, secret and the optional iOS redirect URI are not in git
+(public repo):
 
 - `Dusk/Support/Keys.xcconfig` (committed, both app targets' `configFiles`)
-  sets `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` empty and then
-  `#include? "Secrets.xcconfig"`.
+  sets `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` / `TRAKT_REDIRECT_URI`
+  empty and then `#include? "Secrets.xcconfig"`.
 - `Dusk/Support/Secrets.xcconfig` (git-ignored; template
   `Secrets.example.xcconfig`) holds the real values:
 
   ```
   TRAKT_CLIENT_ID = <Client ID>
   TRAKT_CLIENT_SECRET = <Client Secret>
+  TRAKT_REDIRECT_URI = dusk:/$()/trakt/callback
   ```
 
+- **`TRAKT_REDIRECT_URI` trap**: `//` starts a comment in an xcconfig, so a
+  literal `dusk://trakt/callback` is read as `dusk:`. Write the `//` as
+  `/$()/` (an empty expansion). `TraktConfiguration` rejects a value
+  without a host, and any http(s) one (`ASWebAuthenticationSession` cannot
+  catch those without associated domains), and falls back to the device
+  flow. Check the built `Info.plist` (`TraktRedirectURI`) when in doubt.
+- `TRAKT_REDIRECT_URI` empty or missing → iOS uses the device-code sign-in
+  exactly like tvOS. tvOS ignores the setting (only `Info-iOS.plist` has
+  the key).
 - `Info-iOS.plist` / `Info-tvOS.plist` expose them as `TraktClientID` /
-  `TraktClientSecret`; `TraktConfiguration.current` reads them.
+  `TraktClientSecret` (+ `TraktRedirectURI`, iOS only);
+  `TraktConfiguration.current` reads them.
 - `scripts/testflight.sh` builds from `git archive`, so its `PREPARE` step
   copies `Dusk/Support/Secrets.xcconfig` from the clone it runs in. Without
   that file the build still succeeds and the Trakt row is simply hidden
@@ -99,7 +130,19 @@ At <https://trakt.tv/oauth/applications/new>:
 - **Name**: Dusk
 - **Description**: e.g. "Dusk, a Plex player for iPhone, iPad and Apple TV.
   Adds movies and episodes you finish to your Trakt history."
-- **Redirect URI**: `urn:ietf:wg:oauth:2.0:oob`
+- **Redirect URI**: both, one per line (Trakt checks the `redirect_uri` of
+  every authorize, token and refresh call against this list):
+
+  ```
+  urn:ietf:wg:oauth:2.0:oob
+  dusk://trakt/callback
+  ```
+
+  The second one must equal `TRAKT_REDIRECT_URI`. New Trakt apps start as
+  **Development** apps, which only accept `localhost` redirects. A custom
+  scheme needs a **Production** app, which is a request to Trakt support.
+  Until then, leave `TRAKT_REDIRECT_URI` empty, list only the oob URI, and
+  iOS uses the device code.
 - **JavaScript (CORS) origins**: empty
 - **Permissions** (`/checkin`, `/scrobble`): leave unchecked, Dusk only uses
   `/sync/history`.
@@ -110,8 +153,11 @@ Then copy **Client ID** and **Client Secret** into `Secrets.xcconfig`.
 
 - Unit tests: `DuskTests/TraktMappingTests.swift`.
 - Screenshot mode (DEBUG): `-DuskScreenshotScreen trakt` opens Settings ›
-  Trakt; `-DuskScreenshotTrakt <url>` points the API at a mock;
-  `-DuskScreenshotTraktSignIn 1` starts the device flow on open.
+  Trakt; `-DuskScreenshotTrakt <url>` points the API (and the iOS authorize
+  page) at a mock; `-DuskScreenshotTraktSignIn 1` starts sign-in on open.
+- iOS browser sign-in on a device: Connect → Trakt sheet → approve → back to
+  "Connected as …"; also try closing the sheet (back to "Not connected", no
+  error) and denying on Trakt ("Sign-in was denied").
 - On a device with real keys: link, finish a movie and an episode (and one
   from a download while offline, then go online), check trakt.tv history;
   switch Plex Home profile and confirm the other profile is not linked.

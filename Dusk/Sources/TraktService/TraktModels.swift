@@ -138,6 +138,12 @@ struct TraktTokens: Codable, Sendable, Equatable {
     /// Absolute expiry (Trakt sends `created_at` + `expires_in`).
     var expiresAt: Date
     var username: String?
+    /// Redirect URI the grant was made with; a refresh must repeat it.
+    /// `nil` (device flow, or links made before the iOS browser sign-in)
+    /// means `TraktConfiguration.deviceRedirectURI`.
+    var redirectURI: String?
+
+    var refreshRedirectURI: String { redirectURI ?? TraktConfiguration.deviceRedirectURI }
 
     func expires(within interval: TimeInterval, now: Date = .now) -> Bool {
         expiresAt.timeIntervalSince(now) < interval
@@ -158,13 +164,89 @@ struct TraktTokenResponse: Decodable, Sendable {
         case createdAt = "created_at"
     }
 
-    func tokens(username: String?) -> TraktTokens {
+    func tokens(username: String?, redirectURI: String? = nil) -> TraktTokens {
         TraktTokens(
             accessToken: accessToken,
             refreshToken: refreshToken,
             expiresAt: Date(timeIntervalSince1970: TimeInterval(createdAt + expiresIn)),
-            username: username
+            username: username,
+            redirectURI: redirectURI
         )
+    }
+}
+
+/// One iOS authorization-code sign-in: the `trakt.tv/oauth/authorize` URL
+/// with a fresh `state`, and the check of what came back on the configured
+/// `TraktConfiguration.appRedirectURI`. Pure, so it is unit tested.
+struct TraktAuthorization: Sendable, Equatable {
+    enum CallbackResult: Equatable {
+        case code(String)
+        /// The user declined on Trakt (`error=access_denied`).
+        case denied
+        /// `state` missing or different: not the answer to this request.
+        case stateMismatch
+        /// Not the configured redirect, another `error`, or no `code`.
+        case invalid
+    }
+
+    let state: String
+    let url: URL
+    let redirectURI: String
+
+    /// `nil` when the build has no usable `TRAKT_REDIRECT_URI`.
+    init?(configuration: TraktConfiguration, state: String = TraktAuthorization.randomState()) {
+        guard let redirectURI = configuration.appRedirectURI else { return nil }
+        self.state = state
+        self.redirectURI = redirectURI
+        var components = URLComponents(
+            url: configuration.webBase.appending(path: "oauth/authorize"),
+            resolvingAgainstBaseURL: false
+        )!
+        components.queryItems = [
+            URLQueryItem(name: "response_type", value: "code"),
+            URLQueryItem(name: "client_id", value: configuration.clientID),
+            URLQueryItem(name: "redirect_uri", value: redirectURI),
+            URLQueryItem(name: "state", value: state),
+        ]
+        // `+` is legal in a query but read as a space by many servers.
+        components.percentEncodedQuery = components.percentEncodedQuery?
+            .replacingOccurrences(of: "+", with: "%2B")
+        url = components.url!
+    }
+
+    /// 32 random bytes, base64url without padding (43 characters).
+    static func randomState() -> String {
+        var generator = SystemRandomNumberGenerator()
+        let bytes = (0..<32).map { _ in UInt8.random(in: .min ... .max, using: &generator) }
+        return Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+
+    /// The scheme `ASWebAuthenticationSession` waits for.
+    var callbackScheme: String { URL(string: redirectURI)?.scheme?.lowercased() ?? "" }
+
+    func result(for callbackURL: URL) -> CallbackResult {
+        // Scheme and host compare case-insensitively, the path exactly; other
+        // links on the same scheme (tvOS Top Shelf `dusk://…`) are not ours.
+        guard let expected = URL(string: redirectURI),
+              callbackURL.scheme?.lowercased() == expected.scheme?.lowercased(),
+              callbackURL.host()?.lowercased() == expected.host()?.lowercased(),
+              callbackURL.path() == expected.path(),
+              let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
+            return .invalid
+        }
+        let items = components.queryItems ?? []
+        func value(_ name: String) -> String? {
+            items.first { $0.name == name }?.value?.nilIfEmpty
+        }
+        guard value("state") == state else { return .stateMismatch }
+        if let error = value("error") {
+            return error == "access_denied" ? .denied : .invalid
+        }
+        guard let code = value("code") else { return .invalid }
+        return .code(code)
     }
 }
 
@@ -208,12 +290,24 @@ struct TraktRequestBuilder: Sendable {
         ])
     }
 
-    func refresh(refreshToken: String) -> URLRequest {
+    /// Exchanges the iOS sign-in's authorization code for tokens.
+    /// `redirectURI` must be the one the authorize URL carried.
+    func authorizationToken(code: String, redirectURI: String) -> URLRequest {
+        post("oauth/token", json: [
+            "code": code,
+            "client_id": configuration.clientID,
+            "client_secret": configuration.clientSecret,
+            "redirect_uri": redirectURI,
+            "grant_type": "authorization_code",
+        ])
+    }
+
+    func refresh(refreshToken: String, redirectURI: String = TraktConfiguration.deviceRedirectURI) -> URLRequest {
         post("oauth/token", json: [
             "refresh_token": refreshToken,
             "client_id": configuration.clientID,
             "client_secret": configuration.clientSecret,
-            "redirect_uri": TraktConfiguration.redirectURI,
+            "redirect_uri": redirectURI,
             "grant_type": "refresh_token",
         ])
     }

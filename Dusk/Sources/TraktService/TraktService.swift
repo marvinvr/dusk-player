@@ -1,12 +1,18 @@
 import Foundation
 import OSLog
+#if !os(tvOS)
+import AuthenticationServices
+import UIKit
+#endif
 
 private let traktLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "Trakt"
 )
 
-/// Trakt watch tracking: the device-code sign-in per Plex profile, and adding
+/// Trakt watch tracking: the sign-in per Plex profile (iOS with a configured
+/// `TRAKT_REDIRECT_URI`: authorization code in `ASWebAuthenticationSession`;
+/// otherwise, and always on tvOS: device code), and adding
 /// finished movies/episodes to the account's history (`/sync/history`).
 ///
 /// Rules (see `docs/trakt.md`):
@@ -19,6 +25,9 @@ private let traktLogger = Logger(
 final class TraktService {
     enum SignInState: Equatable {
         case idle
+        /// iOS: the Trakt sign-in sheet is up, or its code is being exchanged.
+        case authorizing
+        /// Device flow (tvOS, and iOS without a redirect URI).
         case requestingCode
         case awaitingApproval(TraktDeviceCode)
         case failed(String)
@@ -35,6 +44,11 @@ final class TraktService {
     @ObservationIgnored private var pending: [TraktHistoryEntry]
     @ObservationIgnored private var pollingTask: Task<Void, Never>?
     @ObservationIgnored private var isFlushing = false
+    #if !os(tvOS)
+    @ObservationIgnored private var webSession: ASWebAuthenticationSession?
+    @ObservationIgnored private var webSessionID: UUID?
+    @ObservationIgnored private let webPresentation = TraktWebAuthPresentation()
+    #endif
 
     init(
         plexService: PlexService,
@@ -74,11 +88,17 @@ final class TraktService {
         return "Connected"
     }
 
-    // MARK: - Sign in (device flow)
+    // MARK: - Sign in
 
     func startSignIn() {
         guard isAvailable, let profileID = plexService.activeProfileID else { return }
-        pollingTask?.cancel()
+        cancelRunningSignIn()
+        #if !os(tvOS)
+        if let authorization = TraktAuthorization(configuration: configuration) {
+            startBrowserSignIn(authorization, profileID: profileID)
+            return
+        }
+        #endif
         signInState = .requestingCode
         pollingTask = Task { [weak self] in
             await self?.runDeviceFlow(profileID: profileID)
@@ -87,11 +107,125 @@ final class TraktService {
 
     /// Stops a running sign-in. A failure message stays up until the next attempt.
     func cancelSignIn() {
-        pollingTask?.cancel()
-        pollingTask = nil
+        cancelRunningSignIn()
         if case .failed = signInState { return }
         signInState = .idle
     }
+
+    private func cancelRunningSignIn() {
+        pollingTask?.cancel()
+        pollingTask = nil
+        #if !os(tvOS)
+        let session = webSession
+        webSession = nil
+        webSessionID = nil // so its cancellation callback is ignored
+        session?.cancel()
+        #endif
+    }
+
+    private func storeSignIn(_ tokens: TraktTokens, profileID: String) {
+        accounts[profileID] = tokens
+        TraktCredentialStore.save(accounts)
+        signInState = .idle
+        pollingTask = nil
+        traktLogger.info("Trakt connected")
+    }
+
+    // MARK: Authorization code (iOS with TRAKT_REDIRECT_URI)
+
+    #if !os(tvOS)
+    /// Trakt's own login/authorize page in the system web sheet (shared
+    /// Safari cookies, so an existing trakt.tv login is reused), returning
+    /// through the configured redirect URI.
+    private func startBrowserSignIn(_ authorization: TraktAuthorization, profileID: String) {
+        signInState = .authorizing
+        let sessionID = UUID()
+        let session = ASWebAuthenticationSession(
+            url: authorization.url,
+            callback: .customScheme(authorization.callbackScheme)
+        ) { [weak self] callbackURL, error in
+            Task { @MainActor [weak self] in
+                // A cancelled or replaced sheet reports too; only the live one counts.
+                guard let self, self.webSessionID == sessionID else { return }
+                self.webSession = nil
+                self.webSessionID = nil
+                self.finishBrowserSignIn(
+                    authorization: authorization,
+                    callbackURL: callbackURL,
+                    error: error,
+                    profileID: profileID
+                )
+            }
+        }
+        session.prefersEphemeralWebBrowserSession = false
+        session.presentationContextProvider = webPresentation
+        webSession = session
+        webSessionID = sessionID
+        if !session.start() {
+            webSession = nil
+            webSessionID = nil
+            traktLogger.error("Trakt sign-in sheet failed to start")
+            signInState = .failed("Couldn’t open the Trakt sign-in. Try again.")
+        }
+    }
+
+    private func finishBrowserSignIn(
+        authorization: TraktAuthorization,
+        callbackURL: URL?,
+        error: Error?,
+        profileID: String
+    ) {
+        if let error {
+            if (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin {
+                signInState = .idle
+            } else {
+                traktLogger.error("Trakt sign-in sheet failed: \(error.localizedDescription)")
+                signInState = .failed("Couldn’t open the Trakt sign-in. Try again.")
+            }
+            return
+        }
+        guard let callbackURL else {
+            signInState = .failed("Couldn’t finish signing in to Trakt. Try again.")
+            return
+        }
+        switch authorization.result(for: callbackURL) {
+        case .code(let code):
+            pollingTask = Task { [weak self] in
+                await self?.exchange(code: code, redirectURI: authorization.redirectURI, profileID: profileID)
+            }
+        case .denied:
+            signInState = .failed("Sign-in was denied on Trakt.")
+        case .stateMismatch:
+            traktLogger.error("Trakt sign-in callback state mismatch; ignored")
+            signInState = .failed("Couldn’t finish signing in to Trakt. Try again.")
+        case .invalid:
+            traktLogger.error("Trakt sign-in callback had no code")
+            signInState = .failed("Couldn’t finish signing in to Trakt. Try again.")
+        }
+    }
+
+    private func exchange(code: String, redirectURI: String, profileID: String) async {
+        do {
+            let (data, status) = try await send(requests.authorizationToken(code: code, redirectURI: redirectURI))
+            guard !Task.isCancelled else { return }
+            guard status == 200, let response = try? JSONDecoder().decode(TraktTokenResponse.self, from: data) else {
+                traktLogger.error("Trakt code exchange failed: HTTP \(status)")
+                signInState = .failed("Couldn’t finish signing in to Trakt. Try again.")
+                return
+            }
+            var tokens = response.tokens(username: nil, redirectURI: redirectURI)
+            tokens.username = await fetchUsername(accessToken: tokens.accessToken)
+            guard !Task.isCancelled else { return }
+            storeSignIn(tokens, profileID: profileID)
+        } catch {
+            guard !Task.isCancelled else { return }
+            traktLogger.error("Trakt code exchange failed: \(error.localizedDescription)")
+            signInState = .failed("Couldn’t reach Trakt. Try again.")
+        }
+    }
+    #endif
+
+    // MARK: Device code (tvOS, iOS fallback)
 
     private func runDeviceFlow(profileID: String) async {
         let code: TraktDeviceCode
@@ -132,11 +266,7 @@ final class TraktService {
                 var tokens = response.tokens(username: nil)
                 tokens.username = await fetchUsername(accessToken: tokens.accessToken)
                 guard !Task.isCancelled else { return }
-                accounts[profileID] = tokens
-                TraktCredentialStore.save(accounts)
-                signInState = .idle
-                pollingTask = nil
-                traktLogger.info("Trakt connected")
+                storeSignIn(tokens, profileID: profileID)
                 return
             }
 
@@ -278,9 +408,11 @@ final class TraktService {
     private func refreshTokens(profileID: String) async -> TraktTokens? {
         guard let current = accounts[profileID] else { return nil }
         do {
-            let (data, status) = try await send(requests.refresh(refreshToken: current.refreshToken))
+            let (data, status) = try await send(
+                requests.refresh(refreshToken: current.refreshToken, redirectURI: current.refreshRedirectURI)
+            )
             if status == 200, let response = try? JSONDecoder().decode(TraktTokenResponse.self, from: data) {
-                let tokens = response.tokens(username: current.username)
+                let tokens = response.tokens(username: current.username, redirectURI: current.redirectURI)
                 accounts[profileID] = tokens
                 TraktCredentialStore.save(accounts)
                 return tokens
@@ -302,3 +434,18 @@ final class TraktService {
         return (data, (response as? HTTPURLResponse)?.statusCode ?? 0)
     }
 }
+
+#if !os(tvOS)
+/// Anchors the Trakt sign-in sheet on the foreground window.
+private final class TraktWebAuthPresentation: NSObject, ASWebAuthenticationPresentationContextProviding {
+    func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        MainActor.assumeIsolated {
+            let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+            let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+            if let window = scene?.keyWindow ?? scene?.windows.first { return window }
+            if let scene { return ASPresentationAnchor(windowScene: scene) }
+            return ASPresentationAnchor()
+        }
+    }
+}
+#endif

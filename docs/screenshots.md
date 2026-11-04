@@ -26,7 +26,7 @@ by launch arguments:
 | `-DuskScreenshotSearch <query>` | Pre-filled search |
 | `-DuskScreenshotDownloads movie:<rk>,episode:<rk>` | Queues real downloads |
 | `-DuskScreenshotSeedDownloads movie:<rk>,season:<rk>` | Records finished downloads (metadata and artwork through the normal cache path, a sparse placeholder file); `season:` expands to its episodes |
-| `-DuskScreenshotTrakt <url>` | Replaces `https://api.trakt.tv` (a mock answering the device flow); `-DuskScreenshotTraktSignIn 1` starts sign-in when Settings › Trakt opens (screen `trakt`; the build also needs Trakt keys in `Dusk/Support/Secrets.xcconfig`) |
+| `-DuskScreenshotTrakt <url>` | Replaces `https://api.trakt.tv` and the iOS authorize page (a mock answering the device flow); `-DuskScreenshotTraktSignIn 1` starts sign-in when Settings › Trakt opens (screen `trakt`; the build also needs Trakt keys in `Dusk/Support/Secrets.xcconfig`) |
 | `-DuskScreenshotSeerr <url>` | Acts as signed in to a demo Seerr at that URL (Keychain untouched) |
 | `-DuskScreenshotPlayerSheet audio\|subtitles` | iOS player: opens that picker once the tracks are in and keeps it open |
 | `-DuskScreenshotUpNext <seconds>` | Episode player shot: raises the full-screen Up Next for the next episode; every Up Next countdown stops at that many seconds |

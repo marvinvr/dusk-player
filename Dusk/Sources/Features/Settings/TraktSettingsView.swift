@@ -1,7 +1,10 @@
 import SwiftUI
 
-/// Settings › Trakt: link or unlink the current Plex profile's Trakt account
-/// through Trakt's device-code sign-in (code + QR to trakt.tv/activate).
+/// Settings › Trakt: link or unlink the current Plex profile's Trakt account.
+/// iOS with a configured `TRAKT_REDIRECT_URI` opens Trakt's own sign-in sheet
+/// (run by `TraktService`) and shows just status + Connect/Disconnect.
+/// Otherwise (and always on tvOS) it is the device-code sign-in: a code plus
+/// trakt.tv/activate (iOS) or the QR + code-tile layout (tvOS).
 struct TraktSettingsView: View {
     @Environment(TraktService.self) private var trakt
     #if !os(tvOS)
@@ -36,7 +39,7 @@ struct TraktSettingsView: View {
 
     private var isSigningIn: Bool {
         switch trakt.signInState {
-        case .requestingCode, .awaitingApproval: true
+        case .authorizing, .requestingCode, .awaitingApproval: true
         case .idle, .failed: false
         }
     }
@@ -56,6 +59,14 @@ struct TraktSettingsView: View {
     // MARK: - iOS
 
     #if !os(tvOS)
+    /// Device-code fallback in progress (no `TRAKT_REDIRECT_URI` in the build).
+    private var isDeviceSignIn: Bool {
+        switch trakt.signInState {
+        case .requestingCode, .awaitingApproval: true
+        case .idle, .authorizing, .failed: false
+        }
+    }
+
     private var iosContent: some View {
         List {
             Section {
@@ -66,7 +77,7 @@ struct TraktSettingsView: View {
             }
             .listRowBackground(Color.duskSurface)
 
-            if isSigningIn {
+            if isDeviceSignIn {
                 Section {
                     if let code = deviceCode {
                         VStack(alignment: .leading, spacing: 10) {
@@ -108,6 +119,14 @@ struct TraktSettingsView: View {
                 if trakt.isConnected {
                     Button("Disconnect", role: .destructive) {
                         trakt.disconnect()
+                    }
+                } else if trakt.signInState == .authorizing {
+                    // Trakt's sheet has its own Cancel; this only covers the code exchange.
+                    HStack {
+                        Text("Connect Trakt")
+                            .foregroundStyle(Color.duskTextSecondary)
+                        Spacer()
+                        ProgressView()
                     }
                 } else if isSigningIn {
                     Button("Cancel") {

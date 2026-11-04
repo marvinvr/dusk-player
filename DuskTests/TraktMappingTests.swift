@@ -158,6 +158,120 @@ struct TraktMappingTests {
         ])
     }
 
+    // MARK: Authorization code (iOS)
+
+    private let browserConfiguration = TraktConfiguration(
+        clientID: "client-id",
+        clientSecret: "client-secret",
+        apiBase: URL(string: "https://api.trakt.tv")!,
+        appRedirectURI: "dusk://trakt/callback"
+    )
+
+    @Test func redirectURISettingFallsBackToDeviceFlow() {
+        // No setting, or nothing usable: no browser sign-in.
+        #expect(builder.configuration.appRedirectURI == nil)
+        #expect(TraktAuthorization(configuration: builder.configuration) == nil)
+        for unusable in ["", "  ", "dusk:", "dusk:/", "not a url", "http://localhost/callback", "https://dusk-player.app/trakt"] {
+            let configuration = TraktConfiguration(
+                clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase, appRedirectURI: unusable
+            )
+            #expect(configuration.appRedirectURI == nil, "\(unusable)")
+        }
+        #expect(browserConfiguration.appRedirectURI == "dusk://trakt/callback")
+        let trimmed = TraktConfiguration(
+            clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase,
+            appRedirectURI: " dusk://trakt/callback\n"
+        )
+        #expect(trimmed.appRedirectURI == "dusk://trakt/callback")
+    }
+
+    @Test func authorizeURLCarriesClientRedirectAndState() throws {
+        let authorization = try #require(TraktAuthorization(configuration: browserConfiguration, state: "s+t/a=te"))
+        #expect(authorization.callbackScheme == "dusk")
+        #expect(authorization.redirectURI == "dusk://trakt/callback")
+        let url = authorization.url
+        #expect(url.scheme == "https")
+        #expect(url.host() == "trakt.tv")
+        #expect(url.path() == "/oauth/authorize")
+        let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        #expect(Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") }) == [
+            "response_type": "code",
+            "client_id": "client-id",
+            "redirect_uri": "dusk://trakt/callback",
+            "state": "s+t/a=te",
+        ])
+        // `+` must not reach Trakt as a space.
+        #expect(!url.absoluteString.contains("+"))
+        #expect(url.absoluteString.contains("s%2Bt"))
+    }
+
+    @Test func randomStateIsLongURLSafeAndFresh() {
+        let states = (0..<20).map { _ in TraktAuthorization.randomState() }
+        #expect(Set(states).count == states.count)
+        for state in states {
+            #expect(state.count == 43)
+            #expect(state.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+        }
+        let first = TraktAuthorization(configuration: browserConfiguration)
+        let second = TraktAuthorization(configuration: browserConfiguration)
+        #expect(first?.state != nil)
+        #expect(first?.state != second?.state)
+    }
+
+    @Test func callbackAcceptsOnlyMatchingState() throws {
+        let authorization = try #require(TraktAuthorization(configuration: browserConfiguration, state: "abc"))
+        func result(_ string: String) throws -> TraktAuthorization.CallbackResult {
+            authorization.result(for: try #require(URL(string: string)))
+        }
+        #expect(try result("dusk://trakt/callback?code=xyz&state=abc") == .code("xyz"))
+        #expect(try result("DUSK://Trakt/callback?state=abc&code=xyz") == .code("xyz"))
+        #expect(try result("dusk://trakt/callback?code=xyz&state=abd") == .stateMismatch)
+        #expect(try result("dusk://trakt/callback?code=xyz") == .stateMismatch)
+        #expect(try result("dusk://trakt/callback?code=xyz&state=") == .stateMismatch)
+        #expect(try result("dusk://trakt/callback?error=access_denied&state=abc") == .denied)
+        // A denial for another request is still not ours.
+        #expect(try result("dusk://trakt/callback?error=access_denied&state=zzz") == .stateMismatch)
+        #expect(try result("dusk://trakt/callback?error=server_error&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?code=&state=abc") == .invalid)
+        // Other dusk:// links (tvOS Top Shelf) and other schemes are rejected.
+        #expect(try result("dusk://play?code=xyz&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/other?code=xyz&state=abc") == .invalid)
+        #expect(try result("https://trakt/callback?code=xyz&state=abc") == .invalid)
+    }
+
+    @Test func authorizationCodeExchangeRequest() throws {
+        let request = builder.authorizationToken(code: "the-code", redirectURI: "dusk://trakt/callback")
+        #expect(request.url?.absoluteString == "https://api.trakt.tv/oauth/token")
+        #expect(request.httpMethod == "POST")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
+        #expect(try json(request) as? [String: String] == [
+            "code": "the-code",
+            "client_id": "client-id",
+            "client_secret": "client-secret",
+            "redirect_uri": "dusk://trakt/callback",
+            "grant_type": "authorization_code",
+        ])
+    }
+
+    @Test func refreshRepeatsTheGrantRedirect() throws {
+        let data = Data(#"{"access_token":"a","refresh_token":"r","expires_in":86400,"created_at":1793000000}"#.utf8)
+        let response = try JSONDecoder().decode(TraktTokenResponse.self, from: data)
+        let browser = response.tokens(username: nil, redirectURI: "dusk://trakt/callback")
+        #expect(browser.refreshRedirectURI == "dusk://trakt/callback")
+        let device = response.tokens(username: nil)
+        #expect(device.refreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+
+        let request = builder.refresh(refreshToken: "r", redirectURI: browser.refreshRedirectURI)
+        #expect((try json(request) as? [String: String])?["redirect_uri"] == "dusk://trakt/callback")
+
+        // Tokens saved before `redirectURI` existed still decode (device flow).
+        let legacy = Data(#"{"accessToken":"a","refreshToken":"r","expiresAt":0}"#.utf8)
+        let decoded = try JSONDecoder().decode(TraktTokens.self, from: legacy)
+        #expect(decoded.redirectURI == nil)
+        #expect(decoded.refreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+    }
+
     @Test func devicePollStatusMapping() {
         #expect(TraktDevicePollResult(status: 400) == .pending)
         #expect(TraktDevicePollResult(status: 429) == .slowDown)
