@@ -80,7 +80,6 @@ struct TraktMappingTests {
     private let builder = TraktRequestBuilder(
         configuration: TraktConfiguration(
             clientID: "client-id",
-            clientSecret: "client-secret",
             apiBase: URL(string: "https://api.trakt.tv")!
         ),
         userAgent: "Dusk/1.8.0 (iOS)"
@@ -144,7 +143,7 @@ struct TraktMappingTests {
         let token = builder.deviceToken(deviceCode: "dev")
         #expect(token.url?.path == "/oauth/device/token")
         #expect(try json(token) as? [String: String] == [
-            "code": "dev", "client_id": "client-id", "client_secret": "client-secret",
+            "code": "dev", "client_id": "client-id",
         ])
 
         let refresh = builder.refresh(refreshToken: "r")
@@ -152,8 +151,7 @@ struct TraktMappingTests {
         #expect(try json(refresh) as? [String: String] == [
             "refresh_token": "r",
             "client_id": "client-id",
-            "client_secret": "client-secret",
-            "redirect_uri": "urn:ietf:wg:oauth:2.0:oob",
+            "redirect_uri": "https://getdusk.app/trakt/callback",
             "grant_type": "refresh_token",
         ])
     }
@@ -162,57 +160,50 @@ struct TraktMappingTests {
 
     private let browserConfiguration = TraktConfiguration(
         clientID: "client-id",
-        clientSecret: "client-secret",
         apiBase: URL(string: "https://api.trakt.tv")!,
-        appRedirectURI: "dusk://trakt/callback"
+        appRedirectURI: "https://getdusk.app/trakt/callback"
     )
 
     private func configuration(redirect: String?) -> TraktConfiguration {
         TraktConfiguration(
-            clientID: "c", clientSecret: "s", apiBase: TraktConfiguration.productionAPIBase, appRedirectURI: redirect
+            clientID: "c", apiBase: TraktConfiguration.productionAPIBase, appRedirectURI: redirect
         )
     }
 
-    @Test func redirectURISettingFallsBackToDeviceFlow() {
-        // No setting, or nothing usable: device flow, oob refresh.
-        #expect(builder.configuration.appRedirectURI == nil)
-        #expect(builder.configuration.registeredRedirectURI == nil)
-        #expect(TraktAuthorization(configuration: builder.configuration) == nil)
-        for malformed in ["", "  ", "dusk:", "dusk:/", "http:", "not a url"] {
-            let configuration = configuration(redirect: malformed)
-            #expect(configuration.registeredRedirectURI == nil, "\(malformed)")
-            #expect(configuration.appRedirectURI == nil, "\(malformed)")
-            #expect(configuration.deviceRefreshRedirectURI == "urn:ietf:wg:oauth:2.0:oob")
+    @Test func configurationUsesOnlyPublicIDAndHTTPSRedirects() {
+        #expect(builder.configuration.isConfigured)
+        #expect(!TraktConfiguration(clientID: "", apiBase: TraktConfiguration.productionAPIBase).isConfigured)
+        #expect(!TraktConfiguration(clientID: " ", apiBase: TraktConfiguration.productionAPIBase).isConfigured)
+        #expect(builder.configuration.appRedirectURI == TraktConfiguration.defaultRedirectURI)
+        #expect(TraktAuthorization(configuration: builder.configuration) != nil)
+        for malformed in ["", "  ", "dusk:", "http:", "not a url", "http://localhost", "https://localhost/callback",
+                          "dusk://trakt/callback", "https://getdusk.app/trakt/callback?extra=1",
+                          "https://user@getdusk.app/trakt/callback", "https://getdusk.app/trakt/callback#fragment"] {
+            let config = configuration(redirect: malformed)
+            #expect(config.appRedirectURI == nil, "\(malformed)")
+            #expect(TraktAuthorization(configuration: config) == nil)
+            #expect(config.deviceRefreshRedirectURI == TraktConfiguration.defaultRedirectURI)
         }
-        // http(s) (Trakt Development apps: localhost only) is registered but
-        // cannot drive the in-app browser.
-        for web in ["http://localhost", "https://localhost/callback"] {
-            let configuration = configuration(redirect: web)
-            #expect(configuration.registeredRedirectURI == web)
-            #expect(configuration.appRedirectURI == nil)
-            #expect(TraktAuthorization(configuration: configuration) == nil)
-            #expect(configuration.deviceRefreshRedirectURI == web)
-        }
-        #expect(browserConfiguration.appRedirectURI == "dusk://trakt/callback")
-        #expect(browserConfiguration.deviceRefreshRedirectURI == "dusk://trakt/callback")
-        let trimmed = configuration(redirect: " dusk://trakt/callback\n")
-        #expect(trimmed.appRedirectURI == "dusk://trakt/callback")
+        let trimmed = configuration(redirect: " https://getdusk.app/trakt/callback\n")
+        #expect(trimmed.appRedirectURI == TraktConfiguration.defaultRedirectURI)
     }
 
     @Test func authorizeURLCarriesClientRedirectAndState() throws {
-        let authorization = try #require(TraktAuthorization(configuration: browserConfiguration, state: "s+t/a=te"))
+        let authorization = try #require(TraktAuthorization(configuration: browserConfiguration, state: "s+t/a=te", codeVerifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"))
         #expect(authorization.callbackScheme == "dusk")
-        #expect(authorization.redirectURI == "dusk://trakt/callback")
+        #expect(authorization.redirectURI == TraktConfiguration.defaultRedirectURI)
         let url = authorization.url
         #expect(url.scheme == "https")
-        #expect(url.host() == "trakt.tv")
+        #expect(url.host() == "auth.trakt.tv")
         #expect(url.path() == "/oauth/authorize")
         let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
         #expect(Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") }) == [
             "response_type": "code",
             "client_id": "client-id",
-            "redirect_uri": "dusk://trakt/callback",
+            "redirect_uri": TraktConfiguration.defaultRedirectURI,
             "state": "s+t/a=te",
+            "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+            "code_challenge_method": "S256",
         ])
         // `+` must not reach Trakt as a space.
         #expect(!url.absoluteString.contains("+"))
@@ -230,6 +221,12 @@ struct TraktMappingTests {
         let second = TraktAuthorization(configuration: browserConfiguration)
         #expect(first?.state != nil)
         #expect(first?.state != second?.state)
+        #expect(first?.codeVerifier != first?.state)
+        #expect(first?.codeVerifier != second?.codeVerifier)
+        for verifier in [first?.codeVerifier, second?.codeVerifier].compactMap({ $0 }) {
+            #expect(verifier.count == 43)
+            #expect(verifier.allSatisfy { $0.isLetter || $0.isNumber || $0 == "-" || $0 == "_" })
+        }
     }
 
     @Test func callbackAcceptsOnlyMatchingState() throws {
@@ -248,6 +245,11 @@ struct TraktMappingTests {
         #expect(try result("dusk://trakt/callback?error=server_error&state=abc") == .invalid)
         #expect(try result("dusk://trakt/callback?state=abc") == .invalid)
         #expect(try result("dusk://trakt/callback?code=&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?code=xyz&state=abc&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?code=xyz&code=other&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?code=xyz&state=abc#error") == .invalid)
+        #expect(try result("dusk://user@trakt/callback?code=xyz&state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abc") == .invalid)
         // Other dusk:// links (tvOS Top Shelf) and other schemes are rejected.
         #expect(try result("dusk://play?code=xyz&state=abc") == .invalid)
         #expect(try result("dusk://trakt/other?code=xyz&state=abc") == .invalid)
@@ -255,42 +257,50 @@ struct TraktMappingTests {
     }
 
     @Test func authorizationCodeExchangeRequest() throws {
-        let request = builder.authorizationToken(code: "the-code", redirectURI: "dusk://trakt/callback")
-        #expect(request.url?.absoluteString == "https://api.trakt.tv/oauth/token")
+        let request = builder.authorizationToken(code: "the-code", redirectURI: TraktConfiguration.defaultRedirectURI, codeVerifier: "the-verifier")
+        #expect(request.url?.absoluteString == "https://auth.trakt.tv/oauth/token")
         #expect(request.httpMethod == "POST")
         #expect(request.value(forHTTPHeaderField: "Authorization") == nil)
         #expect(try json(request) as? [String: String] == [
             "code": "the-code",
             "client_id": "client-id",
-            "client_secret": "client-secret",
-            "redirect_uri": "dusk://trakt/callback",
+            "redirect_uri": TraktConfiguration.defaultRedirectURI,
             "grant_type": "authorization_code",
+            "code_verifier": "the-verifier",
         ])
     }
 
-    @Test func refreshSendsARegisteredRedirect() throws {
+    @Test func refreshUsesHTTPSForNewAndLegacyGrants() throws {
         let data = Data(#"{"access_token":"a","refresh_token":"r","expires_in":86400,"created_at":1793000000}"#.utf8)
         let response = try JSONDecoder().decode(TraktTokenResponse.self, from: data)
-        let localhost = configuration(redirect: "http://localhost")
-        let unset = configuration(redirect: nil)
-
-        // Browser grant: repeats its own redirect.
-        let browser = response.tokens(username: nil, redirectURI: "dusk://trakt/callback")
-        #expect(browser.refreshRedirectURI(localhost) == "dusk://trakt/callback")
-        // Device-code link: the configured redirect, else oob.
+        let config = configuration(redirect: nil)
+        let browser = response.tokens(username: nil, redirectURI: TraktConfiguration.defaultRedirectURI)
+        #expect(browser.refreshRedirectURI(config) == TraktConfiguration.defaultRedirectURI)
         let device = response.tokens(username: nil)
-        #expect(device.redirectURI == nil)
-        #expect(device.refreshRedirectURI(localhost) == "http://localhost")
-        #expect(device.refreshRedirectURI(unset) == "urn:ietf:wg:oauth:2.0:oob")
-
-        let request = builder.refresh(refreshToken: "r", redirectURI: device.refreshRedirectURI(localhost))
-        #expect((try json(request) as? [String: String])?["redirect_uri"] == "http://localhost")
-
-        // Tokens saved before `redirectURI` existed still decode as device links.
+        #expect(device.refreshRedirectURI(config) == TraktConfiguration.defaultRedirectURI)
+        for oldRedirect in ["dusk://trakt/callback", "http://localhost"] {
+            let old = response.tokens(username: nil, redirectURI: oldRedirect)
+            #expect(old.refreshRedirectURI(config) == TraktConfiguration.defaultRedirectURI)
+        }
         let legacy = Data(#"{"accessToken":"a","refreshToken":"r","expiresAt":0}"#.utf8)
         let decoded = try JSONDecoder().decode(TraktTokens.self, from: legacy)
         #expect(decoded.redirectURI == nil)
-        #expect(decoded.refreshRedirectURI(localhost) == "http://localhost")
+        #expect(decoded.refreshRedirectURI(config) == TraktConfiguration.defaultRedirectURI)
+    }
+
+    @Test func everyRequestIsSecretFreeAndUsesTheCorrectHost() throws {
+        let movie = try #require(entry(.movie, ["tmdb://603"]))
+        let oauth = [builder.deviceCode(), builder.deviceToken(deviceCode: "dev"),
+                     builder.authorizationToken(code: "code", redirectURI: TraktConfiguration.defaultRedirectURI, codeVerifier: "verifier"),
+                     builder.refresh(refreshToken: "refresh"), builder.revoke(accessToken: "access")]
+        let api = [builder.userSettings(accessToken: "access"), builder.addToHistory([movie], accessToken: "access")]
+        for request in oauth + api {
+            #expect(request.url?.host() == (request.url?.path.hasPrefix("/oauth/") == true ? "auth.trakt.tv" : "api.trakt.tv"))
+            let contents = (request.url?.absoluteString ?? "") + String(describing: request.allHTTPHeaderFields)
+                + (request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? "")
+            #expect(!contents.contains("client_secret"))
+        }
+        #expect(try json(builder.revoke(accessToken: "access")) as? [String: String] == ["token": "access", "client_id": "client-id"])
     }
 
     @Test func devicePollStatusMapping() {

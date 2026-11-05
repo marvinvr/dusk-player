@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 /// External ids Trakt matches on. Plex `Guid` entries carry them for both
 /// movies and episodes (episode-level ids, not the show's).
@@ -144,7 +145,7 @@ struct TraktTokens: Codable, Sendable, Equatable {
     var redirectURI: String?
 
     func refreshRedirectURI(_ configuration: TraktConfiguration) -> String {
-        redirectURI ?? configuration.deviceRefreshRedirectURI
+        redirectURI.flatMap(TraktConfiguration.validatedRedirectURI) ?? configuration.deviceRefreshRedirectURI
     }
 
     func expires(within interval: TimeInterval, now: Date = .now) -> Bool {
@@ -177,9 +178,8 @@ struct TraktTokenResponse: Decodable, Sendable {
     }
 }
 
-/// One iOS authorization-code sign-in: the `trakt.tv/oauth/authorize` URL
-/// with a fresh `state`, and the check of what came back on the configured
-/// `TraktConfiguration.appRedirectURI`. Pure, so it is unit tested.
+/// One iOS PKCE sign-in. The verifier and state live only for this attempt;
+/// Trakt redirects to HTTPS, whose page forwards to the fixed Dusk callback.
 struct TraktAuthorization: Sendable, Equatable {
     enum CallbackResult: Equatable {
         case code(String)
@@ -194,14 +194,20 @@ struct TraktAuthorization: Sendable, Equatable {
     let state: String
     let url: URL
     let redirectURI: String
+    let codeVerifier: String
 
     /// `nil` when the build has no usable `TRAKT_REDIRECT_URI`.
-    init?(configuration: TraktConfiguration, state: String = TraktAuthorization.randomState()) {
+    init?(
+        configuration: TraktConfiguration,
+        state: String = TraktAuthorization.randomState(),
+        codeVerifier: String = TraktAuthorization.randomState()
+    ) {
         guard let redirectURI = configuration.appRedirectURI else { return nil }
         self.state = state
+        self.codeVerifier = codeVerifier
         self.redirectURI = redirectURI
         var components = URLComponents(
-            url: configuration.webBase.appending(path: "oauth/authorize"),
+            url: configuration.authBase.appending(path: "oauth/authorize"),
             resolvingAgainstBaseURL: false
         )!
         components.queryItems = [
@@ -209,11 +215,20 @@ struct TraktAuthorization: Sendable, Equatable {
             URLQueryItem(name: "client_id", value: configuration.clientID),
             URLQueryItem(name: "redirect_uri", value: redirectURI),
             URLQueryItem(name: "state", value: state),
+            URLQueryItem(name: "code_challenge", value: Self.codeChallenge(for: codeVerifier)),
+            URLQueryItem(name: "code_challenge_method", value: "S256"),
         ]
         // `+` is legal in a query but read as a space by many servers.
         components.percentEncodedQuery = components.percentEncodedQuery?
             .replacingOccurrences(of: "+", with: "%2B")
         url = components.url!
+    }
+
+    static func codeChallenge(for verifier: String) -> String {
+        Data(SHA256.hash(data: Data(verifier.utf8))).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
     }
 
     /// 32 random bytes, base64url without padding (43 characters).
@@ -227,19 +242,25 @@ struct TraktAuthorization: Sendable, Equatable {
     }
 
     /// The scheme `ASWebAuthenticationSession` waits for.
-    var callbackScheme: String { URL(string: redirectURI)?.scheme?.lowercased() ?? "" }
+    var callbackScheme: String { "dusk" }
 
     func result(for callbackURL: URL) -> CallbackResult {
         // Scheme and host compare case-insensitively, the path exactly; other
         // links on the same scheme (tvOS Top Shelf `dusk://…`) are not ours.
-        guard let expected = URL(string: redirectURI),
+        let expected = TraktConfiguration.callbackURL
+        guard
               callbackURL.scheme?.lowercased() == expected.scheme?.lowercased(),
               callbackURL.host()?.lowercased() == expected.host()?.lowercased(),
               callbackURL.path() == expected.path(),
+              callbackURL.port == nil, callbackURL.user == nil, callbackURL.password == nil,
+              callbackURL.fragment == nil,
               let components = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false) else {
             return .invalid
         }
         let items = components.queryItems ?? []
+        guard ["state", "code", "error"].allSatisfy({ name in
+            items.filter { $0.name == name }.count <= 1
+        }) else { return .invalid }
         func value(_ name: String) -> String? {
             items.first { $0.name == name }?.value?.nilIfEmpty
         }
@@ -288,27 +309,25 @@ struct TraktRequestBuilder: Sendable {
         post("oauth/device/token", json: [
             "code": deviceCode,
             "client_id": configuration.clientID,
-            "client_secret": configuration.clientSecret,
         ])
     }
 
     /// Exchanges the iOS sign-in's authorization code for tokens.
     /// `redirectURI` must be the one the authorize URL carried.
-    func authorizationToken(code: String, redirectURI: String) -> URLRequest {
+    func authorizationToken(code: String, redirectURI: String, codeVerifier: String) -> URLRequest {
         post("oauth/token", json: [
             "code": code,
             "client_id": configuration.clientID,
-            "client_secret": configuration.clientSecret,
             "redirect_uri": redirectURI,
             "grant_type": "authorization_code",
+            "code_verifier": codeVerifier,
         ])
     }
 
-    func refresh(refreshToken: String, redirectURI: String = TraktConfiguration.deviceRedirectURI) -> URLRequest {
+    func refresh(refreshToken: String, redirectURI: String = TraktConfiguration.defaultRedirectURI) -> URLRequest {
         post("oauth/token", json: [
             "refresh_token": refreshToken,
             "client_id": configuration.clientID,
-            "client_secret": configuration.clientSecret,
             "redirect_uri": redirectURI,
             "grant_type": "refresh_token",
         ])
@@ -318,7 +337,6 @@ struct TraktRequestBuilder: Sendable {
         post("oauth/revoke", json: [
             "token": accessToken,
             "client_id": configuration.clientID,
-            "client_secret": configuration.clientSecret,
         ])
     }
 
@@ -386,7 +404,7 @@ struct TraktRequestBuilder: Sendable {
     }
 
     private func base(_ path: String, accessToken: String?) -> URLRequest {
-        var request = URLRequest(url: configuration.apiBase.appending(path: path))
+        var request = URLRequest(url: (path.hasPrefix("oauth/") ? configuration.authBase : configuration.apiBase).appending(path: path))
         request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(TraktConfiguration.apiVersion, forHTTPHeaderField: "trakt-api-version")

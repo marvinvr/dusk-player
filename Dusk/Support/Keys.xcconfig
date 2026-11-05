@@ -1,14 +1,7 @@
-// Build-time API keys for the Dusk and Dusk-tvOS app targets.
-//
-// The real values live in the git-ignored Dusk/Support/Secrets.xcconfig
-// (copy Secrets.example.xcconfig). scripts/testflight.sh copies that file
-// from the clone it runs in into the build checkout. Without it the keys stay
-// empty and the features that need them are hidden. See docs/trakt.md.
-
+// Public-client Trakt settings for both app targets. No client secret.
+// Local overrides are git-ignored; release preparation copies only these keys.
 TRAKT_CLIENT_ID =
-TRAKT_CLIENT_SECRET =
-// Redirect URI registered on the Trakt app (refreshes; a custom scheme also
-// enables the iOS browser sign-in). See docs/trakt.md.
-TRAKT_REDIRECT_URI =
+// xcconfig treats // as a comment; /$()/ preserves the HTTPS slashes.
+TRAKT_REDIRECT_URI = https:/$()/getdusk.app/trakt/callback
 
 #include? "Secrets.xcconfig"

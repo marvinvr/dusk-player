@@ -34,7 +34,7 @@ that owns the behavior you are changing.
 - `seerr-integration.md`: optional Plex-token Seerr connection, merged search,
   request-only detail flows, and missing-season enrichment.
 - `trakt.md`: optional Trakt watch tracking — device-code sign-in per Plex
-  profile, finished-item history queue, guid matching, build-time keys.
+  profile, iOS PKCE, secret-free tokens, history queue and guid matching.
 - `playback.md`: playback coordinator, resolver, engines, player UI, timeline,
   scrobble, and up next.
 - `audio-silence-postmortem.md`: the 2026-07 VLCKit silent-audio saga — the

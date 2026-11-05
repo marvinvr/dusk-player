@@ -1,17 +1,11 @@
 import SwiftUI
 
 /// Settings › Trakt: link or unlink the current Plex profile's Trakt account.
-/// iOS with a configured `TRAKT_REDIRECT_URI` opens Trakt's own sign-in sheet
-/// (run by `TraktService`) and shows just status + Connect/Disconnect.
-/// Otherwise (and always on tvOS) it is the device-code sign-in: a code plus
-/// trakt.tv/activate (iOS) or the QR + code-tile layout (tvOS).
+/// iOS uses Trakt's PKCE sign-in sheet; tvOS uses QR + device-code tiles.
 struct TraktSettingsView: View {
     @Environment(TraktService.self) private var trakt
-    #if !os(tvOS)
-    @State private var presentedURL: URL?
-    #endif
 
-    static let footerText = "Movies and episodes you finish are added to your Trakt history."
+    static let footerText = "Movies and episodes you finish are added to your Trakt history. Dusk uses Trakt but is not endorsed or certified by Trakt."
 
     var body: some View {
         Group {
@@ -59,14 +53,6 @@ struct TraktSettingsView: View {
     // MARK: - iOS
 
     #if !os(tvOS)
-    /// Device-code fallback in progress (no `TRAKT_REDIRECT_URI` in the build).
-    private var isDeviceSignIn: Bool {
-        switch trakt.signInState {
-        case .requestingCode, .awaitingApproval: true
-        case .idle, .authorizing, .failed: false
-        }
-    }
-
     private var iosContent: some View {
         List {
             Section {
@@ -76,35 +62,6 @@ struct TraktSettingsView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
-
-            if isDeviceSignIn {
-                Section {
-                    if let code = deviceCode {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Go to \(displayHost(code)) and enter this code.")
-                                .font(.footnote)
-                                .foregroundStyle(Color.duskTextSecondary)
-                            Text(code.userCode)
-                                .font(.system(.largeTitle, design: .monospaced, weight: .bold))
-                                .foregroundStyle(Color.duskTextPrimary)
-                                .textSelection(.enabled)
-                        }
-                        .padding(.vertical, 6)
-
-                        Button("Open \(displayHost(code))") {
-                            presentedURL = URL(string: code.verificationURL)
-                        }
-                    }
-
-                    HStack(spacing: 10) {
-                        ProgressView()
-                        Text(deviceCode == nil ? "Getting a code…" : "Waiting for approval…")
-                            .font(.footnote)
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-                .listRowBackground(Color.duskSurface)
-            }
 
             if let errorMessage {
                 Section {
@@ -141,14 +98,6 @@ struct TraktSettingsView: View {
             .listRowBackground(Color.duskSurface)
         }
         .scrollContentBackground(.hidden)
-        .sheet(isPresented: Binding(
-            get: { presentedURL != nil },
-            set: { if !$0 { presentedURL = nil } }
-        )) {
-            if let presentedURL {
-                DuskSafariView(url: presentedURL)
-            }
-        }
     }
     #endif
 

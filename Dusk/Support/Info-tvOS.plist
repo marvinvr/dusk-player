@@ -16,8 +16,6 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>TraktClientID</key>
 	<string>$(TRAKT_CLIENT_ID)</string>
-	<key>TraktClientSecret</key>
-	<string>$(TRAKT_CLIENT_SECRET)</string>
 	<key>TraktRedirectURI</key>
 	<string>$(TRAKT_REDIRECT_URI)</string>
 	<key>CFBundleShortVersionString</key>

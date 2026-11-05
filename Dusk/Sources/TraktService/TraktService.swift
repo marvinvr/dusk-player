@@ -10,9 +10,8 @@ private let traktLogger = Logger(
     category: "Trakt"
 )
 
-/// Trakt watch tracking: the sign-in per Plex profile (iOS with a configured
-/// `TRAKT_REDIRECT_URI`: authorization code in `ASWebAuthenticationSession`;
-/// otherwise, and always on tvOS: device code), and adding
+/// Trakt watch tracking: sign-in per Plex profile (iOS: authorization code +
+/// PKCE in `ASWebAuthenticationSession`; tvOS: device code), and adding
 /// finished movies/episodes to the account's history (`/sync/history`).
 ///
 /// Rules (see `docs/trakt.md`):
@@ -27,7 +26,7 @@ final class TraktService {
         case idle
         /// iOS: the Trakt sign-in sheet is up, or its code is being exchanged.
         case authorizing
-        /// Device flow (tvOS, and iOS without a redirect URI).
+        /// Device flow (tvOS only).
         case requestingCode
         case awaitingApproval(TraktDeviceCode)
         case failed(String)
@@ -73,7 +72,7 @@ final class TraktService {
 
     // MARK: - State
 
-    /// False when the build carries no Trakt client ID/secret; the setting is hidden.
+    /// False when the build carries no Trakt client ID; the setting is hidden.
     var isAvailable: Bool { configuration.isConfigured }
 
     var activeAccount: TraktTokens? {
@@ -94,15 +93,17 @@ final class TraktService {
         guard isAvailable, let profileID = plexService.activeProfileID else { return }
         cancelRunningSignIn()
         #if !os(tvOS)
-        if let authorization = TraktAuthorization(configuration: configuration) {
-            startBrowserSignIn(authorization, profileID: profileID)
+        guard let authorization = TraktAuthorization(configuration: configuration) else {
+            signInState = .failed("Trakt sign-in requires a registered HTTPS redirect URL.")
             return
         }
-        #endif
+        startBrowserSignIn(authorization, profileID: profileID)
+        #else
         signInState = .requestingCode
         pollingTask = Task { [weak self] in
             await self?.runDeviceFlow(profileID: profileID)
         }
+        #endif
     }
 
     /// Stops a running sign-in. A failure message stays up until the next attempt.
@@ -191,7 +192,7 @@ final class TraktService {
         switch authorization.result(for: callbackURL) {
         case .code(let code):
             pollingTask = Task { [weak self] in
-                await self?.exchange(code: code, redirectURI: authorization.redirectURI, profileID: profileID)
+                await self?.exchange(code: code, authorization: authorization, profileID: profileID)
             }
         case .denied:
             signInState = .failed("Sign-in was denied on Trakt.")
@@ -204,9 +205,12 @@ final class TraktService {
         }
     }
 
-    private func exchange(code: String, redirectURI: String, profileID: String) async {
+    private func exchange(code: String, authorization: TraktAuthorization, profileID: String) async {
+        let redirectURI = authorization.redirectURI
         do {
-            let (data, status) = try await send(requests.authorizationToken(code: code, redirectURI: redirectURI))
+            let (data, status) = try await send(requests.authorizationToken(
+                code: code, redirectURI: redirectURI, codeVerifier: authorization.codeVerifier
+            ))
             guard !Task.isCancelled else { return }
             guard status == 200, let response = try? JSONDecoder().decode(TraktTokenResponse.self, from: data) else {
                 traktLogger.error("Trakt code exchange failed: HTTP \(status)")
@@ -225,7 +229,7 @@ final class TraktService {
     }
     #endif
 
-    // MARK: Device code (tvOS, iOS fallback)
+    // MARK: Device code (tvOS)
 
     private func runDeviceFlow(profileID: String) async {
         let code: TraktDeviceCode

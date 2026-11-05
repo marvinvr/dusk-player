@@ -99,7 +99,8 @@ Beyond that endpoint, network traffic should be limited to Plex account/server
 APIs, selected Plex servers, artwork and media URLs derived from Plex,
 explicitly initiated Apple Group Activities sessions (which share only the
 selected item's server-scoped identity and display metadata with participants),
-and explicitly requested external links such as project/license pages.
+explicitly opted-in Trakt authentication and finished-item history sync (see
+`trakt.md`), and explicitly requested external links such as project/license pages.
 
 Do not log raw token-bearing URLs. Playback and image URLs often include
 `X-Plex-Token` because AVPlayer and VLCKit load media directly.
