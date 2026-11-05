@@ -12,8 +12,8 @@ struct TraktConfiguration: Sendable, Equatable {
     static let productionAPIBase = URL(string: "https://api.trakt.tv")!
     static let productionAuthBase = URL(string: "https://auth.trakt.tv")!
     static let defaultRedirectURI = "https://getdusk.app/trakt/callback"
-    /// The HTTPS callback page forwards its query to this system-web-session callback.
-    static let callbackURL = URL(string: "dusk://trakt/callback")!
+    /// Owned HTTPS callback, shared by Universal Links and the system web session.
+    static let callbackURL = URL(string: defaultRedirectURI)!
     static let apiVersion = "2"
 
     init(
@@ -33,14 +33,13 @@ struct TraktConfiguration: Sendable, Equatable {
     /// Device grants have no initial redirect, but refresh requires a registered one.
     var deviceRefreshRedirectURI: String { appRedirectURI ?? Self.defaultRedirectURI }
 
-    /// Reject custom schemes, localhost, and values truncated by xcconfig's `//` comments.
+    /// Only the HTTPS URL covered by our entitlement, AASA and web-session callback.
     static func validatedRedirectURI(_ raw: String) -> String? {
         let value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let url = URLComponents(string: value),
               url.scheme?.lowercased() == "https",
-              let host = url.host?.lowercased(), !host.isEmpty,
-              host != "localhost", !host.hasSuffix(".localhost"),
-              host != "127.0.0.1", host != "[::1]", host != "::1",
+              url.host?.lowercased() == callbackURL.host()?.lowercased(),
+              url.percentEncodedPath == callbackURL.path(), url.port == nil,
               url.user == nil, url.password == nil,
               url.query == nil, url.fragment == nil else { return nil }
         return value

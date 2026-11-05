@@ -33,11 +33,14 @@ else: no history import, no ratings, no watchlist, no other services.
      with `response_type=code`, `client_id`, the registered HTTPS `redirect_uri`,
      `state`, `code_challenge=base64url(SHA256(verifier))`, and
      `code_challenge_method=S256`. Safari cookies can be reused.
-     `https://getdusk.app/trakt/callback` lands on the website's static
-     `/trakt/callback/` page, which immediately forwards the unchanged query to
-     `dusk://trakt/callback`. The session catches scheme `dusk`; the app checks
-     scheme, host, path and state, rejects duplicate OAuth parameters, then
-     exchanges the code with the original verifier and **HTTPS** redirect URI.
+     The session uses `.https(host: "getdusk.app", path: "/trakt/callback")`
+     to receive `https://getdusk.app/trakt/callback` directly. The iOS 18.0
+     deployment target already supports this iOS 17.4 API; no scheme fallback
+     is needed. The app checks HTTPS, host, exact path and state, rejects
+     duplicate OAuth parameters, then exchanges the code with the original
+     verifier and the same HTTPS redirect URI. Unclaimed URLs delivered to
+     `DuskApp.onOpenURL` or browsing `NSUserActivity` are ignored, including
+     cold launches: only the live session completion can exchange a code.
      Denial is an error; closing the sheet is a plain cancellation. Invalid
      redirect configuration fails sign-in; iOS never falls back to device codes.
    - **tvOS: device code**. `POST /oauth/device/code` sends `client_id`;
@@ -112,11 +115,26 @@ config to these two settings when preparing an archive; it never copies the
 whole file (which might still contain an old secret).
 
 Register `https://getdusk.app/trakt/callback` exactly on Dusk's Production Trakt
-app. Never register the `dusk://` bounce as Trakt's redirect. The website lives
-in `~/Development/Private/dusk-player-website`; its nginx config serves the
-slash and non-slash paths directly, avoiding an HTTP directory redirect behind
-the TLS proxy. Callback responses disable caching and nginx access logging.
-The callback has no tracking or external assets and sets `no-referrer`. The authorization code is exchanged only on the device.
+app. Other redirect hosts, paths, ports and custom schemes are rejected.
+The website lives in `~/Development/Private/dusk-player-website`:
+
+- `/.well-known/apple-app-site-association` is served directly as
+  `application/json`, without a redirect. It declares
+  `WZ6VURTF6A.com.dusk-player.app` for `applinks` (`/trakt/callback*`) and
+  `webcredentials`. Team ID `WZ6VURTF6A` was cross-checked against
+  `ASC_TEAM_ID` in the existing `~/.config/testflight/env` signing setup.
+- Only the iOS app's `Dusk.entitlements` declares `applinks:getdusk.app` and
+  `webcredentials:getdusk.app`. The latter permits the HTTPS web-session
+  callback; tvOS and Top Shelf keep their existing entitlements. Associated
+  Domains must also be enabled on the iOS App ID and provisioning profile
+  (managed separately by Tim; no signing/ASC changes here).
+- nginx serves both `/trakt/callback` and `/trakt/callback/` directly,
+  avoiding an HTTP directory redirect behind the TLS proxy. The page is just
+  a neutral return-to-app fallback when the system does not intercept the
+  link; no scheme bounce, tracking, scripts, external assets or query storage.
+  Responses disable caching and nginx access logging, and set `no-referrer`.
+
+The authorization code is exchanged only on the device.
 Dusk uses `/sync/history`; it needs no `/checkin` or `/scrobble` permission.
 
 ## Current Trakt requirements and remaining release decisions
@@ -138,12 +156,12 @@ The schema explicitly makes `client_secret` optional/deprecated on token,
 device-token and revoke requests. No endpoint used by Dusk requires it.
 The guide is less explicit about device/refresh; the schema resolves that.
 
-**Redirect caveat:** Trakt's PKCE guide requires HTTPS redirects backed by
-Universal Links on iOS. The requested HTTPS-to-custom-scheme bridge works with
-`ASWebAuthenticationSession` and PKCE protects an intercepted code, but it is
-**not a Universal Link**. Production acceptance of this bridge needs Trakt's
-confirmation, or a separate associated-domains/AASA implementation before
-claiming full compliance. This change does not claim support has approved it.
+The redirect uses the owned HTTPS domain in accordance with Trakt's PKCE
+requirements. Apple's [HTTPS callback API](https://developer.apple.com/documentation/authenticationservices/aswebauthenticationsession/callback/https(host:path:))
+requires an associated domain; see [Supporting Associated Domains](https://developer.apple.com/documentation/xcode/supporting-associated-domains)
+and Apple's [HTTPS callback / webcredentials discussion](https://developer.apple.com/forums/thread/838975).
+Apple's association CDN and device caches can lag a fresh AASA deployment;
+installation or an app update triggers association verification.
 
 The [API Use Policy](https://developer.trakt.tv/docs/api-use-policy) permits
 user-authorized media-player history sync. Dusk limits access to opted-in
@@ -158,7 +176,13 @@ are managed outside this repository.
 ## Verification
 
 - Unit tests: `DuskTests/TraktMappingTests.swift` (RFC 7636 S256 vector, fresh
-  verifier/state, callback validation, HTTPS redirects and every secret-free request).
+  verifier/state, HTTPS callback validation, rejection of custom schemes and
+  mismatched origins/paths/ports, owned redirect configuration and every
+  secret-free request).
+- Published association: `curl -i https://getdusk.app/.well-known/apple-app-site-association`
+  must return 200, `Content-Type: application/json`, no `Location` redirect,
+  and the iOS app ID in both service sections. Device association verification
+  also depends on Apple's CDN cache and an entitled provisioning profile.
 - Screenshot mode (DEBUG): `-DuskScreenshotScreen trakt` opens Settings ›
   Trakt; `-DuskScreenshotTrakt <url>` points the API (and the iOS authorize
   page) at a mock; `-DuskScreenshotTraktSignIn 1` starts sign-in on open.

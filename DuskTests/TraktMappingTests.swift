@@ -178,7 +178,10 @@ struct TraktMappingTests {
         #expect(TraktAuthorization(configuration: builder.configuration) != nil)
         for malformed in ["", "  ", "dusk:", "http:", "not a url", "http://localhost", "https://localhost/callback",
                           "dusk://trakt/callback", "https://getdusk.app/trakt/callback?extra=1",
-                          "https://user@getdusk.app/trakt/callback", "https://getdusk.app/trakt/callback#fragment"] {
+                          "https://user@getdusk.app/trakt/callback", "https://getdusk.app/trakt/callback#fragment",
+                          "https://other.app/trakt/callback", "https://getdusk.app/other",
+                          "https://getdusk.app:443/trakt/callback", "https://getdusk.app/trakt/callback/",
+                          "https://getdusk.app/trakt/%63allback"] {
             let config = configuration(redirect: malformed)
             #expect(config.appRedirectURI == nil, "\(malformed)")
             #expect(TraktAuthorization(configuration: config) == nil)
@@ -190,7 +193,7 @@ struct TraktMappingTests {
 
     @Test func authorizeURLCarriesClientRedirectAndState() throws {
         let authorization = try #require(TraktAuthorization(configuration: browserConfiguration, state: "s+t/a=te", codeVerifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk"))
-        #expect(authorization.callbackScheme == "dusk")
+        #expect(TraktConfiguration.callbackURL.absoluteString == TraktConfiguration.defaultRedirectURI)
         #expect(authorization.redirectURI == TraktConfiguration.defaultRedirectURI)
         let url = authorization.url
         #expect(url.scheme == "https")
@@ -234,26 +237,37 @@ struct TraktMappingTests {
         func result(_ string: String) throws -> TraktAuthorization.CallbackResult {
             authorization.result(for: try #require(URL(string: string)))
         }
-        #expect(try result("dusk://trakt/callback?code=xyz&state=abc") == .code("xyz"))
-        #expect(try result("DUSK://Trakt/callback?state=abc&code=xyz") == .code("xyz"))
-        #expect(try result("dusk://trakt/callback?code=xyz&state=abd") == .stateMismatch)
-        #expect(try result("dusk://trakt/callback?code=xyz") == .stateMismatch)
-        #expect(try result("dusk://trakt/callback?code=xyz&state=") == .stateMismatch)
-        #expect(try result("dusk://trakt/callback?error=access_denied&state=abc") == .denied)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abc") == .code("xyz"))
+        #expect(try result("HTTPS://GetDusk.App/trakt/callback?state=abc&code=xyz") == .code("xyz"))
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abd") == .stateMismatch)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz") == .stateMismatch)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=") == .stateMismatch)
+        #expect(try result("https://getdusk.app/trakt/callback?error=access_denied&state=abc") == .denied)
         // A denial for another request is still not ours.
-        #expect(try result("dusk://trakt/callback?error=access_denied&state=zzz") == .stateMismatch)
-        #expect(try result("dusk://trakt/callback?error=server_error&state=abc") == .invalid)
-        #expect(try result("dusk://trakt/callback?state=abc") == .invalid)
-        #expect(try result("dusk://trakt/callback?code=&state=abc") == .invalid)
-        #expect(try result("dusk://trakt/callback?code=xyz&state=abc&state=abc") == .invalid)
-        #expect(try result("dusk://trakt/callback?code=xyz&code=other&state=abc") == .invalid)
-        #expect(try result("dusk://trakt/callback?code=xyz&state=abc#error") == .invalid)
-        #expect(try result("dusk://user@trakt/callback?code=xyz&state=abc") == .invalid)
-        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abc") == .invalid)
-        // Other dusk:// links (tvOS Top Shelf) and other schemes are rejected.
+        #expect(try result("https://getdusk.app/trakt/callback?error=access_denied&state=zzz") == .stateMismatch)
+        #expect(try result("https://getdusk.app/trakt/callback?error=server_error&state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?code=&state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abc&state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&code=other&state=abc") == .invalid)
+        #expect(try result("https://getdusk.app/trakt/callback?code=xyz&state=abc#error") == .invalid)
+        #expect(try result("https://user@getdusk.app/trakt/callback?code=xyz&state=abc") == .invalid)
+        #expect(try result("dusk://trakt/callback?code=xyz&state=abc") == .invalid)
+        // Custom schemes, other origins, ports and mismatched paths are rejected.
         #expect(try result("dusk://play?code=xyz&state=abc") == .invalid)
         #expect(try result("dusk://trakt/other?code=xyz&state=abc") == .invalid)
-        #expect(try result("https://trakt/callback?code=xyz&state=abc") == .invalid)
+        for invalid in [
+            "http://getdusk.app/trakt/callback?code=xyz&state=abc",
+            "https://other.app/trakt/callback?code=xyz&state=abc",
+            "https://getdusk.app.evil.example/trakt/callback?code=xyz&state=abc",
+            "https://getdusk.app:443/trakt/callback?code=xyz&state=abc",
+            "https://getdusk.app/trakt/callback/?code=xyz&state=abc",
+            "https://getdusk.app/trakt/callback/extra?code=xyz&state=abc",
+            "https://getdusk.app/trakt/other?code=xyz&state=abc",
+            "https://getdusk.app/TRAKT/callback?code=xyz&state=abc",
+        ] {
+            #expect(try result(invalid) == .invalid, "\(invalid)")
+        }
     }
 
     @Test func authorizationCodeExchangeRequest() throws {

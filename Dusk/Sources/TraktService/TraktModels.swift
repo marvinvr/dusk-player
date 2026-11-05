@@ -179,7 +179,7 @@ struct TraktTokenResponse: Decodable, Sendable {
 }
 
 /// One iOS PKCE sign-in. The verifier and state live only for this attempt;
-/// Trakt redirects to HTTPS, whose page forwards to the fixed Dusk callback.
+/// Trakt redirects directly to the app's owned HTTPS callback.
 struct TraktAuthorization: Sendable, Equatable {
     enum CallbackResult: Equatable {
         case code(String)
@@ -241,12 +241,8 @@ struct TraktAuthorization: Sendable, Equatable {
             .replacingOccurrences(of: "=", with: "")
     }
 
-    /// The scheme `ASWebAuthenticationSession` waits for.
-    var callbackScheme: String { "dusk" }
-
     func result(for callbackURL: URL) -> CallbackResult {
-        // Scheme and host compare case-insensitively, the path exactly; other
-        // links on the same scheme (tvOS Top Shelf `dusk://…`) are not ours.
+        // Scheme and host compare case-insensitively, the path exactly.
         let expected = TraktConfiguration.callbackURL
         guard
               callbackURL.scheme?.lowercased() == expected.scheme?.lowercased(),

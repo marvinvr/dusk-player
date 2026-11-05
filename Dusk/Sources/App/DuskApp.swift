@@ -163,6 +163,17 @@ struct DuskApp: App {
                 .onOpenURL { url in
                     topShelfLinks.open(url)
                 }
+                #else
+                .onOpenURL { _ in
+                    // Trakt callbacks belong exclusively to the live
+                    // ASWebAuthenticationSession completion. Ignore unclaimed
+                    // links (including a cold launch); never exchange a code
+                    // without that session's in-memory state and PKCE verifier.
+                }
+                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
+                    // Universal Links can also arrive as a browsing activity.
+                    // Apply the same rule as onOpenURL, without logging the URL.
+                }
                 #endif
                 .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
                 .task {

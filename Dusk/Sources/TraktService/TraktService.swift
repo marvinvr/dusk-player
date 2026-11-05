@@ -94,7 +94,7 @@ final class TraktService {
         cancelRunningSignIn()
         #if !os(tvOS)
         guard let authorization = TraktAuthorization(configuration: configuration) else {
-            signInState = .failed("Trakt sign-in requires a registered HTTPS redirect URL.")
+            signInState = .failed("Trakt sign-in requires https://getdusk.app/trakt/callback as its registered redirect URL.")
             return
         }
         startBrowserSignIn(authorization, profileID: profileID)
@@ -143,7 +143,7 @@ final class TraktService {
         let sessionID = UUID()
         let session = ASWebAuthenticationSession(
             url: authorization.url,
-            callback: .customScheme(authorization.callbackScheme)
+            callback: .https(host: "getdusk.app", path: "/trakt/callback")
         ) { [weak self] callbackURL, error in
             Task { @MainActor [weak self] in
                 // A cancelled or replaced sheet reports too; only the live one counts.
