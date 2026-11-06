@@ -92,6 +92,10 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   item live. Timeline reports use `/livetv/sessions/{sessionID}` as their key
   and still send stopped so Plex can release the consumer.
 
+- IPTV channels (`PlexLiveChannel.iptv`) branch off in `playLiveTV` to
+  `playIPTV`: always AVPlayer with the source's headers and a FairPlay key
+  session, never VLCKit, never Plex timeline/scrobble. See `iptv.md`.
+
 ## Live TV Timeline
 
 `PlayerLiveTimeline.swift` owns everything the live play bar shows.

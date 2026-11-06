@@ -43,6 +43,8 @@ enum AppNavigationRoute: Hashable {
     case screenshotHiddenLibraries
     /// Screenshot mode only: Settings › Trakt.
     case screenshotTrakt
+    /// Screenshot mode only: Settings › Live TV › IPTV Sources.
+    case screenshotIPTVSources
     #endif
 
     static func destination(for item: PlexItem) -> Self {
@@ -171,6 +173,8 @@ struct AppNavigationDestinationView: View {
             HiddenLibrariesSettingsView()
         case .screenshotTrakt:
             TraktSettingsView()
+        case .screenshotIPTVSources:
+            IPTVSourcesSettingsView()
         #endif
         }
     }

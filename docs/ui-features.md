@@ -1066,6 +1066,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   artwork, current-program progress, schedule details, and Watch actions only
   for currently airing programs. Past entries remain inspectable but are not
   presented as recordings.
+- IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
+  source after the Plex channels, with the same rows and cards; IPTV alone
+  shows the tab. See `iptv.md`.
 - The player gear menu exposes channel switching on iOS/iPadOS and tvOS. The
   live seek bar shows LIVE or the time behind live and provides Go Live; all
   forward movement is clamped to the HLS edge.

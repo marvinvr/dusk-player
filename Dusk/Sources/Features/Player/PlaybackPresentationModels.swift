@@ -176,6 +176,9 @@ struct PlaybackSource: Sendable {
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.
     var liveTVContext: PlexLivePlaybackContext? = nil
+    /// Present only for an IPTV channel. Always AVPlayer: the engine opens it
+    /// with the source's headers and a FairPlay key session (`IPTVAsset`).
+    var iptvStream: IPTVPlayableChannel? = nil
 }
 
 struct PlaybackDebugInfo: Sendable {

@@ -14,6 +14,8 @@ Dusk/Sources
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
+  IPTVService/         IPTV sources per Plex profile: M3U/XMLTV parsers, lineup
+                       mapping onto the Live TV models, loader (see docs/iptv.md)
   TraktService/        Optional Trakt link per Plex profile: sign-in, tokens,
                        finished-item history queue (see docs/trakt.md)
   Playback/            PlaybackEngine protocol, AVPlayer/VLCKit engines, resolver,

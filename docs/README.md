@@ -33,6 +33,8 @@ that owns the behavior you are changing.
 - `data-and-plex.md`: `PlexService`, Plex models, requests, images, and API shape.
 - `seerr-integration.md`: optional Plex-token Seerr connection, merged search,
   request-only detail flows, and missing-season enrichment.
+- `iptv.md`: IPTV sources (M3U + XMLTV) in the Live TV guide, AVPlayer-only
+  playback, the FairPlay key flow, and simulator verification.
 - `trakt.md`: optional Trakt watch tracking — device-code sign-in per Plex
   profile, iOS PKCE, secret-free tokens, history queue and guid matching.
 - `playback.md`: playback coordinator, resolver, engines, player UI, timeline,

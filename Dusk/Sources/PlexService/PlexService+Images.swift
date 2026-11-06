@@ -10,6 +10,11 @@ extension PlexService {
     ///   passes that model's `serverID`.
     func imageURL(for path: String?, serverID: String? = nil, width: Int? = nil, height: Int? = nil) -> URL? {
         guard let path else { return nil }
+        // IPTV logos and programme icons are absolute URLs on their own hosts
+        // and have nothing to do with any Plex server.
+        if serverID == IPTVImages.serverID {
+            return M3UParser.httpURL(path)
+        }
 
         let requestSize = imageRequestSize(width: width, height: height)
         if requestSize.hasDimensions,

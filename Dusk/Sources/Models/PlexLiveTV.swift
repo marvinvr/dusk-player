@@ -39,6 +39,10 @@ struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
     /// (`identifier`, `key`). Guide airings may reference a channel by any of
     /// them, so they take part in guide matching but never in tuning.
     let alternateIdentifiers: [String]
+    /// Set only for a channel from an IPTV source (`IPTVLineupBuilder`). Such
+    /// a channel is never tuned through Plex: `PlaybackCoordinator.playLiveTV`
+    /// hands it to AVPlayer directly.
+    var iptv: IPTVPlayableChannel? = nil
 
     var tuneIdentifier: String {
         // `id` is Plex's DVR ChannelMapping.channelKey. `vcn` is only the
@@ -254,6 +258,37 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
             return Int(value)
         }
         return nil
+    }
+}
+
+extension PlexLiveProgram {
+    // Here rather than with the rest of the IPTV mapping
+    // (`IPTVLineupBuilder`) because `airings` has a private setter.
+    /// XMLTV `title` is the show and `sub-title` the episode, while Plex puts
+    /// the episode in `title` and the show in `grandparentTitle`; mapped so
+    /// the shared guide reads both the same way.
+    init(iptv programme: IPTVProgramme, channel: PlexLiveChannel) {
+        let start = Int(programme.start.timeIntervalSince1970)
+        ratingKey = "iptv-\(channel.id)-\(start)"
+        key = nil
+        if let subtitle = programme.subtitle?.nilIfEmpty, subtitle != programme.title {
+            title = subtitle
+            grandparentTitle = programme.title.nilIfEmpty
+        } else {
+            title = programme.title
+            grandparentTitle = nil
+        }
+        summary = programme.summary
+        thumb = programme.iconURL?.absoluteString
+        art = nil
+        parentTitle = nil
+        type = .unknown
+        duration = Int(programme.stop.timeIntervalSince(programme.start) * 1000)
+        airings = [PlexLiveAiring(
+            beginsAt: programme.start.timeIntervalSince1970,
+            endsAt: programme.stop.timeIntervalSince1970,
+            channel: channel
+        )]
     }
 }
 

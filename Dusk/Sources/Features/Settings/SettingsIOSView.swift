@@ -6,6 +6,7 @@ struct SettingsIOSView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(SeerrService.self) private var seerrService
     @Environment(TraktService.self) private var traktService
+    @Environment(IPTVService.self) private var iptvService
     @Environment(UserPreferences.self) private var preferences
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
@@ -149,6 +150,27 @@ struct SettingsIOSView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
                 Text(SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable))
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+            .listRowBackground(Color.duskSurface)
+
+            Section {
+                NavigationLink {
+                    IPTVSourcesSettingsView()
+                } label: {
+                    HStack {
+                        Text("IPTV Sources")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Spacer()
+                        Text(SettingsSupport.iptvSourcesSummary(iptvService.sources.count))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+            } header: {
+                Text("Live TV")
+                    .foregroundStyle(Color.duskTextSecondary)
+            } footer: {
+                Text(SettingsSupport.liveTVFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)

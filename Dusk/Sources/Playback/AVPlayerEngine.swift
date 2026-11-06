@@ -83,6 +83,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// asset's resource loader holds its delegate weakly, so the engine owns it
     /// for as long as the item plays.
     @ObservationIgnored private var remuxHLSLoader: RemuxHLSLoader?
+    /// The FairPlay key session of an IPTV item (`IPTVAsset`); nil otherwise.
+    @ObservationIgnored private var contentKeyController: FairPlayContentKeyController?
     /// Loopback front for a Dolby Vision 7 → 8.1 session (see
     /// `DolbyVision7HLSProxy`), alive for as long as the source is loaded,
     /// and the master playlist URL it serves.
@@ -152,6 +154,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         #endif
         setupKVOObservers()
+        #if DEBUG
+        // Simulator verification runs must stay silent on the host Mac.
+        if ScreenshotMode.mutesPlayback { player.isMuted = true }
+        #endif
         // The renderer restyles live; only the folded-in system text size has
         // to be refreshed here.
         captionStyleObserver = NotificationCenter.default.addObserver(
@@ -206,6 +212,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func load(source: PlaybackSource) {
         loadValidationTask?.cancel()
         stopDolbyVision7Proxy()
+        invalidateContentKeyController()
         removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -253,7 +260,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 return
             }
 
-            if let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
+            // IPTV streams need their source's headers to answer at all, and
+            // are not Plex direct-play files: AVPlayer reports their errors.
+            if source.iptvStream == nil,
+               let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
                 guard !Task.isCancelled else { return }
                 self.failLoad(
                     validationError,
@@ -334,6 +344,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         loadValidationTask = nil
         stopDolbyVision7Proxy()
+        invalidateContentKeyController()
         removeEnhancedVideoOutput()
         player.pause()
         player.defaultRate = 1
@@ -629,10 +640,18 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 await self?.prepareReadyItemForPlayback(item, attemptID: attemptID)
             }
         case .failed:
-            let playbackError = PlaybackError.fromPlaybackFailure(
-                error: itemError,
-                fallback: "Playback failed while opening the direct-play stream."
-            )
+            let playbackError: PlaybackError
+            if let keyError = contentKeyController?.lastError {
+                playbackError = .unknown(keyError.localizedDescription)
+            } else if currentSource?.iptvStream != nil {
+                // Not a Plex file: the Plex direct-play wording would mislead.
+                playbackError = .unknown(IPTVAsset.failureMessage(for: itemError))
+            } else {
+                playbackError = PlaybackError.fromPlaybackFailure(
+                    error: itemError,
+                    fallback: "Playback failed while opening the direct-play stream."
+                )
+            }
             if let currentAttemptContext {
                 avPlayerEngineLogger.error(
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
@@ -675,6 +694,26 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 remuxHLSLoader = nil
                 item = AVPlayerItem(url: source.url)
             }
+        } else if let stream = source.iptvStream {
+            remuxHLSLoader = nil
+            invalidateContentKeyController()
+            let asset = IPTVAsset.makeAsset(for: stream)
+            if FairPlayContentKeyController.isSupported {
+                let controller = FairPlayContentKeyController(client: IPTVAsset.licenseClient(for: stream))
+                controller.onError = { [weak self] error in
+                    self?.failIPTVKeyRequest(error, attemptID: attemptID)
+                }
+                controller.attach(to: asset)
+                contentKeyController = controller
+            } else if stream.drm?.keySystem == .fairPlay {
+                failLoad(
+                    .unknown(FairPlayError.unavailableOnSimulator.localizedDescription),
+                    attemptID: attemptID,
+                    message: "FairPlay unavailable"
+                )
+                return
+            }
+            item = AVPlayerItem(asset: asset)
         } else {
             remuxHLSLoader = nil
             item = AVPlayerItem(url: source.url)
@@ -758,6 +797,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         error = .unknown("Dolby Vision 7 conversion failed.")
         state = .error
         isBuffering = false
+    }
+
+    private func invalidateContentKeyController() {
+        contentKeyController?.onError = nil
+        contentKeyController?.invalidate()
+        contentKeyController = nil
+    }
+
+    /// A failed key request surfaces with its own reason right away; waiting
+    /// for the item to fail showed a generic AVFoundation message, or nothing
+    /// at all while the player kept buffering.
+    private func failIPTVKeyRequest(_ keyError: Error, attemptID: UUID) {
+        guard currentAttemptContext?.attemptID == attemptID, state != .error else { return }
+        failLoad(.unknown(keyError.localizedDescription), attemptID: attemptID, message: "FairPlay key request failed")
     }
 
     private func stopDolbyVision7Proxy() {

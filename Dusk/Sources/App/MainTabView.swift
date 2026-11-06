@@ -6,6 +6,7 @@ struct MainTabView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(UserPreferences.self) private var preferences
+    @Environment(IPTVService.self) private var iptvService
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: MainTabItem = .home
     @State private var homePath = NavigationPath()
@@ -51,8 +52,9 @@ struct MainTabView: View {
             // server connecting mid-load cancelled it before it ever ran.
             .task(id: plexService.serverContentRevision) {
                 if liveTVViewModel == nil {
-                    liveTVViewModel = LiveTVViewModel(plexService: plexService)
+                    liveTVViewModel = LiveTVViewModel(plexService: plexService, iptvService: iptvService)
                 }
+                iptvService.syncProfile()
                 await liveTVViewModel?.discover()
             }
             // Playlists bring their tab in only when the account has one.
@@ -362,7 +364,7 @@ struct MainTabView: View {
         if let liveTVViewModel {
             return liveTVViewModel
         }
-        let viewModel = LiveTVViewModel(plexService: plexService)
+        let viewModel = LiveTVViewModel(plexService: plexService, iptvService: iptvService)
         return viewModel
     }
 
@@ -494,12 +496,31 @@ private extension MainTabView {
                     try? await Task.sleep(for: .seconds(1))
                     await playback.playQueue(queue)
                 }
+                if let index = destination.iptvChannelIndex {
+                    await playScreenshotIPTVChannel(index)
+                }
                 if let playID = destination.playID {
                     await playback.playForScreenshot(
                         id: playID,
                         startPosition: destination.playOffsetMilliseconds.map { TimeInterval($0) / 1000 }
                     )
                 }
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(250))
+            if Task.isCancelled { return }
+        }
+    }
+
+    /// Waits for the seeded IPTV source to load, then plays one channel with
+    /// whatever is on now, like the guide's Watch Live.
+    func playScreenshotIPTVChannel(_ index: Int) async {
+        for _ in 0..<80 {
+            await iptvService.load()
+            if let lineup = iptvService.lineups.first?.lineup, !lineup.guides.isEmpty {
+                let guide = lineup.guides[min(max(index, 0), lineup.guides.count - 1)]
+                try? await Task.sleep(for: .seconds(1))
+                await playback.playLiveTV(channel: guide.channel, program: guide.currentProgram(), lineup: lineup)
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
