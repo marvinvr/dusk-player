@@ -593,8 +593,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             // both decoder queues before unpausing, so audio rejoins through
             // the same locality-sized cache used at startup instead of waiting
             // for the discarded audio window to pass.
-            let observedTime = observedPlayerTime
-            let resumePosition = observedTime > 0 ? observedTime : currentTime
+            let resumePosition = Self.pausedResumePosition(
+                pendingSeekTarget: pendingSeekTarget,
+                observedTime: observedPlayerTime,
+                currentTime: currentTime
+            )
             seekLocally(to: resumePosition)
 
             // A real pause→resume already re-runs the session-activation +
@@ -614,6 +617,22 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             scheduleVideoOutputRefreshAfterResume()
         }
         syncRendererPlaybackState()
+    }
+
+    /// Where the resume-from-pause refill seek goes. A seek issued while
+    /// paused (the tvOS scrub commit, which seeks and then resumes in the same
+    /// turn) has not moved libvlc's clock yet, so `observedTime` still holds
+    /// the pre-seek position; re-seeking there threw the viewer's target away.
+    /// A pending target therefore wins over the observed clock.
+    static func pausedResumePosition(
+        pendingSeekTarget: TimeInterval?,
+        observedTime: TimeInterval,
+        currentTime: TimeInterval
+    ) -> TimeInterval {
+        if let pendingSeekTarget {
+            return pendingSeekTarget
+        }
+        return observedTime > 0 ? observedTime : currentTime
     }
 
     func pause() {

@@ -1323,6 +1323,11 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   before unpausing. That rebuilds the audio and video decoder queues together,
   making resume use the same locality-sized 300/600/1500 ms cache window as
   startup and seeks instead of waiting through the discarded audio window.
+  A seek still pending when play() runs wins over libvlc's clock
+  (`VLCKitEngine.pausedResumePosition`): the tvOS scrub commit seeks and
+  resumes in the same turn, before a paused libvlc reports the new time, so
+  re-seeking to the observed clock threw the chosen target away and playback
+  jumped back to where it was paused (`VLCKitPausedResumeSeekTests`).
 
 ### Audio revive machinery (dormant) and session ownership
 

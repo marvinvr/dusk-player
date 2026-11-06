@@ -134,6 +134,7 @@
 		2BB606299547BA096D2E6AA4 /* PlexExtrasTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC0912EBCB8B310391788960 /* PlexExtrasTests.swift */; };
 		2C1E5EB63BBC700294A9E0E4 /* ScreenshotMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A8A2A92BBA7E5E1FA944E6A /* ScreenshotMode.swift */; };
 		2C6279FE901D8DBCC741597A /* LiveTVHomeShelf.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00E873624B104DE44EC8453F /* LiveTVHomeShelf.swift */; };
+		2C6566DB54C57D0678D383CC /* VLCKitPausedResumeSeekTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29735651028409F8840C6B4 /* VLCKitPausedResumeSeekTests.swift */; };
 		2D0356B414E5D6C54D5C912E /* PlaybackFallbackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0D8FE9705BC97151E41A277 /* PlaybackFallbackTests.swift */; };
 		2D5BF7E90DC22A0CE8A334AA /* TopShelfSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05CC35C910D9FE3C04D8AE7F /* TopShelfSnapshot.swift */; };
 		2E09A3C9E3E0731F3812AFD7 /* PlayerLandscapePreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0033F33AFA7EBD434411F3 /* PlayerLandscapePreferenceTests.swift */; };
@@ -741,6 +742,7 @@
 		F76635235F13937FF5D7A80C /* SupporterEntitlementsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4471C9A0F9D6A5E471F4BDC /* SupporterEntitlementsTests.swift */; };
 		F7E09A8F3F09533B84FD6C37 /* PlexLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7B1185FAF95EDBB76EDBA /* PlexLibrary.swift */; };
 		F8A93C3B6BC42108EE5DA183 /* PlayerLiveTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994443BFEAC83A49EF01C77F /* PlayerLiveTimeline.swift */; };
+		F9334880368F9C85204F255F /* VLCKitPausedResumeSeekTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29735651028409F8840C6B4 /* VLCKitPausedResumeSeekTests.swift */; };
 		F95F506F3C508340981D3D45 /* PlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23D3C9E0486ECC98E7EF697 /* PlayerViewModel.swift */; };
 		F9775FA43B561AAD7494390C /* RecommendationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69C3F67C503DFC3555CBEAE /* RecommendationCore.swift */; };
 		F9A9EFF2549BC79D2DE35A34 /* WatchlistStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94406AF9E8BDCBD11DA81205 /* WatchlistStore.swift */; };
@@ -1126,6 +1128,7 @@
 		C11020081F42B25E5C918EC1 /* PlayerTVScrubCancellationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTVScrubCancellationTests.swift; sourceTree = "<group>"; };
 		C1687AFF9DA5168084ED7FF4 /* ServerProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerProbe.swift; sourceTree = "<group>"; };
 		C2093D98894D53D593F96FB9 /* View+Platform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "View+Platform.swift"; sourceTree = "<group>"; };
+		C29735651028409F8840C6B4 /* VLCKitPausedResumeSeekTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VLCKitPausedResumeSeekTests.swift; sourceTree = "<group>"; };
 		C29E66396BED61AA053948CA /* SeerrProbe.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerrProbe.swift; sourceTree = "<group>"; };
 		C43937068D7202707688418D /* PlexService+PlayQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+PlayQueue.swift"; sourceTree = "<group>"; };
 		C4471C9A0F9D6A5E471F4BDC /* SupporterEntitlementsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupporterEntitlementsTests.swift; sourceTree = "<group>"; };
@@ -1620,6 +1623,7 @@
 				A6FC3EDB22DB9BFCB517A439 /* TraktMappingTests.swift */,
 				2E5A36DD87FD7F0679FED501 /* TrueHDAudioRoutingTests.swift */,
 				A71A082582DC33E7B57165B7 /* VideoEnhancementSubtitleTests.swift */,
+				C29735651028409F8840C6B4 /* VLCKitPausedResumeSeekTests.swift */,
 			);
 			path = DuskTests;
 			sourceTree = "<group>";
@@ -2901,6 +2905,7 @@
 				40F23F119BA0AB2E24CF0E2A /* SystemCaptionStyleTests.swift in Sources */,
 				58C220D8955A3E0534525419 /* TraktMappingTests.swift in Sources */,
 				1F95E71C2F0F4102D5B853B8 /* TrueHDAudioRoutingTests.swift in Sources */,
+				2C6566DB54C57D0678D383CC /* VLCKitPausedResumeSeekTests.swift in Sources */,
 				0F79AC75E0A125F6DE9814C2 /* VideoEnhancementSubtitleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -2955,6 +2960,7 @@
 				916F766217328191B656D5BF /* SystemCaptionStyleTests.swift in Sources */,
 				CCFA1333738BB777AECDA82F /* TraktMappingTests.swift in Sources */,
 				E327E8FA140AE7A4D84E9637 /* TrueHDAudioRoutingTests.swift in Sources */,
+				F9334880368F9C85204F255F /* VLCKitPausedResumeSeekTests.swift in Sources */,
 				9637E5A6AC511E8A1E67260F /* VideoEnhancementSubtitleTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

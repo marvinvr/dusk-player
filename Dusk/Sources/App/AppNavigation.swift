@@ -60,7 +60,37 @@ enum AppNavigationRoute: Hashable {
 
         return .media(type: item.type, id: item.id)
     }
+
+    /// Pages headed by `DetailHeroSection`.
+    var isDetailPage: Bool {
+        switch self {
+        case .playlist, .media, .downloadedMedia, .video, .videoInList, .movieInList, .downloadedVideo,
+             .seerrMedia, .seerrSeason, .watchlistItem:
+            true
+        default:
+            false
+        }
+    }
 }
+
+#if os(iOS)
+/// iPhone Duo's inner display is regular width, which gave detail pages the
+/// iPad two-column hero. At 669pt that column sat high on the darkened
+/// backdrop, so its metadata read dark-on-dark, and its synopsis column was
+/// too narrow. There the detail pages take the iPhone layout instead (centred
+/// hero over the bottom fade, synopsis below it), as on the cover display.
+/// Every other device keeps its own size class.
+private struct DuoInnerDisplayDetailLayout: ViewModifier {
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    let isDetailPage: Bool
+
+    func body(content: Content) -> some View {
+        let usesPhoneLayout = isDetailPage && sizeClass == .regular && DuskDuoDisplay.isInner
+        content
+            .environment(\.horizontalSizeClass, usesPhoneLayout ? .compact : sizeClass)
+    }
+}
+#endif
 
 struct AppNavigationDestinationView: View {
     @Environment(PlexService.self) private var plexService
@@ -70,8 +100,17 @@ struct AppNavigationDestinationView: View {
 
     let route: AppNavigationRoute
 
-    @ViewBuilder
     var body: some View {
+        #if os(iOS)
+        destination
+            .modifier(DuoInnerDisplayDetailLayout(isDetailPage: route.isDetailPage))
+        #else
+        destination
+        #endif
+    }
+
+    @ViewBuilder
+    private var destination: some View {
         switch route {
         case .search:
             SearchRootContent()

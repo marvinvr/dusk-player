@@ -73,8 +73,66 @@ struct MainTabIOSShell<Content: View>: View {
                 }
             }
         }
+        #if os(iOS)
+        .background(DuskDuoTabBarLabelRefresher())
+        #endif
     }
 }
+
+#if os(iOS)
+
+/// iPhone Duo: after a live unfold the tab bar could keep the labels it had
+/// truncated for the narrow cover display ("Ho…", "M…") until a relaunch.
+/// Setting each item's title again makes UIKit measure it anew. Runs only
+/// when the size class changes on a Duo display; never on other devices.
+private struct DuskDuoTabBarLabelRefresher: UIViewRepresentable {
+    func makeUIView(context: Context) -> DuskDuoTabBarLabelRefreshView {
+        DuskDuoTabBarLabelRefreshView()
+    }
+
+    func updateUIView(_ uiView: DuskDuoTabBarLabelRefreshView, context: Context) {}
+}
+
+private final class DuskDuoTabBarLabelRefreshView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        isUserInteractionEnabled = false
+        registerForTraitChanges([UITraitHorizontalSizeClass.self]) { (view: DuskDuoTabBarLabelRefreshView, _) in
+            view.refreshTabBarLabels()
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func refreshTabBarLabels() {
+        guard DuskDuoDisplay.isActive else { return }
+        // After the unfold's layout pass, which is what truncated them.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            guard let window = self?.window, let tabBar = Self.firstTabBar(in: window) else { return }
+            for item in tabBar.items ?? [] {
+                let title = item.title
+                item.title = nil
+                item.title = title
+            }
+        }
+    }
+
+    private static func firstTabBar(in view: UIView) -> UITabBar? {
+        if let tabBar = view as? UITabBar {
+            return tabBar
+        }
+        for subview in view.subviews {
+            if let tabBar = firstTabBar(in: subview) {
+                return tabBar
+            }
+        }
+        return nil
+    }
+}
+#endif
 
 struct MainTabTVShell<Content: View>: View {
     let tabs: [MainTabItem]

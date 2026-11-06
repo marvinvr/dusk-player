@@ -1335,11 +1335,24 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   trailing). The inner display is regular/regular with the phone idiom, so
   `userInterfaceIdiom == .pad` checks give it the iPhone layouts. The player cover opts
   out of the vertical bar (`playerHorizontalSystemBars()` →
-  `toolbarVerticalBehavior(.disabled)`, Apple's guidance for full-screen video); its
-  picker sheets keep the default because opting them out flipped the player's status
-  bar back to vertical behind a portrait sheet. Pose (open/fold) is only controllable
-  in DeviceHub, not via `simctl` or XCUITest, and the XCUITest rotation does not stick
-  on this device.
+  `toolbarVerticalBehavior(.disabled)`, Apple's guidance for full-screen video), and so
+  does `PlayerSelectionSheet` (otherwise the sheet brought the bar back as an empty
+  ~80 pt strip down one side). `DuskDuoDisplay` (`View+Platform.swift`) tells the Duo
+  apart by screen size (both displays are wider across than any slab iPhone); every
+  Duo-only branch keys off it so other iPhones and iPads stay untouched:
+  - Detail pages on the inner display take the iPhone layout
+    (`DuoInnerDisplayDetailLayout` in `AppNavigation.swift` sets the size class to
+    compact): the iPad two-column hero put its metadata dark-on-dark at 669 pt.
+  - The iOS Home hero `fitsContainerHeight` on the Duo, so the 466 pt landscape cover
+    shows Play/Resume and the pager on first paint.
+  - The vertical bar only takes standard bar buttons: a `.buttonStyle(.plain)` or
+    custom-view toolbar item floats over the content. The Videos Browse link drops
+    `.plain` and the Downloads queue button becomes a plain glyph with a badge (no
+    progress ring) on the Duo.
+  - After a live unfold the tab bar could keep cover-width labels ("Ho…");
+    `MainTabIOSShell` re-sets each item's title when the size class changes on a Duo.
+  Pose (open/fold) is only controllable in DeviceHub, not via `simctl` or XCUITest, and
+  the XCUITest rotation does not stick on this device.
 
 ## Design And Style Rules
 
