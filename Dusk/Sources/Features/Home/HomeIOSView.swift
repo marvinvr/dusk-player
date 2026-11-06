@@ -258,9 +258,14 @@ struct HomeIOSView: View {
     /// Regular-width iPad gets the near-full-screen hero; iPhone and compact
     /// iPad multitasking keep the shorter banner.
     private var heroLayout: HomeCinematicHeroLayout {
-        UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular
-            ? .iPad
-            : .ios
+        if UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular {
+            return .iPad
+        }
+        var layout = HomeCinematicHeroLayout.ios
+        // iPhone Duo: in landscape the cover display is shorter than the
+        // banner's 520pt floor, which hid Play/Resume below the fold.
+        layout.fitsContainerHeight = DuskDuoDisplay.isActive
+        return layout
     }
 
     private var cinematicHeroItems: [PlexItem] {

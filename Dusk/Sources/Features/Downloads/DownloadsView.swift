@@ -44,22 +44,45 @@ struct DownloadsRootContent: View {
         .navigationTitle("Downloads")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    isShowingQueue = true
-                } label: {
-                    DownloadQueueToolbarButton(
-                        progress: aggregateQueueProgress,
-                        queuedCount: downloadManager.queuedRecords.count,
-                        isActive: downloadManager.activeDownloadCount > 0
-                    )
+                #if os(iOS)
+                if DuskDuoDisplay.isActive {
+                    // iPhone Duo's vertical bar only takes standard bar
+                    // buttons; the custom progress-ring view floated over the
+                    // content instead.
+                    Button {
+                        isShowingQueue = true
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .foregroundStyle(Color.primary)
+                    }
+                    .tint(Color.primary)
+                    .badge(downloadManager.queuedRecords.count)
+                    .accessibilityLabel("Open download queue")
+                } else {
+                    queueToolbarButton
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Open download queue")
+                #else
+                queueToolbarButton
+                #endif
             }
         }
         .sheet(isPresented: $isShowingQueue) {
             queueSheet
         }
+    }
+
+    private var queueToolbarButton: some View {
+        Button {
+            isShowingQueue = true
+        } label: {
+            DownloadQueueToolbarButton(
+                progress: aggregateQueueProgress,
+                queuedCount: downloadManager.queuedRecords.count,
+                isActive: downloadManager.activeDownloadCount > 0
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Open download queue")
     }
 
     private var downloadedItems: [DownloadedLibraryItem] {
@@ -98,18 +121,19 @@ struct DownloadsRootContent: View {
         }
     }
 
+    /// A frame, not `Spacer().overlay`: a lone Spacer in the VStack has no
+    /// width, so the overlay laid the title and message out 0pt wide and only
+    /// the icon showed.
     private var emptyDownloadsState: some View {
-        Spacer()
-            .overlay {
-                FeatureEmptyStateView(
-                    systemImage: "arrow.down.circle",
-                    title: "No Downloads Yet",
-                    message: downloadManager.queuedRecords.isEmpty
-                        ? "Movies, shows, and videos saved for offline playback will appear here."
-                        : "Your saved downloads will appear here once the queue finishes."
-                )
-                .padding(.horizontal, 32)
-            }
+        FeatureEmptyStateView(
+            systemImage: "arrow.down.circle",
+            title: "No Downloads Yet",
+            message: downloadManager.queuedRecords.isEmpty
+                ? "Movies, shows, and videos saved for offline playback will appear here."
+                : "Your saved downloads will appear here once the queue finishes."
+        )
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var queueSheet: some View {

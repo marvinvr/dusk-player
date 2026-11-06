@@ -237,6 +237,32 @@ private struct DuskTVChromeSuppressedButtonStyle: ButtonStyle {
 #endif
 
 #if os(iOS)
+/// iPhone Duo. Both of its displays are wider on their short side than any
+/// slab iPhone (cover 466×678pt, inner 669×951pt; the largest slab is 440pt
+/// across), which is how this tells it apart. Always false on every other
+/// iPhone and on iPad. Read during `body`: folding, unfolding and rotating all
+/// change the size class or the geometry, so the views asking re-render.
+@MainActor
+enum DuskDuoDisplay {
+    private static var shorterSide: CGFloat? {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { return nil }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
+        guard let bounds = scene?.screen.bounds else { return nil }
+        return min(bounds.width, bounds.height)
+    }
+
+    /// Either display.
+    static var isActive: Bool {
+        (shorterSide ?? 0) > 450
+    }
+
+    /// The inner (unfolded) display.
+    static var isInner: Bool {
+        (shorterSide ?? 0) >= 600
+    }
+}
+
 struct DuskSafariView: UIViewControllerRepresentable {
     let url: URL
 

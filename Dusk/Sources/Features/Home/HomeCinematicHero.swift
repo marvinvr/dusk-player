@@ -15,6 +15,11 @@ struct HomeCinematicHeroLayout {
     /// the container width, so a tall portrait iPad doesn't crop a 16:9
     /// backdrop down to a sliver. Ignored with `fillsContainerHeight`.
     var maxHeightToWidthRatio: CGFloat? = nil
+    /// Caps the hero (`topInset` included) at the container height, so the
+    /// title, actions and pager all land on the first screen. iPhone Duo's
+    /// 466pt-tall cover display in landscape is shorter than the 520pt floor.
+    /// Ignored with `fillsContainerHeight`.
+    var fitsContainerHeight: Bool = false
     var maxContentWidth: CGFloat = 620
     var contentHorizontalPadding: CGFloat = 20
     var contentTopPadding: CGFloat = 64
@@ -220,7 +225,8 @@ struct HomeCinematicHero: View {
             : min(
                 max(containerSize.height * layout.heroHeightFactor, layout.heroHeightRange.lowerBound),
                 layout.heroHeightRange.upperBound,
-                layout.maxHeightToWidthRatio.map { containerSize.width * $0 } ?? .infinity
+                layout.maxHeightToWidthRatio.map { containerSize.width * $0 } ?? .infinity,
+                layout.fitsContainerHeight ? containerSize.height : .infinity
             ) + topInset
         let heroHeight = pixelAlignedLength(rawHeroHeight)
         let backdropWidth = Int(heroWidth.rounded(.up))

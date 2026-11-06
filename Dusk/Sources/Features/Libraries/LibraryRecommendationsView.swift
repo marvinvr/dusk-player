@@ -305,8 +305,15 @@ struct LibraryRecommendationsView: View {
             // so the focused light glass went white-on-white.
             .tint(nil)
         #else
-        link
-            .buttonStyle(.plain)
+        if DuskDuoDisplay.isActive {
+            // iPhone Duo's vertical bar leaves a `.plain` toolbar button
+            // floating over the content; a default one moves into the bar.
+            link
+                .tint(Color.primary)
+        } else {
+            link
+                .buttonStyle(.plain)
+        }
         #endif
     }
 

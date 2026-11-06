@@ -55,6 +55,7 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
         }
         .presentationDetents([.medium])
         .presentationBackground(Color.duskBackground)
+        .playerSheetHorizontalSystemBars()
     }
 
     private func pickerRow(title: String, subtitle: String?, isSelected: Bool) -> some View {
@@ -79,5 +80,24 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
                     .foregroundStyle(Color.duskTextPrimary)
             }
         }
+    }
+}
+
+private extension View {
+    /// iPhone Duo's cover display: a sheet over the player otherwise brings the
+    /// vertical bar back, an empty ~80pt strip down one side of the picker
+    /// (the player itself opts out, see `playerHorizontalSystemBars`). The
+    /// sheet's own preference wins while it is up. No-op everywhere else.
+    @ViewBuilder
+    func playerSheetHorizontalSystemBars() -> some View {
+        #if os(iOS)
+        if #available(iOS 27.1, *) {
+            toolbarVerticalBehavior(.disabled)
+        } else {
+            self
+        }
+        #else
+        self
+        #endif
     }
 }
