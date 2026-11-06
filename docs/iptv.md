@@ -96,6 +96,21 @@ FairPlay fails with "plays only on a real device".
 key renewal. `FairPlayKeyExchangeTests` covers the flow against a mocked
 license server with a fake key request.
 
+## Retune (slate → live, drops)
+
+IPTV channels never end. In `AVPlayerEngine`, for an IPTV source:
+`AVPlayerItemDidPlayToEndTime` (an `EXT-X-ENDLIST`, e.g. a source ending its
+off-air slate when the live session starts) and item/key failures that
+`IPTVRetunePolicy.isRetryable` accepts (URL errors, CoreMedia HLS/HTTP codes,
+"HTTP …" descriptions, FairPlay license/certificate with no answer or 5xx)
+re-request the same channel URL with a fresh item and a fresh key session,
+staying in the player on a spinner. Backoff 2 → 4 → 8 → 16 → 30 s; 10 s of
+steady playback resets it; after >2 min of failing the normal error shows,
+with Retry (`PlaybackCoordinator.retryActiveIPTVChannel`, a full re-tune) and
+Close. A refused license (4xx), unsupported DRM or undecodable stream fails at
+once. Verified in the sim with a 6 s silent ENDLIST slate (re-requests at
++2/+4/+8 s); policy covered by `IPTVRetunePolicyTests`.
+
 ## Verification
 
 - Unit tests: `M3UParserTests`, `XMLTVParserTests`, `IPTVLineupBuilderTests`,

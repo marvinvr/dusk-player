@@ -648,6 +648,18 @@ final class PlaybackCoordinator {
         startLiveTVScheduleRefresh()
     }
 
+    /// Whether the session is an IPTV channel (its error offers Retry).
+    var isPlayingIPTV: Bool {
+        activeLiveTVContext?.isIPTV == true
+    }
+
+    /// Retry from the player's error: tunes the same IPTV channel again from
+    /// scratch, with whatever is on now.
+    func retryActiveIPTVChannel() async {
+        guard let context = activeLiveTVContext, context.isIPTV else { return }
+        await playLiveTV(channel: context.channel, program: context.program(at: .now), lineup: context.lineup)
+    }
+
     // MARK: - Live TV Schedule
 
     /// Keeps the tuned channel's schedule current for the whole session. The

@@ -1207,15 +1207,25 @@ private struct PlayerSessionView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .multilineTextAlignment(.center)
 
-            FeaturePrimaryButton(title: error.requiresReauthentication ? "Sign In" : "Close") {
-                if error.requiresReauthentication {
-                    viewModel.cleanup()
-                    AuthenticationFailure.beginReauthentication(
-                        plexService: plexService,
-                        playback: playback
-                    )
-                } else {
-                    dismissPlayer()
+            if playback.isPlayingIPTV, !error.requiresReauthentication {
+                // An IPTV channel gave up after minutes of silent retuning;
+                // the viewer can ask once more without leaving the player.
+                FeaturePrimaryButton(title: "Retry") {
+                    Task { await playback.retryActiveIPTVChannel() }
+                }
+                Button("Close", action: dismissPlayer)
+                    .buttonStyle(.bordered)
+            } else {
+                FeaturePrimaryButton(title: error.requiresReauthentication ? "Sign In" : "Close") {
+                    if error.requiresReauthentication {
+                        viewModel.cleanup()
+                        AuthenticationFailure.beginReauthentication(
+                            plexService: plexService,
+                            playback: playback
+                        )
+                    } else {
+                        dismissPlayer()
+                    }
                 }
             }
         }
