@@ -1091,8 +1091,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (`LiveTVGuideCursor`), Left/Right via `onMoveCommand` step programmes and
   scroll in half-hour steps. Up/Down keeps the time. Select: live plays, later
   opens details; long-press: Watch Live / Details / Jump to Now; Play/Pause jumps
-  to now; the corner is the day menu. Info panel above the grid is on by default
-  (`DuskLiveTVGuideInfoPanel` = NO for the grid-only variant). Do not let the
+  to now; the corner is the day menu. An info panel above the grid describes the
+  focused programme (the only tvOS layout). Do not let the
   focus engine pick programmes itself: it picks the nearest block centre and
   drifts. Sizes the viewport from the caller's safe-area width (its own geometry
   reported the full screen).

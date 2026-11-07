@@ -119,7 +119,6 @@ struct LiveTVRootContent: View {
                     sections: sections,
                     timeline: timeline,
                     now: context.date,
-                    showsInfoPanel: Self.showsInfoPanel,
                     imageURL: viewModel.imageURL(for:),
                     cursor: $tvCursor,
                     select: select,
@@ -238,14 +237,6 @@ struct LiveTVRootContent: View {
         .buttonBorderShape(.capsule)
     }
 
-    /// Direction A (`NO`) is the grid alone; direction B (the default) adds
-    /// the focused programme's details above it.
-    /// `defaults write com.dusk-player.app DuskLiveTVGuideInfoPanel -bool NO`
-    /// or `-DuskLiveTVGuideInfoPanel NO` at launch.
-    private static var showsInfoPanel: Bool {
-        UserDefaults.standard.object(forKey: "DuskLiveTVGuideInfoPanel") == nil
-            || UserDefaults.standard.bool(forKey: "DuskLiveTVGuideInfoPanel")
-    }
     #else
     private var dayMenu: some View {
         Menu {

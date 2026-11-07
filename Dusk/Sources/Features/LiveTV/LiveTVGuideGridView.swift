@@ -582,7 +582,6 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
     let sections: [LiveTVGuideSection]
     let timeline: LiveTVGuideTimeline
     let now: Date
-    let showsInfoPanel: Bool
     let imageURL: (PlexLiveTVLineup) -> (String?, Int, Int) -> URL?
     @Binding var cursor: LiveTVGuideCursor
     let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
@@ -597,14 +596,12 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if showsInfoPanel {
-                LiveTVGuideInfoPanel(
-                    focus: focusedCell,
-                    now: now,
-                    imageURL: focusedLineup.map(imageURL)
-                )
-                .frame(height: 230, alignment: .topLeading)
-            }
+            LiveTVGuideInfoPanel(
+                focus: focusedCell,
+                now: now,
+                imageURL: focusedLineup.map(imageURL)
+            )
+            .frame(height: 230, alignment: .topLeading)
 
             HStack(spacing: 0) {
                 corner()
@@ -806,7 +803,7 @@ private struct LiveTVGuideRowButtonBody: View {
     }
 }
 
-/// Direction B: what the focused block is, above the grid. The blocks only
+/// What the focused block is, above the grid. The blocks only
 /// have room for a title; this is where the episode, airtime, time left and
 /// synopsis go, so Select can always just play.
 struct LiveTVGuideInfoPanel: View {
