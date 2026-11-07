@@ -1735,7 +1735,23 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     sidecar subtitles. libVLC 3's `vmem` output CPU-blends SPU subtitles into
     the pixels before `DuskVLCRawVideoOutput` forwards them to Metal (see the
     [callback API contract](https://videolan.videolan.me/vlc-3.0/group__libvlc__media__player.html)).
-    Keep those pixels intact; no separate overlay or Plex burn-in is needed.
+    The format callback requests **one pixel more on each axis** than the
+    decoder's coded buffer. This deliberately makes the output area larger:
+    libvlc 3's `ThreadDisplayRenderPicture` then blends **after** conversion
+    into writable RGBA. With a same-size output it instead tries early blending
+    into the source; opaque VideoToolbox/CVPX frames cannot be CPU-blended, and
+    VLC discards the subtitle before the RGBA conversion. Software decoding in
+    the simulator hides this device failure. The size adjustment is a minimal
+    rescale, not a border; pool, pitch, fallback and Metal input geometry must
+    all use the negotiated size. Hardware decoding stays enabled and Metal
+    still does the display-sized upscale. This also covers the raw sample-buffer
+    PiP path; the native VLC drawable is untouched. Keep the composited pixels
+    intact; no separate overlay or Plex burn-in is needed. See
+    [VLC 3 composition order](https://github.com/videolan/vlc/blob/3.0.x/src/video_output/video_output.c).
+    `PGSRenderingTests` checks embedded PGS and text, Off and reselection after
+    seeking with this late-blend path. A selected Forced track contains only
+    that track's cues (usually foreign dialogue/signs), not all dialogue;
+    it is not a rendering failure when ordinary dialogue has no cue there.
   - AVPlayer's `AVPlayerItemVideoOutput` excludes native captions. While a
     legible option is selected, `AVPlayerEngine` removes the Metal view to
     reveal the existing `AVPlayerLayer` and skips enhancement frame submission.

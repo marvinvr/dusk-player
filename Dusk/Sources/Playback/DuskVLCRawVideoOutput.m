@@ -10,6 +10,7 @@
 #import <vlc/vlc.h>
 #import <stdlib.h>
 #import <string.h>
+#import <limits.h>
 
 // VLCKit 3.x keeps the raw libvlc player handle behind the private
 // `playerInstance` accessor (verified against the vendored 3.7.3 binary's
@@ -217,6 +218,24 @@ static unsigned DuskVLCSetupVideoFormat(
         return 0;
     }
 
+    // libvlc 3.0.x ThreadDisplayRenderPicture chooses early SPU blending when
+    // the output area is <= the decoded area. VideoToolbox supplies opaque
+    // CVPX pictures: the CPU blender cannot write them, and the core discards
+    // the SPU before converting to our RGBA output. Software-decoded simulator
+    // pictures hide this failure (both PGS and text are affected on device).
+    //
+    // A minimally larger output forces late blending, AFTER CVPX -> RGBA,
+    // with the existing vmem API. Grow both axes to also cover rotated video.
+    // This is a one-pixel rescale, not a border; keep the negotiated geometry
+    // consistent throughout the pool, pitch and fallback allocation. Do not
+    // disable hardware decoding or enlarge this to the display's resolution:
+    // the actual upscale belongs to Metal. Native VLC output is unaffected.
+    if (*width == UINT_MAX || *height == UINT_MAX) {
+        return 0;
+    }
+    *width += 1;
+    *height += 1;
+
     CVPixelBufferPoolRef pool = NULL;
     size_t pitch = 0;
     if (!DuskVLCMakePixelBufferPool(*width, *height, &pool, &pitch)) {
@@ -312,9 +331,8 @@ static void DuskVLCUnlockVideo(void *opaque, void *picture, void *const *planes)
 
 static void DuskVLCDisplayVideo(void *opaque, void *picture)
 {
-    // libVLC 3's vmem path receives a picture with SPU (text/bitmap subtitles)
-    // already CPU-blended by the core. Forward those pixels intact: unlike
-    // AVPlayerItemVideoOutput, this output supports captions with enhancement.
+    // The format callback forces late SPU blending into the RGBA picture.
+    // Forward the composited pixels intact to enhancement and sample-buffer PiP.
     if (picture == NULL) {
         return;
     }
