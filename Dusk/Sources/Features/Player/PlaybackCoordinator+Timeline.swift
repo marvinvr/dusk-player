@@ -82,7 +82,7 @@ extension PlaybackCoordinator {
             durationMs: durationMs
         )
 
-        if activeLiveTVContext == nil,
+        if activeLiveTVContext == nil, !isPlayingIPTVCatchUp,
            !hasScrobbled, durationMs > 0, timeMs > Int(Double(durationMs) * 0.9) {
             hasScrobbled = true
             reportFinishedToTrakt()
@@ -121,7 +121,7 @@ extension PlaybackCoordinator {
     ) {
         // IPTV is not a Plex session: no timeline, no offline sync. Without
         // this a nil server ID would fall back to the primary server.
-        guard activeLiveTVContext?.isIPTV != true else { return }
+        guard activeLiveTVContext?.isIPTV != true, !isPlayingIPTVCatchUp else { return }
         if activePlaybackUsesLocalDownload {
             offlinePlaybackSyncManager?.recordProgress(
                 serverID: activePlaybackServerID,

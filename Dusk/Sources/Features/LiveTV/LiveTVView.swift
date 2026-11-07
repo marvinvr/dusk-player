@@ -26,12 +26,16 @@ struct LiveTVRootContent: View {
     #else
     @State private var gridPosition = ScrollPosition()
     @State private var gridScrollY: CGFloat = 0
+    @State private var gridNowRequest = 0
     #endif
 
     private struct PendingLivePlay {
         let channel: PlexLiveChannel
         let program: PlexLiveProgram
         let lineup: PlexLiveTVLineup
+        /// A past programme played back (catch-up or a recording), not the
+        /// channel live.
+        let isReplay: Bool
     }
 
     var body: some View {
@@ -73,13 +77,17 @@ struct LiveTVRootContent: View {
         }
         .sheet(item: $selectedProgram, onDismiss: playPending) { program in
             let match = channelAndLineup(for: program)
+            let isReplay = match.map { viewModel.canReplay(program, on: $0.channel) } ?? false
             LiveTVProgramDetails(
                 program: program,
                 channel: match?.channel,
-                canPlay: program.isAiring(),
+                canPlay: program.isAiring() || isReplay,
+                isReplay: isReplay,
                 play: {
                     if let match {
-                        pendingPlay = PendingLivePlay(channel: match.channel, program: program, lineup: match.lineup)
+                        pendingPlay = PendingLivePlay(
+                            channel: match.channel, program: program, lineup: match.lineup, isReplay: isReplay
+                        )
                     }
                     selectedProgram = nil
                 }
@@ -94,7 +102,11 @@ struct LiveTVRootContent: View {
     private func playPending() {
         guard let pending = pendingPlay else { return }
         pendingPlay = nil
-        play(channel: pending.channel, program: pending.program, lineup: pending.lineup)
+        if pending.isReplay {
+            replay(pending.program, channel: pending.channel)
+        } else {
+            play(channel: pending.channel, program: pending.program, lineup: pending.lineup)
+        }
     }
 
     /// The grid: one shared timeline, channels down the side, programmes as
@@ -108,11 +120,16 @@ struct LiveTVRootContent: View {
                 #else
                 let metrics = LiveTVGuideMetrics.forWidth(proxy.size.width)
                 #endif
+                let lineups = guideLineups
                 let timeline = LiveTVGuideTimeline(
-                    window: viewModel.displayWindow,
+                    window: LiveTVViewModel.timelineWindow(
+                        forDayOffset: viewModel.selectedDayOffset,
+                        lineups: lineups.map(\.lineup),
+                        now: context.date
+                    ),
                     pointsPerMinute: metrics.pointsPerMinute
                 )
-                let sections = guideSections(timeline: timeline, now: context.date)
+                let sections = guideSections(lineups, timeline: timeline, now: context.date)
                 #if os(tvOS)
                 LiveTVGuideTVGrid(
                     width: proxy.size.width,
@@ -123,6 +140,8 @@ struct LiveTVRootContent: View {
                     cursor: $tvCursor,
                     select: select,
                     showDetails: { selectedProgram = $0 },
+                    jumpToNow: jumpToNow,
+                    crossDay: crossDay,
                     corner: { dayMenu(timeline: timeline) }
                 )
                 #else
@@ -134,6 +153,7 @@ struct LiveTVRootContent: View {
                     imageURL: viewModel.imageURL(for:),
                     position: $gridPosition,
                     scrollY: $gridScrollY,
+                    nowRequest: gridNowRequest,
                     select: select,
                     showDetails: { selectedProgram = $0 },
                     playChannel: { channel, lineup in play(channel: channel, program: nil, lineup: lineup) }
@@ -151,31 +171,65 @@ struct LiveTVRootContent: View {
         #endif
     }
 
-    private func guideSections(timeline: LiveTVGuideTimeline, now: Date) -> [LiveTVGuideSection] {
-        var sections: [LiveTVGuideSection] = []
+    /// The Plex lineup, then each IPTV source after it, headed by the name
+    /// it was given in Settings. All restricted to the selected day.
+    private var guideLineups: [(id: String, title: String, lineup: PlexLiveTVLineup)] {
+        var lineups: [(id: String, title: String, lineup: PlexLiveTVLineup)] = []
         if let lineup = viewModel.lineup {
-            sections.append(LiveTVGuideSection(
-                id: "plex", title: lineup.provider.title, lineup: lineup, timeline: timeline, now: now
-            ))
+            lineups.append(("plex", lineup.provider.title, lineup))
         }
-        // Each IPTV source is its own section after the Plex channels,
-        // headed by the name it was given in Settings.
         for iptv in viewModel.iptvLineups {
-            sections.append(LiveTVGuideSection(
-                id: "iptv-\(iptv.source.id)", title: iptv.source.name, lineup: iptv.lineup, timeline: timeline, now: now
-            ))
+            lineups.append(("iptv-\(iptv.source.id)", iptv.source.name, iptv.lineup))
         }
-        return sections
+        return lineups
     }
 
-    /// Live plays; later shows the details. A gap (no guide data) tunes the
-    /// channel: a guide is optional, the channel always plays (issue #17).
+    private func guideSections(
+        _ lineups: [(id: String, title: String, lineup: PlexLiveTVLineup)],
+        timeline: LiveTVGuideTimeline,
+        now: Date
+    ) -> [LiveTVGuideSection] {
+        lineups.map { entry in
+            LiveTVGuideSection(
+                id: entry.id, title: entry.title, lineup: entry.lineup, timeline: timeline, now: now,
+                isReplayable: { program, channel in viewModel.canReplay(program, on: channel, now: now) }
+            )
+        }
+    }
+
+    /// Live plays; later shows the details; the past plays back when it can
+    /// (catch-up or a recording) and otherwise shows the details. A gap (no
+    /// guide data) tunes the channel: a guide is optional, the channel always
+    /// plays (issue #17).
     private func select(_ cell: LiveTVGuideCell, row: LiveTVGuideRow, lineup: PlexLiveTVLineup) {
         let now = Date.now
-        if let program = cell.program, !cell.isAiring(at: now), cell.start > now {
+        if let program = cell.program, cell.hasEnded(at: now) {
+            if cell.isReplayable, viewModel.canReplay(program, on: row.channel, now: now) {
+                replay(program, channel: row.channel)
+            } else {
+                selectedProgram = program
+            }
+        } else if let program = cell.program, !cell.isAiring(at: now), cell.start > now {
             selectedProgram = program
         } else {
             play(channel: row.channel, program: cell.program, lineup: lineup)
+        }
+    }
+
+    /// A past programme: an IPTV channel's catch-up, or the library copy of
+    /// a Plex airing (played like any library item, resume point included).
+    private func replay(_ program: PlexLiveProgram, channel: PlexLiveChannel) {
+        if channel.iptv != nil {
+            Task { await playback.playIPTVCatchUp(channel: channel, program: program) }
+        } else if let item = viewModel.recording(for: program) {
+            Task {
+                await playback.play(
+                    id: item.id,
+                    resumeOffsetMilliseconds: item.viewOffset,
+                    resumeOffsetDurationMilliseconds: item.duration,
+                    placeholder: PlaybackPlaceholder(item: item)
+                )
+            }
         }
     }
 
@@ -199,14 +253,27 @@ struct LiveTVRootContent: View {
         }
     }
 
+    /// Now on the "Now" grid, the start of any other day. Applied by the
+    /// grid, which knows the timeline it draws.
     private func resetScroll() {
         #if os(tvOS)
-        let timeline = LiveTVGuideTimeline(window: viewModel.displayWindow, pointsPerMinute: LiveTVGuideMetrics.tv.pointsPerMinute)
-        withAnimation(.smooth(duration: 0.35)) { tvCursor.jumpToNow(.now, timeline: timeline) }
+        tvCursor.pending = .now
         #else
-        withAnimation(.smooth) { gridPosition.scrollTo(point: CGPoint(x: 0, y: gridScrollY)) }
+        gridNowRequest += 1
         #endif
     }
+
+    #if os(tvOS)
+    /// Left past the start of the grid (or Right past its end): the day
+    /// holding `date` takes over, with the cursor on the programme there.
+    /// Past days exist only as far back as catch-up reaches.
+    private func crossDay(_ step: LiveTVGuideCursor.Step, date: Date) {
+        guard let offset = viewModel.dayOffset(containing: date),
+              offset != viewModel.selectedDayOffset else { return }
+        tvCursor.pending = .time(date, step)
+        Task { await viewModel.selectDayOffset(offset) }
+    }
+    #endif
 
     #if os(tvOS)
     /// The corner above the channel column: the day, as a native glass menu
@@ -273,6 +340,7 @@ struct LiveTVRootContent: View {
     private func dayLabel(_ dayOffset: Int) -> String {
         if dayOffset == 0 { return "Today" }
         if dayOffset == 1 { return "Tomorrow" }
+        if dayOffset == -1 { return "Yesterday" }
         let calendar = Calendar.current
         let date = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: .now)) ?? .now
         return date.formatted(.dateTime.weekday(.abbreviated).day())
@@ -413,6 +481,8 @@ struct LiveTVProgramDetails: View {
     let program: PlexLiveProgram
     let channel: PlexLiveChannel?
     let canPlay: Bool
+    /// A past programme that plays back (catch-up or a recording).
+    var isReplay = false
     let play: () -> Void
 
     var body: some View {
@@ -449,7 +519,7 @@ struct LiveTVProgramDetails: View {
                     }
                     if canPlay {
                         Button(action: play) {
-                            Label("Watch Live", systemImage: "play.fill")
+                            Label(isReplay ? "Play" : "Watch Live", systemImage: "play.fill")
                                 .frame(maxWidth: .infinity)
                                 #if !os(tvOS)
                                 .foregroundStyle(Color.duskPrimaryActionLabel)

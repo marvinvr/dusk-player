@@ -147,6 +147,10 @@ final class PlaybackCoordinator {
     var activePlaybackUsesLocalDownload = false
     var activeItemDetails: PlexMediaDetails?
     var activeLiveTVContext: PlexLivePlaybackContext?
+    /// A past IPTV programme (catch-up) is playing. No live context, so the
+    /// player is the ordinary on-demand one, but like a live IPTV channel
+    /// nothing of it may reach Plex.
+    var isPlayingIPTVCatchUp = false
     var hasScrobbled = false
     var didFinalizeCurrentSession = false
     var isHandlingPlaybackEnded = false
@@ -543,6 +547,20 @@ final class PlaybackCoordinator {
 
     // MARK: - IPTV
 
+    /// A past programme of an IPTV channel with catch-up: the channel's
+    /// catch-up URL for the programme's times, played like the channel
+    /// (same headers, user agent and FairPlay flow) but as a finite stream —
+    /// the normal on-demand player with a seek bar, no live HUD, no retune.
+    /// Returns false when the programme cannot be played back.
+    @discardableResult
+    func playIPTVCatchUp(channel: PlexLiveChannel, program: PlexLiveProgram) async -> Bool {
+        guard let live = channel.iptv,
+              let start = program.beginsAt, let end = program.endsAt,
+              let stream = live.catchUpStream(start: start, end: end) else { return false }
+        await playIPTV(channel: channel, stream: stream, program: program, lineup: nil)
+        return true
+    }
+
     /// An IPTV channel: always AVPlayer, never VLCKit and never a Plex
     /// server. The stream URL goes to AVPlayer as is, with the source's
     /// headers and a FairPlay key session (`IPTVAsset`). Shares the Live TV
@@ -552,11 +570,12 @@ final class PlaybackCoordinator {
         channel: PlexLiveChannel,
         stream: IPTVPlayableChannel,
         program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup
+        lineup: PlexLiveTVLineup?
     ) async {
         sharePlayController.leave()
         let attemptID = UUID()
-        let subtitle = channel.displayTitle
+        let isCatchUp = stream.isCatchUp
+        let subtitle = isCatchUp ? Self.catchUpSubtitle(channel: channel, program: program) : channel.displayTitle
         let title = program?.primaryDisplayTitle ?? channel.displayTitle
         enterLoadingState(
             placeholder: PlaybackPlaceholder(
@@ -595,17 +614,21 @@ final class PlaybackCoordinator {
             title: title,
             ratingKey: sessionID,
             engine: .avPlayer,
-            resolverReason: "IPTV channel; always AVPlayer",
+            resolverReason: isCatchUp ? "IPTV catch-up; always AVPlayer" : "IPTV channel; always AVPlayer",
             mediaID: 0,
             partID: 0,
             sanitizedPlaybackURL: sanitizedURL
         )
-        let liveContext = PlexLivePlaybackContext(
-            lineup: lineup,
-            channel: channel,
-            program: program,
-            sessionID: sessionID
-        )
+        // A catch-up programme has no live context: it plays in the
+        // on-demand player.
+        let liveContext = lineup.flatMap { lineup in
+            isCatchUp ? nil : PlexLivePlaybackContext(
+                lineup: lineup,
+                channel: channel,
+                program: program,
+                sessionID: sessionID
+            )
+        }
 
         hasScrobbled = false
         didFinalizeCurrentSession = false
@@ -620,6 +643,7 @@ final class PlaybackCoordinator {
         activeTranscodeSessionID = nil
         activeItemDetails = nil
         activeLiveTVContext = liveContext
+        isPlayingIPTVCatchUp = isCatchUp
         engine = newEngine
         var source = PlaybackSource(
             url: stream.streamURL,
@@ -630,6 +654,9 @@ final class PlaybackCoordinator {
             liveTVContext: liveContext
         )
         source.iptvStream = stream
+        if isCatchUp, let program {
+            source.iptvCatchUp = IPTVCatchUpPlayback(program: program, subtitle: subtitle)
+        }
         playbackSource = source
         // No Plex media to describe; the debug overlay stays off.
         debugInfo = nil
@@ -642,10 +669,22 @@ final class PlaybackCoordinator {
             engine: newEngine,
             plexService: plexService,
             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
-            skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+            skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
+            isLive: !isCatchUp
         )
         startTimelineReporting()
-        startLiveTVScheduleRefresh()
+        if liveContext != nil {
+            startLiveTVScheduleRefresh()
+        }
+    }
+
+    /// "Channel · Tue 18:00": which airing a catch-up session is.
+    private static func catchUpSubtitle(channel: PlexLiveChannel, program: PlexLiveProgram?) -> String {
+        guard let beginsAt = program?.beginsAt else { return channel.displayTitle }
+        let day = Calendar.current.isDateInToday(beginsAt)
+            ? ""
+            : beginsAt.formatted(.dateTime.weekday(.abbreviated)) + " "
+        return "\(channel.displayTitle) · \(day)\(beginsAt.formatted(date: .omitted, time: .shortened))"
     }
 
     /// Whether the session is an IPTV channel (its error offers Retry).
@@ -905,6 +944,7 @@ final class PlaybackCoordinator {
         pendingExplicitTrackSelection = nil
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
+        isPlayingIPTVCatchUp = false
         ratingKey = nil
         isPictureInPictureActive = false
         pendingPictureInPictureRestoreCompletion = nil

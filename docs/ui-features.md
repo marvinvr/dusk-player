@@ -1074,10 +1074,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `MainTabView` owns one shared `LiveTVViewModel` for availability, the tab,
   `MoreView`, and the Home shelf. Do not discover providers independently per
   surface.
-- `LiveTVView` is a grid guide (prototype on branch `tv-guide-grid`): rows are
+- `LiveTVView` is a grid guide: rows are
   channels, columns are time, programmes are blocks as wide as their airtime, all
-  rows on one shared timeline (`LiveTVGuideTimeline`, half-hour ruler, starting on
-  the half hour at least 10 min before now). Layout model in
+  rows on one shared timeline (`LiveTVGuideTimeline`, half-hour ruler). It opens
+  on the half hour at least 10 min before now (`nowOffset`); the "Now" grid
+  reaches back to midnight / 12 h (`LiveTVViewModel.timelineWindow`, trimmed to
+  the earliest programme so there is never empty past to scroll through). Layout model in
   `LiveTVGuideGridModel.swift` (cells incl. "no information" gaps, which still
   tune), views in `LiveTVGuideGridView.swift`. Plex and every IPTV source are just
   sections of `PlexLiveTVLineup`, so they share the grid.
@@ -1096,6 +1098,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   focus engine pick programmes itself: it picks the nearest block centre and
   drifts. Sizes the viewport from the caller's safe-area width (its own geometry
   reported the full screen).
+- Past (catch-up): ended blocks are dimmed (`LiveTVGuideCell.hasEnded`);
+  `isReplayable` ones (IPTV catch-up, or a Plex airing with a library
+  recording, `LiveTVViewModel.canReplay`) keep more contrast and get a small
+  `play.fill`. Select on a replayable block plays it back in the normal
+  on-demand player (`PlaybackCoordinator.playIPTVCatchUp` / library `play`);
+  any other ended block opens the details. Past days (`-1…-N`, N = the longest
+  IPTV `catchup-days`) appear in the day menu. tvOS: Left past the first block
+  of a grid switches to the day before (`crossDay` → `dayOffset(containing:)`,
+  placement applied by the grid through `LiveTVGuideCursor.pending`), Right
+  past the last to the next; Play/Pause still jumps to now. iOS: scroll left
+  within "Now", the day menu for older days.
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.

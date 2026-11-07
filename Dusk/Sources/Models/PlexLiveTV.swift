@@ -116,6 +116,10 @@ struct PlexLiveChannel: Decodable, Sendable, Hashable, Identifiable {
 struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     let ratingKey: String
     let key: String?
+    /// The metadata guid (`plex://episode/…`) on Plex guides. A DVR recording
+    /// matched by Plex carries the same one, which is how a past airing finds
+    /// its recording in the library. Nil for IPTV.
+    let guid: String?
     let title: String
     let summary: String?
     let thumb: String?
@@ -212,7 +216,7 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case ratingKey, key, title, summary, thumb, art, grandparentTitle, parentTitle
+        case ratingKey, key, guid, title, summary, thumb, art, grandparentTitle, parentTitle
         case type, duration
         case airings = "Media"
     }
@@ -220,6 +224,7 @@ struct PlexLiveProgram: Decodable, Sendable, Hashable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         key = try container.decodeIfPresent(String.self, forKey: .key)
+        guid = try? container.decodeIfPresent(String.self, forKey: .guid)
         ratingKey = Self.decodeString(container, key: .ratingKey)
             ?? key
             ?? UUID().uuidString
@@ -271,6 +276,7 @@ extension PlexLiveProgram {
         let start = Int(programme.start.timeIntervalSince1970)
         ratingKey = "iptv-\(channel.id)-\(start)"
         key = nil
+        guid = nil
         if let subtitle = programme.subtitle?.nilIfEmpty, subtitle != programme.title {
             title = subtitle
             grandparentTitle = programme.title.nilIfEmpty
@@ -462,13 +468,14 @@ struct LiveTVGuideWindow: Hashable, Sendable {
 
     static let lookahead: TimeInterval = 12 * 60 * 60
 
-    /// `dayOffset` 0 is "Now"; 1 and up are whole days after today.
+    /// `dayOffset` 0 is "Now"; 1 and up are whole days after today, -1 and
+    /// down whole days before it (catch-up).
     static func forDayOffset(
         _ dayOffset: Int,
         now: Date = .now,
         calendar: Calendar = .current
     ) -> LiveTVGuideWindow {
-        guard dayOffset > 0 else {
+        guard dayOffset != 0 else {
             return LiveTVGuideWindow(start: now, end: now.addingTimeInterval(lookahead))
         }
         let today = calendar.startOfDay(for: now)

@@ -96,6 +96,35 @@ FairPlay fails with "plays only on a real device".
 key renewal. `FairPlayKeyExchangeTests` covers the flow against a mocked
 license server with a fake key request.
 
+## Catch-up (past programmes)
+
+`IPTVCatchUp.swift`: the standard M3U attributes, on the `#EXTINF` or as
+defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
+`timeshift` / `tvg-rec`; default 7, capped at 14), `catchup-source`.
+
+- Modes: `default` (source is the whole URL), `append` (source appended to the
+  stream URL), `shift`/`timeshift` (`?utc={utc}&lutc={lutc}` appended). Others
+  (`flussonic`, `xc`, `vod`, …) and incomplete entries mean no catch-up.
+- Placeholders: `{utc}`/`${start}`, `{utcend}`/`${end}`, `{lutc}`/`${now}`/
+  `${timestamp}`, `{duration}` (seconds, `{duration:60}` divides), `{offset:N}`,
+  `{Y}{m}{d}{H}{M}{S}` and `{utc:Y-m-d H:M:S}` / `{utcend:…}` (UTC). Unknown
+  `{…}` stays as written.
+- A programme is replayable when it has ended and started within
+  `catchup-days`. `IPTVPlayableChannel.catchUpStream` keeps the channel's
+  headers, user agent and DRM (KODIPROP lines apply), sets `isCatchUp`.
+- Playback: `PlaybackCoordinator.playIPTVCatchUp` → `playIPTV` with no live
+  context, so it is the normal on-demand player (seek bar, header from
+  `PlaybackSource.iptvCatchUp`); `isPlayingIPTVCatchUp` keeps it away from
+  Plex timeline/scrobble. The engine never retunes a catch-up stream: its end
+  ends playback, its failures fail.
+- Guide: the XMLTV window reaches back `max(catch-up days, 1 day)`
+  (`IPTVSourceLoader.guideWindow`). Channels without catch-up show their past
+  from the EPG as info only.
+- Sim: `iptv_test_source.py` gives channels 1–2 catch-up (`/catchup/…` logs the
+  substituted times, then 302s to Apple's VOD sample) and channel 3 none.
+  `-DuskScreenshotScreen iptvPlayer -DuskScreenshotIPTVCatchUpHoursAgo <h>`
+  plays back the programme that was on h hours ago.
+
 ## Retune (slate → live, drops)
 
 IPTV channels never end. In `AVPlayerEngine`, for an IPTV source:

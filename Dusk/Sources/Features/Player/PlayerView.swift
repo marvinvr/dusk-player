@@ -538,13 +538,13 @@ private struct PlayerSessionView: View {
         mediaDetails: PlexMediaDetails? = nil,
         debugInfo: PlaybackDebugInfo? = nil
     ) {
-        _viewModel = State(
-            initialValue: PlayerViewModel(
-                engine: engine,
-                markers: mediaDetails?.markers ?? [],
-                liveTVContext: playbackSource.liveTVContext
-            )
+        let model = PlayerViewModel(
+            engine: engine,
+            markers: mediaDetails?.markers ?? [],
+            liveTVContext: playbackSource.liveTVContext
         )
+        model.iptvCatchUp = playbackSource.iptvCatchUp
+        _viewModel = State(initialValue: model)
         self.playbackSource = playbackSource
         self.presentationID = presentationID
         self.mediaDetails = mediaDetails

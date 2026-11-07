@@ -520,6 +520,11 @@ private extension MainTabView {
             if let lineup = iptvService.lineups.first?.lineup, !lineup.guides.isEmpty {
                 let guide = lineup.guides[min(max(index, 0), lineup.guides.count - 1)]
                 try? await Task.sleep(for: .seconds(1))
+                if let hours = ScreenshotMode.iptvCatchUpHoursAgo,
+                   let past = guide.currentProgram(at: .now.addingTimeInterval(-TimeInterval(hours) * 3600)) {
+                    await playback.playIPTVCatchUp(channel: guide.channel, program: past)
+                    return
+                }
                 await playback.playLiveTV(channel: guide.channel, program: guide.currentProgram(), lineup: lineup)
                 return
             }

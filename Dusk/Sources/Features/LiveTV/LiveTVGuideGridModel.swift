@@ -55,6 +55,18 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
         let tick = CGFloat(Self.tickInterval / 60) * pointsPerMinute
         return (x / tick).rounded(.up) * tick
     }
+
+    /// How much of the past stays in view left of the now line when the
+    /// guide opens on now.
+    static let nowLeadIn: TimeInterval = 10 * 60
+
+    /// The horizontal offset that opens the grid on now: the half hour at
+    /// least `nowLeadIn` before it at the leading edge. 0 when now is not on
+    /// this timeline. The past before it is reached by scrolling back.
+    func nowOffset(_ now: Date) -> CGFloat {
+        guard contains(now) else { return 0 }
+        return max(0, snappedOffset(atOrBefore: x(for: now.addingTimeInterval(-Self.nowLeadIn))))
+    }
 }
 
 /// One cell of a channel row: a programme, or the stretch the guide says
@@ -70,8 +82,15 @@ struct LiveTVGuideCell: Identifiable, Hashable, Sendable {
     /// Whether the programme began before the grid does (drawn with a
     /// leading chevron, like a cable guide).
     let startsBeforeTimeline: Bool
+    /// An ended programme that can be played back: IPTV catch-up, or a Plex
+    /// airing with a recording in the library.
+    var isReplayable = false
 
     func isAiring(at date: Date) -> Bool { start <= date && date < end }
+
+    /// Over by `date`: drawn dimmed, and Select plays it only when
+    /// `isReplayable`.
+    func hasEnded(at date: Date) -> Bool { end <= date }
 }
 
 /// One channel row: the channel, the lineup it belongs to (Plex or one IPTV
@@ -103,7 +122,14 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
     let lineup: PlexLiveTVLineup
     let rows: [LiveTVGuideRow]
 
-    init(id: String, title: String, lineup: PlexLiveTVLineup, timeline: LiveTVGuideTimeline, now: Date) {
+    init(
+        id: String,
+        title: String,
+        lineup: PlexLiveTVLineup,
+        timeline: LiveTVGuideTimeline,
+        now: Date,
+        isReplayable: (PlexLiveProgram, PlexLiveChannel) -> Bool = { _, _ in false }
+    ) {
         self.id = id
         self.title = title
         self.lineup = lineup
@@ -111,7 +137,13 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
             LiveTVGuideRow(
                 id: "\(id)/\(guide.channel.id)",
                 channel: guide.channel,
-                cells: Self.cells(for: guide, rowID: "\(id)/\(guide.channel.id)", timeline: timeline, now: now)
+                cells: Self.cells(
+                    for: guide,
+                    rowID: "\(id)/\(guide.channel.id)",
+                    timeline: timeline,
+                    now: now,
+                    isReplayable: isReplayable
+                )
             )
         }
     }
@@ -124,7 +156,8 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
         for guide: PlexLiveChannelGuide,
         rowID: String,
         timeline: LiveTVGuideTimeline,
-        now: Date
+        now: Date,
+        isReplayable: (PlexLiveProgram, PlexLiveChannel) -> Bool = { _, _ in false }
     ) -> [LiveTVGuideCell] {
         var cells: [LiveTVGuideCell] = []
         var cursor = timeline.start
@@ -156,7 +189,8 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
                 start: start,
                 end: end,
                 program: program,
-                startsBeforeTimeline: beginsAt < timeline.start
+                startsBeforeTimeline: beginsAt < timeline.start,
+                isReplayable: endsAt <= now && isReplayable(program, guide.channel)
             ))
             cursor = end
         }
@@ -174,8 +208,18 @@ struct LiveTVGuideCursor: Equatable {
     var time: Date
     /// Leading edge of the visible timeline, in timeline points.
     var offset: CGFloat = 0
+    /// A placement waiting for the grid (which knows the timeline and the
+    /// viewport) to apply it: opening on now, or landing on a time after
+    /// Left/Right crossed into another day.
+    var pending: Placement? = .now
 
-    enum Step { case previous, next }
+    enum Step: Equatable { case previous, next }
+
+    enum Placement: Equatable {
+        case now
+        /// The cell at `date`, entered by stepping in `step`'s direction.
+        case time(Date, Step)
+    }
 
     /// Moves to the neighbouring cell of `row`, scrolling just enough (in
     /// half-hour steps) to show it whole. Returns false at either end.
@@ -206,9 +250,55 @@ struct LiveTVGuideCursor: Equatable {
         time = max(cell.start, timeline.date(forX: offset))
     }
 
-    /// Back to the start of the grid with the time position on now.
-    mutating func jumpToNow(_ now: Date, timeline: LiveTVGuideTimeline) {
-        offset = 0
-        time = max(now, timeline.start)
+    /// The time a step past the first or last cell of `row` lands on: just
+    /// before the grid's start, or its end. Where the day before (or after)
+    /// picks up.
+    static func crossingTime(_ step: Step, in row: LiveTVGuideRow, timeline: LiveTVGuideTimeline) -> Date {
+        switch step {
+        case .previous:
+            return (row.cells.first?.start ?? timeline.start).addingTimeInterval(-1)
+        case .next:
+            return row.cells.last?.end ?? timeline.end
+        }
+    }
+
+    /// Lands on the cell of `row` at `date`, scrolled in from the side the
+    /// step came from: a step back starts from the end of the grid (so the
+    /// cell shows at the trailing edge), a step forward from its start.
+    mutating func land(
+        at date: Date,
+        stepping step: Step,
+        in row: LiveTVGuideRow,
+        timeline: LiveTVGuideTimeline,
+        viewport: CGFloat
+    ) {
+        guard let cell = row.cell(at: date) else {
+            jumpToNow(date, timeline: timeline, viewport: viewport)
+            return
+        }
+        offset = step == .previous ? max(0, timeline.width - viewport) : 0
+        reveal(cell, timeline: timeline, viewport: viewport)
+    }
+
+    /// Opens on now (the now line just right of the leading edge), or on the
+    /// start of a grid that does not contain now (another day).
+    mutating func jumpToNow(_ now: Date, timeline: LiveTVGuideTimeline, viewport: CGFloat? = nil) {
+        if timeline.contains(now) {
+            let maxOffset = viewport.map { max(0, timeline.width - $0) } ?? .greatestFiniteMagnitude
+            offset = min(timeline.nowOffset(now), maxOffset)
+            time = now
+        } else {
+            offset = 0
+            time = timeline.start
+        }
+    }
+
+    /// Keeps the same moment at the leading edge when the timeline's start
+    /// moves (the "Now" grid rolls forward every half hour, or reaches back
+    /// further once older guide data arrives).
+    mutating func follow(from old: LiveTVGuideTimeline, to new: LiveTVGuideTimeline, viewport: CGFloat) {
+        let leading = old.date(forX: offset)
+        offset = min(max(0, new.x(for: leading)), max(0, new.width - viewport))
+        if !new.contains(time) { time = max(min(time, new.end), new.start) }
     }
 }

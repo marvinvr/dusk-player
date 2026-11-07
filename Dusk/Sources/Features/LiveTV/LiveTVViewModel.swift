@@ -11,8 +11,10 @@ final class LiveTVViewModel {
     private(set) var channels: [PlexLiveChannel] = []
     private(set) var lineup: PlexLiveTVLineup?
     private(set) var nowPlayingLineup: PlexLiveTVLineup?
-    /// 0 is "Now" (the next `LiveTVGuideWindow.lookahead` hours), 1 and up
-    /// are whole days after today. An offset, not a date: a date picked at
+    /// 0 is "Now" (`nowLookback` back to the next
+    /// `LiveTVGuideWindow.lookahead` hours), 1 and up are whole days after
+    /// today, -1 and down whole days before it (only offered while some
+    /// channel has catch-up, `pastDayCount`). An offset, not a date: a date picked at
     /// launch went stale on an Apple TV that keeps the app running for days.
     private(set) var selectedDayOffset = 0
     private(set) var isLoading = false
@@ -29,6 +31,12 @@ final class LiveTVViewModel {
     private var reloadRequested = false
     /// The Plex Home profile the provider was found for.
     private var discoveredProfileID: String?
+    /// Library copies (DVR recordings) of past Plex airings, by guid: what
+    /// makes a past Plex programme playable.
+    private(set) var plexRecordings: [String: PlexItem] = [:]
+    /// Guids already asked about, hit or miss, so a guide refresh does not
+    /// ask again.
+    private var checkedRecordingGuids: Set<String> = []
 
     /// Whether a connected server has a DVR or an IPTV source is set up.
     /// Drives the tab.
@@ -124,6 +132,8 @@ final class LiveTVViewModel {
         loadedWindow = nil
         loadedAt = nil
         loadedDayOffset = nil
+        plexRecordings = [:]
+        checkedRecordingGuids = []
     }
 
     /// The provider, discovering it first when no pass has found one yet.
@@ -156,6 +166,8 @@ final class LiveTVViewModel {
         }
         guard force || needsReload(now: now) else {
             trimToWindow(now: now)
+            // Airings that ended since the last pass may have recordings.
+            await findRecordings(now: now)
             return
         }
 
@@ -203,7 +215,7 @@ final class LiveTVViewModel {
             let fetched = try await plexService.getLiveTVGuide(
                 provider: provider,
                 channels: channels,
-                dates: window.gridDays()
+                dates: Self.plexGridDays(for: window, dayOffset: dayOffset)
             )
             // A newer selection is already queued; don't flash this one.
             guard dayOffset == selectedDayOffset else { return }
@@ -214,14 +226,102 @@ final class LiveTVViewModel {
             lineup = fetched.restricted(to: window)
         } catch {
             self.error = error.localizedDescription
+            return
         }
+        await findRecordings()
+    }
+
+    /// "Now" reaches back into yesterday, but Plex's grid drops airings that
+    /// have ended, so asking it for yesterday only doubles the requests for
+    /// nothing. A past day the viewer picked is still asked for: whatever the
+    /// server does return is shown.
+    static func plexGridDays(for window: LiveTVGuideWindow, dayOffset: Int, now: Date = .now) -> [Date] {
+        guard dayOffset == 0 else { return window.gridDays() }
+        let today = Calendar.current.startOfDay(for: now)
+        return LiveTVGuideWindow(start: max(window.start, today), end: window.end).gridDays()
+    }
+
+    // MARK: - Catch-up
+
+    /// Looks up a library copy for each ended Plex airing in the guide that
+    /// has not been asked about yet. Plex itself offers no catch-up; a DVR
+    /// recording is the only way a past airing plays.
+    private func findRecordings(now: Date = .now) async {
+        guard let lineup, let provider else { return }
+        var pending: [PlexLiveProgram] = []
+        var seen = Set<String>()
+        for guide in lineup.guides {
+            for program in guide.programs {
+                guard let endsAt = program.endsAt, endsAt <= now,
+                      let guid = program.guid?.nilIfEmpty,
+                      !checkedRecordingGuids.contains(guid),
+                      seen.insert(guid).inserted else { continue }
+                pending.append(program)
+            }
+        }
+        guard !pending.isEmpty else { return }
+        let batch = Array(pending.prefix(Self.recordingLookupLimit))
+        let plexService = plexService
+        let results = await withTaskGroup(of: (String, PlexItem?, Bool).self) { group in
+            var iterator = batch.makeIterator()
+            func addNext() {
+                guard let program = iterator.next(), let guid = program.guid else { return }
+                group.addTask {
+                    do {
+                        return (guid, try await plexService.liveTVRecording(for: program, provider: provider), true)
+                    } catch {
+                        return (guid, nil, false)
+                    }
+                }
+            }
+            for _ in 0..<4 { addNext() }
+            var results: [(String, PlexItem?, Bool)] = []
+            for await result in group {
+                results.append(result)
+                addNext()
+            }
+            return results
+        }
+        for (guid, item, answered) in results {
+            // A failed lookup is asked again on the next load.
+            if answered { checkedRecordingGuids.insert(guid) }
+            if let item { plexRecordings[guid] = item }
+        }
+    }
+
+    /// The library copy a past Plex airing plays from, if any.
+    func recording(for program: PlexLiveProgram) -> PlexItem? {
+        program.guid.flatMap { plexRecordings[$0] }
+    }
+
+    /// Whether a programme that has ended can be played: an IPTV channel
+    /// with catch-up covering it, or a Plex airing with a recording.
+    func canReplay(_ program: PlexLiveProgram, on channel: PlexLiveChannel, now: Date = .now) -> Bool {
+        guard let beginsAt = program.beginsAt, let endsAt = program.endsAt, endsAt <= now else { return false }
+        if let iptv = channel.iptv {
+            return iptv.canCatchUp(start: beginsAt, end: endsAt, now: now)
+        }
+        return recording(for: program) != nil
+    }
+
+    /// The longest catch-up window of any IPTV channel, in days (0: none).
+    /// Past days are offered in the day menu only up to it.
+    var pastDayCount: Int {
+        guard let iptvService else { return 0 }
+        var days = 0
+        for loaded in iptvService.lineups {
+            for guide in loaded.lineup.guides {
+                if let channelDays = guide.channel.iptv?.catchUp?.days, channelDays > days { days = channelDays }
+            }
+        }
+        return days
     }
 
     /// Drops what has ended from the "Now" guide without a refetch.
     private func trimToWindow(now: Date) {
         guard selectedDayOffset == 0, let fetchedLineup else { return }
         let window = LiveTVGuideWindow(
-            start: Self.gridStart(now: now),
+            start: Self.displayWindow(forDayOffset: 0, now: now).start,
             end: loadedWindow?.end ?? now.addingTimeInterval(LiveTVGuideWindow.lookahead)
         )
         let trimmed = fetchedLineup.restricted(to: window)
@@ -277,15 +377,63 @@ final class LiveTVViewModel {
         )
     }
 
-    /// The stretch the grid shows for a day offset. "Now" starts on a half
-    /// hour before now rather than at now, so the grid's ruler opens on a
-    /// round time and what ended a few minutes ago still fills the dimmed
-    /// past instead of leaving a hole.
+    /// What a day offset keeps of the guide. "Now" reaches `nowLookback`
+    /// into the past, so the viewer can scroll back to what just aired (and
+    /// replay it, with catch-up); the grid itself starts only as early as
+    /// there is something to show (`timelineWindow`).
     static func displayWindow(forDayOffset dayOffset: Int, now: Date = .now) -> LiveTVGuideWindow {
         let window = LiveTVGuideWindow.forDayOffset(dayOffset, now: now)
         guard dayOffset == 0 else { return window }
-        return LiveTVGuideWindow(start: gridStart(now: window.start), end: window.end)
+        // Back to midnight at least, so stepping back off its start lands
+        // in yesterday's grid with nothing of today skipped.
+        let start = min(Calendar.current.startOfDay(for: now), now.addingTimeInterval(-nowLookback))
+        return LiveTVGuideWindow(start: LiveTVGuideTimeline.floorToTick(start), end: window.end)
     }
+
+    /// The day offset whose grid shows `date`: "Now" for today (and what of
+    /// tomorrow it still covers), otherwise that whole day. Nil past the
+    /// offered days (no catch-up that far back, or more than a week ahead).
+    func dayOffset(containing date: Date, now: Date = .now) -> Int? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let days = calendar.dateComponents([.day], from: today, to: calendar.startOfDay(for: date)).day ?? 0
+        let offset: Int
+        if days == 0 || (days > 0 && date < Self.displayWindow(forDayOffset: 0, now: now).end) {
+            offset = 0
+        } else {
+            offset = days
+        }
+        return dayOffsetOptions.contains(offset) ? offset : nil
+    }
+
+    /// The stretch the grid draws for `lineups` (already restricted to the
+    /// day's window). "Now" opens on a half hour before now rather than at
+    /// now, so the ruler starts on a round time and what ended a few minutes
+    /// ago still fills the dimmed past, and reaches back further only as far
+    /// as some programme does: without past guide data there is nothing to
+    /// scroll back to.
+    static func timelineWindow(
+        forDayOffset dayOffset: Int,
+        lineups: [PlexLiveTVLineup],
+        now: Date = .now
+    ) -> LiveTVGuideWindow {
+        let window = displayWindow(forDayOffset: dayOffset, now: now)
+        guard dayOffset == 0 else { return window }
+        var start = gridStart(now: now)
+        for lineup in lineups {
+            for guide in lineup.guides {
+                if let first = guide.programs.first?.beginsAt, first < start { start = first }
+            }
+        }
+        return LiveTVGuideWindow(start: max(window.start, start), end: window.end)
+    }
+
+    /// Recording lookups per guide pass (one request each); the rest follow
+    /// on the next pass, a minute later.
+    static let recordingLookupLimit = 40
+
+    /// How far "Now" reaches back (at least to midnight).
+    static let nowLookback: TimeInterval = 12 * 60 * 60
 
     /// The half hour at least `gridLeadIn` before now: at 17:00 sharp the grid
     /// opened on the now line itself, with nothing of the programme on now.
@@ -298,9 +446,10 @@ final class LiveTVViewModel {
     /// The window shown right now.
     var displayWindow: LiveTVGuideWindow { Self.displayWindow(forDayOffset: selectedDayOffset) }
 
-    /// "Now" plus the next week. No past days: Plex's grid drops airings that
-    /// have ended, so yesterday only ever came back empty.
-    var dayOffsetOptions: [Int] { Array(0...7) }
+    /// "Now" plus the next week, and past days only as far back as some IPTV
+    /// channel has catch-up: Plex's grid drops airings that have ended, so a
+    /// past day without catch-up only ever came back empty.
+    var dayOffsetOptions: [Int] { Array(-pastDayCount...7) }
 
     /// How old a fetched guide may get before it is fetched again.
     static let refreshInterval: TimeInterval = 15 * 60

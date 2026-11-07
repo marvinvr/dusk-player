@@ -37,6 +37,7 @@ enum ScreenshotMode {
         static let iptvName = "DuskScreenshotIPTVName"
         static let iptvHeaderValue = "DuskScreenshotIPTVHeaderValue"
         static let iptvChannel = "DuskScreenshotIPTVChannel"
+        static let iptvCatchUpHoursAgo = "DuskScreenshotIPTVCatchUpHoursAgo"
         static let guideMoves = "DuskScreenshotGuideMoves"
         static let guideOffset = "DuskScreenshotGuideOffsetMinutes"
     }
@@ -93,6 +94,14 @@ enum ScreenshotMode {
     /// iptvPlayer`, plays the n-th channel of the first IPTV source.
     static var iptvChannelIndex: Int {
         defaults.integer(forKey: Key.iptvChannel)
+    }
+
+    /// `-DuskScreenshotIPTVCatchUpHoursAgo <h>`: with `iptvPlayer`, plays
+    /// back (catch-up) the programme that was on `h` hours ago instead of
+    /// the channel live.
+    static var iptvCatchUpHoursAgo: Int? {
+        guard isActive, defaults.object(forKey: Key.iptvCatchUpHoursAgo) != nil else { return nil }
+        return defaults.integer(forKey: Key.iptvCatchUpHoursAgo)
     }
 
     /// `-DuskScreenshotGuideMoves "down,down,right"`: remote presses the tvOS

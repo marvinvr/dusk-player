@@ -52,7 +52,8 @@ enum IPTVLineupBuilder {
                     streamURL: entry.streamURL,
                     headers: headers,
                     userAgent: entry.userAgent,
-                    drm: entry.drm
+                    drm: entry.drm,
+                    catchUp: entry.catchUp
                 )
             )
             let programs = guideID.map { guide.programmes[$0] ?? [] } ?? []
@@ -66,6 +67,12 @@ enum IPTVLineupBuilder {
 
     /// XMLTV channel ids worth keeping while parsing, or nil when some entry
     /// can only be matched by name (then every channel has to be read).
+    /// How many days back the guide has to reach for this playlist: the
+    /// longest catch-up window of any entry, 0 when none has catch-up.
+    static func catchUpDays(for playlist: IPTVPlaylist) -> Int {
+        playlist.entries.compactMap(\.catchUp?.days).max() ?? 0
+    }
+
     static func wantedGuideChannelIDs(for playlist: IPTVPlaylist) -> Set<String>? {
         var ids = Set<String>()
         for entry in playlist.entries {

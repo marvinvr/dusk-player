@@ -209,6 +209,22 @@ extension PlexService {
         }
     }
 
+    /// A library copy of a past guide airing — in practice the DVR's
+    /// recording of it — on the DVR's server, matched by the airing's
+    /// metadata guid the way Plex matches recordings. Nil when the airing
+    /// has no guid or nothing in the library carries it. Plex has no
+    /// catch-up of its own: a past airing plays only from such a recording.
+    func liveTVRecording(for program: PlexLiveProgram, provider: PlexLiveTVProvider) async throws -> PlexItem? {
+        guard let guid = program.guid?.nilIfEmpty,
+              let serverID = provider.serverID ?? liveTVServerID else { return nil }
+        let items = try await serverItems(guid: guid, serverID: serverID)
+        return items.first { item in
+            item.type == .episode || item.type == .movie
+                ? program.type == .unknown || item.type == program.type
+                : false
+        }
+    }
+
     func tuneLiveTV(
         provider: PlexLiveTVProvider,
         channel: PlexLiveChannel,

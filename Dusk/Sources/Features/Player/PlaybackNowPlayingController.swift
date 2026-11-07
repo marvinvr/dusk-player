@@ -86,7 +86,8 @@ final class PlaybackNowPlayingController {
         engine: any PlaybackEngine,
         plexService: PlexService,
         skipBackwardInterval: TimeInterval,
-        skipForwardInterval: TimeInterval
+        skipForwardInterval: TimeInterval,
+        isLive: Bool = true
     ) {
         endSession(deactivateAudioSession: false)
         sessionID = UUID()
@@ -107,7 +108,7 @@ final class PlaybackNowPlayingController {
             MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.video.rawValue,
             MPNowPlayingInfoPropertyDefaultPlaybackRate: 1.0,
             MPNowPlayingInfoPropertyPlaybackRate: 0.0,
-            MPNowPlayingInfoPropertyIsLiveStream: true,
+            MPNowPlayingInfoPropertyIsLiveStream: isLive,
             MPNowPlayingInfoPropertyExcludeFromSuggestions: false,
         ]
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo

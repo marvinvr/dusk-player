@@ -20,6 +20,9 @@ enum M3UParser {
         var guideURLs: [URL] = []
         var entries: [IPTVPlaylistEntry] = []
         var pending = PendingEntry()
+        /// `#EXTM3U catchup=… catchup-days=… catchup-source=…`: defaults for
+        /// every entry that names none of its own.
+        var headerAttributes: [String: String] = [:]
 
         for rawLine in text.split(omittingEmptySubsequences: true, whereSeparator: \.isNewline) {
             var line = rawLine.trimmingCharacters(in: .whitespaces)
@@ -27,7 +30,7 @@ enum M3UParser {
             guard !line.isEmpty else { continue }
 
             if line.hasPrefix("#") {
-                handleDirective(line, pending: &pending, guideURLs: &guideURLs)
+                handleDirective(line, pending: &pending, guideURLs: &guideURLs, headerAttributes: &headerAttributes)
                 continue
             }
 
@@ -36,7 +39,7 @@ enum M3UParser {
             // cannot leak its options into the next.
             defer { pending = PendingEntry() }
             guard let (url, pipeHeaders) = streamURL(from: line) else { continue }
-            entries.append(pending.entry(streamURL: url, pipeHeaders: pipeHeaders))
+            entries.append(pending.entry(streamURL: url, pipeHeaders: pipeHeaders, headerAttributes: headerAttributes))
         }
 
         return IPTVPlaylist(guideURLs: unique(guideURLs), entries: entries)
@@ -47,11 +50,13 @@ enum M3UParser {
     private static func handleDirective(
         _ line: String,
         pending: inout PendingEntry,
-        guideURLs: inout [URL]
+        guideURLs: inout [URL],
+        headerAttributes: inout [String: String]
     ) {
         let upper = line.uppercased()
         if upper.hasPrefix("#EXTM3U") {
             let attributes = parseAttributes(String(line.dropFirst("#EXTM3U".count)))
+            headerAttributes.merge(attributes) { _, new in new }
             for key in ["url-tvg", "x-tvg-url", "tvg-url"] {
                 guard let value = attributes[key] else { continue }
                 guideURLs += value
@@ -109,7 +114,11 @@ enum M3UParser {
         var referrer: String?
         var drm = IPTVDRMConfiguration()
 
-        func entry(streamURL: URL, pipeHeaders: [String: String]) -> IPTVPlaylistEntry {
+        func entry(
+            streamURL: URL,
+            pipeHeaders: [String: String],
+            headerAttributes: [String: String] = [:]
+        ) -> IPTVPlaylistEntry {
             var headers = pipeHeaders
             var userAgent = userAgent
             var referrer = referrer
@@ -138,7 +147,8 @@ enum M3UParser {
                 userAgent: userAgent,
                 referrer: referrer,
                 streamHeaders: headers,
-                drm: drm.isEmpty ? nil : drm
+                drm: drm.isEmpty ? nil : drm,
+                catchUp: IPTVCatchUp(attributes: attributes, defaults: headerAttributes)
             )
         }
     }

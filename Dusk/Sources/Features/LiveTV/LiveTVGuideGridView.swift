@@ -62,6 +62,9 @@ struct LiveTVGuideBlock: View {
     var pinnedColumnWidth: CGFloat = 0
 
     private var isLive: Bool { cell.isAiring(at: now) }
+    /// Over and not highlighted: drawn receded, the way the past reads in a
+    /// cable guide. A replayable one keeps more of its contrast.
+    private var isDimmedPast: Bool { cell.hasEnded(at: now) && !isHighlighted }
 
     var body: some View {
         label
@@ -105,10 +108,19 @@ struct LiveTVGuideBlock: View {
                     .foregroundStyle(secondaryStyle)
             }
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
-                    .foregroundStyle(primaryStyle)
-                    .lineLimit(1)
+                HStack(spacing: replayGlyphSpacing) {
+                    if cell.isReplayable {
+                        // The only mark a playable past programme gets.
+                        Image(systemName: "play.fill")
+                            .font(DuskFont.glyphSmall(ios: .caption2.weight(.semibold)))
+                            .foregroundStyle(secondaryStyle)
+                            .accessibilityLabel("Available to watch")
+                    }
+                    Text(title)
+                        .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
+                        .foregroundStyle(primaryStyle)
+                        .lineLimit(1)
+                }
                 if let subtitle {
                     Text(subtitle)
                         .font(DuskFont.cardSubtitle(ios: .caption))
@@ -148,6 +160,14 @@ struct LiveTVGuideBlock: View {
         #endif
     }
 
+    private var replayGlyphSpacing: CGFloat {
+        #if os(tvOS)
+        10
+        #else
+        4
+        #endif
+    }
+
     /// Neutral fills only (STYLE.md): what is on now reads a step lighter than
     /// what comes later; the tvOS highlight is the inverted primary fill, the
     /// same as a focused tvOS platter.
@@ -156,6 +176,8 @@ struct LiveTVGuideBlock: View {
     private var fill: some View {
         if isHighlighted {
             Color.duskTextPrimary
+        } else if isDimmedPast {
+            Color.duskBackground.overlay(Color.duskSurface.opacity(cell.isReplayable ? 0.75 : 0.5))
         } else if isLive {
             Color.duskBackground.overlay(Color.duskTextPrimary.opacity(0.1))
         } else if cell.program == nil {
@@ -166,11 +188,15 @@ struct LiveTVGuideBlock: View {
     }
 
     private var primaryStyle: Color {
-        isHighlighted ? Color.duskBackground : Color.duskTextPrimary
+        if isHighlighted { return Color.duskBackground }
+        if isDimmedPast { return Color.duskTextPrimary.opacity(cell.isReplayable ? 0.78 : 0.5) }
+        return Color.duskTextPrimary
     }
 
     private var secondaryStyle: Color {
-        isHighlighted ? Color.duskBackground.opacity(0.7) : Color.duskTextSecondary
+        if isHighlighted { return Color.duskBackground.opacity(0.7) }
+        if isDimmedPast { return Color.duskTextSecondary.opacity(cell.isReplayable ? 0.9 : 0.6) }
+        return Color.duskTextSecondary
     }
 }
 
@@ -436,9 +462,14 @@ struct LiveTVGuideGrid: View {
     /// change) leaves the channel list where it was: `scrollTo(x:)` alone
     /// also resets y.
     @Binding var scrollY: CGFloat
+    /// Bumped to scroll back to now (or to the start of another day).
+    let nowRequest: Int
     let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
     let showDetails: (PlexLiveProgram) -> Void
     let playChannel: (PlexLiveChannel, PlexLiveTVLineup) -> Void
+    /// The horizontal content offset, so a timeline whose start moves can
+    /// keep the same time in view.
+    @State private var scrollX: CGFloat = 0
 
     var body: some View {
         ScrollView([.horizontal, .vertical]) {
@@ -461,8 +492,20 @@ struct LiveTVGuideGrid: View {
         }
         .scrollPosition($position)
         .scrollIndicators(.hidden)
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.y } action: { _, y in
-            scrollY = y
+        .onScrollGeometryChange(for: CGPoint.self) { $0.contentOffset } action: { _, offset in
+            scrollY = offset.y
+            scrollX = offset.x
+        }
+        // The grid reaches back into the past now, so it opens on now
+        // rather than on its start; the past is a scroll to the left.
+        .onAppear { scrollToNow(animated: false) }
+        .onChange(of: nowRequest) { scrollToNow(animated: true) }
+        .onChange(of: timeline) { old, new in
+            // The "Now" grid rolls forward (or reaches back once older guide
+            // data arrives): keep the same moment at the leading edge.
+            guard old.contains(now), new.contains(now), old.start != new.start else { return }
+            let x = max(0, new.x(for: old.date(forX: scrollX)))
+            position.scrollTo(point: CGPoint(x: x, y: scrollY))
         }
         #if DEBUG
         .task {
@@ -471,6 +514,15 @@ struct LiveTVGuideGrid: View {
             position.scrollTo(point: CGPoint(x: CGFloat(minutes) * metrics.pointsPerMinute, y: scrollY))
         }
         #endif
+    }
+
+    private func scrollToNow(animated: Bool) {
+        let point = CGPoint(x: timeline.nowOffset(now), y: scrollY)
+        if animated {
+            withAnimation(.smooth) { position.scrollTo(point: point) }
+        } else {
+            position.scrollTo(point: point)
+        }
     }
 
     private var rulerHeader: some View {
@@ -539,6 +591,8 @@ struct LiveTVGuideGrid: View {
                 .contextMenu {
                     if cell.isAiring(at: now) {
                         Button("Watch Live", systemImage: "play.fill") { select(cell, row, lineup) }
+                    } else if cell.isReplayable {
+                        Button("Play", systemImage: "play.fill") { select(cell, row, lineup) }
                     }
                     if let program = cell.program {
                         Button("Details", systemImage: "info.circle") { showDetails(program) }
@@ -586,6 +640,11 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
     @Binding var cursor: LiveTVGuideCursor
     let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
     let showDetails: (PlexLiveProgram) -> Void
+    /// Back to now (switching to the "Now" grid when another day is up).
+    let jumpToNow: () -> Void
+    /// Left past the first programme (or Right past the last) of the grid:
+    /// the day that holds `date`, if there is one, takes over.
+    let crossDay: (LiveTVGuideCursor.Step, Date) -> Void
     @ViewBuilder let corner: () -> Corner
 
     @FocusState private var focusedRowID: String?
@@ -638,8 +697,16 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
         .onChange(of: focusedRowID) { _, id in
             if let id { lastFocusedRowID = id }
         }
-        .onPlayPauseCommand {
-            withAnimation(.smooth(duration: 0.35)) { cursor.jumpToNow(now, timeline: timeline) }
+        .onPlayPauseCommand { jumpToNow() }
+        .onChange(of: timeline, initial: true) { old, new in
+            if cursor.pending != nil {
+                applyPendingPlacement()
+            } else if old != new, old.contains(now), new.contains(now) {
+                cursor.follow(from: old, to: new, viewport: viewport)
+            }
+        }
+        .onChange(of: cursor.pending) { _, pending in
+            if pending != nil { applyPendingPlacement() }
         }
         #if DEBUG
         .task(id: sections.isEmpty) { await runScreenshotMoves() }
@@ -647,6 +714,23 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
     }
 
     private var firstRowID: String? { sections.first?.rows.first?.id }
+
+    /// Applies `cursor.pending` once the timeline it is meant for is up: a
+    /// day switch updates the cursor before the new day's grid exists.
+    private func applyPendingPlacement() {
+        guard let pending = cursor.pending else { return }
+        var next = cursor
+        switch pending {
+        case .now:
+            next.jumpToNow(now, timeline: timeline, viewport: viewport)
+        case .time(let date, let step):
+            guard timeline.contains(date) || date == timeline.end else { return }
+            guard let row = focusedRow?.row ?? sections.first?.rows.first else { return }
+            next.land(at: date, stepping: step, in: row, timeline: timeline, viewport: viewport)
+        }
+        next.pending = nil
+        withAnimation(.smooth(duration: 0.3)) { cursor = next }
+    }
 
     private var viewport: CGFloat { max(width - metrics.channelWidth, 1) }
 
@@ -722,13 +806,14 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
                 Button(cell.isAiring(at: now) ? "Watch Live" : "Watch \(row.channel.displayTitle) Live", systemImage: "play.fill") {
                     select(LiveTVGuideCell(id: cell.id, start: now, end: now, program: nil, startsBeforeTimeline: false), row, lineup)
                 }
+                if cell.isReplayable {
+                    Button("Play", systemImage: "play.fill") { select(cell, row, lineup) }
+                }
                 if let program = cell.program {
                     Button("Details", systemImage: "info.circle") { showDetails(program) }
                 }
             }
-            Button("Jump to Now", systemImage: "clock.arrow.circlepath") {
-                withAnimation(.smooth(duration: 0.35)) { cursor.jumpToNow(now, timeline: timeline) }
-            }
+            Button("Jump to Now", systemImage: "clock.arrow.circlepath") { jumpToNow() }
         }
         .accessibilityLabel(accessibilityLabel(row: row))
     }
@@ -741,9 +826,14 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
         return min(max(cursor.offset - x0, 0), max(width - 160, 0))
     }
 
+    /// Past either end of the grid the neighbouring day takes over, so Left
+    /// keeps going back through the past (as far as catch-up reaches).
     private func step(_ step: LiveTVGuideCursor.Step, in row: LiveTVGuideRow) {
         var next = cursor
-        guard next.step(step, in: row, timeline: timeline, viewport: viewport) else { return }
+        guard next.step(step, in: row, timeline: timeline, viewport: viewport) else {
+            crossDay(step, LiveTVGuideCursor.crossingTime(step, in: row, timeline: timeline))
+            return
+        }
         withAnimation(.smooth(duration: 0.28)) { cursor = next }
     }
 
@@ -847,7 +937,11 @@ struct LiveTVGuideInfoPanel: View {
 
     private func channelLine(_ channel: PlexLiveChannel, cell: LiveTVGuideCell) -> some View {
         HStack(spacing: 14) {
-            if cell.isAiring(at: now) {
+            if cell.isReplayable {
+                Image(systemName: "play.fill")
+                    .font(DuskFont.TV.badge)
+                    .foregroundStyle(Color.duskTextSecondary)
+            } else if cell.isAiring(at: now) {
                 Text("LIVE")
                     .font(DuskFont.TV.badge)
                     .foregroundStyle(Color.duskBackground)
@@ -875,6 +969,8 @@ struct LiveTVGuideInfoPanel: View {
                 } else if beginsAt > now {
                     let until = Int(beginsAt.timeIntervalSince(now) / 60)
                     parts.append(until >= 60 ? "in \(until / 60) hr \(until % 60) min" : "in \(max(until, 1)) min")
+                } else {
+                    parts.append(cell.isReplayable ? "Select to watch" : "Aired")
                 }
             } else if cell.program == nil {
                 parts.append("No program information · Select to watch live")

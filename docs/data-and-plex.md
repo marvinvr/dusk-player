@@ -552,8 +552,17 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
 - The guide shows a `LiveTVGuideWindow`, picked by day offset (never a stored
   date): "Now" runs from the current time 12 hours ahead and asks for every
   local day it crosses (`getLiveTVGuide(dates:)`, so late evening also gets
-  tomorrow's morning); later days run midnight to midnight. No past days:
-  they only ever came back empty. `LiveTVViewModel.load()` refetches when the
+  tomorrow's morning); later days run midnight to midnight. "Now" keeps up to
+  midnight / 12 h of the past for catch-up, but Plex is asked only from today
+  (`plexGridDays`). Past days exist only while an IPTV source has catch-up;
+  Plex is still asked for them and shows whatever it returns (in practice
+  nothing).
+- Catch-up on Plex: Plex has none. A past airing (`PlexLiveProgram.guid`,
+  `plex://…`) is playable only when `/library/all?guid=` on the DVR's server
+  finds a library copy (`liveTVRecording`, normally the DVR recording);
+  `LiveTVViewModel.findRecordings` looks up ended airings, 40 per pass,
+  caching hits and misses per guid. Unverified against a real DVR: that EPG
+  airings carry the same guid as their matched recording. `LiveTVViewModel.load()` refetches when the
   guide is 15 minutes old, the day changed or the selection changed, else just
   trims ended programs; the view calls it on appearance and scene activation
   and `keepFresh()` re-checks every minute while it is on screen. Issue #17:

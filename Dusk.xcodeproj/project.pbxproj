@@ -87,6 +87,7 @@
 		1E340ECF3EA27BD0B563B7F1 /* PlayerTVRemoteInputBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE23F90315CD7FAABAF89713 /* PlayerTVRemoteInputBridge.swift */; };
 		1EC54F18323FAACF6D7CC159 /* DolbyVision7InitRewriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D2F42A077CFA9A53B0148B8 /* DolbyVision7InitRewriter.swift */; };
 		1EE985CCBEF467A1A27D62FB /* HomeHubArrangement.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4518CB0D635B36FCF8A5DF7 /* HomeHubArrangement.swift */; };
+		1F12F846A7A6A11FC32215B6 /* IPTVCatchUpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532AEE1C515AF9E8EAE4620E /* IPTVCatchUpTests.swift */; };
 		1F95E71C2F0F4102D5B853B8 /* TrueHDAudioRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5A36DD87FD7F0679FED501 /* TrueHDAudioRoutingTests.swift */; };
 		1FAA5AC39FFBD38990882214 /* IPTVModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = B06221D9FBEF3412E630F416 /* IPTVModels.swift */; };
 		1FF55D136C11C7D716EA9AE2 /* ServerProbeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8D895F6BA31F97A2D8CAA4A /* ServerProbeTests.swift */; };
@@ -392,6 +393,7 @@
 		81B531EC9FC087781A0131BA /* SeerrMediaDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9B43C1F97D1C59C442251CE /* SeerrMediaDetailViewModel.swift */; };
 		81E883C4D7CE2828C3E5A822 /* PlexService+Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB337983FD00FD7C85386570 /* PlexService+Auth.swift */; };
 		8216E4D15ED07F47EB90F894 /* DuskIconNeon.icon in Resources */ = {isa = PBXBuildFile; fileRef = AA527E6017E84822394686E1 /* DuskIconNeon.icon */; };
+		823D3E2EBCE1BD6D4B25228C /* IPTVCatchUpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532AEE1C515AF9E8EAE4620E /* IPTVCatchUpTests.swift */; };
 		829A923076C44F0DED30EE79 /* HiddenHomeRowsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5ED376ED007DBB4D2DBDF2A1 /* HiddenHomeRowsSettingsView.swift */; };
 		82C533CEEAECC860215B8F94 /* PlexService+Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB337983FD00FD7C85386570 /* PlexService+Auth.swift */; };
 		8341A6B05109C7B740A26F5C /* SubtitleTextDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391C54B3D3132EDA8BDDEF6A /* SubtitleTextDecoder.swift */; };
@@ -700,6 +702,7 @@
 		E324428A98DFE88799726167 /* VideoEnhancementRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98DF050C007C8205042A9E6B /* VideoEnhancementRenderer.swift */; };
 		E327E8FA140AE7A4D84E9637 /* TrueHDAudioRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E5A36DD87FD7F0679FED501 /* TrueHDAudioRoutingTests.swift */; };
 		E3341C9882A4D57438C28F9E /* TraktModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A9C164C0A645C764F9A5734 /* TraktModels.swift */; };
+		E3592DE542460242737D49CA /* IPTVCatchUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7441DA2CCFD70DFB6DA22757 /* IPTVCatchUp.swift */; };
 		E383388907FF941A088F735B /* PlexServerConnection.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE340ECB6958CE7AA27E3E09 /* PlexServerConnection.swift */; };
 		E3B1A766351856A79BC0ACE1 /* PlaybackSharePlayController.swift in Sources */ = {isa = PBXBuildFile; fileRef = E65F8309ADBC064769634F8E /* PlaybackSharePlayController.swift */; };
 		E43B51052D47B1BFAC09D9A5 /* HomeHubFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4259D73D5763576FD3975B48 /* HomeHubFilter.swift */; };
@@ -757,6 +760,7 @@
 		F76635235F13937FF5D7A80C /* SupporterEntitlementsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4471C9A0F9D6A5E471F4BDC /* SupporterEntitlementsTests.swift */; };
 		F7E09A8F3F09533B84FD6C37 /* PlexLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCC7B1185FAF95EDBB76EDBA /* PlexLibrary.swift */; };
 		F8A93C3B6BC42108EE5DA183 /* PlayerLiveTimeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 994443BFEAC83A49EF01C77F /* PlayerLiveTimeline.swift */; };
+		F91F18B66E47889FF25D6534 /* IPTVCatchUp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7441DA2CCFD70DFB6DA22757 /* IPTVCatchUp.swift */; };
 		F9334880368F9C85204F255F /* VLCKitPausedResumeSeekTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C29735651028409F8840C6B4 /* VLCKitPausedResumeSeekTests.swift */; };
 		F95F506F3C508340981D3D45 /* PlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E23D3C9E0486ECC98E7EF697 /* PlayerViewModel.swift */; };
 		F9775FA43B561AAD7494390C /* RecommendationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = F69C3F67C503DFC3555CBEAE /* RecommendationCore.swift */; };
@@ -971,6 +975,7 @@
 		51F82545CD00A4FC1838C8DF /* RemuxHLSLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemuxHLSLoader.swift; sourceTree = "<group>"; };
 		520017CEE2E0064C83BEDBF1 /* DuskIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIcon.icon; sourceTree = "<group>"; };
 		52C0D6A670C2ABA47CDBE6A2 /* LibraryRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryRecommendationEngine.swift; sourceTree = "<group>"; };
+		532AEE1C515AF9E8EAE4620E /* IPTVCatchUpTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPTVCatchUpTests.swift; sourceTree = "<group>"; };
 		543F2AD39E8B4489BE4DD47E /* PlexService+Ratings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Ratings.swift"; sourceTree = "<group>"; };
 		5493BC8E9828A5875E7700D0 /* SubtitleTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTrack.swift; sourceTree = "<group>"; };
 		56A0D0B29D5591A4256C62F8 /* LiveTVGuideGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVGuideGridView.swift; sourceTree = "<group>"; };
@@ -1018,6 +1023,7 @@
 		7153AA7BE468FE8A85C79CE5 /* PlayerDebugOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerDebugOverlayView.swift; sourceTree = "<group>"; };
 		71FD2A50461478ABD112E76E /* LaunchSplash.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LaunchSplash.swift; sourceTree = "<group>"; };
 		7417D58AC5EB13018CBFAC8C /* PlexMediaPartDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexMediaPartDecodingTests.swift; sourceTree = "<group>"; };
+		7441DA2CCFD70DFB6DA22757 /* IPTVCatchUp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPTVCatchUp.swift; sourceTree = "<group>"; };
 		74EF2D3ACAB03A87A07EB370 /* AdaptivePosterGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptivePosterGrid.swift; sourceTree = "<group>"; };
 		7544739258CFA8FA07B61B54 /* MainTabView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainTabView.swift; sourceTree = "<group>"; };
 		75738857B8F894A4D8675F62 /* VideoEnhancement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoEnhancement.swift; sourceTree = "<group>"; };
@@ -1611,6 +1617,7 @@
 				944F4D7F85DB19B3855CD921 /* HomeHubArrangementTests.swift */,
 				35CB85934A354D4C525BD414 /* HomePreferencesTests.swift */,
 				F0AC8E55E15A81E53FB887F4 /* HomeWatchlistPlacementTests.swift */,
+				532AEE1C515AF9E8EAE4620E /* IPTVCatchUpTests.swift */,
 				3910AE8D7A7D730D5CF295DA /* IPTVFixtures.swift */,
 				463848151A3F93227AE00035 /* IPTVParserTests.swift */,
 				A32B832AD12BBD3A42D6A602 /* IPTVRetunePolicyTests.swift */,
@@ -1669,6 +1676,7 @@
 			isa = PBXGroup;
 			children = (
 				A69F96F7DB163DB2DBBE0C5E /* GzipFile.swift */,
+				7441DA2CCFD70DFB6DA22757 /* IPTVCatchUp.swift */,
 				3EF04B6FB12B4622E943EA62 /* IPTVLineupBuilder.swift */,
 				B06221D9FBEF3412E630F416 /* IPTVModels.swift */,
 				1A4D575CB4A82CC61EAD452B /* IPTVService.swift */,
@@ -2301,6 +2309,7 @@
 				9D3A9B1A941C8C95259670FD /* HomeWatchlistShelf.swift in Sources */,
 				A01FDB9A9C0C816108986F3E /* HubMerge.swift in Sources */,
 				83AE4D1EA95AAB720DD471FA /* IPTVAsset.swift in Sources */,
+				F91F18B66E47889FF25D6534 /* IPTVCatchUp.swift in Sources */,
 				DBA85607965D089213510620 /* IPTVLineupBuilder.swift in Sources */,
 				AA55D1045EA31F8C67991B05 /* IPTVModels.swift in Sources */,
 				8A2A4D912B05E1EAF058E818 /* IPTVRetunePolicy.swift in Sources */,
@@ -2630,6 +2639,7 @@
 				456BEF34AE172AA1BA13ADA4 /* HomeWatchlistShelf.swift in Sources */,
 				115FFE27E2AFA6761CD3650F /* HubMerge.swift in Sources */,
 				C014A7D96495AB012A91B922 /* IPTVAsset.swift in Sources */,
+				E3592DE542460242737D49CA /* IPTVCatchUp.swift in Sources */,
 				AD4DCFFF862EEA065290CFCE /* IPTVLineupBuilder.swift in Sources */,
 				1FAA5AC39FFBD38990882214 /* IPTVModels.swift in Sources */,
 				7BD7D9D5A485E1FC27869265 /* IPTVRetunePolicy.swift in Sources */,
@@ -2907,6 +2917,7 @@
 				1C497495EEA60E92DEA761FC /* HomeHubArrangementTests.swift in Sources */,
 				5E8A7C3898571B2369706E90 /* HomePreferencesTests.swift in Sources */,
 				9790FFF8D5C487B1BE11CC7A /* HomeWatchlistPlacementTests.swift in Sources */,
+				1F12F846A7A6A11FC32215B6 /* IPTVCatchUpTests.swift in Sources */,
 				882A5A76EFF74A04B3D9EBBE /* IPTVFixtures.swift in Sources */,
 				1BD59938A5E5B4C832060335 /* IPTVParserTests.swift in Sources */,
 				3838A8D4814017BAEDEE2007 /* IPTVRetunePolicyTests.swift in Sources */,
@@ -2965,6 +2976,7 @@
 				23E4CC2CB9FC15B880D303FB /* HomeHubArrangementTests.swift in Sources */,
 				88CF699A732552D52028627B /* HomePreferencesTests.swift in Sources */,
 				0F31E24355B1D71944EFD354 /* HomeWatchlistPlacementTests.swift in Sources */,
+				823D3E2EBCE1BD6D4B25228C /* IPTVCatchUpTests.swift in Sources */,
 				22EFF13396DE7D2E1A8E51C0 /* IPTVFixtures.swift in Sources */,
 				368505B28CB0E804FF637CBF /* IPTVParserTests.swift in Sources */,
 				A95E13ABE755A0DBBE908D80 /* IPTVRetunePolicyTests.swift in Sources */,

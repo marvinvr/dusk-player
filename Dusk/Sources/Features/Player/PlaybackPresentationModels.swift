@@ -179,6 +179,15 @@ struct PlaybackSource: Sendable {
     /// Present only for an IPTV channel. Always AVPlayer: the engine opens it
     /// with the source's headers and a FairPlay key session (`IPTVAsset`).
     var iptvStream: IPTVPlayableChannel? = nil
+    /// Present only for a past IPTV programme played back (catch-up): what
+    /// the on-demand player's header names, since there are no Plex details.
+    var iptvCatchUp: IPTVCatchUpPlayback? = nil
+}
+
+struct IPTVCatchUpPlayback: Sendable, Hashable {
+    let program: PlexLiveProgram
+    /// "Channel · Tue 18:00".
+    let subtitle: String
 }
 
 struct PlaybackDebugInfo: Sendable {

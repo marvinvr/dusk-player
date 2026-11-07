@@ -213,7 +213,7 @@ extension PlexService {
         }
     }
 
-    private func serverItems(guid: String, serverID: String) async throws -> [PlexItem] {
+    func serverItems(guid: String, serverID: String) async throws -> [PlexItem] {
         let data = try await rawServerRequest(
             path: "/library/all",
             queryItems: [

@@ -2077,6 +2077,7 @@ extension PlaybackCoordinator {
             )
 
             if activeLiveTVContext == nil,
+               !isPlayingIPTVCatchUp,
                !hasScrobbled,
                snapshot.durationMs > 0,
                snapshot.timeMs > Int(Double(snapshot.durationMs) * 0.9) {
@@ -2165,6 +2166,7 @@ extension PlaybackCoordinator {
         activeItemDetails = nil
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
+        isPlayingIPTVCatchUp = false
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
         activeAudioStreamID = nil

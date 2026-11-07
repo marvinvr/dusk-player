@@ -203,7 +203,7 @@ struct IPTVSourceLoader: Sendable {
                     guideURL,
                     headers: headers,
                     options: XMLTVParser.Options(
-                        window: now.addingTimeInterval(-12 * 60 * 60)...now.addingTimeInterval(8 * 24 * 60 * 60),
+                        window: Self.guideWindow(catchUpDays: IPTVLineupBuilder.catchUpDays(for: playlist), now: now),
                         channelIDs: IPTVLineupBuilder.wantedGuideChannelIDs(for: playlist)
                     )
                 )
@@ -219,6 +219,14 @@ struct IPTVSourceLoader: Sendable {
             sourceHeaders: headers
         )
         return IPTVSourceLineup(source: source, lineup: lineup, guideError: guideError)
+    }
+
+    /// What of the XMLTV file is kept: a day back (what the "Now" guide can
+    /// show of the past: since midnight, at least 12 hours), or a channel's
+    /// whole catch-up window, and eight days ahead.
+    static func guideWindow(catchUpDays: Int, now: Date) -> ClosedRange<Date> {
+        let past = (TimeInterval(max(catchUpDays, 1)) * 24 + 1) * 60 * 60
+        return now.addingTimeInterval(-past)...now.addingTimeInterval(8 * 24 * 60 * 60)
     }
 
     func fetchPlaylist(_ url: URL, headers: [String: String]) async throws -> IPTVPlaylist {

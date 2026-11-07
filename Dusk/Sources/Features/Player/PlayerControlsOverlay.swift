@@ -101,7 +101,7 @@ struct PlayerControlsOverlay: View {
         if viewModel.isLiveTV {
             return viewModel.liveProgram?.summary
         }
-        return mediaDetails?.summary
+        return mediaDetails?.summary ?? viewModel.iptvCatchUp?.program.summary
     }
 
     private var mediaHeader: PlayerMediaHeader? {
@@ -115,6 +115,15 @@ struct PlayerControlsOverlay: View {
                 title: program?.primaryDisplayTitle ?? liveTVContext.channel.displayTitle,
                 secondaryTitle: program?.episodeDisplayTitle,
                 subtitle: liveTVContext.channel.displayTitle,
+                usesCompactTitleOnTV: true
+            )
+        }
+
+        if mediaDetails == nil, let catchUp = viewModel.iptvCatchUp {
+            return PlayerMediaHeader(
+                title: catchUp.program.primaryDisplayTitle,
+                secondaryTitle: catchUp.program.episodeDisplayTitle,
+                subtitle: catchUp.subtitle,
                 usesCompactTitleOnTV: true
             )
         }

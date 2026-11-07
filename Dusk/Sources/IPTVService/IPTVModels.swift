@@ -82,6 +82,9 @@ struct IPTVPlaylistEntry: Hashable, Sendable {
     /// Headers from Kodi's `url|Header=value&…` stream suffix.
     var streamHeaders: [String: String] = [:]
     var drm: IPTVDRMConfiguration?
+    /// `catchup` / `catchup-days` / `catchup-source` (entry, else the
+    /// `#EXTM3U` header's). Nil when the channel has none Dusk understands.
+    var catchUp: IPTVCatchUp?
 }
 
 struct IPTVPlaylist: Hashable, Sendable {
@@ -126,6 +129,11 @@ struct IPTVPlayableChannel: Hashable, Sendable {
     let headers: [String: String]
     let userAgent: String?
     let drm: IPTVDRMConfiguration?
+    /// How past programmes of this channel play (`IPTVCatchUp`), if at all.
+    var catchUp: IPTVCatchUp? = nil
+    /// This is a past programme (`catchUpStream`), not the live channel: a
+    /// finite stream that ends, seeks, and is never retuned.
+    var isCatchUp = false
 }
 
 /// A loaded source, ready for the guide.

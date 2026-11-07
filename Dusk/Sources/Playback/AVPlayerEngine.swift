@@ -663,7 +663,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 await self?.prepareReadyItemForPlayback(item, attemptID: attemptID)
             }
         case .failed:
-            if currentSource?.iptvStream != nil {
+            // Live channels retune; a catch-up programme is a finite stream
+            // and fails like any other.
+            if let stream = currentSource?.iptvStream, !stream.isCatchUp {
                 let cause = contentKeyController?.lastError ?? itemError
                 if IPTVRetunePolicy.isRetryable(cause) {
                     let reason = contentKeyController?.lastError?.localizedDescription
@@ -852,7 +854,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// session. Gives up — the normal error, with Retry — only when the
     /// channel has kept failing for `IPTVRetunePolicy.giveUpAfter`.
     private func scheduleIPTVRetune(reason: String) {
-        guard let source = currentSource, source.iptvStream != nil, !isRetunePending else { return }
+        guard let source = currentSource, let stream = source.iptvStream, !stream.isCatchUp,
+              !isRetunePending else { return }
         lastRetuneReason = reason
         let attemptID = source.context.attemptID
 
@@ -924,7 +927,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// at all while the player kept buffering.
     private func failIPTVKeyRequest(_ keyError: Error, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID, state != .error else { return }
-        if IPTVRetunePolicy.isRetryable(keyError) {
+        if currentSource?.iptvStream?.isCatchUp != true, IPTVRetunePolicy.isRetryable(keyError) {
             scheduleIPTVRetune(reason: keyError.localizedDescription)
             return
         }
@@ -1158,7 +1161,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         // A live IPTV channel never "ends": `EXT-X-ENDLIST` is a source
         // finishing its off-air slate (or the live session), so ask for the
         // channel again and stay in the player.
-        if currentSource?.iptvStream != nil {
+        if let stream = currentSource?.iptvStream, !stream.isCatchUp {
             scheduleIPTVRetune(reason: "The channel’s stream ended.")
             return
         }
