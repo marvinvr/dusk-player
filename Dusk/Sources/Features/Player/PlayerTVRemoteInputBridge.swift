@@ -101,6 +101,10 @@ final class PlayerTVRemoteInputViewController: UIViewController, UIGestureRecogn
     private let swipeDownRecognizer = UISwipeGestureRecognizer()
     private var panAxis: PanAxis = .undetermined
     private var heldArrows: Set<PlayerTVArrow> = []
+    /// One touch on the surface moves the selection at most one step
+    /// vertically, whichever of the swipe recognizers or the vertical pan
+    /// notices it first. Reset when the next touch begins.
+    private var didSendVerticalSwipeForTouch = false
 
     private enum VerticalArrowSource {
         case press
@@ -318,7 +322,14 @@ final class PlayerTVRemoteInputViewController: UIViewController, UIGestureRecogn
     private func handleSwipe(_ recognizer: UISwipeGestureRecognizer) {
         // A horizontal scrub that drifts vertically is still a scrub.
         guard isCaptureEnabled, recognizer.state == .ended, panAxis != .horizontal else { return }
-        let arrow: PlayerTVArrow = recognizer === swipeUpRecognizer ? .up : .down
+        sendVerticalSwipe(recognizer === swipeUpRecognizer ? .up : .down)
+    }
+
+    /// Sends a touch-surface swipe as one up/down arrow click, at most once
+    /// per touch.
+    private func sendVerticalSwipe(_ arrow: PlayerTVArrow) {
+        guard !didSendVerticalSwipeForTouch else { return }
+        didSendVerticalSwipeForTouch = true
         guard claimVerticalArrow(arrow, from: .swipe) else { return }
         onInput?(.arrowDown(arrow))
         onInput?(.arrowUp(arrow))
@@ -333,6 +344,7 @@ final class PlayerTVRemoteInputViewController: UIViewController, UIGestureRecogn
             // Ignore the rest of this touch until lift-off, otherwise its next
             // panChanged would immediately recreate the cancelled preview.
             panAxis = .rejected
+            didSendVerticalSwipeForTouch = true
         }
         onInput?(.menu)
     }
@@ -351,10 +363,19 @@ final class PlayerTVRemoteInputViewController: UIViewController, UIGestureRecogn
         case .began:
             guard isCaptureEnabled else { return }
             panAxis = .undetermined
+            didSendVerticalSwipeForTouch = false
         case .changed:
             guard isCaptureEnabled else { return }
             switch panAxis {
             case .rejected:
+                // A vertical swipe that is too slow for the swipe recognizers
+                // (they want a flick) still steps once it has travelled far
+                // enough — the focus engine moves on such a swipe everywhere
+                // else in the app. A touch Back cancelled mid-scrub also
+                // lands here; `handleMenu` marks it as already stepped.
+                guard abs(translation.y) >= PlayerTVHUDLayout.verticalSwipeStep,
+                      abs(translation.y) > abs(translation.x) else { return }
+                sendVerticalSwipe(translation.y < 0 ? .up : .down)
                 return
             case .undetermined:
                 // Direction lock. A vertical flick is the panel gesture and is

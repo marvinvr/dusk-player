@@ -129,6 +129,10 @@ enum PlayerTVHUDLayout {
     static let swipeFastVelocity: Double = 3000
     /// Horizontal travel required before a pan counts as a scrub at all.
     static let swipeDeadzone: CGFloat = 6
+    /// Vertical travel after which an unhurried swipe counts as one up/down
+    /// step (bar ↔ action row, bar → panel). A swipe recognizer only fires on
+    /// a quick flick, so a deliberate slow swipe otherwise did nothing.
+    static let verticalSwipeStep: CGFloat = 110
 
     // MARK: - Animation
 
