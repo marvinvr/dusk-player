@@ -113,11 +113,12 @@ struct PlayerUpNextPosterView: View {
 
     // MARK: - Compact (Blur Unwatched Episodes)
 
-    /// With Blur Unwatched Episodes on, an unwatched next episode gets a small
-    /// chip shaped like the Skip Credits chip it replaces instead of the card:
-    /// no still and no title, only "Up Next · S2E5", the countdown sweeping
-    /// across the platter and, on iOS, a dismiss button. Play now / dismiss
-    /// work exactly as on the card (tap or Select, swipe or Down).
+    /// With Blur Unwatched Episodes on, an unwatched next episode gets a
+    /// two-line glass pill in the Skip Credits chip's family instead of the
+    /// card: no still, just the episode title over a quiet "Up Next · Season 2,
+    /// Episode 5" line, the countdown sweeping across the platter and, on iOS,
+    /// a dismiss button. Play now / dismiss work exactly as on the card (tap or
+    /// Select, swipe or Down).
     private var compactChip: some View {
         HStack(spacing: CompactMetrics.spacing) {
             Group {
@@ -134,22 +135,34 @@ struct PlayerUpNextPosterView: View {
             }
             .frame(width: CompactMetrics.glyphWidth)
 
-            Text(compactLabel)
-                .font(CompactMetrics.font)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: CompactMetrics.lineSpacing) {
+                Text(presentation.item.title)
+                    .font(CompactMetrics.titleFont)
+                    .lineLimit(1)
 
-            if !presentation.isStarting, let secondsRemaining = presentation.secondsRemaining {
-                Text("\(secondsRemaining)s")
-                    .font(CompactMetrics.font.monospacedDigit())
-                    .opacity(0.7)
+                HStack(alignment: .firstTextBaseline, spacing: 0) {
+                    Text(compactDetail)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
+                    if let statusText {
+                        Text(" · \(statusText)")
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
+                .font(CompactMetrics.detailFont)
+                .opacity(CompactMetrics.detailOpacity)
             }
+            .frame(maxWidth: CompactMetrics.maxTextWidth, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
 
             #if !os(tvOS)
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
                     .font(.caption.weight(.bold))
                     .opacity(0.7)
-                    .frame(width: 28, height: 28)
+                    .frame(width: 30, height: 30)
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -159,7 +172,7 @@ struct PlayerUpNextPosterView: View {
         .foregroundStyle(compactForeground)
         .padding(.leading, CompactMetrics.leadingPadding)
         .padding(.trailing, CompactMetrics.trailingPadding)
-        .frame(minHeight: CompactMetrics.height)
+        .padding(.vertical, CompactMetrics.verticalPadding)
         .background { compactCountdownFill }
         .clipShape(Capsule())
         .modifier(CompactChipGlass(isSelected: isSelected))
@@ -179,18 +192,16 @@ struct PlayerUpNextPosterView: View {
         #endif
     }
 
-    /// "Up Next · S2E5". A playlist mixes shows, so it names the show too.
-    private var compactLabel: String {
+    /// "Up Next · Season 2, Episode 5". A playlist mixes shows, so it names
+    /// the show too and falls back to the short "S2 · E5" form.
+    private var compactDetail: String {
         let item = presentation.item
-        let episode: String? = switch (item.parentIndex, item.index) {
-        case let (season?, episode?): "S\(season)E\(episode)"
-        case let (season?, nil): "S\(season)"
-        case let (nil, episode?): "E\(episode)"
-        default: nil
-        }
-        let show = presentation.queueTitle != nil ? item.grandparentTitle : nil
-        let detail = [show, episode].compactMap { $0 }.joined(separator: " ")
-        return detail.isEmpty ? "Up Next" : "Up Next · \(detail)"
+        let inQueue = presentation.queueTitle != nil
+        let episode = inQueue
+            ? MediaTextFormatter.compactSeasonEpisodeLabel(season: item.parentIndex, episode: item.index)
+            : MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index, separator: ", ")
+        let show = inQueue ? item.grandparentTitle : nil
+        return (["Up Next", show, episode] as [String?]).compactMap { $0 }.joined(separator: " · ")
     }
 
     @ViewBuilder
@@ -443,7 +454,7 @@ struct PlayerUpNextPosterView: View {
 
     private var accessibilityLabel: String {
         if isCompact {
-            return "Play next episode, \(compactLabel)"
+            return "Play next episode: \(presentation.item.title), \(compactDetail)"
         }
         return presentation.item.isEpisode
             ? "Play next episode: \(presentation.item.title)"
@@ -496,22 +507,29 @@ private struct CompactChipGlass: ViewModifier {
 
 private enum CompactMetrics {
     #if os(tvOS)
-    static let font: Font = DuskFont.TV.buttonLabel
-    static let glyphFont: Font = .system(size: 22, weight: .semibold)
-    static let glyphWidth: CGFloat = 26
-    static let spacing: CGFloat = 14
-    static let height: CGFloat = PlayerTVHUDLayout.skipChipHeight
-    static let leadingPadding: CGFloat = 30
-    static let trailingPadding: CGFloat = 32
+    static let titleFont: Font = DuskFont.TV.buttonLabel
+    static let detailFont: Font = DuskFont.TV.cardSubtitle
+    static let glyphFont: Font = .system(size: 24, weight: .semibold)
+    static let glyphWidth: CGFloat = 28
+    static let spacing: CGFloat = 18
+    static let lineSpacing: CGFloat = 2
+    static let maxTextWidth: CGFloat = 460
+    static let leadingPadding: CGFloat = 34
+    static let trailingPadding: CGFloat = 40
+    static let verticalPadding: CGFloat = 18
     #else
-    static let font: Font = DuskFont.buttonLabel(ios: .subheadline.weight(.semibold))
-    static let glyphFont: Font = .footnote.weight(.semibold)
-    static let glyphWidth: CGFloat = 16
-    static let spacing: CGFloat = 8
-    static let height: CGFloat = 44
-    static let leadingPadding: CGFloat = 16
-    static let trailingPadding: CGFloat = 8
+    static let titleFont: Font = .subheadline.weight(.semibold)
+    static let detailFont: Font = .caption
+    static let glyphFont: Font = .subheadline.weight(.semibold)
+    static let glyphWidth: CGFloat = 18
+    static let spacing: CGFloat = 10
+    static let lineSpacing: CGFloat = 1
+    static let maxTextWidth: CGFloat = 220
+    static let leadingPadding: CGFloat = 20
+    static let trailingPadding: CGFloat = 10
+    static let verticalPadding: CGFloat = 9
     #endif
+    static let detailOpacity: Double = 0.7
 }
 
 private enum Metrics {
