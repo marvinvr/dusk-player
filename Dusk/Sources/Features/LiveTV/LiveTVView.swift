@@ -21,6 +21,12 @@ struct LiveTVRootContent: View {
     /// gone. Presenting the player while the sheet was still dismissing
     /// dropped the presentation on tvOS, so nothing ever played (issue #17).
     @State private var pendingPlay: PendingLivePlay?
+    #if os(tvOS)
+    @State private var tvCursor = LiveTVGuideCursor(time: .now)
+    #else
+    @State private var gridPosition = ScrollPosition()
+    @State private var gridScrollY: CGFloat = 0
+    #endif
 
     private struct PendingLivePlay {
         let channel: PlexLiveChannel
@@ -78,6 +84,10 @@ struct LiveTVRootContent: View {
                     selectedProgram = nil
                 }
             )
+            #if !os(tvOS)
+            // Half height: the guide it came from stays in view.
+            .presentationDetents([.medium, .large])
+            #endif
         }
     }
 
@@ -87,97 +97,168 @@ struct LiveTVRootContent: View {
         play(channel: pending.channel, program: pending.program, lineup: pending.lineup)
     }
 
+    /// The grid: one shared timeline, channels down the side, programmes as
+    /// blocks as wide as their airtime. Plex and every IPTV source feed the
+    /// same `PlexLiveTVLineup` model, so each is just another section.
     private func guide() -> some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 24) {
-                datePicker
-
-                if let lineup = viewModel.lineup {
-                    channelRows(lineup)
-                }
-
-                // Each IPTV source is its own section after the Plex
-                // channels, headed by the name it was given in Settings.
-                ForEach(viewModel.iptvLineups, id: \.source.id) { iptv in
-                    Text(iptv.source.name)
-                        .font(DuskFont.sectionHeader(ios: .title2.bold()))
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .padding(.top, 12)
-                        .accessibilityAddTraits(.isHeader)
-                    channelRows(iptv.lineup)
-                }
+        TimelineView(.periodic(from: .now, by: 30)) { context in
+            GeometryReader { proxy in
+                #if os(tvOS)
+                let metrics = LiveTVGuideMetrics.tv
+                #else
+                let metrics = LiveTVGuideMetrics.forWidth(proxy.size.width)
+                #endif
+                let timeline = LiveTVGuideTimeline(
+                    window: viewModel.displayWindow,
+                    pointsPerMinute: metrics.pointsPerMinute
+                )
+                let sections = guideSections(timeline: timeline, now: context.date)
+                #if os(tvOS)
+                LiveTVGuideTVGrid(
+                    width: proxy.size.width,
+                    sections: sections,
+                    timeline: timeline,
+                    now: context.date,
+                    showsInfoPanel: Self.showsInfoPanel,
+                    imageURL: viewModel.imageURL(for:),
+                    cursor: $tvCursor,
+                    select: select,
+                    showDetails: { selectedProgram = $0 },
+                    corner: { dayMenu(timeline: timeline) }
+                )
+                #else
+                LiveTVGuideGrid(
+                    sections: sections,
+                    timeline: timeline,
+                    now: context.date,
+                    metrics: metrics,
+                    imageURL: viewModel.imageURL(for:),
+                    position: $gridPosition,
+                    scrollY: $gridScrollY,
+                    select: select,
+                    showDetails: { selectedProgram = $0 },
+                    playChannel: { channel, lineup in play(channel: channel, program: nil, lineup: lineup) }
+                )
+                #endif
             }
-            .padding(.horizontal)
-            .padding(.bottom, 36)
         }
-        .scrollIndicators(.hidden)
-    }
-
-    private var datePicker: some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: 10) {
-                ForEach(viewModel.dayOffsetOptions, id: \.self) { dayOffset in
-                    dayButton(dayOffset)
-                }
+        #if !os(tvOS)
+        .toolbar {
+            ToolbarItemGroup(placement: .topBarTrailing) {
+                Button("Now") { jumpToNow() }
+                dayMenu
             }
-            #if os(tvOS)
-            // Room for the focused pill to lift without being clipped.
-            .padding(.vertical, 12)
-            #endif
         }
-        .scrollIndicators(.hidden)
-        #if os(tvOS)
-        .scrollClipDisabled()
         #endif
     }
 
-    @ViewBuilder
-    private func dayButton(_ dayOffset: Int) -> some View {
-        let isSelected = dayOffset == viewModel.selectedDayOffset
-        #if os(tvOS)
-        // System glass: dark platter that lifts to white on focus. The picked
-        // day carries a checkmark instead of a fill, which would fight the
-        // focus state (STYLE.md: no tint for UI state).
-        Button {
-            Task { await viewModel.selectDayOffset(dayOffset) }
-        } label: {
-            if isSelected {
-                Label(dayLabel(dayOffset), systemImage: "checkmark")
-            } else {
-                Text(dayLabel(dayOffset))
-            }
+    private func guideSections(timeline: LiveTVGuideTimeline, now: Date) -> [LiveTVGuideSection] {
+        var sections: [LiveTVGuideSection] = []
+        if let lineup = viewModel.lineup {
+            sections.append(LiveTVGuideSection(
+                id: "plex", title: lineup.provider.title, lineup: lineup, timeline: timeline, now: now
+            ))
         }
+        // Each IPTV source is its own section after the Plex channels,
+        // headed by the name it was given in Settings.
+        for iptv in viewModel.iptvLineups {
+            sections.append(LiveTVGuideSection(
+                id: "iptv-\(iptv.source.id)", title: iptv.source.name, lineup: iptv.lineup, timeline: timeline, now: now
+            ))
+        }
+        return sections
+    }
+
+    /// Live plays; later shows the details. A gap (no guide data) tunes the
+    /// channel: a guide is optional, the channel always plays (issue #17).
+    private func select(_ cell: LiveTVGuideCell, row: LiveTVGuideRow, lineup: PlexLiveTVLineup) {
+        let now = Date.now
+        if let program = cell.program, !cell.isAiring(at: now), cell.start > now {
+            selectedProgram = program
+        } else {
+            play(channel: row.channel, program: cell.program, lineup: lineup)
+        }
+    }
+
+    private var dayBinding: Binding<Int> {
+        Binding(
+            get: { viewModel.selectedDayOffset },
+            set: { offset in
+                Task {
+                    await viewModel.selectDayOffset(offset)
+                    resetScroll()
+                }
+            }
+        )
+    }
+
+    private func jumpToNow() {
+        if viewModel.selectedDayOffset != 0 {
+            dayBinding.wrappedValue = 0
+        } else {
+            resetScroll()
+        }
+    }
+
+    private func resetScroll() {
+        #if os(tvOS)
+        let timeline = LiveTVGuideTimeline(window: viewModel.displayWindow, pointsPerMinute: LiveTVGuideMetrics.tv.pointsPerMinute)
+        withAnimation(.smooth(duration: 0.35)) { tvCursor.jumpToNow(.now, timeline: timeline) }
+        #else
+        withAnimation(.smooth) { gridPosition.scrollTo(point: CGPoint(x: 0, y: gridScrollY)) }
+        #endif
+    }
+
+    #if os(tvOS)
+    /// The corner above the channel column: the day, as a native glass menu
+    /// (Up from the first channel lands here). Play/Pause anywhere in the
+    /// grid also jumps back to now.
+    private func dayMenu(timeline: LiveTVGuideTimeline) -> some View {
+        Menu {
+            Button("Now", systemImage: "clock.arrow.circlepath") { jumpToNow() }
+            Section {
+                ForEach(viewModel.dayOffsetOptions, id: \.self) { offset in
+                    Button {
+                        dayBinding.wrappedValue = offset
+                    } label: {
+                        if offset == viewModel.selectedDayOffset {
+                            Label(dayLabel(offset), systemImage: "checkmark")
+                        } else {
+                            Text(dayLabel(offset))
+                        }
+                    }
+                }
+            }
+        } label: {
+            Label(dayLabel(viewModel.selectedDayOffset), systemImage: "calendar")
+                .font(DuskFont.TV.buttonLabel)
+        }
+        .menuStyle(.button)
         .buttonStyle(.glass)
         .buttonBorderShape(.capsule)
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-        #else
-        Button {
-            Task { await viewModel.selectDayOffset(dayOffset) }
-        } label: {
-            Text(dayLabel(dayOffset))
-                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
-                .foregroundStyle(isSelected ? Color.duskBackground : Color.duskTextPrimary)
-                .padding(.horizontal, 18)
-                .frame(height: 42)
-                .background(isSelected ? Color.duskTextPrimary : Color.duskSurface)
-                .clipShape(Capsule())
-        }
-        .buttonStyle(.plain)
-        #endif
     }
 
-    @ViewBuilder
-    private func channelRows(_ lineup: PlexLiveTVLineup) -> some View {
-        let imageURL = viewModel.imageURL(for: lineup)
-        ForEach(lineup.guides) { guide in
-            LiveTVChannelGuideRow(
-                guide: guide,
-                imageURL: imageURL,
-                selectProgram: { selectedProgram = $0 },
-                play: { play(channel: guide.channel, program: $0, lineup: lineup) }
-            )
+    /// Direction A (`NO`) is the grid alone; direction B (the default) adds
+    /// the focused programme's details above it.
+    /// `defaults write com.dusk-player.app DuskLiveTVGuideInfoPanel -bool NO`
+    /// or `-DuskLiveTVGuideInfoPanel NO` at launch.
+    private static var showsInfoPanel: Bool {
+        UserDefaults.standard.object(forKey: "DuskLiveTVGuideInfoPanel") == nil
+            || UserDefaults.standard.bool(forKey: "DuskLiveTVGuideInfoPanel")
+    }
+    #else
+    private var dayMenu: some View {
+        Menu {
+            Picker("Day", selection: dayBinding) {
+                ForEach(viewModel.dayOffsetOptions, id: \.self) { offset in
+                    Text(dayLabel(offset)).tag(offset)
+                }
+            }
+        } label: {
+            Label(dayLabel(viewModel.selectedDayOffset), systemImage: "calendar")
         }
     }
+    #endif
 
     /// A channel is always tunable; the program only labels the session and
     /// is dropped unless it is on now. Guide data is optional (issue #17).
@@ -199,230 +280,11 @@ struct LiveTVRootContent: View {
     }
 
     private func dayLabel(_ dayOffset: Int) -> String {
-        if dayOffset == 0 { return "Now" }
+        if dayOffset == 0 { return "Today" }
         if dayOffset == 1 { return "Tomorrow" }
         let calendar = Calendar.current
         let date = calendar.date(byAdding: .day, value: dayOffset, to: calendar.startOfDay(for: .now)) ?? .now
         return date.formatted(.dateTime.weekday(.abbreviated).day())
-    }
-}
-
-struct LiveTVChannelGuideRow: View {
-    let guide: PlexLiveChannelGuide
-    let imageURL: (String?, Int, Int) -> URL?
-    let selectProgram: (PlexLiveProgram) -> Void
-    let play: (PlexLiveProgram?) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                channelLogo
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(guide.channel.displayTitle)
-                        .font(DuskFont.rowTitle(ios: .headline))
-                        .foregroundStyle(Color.duskTextPrimary)
-                        .lineLimit(1)
-                    if let number = guide.channel.displayNumber {
-                        Text(number)
-                            .font(DuskFont.caption(ios: .subheadline))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-
-                Spacer()
-
-                #if !os(tvOS)
-                Button {
-                    play(guide.currentProgram())
-                } label: {
-                    Label("Watch", systemImage: "play.fill")
-                        .foregroundStyle(Color.duskPrimaryActionLabel)
-                }
-                .detailHeroNativePrimaryButtonStyle()
-                #endif
-            }
-
-            #if os(tvOS)
-            tvProgramsRow
-            #else
-            programsRow
-            #endif
-        }
-    }
-
-    #if os(tvOS)
-    /// On tvOS the channel itself leads the row as a card. A Watch button in
-    /// the header sat off to the right, above nothing, so the focus engine
-    /// never reached it and the only thing Select could do was open a
-    /// program's details (issue #17). Leading the row, it is where focus
-    /// lands coming down the guide, and Left from any program gets there.
-    private var tvProgramsRow: some View {
-        ScrollView(.horizontal) {
-            LazyHStack(spacing: 40) {
-                Button {
-                    play(guide.currentProgram())
-                } label: {
-                    LiveTVChannelWatchCard(
-                        channel: guide.channel,
-                        currentProgram: guide.currentProgram(),
-                        logoURL: imageURL(guide.channel.thumb, 256, 256)
-                    )
-                }
-                .liveTVCardButtonStyle()
-                .accessibilityLabel("Watch \(guide.channel.displayTitle) live")
-
-                ForEach(guide.programs) { program in
-                    programButton(program)
-                }
-            }
-            // Room for the system card lift.
-            .padding(.vertical, 24)
-        }
-        .scrollIndicators(.hidden)
-        .scrollClipDisabled()
-        .focusSection()
-    }
-    #endif
-
-    @ViewBuilder
-    private var programsRow: some View {
-        if guide.programs.isEmpty {
-            // Still a card, not a caption: the channel tunes without a
-            // guide.
-            Button {
-                play(nil)
-            } label: {
-                LiveTVProgramCard(
-                    program: nil,
-                    imageURL: nil,
-                    channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
-                )
-            }
-            .liveTVCardButtonStyle()
-        } else {
-            ScrollView(.horizontal) {
-                LazyHStack(spacing: 12) {
-                    ForEach(guide.programs) { program in
-                        programButton(program)
-                    }
-                }
-            }
-            .scrollIndicators(.hidden)
-        }
-    }
-
-    private func programButton(_ program: PlexLiveProgram) -> some View {
-        Button {
-            selectProgram(program)
-        } label: {
-            LiveTVProgramCard(
-                program: program,
-                imageURL: imageURL(program.preferredLandscapePath, 480, 270),
-                channelLogoURL: imageURL(guide.channel.thumb, 256, 256)
-            )
-        }
-        .liveTVCardButtonStyle()
-    }
-
-    private var channelLogo: some View {
-        Group {
-            if let url = imageURL(guide.channel.thumb, 128, 128) {
-                DuskAsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
-                        image.resizable().scaledToFit()
-                    } else {
-                        channelPlaceholder
-                    }
-                }
-            } else {
-                channelPlaceholder
-            }
-        }
-        .frame(width: 52, height: 52)
-        .padding(6)
-        .background(Color.duskSurface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-    }
-
-    private var channelPlaceholder: some View {
-        Image(systemName: "antenna.radiowaves.left.and.right")
-            .foregroundStyle(Color.duskTextSecondary)
-    }
-}
-
-#if os(tvOS)
-/// The channel as a card: its logo, what is on, and a play glyph, so it reads
-/// as "watch this channel" rather than as another program.
-private struct LiveTVChannelWatchCard: View {
-    @Environment(\.isFocused) private var isFocused
-    let channel: PlexLiveChannel
-    let currentProgram: PlexLiveProgram?
-    let logoURL: URL?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top) {
-                logo
-                Spacer()
-                Image(systemName: "play.fill")
-                    .font(DuskFont.glyphLarge(ios: .title2))
-            }
-            Spacer(minLength: 0)
-            Text("Watch Live")
-                .font(DuskFont.cardTitle(ios: .subheadline.weight(.semibold)))
-                .lineLimit(1)
-            Text(currentProgram?.primaryDisplayTitle ?? "No program information")
-                .font(DuskFont.cardSubtitle(ios: .caption))
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-        }
-        .foregroundStyle(Color.duskTextPrimary)
-        .padding(20)
-        .frame(width: LiveTVProgramCard.cardWidth, height: LiveTVProgramCard.cardHeight, alignment: .topLeading)
-        .background(LiveTVProgramCard.platter(isFocused: isFocused))
-        .clipShape(RoundedRectangle(cornerRadius: LiveTVProgramCard.cornerRadius, style: .continuous))
-    }
-
-    private var logo: some View {
-        Group {
-            if let logoURL {
-                DuskAsyncImage(url: logoURL) { phase in
-                    if case .success(let image) = phase {
-                        image.resizable().scaledToFit()
-                    } else {
-                        placeholder
-                    }
-                }
-            } else {
-                placeholder
-            }
-        }
-        .frame(width: 96, height: 72, alignment: .leading)
-    }
-
-    private var placeholder: some View {
-        Image(systemName: "antenna.radiowaves.left.and.right")
-            .font(DuskFont.glyphLarge(ios: .title2))
-            .foregroundStyle(Color.duskTextSecondary)
-    }
-}
-#endif
-
-private extension View {
-    /// tvOS: the system card, which lifts, scales and highlights the focused
-    /// guide card like any poster in the app. A plain style with a custom
-    /// effect left the focused card barely distinguishable (issue #17). No
-    /// `.hoverEffect` on top: the card style already is that effect.
-    @ViewBuilder
-    func liveTVCardButtonStyle() -> some View {
-        #if os(tvOS)
-        self
-            .buttonStyle(.card)
-            .buttonBorderShape(.roundedRectangle(radius: LiveTVProgramCard.cornerRadius))
-        #else
-        self.buttonStyle(.plain)
-        #endif
     }
 }
 
@@ -550,7 +412,7 @@ struct LiveTVProgramCard: View {
     private var cardHeight: CGFloat { Self.cardHeight }
 }
 
-private struct LiveTVProgramDetails: View {
+struct LiveTVProgramDetails: View {
     @Environment(\.dismiss) private var dismiss
     #if os(tvOS)
     /// Watch Live is where Select should go first; the sheet otherwise opens

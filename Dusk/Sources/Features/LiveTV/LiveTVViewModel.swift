@@ -40,7 +40,7 @@ final class LiveTVViewModel {
     /// Plex lineup. Read live so "Now" drops ended programmes as time passes.
     var iptvLineups: [IPTVSourceLineup] {
         guard let iptvService else { return [] }
-        let window = LiveTVGuideWindow.forDayOffset(selectedDayOffset)
+        let window = Self.displayWindow(forDayOffset: selectedDayOffset)
         return iptvService.lineups.map { loaded in
             IPTVSourceLineup(
                 source: loaded.source,
@@ -189,7 +189,7 @@ final class LiveTVViewModel {
 
     private func fetchGuide(refreshChannels: Bool) async {
         let dayOffset = selectedDayOffset
-        let window = LiveTVGuideWindow.forDayOffset(dayOffset)
+        let window = Self.displayWindow(forDayOffset: dayOffset)
         do {
             guard let provider = try await resolveProvider() else {
                 lineup = nil
@@ -220,7 +220,10 @@ final class LiveTVViewModel {
     /// Drops what has ended from the "Now" guide without a refetch.
     private func trimToWindow(now: Date) {
         guard selectedDayOffset == 0, let fetchedLineup else { return }
-        let window = LiveTVGuideWindow(start: now, end: loadedWindow?.end ?? now.addingTimeInterval(LiveTVGuideWindow.lookahead))
+        let window = LiveTVGuideWindow(
+            start: Self.gridStart(now: now),
+            end: loadedWindow?.end ?? now.addingTimeInterval(LiveTVGuideWindow.lookahead)
+        )
         let trimmed = fetchedLineup.restricted(to: window)
         if trimmed != lineup { lineup = trimmed }
     }
@@ -273,6 +276,27 @@ final class LiveTVViewModel {
             height: height
         )
     }
+
+    /// The stretch the grid shows for a day offset. "Now" starts on a half
+    /// hour before now rather than at now, so the grid's ruler opens on a
+    /// round time and what ended a few minutes ago still fills the dimmed
+    /// past instead of leaving a hole.
+    static func displayWindow(forDayOffset dayOffset: Int, now: Date = .now) -> LiveTVGuideWindow {
+        let window = LiveTVGuideWindow.forDayOffset(dayOffset, now: now)
+        guard dayOffset == 0 else { return window }
+        return LiveTVGuideWindow(start: gridStart(now: window.start), end: window.end)
+    }
+
+    /// The half hour at least `gridLeadIn` before now: at 17:00 sharp the grid
+    /// opened on the now line itself, with nothing of the programme on now.
+    static func gridStart(now: Date) -> Date {
+        LiveTVGuideTimeline.floorToTick(now.addingTimeInterval(-gridLeadIn))
+    }
+
+    static let gridLeadIn: TimeInterval = 10 * 60
+
+    /// The window shown right now.
+    var displayWindow: LiveTVGuideWindow { Self.displayWindow(forDayOffset: selectedDayOffset) }
 
     /// "Now" plus the next week. No past days: Plex's grid drops airings that
     /// have ended, so yesterday only ever came back empty.

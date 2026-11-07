@@ -37,6 +37,8 @@ enum ScreenshotMode {
         static let iptvName = "DuskScreenshotIPTVName"
         static let iptvHeaderValue = "DuskScreenshotIPTVHeaderValue"
         static let iptvChannel = "DuskScreenshotIPTVChannel"
+        static let guideMoves = "DuskScreenshotGuideMoves"
+        static let guideOffset = "DuskScreenshotGuideOffsetMinutes"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -91,6 +93,20 @@ enum ScreenshotMode {
     /// iptvPlayer`, plays the n-th channel of the first IPTV source.
     static var iptvChannelIndex: Int {
         defaults.integer(forKey: Key.iptvChannel)
+    }
+
+    /// `-DuskScreenshotGuideMoves "down,down,right"`: remote presses the tvOS
+    /// grid guide replays once it has loaded (focus starts on the first row).
+    static var guideMoves: [String]? {
+        guard isActive, let value = defaults.string(forKey: Key.guideMoves)?.nilIfEmpty else { return nil }
+        return value.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
+    }
+
+    /// `-DuskScreenshotGuideOffsetMinutes 120`: the iOS grid guide opens
+    /// scrolled that far forward in time.
+    static var guideOffsetMinutes: Int? {
+        guard isActive, defaults.object(forKey: Key.guideOffset) != nil else { return nil }
+        return defaults.integer(forKey: Key.guideOffset)
     }
 
     /// Keeps the player HUD on screen instead of auto-hiding it.

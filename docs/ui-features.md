@@ -1074,10 +1074,28 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - `MainTabView` owns one shared `LiveTVViewModel` for availability, the tab,
   `MoreView`, and the Home shelf. Do not discover providers independently per
   surface.
-- `LiveTVView` offers yesterday through seven days ahead, channel/program
-  artwork, current-program progress, schedule details, and Watch actions only
-  for currently airing programs. Past entries remain inspectable but are not
-  presented as recordings.
+- `LiveTVView` is a grid guide (prototype on branch `tv-guide-grid`): rows are
+  channels, columns are time, programmes are blocks as wide as their airtime, all
+  rows on one shared timeline (`LiveTVGuideTimeline`, half-hour ruler, starting on
+  the half hour at least 10 min before now). Layout model in
+  `LiveTVGuideGridModel.swift` (cells incl. "no information" gaps, which still
+  tune), views in `LiveTVGuideGridView.swift`. Plex and every IPTV source are just
+  sections of `PlexLiveTVLineup`, so they share the grid.
+- iOS/iPadOS: one `ScrollView([.horizontal, .vertical])`; the ruler is the pinned
+  section header, the channel column and ruler corner pin with `visualEffect`
+  (render time, no scroll lag), titles stick to the visible edge. Toolbar: Now +
+  day menu. `scrollTo(x:)` resets y, so jumps use `scrollTo(point:)` with the
+  tracked y. Tap live = play, later = details sheet; tap channel = tune.
+- tvOS: rows are full-width focusable buttons, so Up/Down is native focus (and
+  native vertical scroll); the time position + horizontal offset are app state
+  (`LiveTVGuideCursor`), Left/Right via `onMoveCommand` step programmes and
+  scroll in half-hour steps. Up/Down keeps the time. Select: live plays, later
+  opens details; long-press: Watch Live / Details / Jump to Now; Play/Pause jumps
+  to now; the corner is the day menu. Info panel above the grid is on by default
+  (`DuskLiveTVGuideInfoPanel` = NO for the grid-only variant). Do not let the
+  focus engine pick programmes itself: it picks the nearest block centre and
+  drifts. Sizes the viewport from the caller's safe-area width (its own geometry
+  reported the full screen).
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.
