@@ -1642,8 +1642,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   reports possible (`pendingPictureInPictureStart`). The mode persists for
   the rest of the session — switching back would be another visible reload —
   and is torn down on `load`/`stop`/`configureVideoEnhancement`. Costs while
-  active: vmem software rendering plus the per-frame BGRA channel swap, i.e.
-  the same class of overhead as Video Enhancement; HDR content is rendered
+  active: vmem software rendering, the opt-in late-subtitle-blend resize and
+  the per-frame BGRA channel swap. Ordinary enhancement avoids that resize;
+  HDR content is rendered
   through the 8-bit conversion without libvlc's GL tone mapping, so it can
   look flatter in this mode.
 - With Video Enhancement already on, the tap and output are already live and
@@ -1731,27 +1732,45 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     the rest of that item, including subtitle Off, to avoid repeated reloads.
     This policy does not change iOS; AVPlayer still reveals its native layer
     while captions are selected. HDR/DV never gets this renderer handoff.
-  - VLCKit supports enhancement with embedded text/ASS/bitmap and mounted
-    sidecar subtitles. libVLC 3's `vmem` output CPU-blends SPU subtitles into
-    the pixels before `DuskVLCRawVideoOutput` forwards them to Metal (see the
-    [callback API contract](https://videolan.videolan.me/vlc-3.0/group__libvlc__media__player.html)).
-    The format callback requests **one pixel more on each axis** than the
-    decoder's coded buffer. This deliberately makes the output area larger:
-    libvlc 3's `ThreadDisplayRenderPicture` then blends **after** conversion
-    into writable RGBA. With a same-size output it instead tries early blending
-    into the source; opaque VideoToolbox/CVPX frames cannot be CPU-blended, and
-    VLC discards the subtitle before the RGBA conversion. Software decoding in
-    the simulator hides this device failure. The size adjustment is a minimal
-    rescale, not a border; pool, pitch, fallback and Metal input geometry must
-    all use the negotiated size. Hardware decoding stays enabled and Metal
-    still does the display-sized upscale. This also covers the raw sample-buffer
-    PiP path; the native VLC drawable is untouched. Keep the composited pixels
-    intact; no separate overlay or Plex burn-in is needed. See
-    [VLC 3 composition order](https://github.com/videolan/vlc/blob/3.0.x/src/video_output/video_output.c).
-    `PGSRenderingTests` checks embedded PGS and text, Off and reselection after
-    seeking with this late-blend path. A selected Forced track contains only
-    that track's cues (usually foreign dialogue/signs), not all dialogue;
-    it is not a rendering failure when ordinary dialogue has no cue there.
+    This existing SDR engine-routing policy is retained, but its VLC renderer
+    now falls back to native output as described below.
+  - VLCKit enhancement keeps the decoder's coded dimensions unchanged. When
+    an embedded or mounted sidecar subtitle is requested or observed (including
+    automatic/default/forced selections), `VLCKitEngine` switches once to the
+    **native VLC drawable for the rest of that item**, including subsequent
+    subtitle Off. Playback Info reports `Native VLC renderer retained for
+    subtitle playback until this item ends`. This sacrifices Metal enhancement
+    for reliable captions and native output performance. A new item resets the
+    fallback. Merely containing subtitle tracks does not activate it.
+    The in-place reopen retains the live/pending-seek clock, audio selection,
+    subtitle intent/slaves, paused state and existing playback attempt/session.
+    It can briefly rebuffer. Media-level `:vout=vout_ios2` overrides the
+    player-level `vmem` preference left by registered callbacks; detaching the
+    callback consumer alone does **not** restore native output. Fresh enhanced
+    inputs explicitly select `:vout=vmem`.
+  - Why: libVLC 3's same-size `vmem` path tries to blend SPU into opaque
+    VideoToolbox/CVPX pictures before converting to writable RGBA, losing cues.
+    f84a60c negotiated +1 pixel on both axes to force late blending. That also
+    forced full-frame scaling/conversion **on every frame, even with subtitles
+    Off**, before the Metal upscale. The raw path already required writable
+    RGBA/copies before that commit; neither path was zero-copy. The regression
+    does not demonstrate that hardware decoding itself was disabled. See
+    [composition order](https://github.com/videolan/vlc/blob/3.0.x/src/video_output/video_output.c),
+    [CVPX converter's same-size restriction](https://github.com/videolan/vlc/blob/3.0.x/modules/video_chroma/cvpx.c)
+    and [software scaler](https://github.com/videolan/vlc/blob/3.0.x/modules/video_chroma/swscale.c).
+    Gating that resize only on track selection would still burden every frame
+    during dialogue; cue-by-cue switching would repeatedly reopen the output.
+    A separate overlay needs a VLC subpicture API/output plugin beyond the raw
+    video callback API. Native output is the conservative fallback.
+  - Only explicit iOS sample-buffer **PiP support mode** opts into
+    `requiresLateSubtitleBlending` (+1 on both axes): it has no native VLC
+    drawable and needs composited captions. This exception retains the CPU cost
+    of the previous implementation. Ordinary playback never enables it.
+    `PGSRenderingTests` covers this opt-in with embedded PGS/text, Off and
+    reselection after seek, original coded geometry with subtitles Off, and
+    native fallback continuity/reset while playing and paused. Forced tracks
+    contain only their own cues, often foreign dialogue/signs, rather than all
+    dialogue.
   - AVPlayer's `AVPlayerItemVideoOutput` excludes native captions. While a
     legible option is selected, `AVPlayerEngine` removes the Metal view to
     reveal the existing `AVPlayerLayer` and skips enhancement frame submission.

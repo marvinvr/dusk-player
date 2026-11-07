@@ -16,6 +16,9 @@ NS_ASSUME_NONNULL_BEGIN
 @interface DuskVLCRawVideoOutput : NSObject
 
 @property (nonatomic, readonly) BOOL isAttached;
+/// Opt-in for sample-buffer PiP with captions. Adds a full-frame resize to
+/// force late SPU blending; never enable for ordinary Metal enhancement.
+@property (nonatomic) BOOL requiresLateSubtitleBlending;
 
 - (instancetype)initWithFrameConsumer:(id<DuskVLCVideoFrameConsumer>)frameConsumer NS_DESIGNATED_INITIALIZER;
 - (instancetype)init NS_UNAVAILABLE;

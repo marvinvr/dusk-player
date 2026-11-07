@@ -218,23 +218,18 @@ static unsigned DuskVLCSetupVideoFormat(
         return 0;
     }
 
-    // libvlc 3.0.x ThreadDisplayRenderPicture chooses early SPU blending when
-    // the output area is <= the decoded area. VideoToolbox supplies opaque
-    // CVPX pictures: the CPU blender cannot write them, and the core discards
-    // the SPU before converting to our RGBA output. Software-decoded simulator
-    // pictures hide this failure (both PGS and text are affected on device).
-    //
-    // A minimally larger output forces late blending, AFTER CVPX -> RGBA,
-    // with the existing vmem API. Grow both axes to also cover rotated video.
-    // This is a one-pixel rescale, not a border; keep the negotiated geometry
-    // consistent throughout the pool, pitch and fallback allocation. Do not
-    // disable hardware decoding or enlarge this to the display's resolution:
-    // the actual upscale belongs to Metal. Native VLC output is unaffected.
-    if (*width == UINT_MAX || *height == UINT_MAX) {
-        return 0;
+    // Only sample-buffer PiP needs CPU-composited captions. Increasing the
+    // dimensions forces late SPU blending, but also defeats same-size chroma
+    // conversion and inserts a full-frame software resize on EVERY frame,
+    // even with subtitles Off. Ordinary enhancement keeps decoder geometry;
+    // the engine switches to VLC's native drawable when captions are selected.
+    if (output.requiresLateSubtitleBlending) {
+        if (*width == UINT_MAX || *height == UINT_MAX) {
+            return 0;
+        }
+        *width += 1;
+        *height += 1;
     }
-    *width += 1;
-    *height += 1;
 
     CVPixelBufferPoolRef pool = NULL;
     size_t pitch = 0;
@@ -331,8 +326,7 @@ static void DuskVLCUnlockVideo(void *opaque, void *picture, void *const *planes)
 
 static void DuskVLCDisplayVideo(void *opaque, void *picture)
 {
-    // The format callback forces late SPU blending into the RGBA picture.
-    // Forward the composited pixels intact to enhancement and sample-buffer PiP.
+    // Forward pixels intact. Only the opt-in PiP path forces late SPU blending.
     if (picture == NULL) {
         return;
     }

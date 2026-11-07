@@ -213,6 +213,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var failedAudioDecoderTrackID: Int?
     private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = []
     var videoEnhancementStatus: VideoEnhancementStatus {
+        if usesNativeSubtitleOutput {
+            return VideoEnhancementStatus(
+                state: .disabled,
+                reason: "Native VLC renderer retained for subtitle playback until this item ends"
+            )
+        }
         if let videoEnhancementRenderer {
             return videoEnhancementRenderer.status
         }
@@ -371,6 +377,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var loadValidationTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var videoRefreshTask: Task<Void, Never>?
     @ObservationIgnored private var needsVideoRefreshOnPlay = false
+    /// Sticky until the next item: vmem cannot export SPU separately and its
+    /// late-blend workaround resizes every frame on the CPU.
+    private var usesNativeSubtitleOutput = false
+    private var pauseAfterSubtitleOutputReopen = false
     @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
@@ -492,6 +502,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         tearDownPictureInPictureSupportModeIfNeeded()
         #endif
         rawVideoOutput?.detach()
+        if usesNativeSubtitleOutput {
+            configureVideoEnhancement(videoEnhancementRequest)
+            playerViewGeneration += 1
+        }
+        pauseAfterSubtitleOutputReopen = false
         currentAttemptContext = source.context
         currentSource = source
         state = .loading
@@ -554,6 +569,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #if os(iOS)
         tearDownPictureInPictureSupportModeIfNeeded()
         #endif
+        usesNativeSubtitleOutput = false
         videoEnhancementRequest = request
         videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
 
@@ -580,6 +596,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func play() {
+        pauseAfterSubtitleOutputReopen = false
         guard coordinatedItemIdentifier == nil else {
             delegatingPlaybackCoordinator.coordinateRateChange(to: 1, options: [])
             return
@@ -727,6 +744,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     func stop() {
+        pauseAfterSubtitleOutputReopen = false
         loadValidationTask?.cancel()
         loadValidationTask = nil
         videoRefreshTask?.cancel()
@@ -813,6 +831,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         rawVideoFrameSink = frameSink
         rawVideoOutput?.detach()
         rawVideoOutput = DuskVLCRawVideoOutput(frameConsumer: frameSink)
+        // PiP has no native VLC drawable. Its explicit pipeline swap is the
+        // sole remaining user of the more expensive composited-frame path.
+        rawVideoOutput?.requiresLateSubtitleBlending = true
         configureEnhancedPictureInPicture(frameSink: frameSink)
         // The sample-buffer layer is the visible surface in this mode, so the
         // intake must run at full rate even while the floating window is closed.
@@ -1006,6 +1027,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func reconcileSubtitleSelection() {
         guard state == .playing || state == .paused else { return }
         let currentIndex = mediaPlayer.currentVideoSubTitleIndex
+        // Observe automatic/default/forced selections as well as picker intent.
+        // An explicit Off request wins over a stale observed selection.
+        if useNativeOutputForSubtitlesIfNeeded(index: requestedSubtitleIndex ?? currentIndex) {
+            return
+        }
         guard let requestedSubtitleIndex, currentIndex != requestedSubtitleIndex,
               pendingSeekTarget == nil,
               (pendingStartPosition ?? 0) <= 0 || hasAppliedStartPosition else { return }
@@ -1033,6 +1059,33 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         if subtitleSelectionAttempts == 5 {
             vlcKitEngineLogger.notice("VLCKit subtitle selection retry limit reached; continuing to observe selection")
         }
+    }
+
+    /// Reopen once at the live clock, retaining audio, SPU/slaves and session
+    /// identity through the existing recovery flow. A media-level vout option
+    /// overrides libvlc_video_set_callbacks' player-level vmem preference; just
+    /// detaching callbacks would leave vmem installed with no visible output.
+    private func useNativeOutputForSubtitlesIfNeeded(index: Int32) -> Bool {
+        guard index >= 0, videoEnhancementRenderer != nil, !usesNativeSubtitleOutput else { return false }
+        #if os(iOS)
+        guard !isPipSupportModeActive else { return false }
+        #endif
+        requestedSubtitleIndex = index
+        pauseAfterSubtitleOutputReopen = state == .paused
+        usesNativeSubtitleOutput = true
+        rawVideoOutput?.detach()
+        rawVideoOutput = nil
+        rawVideoFrameSink = nil
+        videoEnhancementRenderer?.clear()
+        videoEnhancementRenderer = nil
+        #if os(iOS)
+        teardownEnhancedPictureInPicture()
+        #endif
+        renderingHost.attach(to: mediaPlayer, engine: self)
+        playerViewGeneration += 1
+        vlcKitEngineLogger.notice("VLCKit switching to native subtitle output for the rest of this item")
+        recoverFromStall()
+        return true
     }
 
     // MARK: - External subtitles
@@ -1424,6 +1477,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             state = isAudioWarmupMasking ? .loading : .playing
 
             refreshTracks()
+            if pauseAfterSubtitleOutputReopen, usesNativeSubtitleOutput, state == .playing {
+                pauseAfterSubtitleOutputReopen = false
+                pauseLocally()
+            }
 
         case .paused:
             isBuffering = false
@@ -1818,6 +1875,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
 
     private func recoveryStartPosition(for source: PlaybackSource) -> TimeInterval {
+        // A renderer swap can arrive while a user seek is still in flight.
+        if let pendingSeekTarget { return max(0, pendingSeekTarget) }
         let observed = observedPlayerTime
         let fallback = source.startPosition ?? 0
         return max(0, observed.isFinite && observed > 0 ? observed : max(currentTime, fallback))
@@ -1827,6 +1886,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
         let media = VLCMedia(url: source.url)
+        // A previous input may have registered raw callbacks on this player.
+        // Select output per input; callbacks remain safely registered but are
+        // never invoked by the native renderer.
+        media.addOption(rawVideoOutput == nil ? ":vout=vout_ios2" : ":vout=vmem")
 
         #if os(tvOS)
         // "Original" (AOUT_VAR_CHAN_UNSET) in libvlc 3.x is 0. Every other value

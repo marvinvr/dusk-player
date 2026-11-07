@@ -97,7 +97,7 @@ struct VideoEnhancementRequest: Sendable, Equatable {
     }
 
     /// AVPlayer captions live on its native layer, outside the video output.
-    /// libVLC's vmem output instead blends subtitles into the delivered pixels.
+    /// VLC handles its sticky native-output fallback at the engine boundary.
     func nativeSubtitleRenderingStatus(
         engine: PlaybackEngineType,
         hasSelectedSubtitle: Bool
