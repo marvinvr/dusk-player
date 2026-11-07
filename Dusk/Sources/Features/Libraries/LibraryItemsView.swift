@@ -104,6 +104,11 @@ struct LibraryItemsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     if viewModel.showsBrowseControls {
                         browseControls
+                            #if os(tvOS)
+                            // A focused chip's lift and glow draw over the
+                            // first poster row, not under it.
+                            .zIndex(1)
+                            #endif
                     }
 
                     if viewModel.hasEarlierItems, !viewModel.items.isEmpty {
@@ -266,7 +271,7 @@ struct LibraryItemsView: View {
 
     private var browseControls: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
+            HStack(spacing: browseControlSpacing) {
                 #if os(iOS)
                 // First on iPhone, where the row scrolls: it switches what the
                 // screen lists rather than filtering it. tvOS keeps links after
@@ -304,13 +309,32 @@ struct LibraryItemsView: View {
                 }
             }
             .padding(.horizontal, horizontalPadding)
+            #if os(tvOS)
+            // Room for the focus lift, so the focused chip neither overlaps
+            // its neighbours nor gets cut off at the row's edges (#43).
+            .padding(.vertical, 18)
+            #else
             .padding(.top, 8)
             .padding(.bottom, 4)
+            #endif
         }
         #if os(tvOS)
+        // The scroll view's bounds would otherwise slice the focused chip's
+        // scale and glow into hard lines above and below the row.
+        .scrollClipDisabled()
         // So Up from any poster in the first row can reach a chip, not only
         // from the poster that happens to sit under one.
         .focusSection()
+        #endif
+    }
+
+    /// The tvOS focus effect grows a chip by about a quarter, so chips there
+    /// need a gap the lift cannot cover (a long genre name included).
+    private var browseControlSpacing: CGFloat {
+        #if os(tvOS)
+        40
+        #else
+        10
         #endif
     }
 
