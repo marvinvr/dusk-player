@@ -1,4 +1,5 @@
 import Foundation
+import Network
 
 /// A Plex Media Server returned from `GET https://plex.tv/api/v2/resources`.
 struct PlexServer: Codable, Sendable, Identifiable {
@@ -191,20 +192,26 @@ struct PlexConnection: Codable, Sendable, Hashable {
         let normalized = address
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
             .lowercased()
-        let octets = normalized.split(separator: ".", omittingEmptySubsequences: false).compactMap { Int($0) }
-        if octets.count == 4 {
-            switch (octets[0], octets[1]) {
+        if let address = IPv4Address(normalized) {
+            let bytes = Array(address.rawValue)
+            switch (bytes[0], bytes[1]) {
             case (10, _), (127, _), (192, 168), (169, 254): return true
             case (172, 16...31): return true
             default: return false
             }
         }
-        guard normalized.contains(":") else { return false }
-        return normalized == "::1" || normalized.hasPrefix("fc") || normalized.hasPrefix("fd")
+        guard let address = IPv6Address(normalized) else { return false }
+        let bytes = Array(address.rawValue)
+        if bytes.prefix(10).allSatisfy({ $0 == 0 }), bytes[10] == 255, bytes[11] == 255 {
+            return isPrivateAddress(bytes.suffix(4).map(String.init).joined(separator: "."))
+        }
+        return (bytes.dropLast().allSatisfy { $0 == 0 } && bytes.last == 1)
+            || bytes[0] & 0xfe == 0xfc
+            || (bytes[0] == 0xfe && bytes[1] & 0xc0 == 0x80)
     }
 
     var httpFallbackURI: String? {
-        guard isHTTPS else { return nil }
+        guard isHTTPS, isOnLocalNetwork else { return nil }
 
         let host: String
         if address.contains(":") && !address.hasPrefix("[") && !address.hasSuffix("]") {
@@ -213,6 +220,13 @@ struct PlexConnection: Codable, Sendable, Hashable {
             host = address
         }
 
-        return "http://\(host):\(port)"
+        if let fallback = PlexTransportSecurity.authenticatedURL(URL(string: "http://\(host):\(port)")) {
+            return fallback.absoluteString
+        }
+        // Custom connections can advertise a name while the URI encodes a
+        // private plex.direct IP. The URI itself is then the safe LAN fallback.
+        guard var components = URLComponents(string: uri) else { return nil }
+        components.scheme = "http"
+        return PlexTransportSecurity.authenticatedURL(components.url)?.absoluteString
     }
 }

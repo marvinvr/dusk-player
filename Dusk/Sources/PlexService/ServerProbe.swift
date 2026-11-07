@@ -57,6 +57,9 @@ enum ServerProbe {
             validationRequest.cachePolicy = .reloadIgnoringLocalCacheData
             apply(headers, to: &validationRequest)
 
+            guard (try? PlexTransportSecurity.validate(probeRequest)) != nil,
+                  (try? PlexTransportSecurity.validate(validationRequest)) != nil else { return nil }
+
             return Plan(
                 index: index,
                 baseURL: candidate.baseURL,
@@ -177,6 +180,8 @@ enum ServerProbe {
     /// inputs so it is safe to fan out across a task group off the main actor.
     private static func runProbe(session: URLSession, plan: Plan) async -> ChildResult {
         do {
+            try PlexTransportSecurity.validate(plan.probeRequest)
+            try PlexTransportSecurity.validate(plan.validationRequest)
             let (_, response) = try await session.data(for: plan.probeRequest)
             guard let http = response as? HTTPURLResponse else {
                 return .failure(unauthorized: false, reason: "Invalid response")

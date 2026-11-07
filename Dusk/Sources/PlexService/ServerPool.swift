@@ -50,7 +50,7 @@ final class ServerPool {
     /// can never be written back into a pool that belongs to someone else.
     private(set) var generation: Int = 0
 
-    @ObservationIgnored private var session: URLSession = .shared
+    @ObservationIgnored private var session: URLSession = PlexTransportSecurity.session
     @ObservationIgnored private var baseHeaders: [String: String] = [:]
     @ObservationIgnored private var decoders: [String: JSONDecoder] = [:]
     @ObservationIgnored private let plainDecoder = JSONDecoder()
@@ -445,15 +445,11 @@ final class ServerPool {
         var seen = Set<String>()
 
         for connection in server.sortedConnections where !connection.isKnownUnreachableAddress {
-            if connection.local, let httpFallbackURI = connection.httpFallbackURI {
+            if connection.isOnLocalNetwork, let httpFallbackURI = connection.httpFallbackURI {
                 append(uri: httpFallbackURI, connection: connection, seen: &seen, into: &candidates)
             }
 
             append(uri: connection.uri, connection: connection, seen: &seen, into: &candidates)
-
-            if !connection.local, let httpFallbackURI = connection.httpFallbackURI {
-                append(uri: httpFallbackURI, connection: connection, seen: &seen, into: &candidates)
-            }
         }
 
         return preferringLastGoodConnection(
@@ -468,7 +464,7 @@ final class ServerPool {
         seen: inout Set<String>,
         into candidates: inout [ConnectionCandidate]
     ) {
-        guard let baseURL = URL(string: uri),
+        guard let baseURL = PlexTransportSecurity.authenticatedURL(URL(string: uri)),
               seen.insert(baseURL.absoluteString).inserted,
               let probeURL = identityURL(for: baseURL) else {
             return

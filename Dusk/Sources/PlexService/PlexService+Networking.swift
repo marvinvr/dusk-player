@@ -299,6 +299,7 @@ extension PlexService {
         retriesFreshAuthentication: Bool = true,
         using session: URLSession? = nil
     ) async throws -> Data {
+        try PlexTransportSecurity.validate(request)
         let operation: () async throws -> Data = {
             let data: Data
             let response: URLResponse
@@ -351,7 +352,7 @@ extension PlexService {
             let existingItems = (components.queryItems ?? []).filter { !queryNames.contains($0.name) }
             components.queryItems = existingItems + queryItems
         }
-        return components.url
+        return PlexTransportSecurity.authenticatedURL(components.url)
     }
 }
 

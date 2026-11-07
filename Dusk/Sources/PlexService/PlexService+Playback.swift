@@ -240,7 +240,7 @@ extension PlexService {
         var items = components.queryItems ?? []
         items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
         components.queryItems = items.isEmpty ? nil : items
-        guard let url = components.url else {
+        guard let url = PlexTransportSecurity.authenticatedURL(components.url) else {
             plexPlaybackLogger.error(
                 "Failed to finalize direct play URL for part \(part.id, privacy: .public)"
             )

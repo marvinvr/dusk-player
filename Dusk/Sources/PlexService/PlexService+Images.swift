@@ -53,7 +53,7 @@ extension PlexService {
         }
 
         components.queryItems = items
-        return components.url
+        return PlexTransportSecurity.authenticatedURL(components.url)
     }
 
     func imageData(for url: URL) async throws -> Data {
@@ -192,6 +192,7 @@ extension PlexService {
     }
 
     private func executeBinaryRequest(_ request: URLRequest) async throws -> Data {
+        try PlexTransportSecurity.validate(request)
         if let cachedResponse = AppImageCache.cachedResponse(for: request) {
             return cachedResponse.data
         }
@@ -224,7 +225,7 @@ extension PlexService {
 
     func imageRequestURLString(for path: String, includeToken: Bool, serverID: String? = nil) -> String? {
         if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
-            return absoluteURL.absoluteString
+            return (try? PlexTransportSecurity.validate(URLRequest(url: absoluteURL))) != nil ? absoluteURL.absoluteString : nil
         }
 
         guard let connection = pool.connection(for: serverID) else { return nil }
@@ -240,7 +241,7 @@ extension PlexService {
             components.queryItems = items
         }
 
-        return components.url?.absoluteString
+        return PlexTransportSecurity.authenticatedURL(components.url)?.absoluteString
     }
 
     /// The `url` for `/photo/:/transcode`. Library paths are sent relative, as
@@ -250,7 +251,7 @@ extension PlexService {
     /// server is not connected.
     func transcodeSourceURLString(for path: String, serverID: String? = nil) -> String? {
         if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
-            return absoluteURL.absoluteString
+            return (try? PlexTransportSecurity.validate(URLRequest(url: absoluteURL))) != nil ? absoluteURL.absoluteString : nil
         }
         guard pool.connection(for: serverID) != nil else { return nil }
         return path.hasPrefix("/") ? path : "/" + path

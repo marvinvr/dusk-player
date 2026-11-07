@@ -48,6 +48,7 @@ struct URLSessionHLSUpstreamFetcher: HLSUpstreamFetching {
     }
 
     func fetch(_ url: URL, origin: URL, maximumBytes: Int) async throws -> (Data, HTTPURLResponse) {
+        try PlexTransportSecurity.validate(URLRequest(url: url))
         let task = session.dataTask(with: url)
         loads.register(task, origin: origin, maximumBytes: maximumBytes)
         return try await withTaskCancellationHandler {

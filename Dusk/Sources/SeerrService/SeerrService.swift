@@ -636,6 +636,7 @@ final class SeerrService {
             request.setValue(xsrfToken, forHTTPHeaderField: "X-XSRF-TOKEN")
         }
 
+        try PlexTransportSecurity.validate(request)
         sessionDelegate.prepareForRequest()
         let data: Data
         let response: URLResponse

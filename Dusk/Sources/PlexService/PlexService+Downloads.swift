@@ -202,6 +202,7 @@ extension PlexService {
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
         request.allHTTPHeaderFields = context.headers
+        try PlexTransportSecurity.validate(request)
         return request
     }
 

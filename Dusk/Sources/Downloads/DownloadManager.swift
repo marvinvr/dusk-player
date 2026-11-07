@@ -1258,7 +1258,7 @@ final class DownloadManager {
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
             request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
             let resumeData = fileStore.resumeData(relativePath: latest.resumeDataPath)
-            let taskIdentifier = transferController.start(request: request, resumeData: resumeData, globalKey: record.globalKey)
+            let taskIdentifier = try transferController.start(request: request, resumeData: resumeData, globalKey: record.globalKey)
             if resumeData != nil { fileStore.deleteResumeData(relativePath: latest.resumeDataPath) }
             update(globalKey: record.globalKey) {
                 $0.status = .downloading
@@ -1814,7 +1814,8 @@ final class DownloadManager {
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
             request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
             do {
-                let (data, response) = try await URLSession.shared.data(for: request)
+                try PlexTransportSecurity.validate(request)
+                let (data, response) = try await PlexTransportSecurity.session.data(for: request)
                 guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode),
                       let normalized = SubtitleTextDecoder.normalizedFileData(data) else {
                     failed = true

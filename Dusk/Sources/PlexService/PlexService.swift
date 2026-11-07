@@ -151,8 +151,8 @@ final class PlexService {
             config.protocolClasses = urlProtocolClasses
             slowQueryConfig.protocolClasses = urlProtocolClasses
         }
-        self.session = URLSession(configuration: config)
-        self.slowQuerySession = URLSession(configuration: slowQueryConfig)
+        self.session = URLSession(configuration: config, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+        self.slowQuerySession = URLSession(configuration: slowQueryConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 

@@ -285,7 +285,7 @@ private final class StubServers {
         let id = "livetv-test-\(UUID().uuidString.lowercased())"
         let host = "\(id).invalid"
         hosts.append(host)
-        return Server(id: id, baseURL: URL(string: "http://\(host):32400")!)
+        return Server(id: id, baseURL: URL(string: "https://\(host):32400")!)
     }
 
     /// Replies are used in order; the last one repeats.

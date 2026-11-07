@@ -565,7 +565,7 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     private let dolbyVision: DolbyVisionConfiguration?
 
     init(
-        session: URLSession = .shared,
+        session: URLSession = PlexTransportSecurity.session,
         restoresDolbyAtmos: Bool,
         dolbyVision: DolbyVisionConfiguration?
     ) {
@@ -632,6 +632,7 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         var request = loadingRequest.request
         request.url = serverURL
         do {
+            try PlexTransportSecurity.validate(request)
             let (data, response) = try await session.data(for: request)
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw URLError(.badServerResponse)

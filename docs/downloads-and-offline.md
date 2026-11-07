@@ -190,7 +190,11 @@ stores completion handlers in `DownloadBackgroundSessionRegistry`, and
 `urlSessionDidFinishEvents` calls them. Other platforms use a default session.
 Progress is throttled in the delegate and persisted less frequently by
 `DownloadManager`. Pause uses `cancel(byProducingResumeData:)`; resume data is
-saved under `ResumeData/` and deleted after reuse. Task descriptions carry the
+saved under `ResumeData/` and deleted after reuse. `PlexTransportSecurity`
+validates new transfers and redirects. A resumed task must expose a safe
+original/current endpoint before it starts; otherwise the controller discards
+that task and restarts using the freshly validated request. This prevents old
+resume data from restoring a public HTTP endpoint. Task descriptions carry the
 record `globalKey`; use them for relaunch reconciliation instead of task ids.
 
 Network constraints are split between URLSession configuration and

@@ -47,6 +47,7 @@ extension PlexService {
         for (key, value) in plexRequestHeaders {
             request.setValue(value, forHTTPHeaderField: key)
         }
+        try PlexTransportSecurity.validate(request)
         guard let response = try? await session.data(for: request).1 as? HTTPURLResponse,
               response.statusCode == 403 else {
             return

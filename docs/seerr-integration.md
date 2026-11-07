@@ -53,7 +53,9 @@ There is no browser, local Seerr password, or API-key mode. This keeps tvOS setu
 to URL entry using the system keyboard (including iPhone Remote keyboard input).
 Plex-token login is the only sign-in. It has to work against a fresh Seerr, not
 only one that has already finished the setup wizard. HTTP URLs are allowed for
-local deployments, but probing never sends a Plex credential and the confirmation
+private-address, localhost and `.local` deployments; public hosts require HTTPS
+for Plex-token login. `PlexTransportSecurity` validates the JSON `authToken` at
+the request boundary. Probing never sends a Plex credential and the confirmation
 explicitly warns when the resolved credential transport is unencrypted. A
 self-signed HTTPS certificate on a LAN host fails with a TLS error and a
 "Trust this certificate" action that pins that leaf certificate for the host
@@ -124,6 +126,8 @@ wrong series. Seerr failures are ignored so Plex detail loading remains intact.
 ## Invariants And Traps
 
 - Never send the Plex token before the user confirms the exact normalized host.
+  Confirmation cannot override the transport rule: public destinations require
+  HTTPS, including for token reauthentication.
 - Redirects stay on the same host. HTTP may upgrade to HTTPS. HTTPS must not
   downgrade, and a different host is refused, so a credential or session cookie
   cannot leak. A redirect to `/login` is not followed.

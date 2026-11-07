@@ -188,7 +188,8 @@ Discovery behavior to preserve:
   172.17–31.x addresses sort last inside the local tier — they are also a real
   LAN range, so they are never dropped (dropping them once left such homes with
   only remote connections). `::` and `fe80:` are filtered; HTTP fallbacks are
-  built in.
+  generated only for local/private connections, and only when the fallback
+  URL itself has a local/private host. Public HTTP endpoints are never candidates.
 - Each server's candidates are probed **concurrently** (`ServerProbe`) and the
   highest-priority one that works is committed. The race is priority-preserving:
   a success is only committed once no higher-priority candidate can still win —
@@ -279,6 +280,21 @@ File: `PlexService+Networking.swift`.
   stamp and produces unattributable items — always go through the pool.
 - Use `decodeJSON(_:from:)` so decode failures become `PlexServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
+- `PlexTransportSecurity` is the credential transport boundary: tokens require
+  HTTPS for public hosts. HTTP is allowed for private/loopback/link-local IPs
+  (including private IPs embedded in `plex.direct` names), `localhost` and
+  `.local` names. The URL host decides; discovery's `local` flag or a separate
+  private `address` cannot authorize sending a token to a public HTTP host.
+  Address parsing validates complete IPv4/IPv6 literals, including mapped IPv4.
+- Authenticated URL builders return nil for unsafe destinations, including
+  endpoints restored from older versions. Request executors, probes and direct
+  image/subtitle/download/media fetches independently validate header/query
+  credentials before sending. URLSession delegates preserve the original
+  credential requirement across redirects and refuse a public HTTP hop.
+  Add the same validation to any new fetch path that bypasses `executeRequest`.
+  `PlexTransportSecurityTests` covers candidate filtering, forged locality,
+  restored endpoints, header/query/Seerr JSON credentials, redirect refusal,
+  and private HTTP probe/API success without opening network sockets.
 - `applyHeaders(to:token:)` centralizes Plex headers, platform/device metadata,
   and optional `X-Plex-Token`.
 - Plex requests should identify Dusk consistently with the stable client

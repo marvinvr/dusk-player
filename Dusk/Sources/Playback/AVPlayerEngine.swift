@@ -204,6 +204,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - Lifecycle
 
     func load(source: PlaybackSource) {
+        guard (try? PlexTransportSecurity.validate(URLRequest(url: source.url))) != nil else {
+            stop()
+            error = .networkError("A secure connection is required to send the Plex token.")
+            state = .error
+            return
+        }
         loadValidationTask?.cancel()
         stopDolbyVision7Proxy()
         removeEnhancedVideoOutput()

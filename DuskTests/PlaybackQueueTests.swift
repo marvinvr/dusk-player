@@ -430,7 +430,7 @@ struct UpNextResolutionTests {
             """.utf8))
         service.pool.adopt(
             server: server,
-            baseURL: URL(string: "http://upnext.invalid:32400")!,
+            baseURL: URL(string: "https://upnext.invalid:32400")!,
             token: "token",
             connection: nil
         )

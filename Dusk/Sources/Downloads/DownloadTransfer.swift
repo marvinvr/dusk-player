@@ -77,16 +77,37 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         request: URLRequest,
         resumeData: Data?,
         globalKey: String
-    ) -> Int {
+    ) throws -> Int {
+        try PlexTransportSecurity.validate(request)
         let task: URLSessionDownloadTask
         if let resumeData {
-            task = session.downloadTask(withResumeData: resumeData)
+            let resumed = session.downloadTask(withResumeData: resumeData)
+            // Resume data may contain an endpoint saved by an older version.
+            // If URLSession cannot expose that request yet, restart from the
+            // freshly validated URL rather than trusting opaque resume data.
+            if let original = resumed.originalRequest ?? resumed.currentRequest,
+               original.url.map(PlexTransportSecurity.allowsToken) == true {
+                task = resumed
+            } else {
+                resumed.cancel()
+                task = session.downloadTask(with: request)
+            }
         } else {
             task = session.downloadTask(with: request)
         }
         task.taskDescription = globalKey
         task.resume()
         return task.taskIdentifier
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping @Sendable (URLRequest?) -> Void
+    ) {
+        completionHandler(PlexTransportSecurity.allowsRedirect(request, original: task.originalRequest) ? request : nil)
     }
 
     func pause(taskIdentifier: Int) {

@@ -100,7 +100,8 @@ final class SubtitleFileStore: Sendable {
         } else {
             var request = URLRequest(url: url)
             request.timeoutInterval = 15
-            let (download, response) = try await URLSession.shared.download(for: request)
+            try PlexTransportSecurity.validate(request)
+            let (download, response) = try await PlexTransportSecurity.session.download(for: request)
             guard let response = response as? HTTPURLResponse, (200..<300).contains(response.statusCode) else {
                 try? FileManager.default.removeItem(at: download)
                 throw URLError(.badServerResponse)

@@ -91,7 +91,8 @@ extension PlaybackError {
         request.setValue("bytes=0-1", forHTTPHeaderField: "Range")
 
         do {
-            let (bytes, response) = try await URLSession.shared.bytes(for: request)
+            try PlexTransportSecurity.validate(request)
+            let (bytes, response) = try await PlexTransportSecurity.session.bytes(for: request)
 
             guard let http = response as? HTTPURLResponse else {
                 return .networkError("Invalid response")

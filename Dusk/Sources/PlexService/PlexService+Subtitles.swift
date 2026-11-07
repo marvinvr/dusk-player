@@ -147,7 +147,7 @@ extension PlexService {
         items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
         components.queryItems = items
 
-        guard let url = components.url else {
+        guard let url = PlexTransportSecurity.authenticatedURL(components.url) else {
             plexSubtitlesLogger.error(
                 "Failed to finalize external subtitle URL for stream \(stream.id, privacy: .public)"
             )
