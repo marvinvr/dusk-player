@@ -24,6 +24,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
     private(set) var duration: TimeInterval = 0
+    var playbackRate: Float { player.timeControlStatus == .playing ? player.rate : 0 }
     private(set) var seekableTimeRange: ClosedRange<TimeInterval>?
     private(set) var isBuffering = false
     private(set) var error: PlaybackError?
@@ -573,6 +574,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - Rendering
 
     func makePlayerView() -> AnyView {
+        // Both platforms render through AVPlayerLayer, not AVPlayerViewController.
+        // PlaybackNowPlayingController is the sole Now Playing/remote-command
+        // owner. If a controller is introduced, disable its
+        // updatesNowPlayingInfoCenter before attaching the player.
         if let videoEnhancementRenderer {
             // The Metal view shows the upscaled picture full-screen. Keep the real
             // `AVPlayerLayer` underneath it (fully occluded by the opaque Metal

@@ -2300,8 +2300,32 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     Plex's own credits marker has been reached (`isPastCreditsMarker`; the
     estimated marker does not count); past 90 % the normal finalize scrobble
     marks it watched anyway, and anything earlier just reports progress.
-- `PlaybackNowPlayingController` is iOS-only and owns AVAudioSession,
-  MPNowPlayingInfoCenter, remote commands, route/interruption handling, and art.
+- `PlaybackNowPlayingController` owns system Now Playing for **iOS and tvOS**,
+  across AVPlayer and VLCKit. It publishes video metadata (episode title,
+  show/season/episode, artwork, duration), the engine's elapsed time and actual
+  transport rate, and playback state. A session-owned 0.25 s snapshot timer
+  follows playback even without the HUD (PiP/background/SharePlay); publication
+  compares with the system's extrapolated clock to catch seeks and rate changes
+  promptly without publishing every normal time tick. HUD scrub previews never
+  become system playback positions.
+- Both engines use custom rendering views; AVPlayer uses `AVPlayerLayer`, not
+  `AVPlayerViewController`, so there is no automatic AVKit Now Playing publisher.
+  Keep this controller the sole owner. If `AVPlayerViewController` is introduced,
+  set `updatesNowPlayingInfoCenter = false` before attaching the player.
+- Play, pause, toggle, interval skip, continuous seek begin/end, and absolute
+  position commands route through `PlaybackEngine`. Seeks clamp to the Live TV
+  seekable window or file duration, and preserve paused playback. Continuous
+  seeking uses repeated bounded jumps so it also works on VLCKit. Command tasks
+  and artwork completions are scoped to the session; an outgoing episode cannot
+  alter its Up Next replacement. Stop clears metadata, and session teardown
+  cancels artwork/seeking/timer work and removes only Dusk's command targets.
+- The existing iOS audio-session, route/interruption, and background recovery
+  policy remains in this controller. tvOS keeps its app/engine-owned audio
+  policy described above; Now Playing does not change multichannel setup.
+- `PlaybackNowPlayingTests` covers metadata, rate/position updates, commands,
+  seek bounds, replacement items, warm engine reuse, and stop cleanup on both
+  targets. System discovery on iPhone/Apple TV and automation delivery require
+  real devices; compile checks cannot establish those behaviors.
 
 ### Playback queue (playlists and lists)
 - `PlaybackQueue` (`Features/Player/PlaybackQueue.swift`) is a fixed list of

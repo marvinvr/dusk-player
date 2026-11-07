@@ -199,6 +199,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private(set) var state: PlaybackState = .idle
     private(set) var currentTime: TimeInterval = 0
     private(set) var duration: TimeInterval = 0
+    var playbackRate: Float { state == .playing ? mediaPlayer.rate : 0 }
     private(set) var isBuffering = false
     private(set) var error: PlaybackError?
     private(set) var availableSubtitleTracks: [SubtitleTrack] = []

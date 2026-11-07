@@ -741,12 +741,12 @@ private struct PlayerSessionView: View {
             viewModel.upNextPosterHandler = { creditsMarker in
                 handleReachedCreditsMarker(creditsMarker)
             }
-            viewModel.playbackSnapshotHandler = { state, currentTime, duration in
+            viewModel.playbackSnapshotHandler = { state, _, _ in
                 guard playback.playerPresentationID == presentationID else { return }
                 playback.nowPlayingController.updatePlaybackState(
-                    state: state,
-                    currentTime: currentTime,
-                    duration: duration
+                    state: viewModel.engine.state,
+                    currentTime: viewModel.engine.currentTime,
+                    duration: viewModel.engine.duration
                 )
                 #if os(tvOS)
                 // The HUD optimistically shows play before the engine resumes.

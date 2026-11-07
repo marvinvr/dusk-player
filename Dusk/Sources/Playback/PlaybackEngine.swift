@@ -137,6 +137,9 @@ protocol PlaybackEngine: AnyObject {
     var state: PlaybackState { get }
     var currentTime: TimeInterval { get }
     var duration: TimeInterval { get }
+    /// The engine's current transport rate, including temporary speed boosts
+    /// and rate changes received through SharePlay. Zero while paused.
+    var playbackRate: Float { get }
     /// The currently seekable media-time window. Live HLS commonly starts
     /// above zero and advances at its upper edge as Plex appends segments.
     var seekableTimeRange: ClosedRange<TimeInterval>? { get }
@@ -236,6 +239,8 @@ protocol PlaybackEngine: AnyObject {
 }
 
 extension PlaybackEngine {
+    var playbackRate: Float { state == .playing ? 1 : 0 }
+
     var seekableTimeRange: ClosedRange<TimeInterval>? {
         duration > 0 ? 0...duration : nil
     }

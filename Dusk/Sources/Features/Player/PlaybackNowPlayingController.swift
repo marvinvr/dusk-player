@@ -1,6 +1,4 @@
 import Foundation
-
-#if os(iOS)
 import AVFoundation
 import MediaPlayer
 import UIKit
@@ -10,33 +8,44 @@ private let nowPlayingLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "PlaybackNowPlaying"
 )
-#endif
 
 @MainActor
 final class PlaybackNowPlayingController {
-    #if os(iOS)
+    enum RemoteAction: Sendable {
+        case play, pause, togglePlayPause
+        case skip(TimeInterval)
+        case seek(TimeInterval)
+        case beginSeeking(forward: Bool)
+        case endSeeking
+    }
+
     private weak var engine: (any PlaybackEngine)?
-    private weak var plexService: PlexService?
-    private var details: PlexMediaDetails?
     private var nowPlayingInfo: [String: Any] = [:]
     private var commandTargets: [(command: MPRemoteCommand, target: Any)] = []
-    private var notificationObservers: [NSObjectProtocol] = []
+    private var sessionID: UUID?
+    private var snapshotTimer: Timer?
+    private var remoteSeekTask: Task<Void, Never>?
     private var artworkTask: Task<Void, Never>?
+    #if os(iOS)
+    private var notificationObservers: [NSObjectProtocol] = []
     private var backgroundPlaybackRecoveryTask: Task<Void, Never>?
     private var isAudioSessionActive = false
     private var isAudioSessionInterrupted = false
     private var isApplicationActive = true
     private var shouldContinuePlaybackWhenInactive = false
     private var wasPlayingBeforeInterruption = false
+    #endif
     private var skipBackwardInterval: TimeInterval = 10
     private var skipForwardInterval: TimeInterval = 10
     private var lastPublishedState: PlaybackState?
     private var lastPublishedElapsedTime: TimeInterval = 0
     private var lastPublishedDuration: TimeInterval = 0
+    private var lastPublishedRate: Double = 0
+    private var lastPublishedAt: TimeInterval = 0
+    private var hasPublishedActiveState = false
 
     private static let playingElapsedUpdateThreshold: TimeInterval = 8
     private static let pausedElapsedUpdateThreshold: TimeInterval = 0.5
-    #endif
 
     func beginSession(
         details: PlexMediaDetails,
@@ -45,7 +54,6 @@ final class PlaybackNowPlayingController {
         skipBackwardInterval: TimeInterval,
         skipForwardInterval: TimeInterval
     ) {
-        #if os(iOS)
         // Reset any previous session WITHOUT deactivating the shared
         // AVAudioSession: `setActive(false, .notifyOthersOnDeactivation)`
         // followed by an immediate `setActive(true)` for the new item is a
@@ -54,20 +62,20 @@ final class PlaybackNowPlayingController {
         // transient session errors that latch VLCKit's audio output silent.
         endSession(deactivateAudioSession: false)
 
-        self.details = details
+        sessionID = UUID()
         self.engine = engine
-        self.plexService = plexService
         self.skipBackwardInterval = skipBackwardInterval
         self.skipForwardInterval = skipForwardInterval
+        #if os(iOS)
         isApplicationActive = UIApplication.shared.applicationState == .active
-
         configureAndActivateAudioSession()
-        configureRemoteCommands()
         registerAudioSessionObservers()
-        publishInitialMetadata(for: details)
-        loadArtwork(for: details, using: plexService)
         UIApplication.shared.beginReceivingRemoteControlEvents()
         #endif
+        configureRemoteCommands()
+        publishInitialMetadata(for: details)
+        loadArtwork(for: details, using: plexService)
+        startSnapshotUpdates()
     }
 
     func beginLiveSession(
@@ -80,17 +88,18 @@ final class PlaybackNowPlayingController {
         skipBackwardInterval: TimeInterval,
         skipForwardInterval: TimeInterval
     ) {
-        #if os(iOS)
         endSession(deactivateAudioSession: false)
+        sessionID = UUID()
         self.engine = engine
-        self.plexService = plexService
         self.skipBackwardInterval = skipBackwardInterval
         self.skipForwardInterval = skipForwardInterval
+        #if os(iOS)
         isApplicationActive = UIApplication.shared.applicationState == .active
-
         configureAndActivateAudioSession()
-        configureRemoteCommands()
         registerAudioSessionObservers()
+        UIApplication.shared.beginReceivingRemoteControlEvents()
+        #endif
+        configureRemoteCommands()
         nowPlayingInfo = [
             MPMediaItemPropertyTitle: title,
             MPMediaItemPropertyArtist: channelTitle,
@@ -104,8 +113,7 @@ final class PlaybackNowPlayingController {
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         MPNowPlayingInfoCenter.default().playbackState = .paused
         loadLiveArtwork(path: artworkPath, serverID: serverID, using: plexService)
-        UIApplication.shared.beginReceivingRemoteControlEvents()
-        #endif
+        startSnapshotUpdates()
     }
 
     /// Follows the tuned channel's schedule: a live session outlives the
@@ -113,13 +121,11 @@ final class PlaybackNowPlayingController {
     /// the show that ended an hour ago. Title only — the channel artwork stays
     /// put across program changes.
     func updateLiveProgramTitle(_ title: String) {
-        #if os(iOS)
-        guard engine != nil,
+        guard let engine, engine.state != .stopped,
               nowPlayingInfo[MPMediaItemPropertyTitle] as? String != title else { return }
 
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
-        #endif
     }
 
     func updatePlaybackState(
@@ -128,28 +134,43 @@ final class PlaybackNowPlayingController {
         duration: TimeInterval,
         force: Bool = false
     ) {
-        #if os(iOS)
         guard engine != nil else { return }
+        #if os(iOS)
         updatePlaybackIntent(for: state)
+        #endif
+        if state == .stopped {
+            // Warmed/reused engines can still be stopped when beginSession
+            // publishes metadata, just before PlayerSessionView loads them.
+            guard hasPublishedActiveState || force else { return }
+            remoteSeekTask?.cancel()
+            removeRemoteCommandTargets()
+            if lastPublishedState != .stopped { clearPublishedInfo() }
+            return
+        }
+        if state != .idle { hasPublishedActiveState = true }
         guard shouldPublish(state: state, currentTime: currentTime, duration: duration, force: force) else {
             return
         }
 
         publishPlaybackState(state: state, currentTime: currentTime, duration: duration)
-        #endif
     }
 
     func endSession(deactivateAudioSession: Bool = true) {
-        #if os(iOS)
+        // An unused coordinator must not clear another active player's entry.
+        guard sessionID != nil else { return }
+        sessionID = nil
+        snapshotTimer?.invalidate()
+        snapshotTimer = nil
+        remoteSeekTask?.cancel()
+        remoteSeekTask = nil
         artworkTask?.cancel()
         artworkTask = nil
+        removeRemoteCommandTargets()
+        clearPublishedInfo()
+        #if os(iOS)
         backgroundPlaybackRecoveryTask?.cancel()
         backgroundPlaybackRecoveryTask = nil
-        removeRemoteCommandTargets()
         removeAudioSessionObservers()
-
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
-        MPNowPlayingInfoCenter.default().playbackState = .stopped
         UIApplication.shared.endReceivingRemoteControlEvents()
 
         if isAudioSessionActive {
@@ -167,24 +188,68 @@ final class PlaybackNowPlayingController {
             }
             isAudioSessionActive = false
         }
-
-        engine = nil
-        plexService = nil
-        details = nil
-        nowPlayingInfo = [:]
         isAudioSessionInterrupted = false
         isApplicationActive = true
         shouldContinuePlaybackWhenInactive = false
         wasPlayingBeforeInterruption = false
+        #endif
+        engine = nil
+        nowPlayingInfo = [:]
         lastPublishedState = nil
         lastPublishedElapsedTime = 0
         lastPublishedDuration = 0
-        #endif
+        lastPublishedRate = 0
+        lastPublishedAt = 0
+        hasPublishedActiveState = false
+    }
+
+    /// All system commands use the same dispatcher on both playback engines.
+    @discardableResult
+    func handleRemoteAction(_ action: RemoteAction) -> MPRemoteCommandHandlerStatus {
+        guard let engine, engine.state != .stopped else { return .noSuchContent }
+        switch action {
+        case .play, .pause, .togglePlayPause:
+            remoteSeekTask?.cancel()
+            let wantsPlay: Bool
+            switch action {
+            case .play: wantsPlay = true
+            case .pause: wantsPlay = false
+            default: wantsPlay = engine.state != .playing
+            }
+            #if os(iOS)
+            shouldContinuePlaybackWhenInactive = wantsPlay
+            #endif
+            if wantsPlay { engine.play() } else { engine.pause() }
+            publishEngineSnapshot(force: true)
+        case .skip(let interval):
+            guard interval.isFinite else { return .commandFailed }
+            seek(by: interval)
+        case .seek(let position):
+            guard position.isFinite else { return .commandFailed }
+            seek(to: position)
+        case .beginSeeking(let forward):
+            remoteSeekTask?.cancel()
+            let offset: TimeInterval = forward ? 10 : -10
+            seek(by: offset)
+            remoteSeekTask = Task { @MainActor [weak self] in
+                while !Task.isCancelled {
+                    do { try await Task.sleep(for: .milliseconds(500)) } catch { return }
+                    guard !Task.isCancelled else { return }
+                    guard let self else { return }
+                    seek(by: offset)
+                }
+            }
+        case .endSeeking:
+            remoteSeekTask?.cancel()
+            remoteSeekTask = nil
+            publishEngineSnapshot(force: true)
+        }
+        return .success
     }
 }
 
-#if os(iOS)
 private extension PlaybackNowPlayingController {
+    #if os(iOS)
     func configureAndActivateAudioSession() {
         let session = AVAudioSession.sharedInstance()
         let wantsSpatializedAudio = engine?.prefersSpatializedAudioSession ?? true
@@ -216,6 +281,26 @@ private extension PlaybackNowPlayingController {
             )
         }
     }
+    #endif
+
+    func startSnapshotUpdates() {
+        publishEngineSnapshot(force: false)
+        // Independent of the player HUD: PiP, background playback, SharePlay,
+        // track changes and engine callbacks must also reach the system.
+        snapshotTimer = Timer.scheduledTimer(withTimeInterval: 0.25, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.publishEngineSnapshot(force: false)
+            }
+        }
+    }
+
+    func clearPublishedInfo() {
+        artworkTask?.cancel()
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        lastPublishedState = .stopped
+        lastPublishedRate = 0
+    }
 
     func publishInitialMetadata(for details: PlexMediaDetails) {
         nowPlayingInfo = [
@@ -233,6 +318,10 @@ private extension PlaybackNowPlayingController {
             nowPlayingInfo[MPMediaItemPropertyArtist] = subtitle
             nowPlayingInfo[MPMediaItemPropertyAlbumTitle] = subtitle
         }
+        if details.type == .episode {
+            nowPlayingInfo[MPMediaItemPropertyAlbumTrackNumber] = details.index
+            nowPlayingInfo[MPMediaItemPropertyDiscNumber] = details.parentIndex
+        }
 
         if let duration = details.duration, duration > 0 {
             nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = TimeInterval(duration) / 1000.0
@@ -247,9 +336,9 @@ private extension PlaybackNowPlayingController {
         currentTime: TimeInterval,
         duration: TimeInterval
     ) {
-        let elapsed = max(0, currentTime)
-        let safeDuration = max(0, duration)
-        let playbackRate = state == .playing ? 1.0 : 0.0
+        let elapsed = currentTime.isFinite ? max(0, currentTime) : 0
+        let safeDuration = duration.isFinite ? max(0, duration) : 0
+        let playbackRate = publishedRate(for: state)
 
         nowPlayingInfo[MPNowPlayingInfoPropertyElapsedPlaybackTime] = elapsed
         nowPlayingInfo[MPNowPlayingInfoPropertyPlaybackRate] = playbackRate
@@ -265,6 +354,8 @@ private extension PlaybackNowPlayingController {
         lastPublishedState = state
         lastPublishedElapsedTime = elapsed
         lastPublishedDuration = safeDuration
+        lastPublishedRate = playbackRate
+        lastPublishedAt = ProcessInfo.processInfo.systemUptime
     }
 
     func shouldPublish(
@@ -275,14 +366,20 @@ private extension PlaybackNowPlayingController {
     ) -> Bool {
         if force { return true }
         if state != lastPublishedState { return true }
+        if publishedRate(for: state) != lastPublishedRate { return true }
         if abs(duration - lastPublishedDuration) > 0.5 { return true }
 
-        let elapsedDelta = abs(currentTime - lastPublishedElapsedTime)
-        if state == .playing {
-            return elapsedDelta >= Self.playingElapsedUpdateThreshold
-        }
+        let sincePublication = ProcessInfo.processInfo.systemUptime - lastPublishedAt
+        let expectedElapsed = lastPublishedElapsedTime + sincePublication * lastPublishedRate
+        // Compare with the system's extrapolated clock so even a small seek
+        // publishes immediately, without sending every normal time tick.
+        return abs(currentTime - expectedElapsed) >= Self.pausedElapsedUpdateThreshold
+            || sincePublication >= Self.playingElapsedUpdateThreshold
+    }
 
-        return elapsedDelta >= Self.pausedElapsedUpdateThreshold
+    func publishedRate(for state: PlaybackState) -> Double {
+        guard state == .playing, let rate = engine?.playbackRate, rate.isFinite else { return 0 }
+        return Double(max(0, rate))
     }
 
     func nowPlayingPlaybackState(for state: PlaybackState) -> MPNowPlayingPlaybackState {
@@ -340,12 +437,13 @@ private extension PlaybackNowPlayingController {
             return
         }
 
+        let artworkSessionID = sessionID
         artworkTask = Task { @MainActor [weak self, weak plexService] in
             guard let self, let plexService else { return }
 
             do {
                 let image = try await DuskImageLoader.shared.image(for: artworkURL, using: plexService)
-                guard !Task.isCancelled, self.details?.ratingKey == details.ratingKey else { return }
+                guard !Task.isCancelled, self.sessionID == artworkSessionID else { return }
 
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else { return }
                 let artwork = makeNowPlayingArtwork(imageData: imageData, imageSize: image.size)
@@ -366,10 +464,12 @@ private extension PlaybackNowPlayingController {
         ) else {
             return
         }
+        let artworkSessionID = sessionID
         artworkTask = Task { @MainActor [weak self, weak plexService] in
             guard let self, let plexService else { return }
             guard let image = try? await DuskImageLoader.shared.image(for: artworkURL, using: plexService),
                   !Task.isCancelled,
+                  self.sessionID == artworkSessionID,
                   let imageData = image.jpegData(compressionQuality: 0.9) else { return }
             nowPlayingInfo[MPMediaItemPropertyArtwork] = makeNowPlayingArtwork(
                 imageData: imageData,
@@ -381,65 +481,49 @@ private extension PlaybackNowPlayingController {
 
     func configureRemoteCommands() {
         removeRemoteCommandTargets()
+        let center = MPRemoteCommandCenter.shared()
+        addTarget(to: center.playCommand) { _ in .play }
+        addTarget(to: center.pauseCommand) { _ in .pause }
+        addTarget(to: center.togglePlayPauseCommand) { _ in .togglePlayPause }
 
-        let commandCenter = MPRemoteCommandCenter.shared()
-
-        addTarget(to: commandCenter.playCommand) { [weak self] in
-            self?.shouldContinuePlaybackWhenInactive = true
-            self?.engine?.play()
-            self?.publishEngineSnapshot(force: true)
+        center.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackwardInterval)]
+        addTarget(to: center.skipBackwardCommand) { event in
+            guard let event = event as? MPSkipIntervalCommandEvent else { return nil }
+            return .skip(-event.interval)
         }
-
-        addTarget(to: commandCenter.pauseCommand) { [weak self] in
-            self?.shouldContinuePlaybackWhenInactive = false
-            self?.engine?.pause()
-            self?.publishEngineSnapshot(force: true)
+        center.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForwardInterval)]
+        addTarget(to: center.skipForwardCommand) { event in
+            guard let event = event as? MPSkipIntervalCommandEvent else { return nil }
+            return .skip(event.interval)
         }
-
-        addTarget(to: commandCenter.togglePlayPauseCommand) { [weak self] in
-            guard let self, let engine else { return }
-            if engine.state == .playing {
-                shouldContinuePlaybackWhenInactive = false
-                engine.pause()
-            } else {
-                shouldContinuePlaybackWhenInactive = true
-                engine.play()
-            }
-            publishEngineSnapshot(force: true)
+        addTarget(to: center.changePlaybackPositionCommand) { event in
+            guard let event = event as? MPChangePlaybackPositionCommandEvent else { return nil }
+            return .seek(event.positionTime)
         }
-
-        commandCenter.skipBackwardCommand.preferredIntervals = [NSNumber(value: skipBackwardInterval)]
-        addTarget(to: commandCenter.skipBackwardCommand) { [weak self] in
-            self?.seek(by: -(self?.skipBackwardInterval ?? 10))
+        addTarget(to: center.seekBackwardCommand) { event in
+            guard let event = event as? MPSeekCommandEvent else { return nil }
+            return event.type == .beginSeeking ? .beginSeeking(forward: false) : .endSeeking
         }
-
-        commandCenter.skipForwardCommand.preferredIntervals = [NSNumber(value: skipForwardInterval)]
-        addTarget(to: commandCenter.skipForwardCommand) { [weak self] in
-            self?.seek(by: self?.skipForwardInterval ?? 10)
+        addTarget(to: center.seekForwardCommand) { event in
+            guard let event = event as? MPSeekCommandEvent else { return nil }
+            return event.type == .beginSeeking ? .beginSeeking(forward: true) : .endSeeking
         }
-
-        commandCenter.changePlaybackPositionCommand.isEnabled = true
-        let changePositionTarget = commandCenter.changePlaybackPositionCommand.addTarget { [weak self] event in
-            guard let event = event as? MPChangePlaybackPositionCommandEvent else {
-                return .commandFailed
-            }
-            let positionTime = event.positionTime
-            Task { @MainActor [weak self] in
-                self?.seek(to: positionTime)
-            }
-            return .success
-        }
-        commandTargets.append((commandCenter.changePlaybackPositionCommand, changePositionTarget))
     }
 
     func addTarget(
         to command: MPRemoteCommand,
-        handler: @escaping @MainActor () -> Void
+        action: @escaping @Sendable (MPRemoteCommandEvent) -> RemoteAction?
     ) {
         command.isEnabled = true
-        let target = command.addTarget { _ in
-            Task { @MainActor in
-                handler()
+        let targetSessionID = sessionID
+        let target = command.addTarget { [weak self] event in
+            guard let self else { return .noSuchContent }
+            guard let action = action(event) else { return .commandFailed }
+            Task { @MainActor [weak self] in
+                // A queued command from the outgoing item must never seek or
+                // toggle the episode that Up Next has just installed.
+                guard let self, sessionID == targetSessionID else { return }
+                handleRemoteAction(action)
             }
             return .success
         }
@@ -489,6 +573,7 @@ private extension PlaybackNowPlayingController {
         )
     }
 
+    #if os(iOS)
     func registerAudioSessionObservers() {
         removeAudioSessionObservers()
 
@@ -681,6 +766,7 @@ private extension PlaybackNowPlayingController {
         engine.play()
         publishEngineSnapshot(force: true)
     }
+    #endif
 }
 
 private nonisolated func makeNowPlayingArtwork(
@@ -691,4 +777,3 @@ private nonisolated func makeNowPlayingArtwork(
         UIImage(data: imageData) ?? UIImage()
     }
 }
-#endif
