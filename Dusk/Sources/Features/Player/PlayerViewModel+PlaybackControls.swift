@@ -10,7 +10,9 @@ extension PlayerViewModel {
     private static let pendingPlaybackStateGracePeriod: TimeInterval = 0.35
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
     private static let markerSkipPadding: TimeInterval = 0.5
-    private static let autoSkipCountdownDuration: TimeInterval = 5.0
+    /// How long the Skip Intro chip counts down before it skips or hides.
+    /// Tests shorten it; playback always uses five seconds.
+    static var autoSkipCountdownDuration: TimeInterval = 5.0
     private static let bufferingIndicatorDelay: TimeInterval = 2.0
     private static let stallRecoveryDelay: TimeInterval = 12.0
     private static let stallRecoveryCooldown: TimeInterval = 8.0
@@ -405,6 +407,14 @@ extension PlayerViewModel {
             return
         }
 
+        // The in-player copy can lag a settings change made while the chip is
+        // up. Refresh it so the countdown's finish reads the mode the viewer
+        // last chose.
+        if let userPreferences {
+            autoSkipIntroMode = userPreferences.autoSkipIntroMode
+        }
+        clearCountdownDismissalIfPlayheadLeftMarker()
+
         let marker = activeSkipMarker
 
         guard let marker, !isScrubbing else {
@@ -418,18 +428,17 @@ extension PlayerViewModel {
         // re-arms the moment the position lands back inside the marker — which
         // happens on its own while a post-skip seek is still buffering, and
         // again whenever the viewer deliberately rewinds into the intro.
-        let shouldAutoSkip = marker.isIntro &&
-            shouldAutoSkipIntroMarkers &&
-            !spentAutoSkipMarkerIDs.contains(marker.id)
-
-        guard shouldAutoSkip else {
+        // A spent marker still shows the chip for a manual skip; the countdown
+        // stays off so expiry cannot hide that chip or jump forward again.
+        if spentAutoSkipMarkerIDs.contains(marker.id) {
             if autoSkipCountdownMarkerID != nil {
                 cancelAutoSkipCountdown()
             }
             return
         }
 
-        // Already counting down for this marker
+        // Already counting down for this marker. Auto-skip off keeps the same
+        // countdown running: expiry hides the chip instead of cancelling it.
         if autoSkipCountdownMarkerID == marker.id { return }
 
         startAutoSkipCountdown(for: marker)
@@ -676,36 +685,61 @@ extension PlayerViewModel {
 
             if Task.isCancelled { return }
 
-            guard self.autoSkipCountdownMarkerID == marker.id else { return }
+            self.finishAutoSkipCountdown(for: marker)
+        }
+    }
 
-            guard let currentMarker = self.activeSkipMarker,
-                  currentMarker.id == marker.id else {
-                self.cancelAutoSkipCountdown()
-                return
-            }
+    /// Countdown reached zero while `marker` is still the active intro.
+    /// Auto-skip on seeks past it. Auto-skip off (including "always except
+    /// episode 1" on the first episode) only hides the chip.
+    private func finishAutoSkipCountdown(for marker: PlexMarker) {
+        guard autoSkipCountdownMarkerID == marker.id else { return }
 
-            guard self.hasConfiguredAutomaticTrackSelection,
-                  !self.isScrubbing,
-                  currentMarker.isIntro,
-                  self.shouldAutoSkipIntroMarkers,
-                  !self.spentAutoSkipMarkerIDs.contains(currentMarker.id) else {
-                self.cancelAutoSkipCountdown()
-                return
-            }
+        guard let currentMarker = activeSkipMarker,
+              currentMarker.id == marker.id else {
+            cancelAutoSkipCountdown()
+            return
+        }
 
-            self.autoSkipCountdownMarkerID = nil
-            self.autoSkipCountdownProgress = nil
+        guard hasConfiguredAutomaticTrackSelection,
+              !isScrubbing,
+              currentMarker.isIntro,
+              !spentAutoSkipMarkerIDs.contains(currentMarker.id) else {
+            cancelAutoSkipCountdown()
+            return
+        }
 
-            if let handler = self.autoSkipHandler {
-                handler(currentMarker)
-            } else {
-                self.skipActiveMarker()
-            }
+        autoSkipCountdownMarkerID = nil
+        autoSkipCountdownProgress = nil
+
+        guard shouldAutoSkipIntroMarkers else {
+            countdownDismissedMarkerID = currentMarker.id
+            return
+        }
+
+        if let handler = autoSkipHandler {
+            handler(currentMarker)
+        } else {
+            skipActiveMarker()
+        }
+    }
+
+    /// A dismissed chip stays gone only while playback is still inside that
+    /// marker. Leaving it (or seeking back in later) offers Skip Intro again.
+    private func clearCountdownDismissalIfPlayheadLeftMarker() {
+        guard let dismissedID = countdownDismissedMarkerID else { return }
+        let positionMs = Int(displayPosition * 1000)
+        let stillInside = markers.contains { marker in
+            marker.id == dismissedID && marker.contains(positionMs: positionMs)
+        }
+        if !stillInside {
+            countdownDismissedMarkerID = nil
         }
     }
 
     private var shouldAutoSkipIntroMarkers: Bool {
-        autoSkipIntroMode.shouldAutoSkipIntro(isFirstEpisodeInSeason: isFirstEpisodeInSeason)
+        let mode = userPreferences?.autoSkipIntroMode ?? autoSkipIntroMode
+        return mode.shouldAutoSkipIntro(isFirstEpisodeInSeason: isFirstEpisodeInSeason)
     }
 
     /// Burns this marker's one-shot auto-skip for the session and tells the

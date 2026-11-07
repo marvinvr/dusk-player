@@ -91,7 +91,10 @@ extension PlayerViewModel {
     var activeSkipMarker: PlexMarker? {
         let positionMs = Int(displayPosition * 1000)
         return markers.first {
-            $0.isIntro && $0.skipButtonTitle != nil && $0.contains(positionMs: positionMs)
+            $0.isIntro &&
+                $0.skipButtonTitle != nil &&
+                $0.contains(positionMs: positionMs) &&
+                $0.id != countdownDismissedMarkerID
         }
     }
 

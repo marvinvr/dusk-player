@@ -88,6 +88,10 @@ final class PlayerViewModel {
     var autoSkipIntroMode: AutoSkipIntroMode = .alwaysExceptFirstEpisode
     var isFirstEpisodeInSeason = false
     var autoSkipCountdownMarkerID: Int?
+    /// Intro marker whose countdown finished while auto-skip was off. The chip
+    /// stays hidden until the playhead leaves the marker; seeking back in
+    /// shows it again. Never seeks.
+    var countdownDismissedMarkerID: Int?
     var autoSkipHandler: (@MainActor (PlexMarker) -> Void)?
     /// Markers this episode has already skipped once, seeded from the
     /// coordinator so the record survives a rebuilt player (quality switch,

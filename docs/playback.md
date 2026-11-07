@@ -1866,11 +1866,16 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   Bar"). The playhead and thumbnail move during the swipe, but the video
   position keeps tracking actual playback until Select commits. If BIF loading
   or parsing fails, the controls keep their existing no-preview behavior.
-- Intro auto-skip honors `AutoSkipIntroMode`: off, always, or always except
-  episode 1 of a season. The episode check comes from the active
-  `PlexMediaDetails.index`, so missing episode numbers are treated as not the
-  first episode. It waits for the player's saved settings to load before arming
-  a countdown and checks the current mode again before skipping.
+- The Skip Intro chip always counts down for 5 seconds once saved settings
+  have loaded (the countdown pauses while playback is paused). When it
+  finishes, `AutoSkipIntroMode` is read again: off hides the chip and keeps
+  playing; always, or always except episode 1 of a season, skips to just past
+  the intro. The episode check uses `PlexMediaDetails.index`, so a missing
+  episode number is not treated as episode 1. Hiding lasts until the playhead
+  leaves that marker; seeking back into the intro shows the chip again. A
+  marker already auto-skipped this session does not count down again. Credits
+  do not use this countdown — the Up Next poster only counts down when
+  auto-skip credits is on, and that expiry plays the next episode.
 - **Auto-skip fires at most once per marker per playback session.** Skipping a
   marker — by countdown or by tapping Skip Intro — records its id in
   `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never
