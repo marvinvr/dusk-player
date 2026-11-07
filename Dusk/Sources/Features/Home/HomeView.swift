@@ -8,6 +8,8 @@ struct HomeView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(ServerConnectionCoordinator.self) private var connections
+    @Environment(LaunchSplashState.self) private var launchSplash: LaunchSplashState?
     @Binding var path: NavigationPath
     let isSelected: Bool
     let liveTVViewModel: LiveTVViewModel
@@ -19,6 +21,8 @@ struct HomeView: View {
     var scrollToTopRevision = 0
     @State private var viewModel: HomeViewModel?
     @State private var heroSelectionResetRevision = 0
+    /// Set once the first load has run to completion, empty or not.
+    @State private var hasFinishedFirstLoad = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -49,6 +53,12 @@ struct HomeView: View {
             // stale once a loading, error, or outage state replaces the page.
             .onChange(of: showsPlatformContent) { _, isShowing in
                 if !isShowing { isScrolledOffTop.wrappedValue = false }
+            }
+            .onChange(of: viewModel?.isLoading ?? false) { wasLoading, isLoading in
+                if wasLoading, !isLoading { hasFinishedFirstLoad = true }
+            }
+            .onChange(of: revealsLaunchSplash, initial: true) { _, reveals in
+                if reveals { launchSplash?.contentIsReady() }
             }
             // Keyed on the merged-content revision: Home has to reload when a
             // server connects or drops, when priority changes, and when the
@@ -145,6 +155,25 @@ struct HomeView: View {
         guard let viewModel else { return false }
         if viewModel.hasLoadedContent { return true }
         return availability.isReady && !viewModel.isLoading && viewModel.error == nil
+    }
+
+    /// Whether Home is past its loading states, so the launch splash may
+    /// reveal it: first paint, or the empty, error or outage screen that
+    /// stands in for it. The model's load runs in a task, so "not loading" on
+    /// its own is no signal — the first load has to have finished.
+    private var revealsLaunchSplash: Bool {
+        guard let viewModel else { return false }
+        if viewModel.hasLoadedContent { return true }
+        switch availability {
+        case .unknown, .connecting:
+            // Mirrors ServerAvailabilityStateView: a finished first pass that
+            // left nothing to connect is an error screen, not a spinner.
+            return connections.hasCompletedFirstPass && !connections.isConnecting
+        case .allDisabled, .unreachable:
+            return true
+        case .ready:
+            return hasFinishedFirstLoad
+        }
     }
 
     private var availability: ServerAvailability {

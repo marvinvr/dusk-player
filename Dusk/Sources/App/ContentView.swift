@@ -14,6 +14,9 @@ struct ContentView: View {
     @State private var connections = ServerConnectionCoordinator()
     @State private var homeBootstrapError: String?
     @State private var isBootstrappingHome = false
+    /// Cold-launch only: lives as long as the window, so a profile switch or a
+    /// sign-out never brings the splash back.
+    @State private var launchSplash = LaunchSplashState()
 
     var body: some View {
         Group {
@@ -35,6 +38,15 @@ struct ContentView: View {
             }
         }
         .environment(connections)
+        .environment(launchSplash)
+        .overlay {
+            if showsLaunchSplash {
+                LaunchSplashOverlay(state: launchSplash)
+            }
+        }
+        .onChange(of: revealsWithoutHome, initial: true) { _, reveals in
+            if reveals { launchSplash.contentIsReady() }
+        }
         .animation(.default, value: plexService.isAuthenticated)
         .animation(.default, value: plexService.homeBootstrapCompleted)
         .animation(.default, value: plexService.needsHomeUserSelection)
@@ -55,6 +67,26 @@ struct ContentView: View {
             connections.applicationDidBecomeActive()
         }
         .playerSharePlayPresentation(isPlayer: false)
+    }
+
+    /// Screenshot captures time their shots from launch, so the splash stays
+    /// out of them unless `-DuskLaunchSplash YES` asks for it (DEBUG only, to
+    /// record the splash against the mock server).
+    private var showsLaunchSplash: Bool {
+        #if DEBUG
+        if ScreenshotMode.isActive {
+            return UserDefaults.standard.bool(forKey: "DuskLaunchSplash")
+        }
+        #endif
+        return true
+    }
+
+    /// The screens that are complete the moment they mount, so the launch
+    /// splash can leave without waiting for Home (which reports itself).
+    private var revealsWithoutHome: Bool {
+        if !plexService.isAuthenticated { return true }
+        if !plexService.homeBootstrapCompleted { return homeBootstrapError != nil }
+        return plexService.needsHomeUserSelection
     }
 
     /// Re-runs the connect pass whenever the session identity changes: sign-in,

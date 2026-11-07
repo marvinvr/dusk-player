@@ -16,6 +16,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `SignInView`; signed-in Plex Home accounts are checked and, when needed, show
   `HomeUserPickerView`; an active Home identity enters `MainTabView`. **There is
   no server step in onboarding.**
+- Cold launch is covered by `LaunchSplashOverlay` (`App/LaunchSplash.swift`), not a
+  spinner. It starts as a pixel copy of the launch storyboards (same logo size,
+  `LaunchBackground` = `duskBackground`; keep the three in sync) and leaves the
+  moment `LaunchSplashState.contentIsReady()` is called: by `ContentView` for
+  sign-in, the profile picker or a bootstrap error, and by `HomeView` on first
+  paint or the empty/error/outage screen that replaces it (never on "not loading"
+  alone — Home's load runs in a task). Exit: tvOS flies through the play triangle's
+  hollow (~1 s), iOS/iPadOS a soft push-in + fade (0.7 s), Reduce Motion a
+  crossfade. A slow launch keeps the logo breathing up to 10 s, then reveals
+  whatever loading state is there. Once per process (profile switches and
+  sign-out never show it); off in screenshot mode unless `-DuskLaunchSplash YES`.
 - Connecting is not a gate. `ServerConnectionCoordinator` (injected into the
   environment by `ContentView`) connects every enabled server in parallel while
   the shell is already on screen; each server's content appears as it answers.
