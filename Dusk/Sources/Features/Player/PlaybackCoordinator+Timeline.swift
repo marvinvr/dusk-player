@@ -119,6 +119,9 @@ extension PlaybackCoordinator {
         timeMs: Int,
         durationMs: Int
     ) {
+        // IPTV is not a Plex session: no timeline, no offline sync. Without
+        // this a nil server ID would fall back to the primary server.
+        guard activeLiveTVContext?.isIPTV != true else { return }
         if activePlaybackUsesLocalDownload {
             offlinePlaybackSyncManager?.recordProgress(
                 serverID: activePlaybackServerID,

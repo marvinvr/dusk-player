@@ -378,6 +378,12 @@ struct TVSettingsURLFieldRow: View {
     var placeholder: String?
     @Binding var text: String
     let isDisabled: Bool
+    var alertTitle = "Seerr Server URL"
+    var alertMessage = "Enter the address you use for Seerr."
+    /// URL keyboard and autofill; off for plain text such as a name.
+    var isURL = true
+    /// Masks the value (row and editor), for tokens and passwords.
+    var isSecure = false
     @FocusState private var isFocused: Bool
     @State private var draft = ""
     @State private var showsEditor = false
@@ -394,7 +400,7 @@ struct TVSettingsURLFieldRow: View {
 
                 Spacer(minLength: 24)
 
-                Text(text.isEmpty ? "Not set" : text)
+                Text(text.isEmpty ? "Not set" : (isSecure ? String(repeating: "•", count: min(text.count, 12)) : text))
                     .font(DuskFont.rowValue(ios: .subheadline.weight(.medium)))
                     .foregroundStyle(Color.duskTextSecondary)
                     .lineLimit(1)
@@ -407,16 +413,20 @@ struct TVSettingsURLFieldRow: View {
         .focused($isFocused)
         .tvSettingsRowFocusHighlight(isFocused)
         .disabled(isDisabled)
-        .alert("Seerr Server URL", isPresented: $showsEditor) {
-            TextField(placeholder ?? prompt, text: $draft)
-                .textContentType(.URL)
-                .autocorrectionDisabled()
+        .alert(alertTitle, isPresented: $showsEditor) {
+            if isSecure {
+                SecureField(placeholder ?? prompt, text: $draft)
+            } else {
+                TextField(placeholder ?? prompt, text: $draft)
+                    .textContentType(isURL ? .URL : nil)
+                    .autocorrectionDisabled()
+            }
             Button("Save") {
                 text = draft
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Enter the address you use for Seerr.")
+            Text(alertMessage)
         }
     }
 }

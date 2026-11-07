@@ -7,6 +7,16 @@ enum SettingsSupport {
             : "Optionally add requestable movies and shows to search."
     }
 
+    static let liveTVFooterText = "Watch channels from standard M3U playlists beside Plex Live TV."
+
+    static func iptvSourcesSummary(_ count: Int) -> String {
+        switch count {
+        case 0: "None"
+        case 1: "1 source"
+        default: "\(count) sources"
+        }
+    }
+
     static let playbackDefaultsFooterText = "Choose preferred stream quality. Audio & Subtitles sets the languages Dusk plays and when subtitles turn on. AI Upscaling sharpens lower-resolution video when the source benefits from it, but can increase power usage."
     static let audioLanguageFooterText = "Dusk plays audio in this language when a title has it. Original keeps each title’s own audio."
     static let subtitlesFooterText = "Auto turns subtitles on when the audio isn’t in your subtitle language, and otherwise shows only forced subtitles, which translate foreign dialogue and signs. Off shows only forced subtitles. Style System follows Accessibility › Subtitles & Captioning in the system Settings; Dusk always uses white text on a dark box. Size can also be changed from the player."

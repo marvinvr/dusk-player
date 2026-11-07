@@ -84,6 +84,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// asset's resource loader holds its delegate weakly, so the engine owns it
     /// for as long as the item plays.
     @ObservationIgnored private var remuxHLSLoader: RemuxHLSLoader?
+    /// The FairPlay key session of an IPTV item (`IPTVAsset`); nil otherwise.
+    @ObservationIgnored private var contentKeyController: FairPlayContentKeyController?
+    /// IPTV only: re-request the channel when its stream ends or drops.
+    @ObservationIgnored private var retunePolicy = IPTVRetunePolicy()
+    @ObservationIgnored private var retuneTask: Task<Void, Never>?
+    /// The current IPTV item has already scheduled its re-request (a failed
+    /// key request and the item failing both report the same interruption).
+    @ObservationIgnored private var isRetunePending = false
+    /// Why the stream last dropped, for the error once retuning gives up.
+    @ObservationIgnored private var lastRetuneReason: String?
     /// Loopback front for a Dolby Vision 7 → 8.1 session (see
     /// `DolbyVision7HLSProxy`), alive for as long as the source is loaded,
     /// and the master playlist URL it serves.
@@ -153,6 +163,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         #endif
         setupKVOObservers()
+        #if DEBUG
+        // Simulator verification runs must stay silent on the host Mac.
+        if ScreenshotMode.mutesPlayback { player.isMuted = true }
+        #endif
         // The renderer restyles live; only the folded-in system text size has
         // to be refreshed here.
         captionStyleObserver = NotificationCenter.default.addObserver(
@@ -213,6 +227,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         loadValidationTask?.cancel()
         stopDolbyVision7Proxy()
+        invalidateContentKeyController()
+        cancelIPTVRetune()
+        retunePolicy.reset()
+        lastRetuneReason = nil
         removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -260,7 +278,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 return
             }
 
-            if let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
+            // IPTV streams need their source's headers to answer at all, and
+            // are not Plex direct-play files: AVPlayer reports their errors.
+            if source.iptvStream == nil,
+               let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
                 guard !Task.isCancelled else { return }
                 self.failLoad(
                     validationError,
@@ -341,6 +362,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         loadValidationTask?.cancel()
         loadValidationTask = nil
         stopDolbyVision7Proxy()
+        invalidateContentKeyController()
+        cancelIPTVRetune()
         removeEnhancedVideoOutput()
         player.pause()
         player.defaultRate = 1
@@ -640,10 +663,32 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 await self?.prepareReadyItemForPlayback(item, attemptID: attemptID)
             }
         case .failed:
-            let playbackError = PlaybackError.fromPlaybackFailure(
-                error: itemError,
-                fallback: "Playback failed while opening the direct-play stream."
-            )
+            if currentSource?.iptvStream != nil {
+                let cause = contentKeyController?.lastError ?? itemError
+                if IPTVRetunePolicy.isRetryable(cause) {
+                    let reason = contentKeyController?.lastError?.localizedDescription
+                        ?? IPTVAsset.failureMessage(for: itemError)
+                    if let currentAttemptContext {
+                        avPlayerEngineLogger.notice(
+                            "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) IPTV stream dropped, retuning [\(Self.errorChainDescription(itemError), privacy: .public)]"
+                        )
+                    }
+                    scheduleIPTVRetune(reason: reason)
+                    return
+                }
+            }
+            let playbackError: PlaybackError
+            if let keyError = contentKeyController?.lastError {
+                playbackError = .unknown(keyError.localizedDescription)
+            } else if currentSource?.iptvStream != nil {
+                // Not a Plex file: the Plex direct-play wording would mislead.
+                playbackError = .unknown(IPTVAsset.failureMessage(for: itemError))
+            } else {
+                playbackError = PlaybackError.fromPlaybackFailure(
+                    error: itemError,
+                    fallback: "Playback failed while opening the direct-play stream."
+                )
+            }
             if let currentAttemptContext {
                 avPlayerEngineLogger.error(
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
@@ -686,6 +731,26 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 remuxHLSLoader = nil
                 item = AVPlayerItem(url: source.url)
             }
+        } else if let stream = source.iptvStream {
+            remuxHLSLoader = nil
+            invalidateContentKeyController()
+            let asset = IPTVAsset.makeAsset(for: stream)
+            if FairPlayContentKeyController.isSupported {
+                let controller = FairPlayContentKeyController(client: IPTVAsset.licenseClient(for: stream))
+                controller.onError = { [weak self] error in
+                    self?.failIPTVKeyRequest(error, attemptID: attemptID)
+                }
+                controller.attach(to: asset)
+                contentKeyController = controller
+            } else if stream.drm?.keySystem == .fairPlay {
+                failLoad(
+                    .unknown(FairPlayError.unavailableOnSimulator.localizedDescription),
+                    attemptID: attemptID,
+                    message: "FairPlay unavailable"
+                )
+                return
+            }
+            item = AVPlayerItem(asset: asset)
         } else {
             remuxHLSLoader = nil
             item = AVPlayerItem(url: source.url)
@@ -769,6 +834,101 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         error = .unknown("Dolby Vision 7 conversion failed.")
         state = .error
         isBuffering = false
+    }
+
+    // MARK: - IPTV retune
+
+    private func noteIPTVPlaybackProgress() {
+        guard currentSource?.iptvStream != nil else { return }
+        if player.timeControlStatus == .playing {
+            retunePolicy.playing(at: .now)
+        } else {
+            retunePolicy.notPlaying()
+        }
+    }
+
+    /// Stays in the player on a spinner and re-requests the same channel URL
+    /// after the policy's backoff, with a fresh item and a fresh FairPlay key
+    /// session. Gives up — the normal error, with Retry — only when the
+    /// channel has kept failing for `IPTVRetunePolicy.giveUpAfter`.
+    private func scheduleIPTVRetune(reason: String) {
+        guard let source = currentSource, source.iptvStream != nil, !isRetunePending else { return }
+        lastRetuneReason = reason
+        let attemptID = source.context.attemptID
+
+        switch retunePolicy.interrupted(at: .now) {
+        case .giveUp:
+            cancelIPTVRetune()
+            failLoad(
+                .unknown("This channel stopped responding. \(lastRetuneReason ?? "")"
+                    .trimmingCharacters(in: .whitespaces)),
+                attemptID: attemptID,
+                message: "IPTV retune gave up"
+            )
+        case .retune(let delay):
+            isRetunePending = true
+            error = nil
+            state = .loading
+            isBuffering = true
+            avPlayerEngineLogger.notice(
+                "Playback attempt \(source.context.attemptLabel, privacy: .public) IPTV retune in \(delay, privacy: .public)s"
+            )
+            retuneTask?.cancel()
+            retuneTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(delay))
+                guard !Task.isCancelled, let self,
+                      self.currentAttemptContext?.attemptID == attemptID else { return }
+                self.retuneIPTV(source)
+            }
+        }
+    }
+
+    private func retuneIPTV(_ source: PlaybackSource) {
+        retuneTask = nil
+        removeEnhancedVideoOutput()
+        removeTimeObserver()
+        removePlaybackEndedObserver()
+        removePlaybackStalledObserver()
+        removeSubtitleSelectionObserver()
+        player.pause()
+        player.replaceCurrentItem(with: nil)
+
+        pendingStartPosition = nil
+        hasReportedPlaybackEnded = false
+        availableAudioTracks = []
+        availableSubtitleTracks = []
+        audioGroup = nil
+        subtitleGroup = nil
+        selectedAudioTrackID = nil
+        isRetunePending = false
+
+        // A new asset and (on device) a new key session: the next item may
+        // be FairPlay-protected even when the slate before it was not.
+        finishValidatedLoad(source: source, attemptID: source.context.attemptID)
+    }
+
+    private func cancelIPTVRetune() {
+        retuneTask?.cancel()
+        retuneTask = nil
+        isRetunePending = false
+    }
+
+    private func invalidateContentKeyController() {
+        contentKeyController?.onError = nil
+        contentKeyController?.invalidate()
+        contentKeyController = nil
+    }
+
+    /// A failed key request surfaces with its own reason right away; waiting
+    /// for the item to fail showed a generic AVFoundation message, or nothing
+    /// at all while the player kept buffering.
+    private func failIPTVKeyRequest(_ keyError: Error, attemptID: UUID) {
+        guard currentAttemptContext?.attemptID == attemptID, state != .error else { return }
+        if IPTVRetunePolicy.isRetryable(keyError) {
+            scheduleIPTVRetune(reason: keyError.localizedDescription)
+            return
+        }
+        failLoad(.unknown(keyError.localizedDescription), attemptID: attemptID, message: "FairPlay key request failed")
     }
 
     private func stopDolbyVision7Proxy() {
@@ -867,6 +1027,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             let seekableRange = self?.player.currentItem?.seekableTimeRanges.last?.timeRangeValue
             Task { @MainActor [weak self] in
                 self?.currentTime = seconds
+                self?.noteIPTVPlaybackProgress()
                 if let seekableRange {
                     let start = CMTimeGetSeconds(seekableRange.start)
                     let end = CMTimeGetSeconds(CMTimeRangeGetEnd(seekableRange))
@@ -994,6 +1155,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     private func handlePlaybackEnded() {
+        // A live IPTV channel never "ends": `EXT-X-ENDLIST` is a source
+        // finishing its off-air slate (or the live session), so ask for the
+        // channel again and stay in the player.
+        if currentSource?.iptvStream != nil {
+            scheduleIPTVRetune(reason: "The channel’s stream ended.")
+            return
+        }
         guard !hasReportedPlaybackEnded else { return }
         hasReportedPlaybackEnded = true
         if let currentAttemptContext {

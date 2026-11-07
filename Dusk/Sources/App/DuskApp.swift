@@ -99,6 +99,7 @@ struct DuskApp: App {
     @State private var plexService: PlexService
     @State private var seerrService: SeerrService
     @State private var traktService: TraktService
+    @State private var iptvService: IPTVService
     @State private var playbackCoordinator: PlaybackCoordinator
     @State private var downloadManager: DownloadManager
     @State private var offlinePlaybackSyncManager: OfflinePlaybackSyncManager
@@ -132,6 +133,7 @@ struct DuskApp: App {
         let trakt = TraktService(plexService: service)
         coordinator.traktService = trakt
         _traktService = State(initialValue: trakt)
+        _iptvService = State(initialValue: IPTVService(plexService: service))
         _playbackCoordinator = State(initialValue: coordinator)
         // Siri's intents run in this process and reach the app through it.
         let siri = SiriPlaybackService(plexService: service, playback: coordinator)
@@ -151,6 +153,7 @@ struct DuskApp: App {
                 .environment(plexService)
                 .environment(seerrService)
                 .environment(traktService)
+                .environment(iptvService)
                 .environment(playbackCoordinator)
                 .environment(downloadManager)
                 .environment(offlinePlaybackSyncManager)

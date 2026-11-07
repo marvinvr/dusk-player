@@ -31,6 +31,12 @@ enum ScreenshotMode {
         static let photoSlideshow = "DuskScreenshotPhotoSlideshow"
         static let trakt = "DuskScreenshotTrakt"
         static let traktSignIn = "DuskScreenshotTraktSignIn"
+        static let mute = "DuskScreenshotMute"
+        static let iptvPlaylist = "DuskScreenshotIPTVPlaylist"
+        static let iptvGuide = "DuskScreenshotIPTVGuide"
+        static let iptvName = "DuskScreenshotIPTVName"
+        static let iptvHeaderValue = "DuskScreenshotIPTVHeaderValue"
+        static let iptvChannel = "DuskScreenshotIPTVChannel"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -55,6 +61,36 @@ enum ScreenshotMode {
     static var searchQuery: String? {
         guard isActive, screen == .search else { return nil }
         return defaults.string(forKey: Key.search)?.nilIfEmpty
+    }
+
+    /// `-DuskScreenshotMute 1`: AVPlayer plays muted, so simulator playback
+    /// runs never make a sound on the host Mac (string check: launch-arg
+    /// bools are unreliable).
+    static var mutesPlayback: Bool {
+        guard isActive, let value = defaults.string(forKey: Key.mute) else { return false }
+        return ["1", "yes", "true"].contains(value.lowercased())
+    }
+
+    /// `-DuskScreenshotIPTVPlaylist <m3u url>` (plus optional `…IPTVGuide`,
+    /// `…IPTVName`, `…IPTVHeaderValue`) seeds one IPTV source when the
+    /// profile has none, so a run starts with channels in Live TV.
+    static var seededIPTVSource: (source: IPTVSource, headerValue: String?)? {
+        guard isActive,
+              let playlist = defaults.string(forKey: Key.iptvPlaylist).flatMap(M3UParser.httpURL) else { return nil }
+        let headerValue = defaults.string(forKey: Key.iptvHeaderValue)?.nilIfEmpty
+        let source = IPTVSource(
+            name: defaults.string(forKey: Key.iptvName)?.nilIfEmpty ?? "IPTV",
+            playlistURL: playlist,
+            guideURL: defaults.string(forKey: Key.iptvGuide).flatMap(M3UParser.httpURL),
+            headerName: headerValue == nil ? nil : IPTVSource.defaultHeaderName
+        )
+        return (source, headerValue)
+    }
+
+    /// `-DuskScreenshotIPTVChannel <n>`: with `-DuskScreenshotScreen
+    /// iptvPlayer`, plays the n-th channel of the first IPTV source.
+    static var iptvChannelIndex: Int {
+        defaults.integer(forKey: Key.iptvChannel)
     }
 
     /// Keeps the player HUD on screen instead of auto-hiding it.
@@ -102,6 +138,9 @@ enum ScreenshotMode {
         case home, movies, shows, photos, library, collections, detail, search, player, downloads, settings, serverPriority, hiddenLibraries, supporter, icons
         /// Settings › Trakt.
         case trakt
+        /// Settings › Live TV › IPTV Sources; the Live TV tab; an IPTV
+        /// channel playing (`-DuskScreenshotIPTVChannel`).
+        case iptvSources, liveTV, iptvPlayer
         /// The Playlists tab; `playlist` opens `-DuskScreenshotItem <playlist
         /// ratingKey>`; `playlistPlay` plays it from item
         /// `-DuskScreenshotPlaylistStart <n>`; `addToPlaylist` opens the
@@ -124,6 +163,8 @@ enum ScreenshotMode {
         /// Play this playlist from `playlistStart`.
         var playlistID: PlexItemID?
         var playlistStart = 0
+        /// Play this channel of the first IPTV source.
+        var iptvChannelIndex: Int?
     }
 
     enum Sheet: String, Identifiable {
@@ -253,6 +294,14 @@ enum ScreenshotMode {
         case .trakt:
             destination.tab = .settings
             destination.routes = [.screenshotTrakt]
+        case .iptvSources:
+            destination.tab = .settings
+            destination.routes = [.screenshotIPTVSources]
+        case .liveTV:
+            destination.tab = .liveTV
+        case .iptvPlayer:
+            destination.tab = .liveTV
+            destination.iptvChannelIndex = iptvChannelIndex
         case .supporter:
             destination.tab = .settings
             destination.sheet = .supporter

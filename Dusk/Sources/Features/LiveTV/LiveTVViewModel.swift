@@ -4,6 +4,8 @@ import Foundation
 @Observable
 final class LiveTVViewModel {
     private let plexService: PlexService
+    /// The user's IPTV sources, shown after the Plex channels.
+    private let iptvService: IPTVService?
 
     private(set) var provider: PlexLiveTVProvider?
     private(set) var channels: [PlexLiveChannel] = []
@@ -28,13 +30,48 @@ final class LiveTVViewModel {
     /// The Plex Home profile the provider was found for.
     private var discoveredProfileID: String?
 
-    /// Whether a connected server has a DVR. Drives the tab and the Home shelf.
-    var isAvailable: Bool { provider != nil }
+    /// Whether a connected server has a DVR or an IPTV source is set up.
+    /// Drives the tab.
+    var isAvailable: Bool { provider != nil || hasIPTVSources }
+
+    var hasIPTVSources: Bool { iptvService?.hasSources == true }
+
+    /// Each loaded IPTV source, trimmed to the selected guide window like the
+    /// Plex lineup. Read live so "Now" drops ended programmes as time passes.
+    var iptvLineups: [IPTVSourceLineup] {
+        guard let iptvService else { return [] }
+        let window = LiveTVGuideWindow.forDayOffset(selectedDayOffset)
+        return iptvService.lineups.map { loaded in
+            IPTVSourceLineup(
+                source: loaded.source,
+                lineup: loaded.lineup.restricted(to: window),
+                guideError: loaded.guideError
+            )
+        }
+    }
+
+    /// Whether anything (Plex or IPTV) has a guide to show.
+    var hasGuide: Bool { lineup != nil || !(iptvService?.lineups.isEmpty ?? true) }
+
+    var isLoadingAny: Bool { isLoading || iptvService?.isLoading == true }
+
+    /// The Plex error, or else the first IPTV source error, for when there is
+    /// no guide at all to show.
+    var guideError: String? {
+        if let error { return error }
+        guard let iptvService else { return nil }
+        return iptvService.sources.lazy.compactMap { iptvService.sourceErrors[$0.id] }.first
+    }
 
     private let discoveryRetryDelay: Duration
 
-    init(plexService: PlexService, discoveryRetryDelay: Duration = .seconds(2)) {
+    init(
+        plexService: PlexService,
+        iptvService: IPTVService? = nil,
+        discoveryRetryDelay: Duration = .seconds(2)
+    ) {
         self.plexService = plexService
+        self.iptvService = iptvService
         self.discoveryRetryDelay = discoveryRetryDelay
     }
 
@@ -102,6 +139,17 @@ final class LiveTVViewModel {
     /// Loads the guide when it is missing, stale or for another selection.
     /// Cheap to call on every appearance.
     func load(force: Bool = false, now: Date = .now) async {
+        // IPTV sources load beside the Plex guide, never behind it: a slow
+        // DVR must not hold back channels that have nothing to do with it.
+        let iptvLoad = Task { [iptvService] in await iptvService?.load(force: force) }
+        await loadPlexGuide(force: force, now: now)
+        await iptvLoad.value
+    }
+
+    private func loadPlexGuide(force: Bool, now: Date) async {
+        // The tab is up for IPTV alone. `discover()` keeps looking for a DVR
+        // on its own; asking again on every guide tick would only repeat it.
+        if provider == nil, hasIPTVSources, !force { return }
         guard !isLoading else {
             reloadRequested = true
             return
@@ -203,6 +251,16 @@ final class LiveTVViewModel {
         guard dayOffset != selectedDayOffset else { return }
         selectedDayOffset = dayOffset
         await load()
+    }
+
+    /// Image URLs for one lineup's rows: IPTV art is absolute, Plex art is
+    /// asked of the DVR's server.
+    func imageURL(for lineup: PlexLiveTVLineup) -> (String?, Int, Int) -> URL? {
+        guard lineup.provider.isIPTV else { return imageURL(for:width:height:) }
+        let plexService = plexService
+        return { path, width, height in
+            plexService.imageURL(for: path, serverID: IPTVImages.serverID, width: width, height: height)
+        }
     }
 
     func imageURL(for path: String?, width: Int, height: Int) -> URL? {

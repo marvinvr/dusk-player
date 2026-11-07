@@ -25,33 +25,35 @@ struct LiveTVRootContent: View {
     private struct PendingLivePlay {
         let channel: PlexLiveChannel
         let program: PlexLiveProgram
+        let lineup: PlexLiveTVLineup
     }
 
     var body: some View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
 
-            if viewModel.isLoading, viewModel.lineup == nil {
+            if viewModel.hasGuide {
+                guide()
+            } else if viewModel.isLoadingAny {
                 FeatureLoadingView()
             } else if !viewModel.isAvailable, viewModel.error == nil {
                 FeatureEmptyStateView(
                     systemImage: "dot.radiowaves.left.and.right",
                     title: "Live TV isn’t available",
-                    message: "Set up a tuner and program guide on this Plex server to watch live channels."
+                    message: "Set up a tuner and program guide on this Plex server, or add an IPTV source in Settings, to watch live channels."
                 )
-            } else if let error = viewModel.error, viewModel.lineup == nil {
+            } else if let error = viewModel.guideError {
                 FeatureErrorView(message: error) {
                     Task { await viewModel.load(force: true) }
                 }
-            } else if let lineup = viewModel.lineup {
-                guide(lineup)
             }
         }
         .duskNavigationTitle("Live TV")
         .duskNavigationBarTitleDisplayModeLarge()
-        .task {
-            // Reruns whenever the tab comes back, so a returning viewer gets
-            // a current guide, then keeps it current while it stays open.
+        // Reruns whenever the tab comes back, so a returning viewer gets a
+        // current guide, then keeps it current while it stays open. Also
+        // reruns when a DVR turns up after the tab opened on IPTV alone.
+        .task(id: viewModel.provider?.id) {
             await viewModel.load()
             await viewModel.keepFresh()
         }
@@ -64,13 +66,14 @@ struct LiveTVRootContent: View {
             await viewModel.load(force: true)
         }
         .sheet(item: $selectedProgram, onDismiss: playPending) { program in
+            let match = channelAndLineup(for: program)
             LiveTVProgramDetails(
                 program: program,
-                channel: channel(for: program),
+                channel: match?.channel,
                 canPlay: program.isAiring(),
                 play: {
-                    if let channel = channel(for: program) {
-                        pendingPlay = PendingLivePlay(channel: channel, program: program)
+                    if let match {
+                        pendingPlay = PendingLivePlay(channel: match.channel, program: program, lineup: match.lineup)
                     }
                     selectedProgram = nil
                 }
@@ -81,21 +84,27 @@ struct LiveTVRootContent: View {
     private func playPending() {
         guard let pending = pendingPlay else { return }
         pendingPlay = nil
-        play(channel: pending.channel, program: pending.program)
+        play(channel: pending.channel, program: pending.program, lineup: pending.lineup)
     }
 
-    private func guide(_ lineup: PlexLiveTVLineup) -> some View {
+    private func guide() -> some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 24) {
                 datePicker
 
-                ForEach(lineup.guides) { guide in
-                    LiveTVChannelGuideRow(
-                        guide: guide,
-                        imageURL: viewModel.imageURL,
-                        selectProgram: { selectedProgram = $0 },
-                        play: { play(channel: guide.channel, program: $0) }
-                    )
+                if let lineup = viewModel.lineup {
+                    channelRows(lineup)
+                }
+
+                // Each IPTV source is its own section after the Plex
+                // channels, headed by the name it was given in Settings.
+                ForEach(viewModel.iptvLineups, id: \.source.id) { iptv in
+                    Text(iptv.source.name)
+                        .font(DuskFont.sectionHeader(ios: .title2.bold()))
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .padding(.top, 12)
+                        .accessibilityAddTraits(.isHeader)
+                    channelRows(iptv.lineup)
                 }
             }
             .padding(.horizontal)
@@ -157,18 +166,36 @@ struct LiveTVRootContent: View {
         #endif
     }
 
+    @ViewBuilder
+    private func channelRows(_ lineup: PlexLiveTVLineup) -> some View {
+        let imageURL = viewModel.imageURL(for: lineup)
+        ForEach(lineup.guides) { guide in
+            LiveTVChannelGuideRow(
+                guide: guide,
+                imageURL: imageURL,
+                selectProgram: { selectedProgram = $0 },
+                play: { play(channel: guide.channel, program: $0, lineup: lineup) }
+            )
+        }
+    }
+
     /// A channel is always tunable; the program only labels the session and
     /// is dropped unless it is on now. Guide data is optional (issue #17).
-    private func play(channel: PlexLiveChannel, program: PlexLiveProgram?) {
-        guard let lineup = viewModel.lineup else { return }
+    /// `lineup` is the channel's own (Plex or one IPTV source), which is what
+    /// the in-player channel list then switches within.
+    private func play(channel: PlexLiveChannel, program: PlexLiveProgram?, lineup: PlexLiveTVLineup) {
         let program = program.flatMap { $0.isAiring() ? $0 : nil }
         Task {
             await playback.playLiveTV(channel: channel, program: program, lineup: lineup)
         }
     }
 
-    private func channel(for program: PlexLiveProgram) -> PlexLiveChannel? {
-        viewModel.lineup?.channel(for: program)
+    private func channelAndLineup(for program: PlexLiveProgram) -> (channel: PlexLiveChannel, lineup: PlexLiveTVLineup)? {
+        let lineups = [viewModel.lineup].compactMap { $0 } + viewModel.iptvLineups.map(\.lineup)
+        for lineup in lineups {
+            if let channel = lineup.channel(for: program) { return (channel, lineup) }
+        }
+        return nil
     }
 
     private func dayLabel(_ dayOffset: Int) -> String {

@@ -4,6 +4,7 @@ struct SettingsTVView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(SeerrService.self) private var seerrService
     @Environment(TraktService.self) private var traktService
+    @Environment(IPTVService.self) private var iptvService
     @Environment(UserPreferences.self) private var preferences
     @Environment(SupporterStore.self) private var supporterStore
     let viewModel: SettingsViewModel
@@ -100,6 +101,15 @@ struct SettingsTVView: View {
                         ) {
                             TraktSettingsView()
                         }
+                    }
+                }
+
+                TVSettingsSection(title: "Live TV", footer: SettingsSupport.liveTVFooterText) {
+                    TVSettingsNavigationRow(
+                        title: "IPTV Sources",
+                        detail: SettingsSupport.iptvSourcesSummary(iptvService.sources.count)
+                    ) {
+                        IPTVSourcesSettingsView()
                     }
                 }
 

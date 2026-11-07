@@ -422,6 +422,10 @@ final class PlaybackCoordinator {
         program: PlexLiveProgram?,
         lineup: PlexLiveTVLineup
     ) async {
+        if let stream = channel.iptv {
+            await playIPTV(channel: channel, stream: stream, program: program, lineup: lineup)
+            return
+        }
         // Independently tuned Plex Live TV sessions have different sliding DVR
         // windows, so they cannot share one stable coordinated media timeline.
         sharePlayController.leave()
@@ -537,6 +541,125 @@ final class PlaybackCoordinator {
         }
     }
 
+    // MARK: - IPTV
+
+    /// An IPTV channel: always AVPlayer, never VLCKit and never a Plex
+    /// server. The stream URL goes to AVPlayer as is, with the source's
+    /// headers and a FairPlay key session (`IPTVAsset`). Shares the Live TV
+    /// player (HUD, live seek bar, channel switching, audio tracks, AirPlay);
+    /// nothing is reported to Plex, Trakt or the offline sync.
+    private func playIPTV(
+        channel: PlexLiveChannel,
+        stream: IPTVPlayableChannel,
+        program: PlexLiveProgram?,
+        lineup: PlexLiveTVLineup
+    ) async {
+        sharePlayController.leave()
+        let attemptID = UUID()
+        let subtitle = channel.displayTitle
+        let title = program?.primaryDisplayTitle ?? channel.displayTitle
+        enterLoadingState(
+            placeholder: PlaybackPlaceholder(
+                title: title,
+                subtitle: subtitle,
+                posterPath: nil,
+                backdropPath: program?.preferredLandscapePath ?? channel.thumb,
+                artwork: .liveChannel(logoPath: channel.thumb),
+                serverID: IPTVImages.serverID
+            ),
+            attemptID: attemptID
+        )
+
+        // Widevine, PlayReady and friends cannot play on Apple hardware; say
+        // so instead of letting AVPlayer fail on an unreadable playlist.
+        if case .unsupported(let keySystem) = stream.drm?.keySystem {
+            loadError = FairPlayError.unsupportedKeySystem(keySystem).localizedDescription
+            return
+        }
+
+        let sessionID = "iptv-\(attemptID.uuidString)"
+        let newEngine = PlaybackEngineFactory.makeEngine(type: .avPlayer)
+        newEngine.configureVideoEnhancement(.disabled)
+        newEngine.applySubtitleFontSize(preferences.subtitleFontSize)
+        newEngine.applySubtitleStyle(preferences.subtitleStyle)
+        newEngine.onPlaybackEnded = { [weak self] in
+            Task { @MainActor [weak self] in
+                await self?.handlePlaybackEnded()
+            }
+        }
+        newEngine.setPictureInPictureDelegate(self)
+
+        let sanitizedURL = IPTVAsset.sanitizedURLString(stream.streamURL)
+        let context = PlaybackAttemptContext(
+            attemptID: attemptID,
+            title: title,
+            ratingKey: sessionID,
+            engine: .avPlayer,
+            resolverReason: "IPTV channel; always AVPlayer",
+            mediaID: 0,
+            partID: 0,
+            sanitizedPlaybackURL: sanitizedURL
+        )
+        let liveContext = PlexLivePlaybackContext(
+            lineup: lineup,
+            channel: channel,
+            program: program,
+            sessionID: sessionID
+        )
+
+        hasScrobbled = false
+        didFinalizeCurrentSession = false
+        lastReportedTimeMs = 0
+        lastReportedDurationMs = 0
+        // Only keys the session locally (Now Playing, timeline ticks);
+        // `reportTimelineOrQueueOfflineSync` never sends IPTV to Plex.
+        ratingKey = sessionID
+        activePlaybackServerID = nil
+        activePlaybackUsesLocalDownload = false
+        activePlaybackSessionIdentifier = nil
+        activeTranscodeSessionID = nil
+        activeItemDetails = nil
+        activeLiveTVContext = liveContext
+        engine = newEngine
+        var source = PlaybackSource(
+            url: stream.streamURL,
+            startPosition: nil,
+            context: context,
+            preferredAudioTrackPosition: nil,
+            locality: .remoteNetwork,
+            liveTVContext: liveContext
+        )
+        source.iptvStream = stream
+        playbackSource = source
+        // No Plex media to describe; the debug overlay stays off.
+        debugInfo = nil
+        playerPresentationID = UUID()
+        nowPlayingController.beginLiveSession(
+            title: title,
+            channelTitle: subtitle,
+            artworkPath: program?.preferredLandscapePath ?? channel.thumb,
+            serverID: IPTVImages.serverID,
+            engine: newEngine,
+            plexService: plexService,
+            skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+            skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+        )
+        startTimelineReporting()
+        startLiveTVScheduleRefresh()
+    }
+
+    /// Whether the session is an IPTV channel (its error offers Retry).
+    var isPlayingIPTV: Bool {
+        activeLiveTVContext?.isIPTV == true
+    }
+
+    /// Retry from the player's error: tunes the same IPTV channel again from
+    /// scratch, with whatever is on now.
+    func retryActiveIPTVChannel() async {
+        guard let context = activeLiveTVContext, context.isIPTV else { return }
+        await playLiveTV(channel: context.channel, program: context.program(at: .now), lineup: context.lineup)
+    }
+
     // MARK: - Live TV Schedule
 
     /// Keeps the tuned channel's schedule current for the whole session. The
@@ -579,7 +702,11 @@ final class PlaybackCoordinator {
 
         var programs = context.channelPrograms
         let coverage = programs.compactMap(\.endsAt).max() ?? .distantPast
-        if coverage < Date.now.addingTimeInterval(Self.liveTVScheduleCoverageHorizon) {
+        // An IPTV channel's schedule is its source's XMLTV guide, which the
+        // lineup already carries for days ahead; there is nothing to refetch
+        // from Plex. The current program is still re-derived below.
+        if !context.isIPTV,
+           coverage < Date.now.addingTimeInterval(Self.liveTVScheduleCoverageHorizon) {
             let fetched = await fetchLiveTVSchedule(
                 provider: context.lineup.provider,
                 channel: context.channel
