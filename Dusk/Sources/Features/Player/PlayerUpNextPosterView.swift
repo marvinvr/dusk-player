@@ -154,8 +154,8 @@ struct PlayerUpNextPosterView: View {
                 .font(CompactMetrics.detailFont)
                 .opacity(CompactMetrics.detailOpacity)
             }
-            .frame(maxWidth: CompactMetrics.maxTextWidth, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
+            .modifier(HuggingMaxWidth(CompactMetrics.maxTextWidth))
 
             #if !os(tvOS)
             Button(action: onDismiss) {
@@ -502,6 +502,43 @@ private struct CompactChipGlass: ViewModifier {
                 .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
         }
         #endif
+    }
+}
+
+/// Caps a view's width without making it greedy. A flexible
+/// `.frame(maxWidth:)` takes the whole proposed width up to its cap, which
+/// stretched the compact pill far past short titles; this only caps the
+/// proposal and reports the content's own size, so the pill hugs its text and
+/// long titles truncate at the cap.
+private struct HuggingMaxWidth: ViewModifier {
+    let maxWidth: CGFloat
+
+    init(_ maxWidth: CGFloat) {
+        self.maxWidth = maxWidth
+    }
+
+    func body(content: Content) -> some View {
+        MaxWidthLayout(maxWidth: maxWidth) { content }
+    }
+}
+
+private struct MaxWidthLayout: Layout {
+    let maxWidth: CGFloat
+
+    private func cappedProposal(_ proposal: ProposedViewSize) -> ProposedViewSize {
+        ProposedViewSize(width: min(proposal.width ?? maxWidth, maxWidth), height: proposal.height)
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        subviews.first?.sizeThatFits(cappedProposal(proposal)) ?? .zero
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(
+            at: bounds.origin,
+            anchor: .topLeading,
+            proposal: ProposedViewSize(width: bounds.width, height: bounds.height)
+        )
     }
 }
 
