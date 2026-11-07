@@ -38,7 +38,7 @@ EXTERNAL_GROUPS="External" # optional comma separated external TestFlight groups
                            # submitted for Beta App Review (internal groups with "all builds" get it automatically)
                            # (external=PENDING_OTHER_BUILD_IN_REVIEW: an older build of the same version is still in
                            # beta review, Apple allows one per version; submit this one once that review is done)
-export EXTERNAL_SKIP_VERSIONS="1.8.*"  # space separated version globs kept internal-only (Marvin 2026-10-21: no 1.8 externally for now)
+export EXTERNAL_SKIP_VERSIONS=""  # space separated version globs kept internal-only (Marvin 2026-11-07: 1.8 goes external too)
 # optional shell line run in the project dir before building ($REPO = checkout). VLCKit is not in git:
 # reuse the checkout's copy, then the Xcode Cloud post-clone step verifies it (or downloads the pinned
 # version) and makes sure the Metal toolchain is installed. Release builds must carry Dusk's VLCKit
