@@ -161,13 +161,139 @@ struct PlaybackFallbackTests {
     }
 }
 
+@Suite("Plex server subtitle delivery", .serialized)
+@MainActor
+struct PlexServerSubtitleTests {
+    private func playback(refuses: Bool = false) throws -> PlaybackCoordinator {
+        let service = PlexService(urlProtocolClasses: [SubtitleDecisionProtocol.self])
+        let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"subtitle-server","connections":[]}"#.utf8))
+        service.pool.adopt(server: server, baseURL: URL(string: refuses ? "https://refuse.plex.invalid" : "https://plex.invalid")!, token: "test", connection: nil)
+        let playback = PlaybackCoordinator(plexService: service)
+        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(#"""
+            {"ratingKey":"1","key":"/library/metadata/1","type":"episode","title":"PGS",
+             "Media":[{"id":1,"container":"mkv","videoCodec":"hevc","audioCodec":"dca",
+               "width":1920,"height":1080,"bitrate":30000,"Part":[{"id":2,"key":"/clip.mkv","Stream":[
+                 {"id":3,"streamType":1,"codec":"hevc","bitDepth":8,"colorTrc":"bt709"},
+                 {"id":4,"streamType":2,"codec":"dca","channels":6,"languageCode":"eng"},
+                 {"id":5,"streamType":3,"codec":"pgs","languageCode":"eng","forced":true,"default":true},
+                 {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"}
+               ]}]}]}
+            """#.utf8))
+        let media = try #require(details.media.first)
+        playback.activeItemDetails = details
+        playback.ratingKey = "1"
+        playback.activePlaybackServerID = "subtitle-server"
+        playback.activeAudioStreamID = 4
+        playback.activeSubtitleStreamID = 5
+        playback.engine = FailedPlaybackEngine(state: .paused)
+        playback.debugInfo = PlaybackDebugInfo(
+            title: "PGS", engine: .vlcKit, decision: .directPlay, media: media, part: media.parts[0],
+            attemptID: UUID(), resolverReason: "MKV/DTS/PGS", sanitizedPlaybackURL: "https://plex.invalid/clip.mkv"
+        )
+        return playback
+    }
+
+    private func query(_ playback: PlaybackCoordinator) throws -> [String: String] {
+        let url = try #require(playback.playbackSource?.url)
+        return Dictionary(uniqueKeysWithValues: URLComponents(url: url, resolvingAgainstBaseURL: false)!.queryItems!.map {
+            ($0.name, $0.value ?? "")
+        })
+    }
+
+    @Test func mkvHEVCDTSAndPGSStayOnVLCKitForDirectPlay() throws {
+        let playback = try playback()
+        let info = try #require(playback.debugInfo)
+        #expect(StreamResolver.evaluate(media: info.media).engine == .vlcKit)
+        #expect(!playback.usesServerTrackSelection)
+    }
+
+    @Test func qualitySwitchCarriesThePGSBurnAndAudioSelection() async throws {
+        let playback = try playback()
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        await playback.switchQuality(to: .p720_4Mbps)
+        let query = try query(playback)
+        #expect(query["audioStreamID"] == "4")
+        #expect(query["subtitleStreamID"] == "5")
+        #expect(query["subtitles"] == "burn")
+        #expect(playback.usesServerTrackSelection)
+        #expect(playback.debugInfo?.qualityPreset == .p720_4Mbps)
+        #expect(playback.playbackSource?.shouldAutoPlay == false)
+    }
+
+    @Test(arguments: [false, true])
+    func serverPGSPickerRebuildsOnOffOnAndKeepsQuality(manualQuality: Bool) async throws {
+        let playback = try playback()
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        if manualQuality {
+            await playback.switchQuality(to: .p720_4Mbps)
+        } else {
+            playback.engine = FailedPlaybackEngine()
+            await playback.performDirectPlayServerStreamFallback()
+        }
+        #expect(try query(playback)["subtitleStreamID"] == "5")
+        #expect(playback.usesServerTrackSelection)
+        let preferences = UserPreferences()
+        let model = PlayerViewModel(engine: playback.engine!)
+        defer { model.cleanup() }
+        for subtitleID: Int? in [6, nil, 5] {
+            model.configureAutomaticTrackSelection(
+                preferences: preferences, part: playback.debugInfo?.part,
+                usesServerTrackSelection: playback.usesServerTrackSelection,
+                selectedAudioStreamID: playback.activeAudioStreamID,
+                selectedSubtitleStreamID: playback.activeSubtitleStreamID
+            )
+            #expect(model.subtitleTracks.count == 2) // Original PGS tracks, absent from HLS.
+            model.plexTrackSelectionHandler = { audio, subtitle in
+                playback.selectPlexStreamsForPlayback(audioStreamID: audio, subtitleStreamID: subtitle)
+            }
+            let pausedEngine = FailedPlaybackEngine(state: .paused)
+            pausedEngine.currentTime = 12
+            playback.engine = pausedEngine
+            model.selectSubtitle(subtitleID.flatMap { id in model.subtitleTracks.first { $0.id == id } })
+            await playback.spatialAudioTransitionTask?.value
+            let query = try query(playback)
+            #expect(query["subtitleStreamID"] == subtitleID.map(String.init))
+            #expect(query["subtitles"] == (subtitleID == nil ? "none" : "burn"))
+            #expect(query["audioStreamID"] == "4")
+            #expect(playback.playbackSource?.shouldAutoPlay == false)
+            #expect(playback.playbackSource?.startPosition == 12)
+            #expect(playback.debugInfo?.qualityPreset == (manualQuality ? .p720_4Mbps : .original))
+        }
+    }
+
+    @Test func refusedTrackChangeKeepsTheLoadedStreamAndConfirmedSelection() async throws {
+        let playback = try playback(refuses: true)
+        let engine = playback.engine
+        playback.remuxTrackSelection = ExplicitTrackSelection(audioStreamID: 4, subtitleStreamID: 5)
+        playback.activeSubtitleStreamID = 6
+        await playback.rebuildServerStreamSession(reason: "refused selection")
+        #expect(playback.engine === engine)
+        #expect(playback.activeSubtitleStreamID == 5)
+        #expect(playback.activeAudioStreamID == 4)
+        #expect(playback.qualitySwitchError != nil)
+    }
+}
+
+private final class SubtitleDecisionProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        let code = request.url?.host == "refuse.plex.invalid" ? 2000 : 1001
+        client?.urlProtocol(self, didLoad: Data("{\"MediaContainer\":{\"generalDecisionCode\":\(code)}}".utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
+}
+
 @MainActor
 private final class FailedPlaybackEngine: PlaybackEngine {
     var state: PlaybackState
     var subtitleSelectionCount = 0
     var error: PlaybackError? { state == .error ? .unknown("The decoder failed.") : nil }
     init(state: PlaybackState = .error) { self.state = state }
-    let currentTime: TimeInterval = 0
+    var currentTime: TimeInterval = 0
     let duration: TimeInterval = 0
     let isBuffering = false
     let videoEnhancementStatus = VideoEnhancementStatus.disabled

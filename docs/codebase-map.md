@@ -193,6 +193,9 @@ Player:
   routed to.
 - `PlaybackSourceResolver` picks which connected server plays an item and in
   which order the others are tried.
+- `PlaybackCoordinator+ServerTracks` rebuilds Plex HLS for audio/subtitle
+  changes, retaining manual quality and supporting PGS burn-in; it also owns
+  AV1 server-conversion fallback.
 - `PlaybackSharePlayController` owns Group Activities lifecycle and attaches the
   active AVPlayer or VLCKit engine to coordinated playback; Up Next republishes
   the server-scoped Plex item through `DuskWatchTogetherActivity`.

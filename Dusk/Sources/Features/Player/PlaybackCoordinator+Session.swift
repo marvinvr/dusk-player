@@ -665,7 +665,7 @@ extension PlaybackCoordinator {
             remuxTrackSelection = playbackDecision.isSpatialAudio
                 ? ExplicitTrackSelection(audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID)
                 : nil
-            if case .serverStream = playbackDecision, StreamResolver.containsAV1(media) {
+            if case .serverStream = playbackDecision {
                 remuxTrackSelection = ExplicitTrackSelection(audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID)
             }
             activePlaybackUsesLocalDownload = usesLocalDownload
@@ -891,6 +891,7 @@ extension PlaybackCoordinator {
 
         let media = details.media[mediaIndex]
         let currentTime = engine?.currentTime ?? playbackSource?.startPosition ?? 0
+        let shouldAutoPlay = engine?.state != .paused
         let attemptID = UUID()
 
         do {
@@ -958,7 +959,8 @@ extension PlaybackCoordinator {
                     preset: preset,
                     sessionIdentifier: playbackSessionID,
                     transcodeSessionID: newTranscodeSessionID,
-                    audioStreamID: audioStreamID,
+                    audioStreamID: audioStreamID ?? activeAudioStreamID,
+                    subtitleStreamID: activeSubtitleStreamID,
                     serverID: activePlaybackServerID
                 )
 
@@ -1005,7 +1007,8 @@ extension PlaybackCoordinator {
                 engineType: engineType,
                 resolverReason: resolverReason,
                 videoEnhancementRequest: videoEnhancementRequest,
-                startPosition: currentTime
+                startPosition: currentTime,
+                shouldAutoPlay: shouldAutoPlay
             )
         } catch {
             playbackSessionLogger.error(
@@ -1092,8 +1095,8 @@ extension PlaybackCoordinator {
         activeSubtitleStreamID = subtitleStreamID
 
         guard didChange else { return }
-        if isAV1ServerSession {
-            scheduleAV1ServerTrackChange()
+        if isPlexServerStreamSession {
+            scheduleServerStreamTrackChange()
             return
         }
         if isSpatialAudioSession {
@@ -1308,8 +1311,10 @@ extension PlaybackCoordinator {
         remuxTrackSelection = playbackDecision.isSpatialAudio
             ? ExplicitTrackSelection(audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID)
             : nil
-        if case .serverStream = playbackDecision, StreamResolver.containsAV1(media) {
+        switch playbackDecision {
+        case .serverStream, .transcode:
             remuxTrackSelection = ExplicitTrackSelection(audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID)
+        default: break
         }
         // Engine swaps belong to the same item. A manual pick must also be
         // the new engine's startup choice, before automatic selection runs.
@@ -1702,7 +1707,7 @@ extension PlaybackCoordinator {
 
         if StreamResolver.containsAV1(debugInfo.media) {
             activeSubtitleStreamID = streamID
-            Task { await rebuildAV1ServerSession(reason: "AV1 external subtitle selected") }
+            Task { await rebuildServerStreamSession(reason: "AV1 external subtitle selected") }
             return
         }
 
@@ -1805,7 +1810,7 @@ extension PlaybackCoordinator {
         }
 
         if let debugInfo, StreamResolver.containsAV1(debugInfo.media) {
-            await rebuildAV1ServerSession(reason: "AV1 local decode or remux failed")
+            await rebuildServerStreamSession(reason: "AV1 local decode or remux failed")
             return
         }
 
@@ -1884,6 +1889,8 @@ extension PlaybackCoordinator {
                 mediaIndex: mediaIndex,
                 sessionIdentifier: playbackSessionID,
                 transcodeSessionID: transcodeSessionID,
+                audioStreamID: activeAudioStreamID,
+                subtitleStreamID: activeSubtitleStreamID,
                 serverID: activePlaybackServerID
             )
 

@@ -31,7 +31,14 @@ extension PlaybackCoordinator {
     /// Sessions whose audio/subtitle tracks are chosen by Plex (and changed by
     /// rebuilding the HLS session) rather than by the local engine.
     var usesServerTrackSelection: Bool {
-        isAirPlaySession || isSpatialAudioSession || isAV1ServerSession
+        isAirPlaySession || isSpatialAudioSession || isPlexServerStreamSession
+    }
+
+    var isPlexServerStreamSession: Bool {
+        switch debugInfo?.decision {
+        case .serverStream, .transcode: true
+        default: false
+        }
     }
 
     /// Requests a copy-remux, or video copied with E-AC-3 audio conversion.
@@ -486,7 +493,7 @@ extension PlaybackCoordinator {
 
         let media = details.media[mediaIndex]
         if StreamResolver.containsAV1(media) {
-            await rebuildAV1ServerSession(reason: reason)
+            await rebuildServerStreamSession(reason: reason)
             return
         }
         // An unsupported track or a failed Plex request must not turn a

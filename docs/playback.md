@@ -830,6 +830,13 @@ so the whole live HUD is derived from one instant.
   message; they must not silently change to another quality.
 - Selecting a subtitle stream can be carried into a server stream/transcode
   via `subtitleStreamID` + `subtitles=burn` (both delivery modes support it).
+  Quality switches and direct-play fallback retain the selected audio and
+  subtitle IDs. Manual transcodes and server-stream fallback list the original
+  Plex tracks, just like remux sessions: their HLS only contains the selected
+  audio and burned subtitle, so a new subtitle (including PGS), subtitle Off,
+  or audio choice rebuilds the server session at the live position. Manual
+  quality and paused state survive; a refused rebuild keeps the loaded stream.
+  `PlaybackCoordinator+ServerTracks` owns this flow and AV1 conversion fallback.
 
 ## StreamResolver and Media Version Choice
 - `StreamResolver.selectMediaVersion` filters out media versions with no
