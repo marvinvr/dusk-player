@@ -98,6 +98,43 @@ struct PlayerTVScrubCancellationTests {
         #expect(engine.seeks.isEmpty)
         #expect(dismissals == 0)
     }
+
+    @Test func unsetSeekIntervalsMatchTheSettingsDefault() {
+        let hud = PlayerTVHUDController()
+        let fallback = PlayerSeekInterval.fifteenSeconds.timeInterval
+        #expect(hud.backwardSeekInterval == fallback)
+        #expect(hud.forwardSeekInterval == fallback)
+    }
+
+    @Test func clickSeekAndSkipButtonsUseTheConfiguredIntervals() async throws {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.backwardSeekInterval = 30
+        hud.forwardSeekInterval = 45
+        hud.actions = [
+            .skipBackward(seconds: 30),
+            .skipForward(seconds: 45),
+        ]
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.arrowDown(.right))
+        #expect(hud.seekPreviewPosition == 165)
+        #expect(hud.transientBadge == .seek(direction: .forward, seconds: 45))
+        hud.handle(.arrowUp(.right))
+        try await Task.sleep(for: PlayerTVHUDLayout.seekCommitDebounce + .milliseconds(100))
+        #expect(engine.seeks == [165])
+
+        hud.handle(.arrowDown(.up))
+        hud.handle(.arrowDown(.up))
+        hud.handle(.select)
+        #expect(hud.seekPreviewPosition == 90)
+        #expect(hud.transientBadge == .seek(direction: .backward, seconds: 30))
+        try await Task.sleep(for: PlayerTVHUDLayout.seekCommitDebounce + .milliseconds(100))
+        #expect(engine.seeks == [165, 90])
+    }
 }
 
 @MainActor

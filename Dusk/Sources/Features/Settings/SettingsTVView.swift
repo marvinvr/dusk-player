@@ -224,6 +224,24 @@ struct SettingsTVView: View {
                             SettingsSupport.passoutProtectionDisplayName(for: $0)
                         }
                     }
+
+                    tvRowDivider
+
+                    TVSettingsMenuRow(
+                        title: "Back Jump",
+                        options: PlayerSeekInterval.allCases,
+                        selection: $preferences.playerDoubleTapBackwardInterval,
+                        selectedTitle: preferences.playerDoubleTapBackwardInterval.displayName
+                    ) { $0.displayName }
+
+                    tvRowDivider
+
+                    TVSettingsMenuRow(
+                        title: "Forward Jump",
+                        options: PlayerSeekInterval.allCases,
+                        selection: $preferences.playerDoubleTapForwardInterval,
+                        selectedTitle: preferences.playerDoubleTapForwardInterval.displayName
+                    ) { $0.displayName }
                 }
 
                 TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {

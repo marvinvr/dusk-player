@@ -2146,6 +2146,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 - Skip intervals are the double-tap seek intervals
   (`playerDoubleTapBackwardInterval` / `ForwardInterval`, default 15 s), the
   same values the tvOS Left/Right clicks and the Now Playing skip commands use.
+  tvOS Settings › Playback Behavior exposes them as Back Jump and Forward Jump,
+  the same names and UserDefaults keys as iOS. The HUD's unset fallback is
+  that 15 s default.
 - `PlayerControlsContext.speedControl` decides availability. On tvOS an
   AVPlayer session whose active audio is Dolby Atmos is
   `.unavailableWithDolbyAtmos`: Atmos goes to the receiver/TV as a bitstream

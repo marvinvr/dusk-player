@@ -1223,6 +1223,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   iPhone only, default on) forces the player into landscape, including under
   Portrait Orientation Lock. The toggle is hidden on iPad. tvOS has no row.
   Behavior is in `playback.md`.
+- `playerDoubleTapBackwardInterval` and `playerDoubleTapForwardInterval`
+  ("Back Jump" and "Forward Jump", Playback Behavior, default 15s) share one
+  pair of UserDefaults keys. iOS shows the pickers while Double-Tap to Seek
+  is on. tvOS always shows the same names in that section, as
+  `TVSettingsMenuRow`s. The tvOS player's left/right clicks and skip buttons
+  read those values (`playback.md`).
 - Playback Defaults › Audio & Subtitles (`AudioSubtitleSettingsView`, a pushed
   page on both platforms) holds every track-language setting: Audio › Language
   (`defaultAudioLanguage`, "" = Original), Subtitles › Show Subtitles

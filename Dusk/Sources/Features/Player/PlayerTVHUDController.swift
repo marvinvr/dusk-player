@@ -143,8 +143,11 @@ final class PlayerTVHUDController {
     /// Supplied by the overlay every time they change.
     var actions: [PlayerTVActionItem] = []
     var availablePanelTabs: [PlayerTVPanelTab] = []
-    var backwardSeekInterval: TimeInterval = 10
-    var forwardSeekInterval: TimeInterval = 10
+    /// Copied from Back Jump / Forward Jump by `PlayerView`. The fallback is
+    /// `PlayerSeekInterval`'s stored default, so a click before that copy
+    /// still matches Settings.
+    var backwardSeekInterval: TimeInterval = PlayerSeekInterval.fifteenSeconds.timeInterval
+    var forwardSeekInterval: TimeInterval = PlayerSeekInterval.fifteenSeconds.timeInterval
     /// A Skip Intro chip or an Up Next poster is on screen. While the HUD is
     /// hidden it owns Select and Down.
     var isBottomTrailingControlVisible = false
