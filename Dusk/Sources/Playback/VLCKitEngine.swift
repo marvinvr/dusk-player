@@ -394,6 +394,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// late-blend workaround resizes every frame on the CPU.
     private var usesNativeSubtitleOutput = false
     private var pauseAfterSubtitleOutputReopen = false
+    /// Whether the last opened input rendered into vmem (raw frames) rather
+    /// than VLC's native drawable; nil until one has opened. See
+    /// `finishValidatedLoad`: changing kinds needs the old output destroyed.
+    @ObservationIgnored private var openedRawVideoOutput: Bool?
+    @ObservationIgnored private var videoOutputReplacementTask: Task<Void, Never>?
+    @ObservationIgnored private var retiringRawVideoOutput: DuskVLCRawVideoOutput?
     @ObservationIgnored private var videoEnhancementRequest: VideoEnhancementRequest = .disabled
     @ObservationIgnored private var videoEnhancementRenderer: VideoEnhancementRenderer?
     @ObservationIgnored nonisolated(unsafe) private var rawVideoFrameSink: VLCKitVideoEnhancementFrameSink?
@@ -503,6 +509,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             return
         }
         loadValidationTask?.cancel()
+        videoOutputReplacementTask?.cancel()
         videoRefreshTask?.cancel()
         videoRefreshTask = nil
         mediaPlayer.rate = 1
@@ -762,6 +769,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
     func stop() {
         pauseAfterSubtitleOutputReopen = false
+        videoOutputReplacementTask?.cancel()
         loadValidationTask?.cancel()
         loadValidationTask = nil
         videoRefreshTask?.cancel()
@@ -1005,7 +1013,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         clearPendingSeek()
         suppressPlaybackEndedEvent = true
         ignoreNextStoppedEvent = true
-        mediaPlayer.stop()
+        // A renderer swap stops synchronously in `finishValidatedLoad` instead:
+        // one stop, one stopped event for the flag above.
+        if !needsVideoOutputReplacement {
+            mediaPlayer.stop()
+        }
         rawVideoOutput?.detach()
         suppressPlaybackEndedEvent = false
 
@@ -1087,10 +1099,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #if os(iOS)
         guard !isPipSupportModeActive else { return false }
         #endif
+        // Before the first video frame there is no output for the subtitle
+        // decoder to drain into (see `replaceVideoOutput`). Later time/state
+        // callbacks reach this check again.
+        guard mediaPlayer.hasVideoOut else { return false }
         requestedSubtitleIndex = index
         pauseAfterSubtitleOutputReopen = state == .paused
         usesNativeSubtitleOutput = true
-        rawVideoOutput?.detach()
+        // The raw output stays attached and the drawable unset until the
+        // blocking stop in `replaceVideoOutput` has returned: an input still
+        // bringing up its output would otherwise fall through to the native one
+        // on a view with no size and hold that stop for seconds.
+        retiringRawVideoOutput = rawVideoOutput
         rawVideoOutput = nil
         rawVideoFrameSink = nil
         videoEnhancementRenderer?.clear()
@@ -1098,7 +1118,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #if os(iOS)
         teardownEnhancedPictureInPicture()
         #endif
-        renderingHost.attach(to: mediaPlayer, engine: self)
         playerViewGeneration += 1
         vlcKitEngineLogger.notice("VLCKit switching to native subtitle output for the rest of this item")
         recoverFromStall()
@@ -1988,8 +2007,63 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         return max(0, observed.isFinite && observed > 0 ? observed : max(currentTime, fallback))
     }
 
+    private var needsVideoOutputReplacement: Bool {
+        openedRawVideoOutput.map { $0 != (rawVideoOutput != nil) } ?? false
+    }
+
+    /// `VLCMediaPlayer.stop()` is libvlc's stop_async, which keeps the video
+    /// output for reuse by the next input whatever its `:vout` option says: a
+    /// raw → native swap would keep feeding the dropped vmem consumer (black
+    /// picture, no subtitles) and native → raw would never reach the raw tap.
+    /// Only the blocking stop destroys it. It stays off the main thread because
+    /// closing the native output synchronizes with the main thread.
+    private func replaceVideoOutput(source: PlaybackSource, attemptID: UUID) {
+        ignoreNextStoppedEvent = true
+        let togglesToNative = rawVideoOutput == nil
+        nonisolated(unsafe) let player = mediaPlayer
+        videoOutputReplacementTask?.cancel()
+        videoOutputReplacementTask = Task { [weak self] in
+            // A subtitle decoder holding a cue when the input closes waits up
+            // to 6 s for an output that is already gone. Retire it first; the
+            // reopen restores the selection from `requestedSubtitleIndex`.
+            if player.currentVideoSubTitleIndex >= 0 {
+                player.currentVideoSubTitleIndex = -1
+                for _ in 0..<12 where player.currentVideoSubTitleIndex >= 0 {
+                    try? await Task.sleep(for: .milliseconds(25))
+                }
+            }
+            await Task.detached { DuskVLCRawVideoOutput.destroyVideoOutput(of: player) }.value
+            self?.retiringRawVideoOutput?.detach()
+            self?.retiringRawVideoOutput = nil
+            // The native output sizes itself from the drawable when it opens;
+            // SwiftUI installs that view a beat after the generation bump.
+            if togglesToNative {
+                self?.attachRenderingHostForNativeOutput()
+                for _ in 0..<60 {
+                    guard !Task.isCancelled, let self else { return }
+                    let view = self.renderingHost.playerView
+                    if view.window != nil, !view.bounds.isEmpty { break }
+                    try? await Task.sleep(for: .milliseconds(25))
+                }
+            }
+            guard !Task.isCancelled, let self else { return }
+            self.openedRawVideoOutput = self.rawVideoOutput != nil
+            self.finishValidatedLoad(source: source, attemptID: attemptID)
+        }
+    }
+
+    private func attachRenderingHostForNativeOutput() {
+        renderingHost.attach(to: mediaPlayer, engine: self)
+    }
+
     private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
+
+        if needsVideoOutputReplacement {
+            replaceVideoOutput(source: source, attemptID: attemptID)
+            return
+        }
+        openedRawVideoOutput = rawVideoOutput != nil
 
         let media = VLCMedia(url: source.url)
         // A previous input may have registered raw callbacks on this player.

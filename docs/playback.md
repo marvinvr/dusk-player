@@ -1777,6 +1777,18 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     player-level `vmem` preference left by registered callbacks; detaching the
     callback consumer alone does **not** restore native output. Fresh enhanced
     inputs explicitly select `:vout=vmem`.
+    Trap: `VLCMediaPlayer.stop()` is libvlc's `stop_async`, which keeps the
+    video output and hands it to the next input whatever its `:vout` says. A
+    raw → native reopen on it keeps feeding the dropped vmem consumer: black
+    picture, running clock, no subtitles, no error logged (a mid-play pick;
+    a swap before the first frame escaped it). So `finishValidatedLoad` compares the output
+    kind with the last opened input and, when it changes, `replaceVideoOutput`
+    runs the blocking `libvlc_media_player_stop` off the main thread. Order
+    there matters: the swap waits for `hasVideoOut`, the old raw output stays
+    attached and the drawable unset until that stop returns (else the closing
+    input opens the native output on a zero-size view), subtitles are deselected
+    first (a decoder holding a cue otherwise stalls the close for 6 s), and the
+    native input opens only once the drawable has a window and a size.
   - Why: libVLC 3's same-size `vmem` path tries to blend SPU into opaque
     VideoToolbox/CVPX pictures before converting to writable RGBA, losing cues.
     f84a60c negotiated +1 pixel on both axes to force late blending. That also

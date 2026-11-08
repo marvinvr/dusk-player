@@ -26,6 +26,10 @@ NS_ASSUME_NONNULL_BEGIN
 - (BOOL)attachToPlayer:(VLCMediaPlayer *)player;
 - (void)detach;
 
+/// Blocking libvlc stop, which unlike `-[VLCMediaPlayer stop]` destroys the
+/// retained video output. Call off the main thread.
++ (void)destroyVideoOutputOfPlayer:(VLCMediaPlayer *)player NS_SWIFT_NAME(destroyVideoOutput(of:));
+
 @end
 
 NS_ASSUME_NONNULL_END

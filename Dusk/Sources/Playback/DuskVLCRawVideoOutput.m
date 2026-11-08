@@ -139,6 +139,13 @@ static void DuskVLCDisplayVideo(void *opaque, void *picture);
     self.isAttached = NO;
 }
 
++ (void)destroyVideoOutputOfPlayer:(VLCMediaPlayer *)player
+{
+    if ([player respondsToSelector:@selector(playerInstance)] && player.playerInstance != NULL) {
+        libvlc_media_player_stop(player.playerInstance);
+    }
+}
+
 - (void)displayPixelBuffer:(CVPixelBufferRef)pixelBuffer
 {
     if (!self.isAttached || self.frameConsumer == nil) {
