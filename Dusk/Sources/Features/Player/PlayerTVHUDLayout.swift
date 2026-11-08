@@ -133,6 +133,14 @@ enum PlayerTVHUDLayout {
     /// step (bar ↔ action row, bar → panel). A swipe recognizer only fires on
     /// a quick flick, so a deliberate slow swipe otherwise did nothing.
     static let verticalSwipeStep: CGFloat = 110
+    /// Horizontal travel before a swipe on the action row moves one button.
+    /// Short, so a flick moves the selection at all.
+    static let actionRowSwipeFirstStep: CGFloat = 80
+    /// Travel for each further button within the same swipe.
+    static let actionRowSwipeStep: CGFloat = 300
+    /// A swipe and an arrow press in the same direction this close together
+    /// are one flick reported twice.
+    static let actionRowEchoWindow: TimeInterval = 0.35
 
     // MARK: - Animation
 

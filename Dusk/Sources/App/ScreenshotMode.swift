@@ -410,7 +410,8 @@ extension ScreenshotMode {
     /// player HUD synthetic Siri Remote input once, as if pressed. Tokens:
     /// up/down/left/right, select, menu, tap, playpause, wait:<ms>,
     /// panel:<info|audio|subtitles|quality|speed|chapters>, pan:<points> (a
-    /// slow swipe of that many points, which leaves the HUD scrubbing).
+    /// slow swipe of that many points, which leaves the HUD scrubbing, or
+    /// moves the selection when it is on the action row).
     @MainActor
     static func replayTVRemoteInputs(into controller: PlayerTVHUDController) {
         guard isActive, !hasReplayedTVInputs,

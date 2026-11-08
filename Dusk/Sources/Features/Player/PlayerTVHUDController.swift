@@ -161,6 +161,15 @@ final class PlayerTVHUDController {
     @ObservationIgnored var onDismissBottomTrailingControl: (() -> Bool)?
 
     @ObservationIgnored private var isPanActive = false
+    /// The live pan began on the action row, so it moves the selection along
+    /// the row and never scrubs. Decided once per touch at `panBegan`.
+    @ObservationIgnored private var isActionRowSwipeActive = false
+    /// Pan translation the row selection has already stepped past.
+    @ObservationIgnored private var actionRowSwipeAnchorX: CGFloat = 0
+    @ObservationIgnored private var didStepActionRowThisSwipe = false
+    /// The last row step and where it came from. A flick can report as both a
+    /// pan and an arrow press, in either order; the second report is dropped.
+    @ObservationIgnored private var lastActionRowStep: (forward: Bool, fromSwipe: Bool, at: Date)?
     /// Cumulative pan translation already folded into `scrubTarget`.
     @ObservationIgnored private var scrubLastTranslationX: CGFloat = 0
     @ObservationIgnored private var scrubOrigin: PlayerTVHUDMode = .hidden
@@ -203,6 +212,8 @@ final class PlayerTVHUDController {
         seekAccumulator = 0
         transientBadge = nil
         isPanActive = false
+        isActionRowSwipeActive = false
+        lastActionRowStep = nil
         viewModel = nil
         onDismissPlayer = nil
         onActivateBottomTrailingControl = nil
@@ -314,13 +325,22 @@ final class PlayerTVHUDController {
         }
         switch input {
         case .panBegan:
-            beginScrub()
+            if mode == .transport, case .action = normalizedTransportFocus {
+                beginActionRowSwipe()
+            } else {
+                beginScrub()
+            }
             return
         case let .panChanged(translationX, velocityX):
-            updateScrub(translationX: translationX, velocityX: velocityX)
+            if isActionRowSwipeActive {
+                updateActionRowSwipe(translationX: translationX)
+            } else {
+                updateScrub(translationX: translationX, velocityX: velocityX)
+            }
             return
         case .panEnded:
             isPanActive = false
+            isActionRowSwipeActive = false
             return
         default:
             break
@@ -429,16 +449,18 @@ final class PlayerTVHUDController {
                 noteInteraction()
             }
         case .arrowDown(.left):
-            if case let .action(index) = focus {
-                withTransportAnimation { transportFocus = .action(max(0, index - 1)) }
-                noteInteraction()
+            if case .action = focus {
+                if claimActionRowStep(forward: false, fromSwipe: false) {
+                    stepActionRow(forward: false)
+                }
             } else {
                 beginSeekHold(direction: -1)
             }
         case .arrowDown(.right):
-            if case let .action(index) = focus {
-                withTransportAnimation { transportFocus = .action(min(actions.count - 1, index + 1)) }
-                noteInteraction()
+            if case .action = focus {
+                if claimActionRowStep(forward: true, fromSwipe: false) {
+                    stepActionRow(forward: true)
+                }
             } else {
                 beginSeekHold(direction: 1)
             }
@@ -486,6 +508,69 @@ final class PlayerTVHUDController {
 
     private func withTransportAnimation(_ body: () -> Void) {
         withAnimation(PlayerTVHUDLayout.selectionAnimation, body)
+    }
+
+    // MARK: - Action row swipes
+
+    /// Holds the arrows off for the length of the touch, as a scrub does: tvOS
+    /// can synthesize them while a finger is down, and each would step again.
+    private func beginActionRowSwipe() {
+        isPanActive = true
+        isActionRowSwipeActive = true
+        actionRowSwipeAnchorX = 0
+        didStepActionRowThisSwipe = false
+        noteInteraction()
+    }
+
+    /// One step per `actionRowSwipeStep` of travel, measured from the last
+    /// step, so travel past a row end is not owed back before a reversal moves.
+    /// A swipe stays a row swipe to the end: if the HUD hid or the row emptied
+    /// under the finger, the rest of the touch does nothing rather than scrub.
+    private func updateActionRowSwipe(translationX: CGFloat) {
+        guard mode == .transport, case .action = normalizedTransportFocus else { return }
+
+        while true {
+            let travel = translationX - actionRowSwipeAnchorX
+            let threshold = didStepActionRowThisSwipe
+                ? PlayerTVHUDLayout.actionRowSwipeStep
+                : PlayerTVHUDLayout.actionRowSwipeFirstStep
+            guard abs(travel) >= threshold else { return }
+
+            let forward = travel > 0
+            actionRowSwipeAnchorX += forward ? threshold : -threshold
+            let isFirstStep = !didStepActionRowThisSwipe
+            didStepActionRowThisSwipe = true
+
+            // Only the first step of a touch can be the echo of an arrow.
+            if !isFirstStep || claimActionRowStep(forward: forward, fromSwipe: true) {
+                stepActionRow(forward: forward)
+                lastActionRowStep = (forward, true, Date())
+            }
+        }
+    }
+
+    private func stepActionRow(forward: Bool) {
+        guard case let .action(index) = normalizedTransportFocus else { return }
+
+        let target = min(max(index + (forward ? 1 : -1), 0), actions.count - 1)
+        withTransportAnimation { transportFocus = .action(target) }
+        noteInteraction()
+    }
+
+    /// Records a row step and reports whether it should move the selection.
+    /// False, once, when the other source reported the same direction just
+    /// before: that is one flick seen twice, not two steps.
+    private func claimActionRowStep(forward: Bool, fromSwipe: Bool) -> Bool {
+        let now = Date()
+        if let last = lastActionRowStep,
+           last.forward == forward,
+           last.fromSwipe != fromSwipe,
+           now.timeIntervalSince(last.at) < PlayerTVHUDLayout.actionRowEchoWindow {
+            lastActionRowStep = nil
+            return false
+        }
+        lastActionRowStep = (forward, fromSwipe, now)
+        return true
     }
 
     // MARK: - Actions

@@ -135,6 +135,97 @@ struct PlayerTVScrubCancellationTests {
         try await Task.sleep(for: PlayerTVHUDLayout.seekCommitDebounce + .milliseconds(100))
         #expect(engine.seeks == [165, 90])
     }
+
+    @Test func swipeOnActionRowMovesSelectionAndNeverScrubs() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.actions = [.panel(.subtitles), .panel(.audio), .panel(.info)]
+        hud.syncControlsVisibility(true)
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.arrowDown(.up))
+        #expect(hud.transportFocus == .action(0))
+
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: PlayerTVHUDLayout.actionRowSwipeFirstStep, velocityX: 300))
+        #expect(hud.transportFocus == .action(1))
+        // Two more steps of travel: one reaches the last button, one clamps.
+        let clamped = PlayerTVHUDLayout.actionRowSwipeFirstStep + 2 * PlayerTVHUDLayout.actionRowSwipeStep
+        hud.handle(.panChanged(translationX: clamped, velocityX: 300))
+        #expect(hud.transportFocus == .action(2))
+        #expect(hud.mode == .transport)
+        #expect(hud.previewPosition == nil)
+        // Travel past the end is not owed back: one step in reverse moves.
+        hud.handle(.panChanged(translationX: clamped - PlayerTVHUDLayout.actionRowSwipeStep, velocityX: -300))
+        #expect(hud.transportFocus == .action(1))
+        hud.handle(.panEnded)
+        #expect(engine.seeks.isEmpty)
+
+        // Back on the bar, the same swipe scrubs again.
+        hud.handle(.arrowDown(.down))
+        #expect(hud.transportFocus == .bar)
+        hud.handle(.panBegan)
+        #expect(hud.mode == .scrubbing)
+        hud.handle(.panEnded)
+        hud.handle(.menu)
+        #expect(hud.mode == .transport)
+    }
+
+    @Test func oneFlickReportedAsPanAndArrowStepsOnce() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.actions = [.panel(.subtitles), .panel(.audio), .panel(.info), .panel(.quality)]
+        hud.syncControlsVisibility(true)
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.arrowDown(.up))
+
+        // Pan first, arrow right after it.
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: PlayerTVHUDLayout.actionRowSwipeFirstStep, velocityX: 3000))
+        hud.handle(.panEnded)
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        #expect(hud.transportFocus == .action(1))
+
+        // Arrow first, pan right after it.
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        #expect(hud.transportFocus == .action(2))
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: PlayerTVHUDLayout.actionRowSwipeFirstStep, velocityX: 3000))
+        hud.handle(.panEnded)
+        #expect(hud.transportFocus == .action(2))
+    }
+
+    @Test func actionRowSwipeDoesNotTurnIntoAScrubWhenTheHUDHidesUnderIt() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.actions = [.panel(.subtitles), .panel(.audio)]
+        hud.syncControlsVisibility(true)
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.arrowDown(.up))
+        hud.handle(.panBegan)
+        hud.syncControlsVisibility(false)
+        hud.handle(.panChanged(translationX: 2000, velocityX: 300))
+        #expect(hud.mode == .hidden)
+        #expect(hud.previewPosition == nil)
+        hud.handle(.panEnded)
+
+        // From the hidden state the next swipe is a scrub again.
+        hud.handle(.panBegan)
+        #expect(hud.mode == .scrubbing)
+    }
 }
 
 @MainActor

@@ -2180,6 +2180,13 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   controller drops arrow presses until the pan it believes is live has ended, so
   a swipe interrupted by capture going away (an Up Next overlay, a surfaced
   error) would otherwise leave the remote dead.
+- A horizontal swipe scrubs only from the hidden state or with the bar selected.
+  One that begins with the action row selected moves the selection along the
+  row (`actionRowSwipeFirstStep`, then `actionRowSwipeStep` per button) and stays
+  a row swipe for the whole touch, even if the HUD hides under the finger. The
+  row is not in the focus engine, so this is the controller's job. One flick can
+  report as both pan and arrow, in either order; `actionRowEchoWindow` drops the
+  second report.
 - The action row and the title block fade out while scrubbing: the scrub
   thumbnail (`PlayerScrubPreviewPopup`, 240x135 on tvOS) is positioned above the
   bar row and would otherwise land on top of the title. Fading rather than
