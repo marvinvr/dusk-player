@@ -111,8 +111,7 @@ final class PlaybackNowPlayingController {
             MPNowPlayingInfoPropertyIsLiveStream: isLive,
             MPNowPlayingInfoPropertyExcludeFromSuggestions: false,
         ]
-        applyControlCentreEligibility()
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        publishNowPlayingInfo()
         MPNowPlayingInfoCenter.default().playbackState = .paused
         loadLiveArtwork(path: artworkPath, serverID: serverID, using: plexService)
         startSnapshotUpdates()
@@ -127,7 +126,7 @@ final class PlaybackNowPlayingController {
               nowPlayingInfo[MPMediaItemPropertyTitle] as? String != title else { return }
 
         nowPlayingInfo[MPMediaItemPropertyTitle] = title
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        publishNowPlayingInfo()
     }
 
     func updatePlaybackState(
@@ -329,20 +328,26 @@ private extension PlaybackNowPlayingController {
             nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = TimeInterval(duration) / 1000.0
         }
 
-        applyControlCentreEligibility()
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        publishNowPlayingInfo()
         MPNowPlayingInfoCenter.default().playbackState = .paused
     }
 
-    /// tvOS draws its Control Centre Now Playing tile only for items it classes
-    /// as audio: `mediaType == .audio`, or a Music/Podcast media subtype whatever
-    /// the media type. Marking the item as a podcast is the narrowest way in. The
-    /// Now Playing media type stays `.video`, and it gives the same tile with
-    /// 15/30 skip buttons that Plex shows. iOS has no such gate, so it stays
-    /// unlabelled there. See docs/playback.md (#47).
-    func applyControlCentreEligibility() {
+    /// The one write of the Now Playing dictionary. On tvOS it also marks the item
+    /// as `.videoPodcast`, which is what makes Control Centre draw its Now Playing
+    /// tile, and publishes with the Now Playing media type enumerated last: both
+    /// keys write one system media type, the last one read wins, and Podcast there
+    /// brings the "To open player, hold TV" banner. A Swift dictionary's order is
+    /// random per instance, so it can't be passed as is. See docs/playback.md (#47).
+    func publishNowPlayingInfo() {
         #if os(tvOS)
-        nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
+        var info = nowPlayingInfo
+        info[MPMediaItemPropertyMediaType] = MPMediaType.videoPodcast.rawValue
+        MPNowPlayingInfoCenter.default().perform(
+            #selector(setter: MPNowPlayingInfoCenter.nowPlayingInfo),
+            with: NowPlayingMediaTypeLastDictionary(info)
+        )
+        #else
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         #endif
     }
 
@@ -363,7 +368,7 @@ private extension PlaybackNowPlayingController {
             nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = safeDuration
         }
 
-        MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+        publishNowPlayingInfo()
         MPNowPlayingInfoCenter.default().playbackState = nowPlayingPlaybackState(for: state)
 
         lastPublishedState = state
@@ -480,7 +485,7 @@ private extension PlaybackNowPlayingController {
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else { return }
                 let artwork = makeNowPlayingArtwork(imageData: imageData, imageSize: image.size)
                 self.nowPlayingInfo[MPMediaItemPropertyArtwork] = artwork
-                MPNowPlayingInfoCenter.default().nowPlayingInfo = self.nowPlayingInfo
+                self.publishNowPlayingInfo()
             } catch {
                 return
             }
@@ -507,7 +512,7 @@ private extension PlaybackNowPlayingController {
                 imageData: imageData,
                 imageSize: image.size
             )
-            MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
+            publishNowPlayingInfo()
         }
     }
 
@@ -809,3 +814,33 @@ private nonisolated func makeNowPlayingArtwork(
         UIImage(data: imageData) ?? UIImage()
     }
 }
+
+#if os(tvOS)
+/// Enumerates `MPNowPlayingInfoPropertyMediaType` after every other key. Goes
+/// through the Objective-C setter because bridging to `[String: Any]` would drop
+/// the order. See `publishNowPlayingInfo()`.
+final class NowPlayingMediaTypeLastDictionary: NSDictionary {
+    private var orderedKeys: [NSString] = []
+    private var values: [NSString: Any] = [:]
+
+    convenience init(_ info: [String: Any]) {
+        self.init()
+        let last = MPNowPlayingInfoPropertyMediaType
+        orderedKeys = info.keys.filter { $0 != last }.map { $0 as NSString }
+        if info[last] != nil { orderedKeys.append(last as NSString) }
+        for (key, value) in info { values[key as NSString] = value }
+    }
+
+    override var count: Int { orderedKeys.count }
+
+    override func object(forKey aKey: Any) -> Any? {
+        (aKey as? NSString).flatMap { values[$0] }
+    }
+
+    override func keyEnumerator() -> NSEnumerator {
+        (orderedKeys as NSArray).objectEnumerator()
+    }
+
+    override func copy(with zone: NSZone? = nil) -> Any { self }
+}
+#endif

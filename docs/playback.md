@@ -2417,36 +2417,49 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   seek bounds, replacement items, warm engine reuse, and stop cleanup on both
   targets. System discovery on iPhone/Apple TV and automation delivery require
   real devices; compile checks cannot establish those behaviors.
-- tvOS Control Centre only draws the Now Playing tile for items its gate classes
-  as audio, so tvOS playback sets `MPMediaItemPropertyMediaType = .podcast`
-  (`applyControlCentreEligibility`, #47). `MPNowPlayingInfoPropertyMediaType`
-  stays `.video`, and iOS sets neither. The gate is
-  `-[TVSSAudioNowPlayingController _handleMediaRemoteNowPlayingPlayerResponse:playerResponse:]`
-  in `TVSystemUIService`, read from the tvOS 27.0 simulator runtime:
-  - subtype Music or Podcast: passes, whatever the media type
-  - subtype TVShow, Movie or HomeMedia: rejected
-  - subtype None, Audiobook or iTunesU: passes only if the media type is Audio
-
-  `MPMediaType` sets the subtype, except that `.movie` left it at None in the
-  sim. `.video`, no type, `AVPlayerViewController` and `MPNowPlayingSession`
-  with automatic publishing were all rejected. The gate reads metadata only, so
-  AVPlayer and VLCKit behave the same and no player session is needed.
-  - Why podcast and not `.audio`: both draw the tile, but `.audio` gets
-    previous/next-style glyphs while podcast gets the 15/30 skip buttons, which
-    suit video and match the Plex tile in the #47 sample. Plex's actual metadata
-    is inferred from that tile, not read. On the 26.4 runtime MediaPlayer reports
-    `mediaType=Audio` for the same input.
+- tvOS Control Centre draws its Now Playing tile without the system's "To open
+  player, hold TV" banner because of two things that only work together (#47):
+  `MPMediaItemPropertyMediaType = .videoPodcast` next to
+  `MPNowPlayingInfoPropertyMediaType = .video`, published through
+  `publishNowPlayingInfo()` with the Now Playing media type enumerated last
+  (`NowPlayingMediaTypeLastDictionary`). iOS sets neither. Read from the tvOS 27.2
+  sim runtime and measured there. Two system gates read different fields:
+  - **Tile** (`-[TVSSAudioNowPlayingController _handleMediaRemoteNowPlayingPlayerResponse:playerResponse:]`
+    in `TVSystemUIService`) reads the media subtype. Music, Podcast or Unknown
+    pass whatever the type. Movie, TVShow and HomeMedia are rejected. None or
+    Audiobook pass only with type Audio.
+  - **Banner** (`-[PBMediaRemoteObserver _updateWithNowPlayingInfoDictionary:...]`
+    in `PineBoard`, log "Presenting track change bulletin") reads the legacy
+    `kMRMediaRemoteNowPlayingInfoMediaType`. It fires on playback or a track change
+    when that is Audio, AudioBook, ITunesRadio, ITunesU, Music or Podcast.
+    `PBSAssertionDomainSuppressNowPlayingBulletin` also suppresses it, but needs a
+    system entitlement.
+  - **The trap:** both media type keys write that legacy field and the last key
+    read wins. Swift's `[String: Any]` order is random per instance, so with a
+    plain dictionary every publish rerolls it: `.video` + `.videoPodcast` measured
+    Podcast 24/40 and `.video` + `.podcast` 24/40, with banners on 4 of 6 real Dusk
+    launches. One clean run proves nothing, so count over many publishes or
+    launches. Forcing the order makes it fixed: media type key last was Video 40/40
+    with no banner, the item key last was Podcast 40/40 with a banner.
+  - **Why this item type:** `.videoPodcast` gets the Podcast subtype (15/30 skip
+    buttons) and keeps the item typed as video. Do not use `.audio` or drop the
+    Now Playing type, which reports Audio to every consumer and brings the banner.
+  - **Limits:** the enumeration order and both gates are undocumented, so a tvOS
+    update can break this. If the order stops being honoured the banner returns at
+    random. If that happens, delete `publishNowPlayingInfo()`'s tvOS branch, which
+    gives up the tile (`.video` alone: no tile, no banner). On the tvOS 26.4 runtime
+    the subtype stays None, so there is no tile, and no banner either. Real Apple TV
+    hardware and the iPhone Remote display are unverified.
   - The tile's buttons send skip commands with intervals of exactly 15 and 30 and
-    ignore `preferredIntervals`. The command handler uses `event.interval`, so
-    they skip what they show.
-  - This relies on undocumented system behaviour, so a tvOS update can change it.
-    The label also describes the item as a podcast to other Now Playing consumers.
-  - The #47 sample shows a system banner a few seconds into Plex playback ("To
-    open the player, hold ..."). The sim never showed it, so check it on a device.
+    ignore `preferredIntervals`. The command handler uses `event.interval`, so they
+    skip what they show.
   - To check: `simctl spawn <sim> log config --mode level:debug --subsystem
-    com.apple.TVSystemUIService`, then `log show --info --debug` for category
-    `AudioNowPlayingController`, which logs mediaType and mediaSubType. XCUIRemote
-    `press(.home, forDuration: 2)` opens Control Centre in the sim.
+    com.apple.TVSystemUIService`, then `log show --info --debug` for "confirmed as"
+    (tile, logs mediaType and mediaSubType) and "Presenting track change bulletin"
+    (banner). XCUIRemote `press(.home, forDuration: 2)` or Indigo HID target 21,
+    page 0x0c, usage 0x40 opens Control Centre. The banner does reproduce on the
+    27.2 sim. MediaRemote's `MRMediaRemoteGetNowPlayingInfo` from inside the app
+    shows the legacy field. PineBoard cannot be attached with lldb.
 
 ### Playback queue (playlists and lists)
 - `PlaybackQueue` (`Features/Player/PlaybackQueue.swift`) is a fixed list of

@@ -25,8 +25,9 @@ struct PlaybackNowPlayingTests {
         #expect(info[MPMediaItemPropertyPlaybackDuration] as? Double == 120)
         #expect(info[MPNowPlayingInfoPropertyMediaType] as? UInt == MPNowPlayingInfoMediaType.video.rawValue)
         #if os(tvOS)
-        // Without this the tvOS Control Centre tile is not drawn (#47).
-        #expect(info[MPMediaItemPropertyMediaType] as? UInt == MPMediaType.podcast.rawValue)
+        // Draws the Control Centre tile. `.podcast` or an audio type would also
+        // bring the system's "To open player" banner on every start (#47).
+        #expect(info[MPMediaItemPropertyMediaType] as? UInt == MPMediaType.videoPodcast.rawValue)
         #else
         #expect(info[MPMediaItemPropertyMediaType] == nil)
         #endif
@@ -207,4 +208,24 @@ private final class NowPlayingEngine: PlaybackEngine {
     func selectSubtitleTrack(_ track: SubtitleTrack?) {}
     func selectAudioTrack(_ track: AudioTrack) {}
     func makePlayerView() -> AnyView { AnyView(EmptyView()) }
+
+    #if os(tvOS)
+    /// Both media type keys write one system media type and the last one read
+    /// wins, so the order decides whether the tvOS banner appears (#47).
+    @Test func nowPlayingMediaTypeEnumeratesLast() {
+        for _ in 0..<50 {
+            let info: [String: Any] = [
+                MPNowPlayingInfoPropertyMediaType: MPNowPlayingInfoMediaType.video.rawValue,
+                MPMediaItemPropertyMediaType: MPMediaType.videoPodcast.rawValue,
+                MPMediaItemPropertyTitle: "Title",
+                MPNowPlayingInfoPropertyPlaybackRate: 1.0,
+            ]
+            let dictionary = NowPlayingMediaTypeLastDictionary(info)
+            let keys = dictionary.keyEnumerator().allObjects as? [String]
+            #expect(keys?.last == MPNowPlayingInfoPropertyMediaType)
+            #expect(keys?.count == info.count)
+            #expect(dictionary[MPMediaItemPropertyTitle] as? String == "Title")
+        }
+    }
+    #endif
 }
