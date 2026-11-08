@@ -2343,8 +2343,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     estimated marker does not count); past 90 % the normal finalize scrobble
     marks it watched anyway, and anything earlier just reports progress.
 - `PlaybackNowPlayingController` owns system Now Playing for **iOS and tvOS**,
-  across AVPlayer and VLCKit. It publishes video metadata (episode title,
-  show/season/episode, artwork, duration), the engine's elapsed time and actual
+  across AVPlayer and VLCKit. It publishes video metadata (an episode title as
+  `<title> (SxxEyy)`, the show name in the artist field, a movie title
+  unchanged, artwork, duration), the engine's elapsed time and actual
   transport rate, and playback state. A session-owned 0.25 s snapshot timer
   follows playback even without the HUD (PiP/background/SharePlay); publication
   compares with the system's extrapolated clock to catch seeks and rate changes

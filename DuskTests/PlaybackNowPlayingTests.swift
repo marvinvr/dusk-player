@@ -17,7 +17,8 @@ struct PlaybackNowPlayingTests {
         try begin(controller, engine: engine, episode: true)
 
         let info = try #require(MPNowPlayingInfoCenter.default().nowPlayingInfo)
-        #expect(info[MPMediaItemPropertyTitle] as? String == "Example Show S2E3: Episode Title")
+        #expect(info[MPMediaItemPropertyTitle] as? String == "Episode Title (S02E03)")
+        #expect(info[MPMediaItemPropertyArtist] as? String == "Example Show")
         #expect(info[MPMediaItemPropertyAlbumTitle] as? String == "Example Show")
         #expect(info[MPMediaItemPropertyDiscNumber] as? Int == 2)
         #expect(info[MPMediaItemPropertyAlbumTrackNumber] as? Int == 3)

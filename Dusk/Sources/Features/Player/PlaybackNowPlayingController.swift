@@ -396,15 +396,16 @@ private extension PlaybackNowPlayingController {
         }
     }
 
+    /// Episodes are `<title> (SxxEyy)`. The show name stays in the artist field
+    /// so Control Centre, the lock screen, and tvOS do not repeat it in the title.
     func nowPlayingTitle(for details: PlexMediaDetails) -> String {
-        if details.type == .episode,
-           let grandparentTitle = details.grandparentTitle,
-           let parentIndex = details.parentIndex,
-           let index = details.index {
-            return "\(grandparentTitle) S\(parentIndex)E\(index): \(details.title)"
+        guard details.type == .episode,
+              let season = details.parentIndex,
+              let episode = details.index else {
+            return details.title
         }
-
-        return details.title
+        let code = String(format: "S%02dE%02d", season, episode)
+        return "\(details.title) (\(code))"
     }
 
     func nowPlayingSubtitle(for details: PlexMediaDetails) -> String? {
