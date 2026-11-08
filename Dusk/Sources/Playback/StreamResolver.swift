@@ -483,6 +483,16 @@ enum StreamResolver {
         }
     }
 
+    /// Whether the part's video is HDR or Dolby Vision in any form Plex reports,
+    /// i.e. anything a move to VLCKit would flatten (or, for DV5, break).
+    static func containsHDRVideo(inPart part: PlexMediaPart) -> Bool {
+        part.streams.contains {
+            $0.streamType == .video && ($0.isHDRVideo || hdrTransfer(of: $0) != nil ||
+                $0.doviPresent == true || $0.doviProfile != nil ||
+                $0.doviBLCompatID != nil || $0.doviLevel != nil)
+        }
+    }
+
     /// Short label for a remux reason / Playback Info, e.g. `Dolby Vision 8.1`,
     /// `HDR10`, `HLG`. HDR10+ is not in Plex's metadata, so it reads HDR10.
     static func hdrVideoLabel(for media: PlexMedia) -> String {

@@ -291,6 +291,42 @@ extension PlaybackCoordinator {
     /// Returns false only when no rebuild could start, so the caller can take
     /// the next rung of the ladder instead of leaving the error overlay up.
     func retryRemuxWithoutDolbyVision7Conversion(failureDescription: String) async -> Bool {
+        await retryFailedRemux(
+            transitionLabel: "retrying the remux without Dolby Vision 7 conversion (\(failureDescription))",
+            declineReason: "Remux unavailable after Dolby Vision 7 conversion failed; direct play"
+        )
+    }
+
+    /// A live HDR remux died, typically because Plex dropped the transcode
+    /// session: its URL will not come back, but a fresh session will. Rebuilds
+    /// at the live position; when that is impossible or keeps failing the
+    /// error surface stays up, since VLCKit cannot show HDR and quietly playing
+    /// a flat picture is worse than saying so.
+    func recoverLiveHDRRemux(failureDescription: String) async {
+        guard liveRemuxRecoveryAttempts < Self.maxLiveRemuxRecoveryAttempts else {
+            spatialAudioLogger.error(
+                "Live HDR remux failed again (\(failureDescription, privacy: .public)); giving up after \(Self.maxLiveRemuxRecoveryAttempts, privacy: .public) fresh sessions"
+            )
+            return
+        }
+        liveRemuxRecoveryAttempts += 1
+        spatialAudioLogger.notice(
+            "Live HDR remux failed (\(failureDescription, privacy: .public)); requesting a fresh session (attempt \(self.liveRemuxRecoveryAttempts, privacy: .public))"
+        )
+        let didStart = await retryFailedRemux(
+            transitionLabel: "replacing a failed live HDR remux (\(failureDescription))",
+            declineReason: "Remux unavailable after a live HDR remux failed"
+        )
+        if !didStart {
+            spatialAudioLogger.error("Could not rebuild the failed live HDR remux; leaving the error surface in place")
+        }
+    }
+
+    /// Bounds `recoverLiveHDRRemux` for a stream that fails at the same spot
+    /// every time, per item.
+    private static let maxLiveRemuxRecoveryAttempts = 3
+
+    private func retryFailedRemux(transitionLabel: String, declineReason: String) async -> Bool {
         let failedEngine = engine
         let previousTask = spatialAudioTransitionTask
         let retry = Task { @MainActor [weak self] () -> Bool in
@@ -300,8 +336,8 @@ extension PlaybackCoordinator {
             guard let self else { return true }
             guard self.engine === failedEngine else { return true }
             return await self.rebuildSpatialAudioSession(
-                transitionLabel: "retrying the remux without Dolby Vision 7 conversion (\(failureDescription))",
-                declineReason: "Remux unavailable after Dolby Vision 7 conversion failed; direct play"
+                transitionLabel: transitionLabel,
+                declineReason: declineReason
             )
         }
         // A track change picked meanwhile waits for this retry to land.
@@ -499,16 +535,16 @@ extension PlaybackCoordinator {
         // An unsupported track or a failed Plex request must not turn a
         // working HDR/DV remux into VLC direct play. In particular DV5 has
         // no compatible base layer and produces pink/green video in VLC.
-        if keepsExplicitTracks, part.streams.contains(where: {
-            $0.streamType == .video && ($0.isHDRVideo || StreamResolver.hdrTransfer(of: $0) != nil ||
-                $0.doviPresent == true || $0.doviProfile != nil ||
-                $0.doviBLCompatID != nil || $0.doviLevel != nil)
-        }) {
+        if keepsExplicitTracks, StreamResolver.containsHDRVideo(inPart: part) {
             if let remuxTrackSelection {
                 activeAudioStreamID = remuxTrackSelection.audioStreamID
                 activeSubtitleStreamID = remuxTrackSelection.subtitleStreamID
             }
-            presentQualitySwitchError("Couldn’t change tracks while preserving HDR video. Playback continues with the previous tracks.")
+            // A dead engine has nothing to continue with; its error overlay
+            // tells the story.
+            if engine?.state != .error {
+                presentQualitySwitchError("Couldn’t change tracks while preserving HDR video. Playback continues with the previous tracks.")
+            }
             return
         }
         guard let directPlayURL = plexService.directPlayURL(for: part, serverID: activePlaybackServerID) else {

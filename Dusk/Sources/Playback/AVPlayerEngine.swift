@@ -1010,9 +1010,21 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             if state == .playing {
                 state = .paused
             }
+            // A stopped player is waiting for nothing. Left set, this reads as a
+            // stall for as long as the viewer stays paused, and stall recovery
+            // then reloads the item. Not while loading: that wait is real.
+            if state == .paused {
+                isBuffering = false
+            }
         case .waitingToPlayAtSpecifiedRate:
+            // Delivered asynchronously, so a pause may have overtaken it.
+            guard player.timeControlStatus == .waitingToPlayAtSpecifiedRate else { return }
             isBuffering = true
-            if state != .paused {
+            if state == .paused {
+                // Resumed, and the stream has to refill first: that is a stall
+                // like any other, spinner included, not a frozen paused frame.
+                state = hasReportedPlaybackEnded ? .stopped : .playing
+            } else {
                 state = hasReportedPlaybackEnded ? .stopped : state
             }
         @unknown default:
@@ -1112,7 +1124,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.isBuffering = true
+                guard let self, self.player.timeControlStatus != .paused else { return }
+                self.isBuffering = true
             }
         }
     }

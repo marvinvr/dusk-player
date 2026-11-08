@@ -159,6 +159,79 @@ struct PlaybackFallbackTests {
         #expect(playback.isAutomaticDirectPlayFallbackPending)
         #expect(playback.playerLoadingState == .recovering)
     }
+
+    /// A coordinator on a failed HDR remux, with a server, so plain direct play
+    /// is genuinely available and only the policy can keep it away.
+    private func failedHDRRemux() throws -> (PlaybackCoordinator, FailedPlaybackEngine) {
+        let service = PlexService(urlProtocolClasses: [SubtitleDecisionProtocol.self])
+        let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"hdr-server","connections":[]}"#.utf8))
+        service.pool.adopt(server: server, baseURL: URL(string: "https://plex.invalid")!, token: "test", connection: nil)
+        let playback = PlaybackCoordinator(plexService: service)
+        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(#"""
+            {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"HDR",
+             "Media":[{"id":1,"container":"mkv","videoCodec":"hevc","Part":[{"id":2,"key":"/clip.mkv","Stream":[
+               {"id":3,"streamType":1,"codec":"hevc","bitDepth":10,"colorTrc":"smpte2084"}
+             ]}]}]}
+            """#.utf8))
+        let media = try #require(details.media.first)
+        let engine = FailedPlaybackEngine()
+        playback.showPlayer = true
+        playback.engine = engine
+        playback.ratingKey = "1"
+        playback.activeItemDetails = details
+        playback.activePlaybackServerID = "hdr-server"
+        playback.debugInfo = PlaybackDebugInfo(
+            title: "HDR", engine: .avPlayer, decision: .spatialAudio,
+            media: media, part: media.parts[0], attemptID: UUID(),
+            resolverReason: "HDR remux", sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
+        )
+        return (playback, engine)
+    }
+
+    // Attempts 0: Plex declines the fresh remux. 3: recovery is exhausted.
+    @Test(arguments: [0, 3])
+    func liveHDRRemuxFailureNeverLeavesForDirectPlay(attempts: Int) async throws {
+        let (playback, engine) = try failedHDRRemux()
+        defer { playback.cancelDirectPlayFallbackWatch() }
+        playback.didRemuxReachPlayback = true
+        playback.liveRemuxRecoveryAttempts = attempts
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.engine === engine)
+        #expect(playback.debugInfo?.decision.isSpatialAudio == true)
+        // The error overlay carries it; a "tracks" toast would be nonsense.
+        #expect(playback.qualitySwitchError == nil)
+        #expect(!playback.isAutomaticDirectPlayFallbackPending)
+    }
+
+    @Test func hdrRemuxThatNeverPlayedStillFallsBackToDirectPlay() async throws {
+        let (playback, engine) = try failedHDRRemux()
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.engine !== engine)
+        #expect(playback.debugInfo?.decision.isDirectPlay == true)
+    }
+
+    @Test func aPausedSessionNeverRunsStallRecovery() {
+        let engine = FailedPlaybackEngine(state: .paused)
+        engine.currentTime = 42
+        engine.isBuffering = true
+        let model = PlayerViewModel(engine: engine, markers: [])
+        defer { model.cleanup() }
+        model.sync()
+
+        model.stalledPlaybackStartedAt = Date().addingTimeInterval(-60)
+        model.sync()
+        #expect(engine.stallRecoveryCount == 0)
+        // A long pause does not count towards a stall right after resuming.
+        #expect(model.stalledPlaybackStartedAt == nil)
+
+        engine.state = .playing
+        model.sync()
+        #expect(engine.stallRecoveryCount == 0)
+        model.stalledPlaybackStartedAt = Date().addingTimeInterval(-60)
+        model.sync()
+        #expect(engine.stallRecoveryCount == 1)
+    }
 }
 
 @Suite("Plex server subtitle delivery", .serialized)
@@ -295,7 +368,8 @@ private final class FailedPlaybackEngine: PlaybackEngine {
     init(state: PlaybackState = .error) { self.state = state }
     var currentTime: TimeInterval = 0
     let duration: TimeInterval = 0
-    let isBuffering = false
+    var isBuffering = false
+    var stallRecoveryCount = 0
     let videoEnhancementStatus = VideoEnhancementStatus.disabled
     var onPlaybackEnded: (@MainActor () -> Void)?
     let availableSubtitleTracks: [SubtitleTrack] = []
@@ -313,7 +387,7 @@ private final class FailedPlaybackEngine: PlaybackEngine {
     func seek(to position: TimeInterval) {}
     func setPlaybackRate(_ rate: Float) {}
     func configureCoordinatedPlayback(itemIdentifier: String?) {}
-    func recoverFromStall() {}
+    func recoverFromStall() { stallRecoveryCount += 1 }
     func handleReturnToForeground() {}
     func selectSubtitleTrack(_ track: SubtitleTrack?) { subtitleSelectionCount += 1 }
     func selectAudioTrack(_ track: AudioTrack) {}

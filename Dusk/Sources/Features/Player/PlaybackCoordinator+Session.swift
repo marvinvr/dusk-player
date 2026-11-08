@@ -174,6 +174,8 @@ extension PlaybackCoordinator {
         // A new item gets the Dolby Vision 7 conversion back. Reset here, not
         // at the commit below: the remux request labels its session with it.
         isDolbyVision7ConversionSuppressed = false
+        didRemuxReachPlayback = false
+        liveRemuxRecoveryAttempts = 0
         // Any Up Next overlay stays visible as the loading state for the next
         // episode; it's cleared when the new engine commits below.
         // Plex session hygiene: a replaced session that was never finalized
@@ -1837,6 +1839,13 @@ extension PlaybackCoordinator {
         } ?? false
         if debugInfo?.decision.isSpatialAudio == true, !isFailedDolbyVisionRemux {
             let failureDescription = engine?.error?.errorDescription ?? "engine reported state .error"
+            // HDR already on screen must not silently turn into VLCKit's flat
+            // 8-bit picture (#59). Only a remux that never played takes the
+            // direct-play rung below.
+            if didRemuxReachPlayback, let part = debugInfo?.part, StreamResolver.containsHDRVideo(inPart: part) {
+                await recoverLiveHDRRemux(failureDescription: failureDescription)
+                return
+            }
             await leaveSpatialAudioRemux(
                 reason: "Spatial-audio remux failed (\(failureDescription)); automatic direct-play fallback",
                 keepsExplicitTracks: false

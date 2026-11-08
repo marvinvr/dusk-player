@@ -66,6 +66,13 @@ final class PlaybackCoordinator {
     /// The Dolby Vision 7 → 8.1 conversion failed for the item now playing,
     /// so its remux is rebuilt (and kept) without it. Reset for each new item.
     @ObservationIgnored var isDolbyVision7ConversionSuppressed = false
+    /// A remux of the item now playing has actually played, so a later failure
+    /// is a dropped session rather than a stream AVPlayer cannot open. Reset
+    /// for each new item.
+    @ObservationIgnored var didRemuxReachPlayback = false
+    /// Fresh remuxes requested for the item now playing after a live HDR remux
+    /// failed (`recoverLiveHDRRemux`). Reset for each new item.
+    @ObservationIgnored var liveRemuxRecoveryAttempts = 0
     var isSwitchingQuality = false
     var qualitySwitchError: String?
     /// System AirPlay route state shared by playback preparation and the iOS
@@ -1013,6 +1020,11 @@ final class PlaybackCoordinator {
     /// freeze while the user pauses during the credits.
     func noteActivePlaybackState(_ state: PlaybackState) {
         latestActivePlaybackState = state
+
+        // The engine's own state: `state` can be the HUD's optimistic one.
+        if engine?.state == .playing, isSpatialAudioSession {
+            didRemuxReachPlayback = true
+        }
 
         let shouldSuppress: Bool
         #if os(tvOS)

@@ -612,6 +612,14 @@ extension PlayerViewModel {
             return
         }
 
+        // A pause is not a stall, and its length must not count towards one.
+        if state == .paused {
+            lastProgressAt = now
+            lastProgressPosition = currentTime
+            stalledPlaybackStartedAt = nil
+            return
+        }
+
         if abs(currentTime - lastProgressPosition) > Self.stallProgressTolerance {
             lastProgressAt = now
             lastProgressPosition = currentTime
@@ -628,8 +636,12 @@ extension PlayerViewModel {
     }
 
     private func recoverStalledPlaybackIfNeeded(now: Date) {
+        // Recovery reloads the item (and starts it playing), so it must never
+        // touch a paused session: a healthy HDR remux lost its picture this way
+        // (#59).
         guard hasStartedPlayback,
               isBuffering,
+              state != .paused,
               playbackError == nil,
               stallRecoveryAttempts < Self.maxStallRecoveryAttempts else {
             return

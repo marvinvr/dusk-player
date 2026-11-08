@@ -243,10 +243,15 @@ so the whole live HUD is derived from one instant.
   phase does not restart when the engine swaps. A failed fallback reveals the
   normal error overlay. The mid-play buffering leg
   (`PlayerViewModel.updateBufferingPresentation`, 2 s debounce) never fires
-  while the session is `.paused`: `isBuffering` survives a pause on AVPlayer
-  (pausing out of `waitingToPlayAtSpecifiedRate` leaves the flag set), and the
-  iOS controls hide the play/pause button while the spinner is up, so a user
-  who pauses a stalling stream would otherwise be left with no way to resume.
+  while the session is `.paused`: the iOS controls hide the play/pause button
+  while the spinner is up, so a user who pauses a stalling stream would
+  otherwise be left with no way to resume.
+- Stall recovery (`PlayerViewModel.recoverStalledPlaybackIfNeeded`, 12 s)
+  reloads the item, so it never runs while `.paused`, and a pause does not count
+  towards the 12 s. `AVPlayerEngine` clears `isBuffering` on pause (it used to
+  survive pausing out of `waitingToPlayAtSpecifiedRate`), and a resume that has
+  to wait reports `.playing` + buffering rather than staying `.paused`, so it
+  shows the spinner like any other stall (#59).
 - Transcode/server-stream sessions are now closed on the server:
   `stopTranscodeSession` fires on finalize, on quality switches (only after
   the replacement decision succeeded), and when a fallback replaces a
@@ -417,7 +422,13 @@ so the whole live HUD is derived from one instant.
   gates only the Dolby remux, not that fallback.
 - Failure: the direct-play failure watch is armed for remux sessions too; an
   engine error moves the session to plain direct play (VLCKit) at the same
-  position instead of surfacing an error.
+  position instead of surfacing an error. The exception is HDR/Dolby Vision
+  video once that remux has played (`didRemuxReachPlayback`): VLCKit would swap
+  HDR for a flat 8-bit picture mid-film (#59), so
+  `recoverLiveHDRRemux` asks Plex for a fresh session at the live position, up
+  to 3 times per item, then leaves the error overlay up. An HDR remux that
+  never played still takes the direct-play rung, as does DV5's server-stream
+  rung, so a file AVPlayer cannot open at all stays watchable.
 - AirPlay: selecting a route rebuilds a remux session as AirPlay HLS, like
   direct play, because the fMP4/HEVC remux targets this device.
 
@@ -646,9 +657,10 @@ so the whole live HUD is derived from one instant.
      When the rebuild cannot start at all (its guard fails), the branch falls
      through to the normal remux-failure rung below instead of leaving the
      error overlay up.
-  3. Plex declining that, or the unconverted remux failing as well, leaves
-     the remux for direct play (VLCKit) like any failed remux. The flag stops
-     a loop.
+  3. Plex declining that keeps the failed session on the error overlay; the
+     unconverted remux failing as well takes the normal remux-failure rung
+     (see "Dolby Atmos and Spatial Audio" → Failure): direct play (VLCKit) only
+     if nothing has played yet. The flag stops a loop.
 - Setting: `dolbyVision7ConversionEnabled` ("Dolby Vision 7 → 8.1", default
   on, disabled while "HDR & Dolby Vision" is off). Off restores the HDR10
   base-layer remux exactly.
