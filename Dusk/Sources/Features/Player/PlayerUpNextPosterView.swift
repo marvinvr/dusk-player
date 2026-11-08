@@ -222,14 +222,8 @@ struct PlayerUpNextPosterView: View {
 
     @ViewBuilder
     private var compactCountdownFill: some View {
-        if presentation.isTimed {
-            let progress = min(max(presentation.countdownProgress ?? 0, 0), 1)
-            GeometryReader { geometry in
-                Rectangle()
-                    .fill(compactCountdownColor)
-                    .frame(width: geometry.size.width * progress)
-                    .animation(.linear(duration: 0.1), value: progress)
-            }
+        if let clock = presentation.countdownClock {
+            UpNextCountdownSweep(clock: clock, color: compactCountdownColor, isCapsule: false)
         }
     }
 
@@ -250,8 +244,8 @@ struct PlayerUpNextPosterView: View {
                     .frame(width: textColumnWidth, alignment: .leading)
             }
 
-            if presentation.isTimed {
-                countdownBar(width: Metrics.thumbnailWidth + Metrics.contentSpacing + textColumnWidth)
+            if let clock = presentation.countdownClock {
+                countdownBar(clock: clock, width: Metrics.thumbnailWidth + Metrics.contentSpacing + textColumnWidth)
             }
         }
         .padding(Metrics.cardPadding)
@@ -402,21 +396,14 @@ struct PlayerUpNextPosterView: View {
     /// Spans the card's full inner width under both columns, so the countdown
     /// reads as the card draining rather than as a stray hairline in the text.
     ///
-    /// The width is explicit: the bar's `GeometryReader` is greedy, and left to
-    /// itself it stretched the whole card across the screen.
-    private func countdownBar(width: CGFloat) -> some View {
-        let progress = min(max(presentation.countdownProgress ?? 0, 0), 1)
+    /// The width is explicit: the sweep is greedy, and left to itself it
+    /// stretched the whole card across the screen.
+    private func countdownBar(clock: UpNextCountdownClock, width: CGFloat) -> some View {
+        ZStack {
+            Capsule()
+                .fill(Color.white.opacity(0.16))
 
-        return GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.16))
-
-                Capsule()
-                    .fill(Metrics.countdownFill)
-                    .frame(width: geometry.size.width * progress)
-                    .animation(.linear(duration: 0.1), value: progress)
-            }
+            UpNextCountdownSweep(clock: clock, color: Metrics.countdownFill, isCapsule: true)
         }
         .frame(width: width, height: Metrics.countdownBarHeight)
     }
@@ -495,6 +482,107 @@ struct PlayerUpNextPosterView: View {
         return max(0.6, 1 - Double(dragTranslation.height) / 260)
     }
     #endif
+}
+
+/// The countdown fill of the Up Next card, pill and full-screen screen. A fill
+/// layer slides in from the leading edge in one linear Core Animation move over
+/// the whole remaining time, so it runs on the render server: a busy main thread
+/// or a player re-render cannot make it stutter, and it moves by fractions of a
+/// pixel where a laid-out width could only step by whole ones.
+struct UpNextCountdownSweep: UIViewRepresentable {
+    let clock: UpNextCountdownClock
+    let color: Color
+    /// Rounds the fill and clips it to a capsule track. Otherwise it is a plain
+    /// rectangle for a parent that does its own clipping.
+    let isCapsule: Bool
+
+    func makeUIView(context: Context) -> UpNextCountdownSweepView {
+        UpNextCountdownSweepView(isCapsule: isCapsule)
+    }
+
+    func updateUIView(_ uiView: UpNextCountdownSweepView, context: Context) {
+        uiView.update(clock: clock, color: UIColor(color))
+    }
+}
+
+final class UpNextCountdownSweepView: UIView {
+    private let fill = CALayer()
+    private let isCapsule: Bool
+    private var clock: UpNextCountdownClock?
+
+    init(isCapsule: Bool) {
+        self.isCapsule = isCapsule
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        layer.masksToBounds = true
+        fill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        layer.addSublayer(fill)
+
+        // The system strips running animations from a backgrounded app.
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(applyClock),
+            name: UIApplication.willEnterForegroundNotification,
+            object: nil
+        )
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    /// Runs for every player re-render, so a move only restarts when the clock
+    /// itself changed. Colour fades on the layer's implicit animation, along
+    /// with the tvOS selection change.
+    func update(clock: UpNextCountdownClock, color: UIColor) {
+        if fill.backgroundColor != color.cgColor {
+            fill.backgroundColor = color.cgColor
+        }
+        guard clock != self.clock else { return }
+        self.clock = clock
+        applyClock()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard fill.bounds.size != bounds.size else { return }
+        applyClock()
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        if window != nil { applyClock() }
+    }
+
+    @objc private func applyClock() {
+        guard let clock else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        let width = bounds.width
+        fill.removeAnimation(forKey: "sweep")
+        fill.bounds = CGRect(origin: .zero, size: bounds.size)
+        fill.cornerRadius = isCapsule ? bounds.height / 2 : 0
+        layer.cornerRadius = fill.cornerRadius
+
+        let now = Date()
+        let progress = clock.progress(at: now)
+        let currentX = (CGFloat(progress) - 1) * width
+        let isRunning = clock.runningSince != nil && progress < 1
+        // The model holds where the move ends, so a finished move simply stays.
+        fill.position = CGPoint(x: isRunning ? 0 : currentX, y: bounds.midY)
+
+        guard isRunning, width > 0 else { return }
+        let sweep = CABasicAnimation(keyPath: "position.x")
+        sweep.fromValue = currentX
+        sweep.toValue = 0
+        sweep.duration = clock.duration - clock.elapsed(at: now)
+        sweep.timingFunction = CAMediaTimingFunction(name: .linear)
+        fill.add(sweep, forKey: "sweep")
+    }
 }
 
 /// The compact chip's platter. tvOS matches `PlayerTVSkipChip` (light glass

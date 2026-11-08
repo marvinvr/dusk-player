@@ -607,6 +607,49 @@ struct UpNextPresentation: Sendable {
     var errorMessage: String?
 }
 
+/// Where an Up Next countdown is, as a value that only changes when the
+/// countdown starts, pauses, resumes or ends. `UpNextCountdownSweep` hands it to
+/// Core Animation, so the sweep needs no per-frame or per-tick work on the main
+/// thread and nothing has to republish a progress fraction to move it.
+struct UpNextCountdownClock: Equatable, Sendable {
+    let duration: TimeInterval
+    /// Time counted up to `runningSince`, or in total while frozen.
+    var elapsed: TimeInterval = 0
+    /// Nil while frozen.
+    var runningSince: Date?
+
+    func elapsed(at date: Date) -> TimeInterval {
+        let running = runningSince.map { max(date.timeIntervalSince($0), 0) } ?? 0
+        return min(max(elapsed + running, 0), duration)
+    }
+
+    /// 0...1. A countdown of no length is already over.
+    func progress(at date: Date) -> Double {
+        duration > 0 ? elapsed(at: date) / duration : 1
+    }
+
+    /// The whole seconds a viewer reads: 15 until the first second has passed,
+    /// 1 during the last one.
+    func secondsRemaining(at date: Date) -> Int {
+        max(0, Int(ceil(duration - elapsed(at: date))))
+    }
+
+    mutating func resume(at date: Date) {
+        if runningSince == nil { runningSince = date }
+    }
+
+    mutating func freeze(at date: Date) {
+        guard runningSince != nil else { return }
+        elapsed = elapsed(at: date)
+        runningSince = nil
+    }
+
+    mutating func finish() {
+        elapsed = duration
+        runningSince = nil
+    }
+}
+
 /// The small bottom-right "next episode" poster shown over the play bar once
 /// the credits marker is reached. It replaces the old "Skip Credits" button and
 /// stays visible until the episode ends (or the user acts on it). Its `mode`
@@ -687,7 +730,7 @@ struct UpNextPosterPresentation: Sendable {
     /// notifications for the same marker don't re-resolve the next episode.
     let creditsMarkerID: Int
     var secondsRemaining: Int?
-    var countdownProgress: Double?
+    var countdownClock: UpNextCountdownClock?
     var isStarting = false
 
     var isTimed: Bool {

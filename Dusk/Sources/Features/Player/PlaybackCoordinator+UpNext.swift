@@ -107,9 +107,15 @@ extension PlaybackCoordinator {
                 let elapsed = rawElapsed
                 #endif
                 let clampedElapsed = min(max(elapsed, 0), duration)
-                current.secondsRemaining = max(0, Int(ceil(duration - clampedElapsed)))
-                current.autoplayProgress = min(max(clampedElapsed / duration, 0), 1)
-                self.upNextPresentation = current
+                let secondsRemaining = max(0, Int(ceil(duration - clampedElapsed)))
+                // The overlay's sweep runs on its own from `countdownStartedAt`,
+                // so the player re-renders for a new second, not for a tick. A
+                // frozen screenshot has no start date and draws from the fraction.
+                if current.secondsRemaining != secondsRemaining || current.countdownStartedAt == nil {
+                    current.secondsRemaining = secondsRemaining
+                    current.autoplayProgress = min(max(clampedElapsed / duration, 0), 1)
+                    self.upNextPresentation = current
+                }
 
                 if clampedElapsed >= duration {
                     break
@@ -180,7 +186,7 @@ extension PlaybackCoordinator {
         )
         if case let .timedAutoplay(countdown) = mode {
             poster.secondsRemaining = countdown
-            poster.countdownProgress = 0
+            poster.countdownClock = UpNextCountdownClock(duration: Double(countdown))
         }
         upNextPoster = poster
         upNextLogger.notice(
@@ -234,7 +240,7 @@ extension PlaybackCoordinator {
         cancelUpNextPosterCountdown()
         poster.isStarting = true
         poster.secondsRemaining = 0
-        poster.countdownProgress = 1
+        poster.countdownClock?.finish()
         upNextPoster = poster
 
         finalizeCurrentPlaybackSession(markCompleted: true)
@@ -316,9 +322,7 @@ extension PlaybackCoordinator {
 
         upNextPosterCountdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            let startedAt = Date()
-            var pausedAt: Date?
-            var accumulatedPausedTime: TimeInterval = 0
+            var clock = UpNextCountdownClock(duration: duration)
 
             while true {
                 if Task.isCancelled { return }
@@ -329,32 +333,30 @@ extension PlaybackCoordinator {
 
                 let now = Date()
                 // Freeze the countdown while the user pauses during credits.
-                if self.latestActivePlaybackState == .paused {
-                    pausedAt = pausedAt ?? now
-                    do {
-                        try await Task.sleep(for: .milliseconds(100))
-                    } catch { return }
-                    continue
-                }
-
-                if let pausedAt {
-                    accumulatedPausedTime += now.timeIntervalSince(pausedAt)
-                }
-                pausedAt = nil
-
-                let rawElapsed = now.timeIntervalSince(startedAt) - accumulatedPausedTime
+                var isHeld = self.latestActivePlaybackState == .paused
                 #if DEBUG
-                let elapsed = ScreenshotMode.frozenUpNextSeconds
-                    .map { min(rawElapsed, duration - Double($0)) } ?? rawElapsed
-                #else
-                let elapsed = rawElapsed
+                if let frozenSeconds = ScreenshotMode.frozenUpNextSeconds,
+                   clock.elapsed(at: now) >= duration - Double(frozenSeconds) {
+                    isHeld = true
+                }
                 #endif
-                let clampedElapsed = min(max(elapsed, 0), duration)
-                current.secondsRemaining = max(0, Int(ceil(duration - clampedElapsed)))
-                current.countdownProgress = min(max(clampedElapsed / duration, 0), 1)
-                self.upNextPoster = current
+                if isHeld {
+                    clock.freeze(at: now)
+                } else {
+                    clock.resume(at: now)
+                }
 
-                if clampedElapsed >= duration { break }
+                // This loop only watches the clock. The sweep runs on its own
+                // from `countdownClock`, so the player re-renders for a new
+                // second or a pause, never for a tick.
+                let secondsRemaining = clock.secondsRemaining(at: now)
+                if current.countdownClock != clock || current.secondsRemaining != secondsRemaining {
+                    current.countdownClock = clock
+                    current.secondsRemaining = secondsRemaining
+                    self.upNextPoster = current
+                }
+
+                if clock.elapsed(at: now) >= duration { break }
 
                 do {
                     try await Task.sleep(for: .milliseconds(100))

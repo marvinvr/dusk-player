@@ -548,3 +548,49 @@ struct PlaylistStoreTests {
         #expect(store.hasPlaylists)
     }
 }
+
+@Suite("Up Next countdown clock")
+struct UpNextCountdownClockTests {
+    private let start = Date(timeIntervalSinceReferenceDate: 1_000)
+
+    @Test("Seconds round up and progress runs from 0 to 1")
+    func runningClock() {
+        var clock = UpNextCountdownClock(duration: 15)
+        #expect(clock.secondsRemaining(at: start) == 15)
+        #expect(clock.progress(at: start) == 0)
+
+        clock.resume(at: start)
+        #expect(clock.secondsRemaining(at: start.addingTimeInterval(0.1)) == 15)
+        #expect(clock.secondsRemaining(at: start.addingTimeInterval(1)) == 14)
+        #expect(clock.secondsRemaining(at: start.addingTimeInterval(14.9)) == 1)
+        #expect(clock.secondsRemaining(at: start.addingTimeInterval(20)) == 0)
+        #expect(clock.progress(at: start.addingTimeInterval(7.5)) == 0.5)
+        #expect(clock.progress(at: start.addingTimeInterval(20)) == 1)
+    }
+
+    @Test("A pause holds the position and resuming continues from it")
+    func pauseAndResume() {
+        var clock = UpNextCountdownClock(duration: 10)
+        clock.resume(at: start)
+        clock.freeze(at: start.addingTimeInterval(4))
+        // Freezing or resuming twice must not move or re-anchor it: the task
+        // calls one of them on every poll.
+        clock.freeze(at: start.addingTimeInterval(5))
+        #expect(clock.elapsed(at: start.addingTimeInterval(100)) == 4)
+
+        clock.resume(at: start.addingTimeInterval(100))
+        let resumed = clock
+        clock.resume(at: start.addingTimeInterval(101))
+        #expect(clock == resumed)
+        #expect(clock.elapsed(at: start.addingTimeInterval(102)) == 6)
+    }
+
+    @Test("A finished or empty countdown reads as over")
+    func finished() {
+        var clock = UpNextCountdownClock(duration: 10)
+        clock.finish()
+        #expect(clock.progress(at: start) == 1)
+        #expect(clock.secondsRemaining(at: start) == 0)
+        #expect(UpNextCountdownClock(duration: 0).progress(at: start) == 1)
+    }
+}

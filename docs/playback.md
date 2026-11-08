@@ -2330,6 +2330,14 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   with a dark label on iOS, because the screen is near-black whatever the app's
   appearance mode is. tvOS uses the system `.glass` with no tint, like the
   detail hero buttons: an explicit tint goes white-on-white on focus.
+- Both Up Next countdown sweeps are `UpNextCountdownSweep`: one linear Core
+  Animation move over the remaining time, driven by an `UpNextCountdownClock`
+  (or the overlay's `countdownStartedAt`), so it runs on the render server and
+  cannot stutter with the main thread. The countdown tasks still poll every
+  100 ms to see a pause and to fire on time, but only publish when the whole
+  seconds or the clock change; publishing per tick re-renders `PlayerSessionView`.
+  Do not go back to animating a laid-out width. The sweep re-applies its clock on
+  size, window and foreground changes because the system drops running animations.
 - Up Next poster (replaces the old Skip Credits button for items with a
   successor): when the last credits marker is reached,
   `PlayerViewModel.reachedCreditsMarker` changes and the player calls

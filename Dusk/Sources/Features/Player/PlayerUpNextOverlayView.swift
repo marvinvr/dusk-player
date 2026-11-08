@@ -296,41 +296,30 @@ struct PlayerUpNextOverlayView: View {
     }
 
     private func countdown(metrics: UpNextLayoutMetrics) -> some View {
-        let fallback = CountdownVisualState(
-            label: presentation.secondsRemaining.map(Self.countdownLabel)
-                ?? Self.countdownLabel(for: presentation.countdownDuration),
-            progress: min(max(presentation.autoplayProgress ?? 0, 0), 1)
-        )
+        VStack(alignment: .leading, spacing: 9) {
+            Text(Self.countdownLabel(for: presentation.secondsRemaining ?? presentation.countdownDuration))
+                .font(metrics.countdownFont.monospacedDigit())
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(1)
 
-        return TimelineView(.periodic(from: presentation.countdownStartedAt ?? .now, by: 0.1)) { context in
-            let visualState = countdownVisualState(
-                at: context.date,
-                duration: presentation.countdownDuration,
-                startedAt: presentation.countdownStartedAt,
-                fallback: fallback
-            )
+            ZStack {
+                Capsule()
+                    .fill(Color.white.opacity(0.16))
 
-            VStack(alignment: .leading, spacing: 9) {
-                Text(visualState.label)
-                    .font(metrics.countdownFont.monospacedDigit())
-                    .foregroundStyle(.white.opacity(0.92))
-                    .lineLimit(1)
-
-                GeometryReader { geometry in
-                    ZStack(alignment: .leading) {
-                        Capsule()
-                            .fill(Color.white.opacity(0.16))
-
-                        Capsule()
-                            .fill(Color.white)
-                            .frame(width: geometry.size.width * visualState.progress)
-                            .animation(.linear(duration: 0.1), value: visualState.progress)
-                    }
-                }
-                .frame(height: metrics.countdownBarHeight)
+                UpNextCountdownSweep(clock: countdownClock, color: .white, isCapsule: true)
             }
-            .frame(maxWidth: metrics.countdownWidth, alignment: .leading)
+            .frame(height: metrics.countdownBarHeight)
         }
+        .frame(maxWidth: metrics.countdownWidth, alignment: .leading)
+    }
+
+    private var countdownClock: UpNextCountdownClock {
+        let duration = Double(presentation.countdownDuration)
+        guard let startedAt = presentation.countdownStartedAt else {
+            let progress = min(max(presentation.autoplayProgress ?? 0, 0), 1)
+            return UpNextCountdownClock(duration: duration, elapsed: duration * progress)
+        }
+        return UpNextCountdownClock(duration: duration, runningSince: startedAt)
     }
 
     // MARK: - Data
@@ -394,30 +383,6 @@ struct PlayerUpNextOverlayView: View {
     private static func countdownLabel(for seconds: Int) -> String {
         "Plays in \(max(seconds, 0))s"
     }
-
-    private func countdownVisualState(
-        at date: Date,
-        duration: Int,
-        startedAt: Date?,
-        fallback: CountdownVisualState
-    ) -> CountdownVisualState {
-        guard let startedAt, duration > 0 else { return fallback }
-
-        let durationSeconds = Double(duration)
-        let elapsed = min(max(date.timeIntervalSince(startedAt), 0), durationSeconds)
-        let remaining = max(0, Int(ceil(durationSeconds - elapsed)))
-        let progress = min(max(elapsed / durationSeconds, 0), 1)
-
-        return CountdownVisualState(
-            label: Self.countdownLabel(for: remaining),
-            progress: progress
-        )
-    }
-}
-
-private struct CountdownVisualState {
-    let label: String
-    let progress: Double
 }
 
 // MARK: - Primary Action Style
