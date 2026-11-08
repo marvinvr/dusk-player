@@ -159,6 +159,111 @@ struct LiveTVGuideCatchUpTests {
         #expect(abs(rolled.date(forX: cursor.offset).timeIntervalSince(leading)) < 1)
     }
 
+    // MARK: Collapsed gaps
+
+    /// A sparse guide: one session two days back, one two days ahead.
+    private func sparse(now: Date) throws -> (LiveTVGuideTimeline, PlexLiveChannelGuide) {
+        let past = try program("past", from: now.addingTimeInterval(-48 * 3600), to: now.addingTimeInterval(-47 * 3600))
+        let next = try program("next", from: now.addingTimeInterval(48 * 3600), to: now.addingTimeInterval(49 * 3600))
+        let guide = PlexLiveChannelGuide(channel: channel, programs: [past, next])
+        let lineup = PlexLiveTVLineup(
+            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+            guides: [guide]
+        )
+        let timeline = LiveTVGuideTimeline(
+            window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
+            lineup: lineup, now: now, pointsPerMinute: 5, collapsedWidth: 100, collapsesTrailingGap: false
+        )
+        return (timeline, guide)
+    }
+
+    /// No filler entries at all: the empty days become markers either side
+    /// of a to-scale stretch around now, and the row still tiles.
+    @Test func emptyStretchesCollapseAroundNow() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let (timeline, guide) = try sparse(now: now)
+        #expect(timeline.collapses.count == 2)
+        #expect(timeline.contains(now))
+        let compact: CGFloat = 100 * 2 + 5 * 60 * 3 + 1
+        #expect(timeline.width < compact)
+
+        let cells = LiveTVGuideSection.cells(for: guide, rowID: "r", timeline: timeline, now: now)
+        #expect(cells.first?.program != nil)
+        #expect(cells.last?.program != nil)
+        let markers = cells.filter(\.isCollapsedGap)
+        #expect(markers.count == 2)
+        #expect(markers.allSatisfy { $0.program == nil })
+        let live = try #require(cells.first { $0.isAiring(at: now) })
+        #expect(live.program == nil)
+        #expect(!live.isCollapsedGap)
+    }
+
+    @Test func positionsMapBothWaysAcrossACollapse() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let (timeline, _) = try sparse(now: now)
+        for date in [timeline.start, now, timeline.end, now.addingTimeInterval(24 * 3600)] {
+            #expect(abs(timeline.date(forX: timeline.x(for: date)).timeIntervalSince(date)) < 1)
+        }
+        let collapse = try #require(timeline.collapses.first)
+        let markerWidth: CGFloat = timeline.x(for: collapse.end) - timeline.x(for: collapse.start)
+        #expect(abs(markerWidth - 100) < 0.01)
+    }
+
+    @Test func aShortSilenceStaysToScale() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let earlier = try program("a", from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(3600))
+        let later = try program("b", from: now.addingTimeInterval(3600 + 50 * 60), to: now.addingTimeInterval(3 * 3600))
+        let lineup = PlexLiveTVLineup(
+            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+            guides: [PlexLiveChannelGuide(channel: channel, programs: [earlier, later])]
+        )
+        let timeline = LiveTVGuideTimeline(
+            window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
+            lineup: lineup, now: now, pointsPerMinute: 5, collapsedWidth: 100, collapsesTrailingGap: false
+        )
+        #expect(timeline.collapses.isEmpty)
+    }
+
+    /// One channel without a guide must not become one long tunable cell.
+    @Test func theLiveGapIsOnlyTheNowZone() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let timeline = LiveTVGuideTimeline(
+            window: LiveTVGuideWindow(start: now, end: now.addingTimeInterval(12 * 3600)), pointsPerMinute: 5
+        )
+        let cells = LiveTVGuideSection.cells(
+            for: PlexLiveChannelGuide(channel: channel, programs: []), rowID: "r", timeline: timeline, now: now
+        )
+        let live = try #require(cells.first { $0.isAiring(at: now) })
+        #expect(live.end.timeIntervalSince(live.start) <= LiveTVGuideTimeline.nowZoneLength)
+    }
+
+    /// A step never moves more than the block's comfortable share plus margin,
+    /// however long the next programme is.
+    @Test func aStepScrollsOnlyAsFarAsItMust() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let start = LiveTVGuideTimeline.floorToTick(now)
+        let short = try program("short", from: start, to: start.addingTimeInterval(1800))
+        let long = try program("long", from: start.addingTimeInterval(1800), to: start.addingTimeInterval(6 * 3600))
+        let timeline = LiveTVGuideTimeline(
+            window: LiveTVGuideWindow(start: start, end: start.addingTimeInterval(8 * 3600)), pointsPerMinute: 5
+        )
+        let row = LiveTVGuideRow(
+            id: "r", channel: channel,
+            cells: LiveTVGuideSection.cells(
+                for: PlexLiveChannelGuide(channel: channel, programs: [short, long]), rowID: "r", timeline: timeline, now: now
+            )
+        )
+        var cursor = LiveTVGuideCursor(time: start)
+        let viewport: CGFloat = 200
+        let stepped = cursor.step(.next, in: row, timeline: timeline, viewport: viewport)
+        #expect(stepped)
+        let limit = viewport * (LiveTVGuideCursor.comfortableShare + LiveTVGuideCursor.marginShare)
+        let longStart = try #require(long.beginsAt)
+        let furthest: CGFloat = timeline.x(for: longStart) + limit - viewport + 0.01
+        #expect(cursor.offset <= furthest)
+        #expect(cursor.time >= longStart)
+    }
+
     @Test func pastDaysAreWholeDays() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!

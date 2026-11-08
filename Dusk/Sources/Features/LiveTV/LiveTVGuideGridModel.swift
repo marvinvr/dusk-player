@@ -1,15 +1,34 @@
 import Foundation
 
-/// The shared time axis of the grid guide: one start, one scale, so every
-/// channel row lines up under the same ruler. Pure layout math, no view code.
+/// The time axis of one guide section (Plex, or one IPTV source): one start,
+/// one scale, so its rows line up under one ruler. Stretches where none of the
+/// section's channels has a programme are collapsed to a narrow `collapsedWidth`
+/// so a sparse guide (sports feeds with days between sessions) stays compact.
+/// Pure layout math, no view code.
 struct LiveTVGuideTimeline: Hashable, Sendable {
+    /// A stretch of the axis drawn at `collapsedWidth` rather than to scale.
+    struct Collapse: Hashable, Sendable {
+        let start: Date
+        let end: Date
+    }
+
     let start: Date
     let end: Date
     /// Horizontal points per minute of airtime.
     let pointsPerMinute: CGFloat
+    /// Oldest first, never overlapping, always inside `start..<end`.
+    let collapses: [Collapse]
+    let collapsedWidth: CGFloat
 
     /// The ruler ticks every half hour.
     static let tickInterval: TimeInterval = 30 * 60
+
+    /// A section-wide silence longer than this collapses.
+    static let collapseThreshold: TimeInterval = 60 * 60
+
+    /// How much real time stays to scale around now, even with nothing on:
+    /// the now line needs somewhere to sit, and the channel a cell to tune.
+    static let nowZoneLength: TimeInterval = 60 * 60
 
     /// A grid for `window`. It starts on the half hour at or before the
     /// window, so the ruler opens on a round time and the programme on now
@@ -19,22 +38,152 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
         self.start = start
         self.end = max(window.end, start.addingTimeInterval(Self.tickInterval))
         self.pointsPerMinute = pointsPerMinute
+        self.collapses = []
+        self.collapsedWidth = 0
     }
+
+    /// A grid for `window` with the empty stretches of `lineup` collapsed.
+    /// `collapsesTrailingGap` is off when the window's end is only padding
+    /// (nothing is known past it, so a marker would point at nothing).
+    init(
+        window: LiveTVGuideWindow,
+        lineup: PlexLiveTVLineup,
+        now: Date,
+        pointsPerMinute: CGFloat,
+        collapsedWidth: CGFloat,
+        collapsesTrailingGap: Bool = true
+    ) {
+        let start = Self.floorToTick(window.start)
+        let end = max(window.end, start.addingTimeInterval(Self.tickInterval))
+        self.start = start
+        self.end = end
+        self.pointsPerMinute = pointsPerMinute
+        self.collapsedWidth = collapsedWidth
+
+        var busy: [(start: Date, end: Date)] = []
+        for guide in lineup.guides {
+            for program in guide.programs {
+                guard let beginsAt = program.beginsAt, let endsAt = program.endsAt,
+                      endsAt > start, beginsAt < end else { continue }
+                busy.append((max(beginsAt, start), min(endsAt, end)))
+            }
+        }
+        if now >= start, now < end {
+            let zone = Self.nowZone(now)
+            busy.append((max(zone.lowerBound, start), min(zone.upperBound, end)))
+        }
+        busy.sort { $0.start < $1.start }
+
+        var collapses: [Collapse] = []
+        var cursor = start
+        for interval in busy {
+            if interval.start.timeIntervalSince(cursor) > Self.collapseThreshold {
+                collapses.append(Collapse(start: cursor, end: interval.start))
+            }
+            cursor = max(cursor, interval.end)
+        }
+        if collapsesTrailingGap, end.timeIntervalSince(cursor) > Self.collapseThreshold {
+            collapses.append(Collapse(start: cursor, end: end))
+        }
+        self.collapses = collapses
+    }
+
+    /// The stretch around now that is never collapsed.
+    static func nowZone(_ now: Date) -> ClosedRange<Date> {
+        let start = floorToTick(now.addingTimeInterval(-nowLeadIn))
+        return start...start.addingTimeInterval(nowZoneLength)
+    }
+
+    /// What a source whose whole guide is in memory (IPTV) shows: everything
+    /// it has, whatever day the Plex section is on, so it scrolls on its own.
+    /// With nothing coming up it still runs `openEndLength` past the start of
+    /// the now zone, so a channel without a guide has a tunable cell, not a stub.
+    static func wholeGuideWindow(of lineup: PlexLiveTVLineup, now: Date) -> LiveTVGuideWindow {
+        let zoneStart = nowZone(now).lowerBound
+        var start = zoneStart
+        var end = zoneStart.addingTimeInterval(openEndLength)
+        for guide in lineup.guides {
+            for program in guide.programs {
+                if let beginsAt = program.beginsAt, beginsAt < start { start = beginsAt }
+                if let endsAt = program.endsAt, endsAt > end { end = endsAt }
+            }
+        }
+        return LiveTVGuideWindow(start: start, end: end)
+    }
+
+    static let openEndLength: TimeInterval = 3 * 60 * 60
 
     var width: CGFloat { x(for: end) }
 
     func x(for date: Date) -> CGFloat {
-        CGFloat(date.timeIntervalSince(start) / 60) * pointsPerMinute
+        var x = CGFloat(date.timeIntervalSince(start) / 60) * pointsPerMinute
+        for collapse in collapses {
+            guard date > collapse.start else { break }
+            let span = collapse.end.timeIntervalSince(collapse.start)
+            let saved = CGFloat(span / 60) * pointsPerMinute - collapsedWidth
+            if date >= collapse.end {
+                x -= saved
+            } else {
+                // Inside: the marker's width stands for its whole stretch.
+                x -= saved * CGFloat(date.timeIntervalSince(collapse.start) / span)
+                break
+            }
+        }
+        return x
     }
 
     func date(forX x: CGFloat) -> Date {
-        start.addingTimeInterval(TimeInterval(x / pointsPerMinute) * 60)
+        var edgeX: CGFloat = 0
+        var edgeDate = start
+        for collapse in collapses {
+            let stretch = CGFloat(collapse.start.timeIntervalSince(edgeDate) / 60) * pointsPerMinute
+            if x <= edgeX + stretch { break }
+            edgeX += stretch
+            if x <= edgeX + collapsedWidth {
+                let fraction = collapsedWidth > 0 ? TimeInterval((x - edgeX) / collapsedWidth) : 0
+                return collapse.start.addingTimeInterval(collapse.end.timeIntervalSince(collapse.start) * fraction)
+            }
+            edgeX += collapsedWidth
+            edgeDate = collapse.end
+        }
+        return edgeDate.addingTimeInterval(TimeInterval((x - edgeX) / pointsPerMinute) * 60)
     }
 
-    /// Every half hour from the start up to (not including) the end.
-    var ticks: [Date] {
-        stride(from: 0, to: end.timeIntervalSince(start), by: Self.tickInterval)
-            .map { start.addingTimeInterval($0) }
+    /// One label on the ruler.
+    struct Mark: Hashable, Sendable {
+        let date: Date
+        /// Past a collapsed stretch, across midnight or at the very start the
+        /// day may not be the one the viewer assumes, so the label names it.
+        let namesDay: Bool
+    }
+
+    /// Every half hour to scale, plus the exact start of each stretch that
+    /// follows a collapse (programmes rarely resume on the half hour).
+    func marks(calendar: Calendar = .current) -> [Mark] {
+        var marks: [Mark] = []
+        var stretchStart = start
+        var followsCollapse = false
+
+        func addStretch(until stretchEnd: Date) {
+            var tick = Self.floorToTick(stretchStart)
+            if tick < stretchStart { tick = tick.addingTimeInterval(Self.tickInterval) }
+            if followsCollapse {
+                marks.append(Mark(date: stretchStart, namesDay: true))
+                // A half hour right after that label would print over it.
+                if tick.timeIntervalSince(stretchStart) < 20 * 60 { tick = tick.addingTimeInterval(Self.tickInterval) }
+            }
+            while tick < stretchEnd {
+                marks.append(Mark(date: tick, namesDay: marks.isEmpty || calendar.startOfDay(for: tick) == tick))
+                tick = tick.addingTimeInterval(Self.tickInterval)
+            }
+        }
+        for collapse in collapses {
+            addStretch(until: collapse.start)
+            stretchStart = collapse.end
+            followsCollapse = true
+        }
+        addStretch(until: end)
+        return marks
     }
 
     func contains(_ date: Date) -> Bool { date >= start && date < end }
@@ -44,34 +193,25 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
         return Date(timeIntervalSinceReferenceDate: (seconds / tickInterval).rounded(.down) * tickInterval)
     }
 
-    /// The horizontal offset that puts the half hour at or before `x` at the
-    /// leading edge, so a scroll the app makes always lands on a ruler tick.
-    func snappedOffset(atOrBefore x: CGFloat) -> CGFloat {
-        let tick = CGFloat(Self.tickInterval / 60) * pointsPerMinute
-        return (x / tick).rounded(.down) * tick
-    }
-
-    func snappedOffset(atOrAfter x: CGFloat) -> CGFloat {
-        let tick = CGFloat(Self.tickInterval / 60) * pointsPerMinute
-        return (x / tick).rounded(.up) * tick
-    }
-
     /// How much of the past stays in view left of the now line when the
     /// guide opens on now.
     static let nowLeadIn: TimeInterval = 10 * 60
 
     /// The horizontal offset that opens the grid on now: the half hour at
-    /// least `nowLeadIn` before it at the leading edge. 0 when now is not on
-    /// this timeline. The past before it is reached by scrolling back.
+    /// least `nowLeadIn` before it at the leading edge, with the marker of a
+    /// collapsed past still peeking in so the way back is visible. 0 when now
+    /// is not on this timeline.
     func nowOffset(_ now: Date) -> CGFloat {
         guard contains(now) else { return 0 }
-        return max(0, snappedOffset(atOrBefore: x(for: now.addingTimeInterval(-Self.nowLeadIn))))
+        let leading = Self.floorToTick(now.addingTimeInterval(-Self.nowLeadIn))
+        let peek = collapses.contains { $0.end == leading } ? collapsedWidth : 0
+        return max(0, x(for: leading) - peek)
     }
 }
 
-/// One cell of a channel row: a programme, or the stretch the guide says
-/// nothing about. Gaps are cells too, so a channel with a patchy (or no)
-/// guide still has something to land on and tune.
+/// One cell of a channel row: a programme, the stretch the guide says nothing
+/// about, or the marker for a collapsed stretch. Gaps are cells too, so a
+/// channel with a patchy (or no) guide still has something to land on and tune.
 struct LiveTVGuideCell: Identifiable, Hashable, Sendable {
     let id: String
     let start: Date
@@ -85,6 +225,9 @@ struct LiveTVGuideCell: Identifiable, Hashable, Sendable {
     /// An ended programme that can be played back: IPTV catch-up, or a Plex
     /// airing with a recording in the library.
     var isReplayable = false
+    /// The marker of a collapsed stretch: narrow, always a nil `program`, and
+    /// Select skips across it instead of tuning.
+    var isCollapsedGap = false
 
     func isAiring(at date: Date) -> Bool { start <= date && date < end }
 
@@ -115,11 +258,13 @@ struct LiveTVGuideRow: Identifiable, Hashable, Sendable {
 }
 
 /// A block of rows from one lineup. More than one section means Plex plus
-/// IPTV sources (or several IPTV sources); each gets a slim label row.
+/// IPTV sources (or several IPTV sources); each gets a slim label row, its own
+/// time axis and its own horizontal scroll.
 struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
     let id: String
     let title: String
     let lineup: PlexLiveTVLineup
+    let timeline: LiveTVGuideTimeline
     let rows: [LiveTVGuideRow]
 
     init(
@@ -133,6 +278,7 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
         self.id = id
         self.title = title
         self.lineup = lineup
+        self.timeline = timeline
         self.rows = lineup.guides.map { guide in
             LiveTVGuideRow(
                 id: "\(id)/\(guide.channel.id)",
@@ -151,7 +297,9 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
     /// Programmes clipped to the timeline, with gaps (and overlaps, which
     /// sloppy XMLTV files do have) resolved so the row tiles exactly. A gap
     /// that is already over stays blank: Plex drops ended airings, and a
-    /// "no information" cell for the last twenty minutes says nothing.
+    /// "no information" cell for the last twenty minutes says nothing. A
+    /// collapsed stretch always gets its marker, past or not: it is the way
+    /// through to the catch-up on the other side.
     static func cells(
         for guide: PlexLiveChannelGuide,
         rowID: String,
@@ -162,20 +310,47 @@ struct LiveTVGuideSection: Identifiable, Hashable, Sendable {
         var cells: [LiveTVGuideCell] = []
         var cursor = timeline.start
 
-        func gap(until end: Date) {
+        func toScaleGap(until end: Date) {
             guard end.timeIntervalSince(cursor) >= 60 else { return }
             guard end > now else {
                 cursor = end
                 return
             }
-            cells.append(LiveTVGuideCell(
-                id: "\(rowID)/gap-\(Int(cursor.timeIntervalSince1970))",
-                start: cursor,
-                end: end,
-                program: nil,
-                startsBeforeTimeline: false
-            ))
-            cursor = end
+            func append(until cellEnd: Date) {
+                cells.append(LiveTVGuideCell(
+                    id: "\(rowID)/gap-\(Int(cursor.timeIntervalSince1970))",
+                    start: cursor,
+                    end: cellEnd,
+                    program: nil,
+                    startsBeforeTimeline: false
+                ))
+                cursor = cellEnd
+            }
+            // What tunes the channel stays the size of the now zone: a channel
+            // without a guide must not turn into a screens-long "No Program
+            // Information". The rest of the stretch is a quiet gap.
+            if cursor <= now {
+                let zone = LiveTVGuideTimeline.nowZone(now)
+                cursor = max(cursor, zone.lowerBound)
+                if end > zone.upperBound { append(until: zone.upperBound) }
+            }
+            append(until: end)
+        }
+
+        func gap(until end: Date) {
+            for collapse in timeline.collapses where collapse.end > cursor && collapse.start < end {
+                toScaleGap(until: collapse.start)
+                cells.append(LiveTVGuideCell(
+                    id: "\(rowID)/collapsed-\(Int(collapse.start.timeIntervalSince1970))",
+                    start: collapse.start,
+                    end: collapse.end,
+                    program: nil,
+                    startsBeforeTimeline: false,
+                    isCollapsedGap: true
+                ))
+                cursor = collapse.end
+            }
+            toScaleGap(until: end)
         }
 
         for program in guide.programs {
@@ -219,10 +394,20 @@ struct LiveTVGuideCursor: Equatable {
         case now
         /// The cell at `date`, entered by stepping in `step`'s direction.
         case time(Date, Step)
+        /// The cell at `date` near the leading edge: a day picked from the
+        /// menu, on a section that has its whole guide on one axis.
+        case day(Date)
     }
 
-    /// Moves to the neighbouring cell of `row`, scrolling just enough (in
-    /// half-hour steps) to show it whole. Returns false at either end.
+    /// How much of a block a step keeps in view, as a share of the viewport.
+    /// Longer programmes only show this much (the title sticks to the visible
+    /// edge), so a step never throws the grid across the screen.
+    static let comfortableShare: CGFloat = 0.35
+    /// The breathing room kept past the block, as a share of the viewport.
+    static let marginShare: CGFloat = 0.06
+
+    /// Moves to the neighbouring cell of `row`, scrolling just enough to keep
+    /// it comfortably in view. Returns false at either end.
     mutating func step(
         _ step: Step,
         in row: LiveTVGuideRow,
@@ -236,17 +421,29 @@ struct LiveTVGuideCursor: Equatable {
         return true
     }
 
-    /// Scrolls so `cell` is visible, then parks the time position at its
-    /// start (or the visible edge, for a programme that began off screen).
+    /// Scrolls as little as keeps `cell` comfortably visible, then parks the
+    /// time position at its start (or the visible edge, for a programme that
+    /// began off screen).
     mutating func reveal(_ cell: LiveTVGuideCell, timeline: LiveTVGuideTimeline, viewport: CGFloat) {
         let x0 = timeline.x(for: cell.start)
         let x1 = timeline.x(for: cell.end)
-        let maxOffset = max(0, timeline.width - viewport)
-        if x0 < offset || x1 > offset + viewport {
-            let fitting = timeline.snappedOffset(atOrAfter: x1 - viewport)
-            let leading = timeline.snappedOffset(atOrBefore: x0)
-            offset = min(max(0, min(fitting, leading)), maxOffset)
+        let shown = min(x1 - x0, viewport * Self.comfortableShare)
+        let margin = viewport * Self.marginShare
+        var target = offset
+        if x0 + shown + margin > offset + viewport {
+            target = x0 + shown + margin - viewport
+        } else if x1 - shown - margin < offset {
+            target = x1 - shown - margin
         }
+        offset = min(max(0, target), max(0, timeline.width - viewport))
+        time = max(cell.start, timeline.date(forX: offset))
+    }
+
+    /// Puts the cell of `row` at `date` near the leading edge.
+    mutating func place(at date: Date, in row: LiveTVGuideRow, timeline: LiveTVGuideTimeline, viewport: CGFloat) {
+        guard let cell = row.cell(at: date) else { return }
+        let x = timeline.x(for: max(cell.start, min(date, cell.end)))
+        offset = min(max(0, x - viewport * Self.marginShare), max(0, timeline.width - viewport))
         time = max(cell.start, timeline.date(forX: offset))
     }
 

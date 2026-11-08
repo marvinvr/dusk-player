@@ -1084,23 +1084,37 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `MoreView`, and the Home shelf. Do not discover providers independently per
   surface.
 - `LiveTVView` is a grid guide: rows are
-  channels, columns are time, programmes are blocks as wide as their airtime, all
-  rows on one shared timeline (`LiveTVGuideTimeline`, half-hour ruler). It opens
-  on the half hour at least 10 min before now (`nowOffset`); the "Now" grid
-  reaches back to midnight / 12 h (`LiveTVViewModel.timelineWindow`, trimmed to
-  the earliest programme so there is never empty past to scroll through). Layout model in
-  `LiveTVGuideGridModel.swift` (cells incl. "no information" gaps, which still
-  tune), views in `LiveTVGuideGridView.swift`. Plex and every IPTV source are just
-  sections of `PlexLiveTVLineup`, so they share the grid.
-- iOS/iPadOS: one `ScrollView([.horizontal, .vertical])`; the ruler is the pinned
-  section header, the channel column and ruler corner pin with `visualEffect`
-  (render time, no scroll lag), titles stick to the visible edge. Toolbar: Now +
-  day menu. `scrollTo(x:)` resets y, so jumps use `scrollTo(point:)` with the
-  tracked y. Tap live = play, later = details sheet; tap channel = tune.
-- tvOS: rows are full-width focusable buttons, so Up/Down is native focus (and
-  native vertical scroll); the time position + horizontal offset are app state
-  (`LiveTVGuideCursor`), Left/Right via `onMoveCommand` step programmes and
-  scroll in half-hour steps. Up/Down keeps the time. Select: live plays, later
+  channels, columns are time, programmes are blocks as wide as their airtime.
+  Each section (Plex, each IPTV source) has its own `LiveTVGuideTimeline` and its
+  own horizontal scroll, so moving through one source leaves the others alone. It
+  opens on the half hour at least 10 min before now (`nowOffset`). Plex shows the
+  selected day ("Now" reaches back to midnight / 12 h, `timelineWindow`, on the
+  day `lineup` holds until a picked day has loaded); an IPTV source shows its whole
+  guide on one axis (`wholeGuideWindow`), independent of the day. Layout model in
+  `LiveTVGuideGridModel.swift`, views in `LiveTVGuideGridView.swift`.
+- Empty time: a stretch over 1 h with nothing on any channel of the section
+  collapses to a narrow marker (`LiveTVGuideTimeline.collapses`, `isCollapsedGap`:
+  `···` + the skipped span; ruler shows `···`, and the first label after it names
+  the day). Selecting a marker skips away from now. One hour around now always
+  stays to scale (`nowZone`) so the now line has a place and the channel a cell to
+  tune; a live "No Program Information" cell is never longer than that. Shorter or
+  one-channel gaps stay to scale, as quiet `···` cells. No filler entries are needed
+  from a source: time with no programme is simply a gap.
+- iOS/iPadOS: a vertical `ScrollView` of sections, each a horizontal `ScrollView`
+  with its ruler and rows. The channel column and the ruler corner pin with
+  `visualEffect` against the horizontal scroll, the ruler against the outer vertical
+  one (render time, no scroll lag; it sits outside the `LazyVStack`, which would
+  drop it), titles stick to the visible edge. Cells and ruler marks are windowed to
+  a few screenfuls around the scroll position. `LiveTVGuideShortMomentum` shortens
+  flicks; `TargetContext.velocity` is in points per **millisecond**. Toolbar: Now +
+  day menu (scrolls every section). Tap live = play, later = details sheet, marker =
+  skip; tap channel = tune.
+- tvOS: rows are full-width focusable buttons, so Up/Down is native focus, with
+  `LiveTVGuideRowPacing` holding each vertical scroll to one row; the time position
+  + horizontal offset are app state (one `LiveTVGuideCursor` per section),
+  Left/Right via `onMoveCommand` step programmes and scroll only as far as keeps the
+  block comfortably visible (`reveal`: 35% of the viewport at most, the title sticks
+  to the edge). The one ruler follows the focused section. Up/Down keeps the time. Select: live plays, later
   opens details; long-press: Watch Live / Details / Jump to Now; Play/Pause jumps
   to now; the corner is the day menu. An info panel above the grid describes the
   focused programme (the only tvOS layout). Do not let the
@@ -1113,11 +1127,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `play.fill`. Select on a replayable block plays it back in the normal
   on-demand player (`PlaybackCoordinator.playIPTVCatchUp` / library `play`);
   any other ended block opens the details. Past days (`-1…-N`, N = the longest
-  IPTV `catchup-days`) appear in the day menu. tvOS: Left past the first block
-  of a grid switches to the day before (`crossDay` → `dayOffset(containing:)`,
-  placement applied by the grid through `LiveTVGuideCursor.pending`), Right
-  past the last to the next; Play/Pause still jumps to now. iOS: scroll left
-  within "Now", the day menu for older days.
+  IPTV `catchup-days`) appear in the day menu; IPTV sources just scroll there.
+  tvOS: Left past the first block of the Plex grid switches its day
+  (`crossDay` → `dayOffset(containing:)`, placement applied by the grid through
+  `LiveTVGuideCursor.pending`), Right past the last to the next; IPTV sources stay
+  put. The corner names the focused section's day. Play/Pause jumps every section
+  to now. iOS: the day menu for other Plex days.
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.

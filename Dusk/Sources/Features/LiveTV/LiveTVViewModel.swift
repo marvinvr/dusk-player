@@ -25,7 +25,9 @@ final class LiveTVViewModel {
     private var fetchedLineup: PlexLiveTVLineup?
     private var loadedWindow: LiveTVGuideWindow?
     private var loadedAt: Date?
-    private var loadedDayOffset: Int?
+    /// The day `lineup` holds. Behind `selectedDayOffset` while a picked day
+    /// loads: the Plex grid stays on this day until the new one is there.
+    private(set) var loadedDayOffset: Int?
     /// A load asked for while another ran, e.g. a date picked mid-refresh.
     /// It used to be dropped, leaving the guide on the old date.
     private var reloadRequested = false
@@ -44,19 +46,10 @@ final class LiveTVViewModel {
 
     var hasIPTVSources: Bool { iptvService?.hasSources == true }
 
-    /// Each loaded IPTV source, trimmed to the selected guide window like the
-    /// Plex lineup. Read live so "Now" drops ended programmes as time passes.
-    var iptvLineups: [IPTVSourceLineup] {
-        guard let iptvService else { return [] }
-        let window = Self.displayWindow(forDayOffset: selectedDayOffset)
-        return iptvService.lineups.map { loaded in
-            IPTVSourceLineup(
-                source: loaded.source,
-                lineup: loaded.lineup.restricted(to: window),
-                guideError: loaded.guideError
-            )
-        }
-    }
+    /// Each loaded IPTV source with its whole guide. Unlike Plex (fetched per
+    /// day) all of it is in memory, so a source scrolls through it on one
+    /// axis, independent of the day the Plex section is on.
+    var iptvLineups: [IPTVSourceLineup] { iptvService?.lineups ?? [] }
 
     /// Whether anything (Plex or IPTV) has a guide to show.
     var hasGuide: Bool { lineup != nil || !(iptvService?.lineups.isEmpty ?? true) }

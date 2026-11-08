@@ -120,6 +120,9 @@ defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
 - Guide: the XMLTV window reaches back `max(catch-up days, 1 day)`
   (`IPTVSourceLoader.guideWindow`). Channels without catch-up show their past
   from the EPG as info only.
+- The whole loaded guide is on one axis per source, with empty stretches
+  collapsed to markers (see `ui-features.md` › Live TV), so a source does not have
+  to pad its XMLTV with "no programme" entries, and should not.
 - Sim: `iptv_test_source.py` gives channels 1–2 catch-up (`/catchup/…` logs the
   substituted times, then 302s to Apple's VOD sample) and channel 3 none.
   `-DuskScreenshotScreen iptvPlayer -DuskScreenshotIPTVCatchUpHoursAgo <h>`

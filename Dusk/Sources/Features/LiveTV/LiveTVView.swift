@@ -22,11 +22,10 @@ struct LiveTVRootContent: View {
     /// dropped the presentation on tvOS, so nothing ever played (issue #17).
     @State private var pendingPlay: PendingLivePlay?
     #if os(tvOS)
-    @State private var tvCursor = LiveTVGuideCursor(time: .now)
+    /// One per guide section, so each source scrolls on its own.
+    @State private var tvCursors: [String: LiveTVGuideCursor] = [:]
     #else
-    @State private var gridPosition = ScrollPosition()
-    @State private var gridScrollY: CGFloat = 0
-    @State private var gridNowRequest = 0
+    @State private var gridJump = LiveTVGuideJump()
     #endif
 
     private struct PendingLivePlay {
@@ -109,9 +108,9 @@ struct LiveTVRootContent: View {
         }
     }
 
-    /// The grid: one shared timeline, channels down the side, programmes as
-    /// blocks as wide as their airtime. Plex and every IPTV source feed the
-    /// same `PlexLiveTVLineup` model, so each is just another section.
+    /// The grid: channels down the side, programmes as blocks as wide as their
+    /// airtime. Plex and every IPTV source feed the same `PlexLiveTVLineup`
+    /// model, so each is just another section, with its own time axis.
     private func guide() -> some View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             GeometryReader { proxy in
@@ -120,40 +119,28 @@ struct LiveTVRootContent: View {
                 #else
                 let metrics = LiveTVGuideMetrics.forWidth(proxy.size.width)
                 #endif
-                let lineups = guideLineups
-                let timeline = LiveTVGuideTimeline(
-                    window: LiveTVViewModel.timelineWindow(
-                        forDayOffset: viewModel.selectedDayOffset,
-                        lineups: lineups.map(\.lineup),
-                        now: context.date
-                    ),
-                    pointsPerMinute: metrics.pointsPerMinute
-                )
-                let sections = guideSections(lineups, timeline: timeline, now: context.date)
+                let sections = guideSections(metrics: metrics, now: context.date)
                 #if os(tvOS)
                 LiveTVGuideTVGrid(
                     width: proxy.size.width,
                     sections: sections,
-                    timeline: timeline,
                     now: context.date,
                     imageURL: viewModel.imageURL(for:),
-                    cursor: $tvCursor,
+                    cursors: $tvCursors,
                     select: select,
                     showDetails: { selectedProgram = $0 },
                     jumpToNow: jumpToNow,
                     crossDay: crossDay,
-                    corner: { dayMenu(timeline: timeline) }
+                    corner: { section, cursor in dayMenu(section: section, cursor: cursor) }
                 )
                 #else
                 LiveTVGuideGrid(
+                    width: proxy.size.width,
                     sections: sections,
-                    timeline: timeline,
                     now: context.date,
                     metrics: metrics,
                     imageURL: viewModel.imageURL(for:),
-                    position: $gridPosition,
-                    scrollY: $gridScrollY,
-                    nowRequest: gridNowRequest,
+                    jump: gridJump,
                     select: select,
                     showDetails: { selectedProgram = $0 },
                     playChannel: { channel, lineup in play(channel: channel, program: nil, lineup: lineup) }
@@ -171,30 +158,46 @@ struct LiveTVRootContent: View {
         #endif
     }
 
-    /// The Plex lineup, then each IPTV source after it, headed by the name
-    /// it was given in Settings. All restricted to the selected day.
-    private var guideLineups: [(id: String, title: String, lineup: PlexLiveTVLineup)] {
-        var lineups: [(id: String, title: String, lineup: PlexLiveTVLineup)] = []
-        if let lineup = viewModel.lineup {
-            lineups.append(("plex", lineup.provider.title, lineup))
-        }
-        for iptv in viewModel.iptvLineups {
-            lineups.append(("iptv-\(iptv.source.id)", iptv.source.name, iptv.lineup))
-        }
-        return lineups
-    }
-
-    private func guideSections(
-        _ lineups: [(id: String, title: String, lineup: PlexLiveTVLineup)],
-        timeline: LiveTVGuideTimeline,
-        now: Date
-    ) -> [LiveTVGuideSection] {
-        lineups.map { entry in
-            LiveTVGuideSection(
-                id: entry.id, title: entry.title, lineup: entry.lineup, timeline: timeline, now: now,
+    /// The Plex lineup, on the selected day, then each IPTV source after it
+    /// with its whole guide, headed by the name it was given in Settings.
+    private func guideSections(metrics: LiveTVGuideMetrics, now: Date) -> [LiveTVGuideSection] {
+        var sections: [LiveTVGuideSection] = []
+        func add(id: String, title: String, lineup: PlexLiveTVLineup, window: LiveTVGuideWindow, collapsesTrailingGap: Bool) {
+            let timeline = LiveTVGuideTimeline(
+                window: window,
+                lineup: lineup,
+                now: now,
+                pointsPerMinute: metrics.pointsPerMinute,
+                collapsedWidth: metrics.collapsedGapWidth,
+                collapsesTrailingGap: collapsesTrailingGap
+            )
+            sections.append(LiveTVGuideSection(
+                id: id, title: title, lineup: lineup, timeline: timeline, now: now,
                 isReplayable: { program, channel in viewModel.canReplay(program, on: channel, now: now) }
+            ))
+        }
+        if let lineup = viewModel.lineup {
+            add(
+                id: "plex", title: lineup.provider.title, lineup: lineup,
+                // The day the lineup holds, not the one just picked: its old
+                // programmes on the new day's axis would read as a day with
+                // nothing on, and a pending placement would land on that.
+                window: LiveTVViewModel.timelineWindow(
+                    forDayOffset: viewModel.loadedDayOffset ?? viewModel.selectedDayOffset,
+                    lineups: [lineup],
+                    now: now
+                ),
+                collapsesTrailingGap: true
             )
         }
+        for iptv in viewModel.iptvLineups {
+            add(
+                id: "iptv-\(iptv.source.id)", title: iptv.source.name, lineup: iptv.lineup,
+                window: LiveTVGuideTimeline.wholeGuideWindow(of: iptv.lineup, now: now),
+                collapsesTrailingGap: false
+            )
+        }
+        return sections
     }
 
     /// Live plays; later shows the details; the past plays back when it can
@@ -253,24 +256,38 @@ struct LiveTVRootContent: View {
         }
     }
 
-    /// Now on the "Now" grid, the start of any other day. Applied by the
-    /// grid, which knows the timeline it draws.
+    /// Every source back to the selected day: now on the "Now" grid, the start
+    /// of any other day. Applied by the grid, which knows the timelines it draws.
     private func resetScroll() {
+        let offset = viewModel.selectedDayOffset
+        let day = offset == 0 ? nil : LiveTVGuideWindow.forDayOffset(offset).start
         #if os(tvOS)
-        tvCursor.pending = .now
+        var sectionIDs = viewModel.iptvLineups.map { "iptv-\($0.source.id)" }
+        if viewModel.lineup != nil { sectionIDs.append("plex") }
+        for id in sectionIDs {
+            var cursor = tvCursors[id] ?? LiveTVGuideCursor(time: .now)
+            if let day, id != "plex" {
+                cursor.pending = .day(day)
+            } else {
+                cursor.pending = .now
+            }
+            tvCursors[id] = cursor
+        }
         #else
-        gridNowRequest += 1
+        gridJump = LiveTVGuideJump(id: gridJump.id + 1, day: day)
         #endif
     }
 
     #if os(tvOS)
-    /// Left past the start of the grid (or Right past its end): the day
+    /// Left past the start of the Plex grid (or Right past its end): the day
     /// holding `date` takes over, with the cursor on the programme there.
-    /// Past days exist only as far back as catch-up reaches.
-    private func crossDay(_ step: LiveTVGuideCursor.Step, date: Date) {
+    /// IPTV sources are not on a day, so they stay where they are.
+    private func crossDay(_ section: LiveTVGuideSection, _ step: LiveTVGuideCursor.Step, date: Date) {
         guard let offset = viewModel.dayOffset(containing: date),
               offset != viewModel.selectedDayOffset else { return }
-        tvCursor.pending = .time(date, step)
+        var cursor = tvCursors[section.id] ?? LiveTVGuideCursor(time: .now)
+        cursor.pending = .time(date, step)
+        tvCursors[section.id] = cursor
         Task { await viewModel.selectDayOffset(offset) }
     }
     #endif
@@ -279,7 +296,7 @@ struct LiveTVRootContent: View {
     /// The corner above the channel column: the day, as a native glass menu
     /// (Up from the first channel lands here). Play/Pause anywhere in the
     /// grid also jumps back to now.
-    private func dayMenu(timeline: LiveTVGuideTimeline) -> some View {
+    private func dayMenu(section: LiveTVGuideSection?, cursor: LiveTVGuideCursor?) -> some View {
         Menu {
             Button("Now", systemImage: "clock.arrow.circlepath") { jumpToNow() }
             Section {
@@ -296,12 +313,22 @@ struct LiveTVRootContent: View {
                 }
             }
         } label: {
-            Label(dayLabel(viewModel.selectedDayOffset), systemImage: "calendar")
+            Label(dayLabel(shownDayOffset(section: section, cursor: cursor)), systemImage: "calendar")
                 .font(DuskFont.TV.buttonLabel)
         }
         .menuStyle(.button)
         .buttonStyle(.glass)
         .buttonBorderShape(.capsule)
+    }
+
+    /// The day the focused section is on: an IPTV source scrolls through its
+    /// whole guide, so its day comes from where it has got to.
+    private func shownDayOffset(section: LiveTVGuideSection?, cursor: LiveTVGuideCursor?) -> Int {
+        guard let section, section.lineup.provider.isIPTV, let cursor else { return viewModel.selectedDayOffset }
+        let calendar = Calendar.current
+        return calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: .now), to: calendar.startOfDay(for: cursor.time)
+        ).day ?? viewModel.selectedDayOffset
     }
 
     #else
