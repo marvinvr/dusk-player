@@ -2376,6 +2376,19 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   seek bounds, replacement items, warm engine reuse, and stop cleanup on both
   targets. System discovery on iPhone/Apple TV and automation delivery require
   real devices; compile checks cannot establish those behaviors.
+- The tvOS Control Centre Now Playing tab is **audio-only by system design**;
+  video apps do not get it, so its absence during Dusk video playback is not a
+  publishing bug (#47). On the tvOS 27 simulator, mediaremoted lists Dusk as the
+  active client on both engines (`canBeNowPlayingApplication=YES`, correct
+  title), and `TVSSAudioNowPlayingController` then logs `confirmed as *not*
+  'audio-only'. Will reset now playing state. mediaType=Video`. A scratch app
+  shows the same with shared-center and `MPNowPlayingSession` publishing, with
+  or without explicit `setActive(true)`. Do not relabel video as
+  `MPNowPlayingInfoMediaType.audio`: it passes that check but still drew no tab
+  in the sim, and it would misreport the media type to Now Playing consumers.
+  `MPNowPlayingSession` is no route for VLCKit either, because its initializer
+  asserts on an empty player list. Check `log show --info --debug` for category
+  `AudioNowPlayingController` in `TVSystemUIService`.
 
 ### Playback queue (playlists and lists)
 - `PlaybackQueue` (`Features/Player/PlaybackQueue.swift`) is a fixed list of
