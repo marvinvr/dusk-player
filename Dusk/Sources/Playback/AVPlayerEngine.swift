@@ -679,6 +679,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                     return
                 }
             }
+            if let stream = currentSource?.iptvStream, stream.isCatchUp,
+               contentKeyController?.lastError == nil,
+               let attemptID = currentAttemptContext?.attemptID {
+                failIPTVCatchUp(stream, itemError: itemError, attemptID: attemptID)
+                return
+            }
             let playbackError: PlaybackError
             if let keyError = contentKeyController?.lastError {
                 playbackError = .unknown(keyError.localizedDescription)
@@ -932,6 +938,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             return
         }
         failLoad(.unknown(keyError.localizedDescription), attemptID: attemptID, message: "FairPlay key request failed")
+    }
+
+    /// A catch-up item that failed stays on the spinner for the moment it
+    /// takes to ask the server why, then fails with the server's reason. The
+    /// attempt check drops the answer when the viewer has already left.
+    private func failIPTVCatchUp(_ stream: IPTVPlayableChannel, itemError: Error?, attemptID: UUID) {
+        Task { @MainActor [weak self] in
+            let refusal = await IPTVAsset.catchUpRefusal(for: stream)
+            self?.failLoad(
+                .unknown(refusal ?? IPTVAsset.failureMessage(for: itemError, isCatchUp: true)),
+                attemptID: attemptID,
+                message: "IPTV catch-up failed [\(Self.errorChainDescription(itemError))]"
+            )
+        }
     }
 
     private func stopDolbyVision7Proxy() {

@@ -117,6 +117,11 @@ defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
   `PlaybackSource.iptvCatchUp`); `isPlayingIPTVCatchUp` keeps it away from
   Plex timeline/scrobble. The engine never retunes a catch-up stream: its end
   ends playback, its failures fail.
+- A guide can list a programme whose replay was never published, so a refused
+  catch-up is a normal outcome. When a catch-up item fails, the engine repeats the
+  request once (`IPTVAsset.catchUpRefusal`) and shows the server's one-line
+  `text/plain` answer, or a sentence for the status. It only runs after a failure,
+  so a working replay costs no extra request.
 - Guide: the XMLTV window reaches back `max(catch-up days, 1 day)`
   (`IPTVSourceLoader.guideWindow`). Channels without catch-up show their past
   from the EPG as info only.

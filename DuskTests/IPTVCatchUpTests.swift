@@ -92,6 +92,38 @@ struct IPTVCatchUpTests {
         #expect(plain.lowerBound <= now.addingTimeInterval(-24 * 3600))
         #expect(plain.lowerBound > now.addingTimeInterval(-2 * 86_400))
     }
+
+    // A source that lists a programme it never published a replay of answers
+    // the catch-up URL with a 404; the viewer reads why, not "URL not found".
+    @Test func aRefusedReplaySaysWhyInTheServersWords() {
+        let message = IPTVAsset.catchUpRefusalMessage(
+            status: 404,
+            body: "No published replay for this programme and channel\n"
+        )
+        #expect(message == "No published replay for this programme and channel.")
+    }
+
+    @Test func aRefusalWithoutASentenceFallsBackToTheStatus() {
+        let fallback = "No replay is available for this program."
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 404, body: nil) == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 404, body: "  ") == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 410, body: "<html>gone</html>") == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 404, body: "{\"error\":1}") == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 404, body: "one\ntwo") == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 404, body: String(repeating: "x", count: 201)) == fallback)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 403, body: nil) == "The replay of this program was refused.")
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 503, body: nil)?.contains("503") == true)
+    }
+
+    @Test func aStatusThatExplainsNothingIsNotARefusal() {
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 200, body: "#EXTM3U") == nil)
+        #expect(IPTVAsset.catchUpRefusalMessage(status: 302, body: nil) == nil)
+    }
+
+    @Test func aFailedReplayIsNotCalledAChannel() {
+        #expect(IPTVAsset.failureMessage(for: nil, isCatchUp: true) == "This program couldn’t be played.")
+        #expect(IPTVAsset.failureMessage(for: nil) == "This channel couldn’t be played.")
+    }
 }
 
 @Suite("Live TV guide catch-up")
@@ -262,6 +294,60 @@ struct LiveTVGuideCatchUpTests {
         let furthest: CGFloat = timeline.x(for: longStart) + limit - viewport + 0.01
         #expect(cursor.offset <= furthest)
         #expect(cursor.time >= longStart)
+    }
+
+    // The shape of a sports relay's guide: real sessions only, days apart, and
+    // the same on every channel. Checked at every point of the week, so a now
+    // inside a session, in a gap, on an edge or past the whole guide is covered.
+    @Test func aSparseGuideLaysOutCleanlyAtEveryMoment() throws {
+        let base = Date(timeIntervalSince1970: 1_793_000_000)
+        let sessions: [(hours: Double, length: Double)] = [
+            (0, 1.1), (1.2, 2), (3.2, 0.7), (97, 0.7), (116, 1.25), (120, 1.25), (139, 1.25), (142, 0.5), (143, 1.2), (144.2, 0.5), (164, 1.1), (165.2, 2), (167.2, 0.7),
+        ]
+        let channels = try (0..<4).map { index in
+            PlexLiveChannelGuide(
+                channel: PlexLiveChannel(iptvID: "c\(index)", number: nil, title: "C\(index)", logo: nil, playable: self.channel.iptv!),
+                programs: try sessions.enumerated().map { number, session in
+                    try program(
+                        "\(index)-\(number)",
+                        from: base.addingTimeInterval(session.hours * 3600),
+                        to: base.addingTimeInterval((session.hours + session.length) * 3600)
+                    )
+                }
+            )
+        }
+        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        let lineup = PlexLiveTVLineup(provider: provider, guides: channels)
+
+        for hours in stride(from: -48.0, through: 216, by: 0.37) {
+            let now = base.addingTimeInterval(hours * 3600)
+            let window = LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now)
+            let timeline = LiveTVGuideTimeline(
+                window: window, lineup: lineup, now: now,
+                pointsPerMinute: 9, collapsedWidth: 136, collapsesTrailingGap: false
+            )
+            #expect(timeline.width.isFinite && timeline.width > 0)
+            #expect(timeline.nowOffset(now) >= 0)
+            let section = LiveTVGuideSection(id: "s", title: "s", lineup: lineup, timeline: timeline, now: now)
+            for row in section.rows {
+                var last = timeline.start
+                for cell in row.cells {
+                    #expect(cell.end > cell.start)
+                    #expect(cell.start >= last)
+                    #expect(timeline.x(for: cell.end) >= timeline.x(for: cell.start))
+                    last = cell.end
+                }
+                #expect(Set(row.cells.map(\.id)).count == row.cells.count)
+
+                var cursor = LiveTVGuideCursor(time: now)
+                cursor.jumpToNow(now, timeline: timeline, viewport: 1500)
+                for step in [LiveTVGuideCursor.Step.next, .previous] {
+                    for _ in 0...row.cells.count where cursor.step(step, in: row, timeline: timeline, viewport: 1500) {
+                        #expect(cursor.offset.isFinite && cursor.offset >= 0)
+                    }
+                }
+            }
+        }
     }
 
     @Test func pastDaysAreWholeDays() {
