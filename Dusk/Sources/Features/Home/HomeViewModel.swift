@@ -543,9 +543,22 @@ final class HomeViewModel {
         }
 
         #if os(tvOS)
-        TopShelfPublisher.shared.publish(continueWatching: newContinueWatching, plexService: plexService)
+        publishTopShelf()
         #endif
     }
+
+    #if os(tvOS)
+    /// The rows Home already holds; nothing here asks Plex for more.
+    private func publishTopShelf() {
+        TopShelfPublisher.shared.publish(
+            continueWatching: continueWatching,
+            recentlyAdded: hubs.filter(isRecentlyAddedHub).map { hub in
+                TopShelfPublisher.Row(title: hub.title, items: inlineItems(in: hub, maxRecentlyAddedItems: .max))
+            },
+            plexService: plexService
+        )
+    }
+    #endif
 
     // MARK: - Watchlist
 
@@ -865,6 +878,9 @@ final class HomeViewModel {
             withAnimation(.easeInOut(duration: 0.3)) {
                 hubs = expandedHubs
             }
+            #if os(tvOS)
+            publishTopShelf()
+            #endif
         }
     }
 

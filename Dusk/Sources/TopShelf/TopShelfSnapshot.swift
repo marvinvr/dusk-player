@@ -22,6 +22,8 @@ struct TopShelfSnapshot: Codable, Sendable {
         var title: String
         /// A file in `TopShelfStore.imagesDirectory`.
         var imageFileName: String
+        /// A clip's 16:9 frame grab; everything else is a 2:3 poster.
+        var isLandscape: Bool
         /// 0...1, nil for an item that has not been started.
         var progress: Double?
         var playURL: URL

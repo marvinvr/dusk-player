@@ -704,15 +704,19 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 ## tvOS Top Shelf
 
 - The `DuskTopShelf` app extension (tvOS only, bundle id
-  `com.dusk-player.app.topshelf`) shows Continue Watching in the Top Shelf when
-  Dusk sits in the Home Screen's top row: sectioned content, 16:9 tiles, one
-  "Continue Watching" section that is Home's merged list as-is (started items
-  with progress and next episodes mixed, `ContinueWatchingMerge` order), at
-  most 10 items. No separate "Up Next" section; the app never splits them.
+  `com.dusk-player.app.topshelf`) fills the Top Shelf when Dusk sits in the Home
+  Screen's top row: sectioned content with 2:3 poster tiles (the show's poster
+  for an episode; a clip keeps its 16:9 frame grab). "Continue Watching" comes
+  first, Home's merged list as-is (started items with progress and next episodes
+  mixed, `ContinueWatchingMerge` order; no separate "Up Next"). Up to 3 of Home's
+  Recently Added rows follow, in Home's Library Order and with Home's titles,
+  hidden libraries and one card per show. At most 10 items per section; an item
+  shows once, in its first section. The full-screen carousel stays declined.
 - **The extension never talks to Plex.** `TopShelfPublisher`
-  (`Dusk/Sources/TopShelf/`) is called from `HomeViewModel.publish` on every
-  Continue Watching publish; it caches each tile's artwork with the app's own
-  session and writes `TopShelfSnapshot` (titles, artwork file names, deep links)
+  (`Dusk/Sources/TopShelf/`) is called from `HomeViewModel` whenever Home's
+  rows change and makes no Plex request beyond artwork. Off the main actor, it
+  caches each tile's artwork with the app's own session and writes
+  `TopShelfSnapshot` (titles, artwork file names, deep links)
   into the App Group `group.com.dusk-player.app`, then calls
   `TVTopShelfContentProvider.topShelfContentDidChange()`. The extension only
   reads that snapshot (`TopShelfSnapshot.swift` is compiled into both). No
@@ -723,7 +727,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `dusk://open?…` opens the detail page on Home. `DuskApp` hands the URL to
   `TopShelfLinkRouter`; `MainTabView` acts on it once the item's server is
   connected (a cold launch delivers it first) and drops it after 30 s. Play
-  re-reads the server's `viewOffset` instead of trusting the snapshot.
+  re-reads the server's `viewOffset` instead of trusting the snapshot. Recently
+  Added can hold shows and seasons, which have nothing to resume, so their Play
+  link is the `open` link.
 - iOS is untouched: everything is `#if os(tvOS)`, the URL scheme is only in
   `Info-tvOS.plist`, and only the tvOS app uses `Dusk-tvOS.entitlements` (App
   Group added); iOS keeps `Dusk.entitlements`.

@@ -32,7 +32,7 @@ final class ContentProvider: TVTopShelfContentProvider {
     ) -> TVTopShelfSectionedItem {
         let item = TVTopShelfSectionedItem(identifier: entry.id)
         item.title = entry.title
-        item.imageShape = .hdtv
+        item.imageShape = entry.isLandscape ? .hdtv : .poster
         if let progress = entry.progress {
             item.playbackProgress = progress
         }
