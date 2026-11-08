@@ -994,19 +994,23 @@ struct SupporterIconShowcase: View {
     @State private var currentIcon: DuskAppIcon = .dusk
     #endif
 
-    private static let tileSpacing: CGFloat = 14
-
     #if os(tvOS)
+    /// The card focus grows a tile by about 20pt per side at this size, so the
+    /// row gaps and the room above and below each tile have to clear that.
+    private static let tileSpacing: CGFloat = 26
+    private static let tileRowTopPadding: CGFloat = 14
+    private static let tileNameSpacing: CGFloat = 26
     /// Matches `TVSettingsSection`'s header-to-card gap.
     private static let labelSpacing: CGFloat = 12
     private static let labelInset: CGFloat = 0
     #else
     private static let labelSpacing = SupporterLayout.labelSpacing
     private static let labelInset = SupporterLayout.cardInset
+    private static let tileSpacing: CGFloat = 14
     #endif
 
     #if os(tvOS)
-    private let tileSize: CGFloat = 116
+    private let tileSize: CGFloat = 104
     #else
     /// Matches the sheet's horizontal content padding; the strip bleeds this
     /// far past the content column so tiles scroll out under the screen edge.
@@ -1047,6 +1051,7 @@ struct SupporterIconShowcase: View {
                     tile(for: icon)
                 }
             }
+            .padding(.top, Self.tileRowTopPadding)
             .focusSection()
 
             Text("Subscriber Exclusives")
@@ -1061,6 +1066,7 @@ struct SupporterIconShowcase: View {
                     tile(for: icon)
                 }
             }
+            .padding(.top, Self.tileRowTopPadding)
             .focusSection()
             #else
             ScrollView(.horizontal, showsIndicators: false) {
@@ -1110,33 +1116,38 @@ struct SupporterIconShowcase: View {
         #endif
     }
 
-    private func tileLabel(for icon: DuskAppIcon) -> some View {
-        VStack(spacing: 6) {
-            iconArtwork(for: icon)
-
-            Text(icon.displayName)
-                .font(DuskFont.cardSubtitle(ios: .caption2))
-                .foregroundStyle(icon.requiresSubscription ? Color.duskTextPrimary : Color.duskTextSecondary)
-                .lineLimit(1)
-        }
+    private func tileName(for icon: DuskAppIcon) -> some View {
+        Text(icon.displayName)
+            .font(DuskFont.cardSubtitle(ios: .caption2))
+            .foregroundStyle(icon.requiresSubscription ? Color.duskTextPrimary : Color.duskTextSecondary)
+            .lineLimit(1)
     }
 
     @ViewBuilder
     private func tile(for icon: DuskAppIcon) -> some View {
         #if os(tvOS)
-        Button(action: {}) {
-            tileLabel(for: icon)
-        }
-        .buttonStyle(.card)
-        .buttonBorderShape(.roundedRectangle(radius: tileSize * 0.22))
-        .hoverEffect(.highlight)
-        .accessibilityLabel("\(icon.displayName) app icon")
-        #else
-        tileLabel(for: icon)
-            .onTapGesture {
-                guard store.isUnlocked(icon) else { return }
-                apply(icon)
+        // The card focus lifts the artwork only. The name stays outside the
+        // button, far enough below for the lift not to reach it.
+        VStack(spacing: Self.tileNameSpacing) {
+            Button(action: {}) {
+                iconArtwork(for: icon)
             }
+            .buttonStyle(.card)
+            .buttonBorderShape(.roundedRectangle(radius: tileSize * 0.22))
+            .accessibilityLabel("\(icon.displayName) app icon")
+
+            tileName(for: icon)
+                .accessibilityHidden(true)
+        }
+        #else
+        VStack(spacing: 6) {
+            iconArtwork(for: icon)
+            tileName(for: icon)
+        }
+        .onTapGesture {
+            guard store.isUnlocked(icon) else { return }
+            apply(icon)
+        }
         #endif
     }
 
