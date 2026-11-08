@@ -193,12 +193,23 @@ exist to catch bugs this feature is prone to:
 - Each bundle is two layers: an opaque `background.png` and `mark.png` (the
   primary mark's alpha, recolored), with the shared `icon.json`. Previews are
   flattened 512px `IconPreview*` imagesets in `Assets.xcassets`, shared with tvOS.
-- Access (`DuskAppIcon.isUnlocked`): the primary "Dusk" icon is free; the six
-  classic alternates need an active subscription or a tip from Generous up
-  (`SupporterStore.hasIconAccess`); three jewel-tone icons with a gold accent
-  only while the subscription is active (`requiresSubscription`):
-  **Velvet** (cinema red, gold tip), **Emerald** (deep green, gold tip) and
-  **Gilded** (polished gold on black lacquer).
+- Access (`SupporterStore.isUnlocked`, rules in `DuskAppIcon.isUnlocked`): the
+  primary "Dusk" icon is free; the six classic alternates need an active
+  subscription or a tip from Generous up (`SupporterStore.hasIconAccess`);
+  three jewel-tone icons with a gold accent only while the subscription is
+  active (`requiresSubscription`): **Velvet** (cinema red, gold tip),
+  **Emerald** (deep green, gold tip) and **Gilded** (polished gold on black
+  lacquer).
+- **TestFlight:** installs from TestFlight cannot see a real App Store
+  subscription (StoreKit sandbox), so every alternate icon is unlocked there
+  and the lapse reset below does not run. `TestFlightInstall` is resolved
+  once at launch, before the first entitlement read: a verified
+  `AppTransaction.shared` with `environment == .sandbox`, or — only if that
+  read fails — an on-disk receipt whose last path component is
+  `sandboxReceipt`. Production (`.production`) and Xcode StoreKit testing
+  (`.xcode`, the Debug/simulator schemes) keep the rules above. The
+  supporter purchase sheet is unchanged. App Review also runs in the
+  sandbox, so the same signal unlocks icons there.
 - **Lapse:** when the subscription is no longer active and the current icon
   isn't otherwise covered (the exclusives never are; the classic alternates are
   by a tip from Generous up), `SupporterStore.enforceIconAccess()` switches

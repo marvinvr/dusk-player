@@ -311,7 +311,8 @@ Supporter:
   `SupporterPromptPresenter` gates the iOS/iPadOS supporter prompt schedule from
   `MainTabView`, while tvOS support remains available explicitly in Settings.
 - `DuskAppIcon` + `AppIconPickerView` own the alternate icons (iOS-only);
-  Velvet/Emerald/Gilded are subscriber exclusives.
+  Velvet/Emerald/Gilded are subscriber exclusives. TestFlight
+  (`TestFlightInstall`) unlocks every icon and skips the lapse reset.
 - Details and traps: `docs/supporter.md`.
 
 ## Where New Code Goes

@@ -12,7 +12,8 @@ import SwiftUI
 /// Access comes in three steps: the primary icon is free, the classic
 /// alternates come with an active subscription or a tip from Generous up, and
 /// Velvet/Emerald/Gilded only with an active subscription. `SupporterStore`
-/// switches back to the primary icon when a subscription lapses.
+/// switches back to the primary icon when a subscription lapses. TestFlight
+/// unlocks every icon and never reverts (`TestFlightInstall`).
 enum DuskAppIcon: String, CaseIterable, Identifiable {
     case dusk
     case dawn
@@ -116,6 +117,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
 
 extension SupporterStore {
     func isUnlocked(_ icon: DuskAppIcon) -> Bool {
-        icon.isUnlocked(hasIconAccess: hasIconAccess, hasActiveSubscription: hasActiveSubscription)
+        if TestFlightInstall.isTestFlight { return true }
+        return icon.isUnlocked(hasIconAccess: hasIconAccess, hasActiveSubscription: hasActiveSubscription)
     }
 }

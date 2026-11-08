@@ -45,6 +45,52 @@ enum SupporterProduct: String, CaseIterable {
     }
 }
 
+/// Whether this process is a TestFlight install.
+///
+/// TestFlight never sees the buyer's real App Store subscription — StoreKit
+/// reports the sandbox — so supporter icons would stay locked for every
+/// tester. Resolved once, before the first entitlement read. A verified
+/// `AppTransaction` whose environment is `.sandbox` counts; if that read
+/// fails, the on-disk receipt named `sandboxReceipt` does. Production
+/// (`.production`) and Xcode StoreKit testing (`.xcode`) do not, so App
+/// Store installs and ordinary Debug/simulator runs keep the real rules.
+@MainActor
+enum TestFlightInstall {
+    /// True only after `resolveOnce()` has seen a sandbox install.
+    private(set) static var isTestFlight = false
+    private static var didResolve = false
+
+    static func resolveOnce() async {
+        guard !didResolve else { return }
+        didResolve = true
+        isTestFlight = await detect()
+    }
+
+    private static func detect() async -> Bool {
+        if let result = try? await AppTransaction.shared {
+            if case .verified(let transaction) = result {
+                // A verified Xcode or production transaction is authoritative.
+                // Don't let a leftover receipt URL override it.
+                return transaction.environment == .sandbox
+            }
+        }
+        return hasSandboxReceipt()
+    }
+
+    /// `Bundle.appStoreReceiptURL` is deprecated for Swift. The selector is
+    /// that property: TestFlight's receipt file is named `sandboxReceipt`,
+    /// production's is `receipt`. The file has to exist so a simulator path
+    /// with that name and no receipt is not treated as TestFlight.
+    private static func hasSandboxReceipt() -> Bool {
+        let selector = NSSelectorFromString("appStoreReceiptURL")
+        guard let object = Bundle.main.perform(selector)?.takeUnretainedValue(),
+              let url = (object as? NSURL).map({ $0 as URL }),
+              url.lastPathComponent == "sandboxReceipt"
+        else { return false }
+        return FileManager.default.fileExists(atPath: url.path)
+    }
+}
+
 /// Owns all StoreKit 2 state for the supporter tier.
 ///
 /// Supporter status (the thank-you title, no more supporter prompts) is
@@ -61,7 +107,9 @@ enum SupporterProduct: String, CaseIterable {
 /// subscription is active (`hasActiveSubscription`) — the classic alternates
 /// and Velvet/Emerald/Gilded alike. Tips from Generous up are
 /// one-time purchases that unlock the classic alternates for good
-/// (`hasIconTip`); the Coffee tip unlocks nothing.
+/// (`hasIconTip`); the Coffee tip unlocks nothing. A TestFlight install
+/// (`TestFlightInstall`) unlocks every icon for the process and does not
+/// revert one.
 @MainActor
 @Observable
 final class SupporterStore {
@@ -129,6 +177,10 @@ final class SupporterStore {
     /// Kicks off the transaction listener, loads products, and reconciles
     /// entitlements. Safe to call once from the app root's `.task`.
     func start() async {
+        guard !started else { return }
+        // Stay unstarted across this await so a foreground refresh cannot
+        // revert an icon before the TestFlight result is known.
+        await TestFlightInstall.resolveOnce()
         guard !started else { return }
         started = true
 
@@ -279,9 +331,11 @@ final class SupporterStore {
     }
 
     /// True when `icon`, if set, is no longer covered and must go back to the
-    /// default.
+    /// default. Never on TestFlight: the sandbox has no real subscription,
+    /// and a tester's chosen icon must survive entitlement reads.
     func shouldRevertIcon(_ icon: DuskAppIcon, now: Date = Date()) -> Bool {
-        SupporterEntitlements.shouldRevertIcon(
+        if TestFlightInstall.isTestFlight { return false }
+        return SupporterEntitlements.shouldRevertIcon(
             icon,
             hasActiveSubscription: hasActiveSubscription,
             hasIconTip: hasIconTip,
