@@ -19,6 +19,13 @@ private let avPlayerEngineLogger = Logger(
 /// (which requires `NSObjectProtocol`), mirroring `VLCKitEngine`.
 @MainActor @Observable
 final class AVPlayerEngine: NSObject, PlaybackEngine {
+    /// Reads the cues of the current item, for `LiftedCueOverlay`.
+    @ObservationIgnored private var legibleOutput: AVPlayerItemLegibleOutput?
+    @ObservationIgnored private var latestLegibleCueText: String?
+    /// The raised cue drawn over the picture; nil while AVPlayer draws its own.
+    fileprivate var liftedCueOverlay: LiftedCueOverlayState?
+    @ObservationIgnored private var liftedCueTargetLift: Double = 0
+
     // MARK: - PlaybackEngine State
 
     private(set) var state: PlaybackState = .idle
@@ -221,6 +228,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - Lifecycle
 
     func load(source: PlaybackSource) {
+        liftedCueOverlay = nil
+        latestLegibleCueText = nil
         guard (try? PlexTransportSecurity.validate(URLRequest(url: source.url))) != nil else {
             stop()
             error = .networkError("A secure connection is required to send the Plex token.")
@@ -610,9 +619,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             // view) so it stays in the view hierarchy: that is what lets native
             // Picture in Picture stay possible while enhancement is on. The PiP
             // window then projects the non-upscaled stream directly from AVPlayer.
-            return AnyView(EnhancedPlayerView(engine: self, renderer: videoEnhancementRenderer))
+            return AnyView(ZStack {
+                EnhancedPlayerView(engine: self, renderer: videoEnhancementRenderer)
+                LiftedCueOverlay(engine: self)
+            })
         }
-        return AnyView(AVPlayerLayerRepresentable(playerLayer: playerLayer))
+        return AnyView(ZStack {
+            AVPlayerLayerRepresentable(playerLayer: playerLayer)
+            LiftedCueOverlay(engine: self)
+        })
     }
 
     // PlayerViewModel caches engineView. Observe the engine inside this view,
@@ -768,6 +783,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         item.preferredForwardBufferDuration = PlaybackBufferPolicy.avPlayerForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules
+        let legibleOutput = AVPlayerItemLegibleOutput()
+        legibleOutput.setDelegate(self, queue: .main)
+        item.add(legibleOutput)
+        self.legibleOutput = legibleOutput
 
         if videoEnhancementRenderer != nil {
             let output = AVPlayerItemVideoOutput(pixelBufferAttributes: [
@@ -1225,6 +1244,95 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         player.currentItem?.textStyleRules = subtitleTextStyleRules
     }
 
+    /// AVPlayer's renderer cannot move a cue already on screen (a rule's line
+    /// position only applies from the next cue, and tx3g ignores rules), so
+    /// while raised the cues come from the legible output and are drawn by
+    /// `LiftedCueOverlay` instead.
+    func setSubtitleClearance(_ clearance: SubtitleClearance?) {
+        let videoSize = player.currentItem?.presentationSize ?? .zero
+        let fillsContainer = playerLayer.videoGravity == .resizeAspectFill
+        let lift = clearance?.lift(
+            videoSize: videoSize,
+            fillsContainer: fillsContainer,
+            restingCueBottom: LiftedCueOverlay.restingCueBottom
+        ) ?? 0
+        setLiftedCueOverlay(lift: lift, clearance: clearance, videoSize: videoSize, fillsContainer: fillsContainer)
+    }
+
+    private func setLiftedCueOverlay(
+        lift: Double,
+        clearance: SubtitleClearance?,
+        videoSize: CGSize,
+        fillsContainer: Bool
+    ) {
+        guard lift > 0, let clearance else {
+            guard var overlay = liftedCueOverlay else { return }
+            overlay.lift = 0
+            liftedCueOverlay = overlay
+            handBackLiftedCueIfDone()
+            return
+        }
+
+        liftedCueTargetLift = lift
+        let pictureHeight = clearance.pictureHeight(videoSize: videoSize, fillsContainer: fillsContainer)
+        var overlay = liftedCueOverlay ?? LiftedCueOverlayState(
+            text: latestLegibleCueText,
+            style: .current(for: subtitleStyle),
+            textScale: Double(PlaybackSubtitleStyle.avPlayerRelativeFontSize(for: subtitleFontSize)) / 100,
+            pictureHeight: pictureHeight,
+            pictureBottomInset: (clearance.containerSize.height - pictureHeight) / 2,
+            lift: 0
+        )
+        let isNew = liftedCueOverlay == nil
+        overlay.pictureHeight = pictureHeight
+        overlay.pictureBottomInset = (clearance.containerSize.height - pictureHeight) / 2
+        legibleOutput?.suppressesPlayerRendering = true
+
+        if isNew {
+            flushRenderedNativeCue()
+            // Mount at the cue's own place first, so it visibly rises from there.
+            liftedCueOverlay = overlay
+            Task { @MainActor [weak self] in
+                guard let self, self.liftedCueOverlay != nil else { return }
+                self.liftedCueOverlay?.lift = self.liftedCueTargetLift
+            }
+        } else {
+            overlay.lift = lift
+            liftedCueOverlay = overlay
+        }
+    }
+
+    /// Suppressing rendering only applies from the next cue. Dropping the track
+    /// clears the one on screen, which would otherwise stay behind the raised
+    /// copy for the rest of its time. HLS needs about a second to let go of it;
+    /// the overlay holds the text meanwhile.
+    private func flushRenderedNativeCue() {
+        guard latestLegibleCueText != nil, let item = player.currentItem, let subtitleGroup,
+              let option = item.currentMediaSelection.selectedMediaOption(in: subtitleGroup) else { return }
+        item.select(nil, in: subtitleGroup)
+        Task { @MainActor [weak item] in
+            try? await Task.sleep(for: .seconds(1))
+            // A track picked in the meantime wins.
+            guard let item, item.currentMediaSelection.selectedMediaOption(in: subtitleGroup) == nil else { return }
+            item.select(option, in: subtitleGroup)
+        }
+    }
+
+    /// Native rendering only redraws from the next cue, so the overlay keeps a
+    /// cue still on screen until it ends, then hands the track back.
+    private func handBackLiftedCueIfDone() {
+        guard let overlay = liftedCueOverlay, overlay.lift == 0, overlay.text == nil else { return }
+        liftedCueOverlay = nil
+        legibleOutput?.suppressesPlayerRendering = false
+    }
+
+    fileprivate func noteLegibleCue(_ text: String?) {
+        latestLegibleCueText = text
+        guard liftedCueOverlay != nil else { return }
+        liftedCueOverlay?.text = text
+        handBackLiftedCueIfDone()
+    }
+
     /// System style: size only. Colours, background, edge and font come from
     /// the system caption style (`SystemCaptionStyle`), which AVPlayer's
     /// renderer applies by itself for every attribute these rules leave alone.
@@ -1647,6 +1755,80 @@ extension AVPlayerEngine: AVPlayerPlaybackCoordinatorDelegate {
 // MARK: - SwiftUI Bridge
 
 /// Wraps an `AVPlayerLayer` for use in SwiftUI.
+extension AVPlayerEngine: AVPlayerItemLegibleOutputPushDelegate {
+    nonisolated func legibleOutput(
+        _ output: AVPlayerItemLegibleOutput,
+        didOutputAttributedStrings strings: [NSAttributedString],
+        nativeSampleBuffers nativeSamples: [Any],
+        forItemTime itemTime: CMTime
+    ) {
+        let text = strings.map(\.string).joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        MainActor.assumeIsolated {
+            noteLegibleCue(text.isEmpty ? nil : text)
+        }
+    }
+}
+
+fileprivate struct LiftedCueOverlayState {
+    var text: String?
+    var style: SystemCaptionStyle
+    var textScale: Double
+    var pictureHeight: CGFloat
+    var pictureBottomInset: CGFloat
+    var lift: Double
+}
+
+/// Draws a raised subtitle in the caption style's colours, matching where and
+/// how large AVPlayer's own renderer draws it, so taking over is hardly visible.
+private struct LiftedCueOverlay: View {
+    /// An unpositioned cue's bottom edge above the picture's bottom, as a
+    /// fraction of the picture height.
+    static let restingCueBottom = 0.05
+    /// The renderer's text height at 100%, as a fraction of the picture.
+    private static let fontHeight = 0.047
+
+    let engine: AVPlayerEngine
+
+    var body: some View {
+        if let overlay = engine.liftedCueOverlay {
+            VStack {
+                Spacer(minLength: 0)
+                if let text = overlay.text {
+                    Text(text)
+                        .font(font(overlay))
+                        .foregroundStyle(Color(overlay.style.foreground))
+                        .shadow(color: .black.opacity(overlay.style.edge == .none ? 0 : 0.6), radius: 1, y: 1)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, overlay.pictureHeight * 0.02)
+                        .background(
+                            Color(overlay.style.background),
+                            in: RoundedRectangle(cornerRadius: overlay.pictureHeight * 0.016, style: .continuous)
+                        )
+                }
+            }
+            .padding(.bottom, overlay.pictureBottomInset + overlay.pictureHeight * Self.restingCueBottom)
+            .offset(y: -overlay.lift * overlay.pictureHeight)
+            .animation(.easeInOut(duration: 0.3), value: overlay.lift)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+        }
+    }
+
+    private func font(_ overlay: LiftedCueOverlayState) -> Font {
+        let size = overlay.pictureHeight * Self.fontHeight * overlay.textScale * overlay.style.relativeSize
+        if let family = overlay.style.fontFamily {
+            return .custom(family, fixedSize: size)
+        }
+        return .system(size: size)
+    }
+}
+
+private extension Color {
+    init(_ color: SystemCaptionStyle.Color) {
+        self.init(.sRGB, red: color.red, green: color.green, blue: color.blue, opacity: color.alpha)
+    }
+}
+
 private struct AVPlayerLayerRepresentable: UIViewRepresentable {
     let playerLayer: AVPlayerLayer
 

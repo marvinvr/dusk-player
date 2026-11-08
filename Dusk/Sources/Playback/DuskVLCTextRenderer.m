@@ -26,6 +26,17 @@ extern int var_Create(void *object, const char *name, int type);
 extern int var_Type(void *object, const char *name);
 extern int var_SetChecked(void *object, const char *name, int type, DuskVLCValue value);
 
+// libvlccore 3.x object tree: the layout is what vlc_list_release walks in the
+// vendored binaries (count at +4, an array of object pointers at +8).
+typedef struct {
+    int unused;
+    int count;
+    void **objects;
+} DuskVLCObjectList;
+
+extern DuskVLCObjectList *vlc_list_children(void *object);
+extern void vlc_list_release(DuskVLCObjectList *list);
+
 static const int DuskVLCVarInteger = 0x0030;
 static const int DuskVLCVarString = 0x0040;
 static const int DuskVLCVarFloat = 0x0050;
@@ -67,6 +78,28 @@ static const int DuskVLCVarDoInherit = 0x8000;
     // var_SetChecked copies the string.
     DuskVLCValue vlcValue = { .psz_string = (char *)value.UTF8String };
     return [self set:vlcValue type:DuskVLCVarString option:option player:player];
+}
+
++ (BOOL)setSubtitleMargin:(int32_t)margin onPlayer:(VLCMediaPlayer *)player
+{
+    static NSString *const option = @"sub-margin";
+    if (![self setInteger:margin forOption:option onPlayer:player]) {
+        return NO;
+    }
+    DuskVLCObjectList *children = vlc_list_children(player.playerInstance);
+    if (children == NULL) {
+        return NO;
+    }
+    DuskVLCValue value = { .i_int = margin };
+    for (int index = 0; index < children->count; index++) {
+        void *child = children->objects[index];
+        // Only a video output carries the variable.
+        if (var_Type(child, option.UTF8String) != 0) {
+            var_SetChecked(child, option.UTF8String, DuskVLCVarInteger, value);
+        }
+    }
+    vlc_list_release(children);
+    return YES;
 }
 
 @end

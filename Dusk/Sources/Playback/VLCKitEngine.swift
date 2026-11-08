@@ -335,6 +335,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var subtitleFontSize: SubtitleFontSize = .default
     /// The user's subtitle look, pushed in by the coordinator before load.
     private var subtitleStyle: SubtitleStyle = .default
+    private let subtitleLiftAnimator = SubtitleLiftAnimator()
+    private var subtitleRenderHeight: Double = 0
     /// The text style (system caption style + Dusk's size step) the currently
     /// open media was started with. VLCKit 3.x's text renderer only reads its
     /// options when an input attaches, so a mismatch here means the session
@@ -533,6 +535,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         pendingStartPosition = source.startPosition
         steadyPlaybackTicks = 0
         availableSubtitleTracks = []
+        if subtitleLiftAnimator.currentLift > 0 {
+            subtitleLiftAnimator.reset()
+            DuskVLCTextRenderer.setSubtitleMargin(0, on: mediaPlayer)
+        }
         availableAudioTracks = []
         selectedAudioTrackID = nil
         playbackDiagnostics = []
@@ -1746,6 +1752,37 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         subtitleStyle = style
         guard state == .playing else { return }
         _ = reloadForSubtitleStylingIfNeeded()
+    }
+
+    func setSubtitleClearance(_ clearance: SubtitleClearance?) {
+        let videoSize = mediaPlayer.videoSize
+        let target = clearance?.lift(
+            videoSize: videoSize,
+            fillsContainer: false,
+            restingCueBottom: Self.restingSubtitleBottom
+        ) ?? 0
+        // Going back down the render surface has not changed, so the last known
+        // height carries the lift all the way to zero.
+        if let clearance {
+            subtitleRenderHeight = Self.subtitleRenderHeight(videoSize: videoSize, clearance: clearance)
+        }
+        subtitleLiftAnimator.animate(to: target) { [weak self] lift in
+            guard let self else { return }
+            DuskVLCTextRenderer.setSubtitleMargin(Int32((lift * subtitleRenderHeight).rounded()), on: mediaPlayer)
+        }
+    }
+
+    /// Where libvlc's renderer puts an unmoved cue's bottom edge, as a fraction
+    /// of the picture height above the picture's bottom. It sits lower on a
+    /// wide picture, so this errs on the low side and lifts slightly further.
+    private static let restingSubtitleBottom = 0.03
+
+    /// `sub-margin` counts pixels of the surface subtitles are rendered on:
+    /// libvlc draws them at the picture's on-screen size, or at the video's own
+    /// when that is larger.
+    private static func subtitleRenderHeight(videoSize: CGSize, clearance: SubtitleClearance) -> Double {
+        let onScreen = clearance.pictureHeight(videoSize: videoSize, fillsContainer: false) * clearance.displayScale
+        return Double(max(videoSize.height, onScreen))
     }
 
     /// Returns `true` when it reopened the media (which also resumes playback).

@@ -32,6 +32,13 @@ enum PlayerOverlayLayout {
     static let bottomTrailingIgnoredSafeAreaEdges: Edge.Set = .bottom
     #endif
 
+    /// Gap between a lifted subtitle and the Up Next poster below it.
+    #if os(tvOS)
+    static let subtitleClearanceSpacing: CGFloat = 28
+    #else
+    static let subtitleClearanceSpacing: CGFloat = 10
+    #endif
+
     static func skipMarkerBottomInset(controlsVisible: Bool) -> CGFloat {
         controlsVisible ? skipMarkerRaisedBottomInset : skipMarkerRestingBottomInset
     }
@@ -518,6 +525,9 @@ private struct PlayerSessionView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: PlayerViewModel
     @State private var scrubPreviewSource: PlexScrubPreviewSource?
+    @Environment(\.displayScale) private var displayScale
+    @State private var playerContainerSize: CGSize = .zero
+    @State private var upNextPosterCoveredHeight: CGFloat?
     #if os(tvOS)
     /// Owns the tvOS HUD state machine for the whole session. Lives here, not
     /// in the overlay, because the remote bridge drives it while the HUD is
@@ -550,6 +560,28 @@ private struct PlayerSessionView: View {
         self.mediaDetails = mediaDetails
         self.debugInfo = debugInfo
         self.controlsTopSafeAreaInset = PlayerOverlayLayout.capturedStatusBarTopInset
+    }
+
+    /// Non-nil while the Up Next poster sits over the picture on this screen.
+    /// It does not check for a subtitle track or a cue: lifting moves only cues
+    /// being drawn, so with subtitles off or in a silent stretch nothing visible
+    /// changes, and a cue that starts under the poster is already above it.
+    /// AirPlay and Picture in Picture draw subtitles somewhere else.
+    private var subtitleClearance: SubtitleClearance? {
+        guard playback.upNextPoster != nil,
+              playback.upNextPresentation == nil,
+              viewModel.playbackError == nil,
+              !playback.isPictureInPictureActive,
+              let upNextPosterCoveredHeight else { return nil }
+        #if !os(tvOS)
+        guard !playback.isAirPlayPlaybackActive else { return nil }
+        #endif
+        return SubtitleClearance(
+            containerSize: playerContainerSize,
+            coveredHeight: upNextPosterCoveredHeight,
+            spacing: PlayerOverlayLayout.subtitleClearanceSpacing,
+            displayScale: displayScale
+        )
     }
 
     var body: some View {
@@ -659,7 +691,8 @@ private struct PlayerSessionView: View {
                         controlsVisible: viewModel.showControls,
                         isSelected: isTVBottomTrailingControlSelected,
                         onPlayNow: { playback.playUpNextPosterNow() },
-                        onDismiss: { playback.dismissUpNextPoster(userInitiated: true) }
+                        onDismiss: { playback.dismissUpNextPoster(userInitiated: true) },
+                        onCoveredHeightChange: { upNextPosterCoveredHeight = $0 }
                     )
                     .transition(PlayerOverlayLayout.bottomTrailingTransition)
                 }
@@ -676,6 +709,15 @@ private struct PlayerSessionView: View {
         // already ignores the same edge for the whole cover; this keeps the
         // session correct on its own terms.
         .ignoresSafeArea(.container, edges: PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges)
+        // The picture fills the whole screen, safe areas included.
+        .background {
+            Color.clear
+                .ignoresSafeArea()
+                .onGeometryChange(for: CGSize.self, of: { $0.size }) { playerContainerSize = $0 }
+        }
+        .onChange(of: subtitleClearance, initial: true) { _, clearance in
+            viewModel.engine.setSubtitleClearance(clearance)
+        }
         #if !os(tvOS)
         // Track the player's orientation from its own layout size (works on
         // iPhone rotation and iPad multitasking alike) so the per-orientation

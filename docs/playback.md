@@ -1937,6 +1937,21 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   down when auto-skip credits is on, and that expiry plays the next episode. A
   Skip Credits chip (see "Marker skip buttons") uses it like Skip Intro, read
   against the Auto-Skip Credits setting.
+- **Subtitles clear the Up Next poster.** While the poster is up, `PlayerSessionView`
+  passes its covered height to `PlaybackEngine.setSubtitleClearance(_:)`, and nil
+  when it goes (also under AirPlay and Picture in Picture). `SubtitleClearance.lift`
+  subtracts letterbox bars, so a cue that already clears the poster does not
+  move. There is deliberately no cue check: only drawn cues move, so subtitles
+  off or a silent stretch show no change, and a cue starting under the poster
+  is already above it. VLCKit steps libvlc's live `sub-margin` on the vout
+  (`DuskVLCTextRenderer`; render pixels, so `max(video height, picture height on
+  screen)`). AVPlayer cannot move a cue on screen: a rule's line position and
+  `suppressesPlayerRendering` only apply from the next cue, and tx3g ignores
+  rules. So while lifted, `LiftedCueOverlay` draws the cues from an
+  `AVPlayerItemLegibleOutput` as plain text in the caption style. Taking over drops
+  the track for a second to clear the native cue (HLS ignores anything shorter);
+  native rendering returns at the first gap after the poster leaves. Device
+  unchecked: VLC on a 4K Apple TV (tvOS simulators show no VLCKit picture).
 - **Auto-skip fires at most once per marker per playback session.** Skipping a
   marker — by countdown or by tapping Skip Intro — records its id in
   `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never

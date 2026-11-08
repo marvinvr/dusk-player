@@ -28,8 +28,12 @@ struct PlayerUpNextPosterView: View {
     var isSelected: Bool = false
     let onPlayNow: () -> Void
     let onDismiss: () -> Void
+    /// How much of the player, measured from the bottom edge, the card covers
+    /// at its resting place. The session keeps the subtitles above it.
+    var onCoveredHeightChange: (CGFloat) -> Void = { _ in }
 
     @Environment(\.blursUnwatchedEpisodes) private var blursUnwatchedEpisodes
+    @State private var cardHeight: CGFloat = 0
 
     #if !os(tvOS)
     @GestureState private var dragTranslation: CGSize = .zero
@@ -54,6 +58,13 @@ struct PlayerUpNextPosterView: View {
         }
         .animation(PlayerOverlayLayout.skipMarkerRepositionAnimation, value: controlsVisible)
         .ignoresSafeArea(edges: PlayerOverlayLayout.bottomTrailingIgnoredSafeAreaEdges)
+        .onChange(of: coveredHeight, initial: true) {
+            if cardHeight > 0 { onCoveredHeightChange(coveredHeight) }
+        }
+    }
+
+    private var coveredHeight: CGFloat {
+        cardHeight + PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible: controlsVisible)
     }
 
     // MARK: - Card
@@ -104,11 +115,14 @@ struct PlayerUpNextPosterView: View {
 
     @ViewBuilder
     private func content(textColumnWidth: CGFloat) -> some View {
-        if isCompact {
-            compactChip
-        } else {
-            cardContent(textColumnWidth: textColumnWidth)
+        Group {
+            if isCompact {
+                compactChip
+            } else {
+                cardContent(textColumnWidth: textColumnWidth)
+            }
         }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { cardHeight = $0 }
     }
 
     // MARK: - Compact (Blur Unwatched Episodes)

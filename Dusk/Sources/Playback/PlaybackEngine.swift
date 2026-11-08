@@ -132,6 +132,12 @@ protocol PlaybackEngine: AnyObject {
     /// only changed in Settings, so a change reaches the next session.
     func applySubtitleStyle(_ style: SubtitleStyle)
 
+    /// Raises the subtitles above an overlay resting on the bottom of the
+    /// player (the Up Next poster), or back to their normal place when nil.
+    /// Moves what is on screen smoothly and draws nothing by itself, so with
+    /// subtitles off or between cues there is no visible change at all.
+    func setSubtitleClearance(_ clearance: SubtitleClearance?)
+
     // MARK: - State
 
     var state: PlaybackState { get }
@@ -257,6 +263,7 @@ extension PlaybackEngine {
     // subtitles themselves override this.
     func applySubtitleFontSize(_ size: SubtitleFontSize) {}
     func applySubtitleStyle(_ style: SubtitleStyle) {}
+    func setSubtitleClearance(_ clearance: SubtitleClearance?) {}
 
     // Bumped when the engine replaces its rendering view mid-session (VLCKit
     // entering Picture in Picture support mode); `PlayerViewModel` re-calls
@@ -350,6 +357,94 @@ enum SubtitleFontSize: String, CaseIterable, Identifiable, Sendable {
     /// Secondary label for the player pickers.
     var detailTitle: String? {
         self == .medium ? "Default" : nil
+    }
+}
+
+/// The part of the player an overlay covers, measured from the bottom edge, in
+/// the player's own points. Each engine turns it into a lift of its subtitles,
+/// because only the engine knows where its picture and its cues sit.
+struct SubtitleClearance: Equatable, Sendable {
+    /// Highest lift, as a fraction of the picture height. Keeps a raised cue on
+    /// screen in a very short window.
+    static let maximumLift = 0.7
+
+    var containerSize: CGSize
+    var coveredHeight: CGFloat
+    /// Breathing room between the raised cue and the overlay.
+    var spacing: CGFloat
+    /// Pixels per point on the player's screen.
+    var displayScale: CGFloat
+
+    /// How far to raise cues, as a fraction of the picture height. A
+    /// letterboxed picture's cues already sit above its bars, so a cue that
+    /// clears the overlay as it is gets a lift of 0 and stays where it was.
+    ///
+    /// - Parameters:
+    ///   - videoSize: the picture's pixel size; zero when it is not known yet.
+    ///   - fillsContainer: the iOS zoom control's aspect-fill mode.
+    ///   - restingCueBottom: where an unmoved cue's bottom edge sits, as a
+    ///     fraction of the picture height above the picture's bottom edge.
+    func lift(videoSize: CGSize, fillsContainer: Bool, restingCueBottom: Double) -> Double {
+        guard containerSize.width > 0, containerSize.height > 0 else { return 0 }
+
+        let pictureHeight = pictureHeight(videoSize: videoSize, fillsContainer: fillsContainer)
+        let pictureBottomInset = (containerSize.height - pictureHeight) / 2
+        let target = (coveredHeight + spacing - pictureBottomInset) / pictureHeight
+        return min(max(target - restingCueBottom, 0), Self.maximumLift)
+    }
+
+    /// The picture's height on screen, in points.
+    func pictureHeight(videoSize: CGSize, fillsContainer: Bool) -> CGFloat {
+        guard videoSize.width > 0, videoSize.height > 0 else { return containerSize.height }
+        let scaleToWidth = containerSize.width / videoSize.width
+        let scaleToHeight = containerSize.height / videoSize.height
+        return videoSize.height * (fillsContainer ? max(scaleToWidth, scaleToHeight) : min(scaleToWidth, scaleToHeight))
+    }
+}
+
+/// Steps a subtitle lift towards its target. libvlc cannot animate its subtitle
+/// renderer, so this re-applies the position frame by frame.
+@MainActor
+final class SubtitleLiftAnimator {
+    private static let duration: TimeInterval = 0.3
+    private static let stepCount = 10
+
+    private(set) var currentLift: Double = 0
+    private var task: Task<Void, Never>?
+
+    /// `apply` receives every intermediate lift, and the target last.
+    func animate(to target: Double, apply: @escaping @MainActor (Double) -> Void) {
+        task?.cancel()
+        task = nil
+
+        let start = currentLift
+        guard abs(target - start) > 0.0005 else { return }
+
+        task = Task { @MainActor [weak self] in
+            let stepDuration = Self.duration / Double(Self.stepCount)
+            for step in 1...Self.stepCount {
+                let progress = Double(step) / Double(Self.stepCount)
+                // Ease in and out, like the poster's own move.
+                let eased = progress * progress * (3 - 2 * progress)
+                let lift = start + (target - start) * eased
+                self?.currentLift = lift
+                apply(lift)
+                guard step < Self.stepCount else { break }
+                try? await Task.sleep(for: .seconds(stepDuration))
+                if Task.isCancelled { return }
+            }
+        }
+    }
+
+    /// Back to no lift at once, for a new item: nothing is on screen to move.
+    func reset() {
+        task?.cancel()
+        task = nil
+        currentLift = 0
+    }
+
+    deinit {
+        task?.cancel()
     }
 }
 
