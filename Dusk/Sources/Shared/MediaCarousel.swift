@@ -25,7 +25,7 @@ struct MediaCarousel<Content: View>: View {
                 .padding(.horizontal, horizontalPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(alignment: .top, spacing: DuskPosterMetrics.carouselItemSpacing) {
+                CarouselItemStack(alignment: .top, spacing: DuskPosterMetrics.carouselItemSpacing) {
                     content()
                 }
                 .padding(.horizontal, horizontalPadding)
@@ -41,6 +41,47 @@ struct MediaCarousel<Content: View>: View {
             #endif
             .carouselLeadingFocusLock(leadingInset: horizontalPadding)
         }
+    }
+}
+
+/// The items of a horizontally scrolling row.
+///
+/// tvOS keeps the row's first items out of the lazy stack. A lazy row that is
+/// off screen stands in for its unrealised items with focusable filler items.
+/// A vertical move lands on a filler and UIKit then re-resolves focus inside
+/// the row wherever it likes, which was the third card (issue #50). The eager
+/// items cover a screen width, so a row that has not been scrolled always
+/// offers the focus engine the real card below the focused one. The rest stays
+/// lazy for long rows.
+struct CarouselItemStack<Content: View>: View {
+    var alignment: VerticalAlignment = .center
+    let spacing: CGFloat
+    @ViewBuilder let content: () -> Content
+
+    #if os(tvOS)
+    /// Seven posters fit on the display at the carousel's width, and an eighth
+    /// is revealed by the first move right.
+    private static var eagerItemCount: Int { 8 }
+    #endif
+
+    var body: some View {
+        #if os(tvOS)
+        Group(subviews: content()) { items in
+            HStack(alignment: alignment, spacing: spacing) {
+                ForEach(items.prefix(Self.eagerItemCount)) { $0 }
+
+                if items.count > Self.eagerItemCount {
+                    LazyHStack(alignment: alignment, spacing: spacing) {
+                        ForEach(items.dropFirst(Self.eagerItemCount)) { $0 }
+                    }
+                }
+            }
+        }
+        #else
+        LazyHStack(alignment: alignment, spacing: spacing) {
+            content()
+        }
+        #endif
     }
 }
 

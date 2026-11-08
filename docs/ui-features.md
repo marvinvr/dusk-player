@@ -239,6 +239,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   nearest item in the neighbouring row. Do not send that move through the leading
   card: once the row has scrolled, geometry only finds a neighbour above the first
   item (issue #24). The same section is on the show page's episode row.
+  Both rows lay out through `CarouselItemStack`, whose first items are eager on tvOS:
+  a lazy off-screen row offers filler items, and a Down onto one lands on an arbitrary
+  card (issue #50). Use it for any new tvOS row on Home.
 - Library and View All grids (`PlexItemPosterGrid`) are one `.focusSection()` per
   row on tvOS, not one `LazyVGrid`. A short last row keeps a focus guide in the
   empty columns, sized like the missing posters, so the section extends under them

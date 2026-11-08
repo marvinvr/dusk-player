@@ -19,7 +19,7 @@ struct LiveTVHomeShelf: View {
                         .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
 
                     ScrollView(.horizontal) {
-                        LazyHStack(spacing: 14) {
+                        CarouselItemStack(spacing: 14) {
                             ForEach(currentPrograms, id: \.1.id) { channel, program in
                                 Button {
                                     play(channel, program, lineup)
