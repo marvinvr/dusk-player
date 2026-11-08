@@ -25,11 +25,10 @@ extension PlexService {
         return await withTaskGroup(of: LiveTVDiscoveryEvent.self) { group in
             for serverID in serverIDs {
                 group.addTask {
-                    do {
-                        return .answer(serverID, .success(try await self.getLiveTVProvider(serverID: serverID)))
-                    } catch {
-                        return .answer(serverID, .failure(error))
+                    let outcome = await Result.capturing {
+                        try await self.getLiveTVProvider(serverID: serverID)
                     }
+                    return .answer(serverID, outcome)
                 }
             }
 

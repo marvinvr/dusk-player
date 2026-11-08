@@ -7,6 +7,14 @@ import Foundation
 /// differently and page independently. What is merged is the *order* — the
 /// account's plex.tv sidebar order spans every server — and the type tabs,
 /// which land on recommendations drawn from all libraries of that type.
+/// One library's answer in the item-count task group; `hasItems` is nil when a
+/// cancelled load said nothing. A named type built in one place on purpose: see
+/// `Result.capturing`.
+private struct LibraryItemCountCheck: Sendable {
+    let libraryID: String
+    let hasItems: Bool?
+}
+
 @MainActor
 @Observable
 final class LibrariesViewModel {
@@ -124,26 +132,26 @@ final class LibrariesViewModel {
         }
         guard !uncounted.isEmpty else { return }
 
-        await withTaskGroup(of: (String, Bool)?.self) { group in
+        await withTaskGroup(of: LibraryItemCountCheck.self) { group in
             for library in uncounted {
                 group.addTask { [plexService] in
-                    do {
-                        let count = try await plexService.getLibraryItemCount(
-                            sectionId: library.key,
-                            serverID: library.serverID
-                        )
-                        return (library.id, count > 0)
-                    } catch {
-                        // A cancelled load (the shell's task restarts as servers
-                        // connect) says nothing about the section: leave it
-                        // uncounted for the next load.
-                        return Task.isCancelled ? nil : (library.id, true)
-                    }
+                    let count = try? await plexService.getLibraryItemCount(
+                        sectionId: library.key,
+                        serverID: library.serverID
+                    )
+                    // A cancelled load (the shell's task restarts as servers
+                    // connect) says nothing about the section: leave it
+                    // uncounted for the next load.
+                    let failureAnswer: Bool? = Task.isCancelled ? nil : true
+                    return LibraryItemCountCheck(
+                        libraryID: library.id,
+                        hasItems: count.map { $0 > 0 } ?? failureAnswer
+                    )
                 }
             }
             for await result in group {
-                guard let (libraryID, hasItems) = result else { continue }
-                libraryHasItems[libraryID] = hasItems
+                guard let hasItems = result.hasItems else { continue }
+                libraryHasItems[result.libraryID] = hasItems
             }
         }
     }

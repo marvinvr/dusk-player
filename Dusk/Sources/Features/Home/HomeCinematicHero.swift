@@ -1169,28 +1169,26 @@ struct HomeCinematicHero: View {
 
         guard !backdropRequests.isEmpty else { return }
 
-        await withTaskGroup(of: (String, UIImage?).self) { group in
+        await withTaskGroup(of: HeroImageLoad.self) { group in
             for (ratingKey, url) in backdropRequests {
                 group.addTask {
-                    do {
-                        let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
-                        #if os(tvOS)
-                        // Decode the full-screen backdrop here, off the main
-                        // thread. Left lazy, it decodes on the first frame of
-                        // the slide that reveals it and stalls the animation
-                        // right as the press lands.
-                        return (ratingKey, await image.byPreparingForDisplay() ?? image)
-                        #else
-                        return (ratingKey, image)
-                        #endif
-                    } catch {
-                        return (ratingKey, nil)
+                    var image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
+                    #if os(tvOS)
+                    // Decode the full-screen backdrop here, off the main
+                    // thread. Left lazy, it decodes on the first frame of
+                    // the slide that reveals it and stalls the animation
+                    // right as the press lands.
+                    if let loaded = image {
+                        image = await loaded.byPreparingForDisplay() ?? loaded
                     }
+                    #endif
+                    return HeroImageLoad(ratingKey: ratingKey, image: image)
                 }
             }
 
-            for await (ratingKey, image) in group {
-                guard let image else { continue }
+            for await load in group {
+                guard let image = load.image else { continue }
+                let ratingKey = load.ratingKey
 
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
@@ -1223,19 +1221,17 @@ struct HomeCinematicHero: View {
 
         guard !titleRequests.isEmpty else { return }
 
-        await withTaskGroup(of: (String, UIImage?, Bool).self) { group in
+        await withTaskGroup(of: HeroImageLoad.self) { group in
             for (ratingKey, url) in titleRequests {
                 group.addTask {
-                    do {
-                        let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
-                        return (ratingKey, image, false)
-                    } catch {
-                        return (ratingKey, nil, true)
-                    }
+                    let image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
+                    return HeroImageLoad(ratingKey: ratingKey, image: image)
                 }
             }
 
-            for await (ratingKey, image, didFail) in group {
+            for await load in group {
+                let ratingKey = load.ratingKey
+                let image = load.image
                 await MainActor.run {
                     guard !Task.isCancelled else { return }
                     guard validKeys.contains(ratingKey) else { return }
@@ -1243,7 +1239,7 @@ struct HomeCinematicHero: View {
                     if let image {
                         preloadedHeroTitleImages[ratingKey] = image
                         failedHeroTitleImageKeys.remove(ratingKey)
-                    } else if didFail {
+                    } else {
                         failedHeroTitleImageKeys.insert(ratingKey)
                     }
                 }
@@ -1527,6 +1523,15 @@ struct HomeCinematicHero: View {
         return forwardDistance <= backwardDistance ? .forward : .backward
     }
 }
+
+#if canImport(UIKit)
+/// One image's answer in the hero preload task groups; nil means it failed. A
+/// named type built in one place on purpose: see `Result.capturing`.
+private struct HeroImageLoad: Sendable {
+    let ratingKey: String
+    let image: UIImage?
+}
+#endif
 
 private enum HeroTransitionDirection {
     case forward

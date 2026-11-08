@@ -200,10 +200,15 @@ Discovery behavior to preserve:
   the two levels are independent.
   Once a probe race chooses a winner, it freezes that decision, cancels the
   remaining children and explicitly drains their results (including the grace
-  timer) before leaving the group. Keep that drain: it avoids implicit wait-all
-  teardown during cancelled child completions, a suspected source of the iOS 27
-  startup `__cxa_pure_virtual` crash. The crash has no app frame and does not
-  establish a specific call site; this is a defensive runtime workaround.
+  timer) before leaving the group.
+- **Task group children must not contain a `do`/`catch`, and should return from
+  one place.** With Swift 6.4 at `-O`, a child returning a value from both
+  branches of a `do`/`catch` can lose its result: `for await` ends with children
+  still running, the group is destroyed, and the next child to finish aborts in
+  `AsyncTask::completeFuture` -> `__cxa_pure_virtual`, with no app frame in the
+  crash log (swiftlang/swift#93208). Debug builds are unaffected, so simulator
+  runs do not reproduce it. Use `Result.capturing` or `try?` and return a named
+  struct. `TaskGroupChildShapeTests` fails on a `catch` in an `addTask` closure.
 - The winning connection URI is remembered per server
   (`PlexLastGoodConnectionURI.<machineID>`) and floated to the front of *its own
   priority tier* on the next connect, never across tiers. Locality is read off

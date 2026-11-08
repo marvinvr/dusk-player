@@ -72,8 +72,10 @@ struct LibraryVideoShelfLoader {
                         serverID: serverID
                     )) ?? []
 
-                    guard !items.isEmpty else { return (index, nil) }
-                    return (index, LibraryVideoChannelShelf(collection: collection, items: items))
+                    let shelf = items.isEmpty
+                        ? nil
+                        : LibraryVideoChannelShelf(collection: collection, items: items)
+                    return (index, shelf)
                 }
             }
 

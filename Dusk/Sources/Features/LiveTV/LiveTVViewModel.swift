@@ -1,5 +1,12 @@
 import Foundation
 
+/// One program's answer in the recording lookup's task group. A named type built
+/// in one place on purpose: see `Result.capturing`.
+private struct LiveTVRecordingLookup: Sendable {
+    let guid: String
+    let outcome: Result<PlexItem?, any Error>
+}
+
 @MainActor
 @Observable
 final class LiveTVViewModel {
@@ -255,30 +262,30 @@ final class LiveTVViewModel {
         guard !pending.isEmpty else { return }
         let batch = Array(pending.prefix(Self.recordingLookupLimit))
         let plexService = plexService
-        let results = await withTaskGroup(of: (String, PlexItem?, Bool).self) { group in
+        let results = await withTaskGroup(of: LiveTVRecordingLookup.self) { group in
             var iterator = batch.makeIterator()
             func addNext() {
                 guard let program = iterator.next(), let guid = program.guid else { return }
                 group.addTask {
-                    do {
-                        return (guid, try await plexService.liveTVRecording(for: program, provider: provider), true)
-                    } catch {
-                        return (guid, nil, false)
+                    let outcome = await Result.capturing {
+                        try await plexService.liveTVRecording(for: program, provider: provider)
                     }
+                    return LiveTVRecordingLookup(guid: guid, outcome: outcome)
                 }
             }
             for _ in 0..<4 { addNext() }
-            var results: [(String, PlexItem?, Bool)] = []
+            var results: [LiveTVRecordingLookup] = []
             for await result in group {
                 results.append(result)
                 addNext()
             }
             return results
         }
-        for (guid, item, answered) in results {
+        for result in results {
             // A failed lookup is asked again on the next load.
-            if answered { checkedRecordingGuids.insert(guid) }
-            if let item { plexRecordings[guid] = item }
+            guard case .success(let item) = result.outcome else { continue }
+            checkedRecordingGuids.insert(result.guid)
+            if let item { plexRecordings[result.guid] = item }
         }
     }
 

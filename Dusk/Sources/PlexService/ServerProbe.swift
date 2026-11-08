@@ -120,8 +120,9 @@ enum ServerProbe {
                 // Freeze the decision, then explicitly consume every cancelled
                 // child's completion before leaving the group. In particular,
                 // the grace timer is still a child even after all probes finish.
-                // This avoids the implicit wait-all teardown path on a winning
-                // probe (the suspected iOS 27 task-group completion crash).
+                // This keeps teardown simple on a winning probe. (The task-group
+                // completion crash it was once suspected of was a compiler bug,
+                // see `Result.capturing`.)
                 guard selectedResolution == nil else { continue }
 
                 switch event {

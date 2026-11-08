@@ -124,21 +124,21 @@ final class IPTVService {
             let loader = loader
             let profileAtStart = profileID
 
-            await withTaskGroup(of: (IPTVSource, Result<IPTVSourceLineup, Error>).self) { group in
+            await withTaskGroup(of: IPTVSourceLoad.self) { group in
                 for (source, headerValue) in requests {
                     group.addTask {
-                        do {
-                            return (source, .success(try await loader.load(source: source, headerValue: headerValue)))
-                        } catch {
-                            return (source, .failure(error))
+                        let outcome = await Result.capturing {
+                            try await loader.load(source: source, headerValue: headerValue)
                         }
+                        return IPTVSourceLoad(source: source, outcome: outcome)
                     }
                 }
-                for await (source, result) in group {
+                for await load in group {
+                    let source = load.source
                     guard profileAtStart == profileID,
                           let current = sources.first(where: { $0.id == source.id }),
                           current == source else { continue }
-                    apply(result, for: source)
+                    apply(load.outcome, for: source)
                 }
             }
         } while reloadRequested && !Task.isCancelled
@@ -182,6 +182,13 @@ final class IPTVService {
 
 /// The network half: fetch and parse a source's playlist and guide. No UI
 /// state, so it runs off the main actor.
+/// One source's answer in `IPTVService.load`'s task group. A named type built
+/// in one place on purpose: see `Result.capturing`.
+private struct IPTVSourceLoad: Sendable {
+    let source: IPTVSource
+    let outcome: Result<IPTVSourceLineup, any Error>
+}
+
 struct IPTVSourceLoader: Sendable {
     var session: URLSession = .shared
 

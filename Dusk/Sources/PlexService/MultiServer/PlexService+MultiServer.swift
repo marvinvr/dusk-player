@@ -9,6 +9,28 @@ struct ServerResult<Value: Sendable>: Sendable {
     let value: Value
 }
 
+extension Result where Failure == any Error, Success: Sendable {
+    /// Runs `body` and hands back its outcome, for a task group child that
+    /// needs to report a failure.
+    ///
+    /// Use this instead of a `do`/`catch` inside `group.addTask`. With Swift
+    /// 6.4 at `-O`, a child that returns a value from both branches of a
+    /// `do`/`catch` can be miscompiled: its result is lost, `for await` ends
+    /// while children are still running, the group is torn down, and the next
+    /// child to finish aborts in `AsyncTask::completeFuture` ->
+    /// `__cxa_pure_virtual` (swiftlang/swift#93208, #93118, #92698). Debug
+    /// builds never show it, and a small change to the closure can hide it.
+    /// `@inline(never)` keeps the `do`/`catch` out of the child's closure.
+    @inline(never)
+    static func capturing(_ body: @Sendable () async throws -> Success) async -> Self {
+        do {
+            return .success(try await body())
+        } catch {
+            return .failure(error)
+        }
+    }
+}
+
 /// Fan-out helpers: ask every connected server the same question at once.
 ///
 /// Two rules shape everything here. A server that fails contributes an empty
