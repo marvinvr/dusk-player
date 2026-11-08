@@ -79,3 +79,9 @@ Playback also uses VLCKit (MobileVLCKit / TVVLCKit), linked dynamically and
 licensed under the GNU LGPL v2.1. Dolby, Dolby Vision and the double-D symbol
 are trademarks of Dolby Laboratories; Dusk is not affiliated with or certified
 by Dolby.
+
+Detail pages show ratings that Plex provides with the logo of their source; Dusk
+is not affiliated with or endorsed by these services. IMDb, IMDbPro, STARmeter
+and all related logos are trademarks of IMDb.com, Inc. or its affiliates. Rotten
+Tomatoes(R) and the Tomatometer(R) and Popcornmeter logos are trademarks of
+Fandango Media, LLC. The TMDB logo belongs to The Movie Database (TMDB).

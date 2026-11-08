@@ -999,10 +999,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   and show pages (iOS `ShowDetailView`, tvOS `SeriesDetailView` with the show's extras).
 - **Ratings** (`DetailRatings.swift`): the hero metadata carries `DetailRatingsLine` —
   the user's own stars (system yellow, half stars) then each source from Plex's
-  `Rating` array (`PlexRating.sources`: IMDb 6.4, Rotten Tomatoes / RT Audience %,
+  `Rating` array (`PlexRating.sources`: IMDb 6.4, Rotten Tomatoes critic / audience %,
   TMDB %, TVDB; falls back to `rating`/`ratingImage` + `audienceRating`/
-  `audienceRatingImage`). Sources are text labels, not logos (Dusk ships no
-  third-party brand marks). `DetailRateHeroButton` is an icon-only `star` menu
+  `audienceRatingImage`). Sources show their official logo left of the score
+  (`PlexRating.Logo`, vector PDFs in `Assets.xcassets/RatingLogos`); TVDB keeps a text
+  label, and Plex's API documents no Plex rating source. Rotten Tomatoes' icon follows
+  the displayed score (fresh/hot at 60%+, rotten/stale below), as its terms require.
+  Never tint the logos or lower their opacity (IMDb's and Rotten Tomatoes' rules); IMDb
+  is gold on dark and black on light. Attribution lines are in `ThirdPartyNotices.txt`.
+  `DetailRateHeroButton` is an icon-only `star` menu
   (1–5 stars, Clear) that writes `PUT /:/rate` (`rating` 0–10, `-1` clears) with an
   optimistic `DetailUserRatingModel`. Movie pages (all platforms) and the iOS show page
   show both; the tvOS series page only has the Rate action (its hero box is

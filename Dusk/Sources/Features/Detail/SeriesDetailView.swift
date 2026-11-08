@@ -343,7 +343,7 @@ struct SeriesDetailView: View {
             viewModel.show?.details?.editionTitle,
             season.episodeCountText,
             season.watchedEpisodeCountText,
-            details.contentRating,
+            PlexContentRating.display(details.contentRating),
         ].compactMap { $0 }
 
         if !parts.isEmpty {

@@ -236,7 +236,7 @@ struct EpisodeDetailView: View {
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
         let parts = [
-            details.contentRating,
+            PlexContentRating.display(details.contentRating),
             viewModel.formattedDuration,
         ].compactMap { $0 }
 

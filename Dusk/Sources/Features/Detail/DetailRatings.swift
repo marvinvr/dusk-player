@@ -27,24 +27,47 @@ final class DetailUserRatingModel {
 }
 
 /// The hero's ratings line: the user's own stars (system yellow, STYLE's one
-/// star-rating colour), then each source Plex knows (IMDb 6.4 · RT 92% ·
-/// TMDB 65%) in the metadata type. Absent when there is nothing to show.
+/// star-rating colour), then each source Plex knows as its official logo beside
+/// the score in the metadata type. A source without a logo (TVDB) keeps a text
+/// label. Absent when there is nothing to show.
+///
+/// The logos draw exactly as supplied: their owners forbid tinting them or
+/// lowering their opacity, and Rotten Tomatoes wants its icon left of the score.
+/// `logoSpacing` is IMDb's clear space, two widths of the wordmark's "I".
 struct DetailRatingsLine: View {
     let ratings: [PlexRating]
     let userRating: Double?
 
+    #if os(tvOS)
+    private let logoHeight: CGFloat = 28
+    private let logoSpacing: CGFloat = 12
+    private let sourceSpacing: CGFloat = 28
+    #else
+    @ScaledMetric(relativeTo: .subheadline) private var logoHeight: CGFloat = 16
+    @ScaledMetric(relativeTo: .subheadline) private var logoSpacing: CGFloat = 7
+    @ScaledMetric(relativeTo: .subheadline) private var sourceSpacing: CGFloat = 16
+    #endif
+
     var body: some View {
         if userRating != nil || !ratings.isEmpty {
-            HStack(spacing: 14) {
+            HStack(spacing: sourceSpacing) {
                 if let userRating {
                     DetailUserStars(rating: userRating)
                 }
                 ForEach(ratings, id: \.self) { rating in
                     if let display = rating.display {
-                        HStack(spacing: 5) {
-                            Text(display.source)
-                                .font(DuskFont.caption(ios: .caption.weight(.semibold)))
-                                .foregroundStyle(Color.primary.opacity(0.6))
+                        HStack(spacing: logoSpacing) {
+                            if let logo = display.logo {
+                                Image(logo.rawValue)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(height: logoHeight * logo.relativeHeight)
+                                    .accessibilityLabel(display.source)
+                            } else {
+                                Text(display.source)
+                                    .font(DuskFont.caption(ios: .caption.weight(.semibold)))
+                                    .foregroundStyle(Color.primary.opacity(0.6))
+                            }
                             Text(display.value)
                                 .font(DuskFont.metadata(ios: .subheadline).monospacedDigit())
                                 .foregroundStyle(Color.primary.opacity(0.84))
