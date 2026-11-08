@@ -24,6 +24,12 @@ struct PlaybackNowPlayingTests {
         #expect(info[MPMediaItemPropertyAlbumTrackNumber] as? Int == 3)
         #expect(info[MPMediaItemPropertyPlaybackDuration] as? Double == 120)
         #expect(info[MPNowPlayingInfoPropertyMediaType] as? UInt == MPNowPlayingInfoMediaType.video.rawValue)
+        #if os(tvOS)
+        // Without this the tvOS Control Centre tile is not drawn (#47).
+        #expect(info[MPMediaItemPropertyMediaType] as? UInt == MPMediaType.podcast.rawValue)
+        #else
+        #expect(info[MPMediaItemPropertyMediaType] == nil)
+        #endif
         #expect(info[MPNowPlayingInfoPropertyPlaybackRate] as? Double == 1)
         #expect(MPNowPlayingInfoCenter.default().playbackState == .playing)
 

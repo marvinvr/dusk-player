@@ -2376,19 +2376,36 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   seek bounds, replacement items, warm engine reuse, and stop cleanup on both
   targets. System discovery on iPhone/Apple TV and automation delivery require
   real devices; compile checks cannot establish those behaviors.
-- The tvOS Control Centre Now Playing tab is **audio-only by system design**;
-  video apps do not get it, so its absence during Dusk video playback is not a
-  publishing bug (#47). On the tvOS 27 simulator, mediaremoted lists Dusk as the
-  active client on both engines (`canBeNowPlayingApplication=YES`, correct
-  title), and `TVSSAudioNowPlayingController` then logs `confirmed as *not*
-  'audio-only'. Will reset now playing state. mediaType=Video`. A scratch app
-  shows the same with shared-center and `MPNowPlayingSession` publishing, with
-  or without explicit `setActive(true)`. Do not relabel video as
-  `MPNowPlayingInfoMediaType.audio`: it passes that check but still drew no tab
-  in the sim, and it would misreport the media type to Now Playing consumers.
-  `MPNowPlayingSession` is no route for VLCKit either, because its initializer
-  asserts on an empty player list. Check `log show --info --debug` for category
-  `AudioNowPlayingController` in `TVSystemUIService`.
+- tvOS Control Centre only draws the Now Playing tile for items its gate classes
+  as audio, so tvOS playback sets `MPMediaItemPropertyMediaType = .podcast`
+  (`applyControlCentreEligibility`, #47). `MPNowPlayingInfoPropertyMediaType`
+  stays `.video`, and iOS sets neither. The gate is
+  `-[TVSSAudioNowPlayingController _handleMediaRemoteNowPlayingPlayerResponse:playerResponse:]`
+  in `TVSystemUIService`, read from the tvOS 27.0 simulator runtime:
+  - subtype Music or Podcast: passes, whatever the media type
+  - subtype TVShow, Movie or HomeMedia: rejected
+  - subtype None, Audiobook or iTunesU: passes only if the media type is Audio
+
+  `MPMediaType` sets the subtype, except that `.movie` left it at None in the
+  sim. `.video`, no type, `AVPlayerViewController` and `MPNowPlayingSession`
+  with automatic publishing were all rejected. The gate reads metadata only, so
+  AVPlayer and VLCKit behave the same and no player session is needed.
+  - Why podcast and not `.audio`: both draw the tile, but `.audio` gets
+    previous/next-style glyphs while podcast gets the 15/30 skip buttons, which
+    suit video and match the Plex tile in the #47 sample. Plex's actual metadata
+    is inferred from that tile, not read. On the 26.4 runtime MediaPlayer reports
+    `mediaType=Audio` for the same input.
+  - The tile's buttons send skip commands with intervals of exactly 15 and 30 and
+    ignore `preferredIntervals`. The command handler uses `event.interval`, so
+    they skip what they show.
+  - This relies on undocumented system behaviour, so a tvOS update can change it.
+    The label also describes the item as a podcast to other Now Playing consumers.
+  - The #47 sample shows a system banner a few seconds into Plex playback ("To
+    open the player, hold ..."). The sim never showed it, so check it on a device.
+  - To check: `simctl spawn <sim> log config --mode level:debug --subsystem
+    com.apple.TVSystemUIService`, then `log show --info --debug` for category
+    `AudioNowPlayingController`, which logs mediaType and mediaSubType. XCUIRemote
+    `press(.home, forDuration: 2)` opens Control Centre in the sim.
 
 ### Playback queue (playlists and lists)
 - `PlaybackQueue` (`Features/Player/PlaybackQueue.swift`) is a fixed list of

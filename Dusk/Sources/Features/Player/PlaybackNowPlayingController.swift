@@ -111,6 +111,7 @@ final class PlaybackNowPlayingController {
             MPNowPlayingInfoPropertyIsLiveStream: isLive,
             MPNowPlayingInfoPropertyExcludeFromSuggestions: false,
         ]
+        applyControlCentreEligibility()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         MPNowPlayingInfoCenter.default().playbackState = .paused
         loadLiveArtwork(path: artworkPath, serverID: serverID, using: plexService)
@@ -328,8 +329,21 @@ private extension PlaybackNowPlayingController {
             nowPlayingInfo[MPMediaItemPropertyPlaybackDuration] = TimeInterval(duration) / 1000.0
         }
 
+        applyControlCentreEligibility()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
         MPNowPlayingInfoCenter.default().playbackState = .paused
+    }
+
+    /// tvOS draws its Control Centre Now Playing tile only for items it classes
+    /// as audio: `mediaType == .audio`, or a Music/Podcast media subtype whatever
+    /// the media type. Marking the item as a podcast is the narrowest way in. The
+    /// Now Playing media type stays `.video`, and it gives the same tile with
+    /// 15/30 skip buttons that Plex shows. iOS has no such gate, so it stays
+    /// unlabelled there. See docs/playback.md (#47).
+    func applyControlCentreEligibility() {
+        #if os(tvOS)
+        nowPlayingInfo[MPMediaItemPropertyMediaType] = MPMediaType.podcast.rawValue
+        #endif
     }
 
     func publishPlaybackState(
