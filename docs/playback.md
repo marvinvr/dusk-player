@@ -2512,9 +2512,22 @@ Plex clients do. There is no app setting: the server decides.
   hosting controller reports `.landscape` and the window scene requests the
   landscape side that matches the phone's physical orientation
   (`PlayerLandscapeOrientation`), including with Portrait Orientation Lock on.
-  Turning the phone flips between landscape left and right. Closing the player
-  restores the interface orientation from before it opened. Off leaves rotation
-  to the system. iPad and tvOS do not show the setting and do not force one.
+  Turning the phone flips between landscape left and right. Off leaves rotation
+  to the system while the cover is up. iPad and tvOS do not show the setting and
+  do not force one.
+- A plain iPhone's navigation UI is portrait only, whatever the setting says:
+  `AppOrientationPolicy` returns `.portrait` from the app delegate unless the
+  player cover has opened up its own mask. iPad and the Duo layout
+  (`DuskDuoDisplay.isActive`) keep rotating, so Info-iOS.plist still lists
+  landscape for iPhone. On the Duo, closing the player restores the orientation
+  from before it opened.
+- Closing the cover on a plain iPhone rotates first. UIKit holds a rotation
+  requested during a dismissal until the transition ends, which would show Home
+  in landscape for about half a second. `MainTabView` therefore keeps the cover
+  up for the 350 ms rotation after `showPlayer` turns false
+  (`PlayerCoverCloseRotation`), with no wait if the interface is already
+  portrait. Every close path goes through `showPlayer`. The photo viewer is not
+  a player, so it stays portrait on a plain iPhone.
   The preference default is `PlayerLandscapePreferenceTests`. A silent
   simulator check (no playback) is `PlayerLandscapeOrientationTests`.
 - iPhone Duo: the player cover disables the vertical bar

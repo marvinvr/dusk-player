@@ -9,6 +9,10 @@ struct MainTabView: View {
     @Environment(IPTVService.self) private var iptvService
     @Environment(\.scenePhase) private var scenePhase
     @State private var selectedTab: MainTabItem = .home
+    #if os(iOS)
+    @State private var playerCoverIsUp = false
+    @State private var playerCoverCloseTask: Task<Void, Never>?
+    #endif
     @State private var homePath = NavigationPath()
     @State private var moviesPath = NavigationPath()
     @State private var showsPath = NavigationPath()
@@ -30,7 +34,6 @@ struct MainTabView: View {
     #endif
 
     var body: some View {
-        @Bindable var bindablePlayback = playback
         @Bindable var bindableAddToPlaylist = addToPlaylist
 
         shellView
@@ -96,7 +99,23 @@ struct MainTabView: View {
                     selectedTab = .home
                 }
             }
-            .fullScreenCover(isPresented: $bindablePlayback.showPlayer, onDismiss: {
+            #if os(iOS)
+            // A plain iPhone turns back to portrait before the cover leaves.
+            .onChange(of: playback.showPlayer, initial: true) { _, isShowing in
+                playerCoverCloseTask?.cancel()
+                if isShowing {
+                    PlayerCoverCloseRotation.cancel()
+                    playerCoverIsUp = true
+                } else {
+                    playerCoverCloseTask = Task {
+                        await PlayerCoverCloseRotation.rotateToPortrait()
+                        guard !Task.isCancelled else { return }
+                        playerCoverIsUp = false
+                    }
+                }
+            }
+            #endif
+            .fullScreenCover(isPresented: playerCoverPresented, onDismiss: {
                 playback.onPlayerDismissed()
             }) {
                 PlayerView()
@@ -120,6 +139,18 @@ struct MainTabView: View {
                 await openPendingTopShelfLink()
             }
             #endif
+    }
+
+    private var playerCoverPresented: Binding<Bool> {
+        #if os(iOS)
+        Binding(
+            get: { playerCoverIsUp },
+            set: { if !$0 { playback.showPlayer = false } }
+        )
+        #else
+        @Bindable var bindablePlayback = playback
+        return $bindablePlayback.showPlayer
+        #endif
     }
 
     private var tabSelection: Binding<MainTabItem> {

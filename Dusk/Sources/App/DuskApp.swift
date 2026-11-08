@@ -72,19 +72,17 @@ final class DuskAppDelegate: NSObject, UIApplicationDelegate {
         DownloadBackgroundSessionRegistry.setCompletionHandler(completionHandler, for: identifier)
     }
 
-    /// Matches Info-iOS.plist until the iPhone player forces landscape. The
-    /// player's hosting controller narrows to `.landscape` at the same time.
+    /// Plain iPhone stays in portrait unless the player cover is up. iPad and
+    /// the Duo layout match Info-iOS.plist. See `AppOrientationPolicy`.
     func application(
         _ application: UIApplication,
         supportedInterfaceOrientationsFor window: UIWindow?
     ) -> UIInterfaceOrientationMask {
-        if let forced = PlayerLandscapeApplicationMask.forced {
-            return forced
-        }
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            return .all
-        }
-        return .allButUpsideDown
+        AppOrientationPolicy.mask(
+            isPad: UIDevice.current.userInterfaceIdiom == .pad,
+            isDuo: DuskDuoDisplay.isActive,
+            playerMask: PlayerOrientationApplicationMask.player
+        )
     }
 }
 #endif

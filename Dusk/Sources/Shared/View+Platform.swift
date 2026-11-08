@@ -248,7 +248,8 @@ enum DuskDuoDisplay {
         guard UIDevice.current.userInterfaceIdiom == .phone else { return nil }
         let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
         let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
-        guard let bounds = scene?.screen.bounds else { return nil }
+        // No scene yet at launch, when the app orientation mask is first read.
+        let bounds = scene?.screen.bounds ?? UIScreen.main.bounds
         return min(bounds.width, bounds.height)
     }
 

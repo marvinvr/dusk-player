@@ -4,14 +4,48 @@ import ObjectiveC
 import SwiftUI
 import UIKit
 
-/// App-level mask while an iPhone player is forcing landscape.
+/// App-level mask while an iPhone player is on screen.
 ///
 /// `UIViewController.supportedInterfaceOrientations` falls through to
 /// `application(_:supportedInterfaceOrientationsFor:)` when a controller does
 /// not override it. The player's hosting controller is also given its own
-/// override; both have to allow landscape or `requestGeometryUpdate` is rejected.
-enum PlayerLandscapeApplicationMask {
-    nonisolated(unsafe) static var forced: UIInterfaceOrientationMask?
+/// override while forcing landscape; both have to allow landscape or
+/// `requestGeometryUpdate` is rejected.
+enum PlayerOrientationApplicationMask {
+    nonisolated(unsafe) static var player: UIInterfaceOrientationMask?
+}
+
+/// Which orientations the app allows.
+///
+/// A plain iPhone keeps its navigation UI in portrait, and only the player
+/// cover opens up landscape while it is on screen. iPad and the iPhone Duo
+/// layout rotate freely. Info-iOS.plist still lists landscape for iPhone
+/// because the Duo needs it; this mask is what narrows a plain iPhone.
+enum AppOrientationPolicy {
+    static func mask(
+        isPad: Bool,
+        isDuo: Bool,
+        playerMask: UIInterfaceOrientationMask?
+    ) -> UIInterfaceOrientationMask {
+        if let playerMask { return playerMask }
+        if isPad { return .all }
+        if isDuo { return .allButUpsideDown }
+        return .portrait
+    }
+
+    /// Orientation to return to when the player closes. A plain iPhone always
+    /// lands in portrait. Elsewhere the interface goes back to where it was.
+    static func maskAfterPlayer(
+        isPlainPhone: Bool,
+        previous: UIInterfaceOrientationMask?
+    ) -> UIInterfaceOrientationMask {
+        isPlainPhone ? .portrait : (previous ?? .portrait)
+    }
+
+    /// iPhone that is not showing the Duo layout.
+    @MainActor static var isPlainPhone: Bool {
+        UIDevice.current.userInterfaceIdiom == .phone && !DuskDuoDisplay.isActive
+    }
 }
 
 /// One landscape side of the interface. Device landscape and interface
@@ -81,6 +115,28 @@ enum PlayerLandscapePolicy {
     }
 }
 
+/// Turns a plain iPhone back to portrait before the player cover goes away.
+///
+/// UIKit holds a rotation requested during a dismissal until the transition has
+/// finished, so rotating from `viewWillDisappear` alone shows the navigation UI
+/// in landscape for about half a second. `MainTabView` waits for this first.
+@MainActor
+enum PlayerCoverCloseRotation {
+    fileprivate static weak var session: PlayerLandscapeOrientationSession?
+    private static let rotationDuration: Duration = .milliseconds(350)
+
+    /// Returns straight away unless the interface really has to turn.
+    static func rotateToPortrait() async {
+        guard session?.beginClosing() == true else { return }
+        try? await Task.sleep(for: rotationDuration)
+    }
+
+    /// Playback restarted before the cover left, so it stays up.
+    static func cancel() {
+        session?.cancelClosing()
+    }
+}
+
 /// Makes one controller report `.landscape` until released.
 ///
 /// SwiftUI's full-screen cover owns the hosting controller, and UIKit asks
@@ -139,8 +195,9 @@ enum PlayerLandscapeHostLock {
     }
 }
 
-/// Forces the iPhone player to landscape and restores the previous interface
-/// orientation when the cover goes away.
+/// Sets the iPhone player's orientations while the cover is up: forced
+/// landscape with the setting on, free rotation with it off on a plain iPhone.
+/// Rotates the interface back as soon as the cover starts leaving.
 @MainActor
 final class PlayerLandscapeOrientationSession {
     private(set) var isActive = false
@@ -155,25 +212,50 @@ final class PlayerLandscapeOrientationSession {
     private var motion: CMMotionManager?
     private var deviceObserver: NSObjectProtocol?
     private var startedDeviceNotifications = false
+    private var isClosing = false
+    var onCloseCancelled: (() -> Void)?
 
     func update(forceLandscape: Bool, anchor: UIViewController) {
-        guard PlayerLandscapePolicy.shouldForce(
+        guard !isClosing else { return }
+        if PlayerLandscapePolicy.shouldForce(
             isPhone: UIDevice.current.userInterfaceIdiom == .phone,
             alwaysPlayInLandscape: forceLandscape
-        ) else {
+        ) {
+            activate(anchor: anchor)
+        } else if AppOrientationPolicy.isPlainPhone {
+            allowRotation(anchor: anchor)
+        } else {
             deactivate()
-            return
         }
-        activate(anchor: anchor)
+    }
+
+    /// Releases the player's orientations ahead of the cover's dismissal.
+    /// False when nothing needs to rotate.
+    func beginClosing() -> Bool {
+        guard AppOrientationPolicy.isPlainPhone, scene?.interfaceOrientation.isLandscape == true else {
+            return false
+        }
+        isClosing = true
+        deactivate()
+        return true
+    }
+
+    func cancelClosing() {
+        guard isClosing else { return }
+        isClosing = false
+        onCloseCancelled?()
     }
 
     func deactivate() {
-        guard isActive || host != nil else { return }
+        guard isActive || host != nil || scene != nil else { return }
         generation += 1
         stopObserving()
         let host = self.host
         let scene = self.scene
-        let saved = self.savedMask ?? .portrait
+        let restored = AppOrientationPolicy.maskAfterPlayer(
+            isPlainPhone: AppOrientationPolicy.isPlainPhone,
+            previous: self.savedMask
+        )
         let generation = self.generation
         self.host = nil
         self.scene = nil
@@ -182,7 +264,7 @@ final class PlayerLandscapeOrientationSession {
         self.lastGravity = nil
         self.isActive = false
         self.pendingRestore = nil
-        PlayerLandscapeApplicationMask.forced = nil
+        PlayerOrientationApplicationMask.player = nil
         if let host {
             PlayerLandscapeHostLock.release(host)
             host.setNeedsUpdateOfSupportedInterfaceOrientations()
@@ -190,8 +272,8 @@ final class PlayerLandscapeOrientationSession {
         }
         scene?.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
         guard let scene else { return }
-        pendingRestore = (scene, saved)
-        send(saved, generation: generation, stillActive: false)
+        pendingRestore = (scene, restored)
+        send(restored, generation: generation, stillActive: false)
     }
 
     /// Physical orientation from `UIDevice`. Ignored for portrait while a
@@ -209,6 +291,33 @@ final class PlayerLandscapeOrientationSession {
         applyPolicy()
     }
 
+    /// Setting off on a plain iPhone: the player follows the phone, and the
+    /// navigation UI underneath stays behind the portrait app mask once the
+    /// cover closes.
+    private func allowRotation(anchor: UIViewController) {
+        guard let scene = anchor.view.window?.windowScene else { return }
+        if isActive {
+            stopObserving()
+            if let host {
+                PlayerLandscapeHostLock.release(host)
+            }
+            host = nil
+            side = nil
+            lastGravity = nil
+            isActive = false
+        }
+        guard self.scene !== scene || PlayerOrientationApplicationMask.player != .allButUpsideDown else {
+            return
+        }
+        self.scene = scene
+        generation += 1
+        pendingRestore = nil
+        PlayerOrientationApplicationMask.player = .allButUpsideDown
+        anchor.setNeedsUpdateOfSupportedInterfaceOrientations()
+        presentedHost(for: anchor).setNeedsUpdateOfSupportedInterfaceOrientations()
+        scene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+    }
+
     private func activate(anchor: UIViewController) {
         guard let scene = anchor.view.window?.windowScene else { return }
         let host = presentedHost(for: anchor)
@@ -224,7 +333,7 @@ final class PlayerLandscapeOrientationSession {
         self.lastGravity = nil
         self.isActive = true
         generation += 1
-        PlayerLandscapeApplicationMask.forced = .landscape
+        PlayerOrientationApplicationMask.player = .landscape
         PlayerLandscapeHostLock.engage(host)
         host.setNeedsUpdateOfSupportedInterfaceOrientations()
         scene.windows.first?.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
@@ -262,7 +371,8 @@ final class PlayerLandscapeOrientationSession {
             if stillActive {
                 guard self.isActive, self.side?.mask == mask else { return }
                 self.scene?.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
-            } else if let pending = self.pendingRestore, !self.isActive, pending.mask == mask {
+            } else if let pending = self.pendingRestore, !self.isActive, pending.mask == mask,
+                      PlayerOrientationApplicationMask.player == nil {
                 pending.scene.requestGeometryUpdate(.iOS(interfaceOrientations: mask))
             }
         }
@@ -361,6 +471,11 @@ final class PlayerLandscapeAnchorController: UIViewController {
     private let session = PlayerLandscapeOrientationSession()
     private var forceLandscape = false
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        session.onCloseCancelled = { [weak self] in self?.sync() }
+    }
+
     func setForceLandscape(_ forceLandscape: Bool) {
         self.forceLandscape = forceLandscape
         sync()
@@ -368,6 +483,7 @@ final class PlayerLandscapeAnchorController: UIViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+        PlayerCoverCloseRotation.session = session
         sync()
     }
 
@@ -412,16 +528,17 @@ struct PlayerLandscapeOrientationAnchor: UIViewControllerRepresentable {
     }
 }
 
-/// Installed on the iPhone player cover only. Off, or on iPad, the cover is
-/// unchanged and rotation stays with the system and the orientation lock.
+/// Installed on the iPhone player cover only. With the setting off, rotation
+/// stays with the system and the orientation lock while the cover is up. On
+/// iPad the cover is unchanged.
 struct PlayerPhoneLandscapeModifier: ViewModifier {
     @Environment(UserPreferences.self) private var preferences
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        if UIDevice.current.userInterfaceIdiom == .phone, preferences.alwaysPlayInLandscape {
+        if UIDevice.current.userInterfaceIdiom == .phone {
             content.background {
-                PlayerLandscapeOrientationAnchor(forceLandscape: true)
+                PlayerLandscapeOrientationAnchor(forceLandscape: preferences.alwaysPlayInLandscape)
             }
         } else {
             content

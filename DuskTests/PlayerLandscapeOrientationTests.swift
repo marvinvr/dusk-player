@@ -13,6 +13,24 @@ struct PlayerLandscapeOrientationTests {
         #expect(!PlayerLandscapePolicy.shouldForce(isPhone: false, alwaysPlayInLandscape: true))
     }
 
+    @Test func plainPhoneIsPortraitUnlessThePlayerIsUp() {
+        #expect(AppOrientationPolicy.mask(isPad: false, isDuo: false, playerMask: nil) == .portrait)
+        #expect(AppOrientationPolicy.mask(isPad: false, isDuo: false, playerMask: .landscape) == .landscape)
+        #expect(AppOrientationPolicy.mask(isPad: false, isDuo: false, playerMask: .allButUpsideDown) == .allButUpsideDown)
+    }
+
+    @Test func iPadAndDuoKeepRotating() {
+        #expect(AppOrientationPolicy.mask(isPad: true, isDuo: false, playerMask: nil) == .all)
+        #expect(AppOrientationPolicy.mask(isPad: false, isDuo: true, playerMask: nil) == .allButUpsideDown)
+        #expect(AppOrientationPolicy.mask(isPad: false, isDuo: true, playerMask: .landscape) == .landscape)
+    }
+
+    @Test func leavingThePlayerLandsInPortraitOnlyOnPlainPhones() {
+        #expect(AppOrientationPolicy.maskAfterPlayer(isPlainPhone: true, previous: .landscapeLeft) == .portrait)
+        #expect(AppOrientationPolicy.maskAfterPlayer(isPlainPhone: false, previous: .landscapeLeft) == .landscapeLeft)
+        #expect(AppOrientationPolicy.maskAfterPlayer(isPlainPhone: false, previous: nil) == .portrait)
+    }
+
     @Test func physicalLandscapeMapsToTheOppositeInterfaceSide() {
         #expect(PlayerLandscapeSide.interfaceSide(deviceOrientation: .landscapeLeft) == .right)
         #expect(PlayerLandscapeSide.interfaceSide(deviceOrientation: .landscapeRight) == .left)
@@ -102,7 +120,7 @@ struct PlayerLandscapeOrientationTests {
         let session = PlayerLandscapeOrientationSession()
         defer {
             session.deactivate()
-            PlayerLandscapeApplicationMask.forced = nil
+            PlayerOrientationApplicationMask.player = nil
             if root.presentedViewController != nil {
                 root.dismiss(animated: false)
             }
@@ -121,7 +139,7 @@ struct PlayerLandscapeOrientationTests {
         session.update(forceLandscape: true, anchor: anchor)
         #expect(session.isActive)
         #expect(orientationMask(of: cover) == .landscape)
-        #expect(PlayerLandscapeApplicationMask.forced == .landscape)
+        #expect(PlayerOrientationApplicationMask.player == .landscape)
 
         let becameLandscape = await waitUntil(seconds: 3) {
             scene.interfaceOrientation.isLandscape
@@ -142,7 +160,7 @@ struct PlayerLandscapeOrientationTests {
         #expect(UIDevice.current.orientation == deviceBefore)
 
         session.deactivate()
-        #expect(PlayerLandscapeApplicationMask.forced == nil)
+        #expect(PlayerOrientationApplicationMask.player == nil)
         #expect(orientationMask(of: cover) != .landscape)
 
         let restored = await waitUntil(seconds: 3) {
