@@ -129,9 +129,9 @@ struct PlayerUpNextPosterView: View {
 
     /// With Blur Unwatched Episodes on, an unwatched next episode gets a
     /// two-line glass pill in the Skip Credits chip's family instead of the
-    /// card: no still, just the episode title over a quiet "Up Next · Season 2,
-    /// Episode 5" line, the countdown sweeping across the platter and, on iOS,
-    /// a dismiss button. Play now / dismiss work exactly as on the card (tap or
+    /// card: no still, just the episode title over a quiet "Season 2 · Episode
+    /// 5" line, the countdown sweeping across the platter and, on iOS, a
+    /// dismiss button. Play now / dismiss work exactly as on the card (tap or
     /// Select, swipe or Down).
     private var compactChip: some View {
         HStack(spacing: CompactMetrics.spacing) {
@@ -155,12 +155,14 @@ struct PlayerUpNextPosterView: View {
                     .lineLimit(1)
 
                 HStack(alignment: .firstTextBaseline, spacing: 0) {
-                    Text(compactDetail)
-                        .lineLimit(1)
-                        .layoutPriority(1)
+                    if let compactDetail {
+                        Text(compactDetail)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+                    }
 
                     if let statusText {
-                        Text(" · \(statusText)")
+                        Text(compactDetail == nil ? statusText : " · \(statusText)")
                             .monospacedDigit()
                             .lineLimit(1)
                     }
@@ -206,16 +208,16 @@ struct PlayerUpNextPosterView: View {
         #endif
     }
 
-    /// "Up Next · Season 2, Episode 5". A playlist mixes shows, so it names
-    /// the show too and falls back to the short "S2 · E5" form.
-    private var compactDetail: String {
+    /// "Season 2 · Episode 5". A playlist mixes shows, so it names the show
+    /// too and falls back to the short "S2 · E5" form.
+    private var compactDetail: String? {
         let item = presentation.item
         let inQueue = presentation.queueTitle != nil
         let episode = inQueue
             ? MediaTextFormatter.compactSeasonEpisodeLabel(season: item.parentIndex, episode: item.index)
-            : MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index, separator: ", ")
+            : MediaTextFormatter.seasonEpisodeLabel(season: item.parentIndex, episode: item.index)
         let show = inQueue ? item.grandparentTitle : nil
-        return (["Up Next", show, episode] as [String?]).compactMap { $0 }.joined(separator: " · ")
+        return ([show, episode] as [String?]).compactMap { $0 }.joined(separator: " · ").nilIfEmpty
     }
 
     @ViewBuilder
@@ -468,7 +470,9 @@ struct PlayerUpNextPosterView: View {
 
     private var accessibilityLabel: String {
         if isCompact {
-            return "Play next episode: \(presentation.item.title), \(compactDetail)"
+            return ["Play next episode: \(presentation.item.title)", compactDetail]
+                .compactMap { $0 }
+                .joined(separator: ", ")
         }
         return presentation.item.isEpisode
             ? "Play next episode: \(presentation.item.title)"

@@ -149,8 +149,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (show poster first), the player's loading backdrop and scrub previews.
   With the setting on, the credits-time Up Next card
   (`PlayerUpNextPosterView`) for an unwatched next episode becomes a two-line
-  Skip-Credits-style glass pill instead: episode title over "Up Next · Season 2,
-  Episode 5 · 12s", countdown sweep (+ ✕ on iOS), no still. Play now / dismiss
+  Skip-Credits-style glass pill instead: episode title over "Season 2 · Episode 5 ·
+  12s", countdown sweep (+ ✕ on iOS), no still. Play now / dismiss
   work as on the card.
   The full-screen Up Next screen keeps its title and synopsis (still blurred).
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
