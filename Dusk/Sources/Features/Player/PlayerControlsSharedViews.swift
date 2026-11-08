@@ -436,55 +436,12 @@ struct PlayerTrackSettingsMenu: View {
         Menu {
             sharePlayButton
 
-            if let live = context.liveTVContext {
-                Menu {
-                    ForEach(live.lineup.channels) { channel in
-                        Button {
-                            guard channel.id != live.channel.id else { return }
-                            let program = live.lineup.guide(for: channel)?.currentProgram()
-                            Task {
-                                await playback.playLiveTV(
-                                    channel: channel,
-                                    program: program,
-                                    lineup: live.lineup
-                                )
-                            }
-                        } label: {
-                            Label(
-                                [channel.displayNumber, channel.displayTitle]
-                                    .compactMap { $0 }
-                                    .joined(separator: " · "),
-                                systemImage: channel.id == live.channel.id
-                                    ? "checkmark"
-                                    : "dot.radiowaves.left.and.right"
-                            )
-                        }
-                        .disabled(channel.id == live.channel.id)
-                    }
-                } label: {
-                    Label("Channel", systemImage: "list.number")
+            if let playingQualitySummary {
+                Section(playingQualitySummary) {
+                    sessionMenuItems
                 }
-            }
-
-            if context.hasPlaybackInfo {
-                Button {
-                    viewModel.showPlaybackInfo = true
-                } label: {
-                    Label("Get Info", systemImage: "info.circle")
-                }
-            }
-
-            if context.hasQualityControl {
-                Button {
-                    viewModel.showQualityPicker = true
-                } label: {
-                    settingsMenuItem(
-                        title: "Quality",
-                        subtitle: context.qualityControlTitle,
-                        icon: "rectangle.compress.vertical"
-                    )
-                }
-                .disabled(!context.canSelectQuality || context.isChangingQuality)
+            } else {
+                sessionMenuItems
             }
 
             Button {
@@ -543,6 +500,67 @@ struct PlayerTrackSettingsMenu: View {
         .simultaneousGesture(TapGesture().onEnded {
             viewModel.noteSettingsMenuInteraction()
         })
+    }
+
+    /// What is playing right now, as the menu's quiet section title. It sits
+    /// here rather than behind Get Info because IPTV has no playback info sheet.
+    private var playingQualitySummary: String? {
+        let live = viewModel.engine.currentVideoQuality
+        return (playback.debugInfo?.currentVideoQuality(live: live) ?? live)?.summary
+    }
+
+    @ViewBuilder
+    private var sessionMenuItems: some View {
+        if let live = context.liveTVContext {
+            Menu {
+                ForEach(live.lineup.channels) { channel in
+                    Button {
+                        guard channel.id != live.channel.id else { return }
+                        let program = live.lineup.guide(for: channel)?.currentProgram()
+                        Task {
+                            await playback.playLiveTV(
+                                channel: channel,
+                                program: program,
+                                lineup: live.lineup
+                            )
+                        }
+                    } label: {
+                        Label(
+                            [channel.displayNumber, channel.displayTitle]
+                                .compactMap { $0 }
+                                .joined(separator: " · "),
+                            systemImage: channel.id == live.channel.id
+                                ? "checkmark"
+                                : "dot.radiowaves.left.and.right"
+                        )
+                    }
+                    .disabled(channel.id == live.channel.id)
+                }
+            } label: {
+                Label("Channel", systemImage: "list.number")
+            }
+        }
+
+        if context.hasPlaybackInfo {
+            Button {
+                viewModel.showPlaybackInfo = true
+            } label: {
+                Label("Get Info", systemImage: "info.circle")
+            }
+        }
+
+        if context.hasQualityControl {
+            Button {
+                viewModel.showQualityPicker = true
+            } label: {
+                settingsMenuItem(
+                    title: "Quality",
+                    subtitle: context.qualityControlTitle,
+                    icon: "rectangle.compress.vertical"
+                )
+            }
+            .disabled(!context.canSelectQuality || context.isChangingQuality)
+        }
     }
 
     private func settingsMenuItem(

@@ -815,6 +815,19 @@ so the whole live HUD is derived from one instant.
   asks `PlexService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
   and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and
   resumes from the same position without finalizing or scrobbling the session.
+- What is playing right now is `PlaybackEngine.currentVideoQuality`, shown as
+  one line (`PlaybackVideoQuality.summary`): tvOS panel Info and Quality tabs,
+  iOS gear menu section title, Quality sheet header, and the Playing row of
+  Get Info. AVPlayer re-reads it every 2 s from `presentationSize`, the access
+  log's `indicatedBitrate` and the matching `AVAssetVariant`, then the video
+  track; VLCKit re-reads on time ticks from `videoSize`, `tracksInformation` and
+  demux statistics, so it rests while paused. `PlaybackDebugInfo.currentVideoQuality(live:)`
+  fills gaps from Plex only for direct play, downloads and the remux, which copy
+  the source; a transcode, server stream, AirPlay or live tune stays live-only,
+  because Plex's metadata describes the source and not that stream. IPTV has no
+  `debugInfo` and shows the engine's reading alone. VLCKit's HDR reads
+  `HDR10 (SDR output)` because libvlc draws into an 8-bit surface. A `~` bitrate
+  is measured rather than declared.
 - iOS trap: every player sheet (Quality, Audio, Subtitles, Get Info) turns
   off the space-bar shortcut view (`PlayerKeyboardShortcutView`), which
   resigns first responder. That resign must stay deferred and change-only:

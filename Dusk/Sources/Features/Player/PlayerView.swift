@@ -842,6 +842,8 @@ private struct PlayerSessionView: View {
         .sheet(isPresented: $vm.showQualityPicker) {
             PlayerSelectionSheet(
                 title: "Quality",
+                headerText: (debugInfo?.currentVideoQuality(live: viewModel.engine.currentVideoQuality)
+                    ?? viewModel.engine.currentVideoQuality)?.summary.map { "Playing \($0)" },
                 items: debugInfo?.availableQualityPresets ?? [.original],
                 selectedID: debugInfo?.qualityPreset.id,
                 itemTitle: \.displayName,
@@ -924,6 +926,7 @@ private struct PlayerSessionView: View {
                     isBuffering: viewModel.isBuffering,
                     selectedAudioTrack: viewModel.selectedAudioTrack,
                     engineDiagnostics: viewModel.engine.playbackDiagnostics,
+                    engine: viewModel.engine,
                     videoEnhancementStatus: viewModel.videoEnhancementStatus
                 )
             } else {
@@ -939,6 +942,7 @@ private struct PlayerSessionView: View {
                     isBuffering: viewModel.isBuffering,
                     selectedAudioTrack: viewModel.selectedAudioTrack,
                     engineDiagnostics: viewModel.engine.playbackDiagnostics,
+                    engine: viewModel.engine,
                     videoEnhancementStatus: viewModel.videoEnhancementStatus
                 )
             } else {

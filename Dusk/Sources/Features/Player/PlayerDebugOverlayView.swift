@@ -11,6 +11,9 @@ struct PlayerPlaybackInfoView: View {
     let isBuffering: Bool
     let selectedAudioTrack: AudioTrack?
     let engineDiagnostics: [PlaybackEngineDiagnostic]
+    /// Read here rather than passed by value so the row follows a variant
+    /// switch while the sheet is up.
+    let engine: any PlaybackEngine
     let videoEnhancementStatus: VideoEnhancementStatus
 
     var body: some View {
@@ -143,17 +146,21 @@ struct PlayerPlaybackInfoView: View {
 
     private var infoEntries: [PlaybackInfoEntry] {
         var entries = [
+            PlaybackInfoEntry(
+                label: "Playing",
+                value: debugInfo.currentVideoQuality(live: engine.currentVideoQuality).summary ?? "Unknown"
+            ),
             PlaybackInfoEntry(label: "Engine", value: debugInfo.engineLabel),
             PlaybackInfoEntry(label: "Mode", value: debugInfo.decisionLabel),
             PlaybackInfoEntry(label: "Attempt", value: debugInfo.attemptLabel),
             PlaybackInfoEntry(label: "Resolver", value: debugInfo.resolverLabel),
             PlaybackInfoEntry(label: "Transcode", value: debugInfo.transcodeLabel),
             PlaybackInfoEntry(label: "Container", value: debugInfo.containerLabel),
-            PlaybackInfoEntry(label: "Bitrate", value: debugInfo.bitrateLabel),
-            PlaybackInfoEntry(label: "Video", value: debugInfo.videoLabel),
+            PlaybackInfoEntry(label: "Source Bitrate", value: debugInfo.bitrateLabel),
+            PlaybackInfoEntry(label: "Source Video", value: debugInfo.videoLabel),
             PlaybackInfoEntry(label: "Audio", value: debugInfo.audioLabel),
             PlaybackInfoEntry(label: "Selected Audio", value: selectedAudioTrackLabel),
-            PlaybackInfoEntry(label: "Resolution", value: debugInfo.resolutionLabel),
+            PlaybackInfoEntry(label: "Source Resolution", value: debugInfo.resolutionLabel),
             PlaybackInfoEntry(label: "Enhancement", value: videoEnhancementStatus.stateLabel),
         ]
 
@@ -233,6 +240,7 @@ struct PlayerPlaybackInfoView: View {
     }
 
     private static let extendedLineLabels: Set<String> = [
+        "Playing",
         "URL",
         "Resolver",
         "Enhancement Detail",

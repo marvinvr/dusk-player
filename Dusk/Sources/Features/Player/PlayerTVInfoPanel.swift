@@ -197,6 +197,13 @@ struct PlayerTVInfoPanel: View {
         }
     }
 
+    /// Reads the engine's observed quality, so the panel follows a variant
+    /// switch while it is open.
+    private var currentQualitySummary: String? {
+        let live = viewModel.engine.currentVideoQuality
+        return (playback.debugInfo?.currentVideoQuality(live: live) ?? live)?.summary
+    }
+
     private struct InfoEntry: Identifiable {
         let label: String
         let value: String
@@ -208,9 +215,12 @@ struct PlayerTVInfoPanel: View {
         if let debugInfo = playback.debugInfo {
             entries.append(InfoEntry(label: "Engine", value: debugInfo.engineLabel))
             entries.append(InfoEntry(label: "Mode", value: debugInfo.decisionLabel))
-            entries.append(InfoEntry(label: "Video", value: debugInfo.videoLabel))
+        }
+        if let currentQualitySummary {
+            entries.append(InfoEntry(label: "Quality", value: currentQualitySummary))
+        }
+        if let debugInfo = playback.debugInfo {
             entries.append(InfoEntry(label: "Audio", value: debugInfo.audioLabel))
-            entries.append(InfoEntry(label: "Resolution", value: debugInfo.resolutionLabel))
         }
         entries.append(InfoEntry(label: "Subtitles", value: context.subtitleControlTitle))
         return entries
@@ -310,6 +320,21 @@ struct PlayerTVInfoPanel: View {
 
     @ViewBuilder
     private var qualityRows: some View {
+        if let currentQualitySummary {
+            HStack(alignment: .top, spacing: 24) {
+                Text("PLAYING")
+                    .font(DuskFont.TV.groupHeader)
+                    .foregroundStyle(Color.duskTextSecondary)
+
+                Text(currentQualitySummary)
+                    .font(DuskFont.TV.rowValue)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .lineLimit(2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.vertical, 4)
+        }
+
         if !context.canSelectQuality {
             emptyRow(context.qualityControlTitle)
         } else {

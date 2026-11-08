@@ -28,6 +28,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private(set) var seekableTimeRange: ClosedRange<TimeInterval>?
     private(set) var isBuffering = false
     private(set) var error: PlaybackError?
+    private(set) var currentVideoQuality: PlaybackVideoQuality?
     private(set) var availableSubtitleTracks: [SubtitleTrack] = []
     private(set) var availableAudioTracks: [AudioTrack] = []
     var selectedSubtitleTrackID: Int? {
@@ -63,6 +64,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     // MARK: - AVPlayer
 
     @ObservationIgnored private let player = AVPlayer()
+    @ObservationIgnored private var videoQualityTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private let playerLayer = AVPlayerLayer()
     @ObservationIgnored nonisolated(unsafe) private var coordinatedItemIdentifier: String?
     #if os(iOS)
@@ -364,6 +366,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         stopDolbyVision7Proxy()
         invalidateContentKeyController()
         cancelIPTVRetune()
+        stopVideoQualityMonitor()
         removeEnhancedVideoOutput()
         player.pause()
         player.defaultRate = 1
@@ -781,6 +784,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         observePlaybackEnd(for: item)
         observePlaybackStall(for: item)
         addTimeObserver()
+        startVideoQualityMonitor(for: item)
         loadValidationTask = nil
     }
 
@@ -894,6 +898,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
 
     private func retuneIPTV(_ source: PlaybackSource) {
         retuneTask = nil
+        stopVideoQualityMonitor()
         removeEnhancedVideoOutput()
         removeTimeObserver()
         removePlaybackEndedObserver()
@@ -1327,6 +1332,156 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             applyRequestedSubtitleSelection()
             updateNativeSubtitleRendering()
         }
+    }
+}
+
+// MARK: - Current video quality
+
+extension AVPlayerEngine {
+    /// How often the playing quality is re-read. An HLS variant switch shows up
+    /// within this; reading is cheap, and nothing is written unless it changed.
+    private static let videoQualityInterval: Duration = .seconds(2)
+
+    fileprivate func startVideoQualityMonitor(for item: AVPlayerItem) {
+        stopVideoQualityMonitor()
+        videoQualityTask = Task { [weak self, weak item] in
+            while !Task.isCancelled {
+                // Not bound across the sleep: the task must not keep the engine alive.
+                guard let item, let engine = self, engine.player.currentItem === item else { return }
+                await engine.refreshVideoQuality(of: item)
+                try? await Task.sleep(for: AVPlayerEngine.videoQualityInterval)
+            }
+        }
+    }
+
+    fileprivate func stopVideoQualityMonitor() {
+        videoQualityTask?.cancel()
+        videoQualityTask = nil
+        currentVideoQuality = nil
+    }
+
+    private func refreshVideoQuality(of item: AVPlayerItem) async {
+        var quality = PlaybackVideoQuality()
+
+        // Follows the variant on screen, unlike anything read from the asset.
+        let size = item.presentationSize
+        if size.width > 0, size.height > 0 {
+            quality.width = Int(size.width.rounded())
+            quality.height = Int(size.height.rounded())
+        }
+
+        // `indicatedBitrate` is the playing variant's declared BANDWIDTH;
+        // negative or zero when the stream has none (progressive files,
+        // playlists without a master).
+        let accessLogEvent = item.accessLog()?.events.last
+        let indicatedBitrate = accessLogEvent?.indicatedBitrate ?? 0
+        if indicatedBitrate > 0 {
+            quality.bitrate = Int(indicatedBitrate)
+        }
+
+        let variants = await hlsVariants(of: item)
+        if let variant = Self.playingVariant(among: variants, indicatedBitrate: indicatedBitrate, size: size) {
+            let attributes = variant.videoAttributes
+            quality.frameRate = attributes?.nominalFrameRate.flatMap(PlaybackVideoQuality.snappedFrameRate)
+            if let attributes {
+                let fourCCs = attributes.codecTypes.map(Self.videoFourCC)
+                quality.codec = PlaybackVideoQuality.codecName(for: fourCCs.first)
+                quality.dynamicRange = fourCCs.contains(where: PlaybackVideoQuality.isDolbyVisionCodec)
+                    ? PlaybackVideoQuality.dolbyVisionLabel
+                    : Self.dynamicRangeLabel(attributes.videoRange)
+            }
+        }
+
+        // The track fills what the playlist didn't declare, and is all there is
+        // for a progressive file. HLS item tracks appear once segments arrive.
+        let itemTrack = item.tracks.first { $0.assetTrack?.mediaType == .video }
+        if let assetTrack = itemTrack?.assetTrack {
+            if let description = try? await assetTrack.load(.formatDescriptions).first {
+                let fourCC = Self.videoFourCC(CMFormatDescriptionGetMediaSubType(description))
+                quality.codec = quality.codec ?? PlaybackVideoQuality.codecName(for: fourCC)
+                quality.dynamicRange = quality.dynamicRange ?? Self.dynamicRangeLabel(of: description, fourCC: fourCC)
+            }
+            if quality.frameRate == nil, let nominal = try? await assetTrack.load(.nominalFrameRate) {
+                quality.frameRate = PlaybackVideoQuality.snappedFrameRate(Double(nominal))
+            }
+            if quality.bitrate == nil, let estimated = try? await assetTrack.load(.estimatedDataRate), estimated > 0 {
+                quality.bitrate = Int(estimated)
+                quality.bitrateIsEstimate = true
+            }
+        }
+        if quality.frameRate == nil, let measured = itemTrack?.currentVideoFrameRate {
+            quality.frameRate = PlaybackVideoQuality.snappedFrameRate(Double(measured))
+        }
+        if quality.bitrate == nil, let average = accessLogEvent?.averageVideoBitrate, average > 0 {
+            quality.bitrate = Int(average)
+            quality.bitrateIsEstimate = true
+        }
+
+        // The awaits above can outlive the item.
+        guard player.currentItem === item, !quality.isEmpty else { return }
+        let settled = quality.holdingEstimatedBitrate(from: currentVideoQuality)
+        if settled != currentVideoQuality {
+            currentVideoQuality = settled
+        }
+    }
+
+    /// Empty for a progressive file. Already loaded by the time the item plays,
+    /// so this costs no extra playlist request.
+    private func hlsVariants(of item: AVPlayerItem) async -> [AVAssetVariant] {
+        guard let asset = item.asset as? AVURLAsset else { return [] }
+        return (try? await asset.load(.variants)) ?? []
+    }
+
+    /// The variant behind the current picture: BANDWIDTH is what the access log
+    /// indicates, and the picture size settles the rest (a master can repeat a
+    /// video rung per audio rendition, which describes the same video anyway).
+    private static func playingVariant(
+        among variants: [AVAssetVariant],
+        indicatedBitrate: Double,
+        size: CGSize
+    ) -> AVAssetVariant? {
+        if variants.count == 1 { return variants[0] }
+        if indicatedBitrate > 0,
+           let match = variants.first(where: { $0.peakBitRate == indicatedBitrate || $0.averageBitRate == indicatedBitrate }) {
+            return match
+        }
+        guard size.width > 0 else { return nil }
+        return variants.first { variant in
+            guard let declared = variant.videoAttributes?.presentationSize else { return false }
+            return abs(declared.width - size.width) < 2 && abs(declared.height - size.height) < 2
+        }
+    }
+
+    private static func dynamicRangeLabel(_ range: AVVideoRange) -> String? {
+        switch range {
+        case .sdr: PlaybackVideoQuality.sdrLabel
+        case .pq: PlaybackVideoQuality.hdr10Label
+        case .hlg: PlaybackVideoQuality.hlgLabel
+        default: nil
+        }
+    }
+
+    private static func dynamicRangeLabel(of description: CMFormatDescription, fourCC: String) -> String {
+        if PlaybackVideoQuality.isDolbyVisionCodec(fourCC) {
+            return PlaybackVideoQuality.dolbyVisionLabel
+        }
+        let transfer = CMFormatDescriptionGetExtension(
+            description,
+            extensionKey: kCMFormatDescriptionExtension_TransferFunction
+        ) as? String
+        if transfer == kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String {
+            return PlaybackVideoQuality.hdr10Label
+        }
+        if transfer == kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String {
+            return PlaybackVideoQuality.hlgLabel
+        }
+        return PlaybackVideoQuality.sdrLabel
+    }
+
+    /// CoreMedia subtypes pack their characters big endian.
+    private static func videoFourCC(_ value: FourCharCode) -> String {
+        let bytes = [24, 16, 8, 0].map { UInt8((value >> $0) & 0xFF) }
+        return String(decoding: bytes, as: UTF8.self)
     }
 }
 

@@ -148,6 +148,10 @@ protocol PlaybackEngine: AnyObject {
     var videoEnhancementStatus: VideoEnhancementStatus { get }
     var onPlaybackEnded: (@MainActor () -> Void)? { get set }
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { get }
+    /// What the engine measures it is playing right now; follows HLS variant
+    /// switches. Nil until the first reading. Views merge it with Plex metadata
+    /// through `PlaybackDebugInfo.currentVideoQuality(live:)`.
+    var currentVideoQuality: PlaybackVideoQuality? { get }
 
     // MARK: - Track Selection
 
@@ -246,6 +250,7 @@ extension PlaybackEngine {
     }
 
     var playbackDiagnostics: [PlaybackEngineDiagnostic] { [] }
+    var currentVideoQuality: PlaybackVideoQuality? { nil }
     func setVideoFillEnabled(_ enabled: Bool) {}
 
     // Default: subtitle sizing is engine-specific; engines that render text

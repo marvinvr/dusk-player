@@ -2,6 +2,8 @@ import SwiftUI
 
 struct PlayerSelectionSheet<Item: Identifiable>: View {
     let title: String
+    /// A quiet line above the rows, e.g. what the choice currently resolves to.
+    var headerText: String?
     var allowsDeselection = false
     var deselectionTitle = "Off"
     let items: [Item]
@@ -14,32 +16,16 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
     var body: some View {
         NavigationStack {
             List {
-                if allowsDeselection {
-                    Button {
-                        onSelect(nil)
-                    } label: {
-                        pickerRow(
-                            title: deselectionTitle,
-                            subtitle: nil,
-                            isSelected: selectedID == nil
-                        )
+                if let headerText {
+                    Section {
+                        rows
+                    } header: {
+                        Text(headerText)
+                            .textCase(nil)
+                            .foregroundStyle(Color.duskTextSecondary)
                     }
-                    .listRowBackground(Color.duskSurface)
-                    .duskSuppressTVOSButtonChrome()
-                }
-
-                ForEach(items) { item in
-                    Button {
-                        onSelect(item)
-                    } label: {
-                        pickerRow(
-                            title: item[keyPath: itemTitle],
-                            subtitle: item[keyPath: itemSubtitle],
-                            isSelected: selectedID == item.id
-                        )
-                    }
-                    .listRowBackground(Color.duskSurface)
-                    .duskSuppressTVOSButtonChrome()
+                } else {
+                    rows
                 }
             }
             .duskScrollContentBackgroundHidden()
@@ -56,6 +42,37 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
         .presentationDetents([.medium])
         .presentationBackground(Color.duskBackground)
         .playerSheetHorizontalSystemBars()
+    }
+
+    @ViewBuilder
+    private var rows: some View {
+        if allowsDeselection {
+            Button {
+                onSelect(nil)
+            } label: {
+                pickerRow(
+                    title: deselectionTitle,
+                    subtitle: nil,
+                    isSelected: selectedID == nil
+                )
+            }
+            .listRowBackground(Color.duskSurface)
+            .duskSuppressTVOSButtonChrome()
+        }
+
+        ForEach(items) { item in
+            Button {
+                onSelect(item)
+            } label: {
+                pickerRow(
+                    title: item[keyPath: itemTitle],
+                    subtitle: item[keyPath: itemSubtitle],
+                    isSelected: selectedID == item.id
+                )
+            }
+            .listRowBackground(Color.duskSurface)
+            .duskSuppressTVOSButtonChrome()
+        }
     }
 
     private func pickerRow(title: String, subtitle: String?, isSelected: Bool) -> some View {

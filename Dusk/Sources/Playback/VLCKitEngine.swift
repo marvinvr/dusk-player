@@ -211,7 +211,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     }
     private(set) var selectedAudioTrackID: Int?
     private(set) var failedAudioDecoderTrackID: Int?
-    private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = []
+    private(set) var playbackDiagnostics: [PlaybackEngineDiagnostic] = [] {
+        // Every path that resets the diagnostics starts or ends a session.
+        didSet {
+            guard playbackDiagnostics.isEmpty else { return }
+            currentVideoQuality = nil
+            lastVideoQualityRefresh = nil
+            smoothedVideoBitrate = nil
+        }
+    }
+    private(set) var currentVideoQuality: PlaybackVideoQuality?
+    @ObservationIgnored private var lastVideoQualityRefresh: Date?
+    @ObservationIgnored private var smoothedVideoBitrate: Double?
     var videoEnhancementStatus: VideoEnhancementStatus {
         if usesNativeSubtitleOutput {
             return VideoEnhancementStatus(
@@ -1588,7 +1599,65 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         #endif
     }
 
+    /// Driven by the time ticks, so it rests while paused, when nothing changes.
+    private func refreshVideoQualityIfDue() {
+        let now = Date()
+        if let lastVideoQualityRefresh, now.timeIntervalSince(lastVideoQualityRefresh) < 2 { return }
+        lastVideoQualityRefresh = now
+
+        var quality = PlaybackVideoQuality()
+        let tracks = mediaPlayer.media?.tracksInformation as? [[String: Any]] ?? []
+        let videoTracks = tracks.filter {
+            ($0[VLCMediaTracksInformationType] as? String) == VLCMediaTracksInformationTypeVideo
+        }
+        let selectedID = mediaPlayer.currentVideoTrackIndex
+        let track = videoTracks.first {
+            ($0[VLCMediaTracksInformationId] as? NSNumber)?.int32Value == selectedID
+        } ?? videoTracks.first
+
+        // The decoded picture when there is one: it follows an adaptive stream,
+        // where the track list keeps the first variant's size.
+        let pictureSize = mediaPlayer.videoSize
+        if pictureSize.width > 0, pictureSize.height > 0 {
+            quality.width = Int(pictureSize.width)
+            quality.height = Int(pictureSize.height)
+        } else if let track,
+                  let width = (track[VLCMediaTracksInformationVideoWidth] as? NSNumber)?.intValue, width > 0,
+                  let height = (track[VLCMediaTracksInformationVideoHeight] as? NSNumber)?.intValue, height > 0 {
+            quality.width = width
+            quality.height = height
+        }
+
+        if let track {
+            if let codec = (track[VLCMediaTracksInformationCodec] as? NSNumber)?.uint32Value, codec != 0 {
+                quality.codec = PlaybackVideoQuality.codecName(for: Self.fourCCDisplayString(codec))
+            }
+            if let rate = (track[VLCMediaTracksInformationFrameRate] as? NSNumber)?.doubleValue,
+               let denominator = (track[VLCMediaTracksInformationFrameRateDenominator] as? NSNumber)?.doubleValue,
+               denominator > 0 {
+                quality.frameRate = PlaybackVideoQuality.snappedFrameRate(rate / denominator)
+            }
+        }
+
+        // libvlc's rate is in bytes per microsecond and swings with every demux
+        // burst, so it is averaged and only used when Plex has no better figure.
+        if let demuxRate = mediaPlayer.media?.statistics.demuxBitrate, demuxRate > 0 {
+            let bitsPerSecond = Double(demuxRate) * 8_000_000
+            let smoothed = smoothedVideoBitrate.map { $0 * 0.8 + bitsPerSecond * 0.2 } ?? bitsPerSecond
+            smoothedVideoBitrate = smoothed
+            quality.bitrate = Int(smoothed)
+            quality.bitrateIsEstimate = true
+        }
+
+        guard !quality.isEmpty else { return }
+        let settled = quality.holdingEstimatedBitrate(from: currentVideoQuality)
+        if settled != currentVideoQuality {
+            currentVideoQuality = settled
+        }
+    }
+
     fileprivate func updateTime(timeMs: Int32, lengthMs: Int32) {
+        refreshVideoQualityIfDue()
         let updatedTime = max(0, TimeInterval(timeMs) / 1000.0)
         if lengthMs > 0 {
             duration = TimeInterval(lengthMs) / 1000.0
