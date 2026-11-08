@@ -1920,8 +1920,10 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   episode number is not treated as episode 1. Hiding lasts until the playhead
   leaves that marker; seeking back into the intro shows the chip again. A
   marker already auto-skipped this session does not count down again. Credits
-  do not use this countdown — the Up Next poster only counts down when
-  auto-skip credits is on, and that expiry plays the next episode.
+  under the Up Next poster do not use this countdown — the poster only counts
+  down when auto-skip credits is on, and that expiry plays the next episode. A
+  Skip Credits chip (see "Marker skip buttons") uses it like Skip Intro, read
+  against the Auto-Skip Credits setting.
 - **Auto-skip fires at most once per marker per playback session.** Skipping a
   marker — by countdown or by tapping Skip Intro — records its id in
   `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never
@@ -2048,10 +2050,14 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   diagnostics there first.
 - `PlayerSelectionSheet` is iOS-only presentation for track choices. tvOS uses
   the tabs of `PlayerTVInfoPanel`.
-- Marker skip buttons come from `PlexMarker.skipButtonTitle`. Only the intro
-  marker still renders a skip button (`PlayerViewModel.activeSkipMarker` is
-  intro-only). Credits are handled by the bottom-right Up Next poster instead of
-  a Skip Credits button (see "Timeline, Scrobble, and Up Next").
+- Marker skip buttons come from `PlexMarker.skipButtonTitle`, chosen by
+  `PlayerViewModel.activeSkipMarker`. The intro always gets one. The last credits
+  marker belongs to the bottom-right Up Next poster (see "Timeline, Scrobble, and
+  Up Next") unless nothing follows the item (a film, a show's last episode, a
+  queue's end: `presentUpNextPosterIfPossible` returns true); it then gets Skip
+  Credits. Earlier credits markers always do, because a scene follows them. A
+  credits skip that reaches the item's end goes through `handlePlaybackEnded`
+  instead of a seek. Estimated credits never get a chip.
 
 ## tvOS Play Bar
 - The tvOS HUD is a native-feeling, bottom-anchored play bar rather than a
@@ -2261,8 +2267,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   with a dark label on iOS, because the screen is near-black whatever the app's
   appearance mode is. tvOS uses the system `.glass` with no tint, like the
   detail hero buttons: an explicit tint goes white-on-white on focus.
-- Up Next poster (replaces the old Skip Credits button): when the credits marker
-  is reached, `PlayerViewModel.reachedCreditsMarker` changes and the player calls
+- Up Next poster (replaces the old Skip Credits button for items with a
+  successor): when the last credits marker is reached,
+  `PlayerViewModel.reachedCreditsMarker` changes and the player calls
   `presentUpNextPosterIfPossible`, which resolves the next episode and raises the
   poster. `reachedCreditsMarker` stays set from the marker start through the end
   of the episode (based on actual playback time), and clears if the user seeks

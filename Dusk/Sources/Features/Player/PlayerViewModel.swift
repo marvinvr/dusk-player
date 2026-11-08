@@ -110,6 +110,12 @@ final class PlayerViewModel {
     /// bottom-right Up Next poster.
     var upNextPosterHandler: (@MainActor (PlexMarker?) -> Void)?
     @ObservationIgnored var lastNotifiedCreditsMarkerID: Int?
+    /// The reached credits marker when the coordinator found nothing to play
+    /// after this item, so it gets a Skip Credits chip instead of the poster.
+    var creditsMarkerWithoutUpNextID: Int?
+    /// Ends the session for a skip that runs off the end of the item, so it
+    /// does not depend on how each engine treats a seek to the very end.
+    var skipToEndHandler: (@MainActor () -> Void)?
     var hasConfiguredAutomaticTrackSelection = false
     var hasAppliedAutomaticAudioSelection = false
     /// Retained across onAppear/configuration of this same player. Global

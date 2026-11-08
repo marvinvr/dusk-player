@@ -9,6 +9,8 @@ extension PlayerViewModel {
     private static let playPauseAnimation: Animation = .snappy(duration: 0.1)
     private static let pendingPlaybackStateGracePeriod: TimeInterval = 0.35
     private static let seekFeedbackDisplayDuration: Duration = .milliseconds(325)
+    /// Credits ending this close to the item's end have nothing left to show.
+    private static let creditsSkipEndTolerance: TimeInterval = 2
     private static let markerSkipPadding: TimeInterval = 0.5
     /// How long the Skip Intro chip counts down before it skips or hides.
     /// Tests shorten it; playback always uses five seconds.
@@ -104,6 +106,7 @@ extension PlayerViewModel {
         guard markerID != lastNotifiedCreditsMarkerID else { return }
 
         lastNotifiedCreditsMarkerID = markerID
+        creditsMarkerWithoutUpNextID = nil
         upNextPosterHandler?(reachedCreditsMarker)
     }
 
@@ -243,12 +246,16 @@ extension PlayerViewModel {
         noteAutoSkipSpent(for: marker)
 
         let targetTime = (TimeInterval(marker.endTimeOffset) / 1000.0) + Self.markerSkipPadding
+        if marker.isCredits, duration > 0, targetTime >= duration - Self.creditsSkipEndTolerance,
+           let skipToEndHandler {
+            skipToEndHandler()
+            return
+        }
         seek(to: targetTime, revealControls: true)
     }
 
-    /// Handles a tap on the Skip Intro button. Credits no longer route through
-    /// here — they are handled by the bottom-right Up Next poster instead of a
-    /// skip button.
+    /// Handles a tap on a skip chip (Skip Intro, or Skip Credits where the Up
+    /// Next poster does not cover them; see `activeSkipMarker`).
     func handleSkipMarker(_ marker: PlexMarker) {
         cancelAutoSkipCountdown()
         skipActiveMarker()
@@ -689,9 +696,10 @@ extension PlayerViewModel {
         }
     }
 
-    /// Countdown reached zero while `marker` is still the active intro.
-    /// Auto-skip on seeks past it. Auto-skip off (including "always except
-    /// episode 1" on the first episode) only hides the chip.
+    /// Countdown reached zero while `marker` is still the active chip. Auto-skip
+    /// on (Auto-Skip Intros / Auto-Skip Credits by marker type) skips it.
+    /// Auto-skip off (including "always except episode 1" on the first episode)
+    /// only hides the chip.
     private func finishAutoSkipCountdown(for marker: PlexMarker) {
         guard autoSkipCountdownMarkerID == marker.id else { return }
 
@@ -703,7 +711,6 @@ extension PlayerViewModel {
 
         guard hasConfiguredAutomaticTrackSelection,
               !isScrubbing,
-              currentMarker.isIntro,
               !spentAutoSkipMarkerIDs.contains(currentMarker.id) else {
             cancelAutoSkipCountdown()
             return
@@ -712,7 +719,10 @@ extension PlayerViewModel {
         autoSkipCountdownMarkerID = nil
         autoSkipCountdownProgress = nil
 
-        guard shouldAutoSkipIntroMarkers else {
+        let shouldSkip = currentMarker.isCredits
+            ? userPreferences?.autoSkipCredits == true
+            : shouldAutoSkipIntroMarkers
+        guard shouldSkip else {
             countdownDismissedMarkerID = currentMarker.id
             return
         }

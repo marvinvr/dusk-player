@@ -145,25 +145,30 @@ extension PlaybackCoordinator {
     /// poster once the credits marker is reached. Called from the player when
     /// the reached credits marker changes; safe to call repeatedly for the same
     /// marker (it no-ops once a poster for that marker is up).
+    ///
+    /// - Returns: true when nothing follows this item (a film, a show's last
+    ///   episode, the end of a queue), so no poster can ever appear for it.
+    @discardableResult
     func presentUpNextPosterIfPossible(
         creditsMarkerID: Int,
         isEstimated: Bool,
         presentationID expectedPresentationID: UUID,
         ratingKey expectedRatingKey: String?
-    ) async {
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return }
-        if let existing = upNextPoster, existing.creditsMarkerID == creditsMarkerID { return }
+    ) async -> Bool {
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
+        if let existing = upNextPoster, existing.creditsMarkerID == creditsMarkerID { return false }
         // The full-screen Up Next screen takes precedence over the poster.
-        guard upNextPresentation == nil else { return }
+        guard upNextPresentation == nil else { return false }
 
-        guard let activeItemDetails else { return }
+        guard let activeItemDetails else { return false }
 
         let startedAt = ContinuousClock.now
-        guard let candidate = await resolveUpNext(after: activeItemDetails, prefersDownloadCache: true) else { return }
-        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return }
-        guard upNextPresentation == nil else { return }
+        let resolved = await resolveUpNext(after: activeItemDetails, prefersDownloadCache: true)
+        guard isActiveSession(presentationID: expectedPresentationID, ratingKey: expectedRatingKey) else { return false }
+        guard let candidate = resolved else { return true }
+        guard upNextPresentation == nil else { return false }
         // A poster for a newer credits marker was raised while we resolved.
-        if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return }
+        if let existing = upNextPoster, existing.creditsMarkerID != creditsMarkerID { return false }
 
         let mode = upNextPosterMode(creditsMarkerID: creditsMarkerID, estimated: isEstimated)
         var poster = UpNextPosterPresentation(
@@ -189,6 +194,7 @@ extension PlaybackCoordinator {
             noteAutoSkipSpent(markerID: creditsMarkerID)
             startUpNextPosterCountdown()
         }
+        return false
     }
 
     /// Hides the poster and cancels any pending auto-advance. Used when the user
@@ -302,6 +308,7 @@ extension PlaybackCoordinator {
         let duration = Double(countdown)
         guard duration > 0 else {
             upNextPosterCountdownTask = Task { @MainActor [weak self] in
+                self?.upNextPosterCountdownTask = nil
                 await self?.startUpNextPosterPlayback(trigger: .autoplay)
             }
             return
@@ -355,6 +362,10 @@ extension PlaybackCoordinator {
             }
 
             if Task.isCancelled { return }
+            // This task now runs the start. Letting go of it first keeps
+            // `cancelUpNextPosterCountdown` from cancelling the attempt itself,
+            // which fails every timed advance with no error of its own.
+            self.upNextPosterCountdownTask = nil
             await self.startUpNextPosterPlayback(trigger: .autoplay)
         }
     }

@@ -85,17 +85,28 @@ extension PlayerViewModel {
             : String(format: "−%d:%02d", minutes, seconds)
     }
 
-    /// The actionable intro marker at the current position, surfaced as the
-    /// "Skip Intro" button. Credits are handled by the Up Next poster instead of
-    /// a skip button, so they are deliberately excluded here.
+    /// The marker at the current position that gets a skip chip. Always the
+    /// intro. Credits only when the Up Next poster does not cover them: an
+    /// earlier credits marker (a post-credits scene follows it), or the last one
+    /// when nothing comes next (a film, a show's last episode, a queue's end).
     var activeSkipMarker: PlexMarker? {
         let positionMs = Int(displayPosition * 1000)
-        return markers.first {
-            $0.isIntro &&
-                $0.skipButtonTitle != nil &&
-                $0.contains(positionMs: positionMs) &&
-                $0.id != countdownDismissedMarkerID
+        let upNextCreditsMarkerID = upNextCreditsMarker?.id
+        return markers.first { marker in
+            let hasChip = marker.isIntro || (marker.isCredits && (
+                marker.id != upNextCreditsMarkerID || marker.id == creditsMarkerWithoutUpNextID
+            ))
+            return hasChip &&
+                marker.skipButtonTitle != nil &&
+                marker.contains(positionMs: positionMs) &&
+                marker.id != countdownDismissedMarkerID
         }
+    }
+
+    /// The credits marker the episode actually ends on. Plex can ship several
+    /// (sorted by start): an earlier one must not advance past what follows it.
+    private var upNextCreditsMarker: PlexMarker? {
+        markers.last(where: { $0.isCredits })
     }
 
     /// The structural landmarks Dusk actually has for an item. Plex exposes no
@@ -117,7 +128,7 @@ extension PlayerViewModel {
         let positionMs = Int(currentTime * 1000)
 
         // Prefer Plex's own credits marker whenever it exists.
-        if let credits = markers.first(where: { $0.isCredits }) {
+        if let credits = upNextCreditsMarker {
             return positionMs >= credits.startTimeOffset ? credits : nil
         }
 

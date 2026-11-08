@@ -372,7 +372,7 @@ struct PlayerUpNextOverlayView: View {
         if presentation.autoplayBlockedByPassoutProtection {
             return "AUTOPLAY PAUSED"
         }
-        if !presentation.shouldAutoplay, case .playbackEnded = presentation.source {
+        if !presentation.shouldAutoplay, presentation.errorMessage == nil, case .playbackEnded = presentation.source {
             return "ARE YOU STILL WATCHING?"
         }
         if let queueTitle = presentation.queueTitle {

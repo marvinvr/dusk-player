@@ -741,6 +741,9 @@ private struct PlayerSessionView: View {
             viewModel.upNextPosterHandler = { creditsMarker in
                 handleReachedCreditsMarker(creditsMarker)
             }
+            viewModel.skipToEndHandler = {
+                Task { await playback.handlePlaybackEnded() }
+            }
             viewModel.playbackSnapshotHandler = { state, _, _ in
                 guard playback.playerPresentationID == presentationID else { return }
                 playback.nowPlayingController.updatePlaybackState(
@@ -780,6 +783,7 @@ private struct PlayerSessionView: View {
         .onDisappear {
             viewModel.playbackSnapshotHandler = nil
             viewModel.upNextPosterHandler = nil
+            viewModel.skipToEndHandler = nil
             viewModel.userTrackSelectionHandler = nil
             viewModel.plexTrackSelectionHandler = nil
             viewModel.externalSubtitleRestartHandler = nil
@@ -1269,12 +1273,16 @@ private struct PlayerSessionView: View {
         let presentationID = playback.playerPresentationID
         let ratingKey = playback.ratingKey
         Task {
-            await playback.presentUpNextPosterIfPossible(
+            let nothingFollows = await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
                 isEstimated: marker.isEstimated,
                 presentationID: presentationID,
                 ratingKey: ratingKey
             )
+            // Still in these credits: offer Skip Credits instead of the poster.
+            if nothingFollows, viewModel.reachedCreditsMarker?.id == marker.id {
+                viewModel.creditsMarkerWithoutUpNextID = marker.id
+            }
         }
     }
 

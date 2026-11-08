@@ -99,6 +99,55 @@ struct PlayerIntroAutoSkipTests {
         #expect(harness.viewModel.spentAutoSkipMarkerIDs.contains(harness.marker.id))
     }
 
+    @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
+        let early = PlexMarker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
+        let final = PlexMarker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let engine = IntroAutoSkipPlaybackEngine(currentTime: 35)
+        let viewModel = PlayerViewModel(engine: engine, markers: [early, final])
+        defer { viewModel.cleanup() }
+
+        // Inside the earlier marker: no Up Next yet, a chip for the mid-way skip.
+        viewModel.sync()
+        #expect(viewModel.reachedCreditsMarker == nil)
+        #expect(viewModel.activeSkipMarker?.id == early.id)
+
+        // The last marker belongs to the poster while something follows.
+        engine.currentTime = 105
+        viewModel.sync()
+        #expect(viewModel.reachedCreditsMarker?.id == final.id)
+        #expect(viewModel.activeSkipMarker == nil)
+
+        // Nothing follows (a film): Skip Credits instead.
+        viewModel.creditsMarkerWithoutUpNextID = final.id
+        #expect(viewModel.activeSkipMarker?.id == final.id)
+    }
+
+    @Test func skippingCreditsToTheEndEndsPlaybackInsteadOfSeeking() {
+        let final = PlexMarker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)
+        let engine = IntroAutoSkipPlaybackEngine(currentTime: 105)
+        let viewModel = PlayerViewModel(engine: engine, markers: [final])
+        defer { viewModel.cleanup() }
+        var endCalls = 0
+        viewModel.skipToEndHandler = { endCalls += 1 }
+
+        viewModel.sync()
+        viewModel.creditsMarkerWithoutUpNextID = final.id
+        viewModel.skipActiveMarker()
+
+        #expect(endCalls == 1)
+        #expect(engine.seekTargets.isEmpty)
+    }
+
+    @Test func estimatedCreditsNeverGetAChip() {
+        let engine = IntroAutoSkipPlaybackEngine(currentTime: 118)
+        let viewModel = PlayerViewModel(engine: engine, markers: [])
+        defer { viewModel.cleanup() }
+
+        viewModel.sync()
+        #expect(viewModel.reachedCreditsMarker?.isEstimated == true)
+        #expect(viewModel.activeSkipMarker == nil)
+    }
+
     private func waitForCountdown() async throws {
         try await Task.sleep(for: .milliseconds(1_000))
     }
