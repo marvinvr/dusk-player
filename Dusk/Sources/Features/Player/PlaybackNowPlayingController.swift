@@ -422,6 +422,23 @@ private extension PlaybackNowPlayingController {
         return "\(details.title) (\(code))"
     }
 
+    /// Show poster, then season poster, then the episode still. Every other
+    /// type keeps its own poster (`thumb`) ahead of the inherited images.
+    func nowPlayingArtworkPath(for details: PlexMediaDetails) -> String? {
+        switch details.type {
+        case .episode:
+            return details.grandparentThumb
+                ?? details.parentThumb
+                ?? details.thumb
+                ?? details.art
+        case .movie, .show, .season, .person, .clip, .artist, .album, .track, .collection, .unknown:
+            return details.thumb
+                ?? details.grandparentThumb
+                ?? details.parentThumb
+                ?? details.art
+        }
+    }
+
     func nowPlayingSubtitle(for details: PlexMediaDetails) -> String? {
         switch details.type {
         case .episode:
@@ -439,10 +456,9 @@ private extension PlaybackNowPlayingController {
     }
 
     func loadArtwork(for details: PlexMediaDetails, using plexService: PlexService) {
-        let artworkPath = details.thumb
-            ?? details.grandparentThumb
-            ?? details.parentThumb
-            ?? details.art
+        // Lock screen and Control Centre. An episode still is a screenshot;
+        // the show poster reads cleaner there (#57). Movies keep their poster.
+        let artworkPath = nowPlayingArtworkPath(for: details)
 
         guard let artworkURL = plexService.imageURL(
             for: artworkPath,
