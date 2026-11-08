@@ -1454,9 +1454,12 @@ extension AVPlayerEngine {
         stopVideoQualityMonitor()
         videoQualityTask = Task { [weak self, weak item] in
             while !Task.isCancelled {
-                // Not bound across the sleep: the task must not keep the engine alive.
-                guard let item, let engine = self, engine.player.currentItem === item else { return }
-                await engine.refreshVideoQuality(of: item)
+                // Scoped so it ends before the sleep: the task must not keep the
+                // engine alive.
+                do {
+                    guard let item, let engine = self, engine.player.currentItem === item else { return }
+                    await engine.refreshVideoQuality(of: item)
+                }
                 try? await Task.sleep(for: AVPlayerEngine.videoQualityInterval)
             }
         }
@@ -1474,8 +1477,8 @@ extension AVPlayerEngine {
         // Follows the variant on screen, unlike anything read from the asset.
         let size = item.presentationSize
         if size.width > 0, size.height > 0 {
-            quality.width = Int(size.width.rounded())
-            quality.height = Int(size.height.rounded())
+            quality.width = Int(exactly: size.width.rounded())
+            quality.height = Int(exactly: size.height.rounded())
         }
 
         // `indicatedBitrate` is the playing variant's declared BANDWIDTH;
@@ -1484,7 +1487,7 @@ extension AVPlayerEngine {
         let accessLogEvent = item.accessLog()?.events.last
         let indicatedBitrate = accessLogEvent?.indicatedBitrate ?? 0
         if indicatedBitrate > 0 {
-            quality.bitrate = Int(indicatedBitrate)
+            quality.bitrate = Int(exactly: indicatedBitrate.rounded())
         }
 
         let variants = await hlsVariants(of: item)
@@ -1513,7 +1516,7 @@ extension AVPlayerEngine {
                 quality.frameRate = PlaybackVideoQuality.snappedFrameRate(Double(nominal))
             }
             if quality.bitrate == nil, let estimated = try? await assetTrack.load(.estimatedDataRate), estimated > 0 {
-                quality.bitrate = Int(estimated)
+                quality.bitrate = Int(exactly: estimated.rounded())
                 quality.bitrateIsEstimate = true
             }
         }
@@ -1521,7 +1524,7 @@ extension AVPlayerEngine {
             quality.frameRate = PlaybackVideoQuality.snappedFrameRate(Double(measured))
         }
         if quality.bitrate == nil, let average = accessLogEvent?.averageVideoBitrate, average > 0 {
-            quality.bitrate = Int(average)
+            quality.bitrate = Int(exactly: average.rounded())
             quality.bitrateIsEstimate = true
         }
 

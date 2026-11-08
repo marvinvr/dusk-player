@@ -4,6 +4,27 @@ import Testing
 
 @Suite("Currently playing video quality")
 struct PlaybackVideoQualityTests {
+    @Test func vlcDemuxRateConvertsARealReading() {
+        // 0.5 bytes per microsecond is 4 Mbps.
+        #expect(PlaybackVideoQuality.bitsPerSecond(fromVLCDemuxRate: 0.5) == 4_000_000)
+    }
+
+    /// These reach `Int()` otherwise, which traps. 0x6F123456 is the low half of
+    /// an arm64 stack address read as a float, the kind of value left behind when
+    /// `-[VLCMedia statistics]` returns uninitialized memory.
+    @Test(arguments: [
+        Float(bitPattern: 0x6F12_3456),
+        Float(bitPattern: 0x5380_0000),
+        Float.infinity,
+        Float.nan,
+        Float.greatestFiniteMagnitude,
+        0,
+        -1,
+    ])
+    func vlcDemuxRateRejectsImpossibleReadings(rate: Float) {
+        #expect(PlaybackVideoQuality.bitsPerSecond(fromVLCDemuxRate: rate) == nil)
+    }
+
     @Test func summaryNamesEveryKnownFactAndLeavesOutSDR() {
         let quality = PlaybackVideoQuality(
             width: 3840, height: 2160, frameRate: 23.976, codec: "HEVC",

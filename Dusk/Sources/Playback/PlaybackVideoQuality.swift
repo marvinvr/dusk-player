@@ -69,6 +69,18 @@ struct PlaybackVideoQuality: Equatable, Sendable {
         return prefix + "\(bitrate / 1_000) kbps"
     }
 
+    /// libvlc's demux rate (bytes per microsecond) as bits per second, or nil
+    /// when it can't be a real reading. Must filter: `-[VLCMedia statistics]`
+    /// ignores whether `libvlc_media_get_stats` succeeded, so for an item with no
+    /// input yet (a queued time tick just after a media swap) it returns
+    /// uninitialized stack memory. That can read as a huge float, and `Int()` of
+    /// one traps.
+    static func bitsPerSecond(fromVLCDemuxRate rate: Float) -> Double? {
+        guard rate.isFinite, rate > 0 else { return nil }
+        let bitsPerSecond = Double(rate) * 8_000_000
+        return bitsPerSecond <= 10_000_000_000 ? bitsPerSecond : nil
+    }
+
     /// Keeps a measured bitrate from rewriting the observed property (and every
     /// view reading it) on each sample: under a 10% move it holds the old value.
     func holdingEstimatedBitrate(from previous: PlaybackVideoQuality?) -> PlaybackVideoQuality {

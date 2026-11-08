@@ -1625,8 +1625,8 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // where the track list keeps the first variant's size.
         let pictureSize = mediaPlayer.videoSize
         if pictureSize.width > 0, pictureSize.height > 0 {
-            quality.width = Int(pictureSize.width)
-            quality.height = Int(pictureSize.height)
+            quality.width = Int(exactly: pictureSize.width.rounded())
+            quality.height = Int(exactly: pictureSize.height.rounded())
         } else if let track,
                   let width = (track[VLCMediaTracksInformationVideoWidth] as? NSNumber)?.intValue, width > 0,
                   let height = (track[VLCMediaTracksInformationVideoHeight] as? NSNumber)?.intValue, height > 0 {
@@ -1647,11 +1647,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
 
         // libvlc's rate is in bytes per microsecond and swings with every demux
         // burst, so it is averaged and only used when Plex has no better figure.
-        if let demuxRate = mediaPlayer.media?.statistics.demuxBitrate, demuxRate > 0 {
-            let bitsPerSecond = Double(demuxRate) * 8_000_000
+        if let demuxRate = mediaPlayer.media?.statistics.demuxBitrate,
+           let bitsPerSecond = PlaybackVideoQuality.bitsPerSecond(fromVLCDemuxRate: demuxRate) {
             let smoothed = smoothedVideoBitrate.map { $0 * 0.8 + bitsPerSecond * 0.2 } ?? bitsPerSecond
             smoothedVideoBitrate = smoothed
-            quality.bitrate = Int(smoothed)
+            quality.bitrate = Int(exactly: smoothed.rounded())
             quality.bitrateIsEstimate = true
         }
 

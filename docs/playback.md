@@ -821,7 +821,11 @@ so the whole live HUD is derived from one instant.
   Get Info. AVPlayer re-reads it every 2 s from `presentationSize`, the access
   log's `indicatedBitrate` and the matching `AVAssetVariant`, then the video
   track; VLCKit re-reads on time ticks from `videoSize`, `tracksInformation` and
-  demux statistics, so it rests while paused. `PlaybackDebugInfo.currentVideoQuality(live:)`
+  demux statistics, so it rests while paused. Never trust `VLCMedia.statistics`
+  unfiltered: VLCKit ignores a failed `libvlc_media_get_stats` and returns
+  uninitialized memory, so the bitrate goes through
+  `bitsPerSecond(fromVLCDemuxRate:)`, and measured floats become `Int` only via
+  `Int(exactly:)`. `PlaybackDebugInfo.currentVideoQuality(live:)`
   fills gaps from Plex only for direct play, downloads and the remux, which copy
   the source; a transcode, server stream, AirPlay or live tune stays live-only,
   because Plex's metadata describes the source and not that stream. IPTV has no
