@@ -27,6 +27,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   crossfade. A slow launch keeps the logo breathing up to 10 s, then reveals
   whatever loading state is there. Once per process (profile switches and
   sign-out never show it); off in screenshot mode unless `-DuskLaunchSplash YES`.
+  All of its motion is sampled up front into `CAKeyframeAnimation`s so the render
+  server plays it: the exit overlaps Home's first paint, so anything driven from
+  the main thread (a `TimelineView`, SwiftUI animations) stutters (#54).
 - Connecting is not a gate. `ServerConnectionCoordinator` (injected into the
   environment by `ContentView`) connects every enabled server in parallel while
   the shell is already on screen; each server's content appears as it answers.

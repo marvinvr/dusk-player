@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Whether the screen under the launch splash has something worth revealing.
 ///
@@ -33,27 +34,34 @@ final class LaunchSplashState {
 /// launch only costs the exit itself. A slow launch keeps the logo on screen
 /// with a quiet breathing pulse instead of a spinner, up to `patience`, after
 /// which the splash leaves anyway and the screen's own loading state shows.
+///
+/// The motion is played by Core Animation, never by a per-frame SwiftUI update.
+/// The exit runs exactly while Home's first paint, focus and artwork keep the
+/// main thread busy, so anything drawn from the main thread stutters (#54). The
+/// curves are sampled up front and handed to the render server, which keeps
+/// going however long the main thread is blocked.
 struct LaunchSplashOverlay: View {
     let state: LaunchSplashState
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var startedAt = Date()
-    @State private var exitStartedAt: Date?
+    @State private var exitStyle: LaunchSplashExitStyle?
     @State private var isFinished = false
 
-    /// How long a launch may stay still before the logo starts to breathe.
-    private static let pulseDelay: TimeInterval = 0.6
-    private static let pulsePeriod: TimeInterval = 1.6
     /// The longest the splash covers a launch that never reports ready.
     private static let patience: Duration = .seconds(10)
+    /// The exit reports its own end; this only covers it never being told, as
+    /// when the system drops running animations on the way to the background.
+    private static let finishFallbackMargin: TimeInterval = 2
 
     var body: some View {
         if !isFinished {
-            TimelineView(.animation) { context in
-                canvas(frame: frame(at: context.date))
-            }
+            LaunchSplashAnimationView(
+                exitStyle: exitStyle,
+                reduceMotion: reduceMotion,
+                onExitFinished: { isFinished = true }
+            )
             .ignoresSafeArea()
-            .allowsHitTesting(exitStartedAt == nil)
+            .allowsHitTesting(exitStyle == nil)
             .accessibilityHidden(true)
             .onChange(of: state.isContentReady, initial: true) { _, isReady in
                 if isReady { beginExit() }
@@ -65,27 +73,57 @@ struct LaunchSplashOverlay: View {
         }
     }
 
-    // MARK: - Drawing
-
-    private struct Frame {
-        var logoScale: CGFloat = 1
-        var logoOpacity: Double = 1
-        var backdropOpacity: Double = 1
-    }
-
-    private func canvas(frame: Frame) -> some View {
-        ZStack {
-            Color.duskBackground
-                .opacity(frame.backdropOpacity)
-
-            Image("LaunchLogo")
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(width: Self.logoSize.width, height: Self.logoSize.height)
-                .scaleEffect(frame.logoScale, anchor: Self.zoomAnchor)
-                .opacity(frame.logoOpacity)
+    private func beginExit() {
+        guard exitStyle == nil, !isFinished else { return }
+        let style = LaunchSplashExitStyle.current(reduceMotion: reduceMotion)
+        exitStyle = style
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(style.duration + Self.finishFallbackMargin))
+            isFinished = true
         }
     }
+}
+
+// MARK: - Layers
+
+private struct LaunchSplashAnimationView: UIViewRepresentable {
+    let exitStyle: LaunchSplashExitStyle?
+    let reduceMotion: Bool
+    let onExitFinished: () -> Void
+
+    func makeUIView(context: Context) -> LaunchSplashUIView {
+        LaunchSplashUIView(reduceMotion: reduceMotion)
+    }
+
+    func updateUIView(_ view: LaunchSplashUIView, context: Context) {
+        view.onExitFinished = onExitFinished
+        if let exitStyle {
+            view.beginExit(style: exitStyle)
+        }
+    }
+}
+
+private final class LaunchSplashUIView: UIView {
+    var onExitFinished: (() -> Void)?
+
+    private let reduceMotion: Bool
+    private let backdrop = UIView()
+    /// Carries the breathing pulse. The exit plays on `logo` inside it, so the
+    /// two multiply: the exit picks up from the logo as the pulse left it.
+    private let pulseContainer = UIView()
+    private let logo = UIImageView(image: UIImage(named: "LaunchLogo"))
+    private var hasStartedPulse = false
+    private var hasBegunExit = false
+
+    private static let exitAnimationKey = "launchSplashExit"
+    private static let pulseAnimationKey = "launchSplashPulse"
+
+    /// How long a launch may stay still before the logo starts to breathe.
+    private static let pulseDelay: TimeInterval = 0.6
+    private static let pulsePeriod: TimeInterval = 1.6
+    /// Dense enough that the straight segments between samples never show,
+    /// even at 120 Hz on the steep end of the fly-through.
+    private static let samplesPerSecond = 120.0
 
     /// Matches the launch storyboards exactly, so the handoff from the system
     /// launch screen is invisible.
@@ -100,25 +138,166 @@ struct LaunchSplashOverlay: View {
     /// The middle of the hollow inside the play triangle (the artwork is
     /// 980 × 1130, the hollow centres around x 355). Zooming here flies through
     /// the opening instead of into a tile.
-    private static let zoomAnchor = UnitPoint(x: 0.36, y: 0.5)
+    private static let zoomAnchor = CGPoint(x: 0.36, y: 0.5)
 
-    // MARK: - Timing
+    init(reduceMotion: Bool) {
+        self.reduceMotion = reduceMotion
+        super.init(frame: .zero)
 
-    private enum ExitStyle {
-        case flyThrough
-        case pushIn
-        case crossfade
+        backdrop.backgroundColor = UIColor(Color.duskBackground)
+        addSubview(backdrop)
 
-        var duration: TimeInterval {
-            switch self {
-            case .flyThrough: 1.0
-            case .pushIn: 0.7
-            case .crossfade: 0.4
-            }
-        }
+        logo.contentMode = .scaleAspectFit
+        // The artwork is several times its on-screen size until the zoom
+        // catches up with it; without mipmaps its edges shimmer.
+        logo.layer.minificationFilter = .trilinear
+        pulseContainer.addSubview(logo)
+        addSubview(pulseContainer)
+
+        pulseContainer.layer.anchorPoint = Self.zoomAnchor
+        logo.layer.anchorPoint = Self.zoomAnchor
     }
 
-    private var exitStyle: ExitStyle {
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        backdrop.frame = bounds
+
+        // Bounds and position rather than frame: both views carry a transform
+        // while animating, and an off-centre anchor.
+        let size = Self.logoSize
+        let anchorOffset = CGPoint(x: size.width * Self.zoomAnchor.x, y: size.height * Self.zoomAnchor.y)
+        pulseContainer.bounds = CGRect(origin: .zero, size: size)
+        pulseContainer.layer.position = CGPoint(
+            x: bounds.midX - size.width / 2 + anchorOffset.x,
+            y: bounds.midY - size.height / 2 + anchorOffset.y
+        )
+        logo.bounds = CGRect(origin: .zero, size: size)
+        logo.layer.position = anchorOffset
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, !hasStartedPulse, !hasBegunExit else { return }
+        hasStartedPulse = true
+        startPulse()
+    }
+
+    func beginExit(style: LaunchSplashExitStyle) {
+        guard !hasBegunExit else { return }
+        hasBegunExit = true
+        freezePulse()
+
+        let end = style.frame(at: 1)
+        let values = Self.samples(duration: style.duration) { style.frame(at: $0) }
+        let duration = style.duration
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        CATransaction.setCompletionBlock { [weak self] in
+            self?.onExitFinished?()
+        }
+        // The model holds the end state, so nothing snaps back in the moment
+        // between the animations ending and the overlay leaving the hierarchy.
+        logo.layer.transform = CATransform3DMakeScale(end.logoScale, end.logoScale, 1)
+        logo.layer.opacity = Float(end.logoOpacity)
+        backdrop.layer.opacity = Float(end.backdropOpacity)
+
+        let scale = Self.keyframes("transform.scale", duration: duration, values: values.map(\.logoScale))
+        logo.layer.add(scale, forKey: "\(Self.exitAnimationKey).scale")
+        let logoOpacity = Self.keyframes("opacity", duration: duration, values: values.map(\.logoOpacity))
+        logo.layer.add(logoOpacity, forKey: "\(Self.exitAnimationKey).opacity")
+        let backdropOpacity = Self.keyframes("opacity", duration: duration, values: values.map(\.backdropOpacity))
+        backdrop.layer.add(backdropOpacity, forKey: Self.exitAnimationKey)
+        CATransaction.commit()
+    }
+
+    // MARK: Pulse
+
+    private func startPulse() {
+        // A launch that is ready at once never reaches the pulse.
+        let count = Int(Self.pulsePeriod * Self.samplesPerSecond)
+        let breaths = (0...count).map { index -> Double in
+            (1 - cos(2 * .pi * Double(index) / Double(count))) / 2
+        }
+        let beginTime = CACurrentMediaTime() + Self.pulseDelay
+
+        let opacity = Self.keyframes(
+            "opacity",
+            duration: Self.pulsePeriod,
+            values: breaths.map { 1 - 0.18 * $0 }
+        )
+        opacity.beginTime = beginTime
+        opacity.repeatCount = .infinity
+        pulseContainer.layer.add(opacity, forKey: "\(Self.pulseAnimationKey).opacity")
+
+        guard !reduceMotion else { return }
+        let scale = Self.keyframes(
+            "transform.scale",
+            duration: Self.pulsePeriod,
+            values: breaths.map { 1 + 0.035 * $0 }
+        )
+        scale.beginTime = beginTime
+        scale.repeatCount = .infinity
+        pulseContainer.layer.add(scale, forKey: "\(Self.pulseAnimationKey).scale")
+    }
+
+    /// Stops the pulse where it is, so the exit doesn't snap back to rest.
+    private func freezePulse() {
+        let layer = pulseContainer.layer
+        guard let current = layer.presentation() else {
+            layer.removeAllAnimations()
+            return
+        }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        layer.transform = current.transform
+        layer.opacity = current.opacity
+        layer.removeAllAnimations()
+        CATransaction.commit()
+    }
+
+    // MARK: Keyframes
+
+    private static func samples(
+        duration: TimeInterval,
+        _ frame: (Double) -> LaunchSplashFrame
+    ) -> [LaunchSplashFrame] {
+        let count = max(Int(duration * samplesPerSecond), 1)
+        return (0...count).map { frame(Double($0) / Double(count)) }
+    }
+
+    private static func keyframes<Value>(
+        _ keyPath: String,
+        duration: TimeInterval,
+        values: [Value]
+    ) -> CAKeyframeAnimation {
+        let animation = CAKeyframeAnimation(keyPath: keyPath)
+        animation.values = values
+        animation.duration = duration
+        animation.calculationMode = .linear
+        return animation
+    }
+}
+
+// MARK: - Curves
+
+private struct LaunchSplashFrame {
+    var logoScale: CGFloat = 1
+    var logoOpacity: Double = 1
+    var backdropOpacity: Double = 1
+}
+
+private enum LaunchSplashExitStyle: Equatable {
+    case flyThrough
+    case pushIn
+    case crossfade
+
+    static func current(reduceMotion: Bool) -> LaunchSplashExitStyle {
         if reduceMotion { return .crossfade }
         #if os(tvOS)
         return .flyThrough
@@ -127,44 +306,16 @@ struct LaunchSplashOverlay: View {
         #endif
     }
 
-    private func beginExit() {
-        guard exitStartedAt == nil, !isFinished else { return }
-        let now = Date()
-        exitStartedAt = now
-        let duration = exitStyle.duration
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(duration))
-            isFinished = true
+    var duration: TimeInterval {
+        switch self {
+        case .flyThrough: 1.0
+        case .pushIn: 0.7
+        case .crossfade: 0.4
         }
     }
 
-    private func frame(at date: Date) -> Frame {
-        var frame = Frame()
-
-        // The pulse freezes where it is once the exit starts, so the exit
-        // picks up from the logo as it is rather than snapping back.
-        let pulseClock = min(date, exitStartedAt ?? date)
-        let pulseTime = pulseClock.timeIntervalSince(startedAt) - Self.pulseDelay
-        if pulseTime > 0 {
-            let breath = (1 - cos(2 * .pi * pulseTime / Self.pulsePeriod)) / 2
-            frame.logoOpacity = 1 - 0.18 * breath
-            if !reduceMotion {
-                frame.logoScale = 1 + 0.035 * breath
-            }
-        }
-
-        guard let exitStartedAt else { return frame }
-        let style = exitStyle
-        let progress = min(max(date.timeIntervalSince(exitStartedAt) / style.duration, 0), 1)
-        let exit = Self.exitFrame(style: style, progress: progress)
-        frame.logoScale *= exit.logoScale
-        frame.logoOpacity *= exit.logoOpacity
-        frame.backdropOpacity = exit.backdropOpacity
-        return frame
-    }
-
-    private static func exitFrame(style: ExitStyle, progress p: Double) -> Frame {
-        switch style {
+    func frame(at p: Double) -> LaunchSplashFrame {
+        switch self {
         case .flyThrough:
             // 0–18 %: settle back a touch. Then an accelerating, exponential
             // zoom (constant-feeling growth that keeps speeding up) to far past
@@ -174,11 +325,11 @@ struct LaunchSplashOverlay: View {
             let dip = 0.92
             if p < anticipation {
                 let t = easeOut(p / anticipation)
-                return Frame(logoScale: 1 - (1 - dip) * t, logoOpacity: 1, backdropOpacity: 1)
+                return LaunchSplashFrame(logoScale: 1 - (1 - dip) * t, logoOpacity: 1, backdropOpacity: 1)
             }
             let q = (p - anticipation) / (1 - anticipation)
             let scale = dip * pow(26 / dip, q * q)
-            return Frame(
+            return LaunchSplashFrame(
                 logoScale: scale,
                 logoOpacity: 1 - smoothstep(0.62, 1.0, q),
                 backdropOpacity: 1 - smoothstep(0.3, 0.85, q)
@@ -188,24 +339,24 @@ struct LaunchSplashOverlay: View {
             let dip = 0.95
             if p < anticipation {
                 let t = easeOut(p / anticipation)
-                return Frame(logoScale: 1 - (1 - dip) * t, logoOpacity: 1, backdropOpacity: 1)
+                return LaunchSplashFrame(logoScale: 1 - (1 - dip) * t, logoOpacity: 1, backdropOpacity: 1)
             }
             let q = (p - anticipation) / (1 - anticipation)
-            return Frame(
+            return LaunchSplashFrame(
                 logoScale: dip * pow(2.6 / dip, easeIn(q)),
                 logoOpacity: 1 - smoothstep(0.05, 0.7, q),
                 backdropOpacity: 1 - smoothstep(0.2, 1.0, q)
             )
         case .crossfade:
             let fade = 1 - smoothstep(0, 1, p)
-            return Frame(logoScale: 1, logoOpacity: fade, backdropOpacity: fade)
+            return LaunchSplashFrame(logoScale: 1, logoOpacity: fade, backdropOpacity: fade)
         }
     }
 
-    private static func easeOut(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
-    private static func easeIn(_ t: Double) -> Double { t * t }
+    private func easeOut(_ t: Double) -> Double { 1 - pow(1 - t, 3) }
+    private func easeIn(_ t: Double) -> Double { t * t }
 
-    private static func smoothstep(_ edge0: Double, _ edge1: Double, _ x: Double) -> Double {
+    private func smoothstep(_ edge0: Double, _ edge1: Double, _ x: Double) -> Double {
         let t = min(max((x - edge0) / (edge1 - edge0), 0), 1)
         return t * t * (3 - 2 * t)
     }
