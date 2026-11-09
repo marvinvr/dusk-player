@@ -105,8 +105,8 @@ struct PlayerTVSkipChip: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     let title: String
-    /// Auto-skip countdown, 0...1, swept across the platter.
-    let countdownProgress: Double?
+    /// Auto-skip countdown, swept across the platter.
+    let countdownClock: UpNextCountdownClock?
     let isSelected: Bool
 
     var body: some View {
@@ -140,13 +140,12 @@ struct PlayerTVSkipChip: View {
 
     @ViewBuilder
     private var countdownFill: some View {
-        if let countdownProgress {
-            GeometryReader { geometry in
-                Rectangle()
-                    .fill(isSelected ? Color.black.opacity(0.12) : Color.white.opacity(0.2))
-                    .frame(width: geometry.size.width * min(max(countdownProgress, 0), 1))
-                    .animation(.linear(duration: 0.1), value: countdownProgress)
-            }
+        if let countdownClock {
+            UpNextCountdownSweep(
+                clock: countdownClock,
+                color: isSelected ? Color.black.opacity(0.12) : Color.white.opacity(0.2),
+                isCapsule: false
+            )
         }
     }
 }

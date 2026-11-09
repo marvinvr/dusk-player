@@ -1156,7 +1156,7 @@ private struct PlayerSessionView: View {
                 // controller turns Select into `handleSkipMarker`.
                 PlayerTVSkipChip(
                     title: marker.skipButtonTitle ?? "Skip",
-                    countdownProgress: viewModel.autoSkipCountdownProgress,
+                    countdownClock: viewModel.autoSkipCountdownClock,
                     isSelected: isTVBottomTrailingControlSelected
                 )
                 .accessibilityAddTraits(.isButton)

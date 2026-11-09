@@ -86,7 +86,7 @@ struct PlayerPrerollView: View {
                 #if os(tvOS)
                 // Not a Button, like Skip Intro: the input bridge owns the
                 // remote and turns Select into a skip.
-                PlayerTVSkipChip(title: "Skip", countdownProgress: nil, isSelected: true)
+                PlayerTVSkipChip(title: "Skip", countdownClock: nil, isSelected: true)
                     .accessibilityAddTraits(.isButton)
                     .accessibilityLabel("Skip")
                 #else

@@ -52,7 +52,9 @@ final class PlayerViewModel {
     var isScrubbing = false
     var scrubPosition: TimeInterval = 0
     var seekFeedback: PlayerSeekFeedbackPresentation?
+    /// Moves per tick for the iOS skip button. tvOS sweeps from the clock instead.
     var autoSkipCountdownProgress: Double?
+    var autoSkipCountdownClock: UpNextCountdownClock?
     var isSpeedBoostActive = false
     /// Viewer-chosen playback speed. Separate from the transient press-and-hold
     /// 2× boost, which overrides it while held and restores it on release.

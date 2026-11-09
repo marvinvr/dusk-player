@@ -665,37 +665,35 @@ extension PlayerViewModel {
         cancelAutoSkipCountdown()
         autoSkipCountdownMarkerID = marker.id
         autoSkipCountdownProgress = 0
+        autoSkipCountdownClock = UpNextCountdownClock(duration: Self.autoSkipCountdownDuration)
 
         autoSkipCountdownTask = Task { @MainActor [weak self] in
             guard let self else { return }
             let duration = Self.autoSkipCountdownDuration
-            let startedAt = Date()
-            var pausedAt: Date?
-            var accumulatedPausedTime: TimeInterval = 0
+            var clock = UpNextCountdownClock(duration: duration)
 
             while true {
                 if Task.isCancelled { return }
 
                 let now = Date()
                 if self.state == .paused {
-                    pausedAt = pausedAt ?? now
-                    do {
-                        try await Task.sleep(for: .milliseconds(50))
-                    } catch { return }
-                    continue
+                    clock.freeze(at: now)
+                } else {
+                    clock.resume(at: now)
                 }
 
-                if let pausedAt {
-                    accumulatedPausedTime += now.timeIntervalSince(pausedAt)
+                // The tvOS chip's sweep runs on its own from the clock, so the
+                // player re-renders for a pause, never for a tick.
+                if self.autoSkipCountdownClock != clock {
+                    self.autoSkipCountdownClock = clock
                 }
+                #if !os(tvOS)
+                if clock.runningSince != nil {
+                    self.autoSkipCountdownProgress = clock.progress(at: now)
+                }
+                #endif
 
-                pausedAt = nil
-
-                let elapsed = now.timeIntervalSince(startedAt) - accumulatedPausedTime
-                let progress = min(max(elapsed / duration, 0), 1)
-                self.autoSkipCountdownProgress = progress
-
-                if progress >= 1 { break }
+                if clock.elapsed(at: now) >= duration { break }
 
                 do {
                     try await Task.sleep(for: .milliseconds(50))
@@ -730,6 +728,7 @@ extension PlayerViewModel {
 
         autoSkipCountdownMarkerID = nil
         autoSkipCountdownProgress = nil
+        autoSkipCountdownClock = nil
 
         let shouldSkip = currentMarker.isCredits
             ? userPreferences?.autoSkipCredits == true
@@ -776,6 +775,7 @@ extension PlayerViewModel {
         autoSkipCountdownTask = nil
         autoSkipCountdownMarkerID = nil
         autoSkipCountdownProgress = nil
+        autoSkipCountdownClock = nil
     }
 
     private func showSeekFeedback(for offset: TimeInterval) {

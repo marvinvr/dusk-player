@@ -484,7 +484,8 @@ struct PlayerUpNextPosterView: View {
     #endif
 }
 
-/// The countdown fill of the Up Next card, pill and full-screen screen. A fill
+/// The countdown fill of the Up Next card, pill and full-screen screen, and of
+/// the tvOS Skip chip. A fill
 /// layer slides in from the leading edge in one linear Core Animation move over
 /// the whole remaining time, so it runs on the render server: a busy main thread
 /// or a player re-render cannot make it stutter, and it moves by fractions of a

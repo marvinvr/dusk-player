@@ -57,6 +57,7 @@ struct PlayerIntroAutoSkipTests {
         #expect(harness.handlerCalls() == 0)
         #expect(harness.engine.seekTargets.isEmpty)
         #expect(harness.viewModel.activeSkipMarker == nil)
+        #expect(harness.viewModel.autoSkipCountdownClock == nil)
         #expect(harness.viewModel.countdownDismissedMarkerID == harness.marker.id)
         #expect(harness.engine.currentTime == 10)
 
@@ -97,6 +98,35 @@ struct PlayerIntroAutoSkipTests {
         #expect(harness.viewModel.countdownDismissedMarkerID == nil)
         #expect(harness.viewModel.activeSkipMarker == nil)
         #expect(harness.viewModel.spentAutoSkipMarkerIDs.contains(harness.marker.id))
+    }
+
+    @Test func countdownClockChangesOnlyOnPauseResumeAndEnd() async throws {
+        let harness = makeHarness(mode: .off, countdownDuration: 60)
+        defer { harness.restore() }
+        let viewModel = harness.viewModel
+
+        try await Task.sleep(for: .milliseconds(150))
+        let running = try #require(viewModel.autoSkipCountdownClock)
+        #expect(running.runningSince != nil)
+
+        // Ticks pass without publishing: the sweep runs on its own.
+        try await Task.sleep(for: .milliseconds(150))
+        #expect(viewModel.autoSkipCountdownClock == running)
+
+        viewModel.state = .paused
+        try await Task.sleep(for: .milliseconds(150))
+        let frozen = try #require(viewModel.autoSkipCountdownClock)
+        #expect(frozen.runningSince == nil)
+        #expect(frozen.elapsed > 0)
+
+        viewModel.state = .playing
+        try await Task.sleep(for: .milliseconds(150))
+        let resumed = try #require(viewModel.autoSkipCountdownClock)
+        #expect(resumed.runningSince != nil)
+        #expect(resumed.elapsed == frozen.elapsed)
+
+        viewModel.cancelAutoSkipCountdown()
+        #expect(viewModel.autoSkipCountdownClock == nil)
     }
 
     @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
@@ -155,10 +185,11 @@ struct PlayerIntroAutoSkipTests {
     private func makeHarness(
         mode: AutoSkipIntroMode,
         isFirstEpisodeInSeason: Bool = false,
-        skipOnHandler: Bool = false
+        skipOnHandler: Bool = false,
+        countdownDuration: TimeInterval = 0.05
     ) -> IntroAutoSkipHarness {
         let previousDuration = PlayerViewModel.autoSkipCountdownDuration
-        PlayerViewModel.autoSkipCountdownDuration = 0.05
+        PlayerViewModel.autoSkipCountdownDuration = countdownDuration
 
         let preferences = UserPreferences()
         let previousMode = preferences.autoSkipIntroMode

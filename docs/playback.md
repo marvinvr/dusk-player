@@ -2341,6 +2341,8 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   seconds or the clock change; publishing per tick re-renders `PlayerSessionView`.
   Do not go back to animating a laid-out width. The sweep re-applies its clock on
   size, window and foreground changes because the system drops running animations.
+  The tvOS Skip chip uses the same sweep from `autoSkipCountdownClock`; the iOS
+  skip button still draws from the 50 ms `autoSkipCountdownProgress`.
 - Up Next poster (replaces the old Skip Credits button for items with a
   successor): when the last credits marker is reached,
   `PlayerViewModel.reachedCreditsMarker` changes and the player calls
