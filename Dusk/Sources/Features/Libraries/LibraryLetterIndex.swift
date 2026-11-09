@@ -23,19 +23,21 @@ struct LibraryLetterIndex: Equatable, Sendable {
     /// - Parameter characters: Plex's rows, in ascending title-sort order.
     init(characters: [PlexFirstCharacter], descending: Bool) {
         let rows = characters.filter { $0.size > 0 }
+            .map { (key: Self.label(forKey: $0.key), size: $0.size) }
         totalCount = rows.reduce(0) { $0 + $1.size }
 
         var ascendingOffsets: [String: Int] = [:]
         var running = 0
         for row in rows {
-            ascendingOffsets[row.key] = running
+            if ascendingOffsets[row.key] == nil { ascendingOffsets[row.key] = running }
             running += row.size
         }
         let sizes = Dictionary(rows.map { ($0.key, $0.size) }, uniquingKeysWith: +)
 
         // Plain Latin libraries get the full alphabet, absent letters dimmed,
         // with "#" wherever Plex sorts it; anything else lists Plex's own keys.
-        let keys = rows.map(\.key)
+        var seen: Set<String> = []
+        let keys = rows.map(\.key).filter { seen.insert($0).inserted }
         let ascendingLabels: [String]
         if keys.allSatisfy({ $0 == "#" || Self.letters.contains($0) }) {
             let numbersLast = keys.last == "#" && keys.count > 1
@@ -51,6 +53,14 @@ struct LibraryLetterIndex: Equatable, Sendable {
             })
         }
         entries = descending ? ascending.reversed() : ascending
+    }
+
+    /// Plex keys numbers and symbols inconsistently ("#", "%23", the symbol
+    /// itself); every key that is not a single letter becomes one "#".
+    private static func label(forKey key: String) -> String {
+        let decoded = key.removingPercentEncoding ?? key
+        guard decoded.count == 1, let character = decoded.first, character.isLetter else { return "#" }
+        return decoded
     }
 
     /// Worth showing: more than one letter to jump between.
