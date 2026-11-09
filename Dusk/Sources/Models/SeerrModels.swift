@@ -387,6 +387,11 @@ enum SeerrRequestState: Sendable, Hashable {
             case .pending: return .pending
             case .deleted, .unknown, nil: return .requestable
             case .processing: return .processing
+            // A partly available show says some *other* season is in Plex. A
+            // season with no status of its own is missing, so it can be
+            // requested (#62: the missing season read "Partial" with no
+            // Request button).
+            case .partiallyAvailable where seasonNumber != nil: return .requestable
             case .partiallyAvailable: return .partiallyAvailable
             case .available: return .available
             case .blocklisted: return .blocklisted

@@ -115,35 +115,7 @@ struct SeerrSeasonDetailView: View {
 
                     LazyVStack(spacing: 12) {
                         ForEach(season.episodes ?? []) { episode in
-                            HStack(spacing: 18) {
-                                DuskAsyncImage(
-                                    url: viewModel.stillURL(for: episode)
-                                ) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image.resizable().scaledToFill()
-                                    default:
-                                        Color.duskSurface
-                                            .overlay(Image(systemName: "film").foregroundStyle(Color.duskTextSecondary))
-                                    }
-                                }
-                                .frame(width: 160, height: 90)
-                                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(episode.name?.nilIfEmpty ?? "Episode \(episode.episodeNumber ?? 0)")
-                                        .font(DuskFont.rowTitle(ios: .headline))
-                                        .foregroundStyle(Color.duskTextPrimary)
-                                    if let episodeNumber = episode.episodeNumber {
-                                        Text("Episode \(episodeNumber)")
-                                            .font(DuskFont.caption(ios: .caption))
-                                            .foregroundStyle(Color.duskTextSecondary)
-                                    }
-                                }
-                                Spacer()
-                            }
-                            .padding(14)
-                            .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            episodeRow(episode)
                         }
                     }
                     .padding(.horizontal, DuskPosterMetrics.detailHorizontalPadding)
@@ -159,5 +131,54 @@ struct SeerrSeasonDetailView: View {
             }
             .duskTVOSPageBackground()
         }
+    }
+
+    /// On tvOS each row is a focus stop: a season that cannot be requested
+    /// has no button in the hero, and with nothing focusable focus stayed on
+    /// the tab bar, the episodes could not be scrolled to, and Back left the
+    /// app (#62). The rows do nothing when selected.
+    @ViewBuilder
+    private func episodeRow(_ episode: SeerrEpisode) -> some View {
+        #if os(tvOS)
+        Button(action: {}) {
+            episodeRowContent(episode)
+        }
+        .buttonStyle(.card)
+        .buttonBorderShape(.roundedRectangle(radius: 16))
+        #else
+        episodeRowContent(episode)
+        #endif
+    }
+
+    private func episodeRowContent(_ episode: SeerrEpisode) -> some View {
+        HStack(spacing: 18) {
+            DuskAsyncImage(
+                url: viewModel.stillURL(for: episode)
+            ) { phase in
+                switch phase {
+                case .success(let image):
+                    image.resizable().scaledToFill()
+                default:
+                    Color.duskSurface
+                        .overlay(Image(systemName: "film").foregroundStyle(Color.duskTextSecondary))
+                }
+            }
+            .frame(width: 160, height: 90)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(episode.name?.nilIfEmpty ?? "Episode \(episode.episodeNumber ?? 0)")
+                    .font(DuskFont.rowTitle(ios: .headline))
+                    .foregroundStyle(Color.duskTextPrimary)
+                if let episodeNumber = episode.episodeNumber {
+                    Text("Episode \(episodeNumber)")
+                        .font(DuskFont.caption(ios: .caption))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 }

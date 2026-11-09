@@ -103,6 +103,12 @@ badge. Their routes open dedicated request-only details: no play, download,
 watched, or context-menu actions are present. Status is resolved from Seerr's
 media, request, and per-season records and is refreshed after a request and when
 returning to the foreground.
+A season's state comes from its own per-season record or request. The show's
+`partiallyAvailable` status never stands in for a season: it means some other
+season is in Plex, so a season with no status of its own is requestable (#62:
+a missing season read "Partial" with no Request button). The tvOS season page
+makes its episode rows focus stops, so a season that cannot be requested still
+has content to focus.
 Search suppresses media Seerr marks fully available or blocklisted; partial,
 pending, processing, and otherwise requestable records remain visible.
 

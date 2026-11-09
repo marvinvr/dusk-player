@@ -187,6 +187,10 @@ struct MainTabTVShell<Content: View>: View {
 /// whenever there is no action or the selected tab has a pushed screen: the
 /// navigation stack's own pop must win there. It also refuses while focus is
 /// in search results, where Back returns to the search keyboard instead.
+///
+/// One exception on a pushed screen: with focus on the tab bar, outside the
+/// stack, the stack never sees Back and tvOS would leave the app (#62). The
+/// recognizer takes that press and pops the stack itself.
 private struct DuskTVRootBackInterceptor: UIViewControllerRepresentable {
     let action: (() -> Void)?
 
@@ -230,16 +234,41 @@ private final class DuskTVRootBackController: UIViewController, UIGestureRecogni
     }
 
     @objc private func handleBack() {
+        // `shouldReceive` only lets a press through on a pushed screen when
+        // focus is outside it (on the tab bar); pop that stack.
+        if let tabBarController = shellTabBarController,
+           let navigationController = Self.pushedNavigationController(
+               in: tabBarController.selectedViewController ?? tabBarController
+           ) {
+            navigationController.popViewController(animated: true)
+            return
+        }
         action?()
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
-        guard action != nil, let tabBarController = shellTabBarController else { return false }
+        guard let tabBarController = shellTabBarController else { return false }
         guard tabBarController.presentedViewController == nil else { return false }
         let selected = tabBarController.selectedViewController ?? tabBarController
-        guard !Self.hasPushedScreen(in: selected) else { return false }
         let focusedItem = tabBarController.view.window?.windowScene?.focusSystem?.focusedItem
+        if Self.hasPushedScreen(in: selected) {
+            // Focus inside the tab's content: the stack's own pop wins. Focus
+            // on the tab bar: the stack never sees the press, so take it.
+            guard let focusedItem, selected !== tabBarController else { return false }
+            return !Self.isFocusItem(focusedItem, inside: selected)
+        }
+        guard action != nil else { return false }
         return !Self.isInSearchResults(focusedItem)
+    }
+
+    /// Whether `item`'s focus chain passes through `controller`.
+    private static func isFocusItem(_ item: UIFocusItem, inside controller: UIViewController) -> Bool {
+        var environment: UIFocusEnvironment? = item
+        while let current = environment {
+            if current === controller { return true }
+            environment = current.parentFocusEnvironment
+        }
+        return false
     }
 
     /// Whether `item` sits in a search controller's results rather than on
@@ -265,11 +294,22 @@ private final class DuskTVRootBackController: UIViewController, UIGestureRecogni
     /// the hood, which also covers `NavigationLink(destination:)` pushes that
     /// never appear in the tab's `NavigationPath`.
     private static func hasPushedScreen(in controller: UIViewController) -> Bool {
+        pushedNavigationController(in: controller) != nil
+    }
+
+    /// The innermost navigation stack inside `controller` that shows more
+    /// than its root: the one a Back press pops.
+    private static func pushedNavigationController(in controller: UIViewController) -> UINavigationController? {
+        for child in controller.children {
+            if let nested = pushedNavigationController(in: child) {
+                return nested
+            }
+        }
         if let navigationController = controller as? UINavigationController,
            navigationController.viewControllers.count > 1 {
-            return true
+            return navigationController
         }
-        return controller.children.contains { hasPushedScreen(in: $0) }
+        return nil
     }
 
     private func resolvedTabBarController() -> UITabBarController? {

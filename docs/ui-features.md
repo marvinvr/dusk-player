@@ -96,6 +96,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the press whenever the selected tab has a pushed screen, checked on the real
   `UINavigationController` because Settings rows push with
   `NavigationLink(destination:)`, outside the tab's `NavigationPath`.
+  Exception: on a pushed screen with focus on the tab bar (outside the selected
+  tab's controller), the stack never sees Back and tvOS would leave the app, so
+  the recognizer takes the press and pops the innermost pushed stack itself
+  (#62). Every pushed tvOS screen still needs something focusable in its
+  content, or focus starts on the tab bar.
   `onExitCommand` cannot do this: it never sees Back with focus on the tab bar.
 - `AppNavigationRoute` is the shared route enum. Add new top-level destinations there
   only when multiple features need to navigate to them.
