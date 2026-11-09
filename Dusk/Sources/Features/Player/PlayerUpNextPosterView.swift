@@ -229,7 +229,7 @@ struct PlayerUpNextPosterView: View {
 
     private var compactCountdownColor: Color {
         #if os(tvOS)
-        isSelected ? Color.black.opacity(0.12) : Color.white.opacity(0.2)
+        PlayerTVSkipChip.countdownFillColor(isSelected: isSelected)
         #else
         Color.white.opacity(0.18)
         #endif

@@ -143,10 +143,17 @@ struct PlayerTVSkipChip: View {
         if let countdownClock {
             UpNextCountdownSweep(
                 clock: countdownClock,
-                color: isSelected ? Color.black.opacity(0.12) : Color.white.opacity(0.2),
+                color: Self.countdownFillColor(isSelected: isSelected),
                 isCapsule: false
             )
         }
+    }
+
+    /// Strong enough to read over bright video, where the glass turns light
+    /// and a faint white fill disappears (#65). Shared with the compact Up Next
+    /// chip so the two match.
+    static func countdownFillColor(isSelected: Bool) -> Color {
+        isSelected ? Color.black.opacity(0.24) : Color.white.opacity(0.34)
     }
 }
 #endif
