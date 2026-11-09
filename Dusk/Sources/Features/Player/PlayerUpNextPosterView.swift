@@ -162,9 +162,17 @@ struct PlayerUpNextPosterView: View {
                     }
 
                     if let statusText {
-                        Text(compactDetail == nil ? statusText : " · \(statusText)")
-                            .monospacedDigit()
-                            .lineLimit(1)
+                        let prefix = compactDetail == nil ? "" : " · "
+                        // Holds the first count's width, so "10s" → "9s" does
+                        // not narrow the pill: a resize restarts its sweep (#61).
+                        ZStack(alignment: .leading) {
+                            if let widest = compactWidestStatusText {
+                                Text(prefix + widest).hidden()
+                            }
+                            Text(prefix + statusText)
+                        }
+                        .monospacedDigit()
+                        .lineLimit(1)
                     }
                 }
                 .font(CompactMetrics.detailFont)
@@ -198,6 +206,10 @@ struct PlayerUpNextPosterView: View {
     /// viewer is hidden, so a rewatch keeps the full card.
     private var isCompact: Bool {
         blursUnwatchedEpisodes && presentation.item.isEpisode && !presentation.item.isWatched
+    }
+
+    private var compactWidestStatusText: String? {
+        presentation.countdownClock.map { "\(Int($0.duration.rounded(.up)))s" }
     }
 
     private var compactForeground: Color {
@@ -517,6 +529,10 @@ final class UpNextCountdownSweepView: UIView {
         isUserInteractionEnabled = false
         layer.masksToBounds = true
         fill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        // Without this the moving edge snaps to whole pixels, so a slow sweep
+        // advances in uneven one-pixel steps (#61).
+        fill.allowsEdgeAntialiasing = true
+        fill.edgeAntialiasingMask = [.layerLeftEdge, .layerRightEdge]
         layer.addSublayer(fill)
 
         // The system strips running animations from a backgrounded app.
