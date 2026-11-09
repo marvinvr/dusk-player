@@ -2194,12 +2194,15 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 - Swipe scrubbing is direction-locked in the pan handler: tvOS delivers a
   touch-surface flick as *both* a pan and an arrow press, so a vertical flick is
   dropped by the pan (it is the panel gesture) and arrow presses are ignored
-  while a horizontal pan is live. Mapping is relative and velocity-scaled:
-  each pan update moves the cursor by `deltaX * gain * span`, `gain`
-  interpolated between `swipeSlowGain` and `swipeFastGain` by finger speed,
-  with `span` the seekable width on live and the timeline width otherwise. A
-  second swipe that starts before the first is committed continues from the
-  cursor (`translation` restarts at zero for every new gesture). The pan's
+  while a horizontal pan is live. Mapping is relative and in fixed seconds per
+  point, independent of runtime: each pan update moves the cursor by
+  `deltaX * secondsPerPoint`, which is `swipeSlowSecondsPerPoint` plus a share of
+  `swipeFastSecondsPerPoint` that needs both finger speed and same-direction
+  travel built up over `swipeRampDistance` (reversing drains it faster). A slow
+  drag therefore stays fine, one flick can't jump far, and repeated flicks still
+  cross a film. A second swipe that starts before the first is committed
+  continues from the cursor and keeps the ramp (`translation` restarts at zero
+  for every new gesture). The pan's
   `ended/cancelled/failed` branch is deliberately outside the capture guard: the
   controller drops arrow presses until the pan it believes is live has ended, so
   a swipe interrupted by capture going away (an Up Next overlay, a surfaced

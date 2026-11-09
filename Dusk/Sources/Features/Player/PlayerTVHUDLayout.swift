@@ -7,7 +7,8 @@ import SwiftUI
 /// The values were chosen against the tvOS simulator, where the "touch surface"
 /// is a trackpad and every click is a key press. The ones most likely to feel
 /// wrong on a real Apple TV with a real Siri Remote are called out inline:
-/// `swipeSlowGain` / `swipeFastGain`, `swipeDeadzone`,
+/// `swipeSlowSecondsPerPoint` / `swipeFastSecondsPerPoint` /
+/// `swipeRampDistance`, `swipeDeadzone`,
 /// `seekHoldInitialDelay` / `seekHoldRepeatInterval` / `seekHoldRampMultipliers`
 /// and `autoHideDelay`.
 enum PlayerTVHUDLayout {
@@ -117,16 +118,24 @@ enum PlayerTVHUDLayout {
 
     // MARK: - Swipe scrubbing
 
-    /// Fraction of the timeline one point of touch travel moves the cursor at
-    /// or below `swipeSlowVelocity`. An edge-to-edge drag on the Siri Remote is
-    /// roughly 1000pt of translation, so this is ~3% of the timeline per drag.
-    /// Smaller = slower, more precise scrubbing.
-    static let swipeSlowGain: Double = 0.00003
-    /// Same, at or above `swipeFastVelocity`: ~25% of the timeline per flick.
-    static let swipeFastGain: Double = 0.00025
+    /// Seconds of media one point of touch travel moves the cursor at or below
+    /// `swipeSlowVelocity`, whatever the runtime. An edge-to-edge drag on the
+    /// Siri Remote is roughly 1000pt of translation, so a short slow swipe
+    /// moves a few seconds and a full slow drag ~30 s.
+    static let swipeSlowSecondsPerPoint: Double = 0.03
+    /// Same, at or above `swipeFastVelocity` once the ramp is complete: ~10 min
+    /// per flick. The first flick of a scrub only gets ~2 min of that.
+    static let swipeFastSecondsPerPoint: Double = 0.6
     /// Finger speeds, in points per second, the gain is interpolated between.
     static let swipeSlowVelocity: Double = 400
     static let swipeFastVelocity: Double = 3000
+    /// Same-direction travel, across swipes, before a fast swipe gets the full
+    /// `swipeFastSecondsPerPoint`. Roughly three edge-to-edge flicks.
+    static let swipeRampDistance: Double = 3000
+    /// How much faster travel against the ramp's direction drains it, so
+    /// flicking back after an overshoot isn't coarse. Above 1 rather than an
+    /// outright reset so a little finger jitter at lift-off can't lose the ramp.
+    static let swipeRampReversalDrain: Double = 4
     /// Horizontal travel required before a pan counts as a scrub at all.
     static let swipeDeadzone: CGFloat = 6
     /// Vertical travel after which an unhurried swipe counts as one up/down

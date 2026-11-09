@@ -172,6 +172,8 @@ final class PlayerTVHUDController {
     @ObservationIgnored private var lastActionRowStep: (forward: Bool, fromSwipe: Bool, at: Date)?
     /// Cumulative pan translation already folded into `scrubTarget`.
     @ObservationIgnored private var scrubLastTranslationX: CGFloat = 0
+    /// Signed same-direction travel this scrub has built up; see `updateScrub`.
+    @ObservationIgnored private var scrubRampTravel: Double = 0
     @ObservationIgnored private var scrubOrigin: PlayerTVHUDMode = .hidden
     @ObservationIgnored private var seekAnchor: TimeInterval = 0
     @ObservationIgnored private var seekAccumulator: TimeInterval = 0
@@ -769,16 +771,19 @@ final class PlayerTVHUDController {
         seekPreviewPosition = nil
         seekAccumulator = 0
         transientBadge = nil
+        scrubRampTravel = 0
 
         scrubOrigin = mode == .hidden ? .hidden : .transport
         scrubTarget = viewModel.displayPosition
         apply(.scrubbing)
     }
 
-    /// Relative and velocity-scaled, like a trackpad pointer: every pan update
-    /// moves the cursor by its own delta, and the gain grows with finger speed.
-    /// A slow drag is fine-grained no matter how far it has already travelled,
-    /// a flick still crosses a good part of the timeline.
+    /// Relative, like a trackpad pointer: every pan update moves the cursor by
+    /// its own delta, in fixed seconds per point so a swipe covers the same
+    /// time on a short episode and a long film. A slow drag is fine-grained no
+    /// matter how far it has already travelled. Extra speed only comes from
+    /// finger speed and same-direction travel together, so one flick can't
+    /// jump far but repeated flicks still cross a film.
     private func updateScrub(translationX: CGFloat, velocityX: CGFloat) {
         guard mode == .scrubbing, let viewModel, let current = scrubTarget else { return }
 
@@ -788,29 +793,23 @@ final class PlayerTVHUDController {
         let slow = PlayerTVHUDLayout.swipeSlowVelocity
         let fast = PlayerTVHUDLayout.swipeFastVelocity
         let speed = min(max((abs(Double(velocityX)) - slow) / (fast - slow), 0), 1)
-        let gain = PlayerTVHUDLayout.swipeSlowGain
-            + (PlayerTVHUDLayout.swipeFastGain - PlayerTVHUDLayout.swipeSlowGain) * speed
 
-        scrubTarget = viewModel.clampedSeekPosition(current + delta * gain * scrubSpan)
+        let rampDistance = PlayerTVHUDLayout.swipeRampDistance
+        let ramp = min(abs(scrubRampTravel) / rampDistance, 1)
+        let secondsPerPoint = PlayerTVHUDLayout.swipeSlowSecondsPerPoint
+            + (PlayerTVHUDLayout.swipeFastSecondsPerPoint - PlayerTVHUDLayout.swipeSlowSecondsPerPoint)
+            * speed * speed * ramp
+
+        let isReversing = delta * scrubRampTravel < 0
+        let rampDelta = isReversing ? delta * PlayerTVHUDLayout.swipeRampReversalDrain : delta
+        scrubRampTravel = min(max(scrubRampTravel + rampDelta, -rampDistance), rampDistance)
+
+        scrubTarget = viewModel.clampedSeekPosition(current + delta * secondsPerPoint)
     }
 
     private func stepScrub(by offset: TimeInterval) {
         guard let viewModel, let current = scrubTarget else { return }
         scrubTarget = viewModel.clampedSeekPosition(current + offset)
-    }
-
-    /// A live play bar spans a whole scheduled program, but only the stretch
-    /// the tuned session still holds is reachable — often just minutes. Pacing
-    /// the swipe by the bar would make every touch overshoot it.
-    private var scrubSpan: TimeInterval {
-        guard let viewModel else { return 0 }
-
-        if viewModel.isLiveTV, let seekableRange = viewModel.seekableRange {
-            return seekableRange.upperBound - seekableRange.lowerBound
-        }
-
-        let range = viewModel.timelineRange
-        return range.upperBound - range.lowerBound
     }
 
     private func commitScrub() {

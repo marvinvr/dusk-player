@@ -226,13 +226,86 @@ struct PlayerTVScrubCancellationTests {
         hud.handle(.panBegan)
         #expect(hud.mode == .scrubbing)
     }
+
+    /// Issue #60: a flick on a two-hour film used to jump 30 minutes.
+    @Test func smallSlowSwipeMovesAFewSecondsWhateverTheRuntime() {
+        for duration: TimeInterval in [1500, 7200, 14400] {
+            let moved = scrubDistance(swipes: 1, points: 150, velocityX: 300, duration: duration)
+            #expect(moved > 2 && moved < 8)
+        }
+    }
+
+    @Test func oneFastFlickStaysBoundedAndRepeatedFlicksBuildUp() {
+        let first = scrubDistance(swipes: 1, points: 1000, velocityX: 4000, duration: 7200)
+        #expect(first < 180)
+
+        let second = scrubDistance(swipes: 2, points: 1000, velocityX: 4000, duration: 7200) - first
+        #expect(second > first)
+
+        // A slow drag stays fine even after the ramp has built up.
+        let slowAfterRamp = scrubDistance(swipes: 4, points: 1000, velocityX: 4000, duration: 14400, then: 150)
+            - scrubDistance(swipes: 4, points: 1000, velocityX: 4000, duration: 14400)
+        #expect(slowAfterRamp < 8)
+    }
+
+    @Test func reversingDrainsTheRampSoCorrectionsAreFiner() {
+        let engine = ScrubPlaybackEngine(duration: 14400)
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        func flick(_ direction: CGFloat) -> TimeInterval {
+            let start = hud.scrubTarget ?? engine.currentTime
+            hud.handle(.panBegan)
+            for step in 1...100 {
+                hud.handle(.panChanged(translationX: direction * CGFloat(step) * 10, velocityX: direction * 4000))
+            }
+            hud.handle(.panEnded)
+            return abs((hud.scrubTarget ?? 0) - start)
+        }
+
+        var forward: TimeInterval = 0
+        for _ in 0..<4 { forward = flick(1) }
+        #expect(flick(-1) < forward / 2)
+    }
+
+    /// Feeds `swipes` swipes of `points` in small pan updates, plus an optional
+    /// slow swipe of `then` points, and returns how far the cursor moved.
+    private func scrubDistance(
+        swipes: Int,
+        points: Int,
+        velocityX: CGFloat,
+        duration: TimeInterval,
+        then slowPoints: Int? = nil
+    ) -> TimeInterval {
+        let engine = ScrubPlaybackEngine(duration: duration)
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        func swipe(_ points: Int, velocityX: CGFloat) {
+            hud.handle(.panBegan)
+            for translation in stride(from: 10, through: points, by: 10) {
+                hud.handle(.panChanged(translationX: CGFloat(translation), velocityX: velocityX))
+            }
+            hud.handle(.panEnded)
+        }
+
+        for _ in 0..<swipes { swipe(points, velocityX: velocityX) }
+        if let slowPoints { swipe(slowPoints, velocityX: 300) }
+        return (hud.scrubTarget ?? engine.currentTime) - engine.currentTime
+    }
 }
 
 @MainActor
 private final class ScrubPlaybackEngine: PlaybackEngine {
     var state: PlaybackState = .playing
     let currentTime: TimeInterval = 120
-    let duration: TimeInterval = 600
+    let duration: TimeInterval
     let isBuffering = false
     let error: PlaybackError? = nil
     let videoEnhancementStatus = VideoEnhancementStatus.disabled
@@ -245,6 +318,10 @@ private final class ScrubPlaybackEngine: PlaybackEngine {
     var playPauseCalls = 0
     private let player = AVPlayer()
     var playbackCoordinator: AVPlaybackCoordinator { player.playbackCoordinator }
+
+    init(duration: TimeInterval = 600) {
+        self.duration = duration
+    }
 
     func load(source: PlaybackSource) {}
     func configureVideoEnhancement(_ request: VideoEnhancementRequest) {}
