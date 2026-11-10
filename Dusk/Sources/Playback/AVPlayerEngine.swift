@@ -492,7 +492,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     }
 
     func startPictureInPicture() {
-        guard let pipController, pipController.isPictureInPicturePossible else { return }
+        guard let pipController else { return }
+        guard pipController.isPictureInPicturePossible else {
+            avPlayerEngineLogger.notice("AVPlayer PiP start ignored: controller not possible")
+            return
+        }
         pipController.startPictureInPicture()
     }
 
@@ -525,7 +529,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         ) { [weak self] controller, _ in
             let possible = controller.isPictureInPicturePossible
             Task { @MainActor [weak self] in
-                self?.isPictureInPicturePossible = possible
+                guard let self, self.isPictureInPicturePossible != possible else { return }
+                avPlayerEngineLogger.debug("AVPlayer PiP possible=\(possible, privacy: .public)")
+                self.isPictureInPicturePossible = possible
             }
         }
     }
@@ -541,6 +547,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     #endif
 
     func handleReturnToForeground() {
+        #if os(iOS)
+        // The floating window renders from this very layer: detaching the
+        // player now (the app becomes active while PiP keeps running) would
+        // blank or kill the window. The layer's pipeline was never torn down
+        // in that case anyway.
+        if isPictureInPictureActive { return }
+        #endif
         // Re-attach the player to its layer to restore the GPU rendering pipeline
         // that iOS tears down when the app is backgrounded.
         playerLayer.player = nil
@@ -1711,6 +1724,7 @@ extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController
     ) {
         MainActor.assumeIsolated {
+            avPlayerEngineLogger.notice("AVPlayer PiP did start")
             isPictureInPictureActive = true
             pictureInPictureDelegate?.pictureInPictureActiveDidChange(true)
         }
@@ -1720,6 +1734,7 @@ extension AVPlayerEngine: AVPictureInPictureControllerDelegate {
         _ pictureInPictureController: AVPictureInPictureController
     ) {
         MainActor.assumeIsolated {
+            avPlayerEngineLogger.notice("AVPlayer PiP did stop")
             isPictureInPictureActive = false
             pictureInPictureDelegate?.pictureInPictureActiveDidChange(false)
         }

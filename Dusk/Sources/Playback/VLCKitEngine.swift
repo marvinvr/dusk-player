@@ -254,13 +254,10 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// output, so the button tap swaps the whole rendering pipeline: the raw
     /// frame tap is attached, the sample-buffer layer becomes the PRIMARY
     /// on-screen surface, media reloads in place at the current position
-    /// (raw callbacks must be installed before play), and PiP auto-starts
-    /// once the system controller reports possible. The mode persists for the
+    /// (raw callbacks must be installed before play), and the output starts
+    /// PiP once its controller can (`requestStart`). The mode persists for the
     /// rest of the session — switching back would be another visible reload.
     @ObservationIgnored private var isPipSupportModeActive = false
-    /// Set while a support-mode start is waiting for the controller to become
-    /// possible after the pipeline swap; consumed by `refreshPictureInPicturePossible`.
-    @ObservationIgnored private var pendingPictureInPictureStart = false
     #endif
     /// Bumped whenever `makePlayerView()` would return a different view
     /// (entering PiP support mode); `PlayerViewModel` re-fetches the view.
@@ -821,16 +818,20 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// feature). The sample-buffer output built for the Video Enhancement path
     /// (`VLCKitEnhancedPictureInPictureOutput`, a real
     /// `AVPictureInPictureController` over an `AVSampleBufferDisplayLayer`) is
-    /// the only PiP surface for VLC sessions, so PiP is possible exactly when
-    /// Video Enhancement's raw frame tap is active.
+    /// the only PiP surface for VLC sessions: it exists while Video
+    /// Enhancement's raw frame tap is active, and a plain session gets one on
+    /// demand through PiP support mode.
     func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {
         pictureInPictureDelegate = delegate
     }
 
     func startPictureInPicture() {
-        if let enhancedPictureInPictureOutput,
-           enhancedPictureInPictureOutput.isPictureInPicturePossible {
-            enhancedPictureInPictureOutput.start()
+        // An existing sample-buffer output (Video Enhancement, or support mode
+        // already entered) starts itself once its controller can — even when
+        // it is not possible this instant. Never fall through to the support
+        // mode swap then: that would tear down the enhancement pipeline.
+        if let enhancedPictureInPictureOutput {
+            enhancedPictureInPictureOutput.requestStart()
             return
         }
         guard canEnterPictureInPictureSupportMode, !isPipSupportModeActive else { return }
@@ -850,7 +851,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private func enterPictureInPictureSupportMode() {
         vlcKitEngineLogger.notice("VLCKit entering PiP support mode (pipeline swap + in-place reload)")
         isPipSupportModeActive = true
-        pendingPictureInPictureStart = true
 
         let frameSink = VLCKitVideoEnhancementFrameSink(renderer: nil)
         rawVideoFrameSink = frameSink
@@ -869,15 +869,14 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // Same in-place reload as stall recovery: raw video callbacks only
         // take effect on a fresh input, and this resumes at the live position.
         recoverFromStall()
+        // The window opens once the reloaded input has put a frame on the
+        // layer and the controller has settled (see `requestStart`).
+        enhancedPictureInPictureOutput?.requestStart()
     }
 
     private func tearDownPictureInPictureSupportModeIfNeeded() {
-        guard isPipSupportModeActive else {
-            pendingPictureInPictureStart = false
-            return
-        }
+        guard isPipSupportModeActive else { return }
         isPipSupportModeActive = false
-        pendingPictureInPictureStart = false
         rawVideoOutput?.detach()
         rawVideoOutput = nil
         rawVideoFrameSink = nil
@@ -928,10 +927,6 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         let newValue = outputPossible || canEnterPictureInPictureSupportMode
         if isPictureInPicturePossible != newValue {
             isPictureInPicturePossible = newValue
-        }
-        if outputPossible, pendingPictureInPictureStart {
-            pendingPictureInPictureStart = false
-            enhancedPictureInPictureOutput?.start()
         }
     }
     #endif

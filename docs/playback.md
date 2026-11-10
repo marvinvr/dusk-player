@@ -1667,8 +1667,8 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   PRIMARY on-screen surface (`isPrimaryDisplaySurface`, full-rate intake, no
   Metal renderer involved), reloads the media in place at the live position
   (raw callbacks only bind on a fresh input — same mechanics as stall
-  recovery, masked as loading), and auto-starts PiP once the controller
-  reports possible (`pendingPictureInPictureStart`). The mode persists for
+  recovery, masked as loading), and asks the output to start PiP
+  (`requestStart`, see "Starting PiP" below). The mode persists for
   the rest of the session — switching back would be another visible reload —
   and is torn down on `load`/`stop`/`configureVideoEnhancement`. Costs while
   active: vmem software rendering, the opt-in late-subtitle-blend resize and
@@ -1678,6 +1678,34 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   look flatter in this mode.
 - With Video Enhancement already on, the tap and output are already live and
   the button starts PiP directly (no reload).
+- Starting PiP on the sample-buffer output (`requestStart`,
+  `PictureInPictureStartRequest`): AVKit drops `startPictureInPicture()` with
+  no callback while the controller is not possible, and a fresh sample-buffer
+  controller reports possible before its layer shows a frame, then flaps
+  possible / not possible for ~200 ms (and can answer "Failed to start picture
+  in picture" to a start in that window). The old one-shot start on the first
+  "possible" was lost that way, so the support-mode button did nothing. A
+  request now waits until the controller is possible AND a frame has been
+  enqueued, re-issues the start every 700 ms (also after a failed start) until
+  `willStart`, and gives up after 8 s with an error log. The output also sets
+  `canStartPictureInPictureAutomaticallyFromInline` like the AVPlayer engine
+  (the sim's AVKit already auto-started without it; kept explicit).
+- Plain VLC sessions have no PiP surface until the button is tapped, so
+  backgrounding a plain VLC session cannot auto-start PiP — only AVPlayer,
+  enhanced VLC and support-mode sessions can.
+- Returning to the app: `PlaybackCoordinator.flushTimelineForScenePhase` only
+  calls `engine.handleReturnToForeground()` after the scene really reached
+  `.background`. Inactive-only trips (Control Center, Notification Center,
+  alerts) used to detach/re-attach the `AVPlayerLayer` and exact-seek, which
+  briefly made PiP impossible. AVPlayer also skips that refresh while PiP is
+  active (the window renders from the same layer).
+- Verification: PiP is unsupported in this Mac's iOS 27 iPhone simulators
+  (AVKit logs `isPictureInPictureSupported NO`, even for Safari); iPad
+  simulators support it and share the code path. Drive with XCUITest:
+  `XCUIDevice.shared.press(.home)` for auto-PiP, the springboard window
+  `PIP-SBInteractionPassThroughView` to detect / restore the floating window,
+  and filter the sim log on `subsystem == "com.apple.avkit"` — AVKit logs why
+  it is prohibited (`isPictureInPictureProhibited`) and every status change.
 - Prerequisites already in place: the audio session is
   `.playback`/`.moviePlayback`/`.longFormVideo` (`DuskApp`) and `UIBackgroundModes`
   includes `audio` (`Info-iOS.plist`). PiP will not run without both.

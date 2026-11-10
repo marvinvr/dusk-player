@@ -161,8 +161,16 @@ extension PlaybackCoordinator {
         case .inactive:
             reportCurrentTimeline()
         case .background:
+            playerSceneWasBackgrounded = true
             reportCurrentTimeline()
         case .active:
+            // Control Center, Notification Center, a system alert or the app
+            // switcher peek only make the scene inactive: nothing was torn
+            // down, and the refresh (AVPlayer detaches its layer and seeks)
+            // would briefly make Picture in Picture impossible — an
+            // immediate swipe home then started no PiP.
+            guard playerSceneWasBackgrounded else { return }
+            playerSceneWasBackgrounded = false
             engine?.handleReturnToForeground()
         @unknown default:
             break

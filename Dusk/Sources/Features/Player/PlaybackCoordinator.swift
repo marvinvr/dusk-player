@@ -137,6 +137,9 @@ final class PlaybackCoordinator {
     /// Completion handed up by AVKit's restore delegate; fired once the
     /// re-presented player UI reports it is on screen.
     @ObservationIgnored var pendingPictureInPictureRestoreCompletion: ((Bool) -> Void)?
+    /// The player scene reached `.background` since it was last active. Only
+    /// then does the engine need its post-background render refresh.
+    @ObservationIgnored var playerSceneWasBackgrounded = false
 
     let plexService: PlexService
     let preferences: UserPreferences

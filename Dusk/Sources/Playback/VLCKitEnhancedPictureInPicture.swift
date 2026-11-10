@@ -105,6 +105,20 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     private var pipController: AVPictureInPictureController?
     nonisolated(unsafe) private var possibleObserver: NSKeyValueObservation?
 
+    /// Deadline of a start the owner asked for that has not happened yet.
+    /// AVKit drops `startPictureInPicture()` without a callback while the
+    /// controller is not possible, and a fresh sample-buffer controller reports
+    /// possible before the layer has a frame and then flaps possible/not
+    /// possible for a while as the layer settles. A one-shot start in that
+    /// window was lost silently (the PiP button "did nothing"), so the request
+    /// is held and retried until PiP starts, fails for good or the deadline
+    /// passes. See `PictureInPictureStartRequest`.
+    private var startRequest: PictureInPictureStartRequest?
+    private var startRetryTask: Task<Void, Never>?
+    /// Set on the render queue once a frame reached the display layer; read
+    /// on the main actor before starting (a stale read only delays one retry).
+    nonisolated(unsafe) private var hasEnqueuedFrame = false
+
     /// The display layer. Main-actor only: it is the PiP content source and owns
     /// the control timebase; frames go through `renderer` instead.
     private let renderLayer: AVSampleBufferDisplayLayer
@@ -181,6 +195,10 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         )
         let controller = AVPictureInPictureController(contentSource: contentSource)
         controller.delegate = self
+        // Hand playback to the floating window when the app is backgrounded
+        // mid-playback, like the AVPlayer engine. Without this a VLC session
+        // never auto-started PiP on Home/app switch, only from the button.
+        controller.canStartPictureInPictureAutomaticallyFromInline = true
         pipController = controller
         possibleObserver = controller.observe(
             \.isPictureInPicturePossible,
@@ -191,6 +209,7 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
                 guard let self, self.isPictureInPicturePossible != possible else { return }
                 self.isPictureInPicturePossible = possible
                 self.onPictureInPicturePossibleChanged?()
+                if possible { self.attemptRequestedStart() }
             }
         }
     }
@@ -199,13 +218,58 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         possibleObserver?.invalidate()
     }
 
-    func start() {
-        guard let pipController, pipController.isPictureInPicturePossible else { return }
-        pipController.startPictureInPicture()
+    /// Opens the floating window as soon as the controller can: immediately
+    /// when it is possible and the layer has a picture, otherwise once both
+    /// hold (within `timeout`).
+    func requestStart(timeout: Duration = .seconds(8)) {
+        guard pipController != nil, !isPictureInPictureActive else { return }
+        startRequest = PictureInPictureStartRequest(timeout: timeout)
+        enhancedPiPLogger.notice("VLCKit PiP start requested (possible=\(self.isPictureInPicturePossible, privacy: .public), frame=\(self.hasEnqueuedFrame, privacy: .public))")
+        attemptRequestedStart()
     }
 
     func stop() {
+        cancelStartRequest()
         pipController?.stopPictureInPicture()
+    }
+
+    private func attemptRequestedStart() {
+        guard var request = startRequest, let pipController else { return }
+        switch request.nextStep(
+            now: .now,
+            isPossible: pipController.isPictureInPicturePossible,
+            hasContent: hasEnqueuedFrame,
+            isActive: isPictureInPictureActive
+        ) {
+        case .start:
+            startRequest = request
+            enhancedPiPLogger.notice("VLCKit PiP starting (attempt \(request.attempts, privacy: .public))")
+            pipController.startPictureInPicture()
+            // A start AVKit dropped (no didStart / failed callback) is retried.
+            scheduleStartRetry(after: .milliseconds(750))
+        case .wait:
+            scheduleStartRetry(after: .milliseconds(200))
+        case .done:
+            cancelStartRequest()
+        case .expired:
+            enhancedPiPLogger.error("VLCKit PiP start gave up: controller never became startable (possible=\(pipController.isPictureInPicturePossible, privacy: .public), frame=\(self.hasEnqueuedFrame, privacy: .public))")
+            cancelStartRequest()
+        }
+    }
+
+    private func scheduleStartRetry(after delay: Duration) {
+        startRetryTask?.cancel()
+        startRetryTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled else { return }
+            self?.attemptRequestedStart()
+        }
+    }
+
+    private func cancelStartRequest() {
+        startRequest = nil
+        startRetryTask?.cancel()
+        startRetryTask = nil
     }
 
     /// Pushes the engine's current position/rate into the PiP scrubber timebase.
@@ -226,6 +290,7 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
     /// main thread. Draining here instead guarantees that no render-queue work
     /// outlives this call, so the last release is always the owner's.
     func clear() {
+        cancelStartRequest()
         frameLock.lock()
         pendingPixelBuffer = nil
         isTornDown = true
@@ -303,6 +368,7 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
         }
 
         renderer.enqueue(sampleBuffer)
+        hasEnqueuedFrame = true
     }
 
     /// libvlc hands us RGBA bytes packed into a `32BGRA`-typed pixel buffer (the
@@ -430,8 +496,17 @@ final class VLCKitEnhancedPictureInPictureOutput: NSObject {
 // synchronous and lets the main-actor state be touched directly, matching
 // `AVPlayerEngine`'s PiP delegate.
 extension VLCKitEnhancedPictureInPictureOutput: AVPictureInPictureControllerDelegate {
+    nonisolated func pictureInPictureControllerWillStartPictureInPicture(_ controller: AVPictureInPictureController) {
+        MainActor.assumeIsolated {
+            // The start went through; never issue another while it animates.
+            cancelStartRequest()
+        }
+    }
+
     nonisolated func pictureInPictureControllerDidStartPictureInPicture(_ controller: AVPictureInPictureController) {
         MainActor.assumeIsolated {
+            enhancedPiPLogger.notice("VLCKit PiP did start")
+            cancelStartRequest()
             isPictureInPictureActive = true
             onPictureInPictureActiveChanged?(true)
         }
@@ -439,6 +514,7 @@ extension VLCKitEnhancedPictureInPictureOutput: AVPictureInPictureControllerDele
 
     nonisolated func pictureInPictureControllerDidStopPictureInPicture(_ controller: AVPictureInPictureController) {
         MainActor.assumeIsolated {
+            enhancedPiPLogger.notice("VLCKit PiP did stop")
             isPictureInPictureActive = false
             onPictureInPictureActiveChanged?(false)
         }
@@ -454,6 +530,9 @@ extension VLCKitEnhancedPictureInPictureOutput: AVPictureInPictureControllerDele
             )
             isPictureInPictureActive = false
             onPictureInPictureActiveChanged?(false)
+            // A requested start that lost a race with the controller settling
+            // gets another go until its deadline.
+            if startRequest != nil { scheduleStartRetry(after: .milliseconds(500)) }
         }
     }
 
