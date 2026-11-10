@@ -370,7 +370,7 @@ struct PlaybackDebugInfo: Sendable {
     }
 }
 
-enum PlaybackDecision: Sendable {
+enum PlaybackDecision: Sendable, Equatable {
     case directPlay
     case localDownload
     case transcode(PlaybackQualityPreset)

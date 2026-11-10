@@ -73,6 +73,16 @@ final class PlaybackCoordinator {
     /// Fresh remuxes requested for the item now playing after a live HDR remux
     /// failed (`recoverLiveHDRRemux`). Reset for each new item.
     @ObservationIgnored var liveRemuxRecoveryAttempts = 0
+    /// Manual audio sync for the item now playing (#67; positive delays the
+    /// audio). Per item: reset when the next item's session commits.
+    var audioOffsetMilliseconds = 0
+    /// The offset moved this item from AVPlayer to VLCKit, so later
+    /// replacements of it stay on VLCKit (see `AudioOffsetPolicy`). Reset
+    /// with the offset.
+    @ObservationIgnored var isAudioOffsetPinnedToVLCKit = false
+    /// The offset switch rebuilt the player under the open audio options;
+    /// the new player opens them again once its tracks are in.
+    @ObservationIgnored var reopensAudioOptionsAfterEngineSwitch = false
     var isSwitchingQuality = false
     var qualitySwitchError: String?
     /// System AirPlay route state shared by playback preparation and the iOS
@@ -517,6 +527,7 @@ final class PlaybackCoordinator {
             activeTranscodeSessionID = tune.transcodeSessionID
             activeItemDetails = nil
             activeLiveTVContext = liveContext
+            resetAudioOffset()
             engine = newEngine
             playbackSource = PlaybackSource(
                 url: tune.playbackURL,

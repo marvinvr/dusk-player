@@ -330,6 +330,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     private var currentSource: PlaybackSource?
     /// The user's subtitle size preference, pushed in by the coordinator.
     private var subtitleFontSize: SubtitleFontSize = .default
+    /// Manual audio sync (#67). libvlc keeps the delay on the input, so a new
+    /// or reopened input starts at zero; `.playing` re-applies it.
+    private var audioDelayMilliseconds = 0
     /// The user's subtitle look, pushed in by the coordinator before load.
     private var subtitleStyle: SubtitleStyle = .default
     private let subtitleLiftAnimator = SubtitleLiftAnimator()
@@ -1465,6 +1468,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             vlcReportedPlaying = true
             suppressPlaybackEndedEvent = false
             configureAudioOutputPolicy(reason: "entered-playing-state")
+            applyAudioDelayIfNeeded()
 
             if !hasAppliedStartPosition, let start = pendingStartPosition, start > 0 {
                 hasAppliedStartPosition = true
@@ -1766,6 +1770,26 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         subtitleStyle = style
         guard state == .playing else { return }
         _ = reloadForSubtitleStylingIfNeeded()
+    }
+
+    var supportsAudioDelay: Bool { true }
+
+    func setAudioDelay(milliseconds: Int) {
+        audioDelayMilliseconds = milliseconds
+        applyAudioDelayIfNeeded()
+    }
+
+    /// An input-level delay (not an audio-output restart), so it is safe to
+    /// change while playing. Only written when it differs, because `.playing`
+    /// fires again after every pause and buffering refill.
+    private func applyAudioDelayIfNeeded() {
+        guard mediaPlayer.media != nil else { return }
+        let microseconds = audioDelayMilliseconds * 1000
+        guard mediaPlayer.currentAudioPlaybackDelay != microseconds else { return }
+        mediaPlayer.currentAudioPlaybackDelay = microseconds
+        vlcKitEngineLogger.notice(
+            "Audio delay set to \(self.audioDelayMilliseconds, privacy: .public) ms"
+        )
     }
 
     func setSubtitleClearance(_ clearance: SubtitleClearance?) {

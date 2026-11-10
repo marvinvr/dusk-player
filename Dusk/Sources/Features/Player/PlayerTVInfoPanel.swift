@@ -258,6 +258,63 @@ struct PlayerTVInfoPanel: View {
                 }
             }
         }
+
+        audioOffsetRows
+    }
+
+    /// Manual audio sync (#67): −/+ in 50 ms steps and Reset. Dimmed with a
+    /// short reason where it cannot apply (HDR on AVPlayer, AirPlay).
+    @ViewBuilder
+    private var audioOffsetRows: some View {
+        let availability = playback.audioOffsetAvailability
+        let offset = playback.audioOffsetMilliseconds
+        let step = AudioOffsetPolicy.stepMilliseconds
+
+        sectionHeader("Audio Offset")
+
+        HStack(spacing: 16) {
+            compactPanelButton(
+                id: "audioOffset.earlier",
+                systemImage: "minus",
+                accessibilityLabel: "Audio Earlier",
+                isDisabled: !availability.isAvailable || offset <= AudioOffsetPolicy.range.lowerBound
+            ) {
+                playback.setAudioOffset(milliseconds: offset - step)
+            }
+
+            Text(AudioOffsetPolicy.title(for: offset))
+                .font(DuskFont.TV.rowTitle)
+                .monospacedDigit()
+                .foregroundStyle(availability.isAvailable ? Color.duskTextPrimary : Color.duskTextSecondary)
+                .frame(minWidth: 170)
+
+            compactPanelButton(
+                id: "audioOffset.later",
+                systemImage: "plus",
+                accessibilityLabel: "Audio Later",
+                isDisabled: !availability.isAvailable || offset >= AudioOffsetPolicy.range.upperBound
+            ) {
+                playback.setAudioOffset(milliseconds: offset + step)
+            }
+
+            if offset != 0 {
+                compactPanelButton(
+                    id: "audioOffset.reset",
+                    title: "Reset",
+                    isDisabled: !availability.isAvailable
+                ) {
+                    playback.setAudioOffset(milliseconds: 0)
+                }
+            }
+
+            Spacer(minLength: 0)
+        }
+        .focusSection()
+
+        Text(availability.unavailableReason ?? "Positive values delay the audio.")
+            .font(DuskFont.TV.caption)
+            .foregroundStyle(Color.duskTextSecondary)
+            .padding(.top, 2)
     }
 
     @ViewBuilder
@@ -414,6 +471,50 @@ struct PlayerTVInfoPanel: View {
             .font(DuskFont.TV.rowValue)
             .foregroundStyle(Color.duskTextSecondary)
             .padding(.vertical, 12)
+    }
+
+    private func compactPanelButton(
+        id: String,
+        title: String? = nil,
+        systemImage: String? = nil,
+        accessibilityLabel: String? = nil,
+        isDisabled: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
+        let isFocused = focusedRow == id
+
+        return Button(action: action) {
+            Group {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .font(DuskFont.TV.glyphSmall.weight(.semibold))
+                        .frame(width: 34)
+                } else if let title {
+                    Text(title)
+                        .font(DuskFont.TV.rowTitle)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+            .padding(.horizontal, 26)
+            .padding(.vertical, 16)
+            .background(
+                isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.55),
+                in: RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
+                    .strokeBorder(
+                        isFocused ? .white.opacity(0.35) : .white.opacity(0.04),
+                        lineWidth: 1
+                    )
+            }
+            .opacity(isDisabled ? 0.5 : 1)
+        }
+        .duskSuppressTVOSButtonChrome()
+        .focusEffectDisabled()
+        .focused($focusedRow, equals: id)
+        .disabled(isDisabled)
+        .accessibilityLabel(accessibilityLabel ?? title ?? "")
     }
 
     private func panelRow(

@@ -138,6 +138,15 @@ protocol PlaybackEngine: AnyObject {
     /// subtitles off or between cues there is no visible change at all.
     func setSubtitleClearance(_ clearance: SubtitleClearance?)
 
+    /// Whether `setAudioDelay(milliseconds:)` does anything. Only VLCKit can
+    /// shift audio against video; AVPlayer has no such control (#67).
+    var supportsAudioDelay: Bool { get }
+
+    /// Manual audio sync: positive delays the audio, negative brings it
+    /// earlier. Callable before `load(source:)` (the value then opens with the
+    /// media) and live during playback.
+    func setAudioDelay(milliseconds: Int)
+
     // MARK: - State
 
     var state: PlaybackState { get }
@@ -264,6 +273,9 @@ extension PlaybackEngine {
     func applySubtitleFontSize(_ size: SubtitleFontSize) {}
     func applySubtitleStyle(_ style: SubtitleStyle) {}
     func setSubtitleClearance(_ clearance: SubtitleClearance?) {}
+
+    var supportsAudioDelay: Bool { false }
+    func setAudioDelay(milliseconds: Int) {}
 
     // Bumped when the engine replaces its rendering view mid-session (VLCKit
     // entering Picture in Picture support mode); `PlayerViewModel` re-calls

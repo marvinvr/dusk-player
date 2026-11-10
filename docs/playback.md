@@ -2297,6 +2297,36 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   forced off), and iOS renders Atmos on device, so both keep the rates. This
   is a conservative call that has not been checked on hardware.
 
+## Manual Audio Offset (#67)
+
+- Audio options in the player (iOS: a `Stepper` section under the Audio
+  sheet's tracks, `PlayerAudioOffsetSection`; tvOS: an Audio Offset group of
+  −/+/Reset buttons at the end of the panel's Audio tab). Steps of 50 ms,
+  clamped to ±2000 ms, positive delays the audio. Per item: the value lives on
+  `PlaybackCoordinator.audioOffsetMilliseconds` and `resetAudioOffset()` runs
+  when the next item's (or live channel's) engine commits and in
+  `clearPlayerState`. Not remembered per item, no global setting.
+- Rules are in `AudioOffsetPolicy` (pure, tested in `AudioOffsetTests`):
+  - VLCKit applies it live: `setAudioDelay(milliseconds:)` →
+    `currentAudioPlaybackDelay` (µs). libvlc keeps the delay on the input, so
+    a new or reopened input starts at zero; `VLCKitEngine` re-applies it on
+    `.playing` (only when it differs).
+  - AVPlayer cannot delay audio. A non-zero offset restarts the item on
+    VLCKit at the live position (`switchToVLCKitForAudioOffset`, same URL /
+    media / decision / tracks, like the external-subtitle switch) and sets
+    `isAudioOffsetPinnedToVLCKit`: `activateReplacementAttempt` then turns any
+    later AVPlayer replacement of that item (quality switch, fallback, remux
+    rebuild) into VLCKit, except AirPlay, live TV and HDR. Going back to 0
+    never switches back.
+  - HDR/Dolby Vision on AVPlayer is never moved to VLCKit (SDR-only output,
+    DV5 pink): the control stays, dimmed, with "Not available for HDR video".
+    AirPlay, live TV on AVPlayer, IPTV and AV1 without VLCKit's AV1 decoder
+    are likewise unavailable. A replacement that lands on AVPlayer (AirPlay)
+    drops the offset to 0.
+- The switch rebuilds the player view (`playerPresentationID`), which closes
+  the sheet/panel; `reopensAudioOptionsAfterEngineSwitch` reopens it once the
+  new player's tracks are in.
+
 ## Timeline, Scrobble, and Up Next
 - `PlaybackCoordinator.startTimelineReporting` sends progress every 10 seconds,
   carrying `X-Plex-Session-Identifier` (the per-session UUID) so the server can

@@ -857,6 +857,19 @@ private struct PlayerSessionView: View {
         .task(id: scrubPreviewPartID) {
             await loadScrubPreviewSource(partID: scrubPreviewPartID)
         }
+        // A manual audio offset moved the item to VLCKit and rebuilt this
+        // view, closing the audio options the viewer was adjusting.
+        .onChange(of: viewModel.audioTracks.isEmpty, initial: true) { _, isEmpty in
+            guard !isEmpty, playback.consumeAudioOptionsReopen() else { return }
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                #if os(tvOS)
+                hudController.openPanel(.audio)
+                #else
+                viewModel.showAudioPicker = true
+                #endif
+            }
+        }
         #if os(tvOS)
         // The HUD controller and `showControls` mirror each other: the
         // controller writes the flag when the viewer drives it, and reads it
@@ -949,6 +962,9 @@ private struct PlayerSessionView: View {
                 },
                 onDismiss: {
                     viewModel.showAudioPicker = false
+                },
+                footer: {
+                    PlayerAudioOffsetSection()
                 }
             )
         }

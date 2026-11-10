@@ -689,6 +689,7 @@ extension PlaybackCoordinator {
                 decision: playbackDecision,
                 dolbyVision: dolbyVision7Conversion ?? dolbyVisionRemux
             )
+            resetAudioOffset()
             engine = newEngine
             let preferredAudioTrackPosition: Int? = switch playbackDecision {
             case .directPlay, .localDownload:
@@ -1254,7 +1255,7 @@ extension PlaybackCoordinator {
         playbackURL: URL,
         sanitizedURL: String,
         playbackDecision: PlaybackDecision,
-        engineType: PlaybackEngineType,
+        engineType requestedEngineType: PlaybackEngineType,
         resolverReason: String,
         videoEnhancementRequest: VideoEnhancementRequest,
         startPosition: TimeInterval?,
@@ -1262,6 +1263,13 @@ extension PlaybackCoordinator {
         audioTrackPositionOverride: Int? = nil,
         audioChannelCountOverride: Int? = nil
     ) {
+        // Once the audio offset moved this item to VLCKit, it stays there.
+        let engineType = AudioOffsetPolicy.replacementEngine(
+            requested: requestedEngineType,
+            isPinnedToVLCKit: isAudioOffsetPinnedToVLCKit,
+            decision: playbackDecision,
+            containsHDRVideo: StreamResolver.containsHDRVideo(inPart: part)
+        )
         let attemptContext = PlaybackAttemptContext(
             attemptID: attemptID,
             title: details.title,
@@ -1281,6 +1289,12 @@ extension PlaybackCoordinator {
         newEngine.configureVideoEnhancement(videoEnhancementRequest)
         newEngine.applySubtitleFontSize(preferences.subtitleFontSize)
         newEngine.applySubtitleStyle(preferences.subtitleStyle)
+        if newEngine.supportsAudioDelay {
+            newEngine.setAudioDelay(milliseconds: audioOffsetMilliseconds)
+        } else {
+            // AirPlay / live TV land on AVPlayer, which cannot delay audio.
+            audioOffsetMilliseconds = 0
+        }
         newEngine.onPlaybackEnded = { [weak self] in
             Task { @MainActor [weak self] in
                 await self?.handlePlaybackEnded()
@@ -2182,6 +2196,7 @@ extension PlaybackCoordinator {
         manuallySelectedAudioStreamID = nil
         activeSubtitleStreamID = nil
         remuxTrackSelection = nil
+        resetAudioOffset()
         pendingExternalSubtitleStreamID = nil
         activeShowTrackScope = nil
         pendingExplicitTrackSelection = nil

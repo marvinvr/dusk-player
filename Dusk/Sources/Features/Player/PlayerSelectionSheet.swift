@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct PlayerSelectionSheet<Item: Identifiable>: View {
+struct PlayerSelectionSheet<Item: Identifiable, Footer: View>: View {
     let title: String
     /// A quiet line above the rows, e.g. what the choice currently resolves to.
     var headerText: String?
@@ -12,6 +12,8 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
     let itemSubtitle: KeyPath<Item, String?>
     let onSelect: (Item?) -> Void
     let onDismiss: () -> Void
+    /// Extra sections below the rows (the Audio sheet's offset control).
+    @ViewBuilder var footer: () -> Footer
 
     var body: some View {
         NavigationStack {
@@ -27,6 +29,8 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
                 } else {
                     rows
                 }
+
+                footer()
             }
             .duskScrollContentBackgroundHidden()
             .background(Color.duskBackground)
@@ -100,6 +104,35 @@ struct PlayerSelectionSheet<Item: Identifiable>: View {
     }
 }
 
+extension PlayerSelectionSheet where Footer == EmptyView {
+    init(
+        title: String,
+        headerText: String? = nil,
+        allowsDeselection: Bool = false,
+        deselectionTitle: String = "Off",
+        items: [Item],
+        selectedID: Item.ID?,
+        itemTitle: KeyPath<Item, String>,
+        itemSubtitle: KeyPath<Item, String?>,
+        onSelect: @escaping (Item?) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.init(
+            title: title,
+            headerText: headerText,
+            allowsDeselection: allowsDeselection,
+            deselectionTitle: deselectionTitle,
+            items: items,
+            selectedID: selectedID,
+            itemTitle: itemTitle,
+            itemSubtitle: itemSubtitle,
+            onSelect: onSelect,
+            onDismiss: onDismiss,
+            footer: { EmptyView() }
+        )
+    }
+}
+
 private extension View {
     /// iPhone Duo's cover display: a sheet over the player otherwise brings the
     /// vertical bar back, an empty ~80pt strip down one side of the picker
@@ -118,3 +151,50 @@ private extension View {
         #endif
     }
 }
+
+#if os(iOS)
+/// Manual audio sync (#67) below the Audio sheet's tracks: a native stepper
+/// in 50 ms steps, the current value, and Reset. Disabled with a short reason
+/// where it cannot apply (HDR on AVPlayer, AirPlay).
+struct PlayerAudioOffsetSection: View {
+    @Environment(PlaybackCoordinator.self) private var playback
+
+    var body: some View {
+        let availability = playback.audioOffsetAvailability
+        let offset = playback.audioOffsetMilliseconds
+
+        Section {
+            Stepper(
+                value: Binding(
+                    get: { playback.audioOffsetMilliseconds },
+                    set: { playback.setAudioOffset(milliseconds: $0) }
+                ),
+                in: AudioOffsetPolicy.range,
+                step: AudioOffsetPolicy.stepMilliseconds
+            ) {
+                HStack {
+                    Text("Audio Offset")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text(AudioOffsetPolicy.title(for: offset))
+                        .monospacedDigit()
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            .disabled(!availability.isAvailable)
+            .accessibilityValue(AudioOffsetPolicy.title(for: offset))
+            .listRowBackground(Color.duskSurface)
+
+            if offset != 0, availability.isAvailable {
+                Button("Reset") {
+                    playback.setAudioOffset(milliseconds: 0)
+                }
+                .listRowBackground(Color.duskSurface)
+            }
+        } footer: {
+            Text(availability.unavailableReason ?? "Positive values delay the audio.")
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+    }
+}
+#endif
