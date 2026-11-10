@@ -153,13 +153,11 @@ extension PlexService {
         async let experienceResult = loadExperienceSettingsIgnoringFailure()
 
         var failures: [String: any Error] = [:]
+        // Result.capturing, not do/catch: this closure runs as a task group
+        // child inside streamAcrossServers (see Result.capturing).
         for await result in streamAcrossServers({ service, serverID in
-            do {
-                return Result<[PlexLibrary], any Error>.success(
-                    try await service.getLibraries(serverID: serverID)
-                )
-            } catch {
-                return .failure(error)
+            await Result<[PlexLibrary], any Error>.capturing {
+                try await service.getLibraries(serverID: serverID)
             }
         }) {
             switch result.value {

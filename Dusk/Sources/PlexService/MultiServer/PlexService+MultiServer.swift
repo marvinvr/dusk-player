@@ -128,13 +128,12 @@ extension PlexService {
     /// `/hubs/search` on every connected server, streamed so results appear as
     /// each one answers. The `Result` distinguishes "answered with nothing" from
     /// "failed", which is what lets search report an error only when every
-    /// server failed.
+    /// server failed. The closure runs as a task group child, so it uses
+    /// `Result.capturing` rather than its own `do`/`catch`.
     func streamSearch(query: String) -> AsyncStream<ServerResult<Result<[PlexSearchResult], any Error>>> {
         streamAcrossServers { service, serverID in
-            do {
-                return .success(try await service.search(query: query, serverID: serverID))
-            } catch {
-                return .failure(error)
+            await Result.capturing {
+                try await service.search(query: query, serverID: serverID)
             }
         }
     }

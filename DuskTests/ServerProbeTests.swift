@@ -57,7 +57,7 @@ struct TaskGroupChildShapeTests {
         }
     }
 
-    @Test("No addTask closure in the app contains a catch")
+    @Test("No task group child closure in the app contains a catch")
     func noCatchInTaskGroupChildren() throws {
         let sources = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -72,7 +72,7 @@ struct TaskGroupChildShapeTests {
         while let file = files?.nextObject() as? URL {
             guard file.pathExtension == "swift" else { continue }
             let text = try String(contentsOf: file, encoding: .utf8)
-            for body in Self.addTaskBodies(in: text) {
+            for body in Self.childClosureBodies(in: text) {
                 scannedChildren += 1
                 if body.contains(/\bcatch\b/) {
                     offenders.append("\(file.lastPathComponent): \(body.prefix(120))")
@@ -92,14 +92,34 @@ struct TaskGroupChildShapeTests {
             do { return try await load() } catch { return nil }
         }
         """
-        let bodies = Self.addTaskBodies(in: source)
+        let bodies = Self.childClosureBodies(in: source)
         #expect(bodies.count == 1)
         #expect(bodies.first?.contains("do {") == true)
         #expect(bodies.first?.contains("// catch") == false)
     }
 
-    /// The brace-balanced closure of every `addTask`, with line comments removed.
-    private static func addTaskBodies(in text: String) -> [String] {
+    @Test("The scan sees closures handed to the fan-out helpers")
+    func scanFindsFanOutClosures() {
+        let source = """
+        streamAcrossServers { service, serverID in
+            do { return .success(try await load()) } catch { return .failure(error) }
+        }
+        for await result in streamAcrossServers({ service, serverID in
+            do { return .success(try await load()) } catch { return .failure(error) }
+        }) {}
+        let answers = await fanOutAcrossServers { _, _ in 1 }
+        let named = service.streamAcrossServers(loadHomePayload)
+        if ok { do { try run() } catch {} }
+        """
+        let bodies = Self.childClosureBodies(in: source)
+        #expect(bodies.count == 3)
+        #expect(bodies.filter { $0.contains(/\bcatch\b/) }.count == 2)
+    }
+
+    /// The brace-balanced closure of every `addTask`, and of every closure
+    /// literal passed to `streamAcrossServers` / `fanOutAcrossServers` (which
+    /// run it as a task group child), with line comments removed.
+    private static func childClosureBodies(in text: String) -> [String] {
         let code = text
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
@@ -107,11 +127,21 @@ struct TaskGroupChildShapeTests {
             }
             .joined(separator: "\n")
 
-        var bodies: [String] = []
+        var opens: [String.Index] = []
         var searchStart = code.startIndex
         while let call = code.range(of: "addTask", range: searchStart..<code.endIndex) {
             searchStart = call.upperBound
             guard let open = code[call.upperBound...].firstIndex(of: "{") else { break }
+            opens.append(open)
+        }
+        // Only a closure literal right after the name (`f {` or `f({`); a
+        // function passed by name is checked where it is defined, if at all.
+        for match in code.matches(of: /\b(?:streamAcrossServers|fanOutAcrossServers)\s*(?:\(\s*)?\{/) {
+            opens.append(code.index(before: match.range.upperBound))
+        }
+
+        var bodies: [String] = []
+        for open in opens {
             var depth = 0
             var index = open
             while index < code.endIndex {
