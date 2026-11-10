@@ -292,11 +292,22 @@ struct SeriesDetailView: View {
                 // carries the supporting metadata: an "Episode N · 45 min · air
                 // date" tagline (same styling as the rest of the app) and summary.
                 VStack(alignment: .leading, spacing: 4) {
-                    if let metaLine = episodeMetaLine(season, episode: episode) {
-                        Text(metaLine)
-                            .font(DuskFont.TV.metadata)
-                            .foregroundStyle(Color.primary.opacity(0.78))
-                            .lineLimit(1)
+                    // The focused episode's own sources (IMDb, TMDB, …) share
+                    // the meta line so the band keeps its fixed height. No
+                    // user stars here: the hero's Rate button rates the show.
+                    let ratings = focusedEpisodeDetails(in: season).map(PlexRating.sources(for:)) ?? []
+                    let metaLine = episodeMetaLine(season, episode: episode)
+                    if metaLine != nil || !ratings.isEmpty {
+                        HStack(spacing: 28) {
+                            if let metaLine {
+                                Text(metaLine)
+                                    .font(DuskFont.TV.metadata)
+                                    .foregroundStyle(Color.primary.opacity(0.78))
+                                    .lineLimit(1)
+                            }
+                            DetailRatingsLine(ratings: ratings, userRating: nil)
+                                .layoutPriority(1)
+                        }
                     }
 
                     // Focusable above the Play button when cut off; Select

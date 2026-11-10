@@ -37,6 +37,40 @@ struct PlexRatingDisplayTests {
         #expect(audience.display?.logo == .popcornmeterStale)
     }
 
+    @Test("An episode's /library/metadata payload yields its sources and the user's rating (#66)")
+    func episodeDetailsRatings() throws {
+        // Shape of a Plex TV agent episode: the Rating array plus the flat
+        // audienceRating fields, and the signed-in user's own rating.
+        let json = """
+        { "ratingKey": "42", "key": "/library/metadata/42", "type": "episode",
+          "title": "Ozymandias", "index": 14, "parentIndex": 5,
+          "grandparentTitle": "Breaking Bad",
+          "audienceRating": 9.2, "audienceRatingImage": "themoviedb://image.rating",
+          "userRating": 9,
+          "Rating": [
+            { "image": "imdb://image.rating", "value": 10.0, "type": "audience" },
+            { "image": "themoviedb://image.rating", "value": 9.2, "type": "audience" },
+            { "image": "imdb://image.rating", "value": 10.0, "type": "audience" }
+          ] }
+        """
+        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(json.utf8))
+        #expect(details.type == .episode)
+        #expect(details.userRating == 9)
+        let shown = PlexRating.sources(for: details).compactMap(\.display)
+        #expect(shown.map { $0.source } == ["IMDb", "TMDB"])
+        #expect(shown.map { $0.value } == ["10.0", "92%"])
+    }
+
+    @Test("An episode without the Rating array falls back to its audience rating")
+    func episodeDetailsFlatRatingFallback() throws {
+        let json = """
+        { "ratingKey": "43", "key": "/library/metadata/43", "type": "episode",
+          "title": "Pilot", "audienceRating": 7.4, "audienceRatingImage": "themoviedb://image.rating" }
+        """
+        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(json.utf8))
+        #expect(PlexRating.sources(for: details).compactMap(\.display?.value) == ["74%"])
+    }
+
     @Test(
         "Content ratings drop the country prefix",
         arguments: [

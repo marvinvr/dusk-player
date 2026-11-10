@@ -1014,9 +1014,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   is gold on dark and black on light. Attribution lines are in `ThirdPartyNotices.txt`.
   `DetailRateHeroButton` is an icon-only `star` menu
   (1–5 stars, Clear) that writes `PUT /:/rate` (`rating` 0–10, `-1` clears) with an
-  optimistic `DetailUserRatingModel`. Movie pages (all platforms) and the iOS show page
-  show both; the tvOS series page only has the Rate action (its hero box is
-  episode-sized).
+  optimistic `DetailUserRatingModel`. Movie pages (all platforms), the iOS show page and
+  the iOS episode page (#66) show both. The tvOS series page's Rate action rates the
+  show; its fixed-height hero box puts the focused episode's sources (from
+  `focusedEpisodeDetails`, so they appear once that loads) on the episode meta line,
+  without user stars, which would read as the show's rating.
 - Detail screens use hidden inline navigation bars over hero artwork. Keep
   `.toolbarColorScheme(.dark, for: .navigationBar)` and hidden toolbar backgrounds unless
   the screen is no longer hero-led.

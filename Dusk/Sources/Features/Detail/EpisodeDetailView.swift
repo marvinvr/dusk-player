@@ -10,6 +10,7 @@ struct EpisodeDetailView: View {
     @Environment(UserPreferences.self) private var preferences
     @State private var viewModel: EpisodeDetailViewModel
     @State private var showSubtitleSearch = false
+    @State private var userRating = DetailUserRatingModel()
 
     init(
         id: PlexItemID,
@@ -44,6 +45,9 @@ struct EpisodeDetailView: View {
         .toolbarBackground(.hidden, for: .navigationBar)
         .task {
             await viewModel.load()
+        }
+        .onChange(of: viewModel.details?.userRating, initial: true) { _, rating in
+            userRating.sync(rating)
         }
         .onChange(of: playback.showPlayer) { _, isShowing in
             if !isShowing {
@@ -255,16 +259,7 @@ struct EpisodeDetailView: View {
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
 
-        if let rating = details.rating {
-            HStack(spacing: 4) {
-                Image(systemName: "star.fill")
-                    .font(DuskFont.glyphSmall(ios: .caption2))
-                    .foregroundStyle(.yellow)
-                Text(String(format: "%.1f", rating))
-                    .font(DuskFont.metadata(ios: .subheadline).monospacedDigit())
-                    .foregroundStyle(Color.primary.opacity(0.84))
-            }
-        }
+        DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
     }
 
     @ViewBuilder
@@ -276,6 +271,7 @@ struct EpisodeDetailView: View {
             HStack(spacing: detailHeroActionSpacing) {
                 downloadButton(details)
                 watchedButton()
+                DetailRateHeroButton(model: userRating, id: details.id)
                 AddToPlaylistHeroButton(target: AddToPlaylistTarget(details: details))
             }
         }
