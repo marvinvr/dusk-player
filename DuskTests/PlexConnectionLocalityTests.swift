@@ -55,6 +55,47 @@ struct PlexConnectionLocalityTests {
         }
     }
 
+    /// A tailnet is how the device usually reaches home while away, and Plex
+    /// sees it as remote: it is not the LAN for locality (caching, remote
+    /// refusal), even though tokens may travel over HTTP to it.
+    @Test func tailscaleIsTailnetButNotLocal() {
+        let ip = connection("http://100.115.114.92:10003", address: "100.115.114.92", local: false)
+        #expect(ip.isOnTailnet)
+        #expect(!ip.isOnLocalNetwork)
+        #expect(ip.sortPriority == 1)
+        let direct = connection("https://100-115-114-92.abc.plex.direct:10003", address: "plex.example.com", local: false)
+        #expect(direct.isOnTailnet)
+        #expect(!direct.isOnLocalNetwork)
+        let magicDNS = connection("http://storage.tail1234.ts.net:10003", address: "storage.tail1234.ts.net", local: false)
+        #expect(magicDNS.isOnTailnet)
+        #expect(!magicDNS.isOnLocalNetwork)
+        let v6 = connection("http://[fd7a:115c:a1e0::1]:10003", address: "fd7a:115c:a1e0::1", local: false)
+        #expect(v6.isOnTailnet)
+        #expect(!v6.isOnLocalNetwork)
+        let lan = connection("http://192.168.1.10:32400", address: "192.168.1.10", local: false)
+        #expect(!lan.isOnTailnet)
+    }
+
+    @Test func tailnetRanges() {
+        for address in ["100.64.0.0", "100.115.114.92", "100.127.255.255", "fd7a:115c:a1e0::1", "[fd7a:115c:a1e0:ab12::5]", "::ffff:100.100.100.100"] {
+            #expect(PlexConnection.isTailnetAddress(address), "\(address)")
+            #expect(!PlexConnection.isPrivateAddress(address), "\(address)")
+        }
+        for address in ["100.63.255.255", "100.128.0.0", "10.0.0.1", "fd7a:115c:a1e1::1", "fd12::1", "8.8.8.8", "storage"] {
+            #expect(!PlexConnection.isTailnetAddress(address), "\(address)")
+        }
+        #expect(PlexConnection.plexDirectIPAddress(in: "100-115-114-92.abc.plex.direct") == "100.115.114.92")
+    }
+
+    @Test func singleLabelHostNames() {
+        for host in ["storage", "NAS", "my-nas", "plex2"] {
+            #expect(PlexConnection.isSingleLabelHostName(host), "\(host)")
+        }
+        for host in ["", "storage.", "plex.example.com", "134744072", "0x08080808", "-nas", "::1", "stör"] {
+            #expect(!PlexConnection.isSingleLabelHostName(host), "\(host)")
+        }
+    }
+
     @Test func plexDirectDecoding() {
         #expect(PlexConnection.plexDirectIPAddress(in: "192-168-1-10.abc.plex.direct") == "192.168.1.10")
         #expect(PlexConnection.plexDirectIPAddress(in: "fd00-0-0-0-0-0-0-1.abc.plex.direct") == "fd00:0:0:0:0:0:0:1")

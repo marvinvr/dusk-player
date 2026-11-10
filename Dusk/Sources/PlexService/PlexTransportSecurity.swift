@@ -1,6 +1,10 @@
 import Foundation
+import os
 
-/// Tokens may travel over HTTP only to a destination known to be on the LAN.
+/// Tokens may travel over HTTP only to a destination that is not on the public
+/// internet: the LAN (private, loopback, link-local, `.local`), a Tailscale
+/// tailnet (100.64.0.0/10, fd7a:115c:a1e0::/48, `*.ts.net` — WireGuard-encrypted)
+/// or a single-label name resolved through MagicDNS/search domains ("storage").
 /// Never trust discovery's `local` flag or a separate advertised address here:
 /// the URL's actual host is the one that receives the credential.
 enum PlexTransportSecurity {
@@ -8,13 +12,44 @@ enum PlexTransportSecurity {
         configuration: .default, delegate: PlexTransportSessionDelegate(), delegateQueue: nil
     )
 
+    /// Public plain-HTTP origins whose `/identity` answered as the expected
+    /// Plex server this launch (the owner's last-resort rule, #36 follow-up).
+    /// In memory only: every launch re-verifies before a token goes there.
+    private static let trustedPublicHTTPOrigins = OSAllocatedUnfairLock<Set<String>>(initialState: [])
+
+    static func trustPublicHTTP(_ url: URL) {
+        guard let origin = origin(of: url), url.scheme?.lowercased() == "http" else { return }
+        trustedPublicHTTPOrigins.withLock { _ = $0.insert(origin) }
+    }
+
+    static func distrustPublicHTTP(_ url: URL) {
+        guard let origin = origin(of: url) else { return }
+        trustedPublicHTTPOrigins.withLock { _ = $0.remove(origin) }
+    }
+
+    static func sameOrigin(_ lhs: URL, _ rhs: URL) -> Bool {
+        origin(of: lhs).map { $0 == origin(of: rhs) } ?? false
+    }
+
+    private static func origin(of url: URL) -> String? {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased() else { return nil }
+        let port = url.port ?? (scheme == "https" ? 443 : 80)
+        return "\(scheme)://\(host):\(port)"
+    }
+
     static func allowsToken(in url: URL) -> Bool {
         switch url.scheme?.lowercased() {
         case "https": return url.host != nil
         case "http":
             guard let host = url.host?.lowercased() else { return false }
-            return host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local")
-                || PlexConnection.isPrivateAddress(PlexConnection.plexDirectIPAddress(in: host) ?? host)
+            if host == "localhost" || host.hasSuffix(".localhost") || host.hasSuffix(".local")
+                || PlexConnection.isTailnetHostName(host) || PlexConnection.isSingleLabelHostName(host) {
+                return true
+            }
+            let address = PlexConnection.plexDirectIPAddress(in: host) ?? host
+            if PlexConnection.isPrivateAddress(address) || PlexConnection.isTailnetAddress(address) { return true }
+            guard let origin = origin(of: url) else { return false }
+            return trustedPublicHTTPOrigins.withLock { $0.contains(origin) }
         default: return false
         }
     }

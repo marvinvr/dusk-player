@@ -187,11 +187,66 @@ struct PlexConnection: Codable, Sendable, Hashable {
         return label.replacingOccurrences(of: "-", with: ":")
     }
 
-    /// RFC 1918, loopback, link-local and IPv6 unique-local addresses.
+    /// Whether this endpoint goes over a Tailscale tailnet: a 100.64.0.0/10 or
+    /// fd7a:115c:a1e0::/48 address (also inside a plex.direct name) or a
+    /// MagicDNS `*.ts.net` name. Not the LAN — a tailnet is usually how the
+    /// device reaches home while away, and Plex itself sees it as remote — but
+    /// WireGuard-encrypted, so a token may travel over HTTP to it. A relay never is.
+    var isOnTailnet: Bool {
+        guard !relay else { return false }
+        let hosts = [address, URL(string: uri)?.host].compactMap { $0 }
+        return hosts.contains {
+            Self.isTailnetHostName($0) || Self.isTailnetAddress(Self.plexDirectIPAddress(in: $0) ?? $0)
+        }
+    }
+
+    /// Tailscale's address ranges: CGNAT 100.64.0.0/10 (RFC 6598, never
+    /// publicly routed) and the tailnet IPv6 prefix fd7a:115c:a1e0::/48.
+    static func isTailnetAddress(_ address: String) -> Bool {
+        let normalized = address
+            .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+            .lowercased()
+        if let address = IPv4Address(normalized) {
+            let bytes = Array(address.rawValue)
+            return bytes[0] == 100 && bytes[1] & 0xc0 == 64
+        }
+        guard let address = IPv6Address(normalized) else { return false }
+        let bytes = Array(address.rawValue)
+        if bytes.prefix(10).allSatisfy({ $0 == 0 }), bytes[10] == 255, bytes[11] == 255 {
+            return isTailnetAddress(bytes.suffix(4).map(String.init).joined(separator: "."))
+        }
+        return bytes.prefix(6) == [0xfd, 0x7a, 0x11, 0x5c, 0xa1, 0xe0]
+    }
+
+    /// A Tailscale MagicDNS name ("storage.tail1234.ts.net").
+    static func isTailnetHostName(_ host: String) -> Bool {
+        let lowered = host.lowercased()
+        return lowered.hasSuffix(".ts.net") && lowered.count > ".ts.net".count
+    }
+
+    /// A single-label host name ("storage", "nas"): resolved through mDNS,
+    /// MagicDNS or the network's search domains, never a public DNS name.
+    /// All-digit and 0x-hex labels are excluded — resolvers can read those as
+    /// a numeric IPv4 address ("http://134744072" is 8.8.8.8).
+    static func isSingleLabelHostName(_ host: String) -> Bool {
+        let lowered = host.lowercased()
+        guard !lowered.isEmpty, !lowered.contains("."), !lowered.contains(":"),
+              lowered.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "-") }),
+              !lowered.hasPrefix("-"), !lowered.hasSuffix("-") else {
+            return false
+        }
+        if lowered.allSatisfy(\.isNumber) { return false }
+        if lowered.hasPrefix("0x"), lowered.dropFirst(2).allSatisfy(\.isHexDigit) { return false }
+        return true
+    }
+
+    /// RFC 1918, loopback, link-local and IPv6 unique-local addresses — the
+    /// LAN. Tailscale's ULA prefix is not the LAN (see `isTailnetAddress`).
     static func isPrivateAddress(_ address: String) -> Bool {
         let normalized = address
             .trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
             .lowercased()
+        if isTailnetAddress(normalized) { return false }
         if let address = IPv4Address(normalized) {
             let bytes = Array(address.rawValue)
             switch (bytes[0], bytes[1]) {
@@ -211,7 +266,7 @@ struct PlexConnection: Codable, Sendable, Hashable {
     }
 
     var httpFallbackURI: String? {
-        guard isHTTPS, isOnLocalNetwork else { return nil }
+        guard isHTTPS, isOnLocalNetwork || isOnTailnet else { return nil }
 
         let host: String
         if address.contains(":") && !address.hasPrefix("[") && !address.hasSuffix("]") {

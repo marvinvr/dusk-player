@@ -188,8 +188,29 @@ Discovery behavior to preserve:
   172.17–31.x addresses sort last inside the local tier — they are also a real
   LAN range, so they are never dropped (dropping them once left such homes with
   only remote connections). `::` and `fe80:` are filtered; HTTP fallbacks are
-  generated only for local/private connections, and only when the fallback
-  URL itself has a local/private host. Public HTTP endpoints are never candidates.
+  generated only for local/private or tailnet connections, and only when the
+  fallback URL itself has a token-safe host. Public HTTP endpoints are never
+  candidates as such: `ServerPool.httpsUpgradeURI` tries the same host over
+  HTTPS instead (port 80 → 443, other ports kept), so an owner's custom access
+  URL typed as `http://plex.example.com` behind a TLS reverse proxy still works.
+- Plain public HTTP is the owner-approved **last resort**, never preferred: only
+  when the whole token-safe race ends `.failed`, `ServerPool.resolve(_:session:)`
+  tries `publicHTTPCandidates` one by one. Each must first answer an
+  unauthenticated `GET /identity` on that exact origin (no cross-origin
+  redirect) with the expected `machineIdentifier`; only then is the origin
+  trusted in memory (`PlexTransportSecurity.trustPublicHTTP`, per
+  scheme+host+port, re-verified every launch) and probed with the token.
+  Redirects off that origin stay refused. This stops wrong/stale hosts, not an
+  on-path attacker (the machine identifier is not a secret).
+- Token-safe HTTP hosts (`PlexTransportSecurity.allowsToken`): the private
+  addresses above, `localhost`/`.local`, Tailscale (100.64.0.0/10,
+  fd7a:115c:a1e0::/48, `*.ts.net`, also inside plex.direct names) and
+  single-label names like `storage` (MagicDNS/search domains; all-digit and
+  0x-hex labels excluded, resolvers read them as IPv4). Tailscale is **not**
+  local (`PlexConnection.isOnTailnet`, not `isOnLocalNetwork`): it is usually
+  how the device reaches home while away and Plex treats it as remote, so it
+  sorts in the remote tier and keeps remote caching / remote-refusal messaging.
+  Dropping it entirely (#36's first cut) locked out tailnet-only servers.
 - Each server's candidates are probed **concurrently** (`ServerProbe`) and the
   highest-priority one that works is committed. The race is priority-preserving:
   a success is only committed once no higher-priority candidate can still win —

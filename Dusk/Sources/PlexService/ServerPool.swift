@@ -201,11 +201,7 @@ final class ServerPool {
                         group.addTask {
                             (
                                 work,
-                                await ServerProbe.resolve(
-                                    plans: work.plans,
-                                    serverName: work.name,
-                                    session: session
-                                )
+                                await resolve(work, session: session)
                             )
                         }
                     }
@@ -249,11 +245,7 @@ final class ServerPool {
                 states[serverID] = .connecting
             }
             let session = self.session
-            let resolution = await ServerProbe.resolve(
-                plans: work.plans,
-                serverName: work.name,
-                session: session
-            )
+            let resolution = await Self.resolve(work, session: session)
             commit(resolution, work: work, generation: generation)
             return states[serverID]?.connection
         }
@@ -445,17 +437,53 @@ final class ServerPool {
         var seen = Set<String>()
 
         for connection in server.sortedConnections where !connection.isKnownUnreachableAddress {
-            if connection.isOnLocalNetwork, let httpFallbackURI = connection.httpFallbackURI {
+            if let httpFallbackURI = connection.httpFallbackURI {
                 append(uri: httpFallbackURI, connection: connection, seen: &seen, into: &candidates)
             }
 
             append(uri: connection.uri, connection: connection, seen: &seen, into: &candidates)
+            // A public HTTP connection (a custom access URL entered as
+            // "http://plex.example.com", typically behind a reverse proxy that
+            // redirects to HTTPS) never gets the token. Try the same host over
+            // HTTPS instead of dropping the connection.
+            if let httpsUpgradeURI = httpsUpgradeURI(for: connection.uri) {
+                append(uri: httpsUpgradeURI, connection: connection, seen: &seen, into: &candidates)
+            }
         }
 
         return preferringLastGoodConnection(
             in: candidates,
             lastGoodURI: lastGoodConnectionURI(serverID: server.clientIdentifier)
         )
+    }
+
+    /// Plain-HTTP connections to public hosts, in priority order — the
+    /// identity-gated last resort (see `resolve(_:session:)`). Never relays.
+    static func publicHTTPCandidates(for server: PlexServer) -> [ConnectionCandidate] {
+        var seen = Set<String>()
+        return server.sortedConnections.compactMap { connection in
+            guard !connection.relay, !connection.isKnownUnreachableAddress,
+                  let url = URL(string: connection.uri), url.scheme?.lowercased() == "http", url.host != nil,
+                  !PlexTransportSecurity.allowsToken(in: url),
+                  seen.insert(url.absoluteString).inserted,
+                  let probeURL = identityURL(for: url) else { return nil }
+            return ConnectionCandidate(baseURL: url, probeURL: probeURL, connection: connection)
+        }
+    }
+
+    /// The HTTPS form of an HTTP URI the token may not travel to: same host,
+    /// port 80 becomes HTTPS's default 443, any other port is kept. Nil for
+    /// HTTPS and for HTTP hosts that are already token-safe.
+    static func httpsUpgradeURI(for uri: String) -> String? {
+        guard let url = URL(string: uri), url.scheme?.lowercased() == "http",
+              url.host != nil, !PlexTransportSecurity.allowsToken(in: url),
+              var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        components.scheme = "https"
+        if components.port == 80 { components.port = nil }
+        guard let upgraded = components.url, PlexTransportSecurity.allowsToken(in: upgraded) else { return nil }
+        return upgraded.absoluteString
     }
 
     private static func append(
@@ -517,6 +545,33 @@ final class ServerPool {
         /// and turn a perfectly good session into `.unauthorized`.
         let token: String
         let plans: [ServerProbe.Plan]
+        /// Public plain-HTTP connections, tried only when every token-safe
+        /// candidate failed, and only after `/identity` proves the server.
+        let publicHTTPFallbacks: [ConnectionCandidate]
+        /// The token-bearing headers for a fallback that passed the gate.
+        let headers: [String: String]
+        let anonymousHeaders: [String: String]
+    }
+
+    /// HTTPS (and the LAN/tailnet) first; plain public HTTP only as the last
+    /// resort the owner asked for (#36 follow-up): the token goes there only
+    /// once an unauthenticated `/identity` on that exact URL names this server.
+    /// That stops a wrong or stale host, not an on-path attacker — which is
+    /// why it is never preferred over a connection that works.
+    private nonisolated static func resolve(_ work: ProbeWork, session: URLSession) async -> ConnectionResolution {
+        let primary = await ServerProbe.resolve(plans: work.plans, serverName: work.name, session: session)
+        guard case .failed = primary else { return primary }
+        for candidate in work.publicHTTPFallbacks {
+            guard await ServerProbe.identityMatches(
+                candidate.baseURL, serverID: work.serverID, headers: work.anonymousHeaders, session: session
+            ) else { continue }
+            PlexTransportSecurity.trustPublicHTTP(candidate.baseURL)
+            let plans = ServerProbe.makePlans(candidates: [candidate], headers: work.headers)
+            let resolution = await ServerProbe.resolve(plans: plans, serverName: work.name, session: session)
+            if case .connected = resolution { return resolution }
+            PlexTransportSecurity.distrustPublicHTTP(candidate.baseURL)
+        }
+        return primary
     }
 
     private enum WorkResolution {
@@ -574,18 +629,24 @@ final class ServerPool {
         }
 
         let candidates = Self.connectionCandidates(for: server)
-        guard !candidates.isEmpty else {
+        let fallbacks = Self.publicHTTPCandidates(for: server)
+        guard !candidates.isEmpty || !fallbacks.isEmpty else {
             return .unavailable(.offline("No reachable connections for \(server.name)"))
         }
 
         var headers = baseHeaders
         headers["X-Plex-Token"] = token
         let plans = ServerProbe.makePlans(candidates: candidates, headers: headers)
-        guard !plans.isEmpty else {
+        guard !plans.isEmpty || !fallbacks.isEmpty else {
             return .unavailable(.offline("Could not connect to \(server.name)"))
         }
 
-        return .ready(ProbeWork(serverID: serverID, name: server.name, token: token, plans: plans))
+        var anonymousHeaders = baseHeaders
+        anonymousHeaders.removeValue(forKey: "X-Plex-Token")
+        return .ready(ProbeWork(
+            serverID: serverID, name: server.name, token: token, plans: plans,
+            publicHTTPFallbacks: fallbacks, headers: headers, anonymousHeaders: anonymousHeaders
+        ))
     }
 
     private func commit(_ resolution: ConnectionResolution, work: ProbeWork, generation: Int) {

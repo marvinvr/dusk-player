@@ -213,6 +213,47 @@ enum ServerProbe {
         }
     }
 
+    /// Unauthenticated `GET /identity` on exactly `baseURL` (no redirects to
+    /// another origin): true only when it answers as the Plex server
+    /// `serverID`. Never sends a token — callers rely on that.
+    static func identityMatches(
+        _ baseURL: URL,
+        serverID: String,
+        headers: [String: String],
+        session: URLSession
+    ) async -> Bool {
+        let base = baseURL.absoluteString
+        let trimmed = base.hasSuffix("/") ? String(base.dropLast()) : base
+        guard !serverID.isEmpty, let url = URL(string: trimmed + "/identity") else { return false }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 8
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        apply(headers.filter { $0.key.caseInsensitiveCompare("X-Plex-Token") != .orderedSame }, to: &request)
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        guard !PlexTransportSecurity.carriesToken(request),
+              let (data, response) = try? await session.data(for: request),
+              let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode),
+              let answered = http.url, PlexTransportSecurity.sameOrigin(answered, url) else {
+            return false
+        }
+        return identityMachineIdentifier(in: data) == serverID
+    }
+
+    /// `MediaContainer.machineIdentifier` from a JSON or XML `/identity` body.
+    static func identityMachineIdentifier(in data: Data) -> String? {
+        struct Identity: Decodable {
+            struct Container: Decodable { let machineIdentifier: String? }
+            let MediaContainer: Container
+        }
+        if let identity = try? JSONDecoder().decode(Identity.self, from: data) {
+            return identity.MediaContainer.machineIdentifier?.nilIfEmpty
+        }
+        let text = String(decoding: data, as: UTF8.self)
+        guard text.range(of: "<MediaContainer") != nil,
+              let match = text.firstMatch(of: /machineIdentifier="([^"]+)"/) else { return nil }
+        return String(match.1)
+    }
+
     private static func validationURL(for baseURL: URL) -> URL? {
         let base = baseURL.absoluteString
         let trimmed = base.hasSuffix("/") ? String(base.dropLast()) : base
