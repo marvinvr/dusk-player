@@ -1,6 +1,18 @@
 import SwiftUI
 
+/// One long-press menu entry, so the same list renders as SwiftUI buttons
+/// (`HomeItemMenuButtons`) or as a UIKit `UIMenu` (the iOS hero button).
+struct HomeItemMenuAction: Identifiable {
+    let title: String
+    let systemImage: String
+    let perform: () -> Void
+
+    var id: String { title }
+}
+
 struct HomeItemContextMenu: View {
+    @Environment(AddToPlaylistPresenter.self) private var playlistPresenter: AddToPlaylistPresenter?
+
     let item: PlexItem
     let detailsLabel: String
     let onMarkWatched: () -> Void
@@ -9,35 +21,69 @@ struct HomeItemContextMenu: View {
     var onRemoveFromContinueWatching: (() -> Void)?
 
     var body: some View {
+        HomeItemMenuButtons(actions: actions(playlistPresenter: playlistPresenter))
+    }
+
+    func actions(playlistPresenter: AddToPlaylistPresenter?) -> [HomeItemMenuAction] {
+        var actions: [HomeItemMenuAction] = []
+
         if item.canMarkWatchedFromContextMenu {
-            Button("Mark Watched", systemImage: "eye", action: onMarkWatched)
+            actions.append(HomeItemMenuAction(title: "Mark Watched", systemImage: "eye", perform: onMarkWatched))
         }
 
         if item.canMarkUnwatchedFromContextMenu {
-            Button("Mark Unwatched", systemImage: "eye.slash", action: onMarkUnwatched)
+            actions.append(HomeItemMenuAction(title: "Mark Unwatched", systemImage: "eye.slash", perform: onMarkUnwatched))
         }
 
         if let onRemoveFromContinueWatching {
-            Button("Remove from Continue Watching", systemImage: "minus.circle", action: onRemoveFromContinueWatching)
+            actions.append(
+                HomeItemMenuAction(
+                    title: "Remove from Continue Watching",
+                    systemImage: "minus.circle",
+                    perform: onRemoveFromContinueWatching
+                )
+            )
         }
 
-        Button(detailsLabel, systemImage: "info.circle") {
-            onSelectRoute(AppNavigationRoute.destination(for: item))
-        }
+        let item = item
+        let onSelectRoute = onSelectRoute
+        actions.append(
+            HomeItemMenuAction(title: detailsLabel, systemImage: "info.circle") {
+                onSelectRoute(AppNavigationRoute.destination(for: item))
+            }
+        )
 
         if let seasonRoute = item.contextMenuSeasonRoute {
-            Button("Go to Season", systemImage: "rectangle.stack") {
+            actions.append(HomeItemMenuAction(title: "Go to Season", systemImage: "rectangle.stack") {
                 onSelectRoute(seasonRoute)
-            }
+            })
         }
 
         if let showRoute = item.contextMenuShowRoute {
-            Button("Go to Show", systemImage: "tv.fill") {
+            actions.append(HomeItemMenuAction(title: "Go to Show", systemImage: "tv.fill") {
                 onSelectRoute(showRoute)
-            }
+            })
         }
 
-        AddToPlaylistMenuButton(target: AddToPlaylistTarget(item: item))
+        // Same rule as `AddToPlaylistMenuButton`: only inside the tab shell,
+        // and only for content that can go in a playlist.
+        if let playlistPresenter, let target = AddToPlaylistTarget(item: item) {
+            actions.append(HomeItemMenuAction(title: "Add to Playlist…", systemImage: "text.badge.plus") {
+                playlistPresenter.present(target)
+            })
+        }
+
+        return actions
+    }
+}
+
+struct HomeItemMenuButtons: View {
+    let actions: [HomeItemMenuAction]
+
+    var body: some View {
+        ForEach(actions) { action in
+            Button(action.title, systemImage: action.systemImage, action: action.perform)
+        }
     }
 }
 

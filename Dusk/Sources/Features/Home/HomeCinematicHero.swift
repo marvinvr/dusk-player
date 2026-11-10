@@ -126,9 +126,10 @@ struct HomeCinematicHeroCallbacks {
     let restartRotation: () -> Void
     let showPrevious: () -> Void
     let showNext: () -> Void
-    /// iOS: gives a button label the page's long-press menu. It goes on the
-    /// label, not the button: a glass button as the menu's source makes
-    /// UIKit lift the artwork it refracts as a ghosted box.
+    /// iOS: gives a hero button the page's long-press menu through a UIKit
+    /// interaction that never touches the button itself. SwiftUI's
+    /// `.contextMenu` on a glass button lifts the artwork it refracts as a
+    /// ghosted box, and on its label it re-lays the label out mid-press.
     var withContextMenu: (AnyView) -> AnyView = { $0 }
 }
 
@@ -168,10 +169,9 @@ struct HomeCinematicHero: View {
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
     /// iOS: long-press menu items for a page, on its artwork and (through
-    /// `HomeCinematicHeroCallbacks.withContextMenu`) its button label, always
-    /// with `heroContextMenuPreview` as the lifted card. UIKit's own lift of
-    /// the glass button snapshots the hero it refracts as a ghosted box.
-    var contextMenu: ((PlexItem) -> AnyView)? = nil
+    /// `HomeCinematicHeroCallbacks.withContextMenu`) its button, always with
+    /// `heroContextMenuPreview` as the lifted card.
+    var contextMenuActions: ((PlexItem) -> [HomeItemMenuAction])? = nil
 
     @State private var currentHeroIndex = Self.initialHeroIndex
     @State private var heroRotationRevision = 0
@@ -540,12 +540,21 @@ struct HomeCinematicHero: View {
             showNext: showNextHero
         )
         #if os(iOS)
-        if let contextMenu {
-            callbacks.withContextMenu = { label in
+        if let contextMenuActions {
+            let previewSize = heroContextMenuPreviewSize
+            callbacks.withContextMenu = { button in
                 AnyView(
-                    label.heroContextMenu({ contextMenu(item) }) {
-                        heroContextMenuPreview(for: item)
-                    }
+                    button
+                        .background(
+                            HeroButtonContextMenuInteraction(
+                                actions: { contextMenuActions(item) },
+                                previewSize: previewSize,
+                                preview: { AnyView(heroContextMenuPreview(for: item)) }
+                            )
+                        )
+                        .accessibilityActions {
+                            HomeItemMenuButtons(actions: contextMenuActions(item))
+                        }
                 )
             }
         }
@@ -659,7 +668,7 @@ struct HomeCinematicHero: View {
                         restartHeroRotation()
                         detailsAction(item)
                     }
-                    .heroContextMenu(contextMenu.map { menu in { menu(item) } }) {
+                    .heroContextMenu(contextMenuActions.map { actions in { actions(item) } }) {
                         heroContextMenuPreview(for: item)
                     }
                     .accessibilityHidden(true)
@@ -829,9 +838,14 @@ struct HomeCinematicHero: View {
     /// The lifted card for the long-press menu: the page's backdrop with its
     /// title logo and episode line, like a Continue Watching tile. UIKit
     /// rounds and shadows it and morphs it out of the pressed button.
-    private func heroContextMenuPreview(for item: PlexItem) -> some View {
+    private var heroContextMenuPreviewSize: CGSize {
         let width: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 480 : 340
-        let height = (width * 9 / 16).rounded()
+        return CGSize(width: width, height: (width * 9 / 16).rounded())
+    }
+
+    private func heroContextMenuPreview(for item: PlexItem) -> some View {
+        let width = heroContextMenuPreviewSize.width
+        let height = heroContextMenuPreviewSize.height
         let key = item.id.storageKey
         let subtitle = viewModel.heroEpisodeTitle(for: item)
         let metadata = viewModel.heroMetadata(for: item).joined(separator: " · ")
@@ -1773,17 +1787,172 @@ private extension View {
     /// preview card.
     @ViewBuilder
     func heroContextMenu<Preview: View>(
-        _ menu: (() -> AnyView)?,
+        _ actions: (() -> [HomeItemMenuAction])?,
         @ViewBuilder preview: () -> Preview
     ) -> some View {
-        if let menu {
+        if let actions {
             contextMenu {
-                menu()
+                HomeItemMenuButtons(actions: actions())
             } preview: {
                 preview()
             }
         } else {
             self
+        }
+    }
+}
+#endif
+
+#if os(iOS)
+/// The long-press menu of a hero button, as a `UIContextMenuInteraction` on
+/// the view hosting the button rather than SwiftUI's `.contextMenu`.
+///
+/// SwiftUI's menu makes UIKit snapshot its source for the press highlight and
+/// the lift. On the glass button that snapshot is the hero the glass refracts
+/// (a ghosted box); on the button's label it is drawn where the label sits
+/// unpressed while the glass is in its pressed state, so the title and icon
+/// jump mid-press. Here the highlight and dismissal previews are a clear
+/// capsule over the button: UIKit never moves, hides or redraws the button,
+/// whose glass keeps its own press feedback until the card grows out of it.
+private struct HeroButtonContextMenuInteraction: UIViewRepresentable {
+    let actions: () -> [HomeItemMenuAction]
+    let previewSize: CGSize
+    let preview: () -> AnyView
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> AnchorView {
+        let view = AnchorView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.coordinator = context.coordinator
+        context.coordinator.anchor = view
+        return view
+    }
+
+    func updateUIView(_ uiView: AnchorView, context: Context) {
+        context.coordinator.actions = actions
+        context.coordinator.previewSize = previewSize
+        context.coordinator.preview = preview
+        context.coordinator.installIfPossible()
+    }
+
+    static func dismantleUIView(_ uiView: AnchorView, coordinator: Coordinator) {
+        coordinator.uninstall()
+        uiView.coordinator = nil
+    }
+
+    final class AnchorView: UIView {
+        weak var coordinator: Coordinator?
+
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            coordinator?.installIfPossible()
+        }
+    }
+
+    final class Coordinator: NSObject, UIContextMenuInteractionDelegate {
+        weak var anchor: UIView?
+        var actions: () -> [HomeItemMenuAction] = { [] }
+        var previewSize: CGSize = .zero
+        var preview: () -> AnyView = { AnyView(EmptyView()) }
+
+        private weak var hostView: UIView?
+        private var interaction: UIContextMenuInteraction?
+
+        /// The interaction sits on the scroll view hosting the hero, where
+        /// SwiftUI's own context menus live: SwiftUI content is no UIView, so
+        /// a touch on the button hit-tests to that scroll view, never to the
+        /// anchor (or its platform host) behind the button.
+        func installIfPossible() {
+            guard let anchor, let window = anchor.window else { return }
+            var host: UIView = window
+            var ancestor = anchor.superview
+            while let view = ancestor {
+                if view is UIScrollView {
+                    host = view
+                    break
+                }
+                ancestor = view.superview
+            }
+            guard hostView !== host else { return }
+            uninstall()
+            let interaction = UIContextMenuInteraction(delegate: self)
+            host.addInteraction(interaction)
+            hostView = host
+            self.interaction = interaction
+        }
+
+        func uninstall() {
+            if let interaction {
+                hostView?.removeInteraction(interaction)
+            }
+            hostView = nil
+            interaction = nil
+        }
+
+        func contextMenuInteraction(
+            _ interaction: UIContextMenuInteraction,
+            configurationForMenuAtLocation location: CGPoint
+        ) -> UIContextMenuConfiguration? {
+            guard let anchor, anchor.window != nil, let hostView = interaction.view else { return nil }
+            let point = hostView.convert(location, to: anchor)
+            guard capsulePath(in: anchor.bounds).contains(point) else { return nil }
+
+            let actions = actions()
+            guard !actions.isEmpty else { return nil }
+            let previewSize = previewSize
+            let preview = preview
+
+            return UIContextMenuConfiguration(
+                identifier: nil,
+                previewProvider: {
+                    let controller = UIHostingController(rootView: preview())
+                    controller.view.backgroundColor = .clear
+                    controller.preferredContentSize = previewSize
+                    return controller
+                },
+                actionProvider: { _ in
+                    UIMenu(children: actions.map { action in
+                        UIAction(title: action.title, image: UIImage(systemName: action.systemImage)) { _ in
+                            action.perform()
+                        }
+                    })
+                }
+            )
+        }
+
+        func contextMenuInteraction(
+            _ interaction: UIContextMenuInteraction,
+            configuration: UIContextMenuConfiguration,
+            highlightPreviewForItemWithIdentifier identifier: any NSCopying
+        ) -> UITargetedPreview? {
+            clearPreview()
+        }
+
+        func contextMenuInteraction(
+            _ interaction: UIContextMenuInteraction,
+            configuration: UIContextMenuConfiguration,
+            dismissalPreviewForItemWithIdentifier identifier: any NSCopying
+        ) -> UITargetedPreview? {
+            clearPreview()
+        }
+
+        /// The button's own shape, transparent and unshadowed: the card grows
+        /// out of and shrinks back into the button with nothing drawn over it.
+        private func clearPreview() -> UITargetedPreview? {
+            guard let anchor, anchor.window != nil else { return nil }
+            let parameters = UIPreviewParameters()
+            parameters.backgroundColor = .clear
+            parameters.visiblePath = capsulePath(in: anchor.bounds)
+            parameters.shadowPath = UIBezierPath()
+            return UITargetedPreview(view: anchor, parameters: parameters)
+        }
+
+        private func capsulePath(in rect: CGRect) -> UIBezierPath {
+            UIBezierPath(roundedRect: rect, cornerRadius: min(rect.width, rect.height) / 2)
         }
     }
 }

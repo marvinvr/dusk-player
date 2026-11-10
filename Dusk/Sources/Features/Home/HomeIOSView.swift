@@ -4,6 +4,7 @@ import UIKit
 
 struct HomeIOSView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @Environment(AddToPlaylistPresenter.self) private var addToPlaylistPresenter: AddToPlaylistPresenter?
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
@@ -56,21 +57,21 @@ struct HomeIOSView: View {
                             selectionResetRevision: heroSelectionResetRevision,
                             primaryAction: { item, callbacks in
                                 AnyView(
-                                    Button {
-                                        callbacks.restartRotation()
-                                        play(item)
-                                    } label: {
-                                        callbacks.withContextMenu(
-                                            AnyView(
+                                    callbacks.withContextMenu(
+                                        AnyView(
+                                            Button {
+                                                callbacks.restartRotation()
+                                                play(item)
+                                            } label: {
                                                 HomeHeroActionButtonLabel(
                                                     title: viewModel.heroPrimaryActionTitle(for: item),
                                                     systemImage: "play.fill",
                                                     fillsWidth: true
                                                 )
-                                            )
+                                            }
+                                            .homeHeroNativeButtonStyle()
                                         )
-                                    }
-                                    .homeHeroNativeButtonStyle()
+                                    )
                                     .frame(
                                         maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 300 : 240,
                                         alignment: .leading
@@ -85,25 +86,24 @@ struct HomeIOSView: View {
                             detailsAction: { item in
                                 path.append(AppNavigationRoute.destination(for: item))
                             },
-                            contextMenu: { item in
-                                AnyView(
-                                    HomeItemContextMenu(
-                                        item: item,
-                                        detailsLabel: heroDetailsLabel(for: item),
-                                        onMarkWatched: {
-                                            Task { await viewModel.setWatched(true, for: item) }
-                                        },
-                                        onMarkUnwatched: {
-                                            Task { await viewModel.setWatched(false, for: item) }
-                                        },
-                                        onSelectRoute: { route in
-                                            path.append(route)
-                                        },
-                                        onRemoveFromContinueWatching: {
-                                            Task { await viewModel.removeFromContinueWatching(item) }
-                                        }
-                                    )
+                            contextMenuActions: { item in
+                                HomeItemContextMenu(
+                                    item: item,
+                                    detailsLabel: heroDetailsLabel(for: item),
+                                    onMarkWatched: {
+                                        Task { await viewModel.setWatched(true, for: item) }
+                                    },
+                                    onMarkUnwatched: {
+                                        Task { await viewModel.setWatched(false, for: item) }
+                                    },
+                                    onSelectRoute: { route in
+                                        path.append(route)
+                                    },
+                                    onRemoveFromContinueWatching: {
+                                        Task { await viewModel.removeFromContinueWatching(item) }
+                                    }
                                 )
+                                .actions(playlistPresenter: addToPlaylistPresenter)
                             }
                         )
                         .frame(width: heroWidth)
