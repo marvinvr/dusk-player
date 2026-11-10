@@ -108,6 +108,13 @@ struct ServerPrioritySettingsView: View {
                 }
                 .disabled(viewModel.isRefreshing)
                 .duskSuppressTVOSButtonChrome()
+
+                NavigationLink {
+                    ConnectionDiagnosticsView()
+                } label: {
+                    Text("Connection Diagnostics")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
             } footer: {
                 if let accountError = viewModel.accountError {
                     Text(accountError)
@@ -193,6 +200,12 @@ struct ServerPrioritySettingsView: View {
                         isLoading: viewModel.isRefreshing
                     ) {
                         Task { await viewModel.refresh() }
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(title: "Connection Diagnostics") {
+                        ConnectionDiagnosticsView()
                     }
 
                     if let accountError = viewModel.accountError {

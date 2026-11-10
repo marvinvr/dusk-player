@@ -130,14 +130,24 @@ extension PlexService {
         if pool.connection(for: targetID) == nil {
             try await refreshServerAuthorization(serverID: targetID)
         }
-        // A session whose endpoint the token may not travel to (a public HTTP
-        // address restored from an older release) can never answer: every URL
-        // built on it is refused before it is sent. Re-probe instead of
-        // failing with "Invalid URL." until the next full pass.
+        // A session whose endpoint no request can be built on can never
+        // answer. Re-select instead of failing with "Invalid URL." until the
+        // next full pass.
         if let baseURL = pool.connection(for: targetID)?.baseURL,
            !PlexTransportSecurity.allowsToken(in: baseURL) {
-            plexAuthLogger.notice("Server endpoint is not token-safe; refreshing Plex endpoint")
-            try await recoverServer(serverID: targetID)
+            plexConnectionLogger.notice("Server endpoint is unusable; re-selecting connection")
+            try await recoverServer(serverID: targetID, reason: "Unusable endpoint")
+        }
+        // The fast path: last launch's endpoint is used straight away, but only
+        // after one quick check that it still is this server. A dead restored
+        // endpoint (left home, VPN off) would otherwise hold every first
+        // request for its full timeout before failing over.
+        if let restored = pool.connection(for: targetID), !restored.isVerified,
+           await !validateRestoredEndpoint(restored) {
+            try Task.checkCancellation()
+            if pool.connection(for: targetID)?.baseURL == restored.baseURL {
+                try await recoverServer(serverID: targetID, reason: "Restored endpoint failed validation")
+            }
         }
         let endpoint = pool.connection(for: targetID)?.baseURL
 
@@ -173,8 +183,19 @@ extension PlexService {
             // in flight — and a probe that then fails marks the server offline,
             // which drops its content out of every merged screen.
             try Task.checkCancellation()
-            plexAuthLogger.notice("Server request failed for \(path, privacy: .public); refreshing Plex endpoint")
-            let recovered = try await recoverServer(serverID: targetID)
+            // Another request (or the network-change pass) already moved this
+            // server to a different endpoint while this one was failing: just
+            // use it, there is nothing to re-select.
+            if let current = pool.connection(for: targetID), let endpoint, current.baseURL != endpoint {
+                return try await sendRawServerRequest(
+                    method: method, path: path, queryItems: queryItems,
+                    timeoutInterval: timeoutInterval, serverID: targetID
+                )
+            }
+            plexConnectionLogger.notice("Server request failed for \(path, privacy: .public) (\(error.localizedDescription, privacy: .public)); re-selecting connection")
+            let recovered = try await recoverServer(
+                serverID: targetID, reason: "Request failed: \(error.localizedDescription)"
+            )
             // Timed out on an address that still answers its probe: the query
             // was slow, the connection is fine. Plex keeps working on the
             // abandoned query, so sending it again only queues a second copy
@@ -191,6 +212,42 @@ extension PlexService {
             )
         }
     }
+
+    /// `/identity` + `/library/sections` on a restored session's endpoint, capped
+    /// at a few seconds whatever the locality. Coalesced per server; marks the
+    /// session verified when it passes.
+    func validateRestoredEndpoint(_ connection: PlexServerConnection) async -> Bool {
+        let serverID = connection.serverID
+        if let running = endpointValidationTasks[serverID] {
+            return await running.value
+        }
+        let candidate = ConnectionCandidate(
+            baseURL: connection.baseURL,
+            connection: connection.connection ?? PlexConnection.synthesized(for: connection.baseURL),
+            source: .lastKnownGood
+        )
+        var headers = plexRequestHeaders
+        headers["X-Plex-Token"] = connection.token
+        let session = probeSession
+        let task = Task { () -> Bool in
+            let outcome = await ConnectionSelector.probe(
+                candidate, serverID: serverID, headers: headers, session: session,
+                timeout: Self.restoredEndpointValidationTimeout
+            )
+            return outcome.isReachable
+        }
+        endpointValidationTasks[serverID] = task
+        let passed = await task.value
+        endpointValidationTasks[serverID] = nil
+        if passed {
+            pool.markVerified(serverID: serverID, baseURL: connection.baseURL)
+        } else {
+            plexConnectionLogger.notice("Restored endpoint \(connection.baseURL.absoluteString, privacy: .public) failed validation; re-selecting")
+        }
+        return passed
+    }
+
+    static let restoredEndpointValidationTimeout: TimeInterval = 3
 
     /// Resolves an explicit server, or the primary one when the caller has not
     /// been routed yet.
@@ -240,9 +297,13 @@ extension PlexService {
         return try await executeRequest(request, using: needsSlowQuerySession ? slowQuerySession : nil)
     }
 
+    /// Connection-type failures: refused, unreachable, DNS, TLS, timeouts
+    /// (all `networkError`), a URL that cannot be built on the endpoint
+    /// (`invalidURL`), and gateway-ish HTTP statuses from a proxy in front of a
+    /// server that went away.
     private func shouldRefreshServerEndpoint(after error: PlexServiceError) -> Bool {
         switch error {
-        case .networkError(_):
+        case .networkError(_), .invalidURL:
             return activeAccountToken != nil
         case .httpError(let statusCode):
             return activeAccountToken != nil
@@ -308,7 +369,11 @@ extension PlexService {
         retriesFreshAuthentication: Bool = true,
         using session: URLSession? = nil
     ) async throws -> Data {
-        try PlexTransportSecurity.validate(request)
+        do {
+            try PlexTransportSecurity.validate(request)
+        } catch {
+            throw PlexServiceError.invalidURL
+        }
         let operation: () async throws -> Data = {
             let data: Data
             let response: URLResponse

@@ -88,6 +88,9 @@ final class PlexService {
     /// (`recoverServer(serverID:)`) — nothing else may touch these.
     @ObservationIgnored var serverRecoveryTasks: [String: Task<PlexServerConnection, Error>] = [:]
     @ObservationIgnored var serverRecoveryCooldowns: [String: Date] = [:]
+    /// One validation per restored endpoint, joined by every request that
+    /// needs it. Owned by `validateRestoredEndpoint`.
+    @ObservationIgnored var endpointValidationTasks: [String: Task<Bool, Never>] = [:]
 
     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
 
@@ -97,6 +100,9 @@ final class PlexService {
     /// (`rawServerRequest(timeoutInterval:)` above `requestResourceTimeout`).
     /// Separate so every other call keeps failing fast on a dead endpoint.
     let slowQuerySession: URLSession
+    /// Connection selection only: never waits for connectivity, so a dead
+    /// candidate fails inside its own timeout instead of hanging the race.
+    let probeSession: URLSession
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
@@ -147,12 +153,18 @@ final class PlexService {
         let slowQueryConfig = URLSessionConfiguration.default
         slowQueryConfig.waitsForConnectivity = true
         slowQueryConfig.timeoutIntervalForResource = 120
+        let probeConfig = URLSessionConfiguration.ephemeral
+        probeConfig.waitsForConnectivity = false
+        probeConfig.timeoutIntervalForResource = 15
+        probeConfig.urlCache = nil
         if let urlProtocolClasses {
             config.protocolClasses = urlProtocolClasses
             slowQueryConfig.protocolClasses = urlProtocolClasses
+            probeConfig.protocolClasses = urlProtocolClasses
         }
         self.session = URLSession(configuration: config, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.slowQuerySession = URLSession(configuration: slowQueryConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+        self.probeSession = URLSession(configuration: probeConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 
@@ -205,7 +217,7 @@ final class PlexService {
             activeAccountToken = primaryAccountToken
         }
 
-        pool.configure(session: session, baseHeaders: plexRequestHeaders)
+        pool.configure(probeSession: probeSession, baseHeaders: plexRequestHeaders)
         migrateLegacySingleServerState()
         restorePersistedSessions()
     }
@@ -227,7 +239,8 @@ final class PlexService {
                 baseURL: baseURL,
                 token: token,
                 connection: Self.connection(in: server, matching: baseURL),
-                priority: serverPriority
+                priority: serverPriority,
+                verified: false
             )
         }
     }

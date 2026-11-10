@@ -245,6 +245,8 @@ Settings:
   disabling it drops its session via `pool.markDisabled`. iOS uses
   `EditButton` + `onMove` + a per-row toggle; tvOS uses position menus. A
   single-server account sees a plain one-row screen with no ordering language.
+  Its last section links `ConnectionDiagnosticsView` (every candidate, outcome,
+  latency and the winner per server; see `docs/data-and-plex.md`).
 - `LibraryOrderSettingsView`/`LibraryOrderSettingsViewModel` edit the order of
   your libraries across servers on every platform. A server name is appended to
   a row only when another library of the same type has the same title. That order is an account-level

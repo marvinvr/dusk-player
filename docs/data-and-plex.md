@@ -24,7 +24,7 @@ per server, both in Settings -> Server Priority.
 
 Files: `ServerPool.swift` (live sessions), `ServerPriorityStore.swift` (order +
 enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
-(the connection race), `ServerAvailability.swift` (aggregate state + UI wording).
+(connection candidates, ranking and selection), `ServerAvailability.swift` (aggregate state + UI wording).
 
 - `PlexServerConnection` is one live session: `serverID` (machine identifier),
   `name`, `owned`, `sourceTitle`, `baseURL`, `token`, winning `connection`, plus
@@ -181,48 +181,58 @@ Plex Home invariants:
 - `activeProfileID` is the local persistence boundary for downloads, cached
   offline metadata, and delayed watch-state actions.
 
-Discovery behavior to preserve:
-- Connections sort local non-relay, remote non-relay, relay; HTTPS wins within
-  a priority. "Local" is `PlexConnection.isOnLocalNetwork`: plex.tv's `local`
-  flag **or** a private address (RFC 1918, loopback, link-local, IPv6 ULA; for
-  plex.direct hosts the IP encoded in the name), never a relay. Docker-style
-  172.17–31.x addresses sort last inside the local tier — they are also a real
-  LAN range, so they are never dropped (dropping them once left such homes with
-  only remote connections). `::` and `fe80:` are filtered; HTTP fallbacks are
-  generated only for local/private or tailnet connections, and only when the
-  fallback URL itself has a token-safe host. Public HTTP endpoints are never
-  candidates as such: `ServerPool.httpsUpgradeURI` tries the same host over
-  HTTPS instead (port 80 → 443, other ports kept), so an owner's custom access
-  URL typed as `http://plex.example.com` behind a TLS reverse proxy still works.
-- Plain public HTTP is the owner-approved **last resort**, never preferred: only
-  when the whole token-safe race ends `.failed`, `ServerPool.resolve(_:session:)`
-  tries `publicHTTPCandidates` one by one. Each must first answer an
-  unauthenticated `GET /identity` on that exact origin (no cross-origin
-  redirect) with the expected `machineIdentifier`; only then is the origin
-  trusted in memory (`PlexTransportSecurity.trustPublicHTTP`, per
-  scheme+host+port, re-verified every launch) and probed with the token.
-  Redirects off that origin stay refused. This stops wrong/stale hosts, not an
-  on-path attacker (the machine identifier is not a secret).
-- Token-safe HTTP hosts (`PlexTransportSecurity.allowsToken`): the private
-  addresses above, `localhost`/`.local`, Tailscale (100.64.0.0/10,
-  fd7a:115c:a1e0::/48, `*.ts.net`, also inside plex.direct names) and
-  single-label names like `storage` (MagicDNS/search domains; all-digit and
-  0x-hex labels excluded, resolvers read them as IPv4). Tailscale is **not**
-  local (`PlexConnection.isOnTailnet`, not `isOnLocalNetwork`): it is usually
-  how the device reaches home while away and Plex treats it as remote, so it
-  sorts in the remote tier and keeps remote caching / remote-refusal messaging.
-  Dropping it entirely (#36's first cut) locked out tailnet-only servers.
-- Each server's candidates are probed **concurrently** (`ServerProbe`) and the
-  highest-priority one that works is committed. The race is priority-preserving:
-  a success is only committed once no higher-priority candidate can still win —
-  either they have all resolved, or `connectionPreferenceGrace` (1.5 s) elapsed
-  after the first success. This keeps local preferred at home without blocking on
-  a hung LAN address when away. Do not regress this back to a sequential loop.
-  Servers race each other too (`ServerPool.connectAll`, max four at a time), and
-  the two levels are independent.
-  Once a probe race chooses a winner, it freezes that decision, cancels the
-  remaining children and explicitly drains their results (including the grace
-  timer) before leaving the group.
+Connection selection (`ServerProbe.swift`: `ConnectionCandidate`,
+`ConnectionSelector`; rebuilt 2026-11-10 after the owner's phone could not
+reach his server on build 76):
+- **Candidates** (`ServerPool.connectionCandidates(for:lastKnownGood:)`): every
+  plex.tv resources connection (relay included), the HTTPS form of a public
+  `http://` connection (`httpsUpgradeURI`, port 80 → 443; never for LAN /
+  tailnet / single-label names), the raw-IP `http://` form of every non-relay
+  HTTPS plex.direct connection (`httpFallbackURI`, for routers whose DNS
+  refuses plex.direct), and the endpoint used last when plex.tv no longer lists
+  it. `::`/`fe80:` are dropped; Docker-bridge 172.17–31 addresses are kept.
+  Duplicates (`https://h` vs `https://h:443`) collapse.
+- **Probe** (concurrent, per-candidate timeout LAN 5 s / tailnet 8 s / remote
+  10 s / relay 12 s, on `PlexService.probeSession`, which never waits for
+  connectivity): `GET /identity` must return the expected `machineIdentifier`
+  (JSON or XML) — a different server, captive portal or recycled address never
+  wins — then `GET /library/sections` must accept the token. A candidate that
+  only answers by redirecting (http → https proxy) fails; its target is its
+  own candidate. Latency = the `/identity` round trip.
+- **Rank** (`ConnectionCandidate.rank`, lower wins, latency breaks ties):
+  direct before relay → HTTPS before HTTP (never trade a working HTTPS for
+  HTTP, owner's rule) → LAN, then tailnet / private name, then remote → a
+  Docker-bridge LAN address after other LAN ones. Locality comes from the
+  candidate URL's host as well as plex.tv's `local` flag. Tailscale is **not**
+  local for `PlexServerConnection.isLocal` (Plex treats it as remote).
+- **Commit**: as soon as no still-running candidate has a strictly better rank,
+  or `ConnectionSelector.defaultGrace` (1.5 s) after the first success. A hung
+  LAN / Docker address therefore costs at most the grace window, never a
+  timeout. Servers race each other too (`ServerPool.connectAll`, max four at a
+  time). Do not regress to a sequential loop.
+- **Persistence / fast path**: the winner's base URL is stored per server
+  (`PlexServerURL.<id>`, plus `PlexLastGoodConnectionURI.<id>`). Cold launch
+  adopts it before any probe (`restorePersistedSessions`), the launch pass
+  re-selects right behind it, and the stored URL is always a candidate.
+- **Failover**: any request failing with a connection-type error (refused,
+  DNS, TLS, timeout — all `networkError` — `invalidURL`, or 404/408/421/502/
+  503/504) re-selects that server (`recoverServer`, coalesced, 30 s cooldown
+  after a failed recovery) and retries once on the new endpoint; if another
+  request already moved the server it just retries there. Recovery falls back
+  to the stored server snapshot when plex.tv is unreachable, and so does a
+  whole pass (`connectAllServers`), so a LAN-only network still connects.
+- **Network change** (`ServerConnectionCoordinator`, `NWPathMonitor`): any
+  change of interfaces/types (`utun` = VPN, Wi-Fi ↔ cellular), gateways or
+  `isExpensive` forces a full re-selection.
+- **Diagnostics**: every selection stores a `ConnectionReport`
+  (`ServerPool.reports`, in memory, never a token) and logs it under the
+  `PlexConnection` category. Settings › Server Priority › Connection
+  Diagnostics lists each candidate, its outcome, latency and the winner, can
+  probe everything to completion (`ServerPool.diagnoseAll`), re-select, and
+  copy the report (iOS). Ask testers for that report before guessing.
+- `LiveConnectionProbeTests` is an opt-in real-network check
+  (`TEST_RUNNER_DUSK_LIVE_TOKEN_FILE=<file>`, `TEST_RUNNER_DUSK_LIVE_AWAY=1`
+  drops LAN/tailnet connections); skipped otherwise.
 - **Task group children must not contain a `do`/`catch`, and should return from
   one place.** With Swift 6.4 at `-O`, a child returning a value from both
   branches of a `do`/`catch` can lose its result: `for await` ends with children
@@ -231,10 +241,8 @@ Discovery behavior to preserve:
   crash log (swiftlang/swift#93208). Debug builds are unaffected, so simulator
   runs do not reproduce it. Use `Result.capturing` or `try?` and return a named
   struct. `TaskGroupChildShapeTests` fails on a `catch` in an `addTask` closure.
-- The winning connection URI is remembered per server
-  (`PlexLastGoodConnectionURI.<machineID>`) and floated to the front of *its own
-  priority tier* on the next connect, never across tiers. Locality is read off
-  the connection: `PlexServerConnection.isLocal` / `isRemote` / `isRelay`.
+- Locality is read off the connection: `PlexServerConnection.isLocal` /
+  `isRemote` / `isRelay`.
 - Fresh auth has a propagation retry window; missing server tokens or 401s may
   become `.authenticationPending`.
 - A 401 is **per server**: the request layer tries authorization recovery for
@@ -307,25 +315,18 @@ File: `PlexService+Networking.swift`.
   stamp and produces unattributable items — always go through the pool.
 - Use `decodeJSON(_:from:)` so decode failures become `PlexServiceError`.
 - Use `buildURL(base:path:queryItems:)` for query parameters.
-- `PlexTransportSecurity` is the credential transport boundary: tokens require
-  HTTPS for public hosts. HTTP is allowed for private/loopback/link-local IPs
-  (including private IPs embedded in `plex.direct` names), `localhost` and
-  `.local` names. The URL host decides; discovery's `local` flag or a separate
-  private `address` cannot authorize sending a token to a public HTTP host.
-  Address parsing validates complete IPv4/IPv6 literals, including mapped IPv4.
-- Authenticated URL builders return nil for unsafe destinations, including
-  endpoints restored from older versions. Cold launch never adopts such an
-  endpoint (a public HTTP base URL saved before #36 otherwise left every screen
-  on "Invalid URL." with the server still reading as connected), and
-  `rawServerRequest` re-probes a session whose base URL is not token-safe
-  instead of failing. Request executors, probes and direct
-  image/subtitle/download/media fetches independently validate header/query
-  credentials before sending. URLSession delegates preserve the original
-  credential requirement across redirects and refuse a public HTTP hop.
-  Add the same validation to any new fetch path that bypasses `executeRequest`.
-  `PlexTransportSecurityTests` covers candidate filtering, forged locality,
-  restored endpoints, header/query/Seerr JSON credentials, redirect refusal,
-  and private HTTP probe/API success without opening network sockets.
+- `PlexTransportSecurity` is the credential transport boundary. Plain HTTP is
+  a normal transport like in Plex's own apps (owner's decision 2026-11-10,
+  replacing #36's HTTPS-only rule and 93b2243's identity-gated last resort):
+  a token goes to any `http`/`https` URL with a host; HTTPS wins through the
+  ranking, not through refusal. What stays absolute: a token never follows a
+  redirect to a different host, and never follows an HTTPS → HTTP redirect
+  (`allowsRedirect`, applied by every Plex session delegate, downloads
+  included). Request executors, probes and direct image/subtitle/download/media
+  fetches validate header/query/Seerr-JSON credentials before sending; add the
+  same validation to any new fetch path that bypasses `executeRequest`.
+  `PlexTransportSecurityTests` + `ConnectionSelectionTests` cover it without
+  opening sockets.
 - `applyHeaders(to:token:)` centralizes Plex headers, platform/device metadata,
   and optional `X-Plex-Token`.
 - Plex requests should identify Dusk consistently with the stable client

@@ -161,6 +161,8 @@ enum ScreenshotMode {
 
     enum Screen: String {
         case home, movies, shows, photos, library, collections, detail, search, player, downloads, settings, serverPriority, hiddenLibraries, supporter, icons
+        /// Settings › Server Priority › Connection Diagnostics.
+        case connectionDiagnostics
         /// Settings › Trakt.
         case trakt
         /// Settings › Live TV › IPTV Sources; the Live TV tab; an IPTV
@@ -313,6 +315,9 @@ enum ScreenshotMode {
         case .serverPriority:
             destination.tab = .settings
             destination.routes = [.screenshotServerPriority]
+        case .connectionDiagnostics:
+            destination.tab = .settings
+            destination.routes = [.screenshotServerPriority, .screenshotConnectionDiagnostics]
         case .hiddenLibraries:
             destination.tab = .settings
             destination.routes = [.screenshotHiddenLibraries]

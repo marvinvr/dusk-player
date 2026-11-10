@@ -153,6 +153,16 @@ struct PlexConnection: Codable, Sendable, Hashable {
         return (17...31).contains(second)
     }
 
+    /// A connection for an endpoint plex.tv no longer lists (the remembered
+    /// last-good URL). Locality is then derived from the address alone.
+    static func synthesized(for url: URL) -> PlexConnection {
+        let scheme = url.scheme?.lowercased() ?? "https"
+        return PlexConnection(
+            protocol: scheme, address: url.host ?? "", port: url.port ?? (scheme == "https" ? 443 : 80),
+            uri: url.absoluteString, local: false, relay: false, iPv6: url.host?.contains(":")
+        )
+    }
+
     var isHTTPS: Bool {
         `protocol`.caseInsensitiveCompare("https") == .orderedSame
     }
@@ -265,23 +275,16 @@ struct PlexConnection: Codable, Sendable, Hashable {
             || (bytes[0] == 0xfe && bytes[1] & 0xc0 == 0x80)
     }
 
+    /// The plain-HTTP form of an HTTPS connection, on its raw address: what
+    /// still works when the network's DNS refuses plex.direct names (router
+    /// rebinding protection) or the certificate cannot be validated. Ranked
+    /// below every working HTTPS candidate, so it only wins when HTTPS fails.
     var httpFallbackURI: String? {
-        guard isHTTPS, isOnLocalNetwork || isOnTailnet else { return nil }
-
-        let host: String
-        if address.contains(":") && !address.hasPrefix("[") && !address.hasSuffix("]") {
-            host = "[\(address)]"
-        } else {
-            host = address
-        }
-
-        if let fallback = PlexTransportSecurity.authenticatedURL(URL(string: "http://\(host):\(port)")) {
-            return fallback.absoluteString
-        }
-        // Custom connections can advertise a name while the URI encodes a
-        // private plex.direct IP. The URI itself is then the safe LAN fallback.
-        guard var components = URLComponents(string: uri) else { return nil }
-        components.scheme = "http"
-        return PlexTransportSecurity.authenticatedURL(components.url)?.absoluteString
+        guard isHTTPS, !relay, let url = URL(string: uri), let host = url.host,
+              let ip = Self.plexDirectIPAddress(in: host),
+              IPv4Address(ip) != nil || IPv6Address(ip) != nil else { return nil }
+        let address = ip.contains(":") ? "[\(ip)]" : ip
+        let port = url.port ?? port
+        return URL(string: "http://\(address):\(port)")?.absoluteString
     }
 }

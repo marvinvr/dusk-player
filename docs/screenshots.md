@@ -18,7 +18,7 @@ by launch arguments:
 | --- | --- |
 | `-DuskScreenshotMode YES` | Signs in with a fake account token (Keychain untouched); hero rotation off |
 | `-DuskScreenshotPlexTV <url>` | Replaces `https://plex.tv` (`PlexService.plexTVBase`) |
-| `-DuskScreenshotScreen <name>` | `home`, `movies`, `shows`, `library`, `collections`, `detail`, `search`, `player`, `downloads`, `settings`, `serverPriority`, `hiddenLibraries`, `trakt`, `supporter`, `icons`, `playlists`, `playlist`, `playlistPlay`, `addToPlaylist` |
+| `-DuskScreenshotScreen <name>` | `home`, `movies`, `shows`, `library`, `collections`, `detail`, `search`, `player`, `downloads`, `settings`, `serverPriority`, `connectionDiagnostics`, `hiddenLibraries`, `trakt`, `supporter`, `icons`, `playlists`, `playlist`, `playlistPlay`, `addToPlaylist` |
 | `-DuskScreenshotPlaylistStart <n>` | `playlistPlay` (with `-DuskScreenshotItem <playlist rk>`): plays the playlist from item `n`; `addToPlaylist` opens the item's page with the Add to Playlist sheet |
 | `-DuskScreenshotItem <ratingKey>` / `-DuskScreenshotItemType <type>` | Item for `detail`/`player`; type also picks the `library` tab |
 | `-DuskScreenshotPlayOffset <seconds>` | Exact player start position, ignoring the resume point |

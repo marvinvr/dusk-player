@@ -22,6 +22,10 @@ struct PlexServerConnection: Sendable, Hashable, Identifiable {
     /// The connection the probe won on, when it is known. Restored sessions can
     /// come back without one; callers must treat nil as "locality unknown".
     let connection: PlexConnection?
+    /// False for a session restored from the last launch (the fast path) until
+    /// a quick `/identity` check on it passes; see
+    /// `PlexService.validateRestoredEndpoint`. Probed sessions are verified.
+    var isVerified = true
 
     /// True only when we positively know the session runs over the LAN.
     var isLocal: Bool {

@@ -72,7 +72,7 @@ extension PlexService {
     /// This is the only entry point that connects the account; feature screens
     /// go through `ServerConnectionCoordinator` instead.
     @discardableResult
-    func connectAllServers() async throws -> [PlexServerConnection] {
+    func connectAllServers(trigger: String = "Connect") async throws -> [PlexServerConnection] {
         guard !needsHomeUserSelection, activeAccountToken != nil else {
             throw PlexServiceError.notAuthenticated
         }
@@ -82,7 +82,23 @@ extension PlexService {
         // recovery cooldowns instead of letting them fail requests fast.
         serverRecoveryCooldowns = [:]
 
-        let discovered = try await discoverServers()
+        let discovered: [PlexServer]
+        do {
+            discovered = try await discoverServers()
+        } catch let error as PlexServiceError where Self.isTransportFailure(error) {
+            // plex.tv is unreachable, which says nothing about the servers
+            // themselves (a LAN-only network). Validate and select from the
+            // stored snapshots instead of leaving restored sessions unchecked;
+            // only a pass that finds nothing at all reports the error.
+            let snapshots = ServerPool.storedSnapshots().filter { serverPriority.isEnabled($0.clientIdentifier) }
+            guard session == serverSessionToken, !snapshots.isEmpty else { throw error }
+            plexConnectionLogger.notice("plex.tv unreachable (\(error.localizedDescription, privacy: .public)); selecting from stored snapshots")
+            for server in snapshots {
+                await pool.connect(to: server, priority: serverPriority, trigger: "\(trigger) (plex.tv unreachable)")
+            }
+            guard !pool.connections.isEmpty else { throw error }
+            return pool.connections
+        }
 
         // The profile changed (or the session was torn down) while plex.tv was
         // answering: reconciling or connecting now would hand the new identity
@@ -94,7 +110,7 @@ extension PlexService {
 
         serverPriority.reconcile(discovered: discovered)
 
-        await pool.connectAll(discovered, priority: serverPriority)
+        await pool.connectAll(discovered, priority: serverPriority, trigger: trigger)
 
         // The library-order cache is keyed on the connected servers in priority
         // order, so it invalidates itself when that set or its order changes;
@@ -105,33 +121,50 @@ extension PlexService {
     /// Re-discovers one server and re-races its connections. Used when a request
     /// to that server fails in a way a fresh endpoint could fix. Only that
     /// server's state changes; every other session keeps running.
+    ///
+    /// When plex.tv cannot be reached (a LAN-only network, plex.tv down) the
+    /// last known server snapshot is selected from instead: its connections,
+    /// plus the endpoint that worked last, are usually all a LAN needs.
     @discardableResult
-    func reconnectServer(serverID: String) async throws -> PlexServerConnection {
+    func reconnectServer(serverID: String, reason: String = "Reconnect") async throws -> PlexServerConnection {
         guard activeAccountToken != nil else { throw PlexServiceError.notAuthenticated }
 
         let session = serverSessionToken
 
         return try await retryAfterFreshAuthentication {
-            let refreshedServers = try await discoverServers()
-
-            // Same rule as a full pass: a session that has since been replaced
-            // must not get this server (and its token) grafted onto it.
-            guard session == serverSessionToken else {
-                throw PlexServiceError.noServerConnected
+            let server: PlexServer
+            do {
+                let refreshedServers = try await discoverServers()
+                // Same rule as a full pass: a session that has since been replaced
+                // must not get this server (and its token) grafted onto it.
+                guard session == serverSessionToken else {
+                    throw PlexServiceError.noServerConnected
+                }
+                guard let found = refreshedServers.first(where: { $0.clientIdentifier == serverID }) else {
+                    pool.markOffline(serverID: serverID, reason: "This server is no longer shared with your account.")
+                    throw PlexServiceError.noServerConnected
+                }
+                server = found
+            } catch let error as PlexServiceError where Self.isTransportFailure(error) {
+                guard session == serverSessionToken, let snapshot = pool.server(for: serverID) else { throw error }
+                plexConnectionLogger.notice("plex.tv unreachable (\(error.localizedDescription, privacy: .public)); selecting from the stored snapshot")
+                server = snapshot
             }
 
-            guard let server = refreshedServers.first(where: { $0.clientIdentifier == serverID }) else {
-                pool.markOffline(serverID: serverID, reason: "This server is no longer shared with your account.")
-                throw PlexServiceError.noServerConnected
-            }
+            plexConnectionLogger.notice("Re-selecting connection for \(server.name, privacy: .public): \(reason, privacy: .public)")
 
-            plexAuthLogger.notice("Refreshing Plex server endpoint for \(server.name, privacy: .public)")
-
-            guard let connection = await pool.connect(to: server, priority: serverPriority) else {
+            guard let connection = await pool.connect(to: server, priority: serverPriority, trigger: reason) else {
                 throw connectionFailure(for: server)
             }
             serverRecoveryCooldowns[serverID] = nil
             return connection
+        }
+    }
+
+    private static func isTransportFailure(_ error: PlexServiceError) -> Bool {
+        switch error {
+        case .networkError, .httpError: true
+        default: false
         }
     }
 
@@ -146,7 +179,7 @@ extension PlexService {
     /// pass (`connectAllServers`) and the explicit Retry in Server Priority
     /// clear it, because those are the user asking for another attempt.
     @discardableResult
-    func recoverServer(serverID: String) async throws -> PlexServerConnection {
+    func recoverServer(serverID: String, reason: String = "Request failed") async throws -> PlexServerConnection {
         if let existing = serverRecoveryTasks[serverID] {
             return try await existing.value
         }
@@ -157,7 +190,7 @@ extension PlexService {
 
         let task = Task { @MainActor [weak self] () throws -> PlexServerConnection in
             guard let self else { throw PlexServiceError.noServerConnected }
-            return try await self.reconnectServer(serverID: serverID)
+            return try await self.reconnectServer(serverID: serverID, reason: reason)
         }
         serverRecoveryTasks[serverID] = task
 
@@ -194,7 +227,7 @@ extension PlexService {
         guard !needsHomeUserSelection, activeAccountToken != nil else {
             throw PlexServiceError.unauthorized
         }
-        try await recoverServer(serverID: serverID)
+        try await recoverServer(serverID: serverID, reason: "Not connected / token refresh")
     }
 
     /// Turns a pool failure state into the error the call site expects.

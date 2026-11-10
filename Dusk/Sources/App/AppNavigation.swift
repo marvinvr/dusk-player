@@ -39,6 +39,8 @@ enum AppNavigationRoute: Hashable {
     /// Screenshot mode only (`ScreenshotMode`): Settings › Server Priority is
     /// otherwise reached through a plain NavigationLink.
     case screenshotServerPriority
+    /// Screenshot mode only: Server Priority › Connection Diagnostics.
+    case screenshotConnectionDiagnostics
     /// Screenshot mode only: Settings › Libraries › Hidden Libraries.
     case screenshotHiddenLibraries
     /// Screenshot mode only: Settings › Trakt.
@@ -208,6 +210,8 @@ struct AppNavigationDestinationView: View {
         #if DEBUG
         case .screenshotServerPriority:
             ServerPrioritySettingsView()
+        case .screenshotConnectionDiagnostics:
+            ConnectionDiagnosticsView()
         case .screenshotHiddenLibraries:
             HiddenLibrariesSettingsView()
         case .screenshotTrakt:

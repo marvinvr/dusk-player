@@ -44,7 +44,7 @@ final class ServerConnectionCoordinator {
     @ObservationIgnored private var networkMonitor: NWPathMonitor?
     @ObservationIgnored private var hasObservedNetworkPath = false
     @ObservationIgnored private var isNetworkAvailable = true
-    @ObservationIgnored private var networkInterfaces: Set<String> = []
+    @ObservationIgnored private var networkSignature: NetworkSignature?
     @ObservationIgnored private let networkMonitorQueue = DispatchQueue(
         label: "app.dusk.server-connection-coordinator.network"
     )
@@ -74,7 +74,7 @@ final class ServerConnectionCoordinator {
     /// Connects when there is something to gain: the first pass, a new profile,
     /// a stale pass, or a pool that currently has nothing usable. `session` is
     /// the active profile identifier; a change to it forgets the old pass.
-    func connectIfNeeded(session: String?) async {
+    func connectIfNeeded(session: String?, trigger: String = "Launch") async {
         if session != sessionID {
             sessionID = session
             lastPassFinishedAt = nil
@@ -88,28 +88,28 @@ final class ServerConnectionCoordinator {
             await joinActivePass()
             return
         }
-        await connect()
+        await connect(trigger: trigger)
     }
 
     /// A user-initiated retry: always re-probes, even if the last pass is fresh
     /// and even if one is already running.
-    func refresh() async {
+    func refresh(trigger: String = "Retry") async {
         lastPassFinishedAt = nil
         if activePass != nil, activePassSession == sessionID {
             needsAnotherPass = true
         }
-        await connect()
+        await connect(trigger: trigger)
     }
 
     /// Foreground: worth a pass only when the last one has gone stale or left
     /// the pool without a usable server.
     func applicationDidBecomeActive() {
-        Task { await connectIfNeeded(session: sessionID) }
+        Task { await connectIfNeeded(session: sessionID, trigger: "Foreground") }
     }
 
     // MARK: - Connecting
 
-    private func connect() async {
+    private func connect(trigger: String) async {
         if let running = activePass, activePassSession == sessionID {
             _ = await running.value
             // The pass that just finished answers this caller unless a retry
@@ -124,7 +124,7 @@ final class ServerConnectionCoordinator {
         isConnecting = true
         let pass = Task { () -> String? in
             do {
-                try await plexService.connectAllServers()
+                try await plexService.connectAllServers(trigger: trigger)
                 return nil
             } catch {
                 return error.localizedDescription
@@ -170,23 +170,55 @@ final class ServerConnectionCoordinator {
     // MARK: - Network
 
     /// A network change usually means a different endpoint now wins (leaving
-    /// the house, joining Wi-Fi), so it forces a pass rather than merely
-    /// allowing one. The monitor's first callback only records the baseline.
+    /// the house, joining Wi-Fi, a VPN such as Tailscale going up or down), so
+    /// it forces a full re-selection rather than merely allowing one. The
+    /// monitor's first callback only records the baseline.
     private func handleNetworkPathUpdate(_ path: NWPath) {
         let isAvailable = path.status == .satisfied
-        let interfaces = Set(path.availableInterfaces.map(\.name))
+        let signature = NetworkSignature(path)
         let wasAvailable = isNetworkAvailable
-        let previousInterfaces = networkInterfaces
+        let previous = networkSignature
 
         isNetworkAvailable = isAvailable
-        networkInterfaces = interfaces
+        networkSignature = signature
 
         guard hasObservedNetworkPath else {
             hasObservedNetworkPath = true
             return
         }
-        guard isAvailable, !wasAvailable || interfaces != previousInterfaces else { return }
+        guard isAvailable, !wasAvailable || signature != previous else { return }
 
-        Task { await refresh() }
+        Task { await refresh(trigger: "Network change (\(signature.summary))") }
+    }
+}
+
+/// What about the network path decides which endpoint wins: the interfaces
+/// (a `utun` appears with a VPN), their types (Wi-Fi vs cellular), the
+/// gateways (a different Wi-Fi on the same interface) and whether the path
+/// is expensive.
+struct NetworkSignature: Equatable {
+    let interfaces: [String]
+    let gateways: [String]
+    let isExpensive: Bool
+
+    init(_ path: NWPath) {
+        interfaces = path.availableInterfaces.map { "\($0.name):\(Self.label($0.type))" }.sorted()
+        gateways = path.gateways.map { "\($0)" }.sorted()
+        isExpensive = path.isExpensive
+    }
+
+    var summary: String {
+        interfaces.isEmpty ? "no interfaces" : interfaces.joined(separator: ", ")
+    }
+
+    private static func label(_ type: NWInterface.InterfaceType) -> String {
+        switch type {
+        case .wifi: "wifi"
+        case .cellular: "cellular"
+        case .wiredEthernet: "ethernet"
+        case .loopback: "loopback"
+        case .other: "other"
+        @unknown default: "unknown"
+        }
     }
 }

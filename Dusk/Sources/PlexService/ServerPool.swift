@@ -50,7 +50,13 @@ final class ServerPool {
     /// can never be written back into a pool that belongs to someone else.
     private(set) var generation: Int = 0
 
-    @ObservationIgnored private var session: URLSession = PlexTransportSecurity.session
+    /// The last connection selection per server, for Connection Diagnostics.
+    /// In memory only; never contains a token.
+    private(set) var reports: [String: ConnectionReport] = [:]
+
+    /// Probes never wait for connectivity: a candidate that cannot be reached
+    /// must fail within its own timeout, not sit out the request budget.
+    @ObservationIgnored private var probeSession: URLSession = PlexTransportSecurity.session
     @ObservationIgnored private var baseHeaders: [String: String] = [:]
     @ObservationIgnored private var decoders: [String: JSONDecoder] = [:]
     @ObservationIgnored private let plainDecoder = JSONDecoder()
@@ -61,9 +67,35 @@ final class ServerPool {
 
     /// Injected by `PlexService` at init. The headers carry no credential; the
     /// per-server token is added when a request is built.
-    func configure(session: URLSession, baseHeaders: [String: String]) {
-        self.session = session
+    func configure(probeSession: URLSession, baseHeaders: [String: String]) {
+        self.probeSession = probeSession
         self.baseHeaders = baseHeaders
+    }
+
+    /// Probes every candidate of every known server to completion and records
+    /// the reports, without changing any session. Connection Diagnostics only.
+    func diagnoseAll() async {
+        let generation = self.generation
+        let works = orderedIdentifiers.compactMap { serverID -> ProbeWork? in
+            guard isEnabled(serverID), let server = servers[serverID],
+                  case let .ready(work) = makeWork(for: server, trigger: "Diagnostics (all candidates)") else { return nil }
+            return work
+        }
+        let session = probeSession
+        await withTaskGroup(of: ConnectionSelector.Selection.self) { group in
+            for work in works {
+                group.addTask {
+                    await ConnectionSelector.select(
+                        candidates: work.candidates, serverID: work.serverID, serverName: work.name,
+                        token: work.token, headers: work.headers, session: session,
+                        trigger: work.trigger, waitForAll: true
+                    )
+                }
+            }
+            for await selection in group where generation == self.generation {
+                reports[selection.report.serverID] = selection.report
+            }
+        }
     }
 
     // MARK: - Reading
@@ -125,7 +157,7 @@ final class ServerPool {
 
     /// Connects every enabled server in parallel. Never throws: a server that
     /// cannot be reached simply ends up `.offline` while the others come up.
-    func connectAll(_ discovered: [PlexServer], priority: ServerPriorityStore) async {
+    func connectAll(_ discovered: [PlexServer], priority: ServerPriorityStore, trigger: String = "Connect") async {
         let generation = self.generation
         register(discovered, priority: priority)
         // Only discovery sees the whole account, so this is the one place that
@@ -168,7 +200,7 @@ final class ServerPool {
         // session's headers; the probing itself is pure networking.
         var works: [ProbeWork] = []
         for server in enabled {
-            switch makeWork(for: server) {
+            switch makeWork(for: server, trigger: trigger) {
             case let .ready(work):
                 works.append(work)
             case let .unavailable(state):
@@ -177,8 +209,8 @@ final class ServerPool {
         }
         guard !works.isEmpty else { return }
 
-        for await (work, resolution) in Self.probeAll(works: works, session: session) {
-            commit(resolution, work: work, generation: generation)
+        for await (work, selection) in Self.probeAll(works: works, session: probeSession) {
+            commit(selection, work: work, generation: generation)
         }
     }
 
@@ -188,10 +220,10 @@ final class ServerPool {
     private nonisolated static func probeAll(
         works: [ProbeWork],
         session: URLSession
-    ) -> AsyncStream<(ProbeWork, ConnectionResolution)> {
+    ) -> AsyncStream<(ProbeWork, ConnectionSelector.Selection)> {
         AsyncStream { continuation in
             let task = Task {
-                await withTaskGroup(of: (ProbeWork, ConnectionResolution).self) { group in
+                await withTaskGroup(of: (ProbeWork, ConnectionSelector.Selection).self) { group in
                     var next = 0
 
                     func addNext() {
@@ -224,7 +256,11 @@ final class ServerPool {
     /// Connects (or re-connects) a single server and commits its state.
     /// Returns the live connection, or nil with the failure recorded in `states`.
     @discardableResult
-    func connect(to server: PlexServer, priority: ServerPriorityStore? = nil) async -> PlexServerConnection? {
+    func connect(
+        to server: PlexServer,
+        priority: ServerPriorityStore? = nil,
+        trigger: String = "Reconnect"
+    ) async -> PlexServerConnection? {
         register([server], priority: priority)
 
         let serverID = server.clientIdentifier
@@ -236,7 +272,7 @@ final class ServerPool {
         }
 
         let generation = self.generation
-        switch makeWork(for: server) {
+        switch makeWork(for: server, trigger: trigger) {
         case let .unavailable(state):
             states[serverID] = state
             return nil
@@ -244,9 +280,8 @@ final class ServerPool {
             if states[serverID]?.isConnected != true {
                 states[serverID] = .connecting
             }
-            let session = self.session
-            let resolution = await Self.resolve(work, session: session)
-            commit(resolution, work: work, generation: generation)
+            let selection = await Self.resolve(work, session: probeSession)
+            commit(selection, work: work, generation: generation)
             return states[serverID]?.connection
         }
     }
@@ -266,7 +301,8 @@ final class ServerPool {
         baseURL: URL,
         token: String,
         connection: PlexConnection?,
-        priority: ServerPriorityStore? = nil
+        priority: ServerPriorityStore? = nil,
+        verified: Bool = true
     ) {
         register([server], priority: priority)
         let serverID = server.clientIdentifier
@@ -278,7 +314,8 @@ final class ServerPool {
                 sourceTitle: server.sourceTitle,
                 baseURL: baseURL,
                 token: token,
-                connection: connection
+                connection: connection,
+                isVerified: verified
             )
         )
         Self.saveToken(token, serverID: serverID)
@@ -286,6 +323,14 @@ final class ServerPool {
         if let uri = connection?.uri.nilIfEmpty {
             Self.rememberLastGoodConnection(uri, serverID: serverID)
         }
+    }
+
+    /// A restored session passed its validation check.
+    func markVerified(serverID: String, baseURL: URL) {
+        guard var connection = states[serverID]?.connection, connection.baseURL == baseURL,
+              !connection.isVerified else { return }
+        connection.isVerified = true
+        states[serverID] = .connected(connection)
     }
 
     /// The server rejected our token. Per server on purpose: one stale share
@@ -323,6 +368,7 @@ final class ServerPool {
         servers = [:]
         order = []
         decoders = [:]
+        reports = [:]
     }
 
     // MARK: - Persistence
@@ -370,13 +416,11 @@ final class ServerPool {
             .flatMap(URL.init(string:))
     }
 
-    /// The endpoint a cold launch may adopt before any probe: the remembered
-    /// base URL (the exact endpoint that worked), else the last-good connection
-    /// URI (installs that upgraded before base URLs were kept per server), and
-    /// only one a token may travel to right now. A public plain-HTTP endpoint
-    /// saved by a release before #36, or trusted for an earlier launch only, is
-    /// left to the probe: adopting it made every request fail with "Invalid
-    /// URL." while the server looked connected, so nothing re-probed it.
+    /// The endpoint a cold launch adopts before any probe (the fast path): the
+    /// remembered base URL (the exact endpoint the last selection chose), else
+    /// the last-good connection URI (installs from before base URLs were kept
+    /// per server). The launch pass re-selects right behind it, and a request
+    /// that fails on it re-selects at once, so a dead one never sticks.
     static func restorableBaseURL(serverID: String) -> URL? {
         let stored = [
             storedBaseURL(serverID: serverID),
@@ -446,108 +490,68 @@ final class ServerPool {
 
     // MARK: - Candidates
 
-    /// Candidate endpoints for one server, in priority order.
-    static func connectionCandidates(for server: PlexServer) -> [ConnectionCandidate] {
+    /// Every endpoint worth probing for one server: each plex.tv connection
+    /// (relay included), the HTTPS form of a public `http://` connection, the
+    /// raw-address `http://` form of an HTTPS plex.direct connection, and the
+    /// endpoint this device used last when plex.tv no longer lists it. Order is
+    /// not priority — `ConnectionSelector` ranks them — but it is stable.
+    static func connectionCandidates(for server: PlexServer, lastKnownGood: URL? = nil) -> [ConnectionCandidate] {
         var candidates: [ConnectionCandidate] = []
         var seen = Set<String>()
 
+        func append(_ uri: String?, _ connection: PlexConnection, _ source: ConnectionCandidateSource) {
+            guard let uri, let url = PlexTransportSecurity.authenticatedURL(URL(string: uri)) else { return }
+            guard seen.insert(normalizedKey(url)).inserted else { return }
+            candidates.append(ConnectionCandidate(baseURL: url, connection: connection, source: source))
+        }
+
         for connection in server.sortedConnections where !connection.isKnownUnreachableAddress {
-            if let httpFallbackURI = connection.httpFallbackURI {
-                append(uri: httpFallbackURI, connection: connection, seen: &seen, into: &candidates)
-            }
-
-            append(uri: connection.uri, connection: connection, seen: &seen, into: &candidates)
-            // A public HTTP connection (a custom access URL entered as
-            // "http://plex.example.com", typically behind a reverse proxy that
-            // redirects to HTTPS) never gets the token. Try the same host over
-            // HTTPS instead of dropping the connection.
-            if let httpsUpgradeURI = httpsUpgradeURI(for: connection.uri) {
-                append(uri: httpsUpgradeURI, connection: connection, seen: &seen, into: &candidates)
+            append(connection.uri, connection, .plex)
+            append(httpsUpgradeURI(for: connection.uri), connection, .httpsUpgrade)
+            if !connection.relay {
+                append(connection.httpFallbackURI, connection, .httpFallback)
             }
         }
 
-        return preferringLastGoodConnection(
-            in: candidates,
-            lastGoodURI: lastGoodConnectionURI(serverID: server.clientIdentifier)
-        )
-    }
-
-    /// Plain-HTTP connections to public hosts, in priority order — the
-    /// identity-gated last resort (see `resolve(_:session:)`). Never relays.
-    static func publicHTTPCandidates(for server: PlexServer) -> [ConnectionCandidate] {
-        var seen = Set<String>()
-        return server.sortedConnections.compactMap { connection in
-            guard !connection.relay, !connection.isKnownUnreachableAddress,
-                  let url = URL(string: connection.uri), url.scheme?.lowercased() == "http", url.host != nil,
-                  !PlexTransportSecurity.allowsToken(in: url),
-                  seen.insert(url.absoluteString).inserted,
-                  let probeURL = identityURL(for: url) else { return nil }
-            return ConnectionCandidate(baseURL: url, probeURL: probeURL, connection: connection)
+        if let lastKnownGood, PlexTransportSecurity.allowsToken(in: lastKnownGood),
+           !seen.contains(normalizedKey(lastKnownGood)) {
+            let connection = server.connections.first { URL(string: $0.uri)?.host == lastKnownGood.host }
+                ?? PlexConnection.synthesized(for: lastKnownGood)
+            append(lastKnownGood.absoluteString, connection, .lastKnownGood)
         }
+
+        return candidates
     }
 
-    /// The HTTPS form of an HTTP URI the token may not travel to: same host,
-    /// port 80 becomes HTTPS's default 443, any other port is kept. Nil for
-    /// HTTPS and for HTTP hosts that are already token-safe.
+    /// `https://host:443` and `https://host` are the same endpoint.
+    private static func normalizedKey(_ url: URL) -> String {
+        let scheme = url.scheme?.lowercased() ?? ""
+        let port = url.port ?? (scheme == "https" ? 443 : 80)
+        var path = url.path
+        while path.hasSuffix("/") { path.removeLast() }
+        return "\(scheme)://\(url.host?.lowercased() ?? ""):\(port)\(path)"
+    }
+
+    /// The HTTPS form of a public HTTP URI (a custom access URL typed as
+    /// "http://plex.example.com", typically a reverse proxy that also serves
+    /// TLS): same host, port 80 becomes HTTPS's default 443, any other port is
+    /// kept. Nil for HTTPS, and for LAN / tailnet / private names, whose
+    /// certificates (if any) never match the raw host.
     static func httpsUpgradeURI(for uri: String) -> String? {
         guard let url = URL(string: uri), url.scheme?.lowercased() == "http",
-              url.host != nil, !PlexTransportSecurity.allowsToken(in: url),
+              let host = url.host?.lowercased(), !host.isEmpty,
               var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+        let address = PlexConnection.plexDirectIPAddress(in: host) ?? host
+        if PlexConnection.isPrivateAddress(address) || PlexConnection.isTailnetAddress(address)
+            || PlexConnection.isTailnetHostName(host) || PlexConnection.isSingleLabelHostName(host)
+            || host == "localhost" || host.hasSuffix(".local") {
             return nil
         }
         components.scheme = "https"
         if components.port == 80 { components.port = nil }
-        guard let upgraded = components.url, PlexTransportSecurity.allowsToken(in: upgraded) else { return nil }
-        return upgraded.absoluteString
-    }
-
-    private static func append(
-        uri: String,
-        connection: PlexConnection,
-        seen: inout Set<String>,
-        into candidates: inout [ConnectionCandidate]
-    ) {
-        guard let baseURL = PlexTransportSecurity.authenticatedURL(URL(string: uri)),
-              seen.insert(baseURL.absoluteString).inserted,
-              let probeURL = identityURL(for: baseURL) else {
-            return
-        }
-
-        candidates.append(
-            ConnectionCandidate(baseURL: baseURL, probeURL: probeURL, connection: connection)
-        )
-    }
-
-    private static func identityURL(for baseURL: URL) -> URL? {
-        let base = baseURL.absoluteString
-        let trimmed = base.hasSuffix("/") ? String(base.dropLast()) : base
-        return URLComponents(string: trimmed + "/identity")?.url
-    }
-
-    /// Floats the last connection that successfully served this device to the
-    /// front of its own priority tier ("remember which one works and stay on
-    /// it") without ever promoting it across tiers — so a remembered remote
-    /// connection never outranks a reachable LAN connection when we're home.
-    private static func preferringLastGoodConnection(
-        in candidates: [ConnectionCandidate],
-        lastGoodURI: String?
-    ) -> [ConnectionCandidate] {
-        guard let lastGoodURI else { return candidates }
-
-        return candidates.enumerated().sorted { lhs, rhs in
-            let left = lhs.element
-            let right = rhs.element
-            if left.connection.sortPriority != right.connection.sortPriority {
-                return left.connection.sortPriority < right.connection.sortPriority
-            }
-            let leftIsLastGood = left.connection.uri == lastGoodURI
-            let rightIsLastGood = right.connection.uri == lastGoodURI
-            if leftIsLastGood != rightIsLastGood {
-                return leftIsLastGood
-            }
-            return lhs.offset < rhs.offset
-        }
-        .map(\.element)
+        return components.url?.absoluteString
     }
 
     // MARK: - Internals
@@ -559,34 +563,16 @@ final class ServerPool {
         /// two probes of the same server can never consume each other's token
         /// and turn a perfectly good session into `.unauthorized`.
         let token: String
-        let plans: [ServerProbe.Plan]
-        /// Public plain-HTTP connections, tried only when every token-safe
-        /// candidate failed, and only after `/identity` proves the server.
-        let publicHTTPFallbacks: [ConnectionCandidate]
-        /// The token-bearing headers for a fallback that passed the gate.
+        let candidates: [ConnectionCandidate]
         let headers: [String: String]
-        let anonymousHeaders: [String: String]
+        let trigger: String
     }
 
-    /// HTTPS (and the LAN/tailnet) first; plain public HTTP only as the last
-    /// resort the owner asked for (#36 follow-up): the token goes there only
-    /// once an unauthenticated `/identity` on that exact URL names this server.
-    /// That stops a wrong or stale host, not an on-path attacker — which is
-    /// why it is never preferred over a connection that works.
-    private nonisolated static func resolve(_ work: ProbeWork, session: URLSession) async -> ConnectionResolution {
-        let primary = await ServerProbe.resolve(plans: work.plans, serverName: work.name, session: session)
-        guard case .failed = primary else { return primary }
-        for candidate in work.publicHTTPFallbacks {
-            guard await ServerProbe.identityMatches(
-                candidate.baseURL, serverID: work.serverID, headers: work.anonymousHeaders, session: session
-            ) else { continue }
-            PlexTransportSecurity.trustPublicHTTP(candidate.baseURL)
-            let plans = ServerProbe.makePlans(candidates: [candidate], headers: work.headers)
-            let resolution = await ServerProbe.resolve(plans: plans, serverName: work.name, session: session)
-            if case .connected = resolution { return resolution }
-            PlexTransportSecurity.distrustPublicHTTP(candidate.baseURL)
-        }
-        return primary
+    private nonisolated static func resolve(_ work: ProbeWork, session: URLSession) async -> ConnectionSelector.Selection {
+        await ConnectionSelector.select(
+            candidates: work.candidates, serverID: work.serverID, serverName: work.name,
+            token: work.token, headers: work.headers, session: session, trigger: work.trigger
+        )
     }
 
     private enum WorkResolution {
@@ -634,7 +620,7 @@ final class ServerPool {
         return identifiers
     }
 
-    private func makeWork(for server: PlexServer) -> WorkResolution {
+    private func makeWork(for server: PlexServer, trigger: String) -> WorkResolution {
         let serverID = server.clientIdentifier
         guard !serverID.isEmpty else {
             return .unavailable(.offline("Server has no identifier"))
@@ -643,32 +629,29 @@ final class ServerPool {
             return .unavailable(.unauthorized)
         }
 
-        let candidates = Self.connectionCandidates(for: server)
-        let fallbacks = Self.publicHTTPCandidates(for: server)
-        guard !candidates.isEmpty || !fallbacks.isEmpty else {
-            return .unavailable(.offline("No reachable connections for \(server.name)"))
+        let candidates = Self.connectionCandidates(
+            for: server,
+            lastKnownGood: states[serverID]?.connection?.baseURL ?? Self.storedBaseURL(serverID: serverID)
+        )
+        guard !candidates.isEmpty else {
+            return .unavailable(.offline("No connections for \(server.name)"))
         }
 
         var headers = baseHeaders
-        headers["X-Plex-Token"] = token
-        let plans = ServerProbe.makePlans(candidates: candidates, headers: headers)
-        guard !plans.isEmpty || !fallbacks.isEmpty else {
-            return .unavailable(.offline("Could not connect to \(server.name)"))
-        }
-
-        var anonymousHeaders = baseHeaders
-        anonymousHeaders.removeValue(forKey: "X-Plex-Token")
+        headers.removeValue(forKey: "X-Plex-Token")
         return .ready(ProbeWork(
-            serverID: serverID, name: server.name, token: token, plans: plans,
-            publicHTTPFallbacks: fallbacks, headers: headers, anonymousHeaders: anonymousHeaders
+            serverID: serverID, name: server.name, token: token,
+            candidates: candidates, headers: headers, trigger: trigger
         ))
     }
 
-    private func commit(_ resolution: ConnectionResolution, work: ProbeWork, generation: Int) {
+    private func commit(_ selection: ConnectionSelector.Selection, work: ProbeWork, generation: Int) {
         let serverID = work.serverID
+        let resolution = selection.resolution
         // A sign-out or Plex Home switch happened while this probe was running:
         // its result belongs to a session that no longer exists.
         guard generation == self.generation else { return }
+        reports[serverID] = selection.report
         // The user can switch a server off mid-probe, and a disabled server is
         // ignored entirely — session included.
         guard isEnabled(serverID) else {
@@ -700,6 +683,7 @@ final class ServerPool {
             )
             states[serverID] = .unauthorized
         case let .failed(reason):
+            // The current endpoint was a candidate too, so nothing works.
             states[serverID] = .offline(reason)
         }
     }
