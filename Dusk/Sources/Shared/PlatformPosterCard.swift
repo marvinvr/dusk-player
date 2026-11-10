@@ -79,6 +79,10 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
         }
         .buttonStyle(.plain)
         .duskSuppressTVOSButtonChrome()
+        .contentShape(
+            .contextMenuPreview,
+            PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
+        )
         .contextMenu {
             contextMenuContent()
         }
@@ -188,6 +192,10 @@ struct PosterActionCard<ContextMenuContent: View>: View {
         }
         .buttonStyle(.plain)
         .duskSuppressTVOSButtonChrome()
+        .contentShape(
+            .contextMenuPreview,
+            PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
+        )
         .contextMenu {
             contextMenuContent()
         }
@@ -219,5 +227,24 @@ extension PosterActionCard where ContextMenuContent == EmptyView {
         self.availabilityBadge = availabilityBadge
         self.isDimmed = isDimmed
         self.contextMenuContent = { EmptyView() }
+    }
+}
+
+/// The long-press lift of an iOS poster card: just the artwork, rounded like
+/// it, as tvOS does. The card's full shape also lifts the title lines below
+/// it as a loose cut-out over the dimmed screen.
+struct PosterArtworkPreviewShape: Shape {
+    let width: CGFloat
+    let imageAspectRatio: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let artwork = CGRect(
+            x: rect.minX,
+            y: rect.minY,
+            width: min(width, rect.width),
+            height: min(imageAspectRatio > 0 ? width / imageAspectRatio : width * 1.5, rect.height)
+        )
+        return RoundedRectangle(cornerRadius: PosterArtwork.cornerRadius, style: .continuous)
+            .path(in: artwork)
     }
 }

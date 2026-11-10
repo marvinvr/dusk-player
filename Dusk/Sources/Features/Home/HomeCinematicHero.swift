@@ -126,6 +126,10 @@ struct HomeCinematicHeroCallbacks {
     let restartRotation: () -> Void
     let showPrevious: () -> Void
     let showNext: () -> Void
+    /// iOS: gives a button label the page's long-press menu. It goes on the
+    /// label, not the button: a glass button as the menu's source makes
+    /// UIKit lift the artwork it refracts as a ghosted box.
+    var withContextMenu: (AnyView) -> AnyView = { $0 }
 }
 
 struct HomeCinematicHero: View {
@@ -163,6 +167,11 @@ struct HomeCinematicHero: View {
     let primaryAction: (PlexItem, HomeCinematicHeroCallbacks) -> AnyView
     var secondaryAction: ((PlexItem, HomeCinematicHeroCallbacks) -> AnyView)? = nil
     var detailsAction: ((PlexItem) -> Void)? = nil
+    /// iOS: long-press menu items for a page, on its artwork and (through
+    /// `HomeCinematicHeroCallbacks.withContextMenu`) its button label, always
+    /// with `heroContextMenuPreview` as the lifted card. UIKit's own lift of
+    /// the glass button snapshots the hero it refracts as a ghosted box.
+    var contextMenu: ((PlexItem) -> AnyView)? = nil
 
     @State private var currentHeroIndex = Self.initialHeroIndex
     @State private var heroRotationRevision = 0
@@ -523,13 +532,25 @@ struct HomeCinematicHero: View {
     }
     #endif
 
-    private var actionCallbacks: HomeCinematicHeroCallbacks {
-        HomeCinematicHeroCallbacks(
+    private func actionCallbacks(for item: PlexItem) -> HomeCinematicHeroCallbacks {
+        var callbacks = HomeCinematicHeroCallbacks(
             pauseRotation: pauseHeroRotation,
             restartRotation: restartHeroRotation,
             showPrevious: showPreviousHero,
             showNext: showNextHero
         )
+        #if os(iOS)
+        if let contextMenu {
+            callbacks.withContextMenu = { label in
+                AnyView(
+                    label.heroContextMenu({ contextMenu(item) }) {
+                        heroContextMenuPreview(for: item)
+                    }
+                )
+            }
+        }
+        #endif
+        return callbacks
     }
 
     private static var initialHeroIndex: Int {
@@ -637,6 +658,9 @@ struct HomeCinematicHero: View {
                     .onTapGesture {
                         restartHeroRotation()
                         detailsAction(item)
+                    }
+                    .heroContextMenu(contextMenu.map { menu in { menu(item) } }) {
+                        heroContextMenuPreview(for: item)
                     }
                     .accessibilityHidden(true)
             }
@@ -787,8 +811,9 @@ struct HomeCinematicHero: View {
 
     @ViewBuilder
     private func heroActions(for item: PlexItem) -> some View {
-        let primary = primaryAction(item, actionCallbacks)
-        let secondary = secondaryAction?(item, actionCallbacks)
+        let callbacks = actionCallbacks(for: item)
+        let primary = primaryAction(item, callbacks)
+        let secondary = secondaryAction?(item, callbacks)
 
         if let secondary {
             HStack(spacing: 16) {
@@ -799,6 +824,68 @@ struct HomeCinematicHero: View {
             primary
         }
     }
+
+    #if os(iOS)
+    /// The lifted card for the long-press menu: the page's backdrop with its
+    /// title logo and episode line, like a Continue Watching tile. UIKit
+    /// rounds and shadows it and morphs it out of the pressed button.
+    private func heroContextMenuPreview(for item: PlexItem) -> some View {
+        let width: CGFloat = UIDevice.current.userInterfaceIdiom == .pad ? 480 : 340
+        let height = (width * 9 / 16).rounded()
+        let key = item.id.storageKey
+        let subtitle = viewModel.heroEpisodeTitle(for: item)
+        let metadata = viewModel.heroMetadata(for: item).joined(separator: " · ")
+
+        return ZStack(alignment: .bottomLeading) {
+            Color.duskSurface
+
+            if let backdrop = preloadedHeroBackdropImages[key] {
+                Image(uiImage: backdrop)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: width, height: height, alignment: heroBackdropImageAlignment)
+                    .clipped()
+            }
+
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.35), .black.opacity(0.8)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            VStack(alignment: .leading, spacing: 6) {
+                if let logo = preloadedHeroTitleImages[key] {
+                    Image(uiImage: logo)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: width * 0.5, maxHeight: height * 0.3, alignment: .bottomLeading)
+                        .shadow(color: .black.opacity(0.3), radius: 6, y: 2)
+                } else {
+                    Text(viewModel.displayTitle(for: item))
+                        .font(.title3.weight(.heavy))
+                        .lineLimit(2)
+                }
+
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                }
+
+                if !metadata.isEmpty {
+                    Text(metadata)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.78))
+                        .lineLimit(1)
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(16)
+        }
+        .frame(width: width, height: height)
+        .environment(\.colorScheme, .dark)
+    }
+    #endif
 
     @ViewBuilder
     private func heroPager(currentIndex: Int) -> some View {
@@ -1675,6 +1762,28 @@ private struct HeroIndirectScrollNavigation: UIViewRepresentable {
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
             true
+        }
+    }
+}
+#endif
+
+#if os(iOS)
+private extension View {
+    /// Attaches the hero's long-press menu, when it has one, with its own
+    /// preview card.
+    @ViewBuilder
+    func heroContextMenu<Preview: View>(
+        _ menu: (() -> AnyView)?,
+        @ViewBuilder preview: () -> Preview
+    ) -> some View {
+        if let menu {
+            contextMenu {
+                menu()
+            } preview: {
+                preview()
+            }
+        } else {
+            self
         }
     }
 }

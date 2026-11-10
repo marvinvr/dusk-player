@@ -60,10 +60,14 @@ struct HomeIOSView: View {
                                         callbacks.restartRotation()
                                         play(item)
                                     } label: {
-                                        HomeHeroActionButtonLabel(
-                                            title: viewModel.heroPrimaryActionTitle(for: item),
-                                            systemImage: "play.fill",
-                                            fillsWidth: true
+                                        callbacks.withContextMenu(
+                                            AnyView(
+                                                HomeHeroActionButtonLabel(
+                                                    title: viewModel.heroPrimaryActionTitle(for: item),
+                                                    systemImage: "play.fill",
+                                                    fillsWidth: true
+                                                )
+                                            )
                                         )
                                     }
                                     .homeHeroNativeButtonStyle()
@@ -75,29 +79,31 @@ struct HomeIOSView: View {
                                         DragGesture(minimumDistance: 0)
                                             .onChanged { _ in callbacks.pauseRotation() }
                                     )
-                                    .contextMenu {
-                                        HomeItemContextMenu(
-                                            item: item,
-                                            detailsLabel: heroDetailsLabel(for: item),
-                                            onMarkWatched: {
-                                                Task { await viewModel.setWatched(true, for: item) }
-                                            },
-                                            onMarkUnwatched: {
-                                                Task { await viewModel.setWatched(false, for: item) }
-                                            },
-                                            onSelectRoute: { route in
-                                                path.append(route)
-                                            },
-                                            onRemoveFromContinueWatching: {
-                                                Task { await viewModel.removeFromContinueWatching(item) }
-                                            }
-                                        )
-                                    }
                                     .accessibilityAddTraits(.isButton)
                                 )
                             },
                             detailsAction: { item in
                                 path.append(AppNavigationRoute.destination(for: item))
+                            },
+                            contextMenu: { item in
+                                AnyView(
+                                    HomeItemContextMenu(
+                                        item: item,
+                                        detailsLabel: heroDetailsLabel(for: item),
+                                        onMarkWatched: {
+                                            Task { await viewModel.setWatched(true, for: item) }
+                                        },
+                                        onMarkUnwatched: {
+                                            Task { await viewModel.setWatched(false, for: item) }
+                                        },
+                                        onSelectRoute: { route in
+                                            path.append(route)
+                                        },
+                                        onRemoveFromContinueWatching: {
+                                            Task { await viewModel.removeFromContinueWatching(item) }
+                                        }
+                                    )
+                                )
                             }
                         )
                         .frame(width: heroWidth)
