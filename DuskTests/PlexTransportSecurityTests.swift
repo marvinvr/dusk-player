@@ -287,6 +287,46 @@ struct PlexTransportSecurityTests {
         }
     }
 
+    /// An install upgraded from a release before #36 can have a public HTTP
+    /// endpoint stored. Cold launch adopted it, so every screen showed
+    /// "Invalid URL." even after the probe had reconnected over HTTPS.
+    @Test func coldLaunchNeverRestoresAnEndpointTheTokenMayNotTravelTo() {
+        let id = "transport-test-\(UUID())"
+        defer { ServerPool.forget(serverID: id) }
+        let defaults = UserDefaults.standard
+
+        defaults.set("http://plex.example.com:80", forKey: ServerPool.baseURLKey(serverID: id))
+        defaults.set("http://plex.example.com:80", forKey: ServerPool.lastGoodConnectionKey(serverID: id))
+        #expect(ServerPool.restorableBaseURL(serverID: id) == nil)
+
+        defaults.set("https://plex.example.com:443", forKey: ServerPool.lastGoodConnectionKey(serverID: id))
+        #expect(ServerPool.restorableBaseURL(serverID: id)?.absoluteString == "https://plex.example.com:443")
+
+        for safe in ["http://192.168.1.2:32400", "http://storage:10003", "https://plex.example.com"] {
+            defaults.set(safe, forKey: ServerPool.baseURLKey(serverID: id))
+            #expect(ServerPool.restorableBaseURL(serverID: id)?.absoluteString == safe)
+        }
+    }
+
+    @Test func requestOnARestoredPublicHTTPEndpointRecoversInsteadOfFailingAsInvalidURL() async throws {
+        let service = PlexService(urlProtocolClasses: [TransportStubProtocol.self])
+        defer { service.session.invalidateAndCancel(); service.slowQuerySession.invalidateAndCancel() }
+        let id = "transport-test-\(UUID())"
+        defer { ServerPool.forget(serverID: id) }
+        let server = try server([], id: id)
+        service.pool.adopt(
+            server: server, baseURL: URL(string: "http://plex.example.com:80")!, token: "test-token", connection: nil
+        )
+
+        do {
+            _ = try await service.rawServerRequest(path: "/library/sections", serverID: id)
+            Issue.record("A public HTTP endpoint must never answer an authenticated request")
+        } catch let error as PlexServiceError {
+            // Recovery ran (discovery/probe), rather than the dead-end URL refusal.
+            #expect(error != .invalidURL)
+        }
+    }
+
     @Test func redirectsKeepTheOriginalCredentialRequirementEvenAfterHeadersAreDropped() {
         var original = URLRequest(url: URL(string: "https://public.example/identity")!)
         original.setValue("test-token", forHTTPHeaderField: "X-Plex-Token")

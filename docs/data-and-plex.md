@@ -110,7 +110,8 @@ Tokens and persisted state:
     a disabled server keeps its snapshot and costs no round-trip when it is
     turned back on.
 - `PlexService.init` restores a session for every *enabled* snapshot that has a
-  token and a remembered endpoint, so Home/Libraries/Search have content
+  token and a remembered endpoint the token may travel to right now
+  (`ServerPool.restorableBaseURL`), so Home/Libraries/Search have content
   immediately; `ServerConnectionCoordinator`'s pass then verifies and refreshes
   them, and a restored endpoint that has since moved fails over on its next
   request. A restored session has no winning `PlexConnection` unless the base
@@ -313,7 +314,11 @@ File: `PlexService+Networking.swift`.
   private `address` cannot authorize sending a token to a public HTTP host.
   Address parsing validates complete IPv4/IPv6 literals, including mapped IPv4.
 - Authenticated URL builders return nil for unsafe destinations, including
-  endpoints restored from older versions. Request executors, probes and direct
+  endpoints restored from older versions. Cold launch never adopts such an
+  endpoint (a public HTTP base URL saved before #36 otherwise left every screen
+  on "Invalid URL." with the server still reading as connected), and
+  `rawServerRequest` re-probes a session whose base URL is not token-safe
+  instead of failing. Request executors, probes and direct
   image/subtitle/download/media fetches independently validate header/query
   credentials before sending. URLSession delegates preserve the original
   credential requirement across redirects and refuse a public HTTP hop.

@@ -370,6 +370,21 @@ final class ServerPool {
             .flatMap(URL.init(string:))
     }
 
+    /// The endpoint a cold launch may adopt before any probe: the remembered
+    /// base URL (the exact endpoint that worked), else the last-good connection
+    /// URI (installs that upgraded before base URLs were kept per server), and
+    /// only one a token may travel to right now. A public plain-HTTP endpoint
+    /// saved by a release before #36, or trusted for an earlier launch only, is
+    /// left to the probe: adopting it made every request fail with "Invalid
+    /// URL." while the server looked connected, so nothing re-probed it.
+    static func restorableBaseURL(serverID: String) -> URL? {
+        let stored = [
+            storedBaseURL(serverID: serverID),
+            lastGoodConnectionURI(serverID: serverID).flatMap(URL.init(string:)),
+        ]
+        return stored.lazy.compactMap { PlexTransportSecurity.authenticatedURL($0) }.first
+    }
+
     static func rememberBaseURL(_ baseURL: URL, serverID: String) {
         UserDefaults.standard.set(baseURL.absoluteString, forKey: baseURLKey(serverID: serverID))
     }

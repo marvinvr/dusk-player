@@ -130,6 +130,15 @@ extension PlexService {
         if pool.connection(for: targetID) == nil {
             try await refreshServerAuthorization(serverID: targetID)
         }
+        // A session whose endpoint the token may not travel to (a public HTTP
+        // address restored from an older release) can never answer: every URL
+        // built on it is refused before it is sent. Re-probe instead of
+        // failing with "Invalid URL." until the next full pass.
+        if let baseURL = pool.connection(for: targetID)?.baseURL,
+           !PlexTransportSecurity.allowsToken(in: baseURL) {
+            plexAuthLogger.notice("Server endpoint is not token-safe; refreshing Plex endpoint")
+            try await recoverServer(serverID: targetID)
+        }
         let endpoint = pool.connection(for: targetID)?.baseURL
 
         do {

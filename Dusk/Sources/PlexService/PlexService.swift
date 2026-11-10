@@ -220,12 +220,7 @@ final class PlexService {
         where !server.clientIdentifier.isEmpty && serverPriority.isEnabled(server.clientIdentifier) {
             let serverID = server.clientIdentifier
             guard let token = ServerPool.storedToken(serverID: serverID) else { continue }
-            // The remembered base URL is the exact endpoint that worked; the
-            // last-good connection URI is the fallback for installs that
-            // upgraded before base URLs were kept per server.
-            guard let baseURL = ServerPool.storedBaseURL(serverID: serverID)
-                    ?? ServerPool.lastGoodConnectionURI(serverID: serverID)
-                    .flatMap(URL.init(string:)) else { continue }
+            guard let baseURL = ServerPool.restorableBaseURL(serverID: serverID) else { continue }
 
             pool.adopt(
                 server: server,
