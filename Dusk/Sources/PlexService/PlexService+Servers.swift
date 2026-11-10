@@ -15,6 +15,22 @@ struct ServerSessionToken: Equatable {
 }
 
 extension PlexService {
+    /// Whether a plex.tv resource is a Plex Media Server. `provides` normally
+    /// lists "server", but plex.tv can report a real server with a wrong
+    /// `provides` (the owner's main server came back as `"controller"` with
+    /// `product` still "Plex Media Server", 2026-11-10), which made Dusk drop
+    /// it before any connection was tried while Plex's own apps kept working.
+    /// The product name is enough; `/identity` still has to name the server
+    /// before any connection to it is used.
+    nonisolated static func isMediaServerResource(_ json: [String: Any]) -> Bool {
+        let provides = (json["provides"] as? String)?
+            .lowercased()
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? []
+        if provides.contains("server") { return true }
+        return (json["product"] as? String)?.caseInsensitiveCompare("Plex Media Server") == .orderedSame
+    }
+
     var serverSessionToken: ServerSessionToken {
         ServerSessionToken(profileID: activeProfileID, generation: pool.generation)
     }
@@ -44,9 +60,7 @@ extension PlexService {
             }
 
             let servers = jsonArray.compactMap { json -> PlexServer? in
-                guard let provides = json["provides"] as? String, provides.contains("server") else {
-                    return nil
-                }
+                guard Self.isMediaServerResource(json) else { return nil }
                 guard let itemData = try? JSONSerialization.data(withJSONObject: json) else {
                     return nil
                 }

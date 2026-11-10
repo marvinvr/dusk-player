@@ -151,7 +151,11 @@ Flow:
    Protected members send a transient PIN; Dusk never stores it.
 6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
    HTTPS/relay and keeps
-   resources whose `provides` contains `server`.
+   resources whose `provides` contains `server` **or** whose `product` is
+   "Plex Media Server" (`PlexService.isMediaServerResource`): plex.tv listed
+   the owner's main server as `provides: "controller"` on 2026-11-10 and Dusk
+   silently dropped it — the real cause behind "can't reach my server" that
+   the #36 transport fixes were guessing at.
 7. `connectAllServers()` is the app's entry point: discover ->
    `serverPriority.reconcile(discovered:)` -> `pool.connectAll(...)`. It never
    fails because a server is unreachable; it throws only when the account itself

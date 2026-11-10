@@ -234,6 +234,52 @@ struct ConnectionSelectionTests {
         }
     }
 
+    // MARK: Discovery
+
+    /// The owner's main server, as plex.tv listed it on 2026-11-10.
+    @Test func aMediaServerListedAsControllerIsStillAServer() {
+        #expect(PlexService.isMediaServerResource(["provides": "controller", "product": "Plex Media Server"]))
+        #expect(PlexService.isMediaServerResource(["provides": "server"]))
+        #expect(PlexService.isMediaServerResource(["provides": "client,server,player"]))
+        #expect(!PlexService.isMediaServerResource(["provides": "client,player,pubsub-player", "product": "Plex for iOS"]))
+        #expect(!PlexService.isMediaServerResource(["provides": "controller", "product": "Plexamp"]))
+        #expect(!PlexService.isMediaServerResource([:]))
+    }
+
+    /// A resources response shaped exactly like plex.tv's on 2026-11-10 while
+    /// the owner's server had publishing off: the real server came back as
+    /// `provides: "controller"`, version 4.18.1, product still "Plex Media
+    /// Server"; next to it a real client and a normal server.
+    @Test func controllerShapedServerSurvivesTheResourcesFilter() throws {
+        let fixture = """
+        [
+          {"name":"Netflix++","product":"Plex Media Server","productVersion":"4.18.1","platform":"Linux",
+           "platformVersion":"7.0.6-2-pve","device":"Linux","clientIdentifier":"d2671870fcca288dd4b03fa5e99268f3e7973beb",
+           "provides":"controller","ownerId":null,"sourceTitle":null,"publicAddress":"37.17.239.75",
+           "accessToken":"fixture-token","owned":true,"home":false,"synced":false,"relay":false,"presence":true,
+           "httpsRequired":false,"publicAddressMatches":true,"dnsRebindingProtection":false,"natLoopbackSupported":false,
+           "connections":[
+             {"protocol":"https","address":"plex.mvr.bz","port":443,"uri":"https://plex.mvr.bz:443","local":false,"relay":false,"IPv6":false},
+             {"protocol":"http","address":"plex.mvr.bz","port":80,"uri":"http://plex.mvr.bz:80","local":false,"relay":false,"IPv6":false},
+             {"protocol":"https","address":"172.19.0.21","port":32400,"uri":"https://172-19-0-21.fixture.plex.direct:32400","local":true,"relay":false,"IPv6":false}
+           ]},
+          {"name":"plex-demo","product":"Plex Media Server","productVersion":"1.43.5.11029-6bf8af3f0",
+           "clientIdentifier":"94c6d8c3ada99fc0e7263bc21f6d6152533d331e","provides":"server","owned":true,"presence":true,
+           "connections":[{"protocol":"https","address":"plex-demo.mvr.bz","port":443,"uri":"https://plex-demo.mvr.bz:443","local":false,"relay":false,"IPv6":false}]},
+          {"name":"iPhone","product":"Plex for iOS","productVersion":"8.40","clientIdentifier":"F24B48B6-0000",
+           "provides":"client,player,pubsub-player,provider-playback","owned":true,"presence":false,"connections":[]}
+        ]
+        """
+        let resources = try #require(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [[String: Any]])
+        let kept = resources.filter(PlexService.isMediaServerResource)
+        #expect(kept.compactMap { $0["name"] as? String } == ["Netflix++", "plex-demo"])
+
+        let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: kept[0]))
+        #expect(server.clientIdentifier == "d2671870fcca288dd4b03fa5e99268f3e7973beb")
+        let urls = ServerPool.connectionCandidates(for: server).map(\.baseURL.absoluteString)
+        #expect(urls.contains("https://plex.mvr.bz:443"))
+    }
+
     // MARK: Pool: persistence, fast path, failover
 
     @Test func theChosenConnectionIsPersistedAndRestoredFirst() async throws {
