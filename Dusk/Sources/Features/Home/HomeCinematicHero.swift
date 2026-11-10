@@ -339,23 +339,8 @@ struct HomeCinematicHero: View {
                             }
                     )
                     #if os(iOS)
-                    .background(
-                        HeroIndirectScrollNavigation(
-                            isEnabled: supportsDragNavigation && heroItemIDs.count > 1,
-                            onChanged: { horizontalOffset in
-                                handleHeroIndirectScrollChanged(
-                                    horizontalOffset: horizontalOffset
-                                )
-                            },
-                            onEnded: { horizontalOffset, predictedHorizontalOffset in
-                                handleHeroIndirectScrollEnded(
-                                    horizontalOffset: horizontalOffset,
-                                    predictedHorizontalOffset: predictedHorizontalOffset,
-                                    heroWidth: heroWidth
-                                )
-                            }
-                        )
-                    )
+                    .gesture(heroIndirectScrollGesture(HeroTrackpadScroll.self, heroWidth: heroWidth))
+                    .gesture(heroIndirectScrollGesture(HeroWheelScroll.self, heroWidth: heroWidth))
                     #endif
             )
         } else {
@@ -1098,12 +1083,50 @@ struct HomeCinematicHero: View {
         handleHeroHorizontalNavigationChanged(horizontalOffset: horizontalOffset)
     }
 
+    #if os(iOS)
+    /// Trackpad or scroll-wheel paging; see `HeroIndirectScrollGesture`.
+    private func heroIndirectScrollGesture<Kind: HeroScrollKind>(
+        _ kind: Kind.Type,
+        heroWidth: CGFloat
+    ) -> HeroIndirectScrollGesture<Kind> {
+        HeroIndirectScrollGesture<Kind>(
+            isEnabled: supportsDragNavigation && heroItemIDs.count > 1,
+            onChanged: { horizontalOffset in
+                handleHeroIndirectScrollChanged(horizontalOffset: horizontalOffset)
+            },
+            onEnded: { horizontalOffset, predictedHorizontalOffset in
+                handleHeroIndirectScrollEnded(
+                    horizontalOffset: horizontalOffset,
+                    predictedHorizontalOffset: predictedHorizontalOffset,
+                    heroWidth: heroWidth,
+                    isDiscrete: Kind.scrollTypes == .discrete
+                )
+            }
+        )
+    }
+    #endif
+
     private func handleHeroIndirectScrollEnded(
         horizontalOffset: CGFloat,
         predictedHorizontalOffset: CGFloat,
-        heroWidth: CGFloat
+        heroWidth: CGFloat,
+        isDiscrete: Bool = false
     ) {
-        let commitThreshold = max(min(heroWidth * 0.08, 96), 32)
+        // Any horizontal wheel burst turns the page, even a single notch that
+        // moved less than the drag's 8 pt start. A trackpad swipe has to
+        // travel (or fling) a bit further.
+        if isDiscrete, !isHeroDragActive {
+            guard transitioningHeroIndex == nil,
+                  !isHeroDragSettling,
+                  abs(horizontalOffset) >= 1,
+                  let targetIndex = adjacentHeroIndex(forDragOffset: horizontalOffset) else {
+                return
+            }
+            selectHero(at: targetIndex)
+            return
+        }
+
+        let commitThreshold = isDiscrete ? 1 : max(min(heroWidth * 0.08, 96), 32)
 
         handleHeroHorizontalNavigationEnded(
             horizontalOffset: horizontalOffset,
@@ -1651,124 +1674,105 @@ private enum HeroSlideRole {
 }
 
 #if os(iOS)
-private struct HeroIndirectScrollNavigation: UIViewRepresentable {
+private protocol HeroScrollKind {
+    static var scrollTypes: UIScrollTypeMask { get }
+}
+
+/// Trackpad and Magic Mouse swipes.
+private enum HeroTrackpadScroll: HeroScrollKind {
+    static var scrollTypes: UIScrollTypeMask { .continuous }
+}
+
+/// Scroll-wheel notches.
+private enum HeroWheelScroll: HeroScrollKind {
+    static var scrollTypes: UIScrollTypeMask { .discrete }
+}
+
+/// Pages the hero from a two-finger trackpad swipe or a horizontal scroll
+/// wheel: on iPad with a trackpad or mouse, and in Dusk on the Mac.
+///
+/// The recognizer takes scroll events only (no touch types), so finger swipes
+/// stay with the hero's `DragGesture`. As a SwiftUI gesture it sits on the
+/// hero itself and takes part in SwiftUI's hit testing; a recognizer on a
+/// `.background` platform view never got the scroll, because the hero content
+/// in front of it was the hit view.
+///
+/// One swipe moves one page. UIKit ends a trackpad pan when the fingers lift
+/// and does not hand the momentum that follows to the recognizer. A short
+/// pause after each gesture keeps a trailing burst from turning a second page.
+/// The translation follows the system's natural-scrolling setting.
+///
+/// The trackpad and the wheel each get their own recognizer (`Kind`), because
+/// they need different commit distances and UIKit does not say which kind of
+/// scroll a pan came from.
+private struct HeroIndirectScrollGesture<Kind: HeroScrollKind>: UIGestureRecognizerRepresentable {
     var isEnabled: Bool
     var onChanged: (CGFloat) -> Void
     var onEnded: (CGFloat, CGFloat) -> Void
 
-    func makeCoordinator() -> Coordinator {
-        Coordinator(
-            isEnabled: isEnabled,
-            onChanged: onChanged,
-            onEnded: onEnded
-        )
+    func makeCoordinator(converter: CoordinateSpaceConverter) -> Coordinator {
+        Coordinator()
     }
 
-    func makeUIView(context: Context) -> CaptureView {
-        let view = CaptureView()
-        view.backgroundColor = .clear
-        view.isUserInteractionEnabled = false
-        view.coordinator = context.coordinator
-        return view
+    func makeUIGestureRecognizer(context: Context) -> UIPanGestureRecognizer {
+        let recognizer = UIPanGestureRecognizer()
+        recognizer.allowedScrollTypesMask = Kind.scrollTypes
+        recognizer.allowedTouchTypes = []
+        recognizer.cancelsTouchesInView = false
+        recognizer.delaysTouchesBegan = false
+        recognizer.delaysTouchesEnded = false
+        recognizer.delegate = context.coordinator
+        recognizer.isEnabled = isEnabled
+        return recognizer
     }
 
-    func updateUIView(_ uiView: CaptureView, context: Context) {
-        context.coordinator.isEnabled = isEnabled
-        context.coordinator.onChanged = onChanged
-        context.coordinator.onEnded = onEnded
-        uiView.coordinator = context.coordinator
-        context.coordinator.installIfPossible(from: uiView)
+    func updateUIGestureRecognizer(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        if recognizer.isEnabled != isEnabled {
+            recognizer.isEnabled = isEnabled
+        }
     }
 
-    static func dismantleUIView(_ uiView: CaptureView, coordinator: Coordinator) {
-        coordinator.uninstall()
-        uiView.coordinator = nil
-    }
+    func handleUIGestureRecognizerAction(_ recognizer: UIPanGestureRecognizer, context: Context) {
+        let translation = recognizer.translation(in: recognizer.view)
 
-    final class CaptureView: UIView {
-        weak var coordinator: Coordinator?
-
-        override func didMoveToSuperview() {
-            super.didMoveToSuperview()
-            coordinator?.installIfPossible(from: self)
+        switch recognizer.state {
+        case .began, .changed:
+            onChanged(translation.x)
+        case .ended:
+            let velocity = recognizer.velocity(in: recognizer.view)
+            context.coordinator.gestureDidEnd()
+            onEnded(translation.x, translation.x + velocity.x * Coordinator.projectedVelocityDuration)
+        case .cancelled, .failed:
+            context.coordinator.gestureDidEnd()
+            onEnded(translation.x, translation.x)
+        default:
+            break
         }
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var isEnabled: Bool
-        var onChanged: (CGFloat) -> Void
-        var onEnded: (CGFloat, CGFloat) -> Void
+        static var projectedVelocityDuration: CGFloat { 0.18 }
+        /// How long after a swipe a new scroll is taken as its tail.
+        private static var restartDelay: TimeInterval { 0.35 }
+        private var lastEndedAt: Date?
 
-        private weak var hostView: UIView?
-        private var panGesture: UIPanGestureRecognizer?
-        private let projectedVelocityDuration: CGFloat = 0.18
-
-        init(
-            isEnabled: Bool,
-            onChanged: @escaping (CGFloat) -> Void,
-            onEnded: @escaping (CGFloat, CGFloat) -> Void
-        ) {
-            self.isEnabled = isEnabled
-            self.onChanged = onChanged
-            self.onEnded = onEnded
-        }
-
-        func installIfPossible(from view: UIView) {
-            guard let superview = view.superview else { return }
-            install(on: superview)
-        }
-
-        func uninstall() {
-            if let panGesture {
-                hostView?.removeGestureRecognizer(panGesture)
-            }
-
-            hostView = nil
-            panGesture = nil
-        }
-
-        private func install(on view: UIView) {
-            guard hostView !== view else { return }
-
-            uninstall()
-
-            let panGesture = UIPanGestureRecognizer(
-                target: self,
-                action: #selector(handlePanGesture(_:))
-            )
-            panGesture.allowedScrollTypesMask = .all
-            panGesture.cancelsTouchesInView = false
-            panGesture.delaysTouchesBegan = false
-            panGesture.delaysTouchesEnded = false
-            panGesture.requiresExclusiveTouchType = false
-            panGesture.delegate = self
-
-            view.addGestureRecognizer(panGesture)
-            hostView = view
-            self.panGesture = panGesture
-        }
-
-        @objc private func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
-            guard isEnabled, let hostView else { return }
-
-            let translation = gesture.translation(in: hostView)
-            let velocity = gesture.velocity(in: hostView)
-            let predictedHorizontalOffset = translation.x + (velocity.x * projectedVelocityDuration)
-
-            switch gesture.state {
-            case .began, .changed:
-                onChanged(translation.x)
-            case .ended:
-                onEnded(translation.x, predictedHorizontalOffset)
-            case .cancelled, .failed:
-                onEnded(translation.x, translation.x)
-            default:
-                break
-            }
+        func gestureDidEnd() {
+            lastEndedAt = Date()
         }
 
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            isEnabled
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer else { return true }
+
+            if let lastEndedAt, Date().timeIntervalSince(lastEndedAt) < Self.restartDelay {
+                return false
+            }
+
+            // Mostly vertical scrolling belongs to the Home scroll view.
+            var direction = pan.translation(in: pan.view)
+            if direction == .zero {
+                direction = pan.velocity(in: pan.view)
+            }
+            return abs(direction.x) > abs(direction.y)
         }
 
         func gestureRecognizer(

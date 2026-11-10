@@ -1465,6 +1465,22 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   macOS release ignores it, Dusk simply falls back to 0.77. iPad/iPhone/tvOS are
   untouched. Inactive Mac windows render glass prominent buttons dimmed; that is
   system behaviour, not a scale side effect.
+- Trackpad / scroll-wheel paging of the iOS Home hero (iPad with a trackpad or
+  mouse, Dusk on the Mac): `HeroIndirectScrollGesture` in `HomeCinematicHero.swift`
+  is a `UIGestureRecognizerRepresentable` pan with `allowedTouchTypes = []`, so
+  finger swipes stay with the hero's `DragGesture`. It must be a SwiftUI gesture on
+  the hero: the old recognizer on a `.background` platform view never received a
+  scroll, because SwiftUI hit-tested the hero content in front of it. There are two
+  recognizers. The `.continuous` one (trackpad) commits past ~8% of the width or on a
+  fling. The `.discrete` one (wheel) pages on any horizontal burst. Each gesture
+  turns one page, then the hero ignores scrolls for 0.35 s. UIKit ends a trackpad pan
+  at finger lift and keeps the momentum, and mostly vertical scrolls go to Home's
+  scroll view. Poster shelves are plain horizontal `ScrollView`s and scroll from the
+  trackpad natively. Sim verification: SimulatorKit
+  `IndigoHIDMessageToCreatePointerService` (target 0x35) + `IndigoHIDMessageFor{Pointer,Scroll}EventFromHIDEventRef`
+  with IOHID scroll events (phases/momentum) drive the iPad sim pointer headless; those
+  events always arrive as `.continuous`, and the first one per client is dropped. Real
+  discrete wheel events (and macOS shift+wheel) are not reproducible in the sim.
 
 ## Design And Style Rules
 
