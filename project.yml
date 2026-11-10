@@ -32,6 +32,8 @@ targets:
         buildPhase: resources
         excludes:
           - LaunchScreen-tvOS.storyboard
+          # Apple TV's layered alternate icons (same names as the .icon bundles).
+          - AppIconsTV.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
@@ -73,7 +75,8 @@ targets:
       - path: Dusk/Resources
         buildPhase: resources
         excludes:
-          # Alternate app icons are iOS-only; tvOS would need layered image stacks.
+          # iOS Icon Composer icons; tvOS alternates are the layered image
+          # stacks in AppIconsTV.xcassets (scripts/generate_tv_alternate_icons.py).
           - DuskIcon.icon
           - DuskIconDawn.icon
           - DuskIconMidnight.icon
@@ -96,6 +99,7 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-tvOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconTV
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         # The global accent is the app's only tint (label color, never coral).
         # On tvOS it also matches the tab bar's tint (Color.duskTVTabBarTint), so

@@ -19,21 +19,6 @@ struct SettingsTVView: View {
         }
     }
 
-    /// The icons whose logo can open Dusk: the ones unlocked like app icons
-    /// on iOS, plus the current choice while a lapse hasn't reverted it yet.
-    private var launchLogoOptions: [DuskAppIcon] {
-        DuskAppIcon.allCases.filter { supporterStore.isUnlocked($0) || $0 == supporterStore.launchLogo }
-    }
-
-    /// Only once a supporter perk unlocked a variant; the Supporter page's
-    /// icon tiles are where everyone else finds it.
-    private var showsLaunchLogoRow: Bool { launchLogoOptions.count > 1 }
-
-    private var appearanceFooter: String {
-        guard showsLaunchLogoRow else { return SettingsSupport.appearanceFooterText }
-        return "\(SettingsSupport.appearanceFooterText) \(SettingsSupport.launchLogoFooterText)"
-    }
-
     private var settingsContent: some View {
         @Bindable var preferences = preferences
 
@@ -269,7 +254,7 @@ struct SettingsTVView: View {
                     ) { $0.displayName }
                 }
 
-                TVSettingsSection(title: "Appearance", footer: appearanceFooter) {
+                TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {
                     TVSettingsMenuRow(
                         title: "Appearance",
                         options: AppearanceMode.allCases,
@@ -283,20 +268,6 @@ struct SettingsTVView: View {
                         title: "Blur Unwatched Episodes",
                         isOn: $preferences.blursUnwatchedEpisodes
                     )
-
-                    if showsLaunchLogoRow {
-                        tvRowDivider
-
-                        TVSettingsMenuRow(
-                            title: "Launch Logo",
-                            options: launchLogoOptions,
-                            selection: Binding(
-                                get: { supporterStore.launchLogo },
-                                set: { supporterStore.selectLaunchLogo($0) }
-                            ),
-                            selectedTitle: supporterStore.launchLogo.displayName
-                        ) { $0.displayName }
-                    }
                 }
 
                 TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {

@@ -754,6 +754,7 @@
 		E9ED62B0891AFA6ED423DD05 /* AnalyticsEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA381EA5CD4ECEFE907AF34 /* AnalyticsEvent.swift */; };
 		EA5DDD3FA0B01249F467E9C8 /* PlexService+Library.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1EA6CCEA23C3304F38B78D7 /* PlexService+Library.swift */; };
 		EAEB3E862EE90F8C106EB566 /* HomeViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = F693F697A72ECEE11C60FDD7 /* HomeViewModel.swift */; };
+		EB38816A3FAE4F50BE7FAD5E /* AppIconsTV.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F663E5F392281EC404E81E5D /* AppIconsTV.xcassets */; };
 		EBF9CC3122C0A291D076B7D9 /* PlexDownloadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 507E95FFF95CC1157A56C6F2 /* PlexDownloadQueue.swift */; };
 		EC08032B694893022D23D11E /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8D699F78FA6910B7E4A587 /* CircularProgressView.swift */; };
 		EC392111556FAF087A15F473 /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E45205D0DD071C6E058DA90B /* DownloadsView.swift */; };
@@ -1278,6 +1279,7 @@
 		F544B0E9EBDA736EC9027FE6 /* FMP4FragmentRewriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FMP4FragmentRewriter.swift; sourceTree = "<group>"; };
 		F613A5986C0DCD9EC7D2E1D8 /* PlexItemPosterCollections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexItemPosterCollections.swift; sourceTree = "<group>"; };
 		F66286B420EBAA2A30936393 /* PlayerControlsSharedViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControlsSharedViews.swift; sourceTree = "<group>"; };
+		F663E5F392281EC404E81E5D /* AppIconsTV.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = AppIconsTV.xcassets; sourceTree = "<group>"; };
 		F693F697A72ECEE11C60FDD7 /* HomeViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeViewModel.swift; sourceTree = "<group>"; };
 		F69C3F67C503DFC3555CBEAE /* RecommendationCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecommendationCore.swift; sourceTree = "<group>"; };
 		F845F23072AE640CA393F779 /* SupporterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupporterView.swift; sourceTree = "<group>"; };
@@ -1991,6 +1993,7 @@
 		C94A28491B3FCC141F699255 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
+				F663E5F392281EC404E81E5D /* AppIconsTV.xcassets */,
 				28D81792E63C82C8F090AFB1 /* Assets.xcassets */,
 				520017CEE2E0064C83BEDBF1 /* DuskIcon.icon */,
 				5E9C4C3EA697829CF0C5F13F /* DuskIconAurora.icon */,
@@ -2210,6 +2213,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				EB38816A3FAE4F50BE7FAD5E /* AppIconsTV.xcassets in Resources */,
 				041CD279F84A45500AC3004F /* Assets.xcassets in Resources */,
 				B7FE0878FE702ED5AE35CADE /* LaunchScreen-tvOS.storyboard in Resources */,
 				742070B6F96B0EEEE3AEFB00 /* ThirdPartyNotices.txt in Resources */,
@@ -3385,6 +3389,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 30BB0399F12540A4F40C4045 /* Keys.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconTV;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
@@ -3429,6 +3434,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 30BB0399F12540A4F40C4045 /* Keys.xcconfig */;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIconTV;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";

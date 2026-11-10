@@ -1,14 +1,10 @@
 import SwiftUI
 
 /// The app icon variants offered as a supporter perk. The raw value is stable
-/// and only used for identity; the alternate icon name must match the
-/// Icon Composer bundle basename registered in project.yml
-/// (`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`).
-///
-/// Alternate icons are iOS/iPadOS-only: tvOS alternates would need full
-/// layered image stacks, so the Apple TV app always uses the primary icon.
-/// Picking a variant there sets its logo as the launch splash logo instead
-/// (`SupporterStore.launchLogo`).
+/// and only used for identity; the alternate icon name must match both the
+/// iOS Icon Composer bundle basename and the tvOS layered image stack in
+/// `AppIconsTV.xcassets` (`scripts/generate_tv_alternate_icons.py`), each
+/// registered in project.yml (`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`).
 ///
 /// Access comes in three steps: the primary icon is free, the classic
 /// alternates come with an active subscription or a tip from Generous up, and
@@ -85,20 +81,13 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         return alternateIconName.replacingOccurrences(of: "DuskIcon", with: "LaunchLogo")
     }
 
-    /// The icon whose logo the launch splash shows. On iOS the icon on the
-    /// Home Screen right now: the system's applied icon, not the picker's
-    /// selection or the supporter state, so it already reflects a revert after
-    /// a lapsed subscription (and keeps the old icon until that revert
-    /// actually went through). On tvOS, where alternates can't be applied, the
-    /// saved launch logo choice, which reverts the same way.
+    /// The icon on the Home Screen right now, whose logo the launch splash
+    /// shows. Reads the system's applied icon, not the picker's selection or
+    /// the supporter state, so it already reflects a revert after a lapsed
+    /// subscription (and keeps the old icon until that revert actually went
+    /// through).
     @MainActor
-    static var applied: DuskAppIcon {
-        #if os(iOS)
-        current
-        #else
-        SupporterStore.storedLaunchLogo()
-        #endif
-    }
+    static var applied: DuskAppIcon { current }
 
     /// Only the primary icon is free; every alternate is a supporter perk.
     var requiresSupporter: Bool { self != .dusk }
@@ -123,7 +112,6 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         return !requiresSupporter || hasIconAccess
     }
 
-    #if os(iOS)
     @MainActor
     static var current: DuskAppIcon {
         guard let activeName = UIApplication.shared.alternateIconName else { return .dusk }
@@ -136,7 +124,6 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         guard UIApplication.shared.alternateIconName != icon.alternateIconName else { return }
         try await UIApplication.shared.setAlternateIconName(icon.alternateIconName)
     }
-    #endif
 }
 
 extension SupporterStore {

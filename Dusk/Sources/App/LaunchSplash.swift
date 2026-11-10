@@ -114,33 +114,13 @@ private final class LaunchSplashUIView: UIView {
     private let pulseContainer = UIView()
     /// The mark in the colours of the icon the user launched from. The system
     /// launch screen before it can only ever show the primary mark.
-    ///
-    /// iOS swaps straight to the applied icon's colours. On tvOS the variant
-    /// is a launch logo setting rather than the icon the user just clicked,
-    /// so the splash picks up the primary mark exactly as the static launch
-    /// screen left it and crossfades it into `variantImage` (the same artwork,
-    /// recoloured) in place.
-    #if os(tvOS)
-    private let logo = UIImageView(image: UIImage(named: "LaunchLogo"))
-    private let variantImage: UIImage? = {
-        let icon = DuskAppIcon.applied
-        return icon == .dusk ? nil : UIImage(named: icon.launchLogoImageName)
-    }()
-    #else
     private let logo = UIImageView(
         image: UIImage(named: DuskAppIcon.applied.launchLogoImageName) ?? UIImage(named: "LaunchLogo")
     )
-    private let variantImage: UIImage? = nil
-    #endif
     private var hasStartedPulse = false
     private var hasBegunExit = false
 
     private static let exitAnimationKey = "launchSplashExit"
-    private static let variantFadeKey = "launchSplashVariantFade"
-    /// Short enough to finish before the pulse starts, long enough not to read
-    /// as a flash.
-    private static let variantFadeDuration: TimeInterval = 0.45
-    private static let variantFadeDelay: TimeInterval = 0.1
     private static let pulseAnimationKey = "launchSplashPulse"
 
     /// How long a launch may stay still before the logo starts to breathe.
@@ -242,32 +222,7 @@ private final class LaunchSplashUIView: UIView {
         super.didMoveToWindow()
         guard window != nil, !hasStartedPulse, !hasBegunExit else { return }
         hasStartedPulse = true
-        fadeInVariant()
         startPulse()
-    }
-
-    /// Recolours the primary mark into the chosen variant. A contents
-    /// transition rather than a second image view faded in on top: the two
-    /// share one alpha mask, so a dissolve of the contents keeps every edge
-    /// pixel's coverage, where stacked layers would thicken the anti-aliased
-    /// rim and leave the primary colour in it. Opacity only, so it also stays
-    /// under Reduce Motion, and an early exit carries it along.
-    private func fadeInVariant() {
-        guard let variantImage else { return }
-        // A transition needs the old contents on screen to dissolve from; the
-        // splash's first frame hasn't been committed yet in didMoveToWindow.
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.variantFadeDelay) { [weak self] in
-            self?.crossfade(to: variantImage)
-        }
-    }
-
-    private func crossfade(to variantImage: UIImage) {
-        let fade = CATransition()
-        fade.type = .fade
-        fade.duration = Self.variantFadeDuration
-        fade.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-        logo.layer.add(fade, forKey: Self.variantFadeKey)
-        logo.image = variantImage
     }
 
     func beginExit(style: LaunchSplashExitStyle) {
