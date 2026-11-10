@@ -76,6 +76,28 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         }
     }
 
+    /// The launch splash logo in this icon's colours: `LaunchLogo` itself for
+    /// the primary icon, the others derived from each icon's mark by
+    /// `scripts/generate_launch_logo_variants.py`.
+    var launchLogoImageName: String {
+        guard let alternateIconName else { return "LaunchLogo" }
+        return alternateIconName.replacingOccurrences(of: "DuskIcon", with: "LaunchLogo")
+    }
+
+    /// The icon on the Home Screen right now. Reads the system's applied icon,
+    /// not the picker's selection or the supporter state, so it already
+    /// reflects a revert after a lapsed subscription (and keeps the old icon
+    /// until that revert actually went through). Always the primary icon on
+    /// tvOS, where alternates are preview-only.
+    @MainActor
+    static var applied: DuskAppIcon {
+        #if os(iOS)
+        current
+        #else
+        .dusk
+        #endif
+    }
+
     /// Only the primary icon is free; every alternate is a supporter perk.
     var requiresSupporter: Bool { self != .dusk }
 

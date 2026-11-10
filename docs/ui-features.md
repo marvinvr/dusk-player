@@ -27,6 +27,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   crossfade. A slow launch keeps the logo breathing up to 10 s, then reveals
   whatever loading state is there. Once per process (profile switches and
   sign-out never show it); off in screenshot mode unless `-DuskLaunchSplash YES`.
+  The logo follows the applied app icon (`DuskAppIcon.applied`, i.e. the
+  system's `alternateIconName`, so a lapsed subscription's revert is followed and
+  tvOS always shows the primary mark): `LaunchLogo<Variant>` imagesets made by
+  `scripts/generate_launch_logo_variants.py` from each `.icon`'s `mark.png`
+  colours on `LaunchLogo`'s own alpha. Rerun it when an icon's mark changes. The
+  storyboard launch screen before it can only ever show the primary mark.
   All of its motion is sampled up front into `CAKeyframeAnimation`s so the render
   server plays it: the exit overlaps Home's first paint, so anything driven from
   the main thread (a `TimelineView`, SwiftUI animations) stutters (#54).

@@ -20,7 +20,8 @@ final class LaunchSplashState {
 }
 
 /// The cold-launch brand moment: the launch storyboard's logo, carried over
-/// pixel for pixel, that leaves as soon as the app underneath is ready.
+/// pixel for pixel and recoloured to the applied app icon, that leaves as soon
+/// as the app underneath is ready.
 ///
 /// - **tvOS**: a short anticipation, then the logo flies at the camera through
 ///   the hollow of its play triangle, the tiles sweeping past the screen edges
@@ -111,7 +112,11 @@ private final class LaunchSplashUIView: UIView {
     /// Carries the breathing pulse. The exit plays on `logo` inside it, so the
     /// two multiply: the exit picks up from the logo as the pulse left it.
     private let pulseContainer = UIView()
-    private let logo = UIImageView(image: UIImage(named: "LaunchLogo"))
+    /// The mark in the colours of the icon the user launched from. The system
+    /// launch screen before it can only ever show the primary mark.
+    private let logo = UIImageView(
+        image: UIImage(named: DuskAppIcon.applied.launchLogoImageName) ?? UIImage(named: "LaunchLogo")
+    )
     private var hasStartedPulse = false
     private var hasBegunExit = false
 
