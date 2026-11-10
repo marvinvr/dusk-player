@@ -120,6 +120,7 @@ final class SupporterStore {
         static let hasIconTip = "supporterHasIconTip"
         static let lastTipDate = "supporterLastTipDate"
         static let subscriptionExpiration = "supporterSubscriptionExpiration"
+        static let launchLogo = "supporterLaunchLogo"
     }
 
     /// Monthly then yearly subscription product. Empty until loaded.
@@ -144,6 +145,13 @@ final class SupporterStore {
     /// Last known end of a subscription period, cached so a transient empty
     /// history read can't make the icon check think it lapsed.
     private(set) var lastKnownSubscriptionExpiration: Date?
+
+    /// tvOS only: the icon whose logo the launch splash shows. Apple TV can't
+    /// apply alternate icons, so picking one there sets this instead. Follows
+    /// the same unlock rules as the icons and goes back to the default with
+    /// them (`enforceLaunchLogoAccess`). Always `.dusk` on iOS, where the
+    /// splash follows the applied icon.
+    private(set) var launchLogo: DuskAppIcon
 
     var hasActiveSubscription: Bool { activeProductID != nil }
     /// The classic alternate icons are unlocked: a tip from Generous up, or an
@@ -172,6 +180,30 @@ final class SupporterStore {
         hasIconTip = defaults.bool(forKey: Keys.hasIconTip)
         lastTipDate = defaults.object(forKey: Keys.lastTipDate) as? Date
         lastKnownSubscriptionExpiration = defaults.object(forKey: Keys.subscriptionExpiration) as? Date
+        launchLogo = Self.storedLaunchLogo(in: defaults)
+    }
+
+    /// The launch logo as last saved, read straight from the defaults so the
+    /// splash can use it before the store exists. Like the system's applied
+    /// icon on iOS, it only changes once a revert actually went through.
+    nonisolated static func storedLaunchLogo(in defaults: UserDefaults = .standard) -> DuskAppIcon {
+        defaults.string(forKey: Keys.launchLogo).flatMap(DuskAppIcon.init(rawValue:)) ?? .dusk
+    }
+
+    /// Sets the tvOS launch logo. Locked icons are ignored.
+    func selectLaunchLogo(_ icon: DuskAppIcon) {
+        guard isUnlocked(icon), icon != launchLogo else { return }
+        launchLogo = icon
+        defaults.set(icon.rawValue, forKey: Keys.launchLogo)
+    }
+
+    /// Puts the launch logo back to the default under the same rule that
+    /// switches a lapsed app icon back (`shouldRevertIcon`), so a transient
+    /// empty read mid-period never flips it and TestFlight never does.
+    func enforceLaunchLogoAccess(now: Date = Date()) {
+        guard launchLogo != .dusk, shouldRevertIcon(launchLogo, now: now) else { return }
+        launchLogo = .dusk
+        defaults.removeObject(forKey: Keys.launchLogo)
     }
 
     /// Kicks off the transaction listener, loads products, and reconciles
@@ -344,8 +376,8 @@ final class SupporterStore {
         )
     }
 
-    /// Switches back to the default icon once the subscription that unlocked
-    /// the current icon has lapsed. Runs after every entitlement read: at
+    /// Switches back to the default icon (on tvOS the launch logo) once the
+    /// subscription that unlocked it has lapsed. Runs after every entitlement read: at
     /// launch, on every return to the foreground and on transaction updates. iOS shows its own "You have changed
     /// the icon" alert for any icon change; there is no in-app UI for this.
     /// Not awaited: the system call only returns once that alert is dismissed,
@@ -355,6 +387,8 @@ final class SupporterStore {
         #if os(iOS)
         guard shouldRevertIcon(DuskAppIcon.current) else { return }
         Task { try? await DuskAppIcon.select(.dusk) }
+        #else
+        enforceLaunchLogoAccess()
         #endif
     }
 

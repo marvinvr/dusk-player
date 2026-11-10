@@ -312,7 +312,8 @@ Supporter:
 - `SupporterView` is the single pitch/thank-you/prompt sheet;
   `SupporterPromptPresenter` gates the iOS/iPadOS supporter prompt schedule from
   `MainTabView`, while tvOS support remains available explicitly in Settings.
-- `DuskAppIcon` + `AppIconPickerView` own the alternate icons (iOS-only);
+- `DuskAppIcon` + `AppIconPickerView` own the alternate icons (iOS-only;
+  on tvOS picking one sets `SupporterStore.launchLogo`, the splash logo);
   Velvet/Emerald/Gilded are subscriber exclusives. TestFlight
   (`TestFlightInstall`) unlocks every icon and skips the lapse reset.
 - Details and traps: `docs/supporter.md`.

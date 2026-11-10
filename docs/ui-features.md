@@ -30,11 +30,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   whatever loading state is there. Once per process (profile switches and
   sign-out never show it); off in screenshot mode unless `-DuskLaunchSplash YES`.
   The logo follows the applied app icon (`DuskAppIcon.applied`, i.e. the
-  system's `alternateIconName`, so a lapsed subscription's revert is followed and
-  tvOS always shows the primary mark): `LaunchLogo<Variant>` imagesets made by
+  system's `alternateIconName`, so a lapsed subscription's revert is followed; on
+  tvOS the saved launch logo choice, see `docs/supporter.md`): `LaunchLogo<Variant>` imagesets made by
   `scripts/generate_launch_logo_variants.py` from each `.icon`'s `mark.png`
   colours on `LaunchLogo`'s own alpha. Rerun it when an icon's mark changes. The
-  storyboard launch screen before it can only ever show the primary mark.
+  storyboard launch screen before it can only ever show the primary mark. iOS
+  swaps to the variant on the splash's first frame; tvOS starts on the primary
+  mark and crossfades the image contents (a `CATransition`, 0.1 s after the
+  first frame so there are old contents to dissolve from) in place, ~0.45 s.
   All of its motion is sampled up front into `CAKeyframeAnimation`s so the render
   server plays it: the exit overlaps Home's first paint, so anything driven from
   the main thread (a `TimelineView`, SwiftUI animations) stutters (#54).

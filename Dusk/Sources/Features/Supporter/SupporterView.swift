@@ -609,7 +609,7 @@ struct SupporterView: View {
     private var tvSubscriptionFooter: String {
         let lead = store.hasActiveSubscription
             ? "Thank you for subscribing. Switching between monthly and yearly takes effect at your next renewal."
-            : "App icons apply on iPhone and iPad, including the subscriber-exclusive Velvet, Emerald and Gilded."
+            : "App icons apply on iPhone and iPad and as launch logos on Apple TV, including the subscriber-exclusive Velvet, Emerald and Gilded."
         return "\(lead) \(Self.renewalDisclosure) \(Self.subscriptionPerksNote)"
     }
 
@@ -986,8 +986,8 @@ private struct SupporterSubscriptionCard: View {
 /// Horizontal strip of every app icon variant: the supporter icons, then the
 /// subscriber exclusives after a hairline. Inside the supporter sheet it
 /// advertises the perks before purchase; on iOS unlocked tiles double as a
-/// quick picker (tap to apply). tvOS shows it as a static showcase since
-/// alternate icons only apply on iPhone and iPad.
+/// quick picker (tap to apply). Apple TV can't apply alternate icons, so there
+/// an unlocked tile sets that icon's logo as the launch logo instead.
 struct SupporterIconShowcase: View {
     @Environment(SupporterStore.self) private var store
     #if os(iOS)
@@ -1011,7 +1011,10 @@ struct SupporterIconShowcase: View {
 
     #if os(tvOS)
     private let tileSize: CGFloat = 104
+    /// 2pt disappears under the focus lift's sheen at TV distance.
+    private static let selectedStrokeWidth: CGFloat = 4
     #else
+    private static let selectedStrokeWidth: CGFloat = 2
     /// Matches the sheet's horizontal content padding; the strip bleeds this
     /// far past the content column so tiles scroll out under the screen edge.
     private static let edgeInset = SupporterLayout.pageInset
@@ -1044,8 +1047,8 @@ struct SupporterIconShowcase: View {
             #if os(tvOS)
             // Two labeled rows, each a focus section. The tiles are buttons
             // so Up from the purchase rows always has a focusable target and
-            // the scroll view can bring the icons back on screen. Alternate
-            // icons still only apply on iPhone and iPad.
+            // the scroll view can bring the icons back on screen. Selecting
+            // an unlocked one sets its logo as the launch logo.
             HStack(alignment: .top, spacing: Self.tileSpacing) {
                 ForEach(DuskAppIcon.supporterIcons) { icon in
                     tile(for: icon)
@@ -1129,12 +1132,15 @@ struct SupporterIconShowcase: View {
         // The card focus lifts the artwork only. The name stays outside the
         // button, far enough below for the lift not to reach it.
         VStack(spacing: Self.tileNameSpacing) {
-            Button(action: {}) {
+            Button {
+                store.selectLaunchLogo(icon)
+            } label: {
                 iconArtwork(for: icon)
             }
             .buttonStyle(.card)
             .buttonBorderShape(.roundedRectangle(radius: tileSize * 0.22))
-            .accessibilityLabel("\(icon.displayName) app icon")
+            .accessibilityLabel("\(icon.displayName) launch logo")
+            .accessibilityAddTraits(isCurrent(icon) ? .isSelected : [])
 
             tileName(for: icon)
                 .accessibilityHidden(true)
@@ -1163,7 +1169,7 @@ struct SupporterIconShowcase: View {
             .overlay {
                 shape.strokeBorder(
                     isSelected ? Color.duskAccent : Color.primary.opacity(0.08),
-                    lineWidth: isSelected ? 2 : 1
+                    lineWidth: isSelected ? Self.selectedStrokeWidth : 1
                 )
             }
             .overlay(alignment: .bottomTrailing) {
@@ -1183,12 +1189,13 @@ struct SupporterIconShowcase: View {
     private var captionText: String {
         let exclusives = "Velvet, Emerald and Gilded come with the subscription only"
         #if os(tvOS)
-        if store.hasActiveSubscription {
-            return "App icons are applied on iPhone and iPad — the subscriber exclusives included."
+        let launchLogo = "Pick one to use its logo when Dusk launches on Apple TV. The icons themselves apply on iPhone and iPad"
+        if store.hasActiveSubscription || TestFlightInstall.isTestFlight {
+            return "\(launchLogo)."
         }
         return store.hasIconAccess
-            ? "App icons are applied on iPhone and iPad. \(exclusives)."
-            : "Supporting unlocks the alternate app icons on iPhone and iPad. \(exclusives)."
+            ? "\(launchLogo). \(exclusives)."
+            : "Supporting unlocks the alternate app icons on iPhone and iPad, and their launch logos on Apple TV. \(exclusives)."
         #else
         if store.hasActiveSubscription {
             return "Tap an icon to apply it."
@@ -1203,7 +1210,7 @@ struct SupporterIconShowcase: View {
         #if os(iOS)
         return currentIcon == icon
         #else
-        return false
+        return store.launchLogo == icon
         #endif
     }
 

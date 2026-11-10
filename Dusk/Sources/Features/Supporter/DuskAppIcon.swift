@@ -6,8 +6,9 @@ import SwiftUI
 /// (`ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES`).
 ///
 /// Alternate icons are iOS/iPadOS-only: tvOS alternates would need full
-/// layered image stacks, so the Apple TV app always uses the primary icon and
-/// the supporter UI there only showcases the variants.
+/// layered image stacks, so the Apple TV app always uses the primary icon.
+/// Picking a variant there sets its logo as the launch splash logo instead
+/// (`SupporterStore.launchLogo`).
 ///
 /// Access comes in three steps: the primary icon is free, the classic
 /// alternates come with an active subscription or a tip from Generous up, and
@@ -84,17 +85,18 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         return alternateIconName.replacingOccurrences(of: "DuskIcon", with: "LaunchLogo")
     }
 
-    /// The icon on the Home Screen right now. Reads the system's applied icon,
-    /// not the picker's selection or the supporter state, so it already
-    /// reflects a revert after a lapsed subscription (and keeps the old icon
-    /// until that revert actually went through). Always the primary icon on
-    /// tvOS, where alternates are preview-only.
+    /// The icon whose logo the launch splash shows. On iOS the icon on the
+    /// Home Screen right now: the system's applied icon, not the picker's
+    /// selection or the supporter state, so it already reflects a revert after
+    /// a lapsed subscription (and keeps the old icon until that revert
+    /// actually went through). On tvOS, where alternates can't be applied, the
+    /// saved launch logo choice, which reverts the same way.
     @MainActor
     static var applied: DuskAppIcon {
         #if os(iOS)
         current
         #else
-        .dusk
+        SupporterStore.storedLaunchLogo()
         #endif
     }
 

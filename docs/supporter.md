@@ -123,8 +123,9 @@ credentials — only call it from an explicit user action.
   the sheet — the classic set, a hairline, then the subscriber exclusives
   (locked unless the subscription is active); on iOS unlocked tiles apply
   directly. tvOS shows the exclusives as a second labeled row. Each row is a
-  `.focusSection()` of `.card` buttons (icons still only apply on iPhone and
-  iPad) so Up from the purchase rows always has a focusable target and the
+  `.focusSection()` of `.card` buttons; selecting an unlocked one sets its
+  launch logo (see "tvOS launch logo" below), a locked one does nothing.
+  Being buttons, Up from the purchase rows always has a focusable target and the
   scroll view can bring the icons back on screen. The purchase block and the
   Manage section are focus sections too; the header is not. `AppIconPickerView`
   groups the same way ("Supporter Icons" / "Subscriber Exclusives"); locked
@@ -188,8 +189,19 @@ exist to catch bugs this feature is prone to:
 - Icon Composer bundles `Dusk/Resources/DuskIcon{Dawn,Midnight,Neon,Mono,Aurora,GoldenHour,Velvet,Emerald,Gilded}.icon`,
   registered via `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` in
   `project.yml` (iOS target) and excluded from the tvOS target (tvOS alternates
-  would need layered image stacks — out of scope; the Apple TV app only
-  showcases them and its copy says they apply on iPhone and iPad).
+  would need layered image stacks — out of scope; on Apple TV picking an icon
+  sets its launch logo instead, and the copy says the icons apply on iPhone and
+  iPad).
+- **tvOS launch logo:** `SupporterStore.launchLogo` (UserDefaults
+  `supporterLaunchLogo`, read before the store exists by
+  `SupporterStore.storedLaunchLogo()` → `DuskAppIcon.applied`). Set from the
+  supporter sheet's icon tiles or Settings → Appearance → Launch Logo (a
+  `TVSettingsMenuRow` listing only unlocked logos plus the current one; hidden
+  until a perk unlocks a variant). `selectLaunchLogo` ignores locked icons;
+  `enforceLaunchLogoAccess` resets it to Dusk under `shouldRevertIcon`, run
+  after every entitlement read like the iOS icon revert, so a launch before the
+  read still shows the old logo (same as iOS). Tests:
+  `SupporterLaunchLogoTests`. Always `.dusk` on iOS.
 - Each bundle is two layers: an opaque `background.png` and `mark.png` (the
   primary mark's alpha, recolored), with the shared `icon.json`. Previews are
   flattened 512px `IconPreview*` imagesets in `Assets.xcassets`, shared with tvOS.
@@ -314,7 +326,8 @@ build); otherwise remove them from sale. Their IDs can't be reused either way.
 > App Icon shows the icons. No Plex account is needed to view the purchase
 > sheet after signing in with the demo account provided in the app review
 > information. On Apple TV the same sheet is under Settings → Support;
-> alternate icons are not available on tvOS.
+> alternate app icons are not available on tvOS, where picking one only
+> changes the logo shown while Dusk launches.
 
 Screenshot for review: the supporter sheet on iPhone (flatten to JPEG —
 App Store Connect rejects Simulator PNGs with an alpha channel).
