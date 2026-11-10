@@ -99,7 +99,11 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-tvOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIconTV
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded
+        # No ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES here: actool writes the iOS
+        # CFBundleAlternateIcons form ({name: {CFBundleIconName}}), and App Store Connect rejects
+        # that on tvOS with ITMS-90471 "missing the Alternate Icon asset". tvOS wants an array of
+        # stack names, listed in Info-tvOS.plist; the top-level AppIconsTV image stacks compile
+        # into Assets.car on their own. Keep that list in sync with DuskAppIcon.
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         # The global accent is the app's only tint (label color, never coral).
         # On tvOS it also matches the tab bar's tint (Color.duskTVTabBarTint), so

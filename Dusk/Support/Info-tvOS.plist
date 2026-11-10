@@ -55,5 +55,20 @@
 		<key>UIApplicationSupportsMultipleScenes</key>
 		<false/>
 	</dict>
+	<key>CFBundleIcons</key>
+	<dict>
+		<key>CFBundleAlternateIcons</key>
+		<array>
+			<string>DuskIconDawn</string>
+			<string>DuskIconMidnight</string>
+			<string>DuskIconNeon</string>
+			<string>DuskIconMono</string>
+			<string>DuskIconAurora</string>
+			<string>DuskIconGoldenHour</string>
+			<string>DuskIconVelvet</string>
+			<string>DuskIconEmerald</string>
+			<string>DuskIconGilded</string>
+		</array>
+	</dict>
 </dict>
 </plist>
