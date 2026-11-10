@@ -140,6 +140,31 @@ private final class LaunchSplashUIView: UIView {
         #endif
     }
 
+    /// The height of the storyboard's image view, which the artwork is
+    /// aspect-fit into. iOS only pins the width, so the view keeps the image's
+    /// intrinsic 1130 pt height.
+    private static var storyboardImageViewHeight: CGFloat {
+        #if os(tvOS)
+        346
+        #else
+        1130
+        #endif
+    }
+
+    /// How far right of the screen's centre the logo sits, matching the launch
+    /// storyboards' centerX constant. The play triangle's bounding box is
+    /// heavier on the left, so the app icons place it right of centre to look
+    /// centred: the mark's box sits 5.2% of its width right in DuskIcon.icon
+    /// (6% in AppIconTV's front layer). LaunchLogo's artwork already carries
+    /// 3.3%; this adds the rest, so splash and Home Screen icon agree.
+    private static var opticalCenterOffset: CGFloat {
+        #if os(tvOS)
+        7.5
+        #else
+        2.5
+        #endif
+    }
+
     /// The middle of the hollow inside the play triangle (the artwork is
     /// 980 × 1130, the hollow centres around x 355). Zooming here flies through
     /// the opening instead of into a tile.
@@ -176,11 +201,19 @@ private final class LaunchSplashUIView: UIView {
         // while animating, and an off-centre anchor.
         let size = Self.logoSize
         let anchorOffset = CGPoint(x: size.width * Self.zoomAnchor.x, y: size.height * Self.zoomAnchor.y)
-        pulseContainer.bounds = CGRect(origin: .zero, size: size)
-        pulseContainer.layer.position = CGPoint(
-            x: bounds.midX - size.width / 2 + anchorOffset.x,
-            y: bounds.midY - size.height / 2 + anchorOffset.y
+        // Placed the way the storyboard's image view is: Auto Layout snaps its
+        // frame to the pixel grid (half-up, e.g. 152.5 pt at 3x lands on 458 px),
+        // then the aspect-fit artwork is centred inside it unsnapped. Without
+        // the snap the splash sits a pixel off the launch screen it replaces.
+        let scale = traitCollection.displayScale > 0 ? traitCollection.displayScale : 1
+        func snapped(_ value: CGFloat) -> CGFloat { (value * scale).rounded() / scale }
+        let viewHeight = Self.storyboardImageViewHeight
+        let origin = CGPoint(
+            x: snapped(bounds.midX + Self.opticalCenterOffset - size.width / 2),
+            y: snapped(bounds.midY - viewHeight / 2) + (viewHeight - size.height) / 2
         )
+        pulseContainer.bounds = CGRect(origin: .zero, size: size)
+        pulseContainer.layer.position = CGPoint(x: origin.x + anchorOffset.x, y: origin.y + anchorOffset.y)
         logo.bounds = CGRect(origin: .zero, size: size)
         logo.layer.position = anchorOffset
     }

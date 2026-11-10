@@ -18,7 +18,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   no server step in onboarding.**
 - Cold launch is covered by `LaunchSplashOverlay` (`App/LaunchSplash.swift`), not a
   spinner. It starts as a pixel copy of the launch storyboards (same logo size,
-  `LaunchBackground` = `duskBackground`; keep the three in sync) and leaves the
+  same optical-centre shift — the logo's centerX constant, iOS +2.5 pt / tvOS
+  +7.5 pt, = `opticalCenterOffset`, so the mark sits right of centre as in the
+  app icons — `LaunchBackground` = `duskBackground`; keep the three in sync) and leaves the
   moment `LaunchSplashState.contentIsReady()` is called: by `ContentView` for
   sign-in, the profile picker or a bootstrap error, and by `HomeView` on first
   paint or the empty/error/outage screen that replaces it (never on "not loading"

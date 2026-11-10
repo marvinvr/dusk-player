@@ -16,7 +16,7 @@
                         <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
                         <subviews>
                             <imageView clipsSubviews="YES" userInteractionEnabled="NO" contentMode="scaleAspectFit" image="LaunchLogo" translatesAutoresizingMaskIntoConstraints="NO" id="3us-5k-YoP">
-                                <rect key="frame" x="810" y="367" width="300" height="346"/>
+                                <rect key="frame" x="817.5" y="367" width="300" height="346"/>
                                 <constraints>
                                     <constraint firstAttribute="width" constant="300" id="0OM-tF-2l5"/>
                                     <constraint firstAttribute="height" constant="346" id="f8H-4R-Y3L"/>
@@ -26,7 +26,7 @@
                         <viewLayoutGuide key="safeArea" id="wu6-TO-1qx"/>
                         <color key="backgroundColor" name="LaunchBackground"/>
                         <constraints>
-                            <constraint firstItem="3us-5k-YoP" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" id="J5S-BJ-UbF"/>
+                            <constraint firstItem="3us-5k-YoP" firstAttribute="centerX" secondItem="8bC-Xf-vdC" secondAttribute="centerX" constant="7.5" id="J5S-BJ-UbF"/>
                             <constraint firstItem="3us-5k-YoP" firstAttribute="centerY" secondItem="8bC-Xf-vdC" secondAttribute="centerY" id="sKu-7V-e7g"/>
                         </constraints>
                     </view>
