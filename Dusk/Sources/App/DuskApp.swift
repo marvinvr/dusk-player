@@ -87,7 +87,35 @@ final class DuskAppDelegate: NSObject, UIApplicationDelegate {
 }
 #endif
 
+/// Designed-for-iPad on a Mac: draw iPad points 1:1 instead of macOS's default 77%.
+///
+/// macOS shrinks every iPad app to 0.77 (a 1440×900 window is laid out as ~1871×1128
+/// iPad points), so Dusk's iPad type ramp and poster metrics land ~25% smaller than a
+/// native media app (13pt body, ~9pt card captions, ~100pt posters) and the 2x render is
+/// resampled, which softens text. At 1.0 the iPad layout matches the TV app's sizes and
+/// renders pixel-exact. The value goes in the *registration* domain: nothing is
+/// persisted, and a user's own `defaults write com.dusk-player.app iOSMacScaleFactor`
+/// still wins. UIKit reads it at launch, so it must be set before `UIApplicationMain`.
+#if os(iOS)
+enum MacDisplayScale {
+    static func register() {
+        guard ProcessInfo.processInfo.isiOSAppOnMac else { return }
+        UserDefaults.standard.register(defaults: ["iOSMacScaleFactor": 1.0])
+    }
+}
+#endif
+
+/// Entry point: only exists so `MacDisplayScale` runs before UIKit starts.
 @main
+enum DuskMain {
+    static func main() {
+        #if os(iOS)
+        MacDisplayScale.register()
+        #endif
+        DuskApp.main()
+    }
+}
+
 struct DuskApp: App {
     #if os(iOS)
     @UIApplicationDelegateAdaptor(DuskAppDelegate.self) private var appDelegate

@@ -1449,6 +1449,19 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     `MainTabIOSShell` re-sets each item's title when the size class changes on a Duo.
   Pose (open/fold) is only controllable in DeviceHub, not via `simctl` or XCUITest, and
   the XCUITest rotation does not stick on this device.
+- Mac (Designed for iPad, no Catalyst target): macOS draws iPad apps at 0.77 by default
+  (a 1440×900 window is laid out as ~1871×1128 iPad points), which made Dusk ~25%
+  smaller than the TV app (card captions ~9 pt, posters ~100 pt) and resampled every
+  frame. `MacDisplayScale` (`DuskApp.swift`, run from the `DuskMain` entry point before
+  `UIApplicationMain`) registers `iOSMacScaleFactor = 1.0` in the defaults registration
+  domain, so iPad points map 1:1 to Mac points and render pixel-exact; nothing is
+  persisted and `defaults write com.dusk-player.app iOSMacScaleFactor <x>` still
+  overrides it. Measured at "looks like 2560×1440": poster title cap height 14 → 19 px,
+  shelf header 29 px vs the TV app's 26 px, posters 130 pt vs the TV app's 136 pt. The
+  key is undocumented (the same one the `-iOSMacScaleFactor` launch argument sets); if a
+  macOS release ignores it, Dusk simply falls back to 0.77. iPad/iPhone/tvOS are
+  untouched. Inactive Mac windows render glass prominent buttons dimmed; that is
+  system behaviour, not a scale side effect.
 
 ## Design And Style Rules
 
