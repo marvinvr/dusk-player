@@ -427,6 +427,19 @@ enum DuskPosterMetrics {
         #endif
     }
 
+    /// Artwork-to-title gap of the tvOS poster cards that use the system
+    /// `.card` focus (`duskTVOSSystemPosterButton`). Only the artwork lifts;
+    /// on a 232 × 348 poster it grows ~20pt per side, so `cardSpacing` let
+    /// the focused artwork touch its title (#74). This leaves ~14pt of room,
+    /// like the Supporter icon picker. Fixed, so focus never moves a row.
+    static var systemCardTextSpacing: CGFloat {
+        #if os(tvOS)
+        34
+        #else
+        cardSpacing
+        #endif
+    }
+
     static var cardTextSpacing: CGFloat {
         #if os(tvOS)
         4

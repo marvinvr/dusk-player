@@ -28,7 +28,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             style: .continuous
         )
 
-        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.systemCardTextSpacing) {
             NavigationLink(value: route) {
                 PosterArtwork(
                     imageURL: imageURL,
@@ -144,7 +144,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             style: .continuous
         )
 
-        VStack(alignment: .leading, spacing: DuskPosterMetrics.cardSpacing) {
+        VStack(alignment: .leading, spacing: DuskPosterMetrics.systemCardTextSpacing) {
             Button(action: action) {
                 PosterArtwork(
                     imageURL: imageURL,

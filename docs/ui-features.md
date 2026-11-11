@@ -265,7 +265,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   shared by library grids, hub rows, collections, and search) use
   `duskTVOSSystemPosterButton()`: `.buttonStyle(.card)` and a rounded-rectangle border
   matching `PosterArtwork.cornerRadius`. That is the system lift, scale, parallax,
-  and shadow. Keep the title outside the button. Do not apply
+  and shadow. Keep the title outside the button, `DuskPosterMetrics.systemCardTextSpacing`
+  (34pt) below the artwork: a focused 232 × 348 poster grows ~20pt per side, so
+  the old 16pt gap let it touch the title (#74). The gap is fixed, never
+  focus-dependent, so rows don't shift when focus moves. Do not apply
   `duskSuppressTVOSButtonChrome()`, `duskTVOSFocusEffectShape`, or
   `focusEffectDisabled()` to these cells — a custom button style replaces the system
   effect. **Never add `.hoverEffect(.highlight)` on top** (on the button or its
