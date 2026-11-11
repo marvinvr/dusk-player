@@ -182,6 +182,32 @@ struct ShowTrackPreferenceTests {
         #expect(PlayerViewModel.preferredAudioStreamPosition(inPart: part, preferredLanguage: "de") == 2)
     }
 
+    /// Plex audio `languageCode` is often ISO 639-2, including bibliographic
+    /// forms (`gre`, `slo`). Preferences store the `CommonLanguage` ISO 639-1
+    /// code. Matching goes through `PlayerViewModel.normalizedLanguageCode`.
+    @Test(arguments: [
+        (CommonLanguage.hungarian, "hun"),
+        (CommonLanguage.greek, "gre"),
+        (CommonLanguage.greek, "ell"),
+        (CommonLanguage.ukrainian, "ukr"),
+        (CommonLanguage.croatian, "hrv"),
+        (CommonLanguage.bulgarian, "bul"),
+        (CommonLanguage.slovak, "slo"),
+        (CommonLanguage.slovak, "slk"),
+        (CommonLanguage.serbian, "srp"),
+        (CommonLanguage.slovenian, "slv"),
+    ])
+    func plexISO6392AudioCodesMatchCommonLanguages(_ language: CommonLanguage, plexCode: String) throws {
+        let part = try episode(streams: """
+            {"id":1,"streamType":2,"languageCode":"eng","codec":"aac","channels":2},
+            {"id":2,"streamType":2,"languageCode":"\(plexCode)","codec":"aac","channels":2}
+            """).media[0].parts[0]
+        #expect(PlayerViewModel.preferredAudioStreamPosition(
+            inPart: part, preferredLanguage: language.code
+        ) == 1)
+        #expect(PlayerViewModel.normalizedLanguageCode(plexCode) == language.code)
+    }
+
     @Test func serverSelectedAudioIsSkippedWhenItCannotBeDecoded() throws {
         let part = try episode(streams: #"""
             {"id":1,"streamType":2,"languageCode":"eng","codec":"truehd","channels":8,"selected":true},
