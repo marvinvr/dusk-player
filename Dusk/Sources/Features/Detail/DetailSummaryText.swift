@@ -288,8 +288,7 @@ struct SummaryFullTextView: View {
             .scrollIndicators(.hidden)
             .scrollClipDisabled()
         }
-        .background(Color.black.opacity(0.35).ignoresSafeArea())
-        .presentationBackground(.regularMaterial)
+        .duskTVOSPopUpBackground()
         #else
         NavigationStack {
             ScrollView {

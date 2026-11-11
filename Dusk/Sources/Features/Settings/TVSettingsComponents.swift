@@ -31,13 +31,14 @@ enum TVSettingsMetrics {
 }
 
 struct TVSettingsSection<Content: View>: View {
-    let title: String
+    /// Nil for a card without a header (Add to Playlist's New Playlist row).
+    let title: String?
     let footer: String?
     let footerColor: Color
     private let content: Content
 
     init(
-        title: String,
+        title: String? = nil,
         footer: String? = nil,
         footerColor: Color = Color.duskTextSecondary,
         @ViewBuilder content: () -> Content
@@ -50,13 +51,15 @@ struct TVSettingsSection<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
-                .font(DuskFont.groupHeader(ios: .subheadline.weight(.semibold)))
-                .textCase(.uppercase)
-                .tracking(0.6)
-                .foregroundStyle(Color.duskTextSecondary)
-                .padding(.leading, TVSettingsMetrics.contentInset)
-                .padding(.bottom, 12)
+            if let title {
+                Text(title)
+                    .font(DuskFont.groupHeader(ios: .subheadline.weight(.semibold)))
+                    .textCase(.uppercase)
+                    .tracking(0.6)
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .padding(.leading, TVSettingsMetrics.contentInset)
+                    .padding(.bottom, 12)
+            }
 
             VStack(spacing: 0) {
                 content

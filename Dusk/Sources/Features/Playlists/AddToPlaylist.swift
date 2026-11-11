@@ -215,9 +215,12 @@ final class AddToPlaylistViewModel {
     }
 }
 
-/// A native list of the playlists the item can join (regular playlists on
-/// its server, most recently updated first), led by "New Playlist…". Plex
-/// cannot create an empty playlist, so a new one starts with this item.
+/// The playlists the item can join (regular playlists on its server, most
+/// recently updated first), led by "New Playlist…". Plex cannot create an
+/// empty playlist, so a new one starts with this item.
+///
+/// iOS: a native list in a detented sheet. tvOS: the Settings cards on a
+/// full-screen pop-up (`duskPopUp`), where the focus band never meets an edge.
 struct AddToPlaylistSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var viewModel: AddToPlaylistViewModel
@@ -228,115 +231,55 @@ struct AddToPlaylistSheet: View {
         _viewModel = State(initialValue: AddToPlaylistViewModel(target: target, plexService: plexService))
     }
 
+    /// Nothing more to pick once an add is running or done.
+    private var isLocked: Bool {
+        viewModel.isWorking || viewModel.confirmation != nil
+    }
+
+    private func startNaming() {
+        newTitle = ""
+        isNaming = true
+    }
+
+    private func countText(_ playlist: PlexPlaylist) -> String? {
+        playlist.leafCount.map { $0 == 1 ? "1 item" : "\($0) items" }
+    }
+
     var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    Button {
-                        newTitle = ""
-                        isNaming = true
-                    } label: {
-                        Label("New Playlist…", systemImage: "plus")
-                            .addToPlaylistRowLabelStyle()
-                    }
-                    .disabled(viewModel.isWorking || viewModel.confirmation != nil)
-                }
-                .addToPlaylistRowBackground()
-
-                if viewModel.isLoading {
-                    Section {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    }
-                    .listRowBackground(Color.clear)
-                } else if !viewModel.playlists.isEmpty {
-                    Section {
-                        ForEach(viewModel.playlists) { playlist in
-                            Button {
-                                Task { await viewModel.request(.existing(playlist)) }
-                            } label: {
-                                HStack {
-                                    Text(playlist.title)
-                                        .addToPlaylistRowLabelStyle()
-                                    Spacer()
-                                    if let count = playlist.leafCount {
-                                        Text(count == 1 ? "1 item" : "\(count) items")
-                                            .addToPlaylistRowLabelStyle(secondary: true)
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                            }
-                            .disabled(viewModel.isWorking || viewModel.confirmation != nil)
-                        }
-                    } header: {
-                        Text("Playlists")
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                    .addToPlaylistRowBackground()
-                }
-
-                if let confirmation = viewModel.confirmation {
-                    Section {
-                        Label(confirmation, systemImage: "checkmark")
-                            .foregroundStyle(Color.duskTextPrimary)
-                    }
-                    .listRowBackground(Color.clear)
-                } else if viewModel.isWorking {
-                    Section {
-                        ProgressView()
-                            .frame(maxWidth: .infinity)
-                    }
-                    .listRowBackground(Color.clear)
+        platformContent
+            .task {
+                await viewModel.load()
+            }
+            .onChange(of: viewModel.confirmation) { _, confirmation in
+                guard confirmation != nil else { return }
+                Task {
+                    try? await Task.sleep(for: .milliseconds(900))
+                    dismiss()
                 }
             }
-            .duskScrollContentBackgroundHidden()
-            .background(Color.duskBackground.ignoresSafeArea())
-            .duskNavigationTitle("Add to Playlist")
-            #if !os(tvOS)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+            .alert("New Playlist", isPresented: $isNaming) {
+                TextField("Title", text: $newTitle)
+                Button("Cancel", role: .cancel) {}
+                Button("Create") {
+                    let title = newTitle
+                    Task { await viewModel.request(.new(title: title)) }
                 }
+            } message: {
+                Text("“\(viewModel.target.title)” will be its first \(viewModel.target.expandsToEpisodes ? "episodes" : "item").")
             }
-            #endif
-        }
-        #if !os(tvOS)
-        .presentationDetents([.medium, .large])
-        #endif
-        .task {
-            await viewModel.load()
-        }
-        .onChange(of: viewModel.confirmation) { _, confirmation in
-            guard confirmation != nil else { return }
-            Task {
-                try? await Task.sleep(for: .milliseconds(900))
-                dismiss()
+            .alert(viewModel.countQuestion, isPresented: confirmationBinding, presenting: viewModel.pendingConfirmation) { pending in
+                Button("Cancel", role: .cancel) {}
+                Button("Add") {
+                    Task { await viewModel.confirm(pending) }
+                }
+            } message: { _ in
+                Text("Every episode of “\(viewModel.target.title)” goes into the playlist, in order. Episodes already in it are skipped.")
             }
-        }
-        .alert("New Playlist", isPresented: $isNaming) {
-            TextField("Title", text: $newTitle)
-            Button("Cancel", role: .cancel) {}
-            Button("Create") {
-                let title = newTitle
-                Task { await viewModel.request(.new(title: title)) }
+            .alert("Couldn’t Add to Playlist", isPresented: errorBinding) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(viewModel.error ?? "")
             }
-        } message: {
-            Text("“\(viewModel.target.title)” will be its first \(viewModel.target.expandsToEpisodes ? "episodes" : "item").")
-        }
-        .alert(viewModel.countQuestion, isPresented: confirmationBinding, presenting: viewModel.pendingConfirmation) { pending in
-            Button("Cancel", role: .cancel) {}
-            Button("Add") {
-                Task { await viewModel.confirm(pending) }
-            }
-        } message: { _ in
-            Text("Every episode of “\(viewModel.target.title)” goes into the playlist, in order. Episodes already in it are skipped.")
-        }
-        .alert("Couldn’t Add to Playlist", isPresented: errorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.error ?? "")
-        }
     }
 
     private var confirmationBinding: Binding<Bool> {
@@ -354,25 +297,141 @@ struct AddToPlaylistSheet: View {
     }
 }
 
-private extension View {
-    /// tvOS draws its own focus platter, which a row background would hide.
+// MARK: - Platform layouts
+
+extension AddToPlaylistSheet {
     @ViewBuilder
-    func addToPlaylistRowBackground() -> some View {
+    private var platformContent: some View {
         #if os(tvOS)
-        self
+        tvContent
         #else
-        listRowBackground(Color.duskSurface)
+        iosContent
         #endif
     }
 
-    /// iOS colours the rows' text; tvOS leaves it to the focus treatment, where
-    /// an explicit colour goes white-on-white on the focused platter.
-    @ViewBuilder
-    func addToPlaylistRowLabelStyle(secondary: Bool = false) -> some View {
-        #if os(tvOS)
-        self
-        #else
-        foregroundStyle(secondary ? Color.duskTextSecondary : Color.duskTextPrimary)
-        #endif
+    #if os(tvOS)
+    private var tvContent: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                    Text("Add to Playlist")
+                        .font(DuskFont.TV.pageTitle)
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .padding(.leading, TVSettingsMetrics.contentInset)
+
+                    TVSettingsSection {
+                        TVSettingsActionRow(title: "New Playlist…", action: startNaming)
+                            .disabled(isLocked)
+                    }
+
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    } else if !viewModel.playlists.isEmpty {
+                        TVSettingsSection(title: "Playlists") {
+                            ForEach(Array(viewModel.playlists.enumerated()), id: \.element.id) { index, playlist in
+                                if index > 0 {
+                                    Rectangle()
+                                        .fill(Color.duskTextSecondary.opacity(0.16))
+                                        .frame(height: 1)
+                                }
+                                TVSettingsActionRow(title: playlist.title, detail: countText(playlist)) {
+                                    Task { await viewModel.request(.existing(playlist)) }
+                                }
+                                .disabled(isLocked)
+                            }
+                        }
+                    }
+
+                    if let confirmation = viewModel.confirmation {
+                        Label(confirmation, systemImage: "checkmark")
+                            .font(DuskFont.rowTitle(ios: .headline))
+                            .foregroundStyle(Color.duskTextPrimary)
+                            .padding(.leading, TVSettingsMetrics.contentInset)
+                    } else if viewModel.isWorking {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(maxWidth: 980, alignment: .leading)
+                .padding(.horizontal, 60)
+                .padding(.vertical, 64)
+                // Centred on screen; a long list scrolls from the top.
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            }
+            .scrollIndicators(.hidden)
+        }
     }
+    #else
+    private var iosContent: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Button(action: startNaming) {
+                        Label("New Playlist…", systemImage: "plus")
+                            .foregroundStyle(Color.duskTextPrimary)
+                    }
+                    .disabled(isLocked)
+                }
+                .listRowBackground(Color.duskSurface)
+
+                if viewModel.isLoading {
+                    Section {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
+                    .listRowBackground(Color.clear)
+                } else if !viewModel.playlists.isEmpty {
+                    Section {
+                        ForEach(viewModel.playlists) { playlist in
+                            Button {
+                                Task { await viewModel.request(.existing(playlist)) }
+                            } label: {
+                                HStack {
+                                    Text(playlist.title)
+                                        .foregroundStyle(Color.duskTextPrimary)
+                                    Spacer()
+                                    if let count = countText(playlist) {
+                                        Text(count)
+                                            .foregroundStyle(Color.duskTextSecondary)
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .disabled(isLocked)
+                        }
+                    } header: {
+                        Text("Playlists")
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                    .listRowBackground(Color.duskSurface)
+                }
+
+                if let confirmation = viewModel.confirmation {
+                    Section {
+                        Label(confirmation, systemImage: "checkmark")
+                            .foregroundStyle(Color.duskTextPrimary)
+                    }
+                    .listRowBackground(Color.clear)
+                } else if viewModel.isWorking {
+                    Section {
+                        ProgressView()
+                            .frame(maxWidth: .infinity)
+                    }
+                    .listRowBackground(Color.clear)
+                }
+            }
+            .scrollContentBackground(.hidden)
+            .background(Color.duskBackground.ignoresSafeArea())
+            .navigationTitle("Add to Playlist")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+    }
+    #endif
 }

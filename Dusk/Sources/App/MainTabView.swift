@@ -38,7 +38,7 @@ struct MainTabView: View {
 
         shellView
             .environment(addToPlaylist)
-            .sheet(item: $bindableAddToPlaylist.target) { target in
+            .duskPopUp(item: $bindableAddToPlaylist.target) { target in
                 AddToPlaylistSheet(target: target, plexService: plexService)
             }
             // Which tabs exist depends on the merged library list, so the shell

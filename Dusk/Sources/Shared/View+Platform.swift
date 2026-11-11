@@ -132,6 +132,52 @@ extension View {
         #endif
     }
 
+    /// What a tvOS pop-up sits on: the page behind it under the system blur
+    /// and a light dim, so nothing of it reads through (the synopsis cover's
+    /// look). Goes on the content of a `fullScreenCover`; no-op on iOS.
+    @ViewBuilder
+    func duskTVOSPopUpBackground() -> some View {
+        #if os(tvOS)
+        self
+            .background(Color.black.opacity(0.35).ignoresSafeArea())
+            .presentationBackground(.regularMaterial)
+        #else
+        self
+        #endif
+    }
+
+    /// A pop-up such as Add to Playlist or the Supporter page. iOS: a sheet.
+    /// tvOS: a full-screen cover on `duskTVOSPopUpBackground()`, because a tvOS
+    /// sheet is a small card that clips focused rows and only lightly dims
+    /// the page around it. Menu closes it.
+    @ViewBuilder
+    func duskPopUp<Content: View>(
+        isPresented: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        #if os(tvOS)
+        fullScreenCover(isPresented: isPresented) {
+            content().duskTVOSPopUpBackground()
+        }
+        #else
+        sheet(isPresented: isPresented, content: content)
+        #endif
+    }
+
+    @ViewBuilder
+    func duskPopUp<Item: Identifiable, Content: View>(
+        item: Binding<Item?>,
+        @ViewBuilder content: @escaping (Item) -> Content
+    ) -> some View {
+        #if os(tvOS)
+        fullScreenCover(item: item) { value in
+            content(value).duskTVOSPopUpBackground()
+        }
+        #else
+        sheet(item: item, content: content)
+        #endif
+    }
+
     @ViewBuilder
     func duskTVOSStandardImageDynamicRange() -> some View {
         #if os(tvOS)
