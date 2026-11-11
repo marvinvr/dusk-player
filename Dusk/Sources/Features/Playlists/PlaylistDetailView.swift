@@ -243,7 +243,7 @@ struct PlaylistDetailView: View {
         Button {
             play(viewModel.shuffledQueue(), fromStart: true)
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: "shuffle")
+            DetailHeroSecondaryIconLabel(systemImage: "shuffle", title: "Shuffle")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .disabled(!viewModel.canPlay)
@@ -289,7 +289,7 @@ struct PlaylistDetailView: View {
                 }
             }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: "ellipsis")
+            DetailHeroSecondaryIconLabel(systemImage: "ellipsis", title: "More")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel("More")

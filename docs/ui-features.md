@@ -990,7 +990,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   reads just "Play" / "Resume" (`playButtonShortLabel`), never the target episode.
   Secondary actions (download, watched, go-to-show/season) are **icon-only**
   everywhere via `DetailHeroSecondaryIconLabel` + `detailHeroNativeSecondaryButtonStyle()`
-  with an `.accessibilityLabel` (capsule pills on iOS, circles on tvOS). On iOS wrap
+  with an `.accessibilityLabel` (capsule pills on iOS, circles on tvOS). Pass the
+  same string as the label's `title`: on tvOS the focused button expands to icon +
+  title (#72) while the others stay round. On iOS wrap
   the action block in `detailHeroActionStackFrame(isCompactPhone:)` (iPhone ≈60%
   centered, iPad fills the hero's left column); tvOS lays the icons out to the right
   of the primary. Movie/Show/Season/Episode all expose a watched toggle; Show/Season

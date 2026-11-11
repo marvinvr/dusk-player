@@ -590,22 +590,67 @@ extension View {
 /// Icon-only secondary action label for detail heroes. Pairs with
 /// `detailHeroNativeSecondaryButtonStyle()` to make a compact glass icon button
 /// (a capsule pill on iOS, a circle on tvOS) without crowding the row with text.
+///
+/// On tvOS the focused button grows into icon + `title` so the row can be read
+/// (issue #72); unfocused buttons stay round. The row is leading-aligned, so the
+/// growth only pushes the buttons to its right and Play never moves. iOS ignores
+/// `title` and stays icon-only.
 struct DetailHeroSecondaryIconLabel: View {
     let systemImage: String
+    var title: String? = nil
+
+    #if os(tvOS)
+    @Environment(\.isFocused) private var isFocused
+    #endif
 
     var body: some View {
-        Image(systemName: systemImage)
-            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
-            // Square on tvOS so the circular button reads as round; a slimmer pill
-            // on iOS where the secondaries sit in a capsule row.
+        #if os(tvOS)
+        HStack(spacing: 0) {
+            icon
+                .frame(width: iconMinHeight, height: iconMinHeight)
+            if showsTitle, let title {
+                Text(title)
+                    .font(DuskFont.buttonLabel(ios: .headline))
+                    .lineLimit(1)
+                    .fixedSize()
+                    .padding(.leading, 12)
+                    .transition(.opacity)
+            }
+        }
+        // The capsule glass pads ~12pt more horizontally than vertically; give
+        // that back while icon-only so the unfocused button is a true circle.
+        // Height stays pinned to the icon so the row never grows vertically.
+        .padding(.horizontal, showsTitle ? 0 : -Self.tvCircleInset)
+        .frame(height: iconMinHeight)
+        .contentShape(Capsule())
+        .animation(.smooth(duration: 0.28), value: showsTitle)
+        #else
+        icon
             .frame(minWidth: iconMinWidth, minHeight: iconMinHeight)
             .contentShape(Capsule())
+        #endif
     }
+
+    private var icon: some View {
+        Image(systemName: systemImage)
+            .font(DuskFont.buttonLabel(ios: .subheadline.weight(.semibold)))
+            // Slimmer than tall on iOS, where the secondaries sit in a capsule
+            // row; tvOS pins it to a square in `body`.
+            .frame(minWidth: iconMinWidth, minHeight: iconMinHeight)
+    }
+
+    #if os(tvOS)
+    private var showsTitle: Bool { isFocused && title != nil }
+
+    /// Horizontal minus vertical content inset of the tvOS `.glass` capsule
+    /// button, measured from simulator screenshots (30pt vs 18pt).
+    private static let tvCircleInset: CGFloat = 12
+    #endif
 
     private var iconMinWidth: CGFloat {
         #if os(tvOS)
-        // Kept equal to `iconMinHeight` — the tvOS button is a circle and goes
-        // oval the moment these diverge.
+        // Kept equal to `iconMinHeight` — the unfocused tvOS button is a circle
+        // and goes oval the moment these diverge.
         iconMinHeight
         #else
         24
@@ -716,12 +761,14 @@ extension View {
     @ViewBuilder
     func detailHeroNativeSecondaryButtonStyle() -> some View {
         #if os(tvOS)
-        // tvOS secondaries are icon-only and sit beside the primary, so make them
-        // round — there is no width to match. No tint, same as the primary.
+        // tvOS secondaries are icon-only and sit beside the primary. A capsule
+        // around the square icon label reads as a circle, and stretches into a
+        // pill when the focused label reveals its title. No tint, same as the
+        // primary.
         self
             .buttonStyle(.glass)
             .controlSize(.regular)
-            .buttonBorderShape(.circle)
+            .buttonBorderShape(.capsule)
         #elseif os(iOS)
         if #available(iOS 26.0, *) {
             self

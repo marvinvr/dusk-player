@@ -279,7 +279,7 @@ struct ShowDetailView: View {
         Button {
             Task { await viewModel.toggleWatched() }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye")
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye", title: viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")

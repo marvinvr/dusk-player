@@ -167,11 +167,15 @@ poster** on every platform. Action buttons use the **native Liquid Glass** style
 
 **Secondary actions (Download / Mark Watched / Go to Show|Season).**
 
-* **Icon-only everywhere** — use `DetailHeroSecondaryIconLabel` (SF Symbol only)
-  plus an `.accessibilityLabel`; no text crowds the row.
+* **Icon-only everywhere** — use `DetailHeroSecondaryIconLabel` (SF Symbol plus a
+  `title`, the same string as the button's `.accessibilityLabel`); no text crowds
+  the row. On tvOS only the **focused** button grows into icon + title (smooth
+  width animation, height pinned), so the remote user can read what it does; the
+  row is leading-aligned, so Play never moves.
 * **Style:** neutral Liquid Glass — `.buttonStyle(.glass)` (fallback `.bordered`),
   `.tint(Color.primary)` on iOS / no tint on tvOS, `.controlSize(.regular)`. **Shape:** `.capsule` pills on
-  iOS, **`.circle`** on tvOS (there is no shared width to match there).
+  iOS; on tvOS a `.capsule` whose unfocused label gives back the extra horizontal
+  inset so it reads as a **circle**, stretching into a pill when focused.
 * **Placement:** a compact row **below** the primary on iOS (centered on iPhone,
   leading on iPad); **to the right** of the primary on tvOS. Movie, Show, Season,
   and Episode all expose a watched toggle; Show/Season mark the whole show/season.

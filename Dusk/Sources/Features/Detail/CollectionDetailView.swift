@@ -177,7 +177,7 @@ struct CollectionDetailView: View {
                 Task { await playback.playQueue(queue, fromStart: true) }
             }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: "shuffle")
+            DetailHeroSecondaryIconLabel(systemImage: "shuffle", title: "Shuffle")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel("Shuffle")

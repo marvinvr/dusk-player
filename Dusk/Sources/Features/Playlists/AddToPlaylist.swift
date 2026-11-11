@@ -100,7 +100,7 @@ struct AddToPlaylistHeroButton: View {
             Button {
                 presenter.present(target)
             } label: {
-                DetailHeroSecondaryIconLabel(systemImage: "text.badge.plus")
+                DetailHeroSecondaryIconLabel(systemImage: "text.badge.plus", title: "Add to Playlist")
             }
             .detailHeroNativeSecondaryButtonStyle()
             .accessibilityLabel("Add to Playlist")

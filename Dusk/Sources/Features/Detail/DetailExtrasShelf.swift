@@ -153,7 +153,7 @@ struct DetailTrailerHeroButton: View {
             Button {
                 model.play(trailer.item, ownerTitle: ownerTitle, playback: playback)
             } label: {
-                DetailHeroSecondaryIconLabel(systemImage: "movieclapper")
+                DetailHeroSecondaryIconLabel(systemImage: "movieclapper", title: "Play Trailer")
             }
             .detailHeroNativeSecondaryButtonStyle()
             .accessibilityLabel("Play Trailer")

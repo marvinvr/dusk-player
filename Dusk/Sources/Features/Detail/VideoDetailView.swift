@@ -254,7 +254,7 @@ struct VideoDetailView: View {
             Button {
                 showSubtitleSearch = true
             } label: {
-                DetailHeroSecondaryIconLabel(systemImage: "captions.bubble")
+                DetailHeroSecondaryIconLabel(systemImage: "captions.bubble", title: "Download Subtitles")
             }
             .detailHeroNativeSecondaryButtonStyle()
             .accessibilityLabel("Download Subtitles")
@@ -268,7 +268,7 @@ struct VideoDetailView: View {
         Button {
             Task { await viewModel.toggleWatched() }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye")
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isWatched ? "eye.slash" : "eye", title: viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")

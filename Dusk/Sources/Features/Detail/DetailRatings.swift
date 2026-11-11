@@ -136,7 +136,7 @@ struct DetailRateHeroButton: View {
                 }
             }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: model.value == nil ? "star" : "star.fill")
+            DetailHeroSecondaryIconLabel(systemImage: model.value == nil ? "star" : "star.fill", title: "Rate")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel("Rate")

@@ -44,7 +44,7 @@ struct WatchlistHeroButton: View {
                     }
                 }
             } label: {
-                DetailHeroSecondaryIconLabel(systemImage: isWatchlisted ? "bookmark.fill" : "bookmark")
+                DetailHeroSecondaryIconLabel(systemImage: isWatchlisted ? "bookmark.fill" : "bookmark", title: isWatchlisted ? "Remove from Watchlist" : "Add to Watchlist")
             }
             .detailHeroNativeSecondaryButtonStyle()
             .accessibilityLabel(isWatchlisted ? "Remove from Watchlist" : "Add to Watchlist")

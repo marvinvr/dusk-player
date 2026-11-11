@@ -243,7 +243,7 @@ struct SeasonDetailView: View {
         Button {
             Task { await viewModel.toggleSeasonWatched() }
         } label: {
-            DetailHeroSecondaryIconLabel(systemImage: viewModel.isSeasonWatched ? "eye.slash" : "eye")
+            DetailHeroSecondaryIconLabel(systemImage: viewModel.isSeasonWatched ? "eye.slash" : "eye", title: viewModel.isSeasonWatched ? "Mark Season Unwatched" : "Mark Season Watched")
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel(viewModel.isSeasonWatched ? "Mark Season Unwatched" : "Mark Season Watched")
