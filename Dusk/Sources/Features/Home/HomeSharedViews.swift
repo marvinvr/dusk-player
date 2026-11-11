@@ -27,7 +27,7 @@ struct HomeItemContextMenu: View {
     func actions(playlistPresenter: AddToPlaylistPresenter?) -> [HomeItemMenuAction] {
         var actions: [HomeItemMenuAction] = []
 
-        if item.canMarkWatchedFromContextMenu {
+        if item.canMarkWatchedFromContinueWatchingMenu {
             actions.append(HomeItemMenuAction(title: "Mark Watched", systemImage: "eye", perform: onMarkWatched))
         }
 

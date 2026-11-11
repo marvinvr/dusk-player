@@ -612,10 +612,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (`STYLE.md` §3.3); never a coloured fill.
 - `HomeIOSView` and `HomeTVView` should stay composition shells. Keep Plex data rules in
   `HomeViewModel`, not in platform views.
-- Use `HomeItemContextMenu` for hero context actions. It already exposes mark watched,
-  details, season, and show routes when available (on tvOS `contextMenuSeasonRoute` /
+- Use `HomeItemContextMenu` for hero context actions. The cinematic hero and the
+  compact Continue Watching row share it. It exposes Mark Watched, details, season,
+  and show routes when available (on tvOS `contextMenuSeasonRoute` /
   `contextMenuShowRoute` are nil, because the details route already opens the one
-  show page). Its optional
+  show page). An in-progress item still offers Mark Watched when `viewCount` is
+  already set (a rewatch); poster menus keep hiding it. The same
+  `HomeViewModel.setWatched` scrobble then reloads Home, which drops the item
+  from Continue Watching. Its optional
   `onRemoveFromContinueWatching` adds Plex's "Remove from Continue Watching" action
   (server `PUT /actions/removeFromContinueWatching`); the hero supplies it because its
   items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`

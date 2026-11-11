@@ -413,6 +413,20 @@ extension PlexItem {
         }
     }
 
+    /// Continue Watching still lists a title the user has finished before once
+    /// they start it again. `viewCount` then hides Mark Watched on poster
+    /// menus, but this row is the in-progress copy, and marking it watched is
+    /// the scrobble that takes it off the row.
+    var canMarkWatchedFromContinueWatchingMenu: Bool {
+        if canMarkWatchedFromContextMenu { return true }
+        switch type {
+        case .movie, .episode, .clip:
+            return isPartiallyWatched
+        default:
+            return false
+        }
+    }
+
     var canMarkUnwatchedFromContextMenu: Bool {
         switch type {
         case .movie, .episode, .clip:
