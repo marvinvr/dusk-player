@@ -75,7 +75,19 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   goes through Plex's universal HLS endpoint with direct stream enabled; it is
   not validated as a library file. `StreamResolver.evaluateLiveTV` ignores the
   source-file container because Plex already packaged HLS, while retaining
-  codec and force-engine rules.
+  codec and force-engine rules. Media without any video codec details (an
+  unreadable tune answer) goes to AVPlayer, never to VLCKit as "unknown":
+  Plex delivers what Dusk's profile asks for (H.264 + AAC/AC-3/E-AC-3 MPEG-TS),
+  and VLCKit's HLS demuxer started ~13 s late and lost its clock on every
+  timestamp jump of a looping slate.
+- Plex re-encodes Live TV video even for plain H.264 sources (seen on PMS
+  1.43, whatever the client profile says) and serves 1 s segments. A slate
+  that loops every ~4 s arrives in 4 s bursts, so AVPlayer needs ~11–16 s to
+  start and may hit one live-edge stall that `recoverFromStall` clears.
+- Debug harness: `-DuskScreenshotScreen plexLivePlayer
+  -DuskScreenshotIPTVChannel <n>` tunes the n-th channel of the server's Plex
+  Live TV lineup (with a fake plex.tv listing a real server, it plays a real
+  tuner in the simulator).
 - `PlaybackSource.liveTVContext` carries the lineup, channel/program, and
   session ID into the player. The header and gear menu use it for identity and
   channel switching by finalizing and re-tuning. The loading cover leads with a

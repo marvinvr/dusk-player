@@ -279,6 +279,7 @@
 		58C220D8955A3E0534525419 /* TraktMappingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6FC3EDB22DB9BFCB517A439 /* TraktMappingTests.swift */; };
 		593CCA6EB188B336F69F7D23 /* PlexTransportSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86EFEAB19F3535CCC2A8761 /* PlexTransportSecurityTests.swift */; };
 		595452E9F972BBBF18A362EF /* PlexUser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EE5CB18DA40CB3B2F6AA4CA /* PlexUser.swift */; };
+		59957A6DFFB74E53169C0A7E /* PlexLiveTuneDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DA48F54DAE6EF5F09592A1 /* PlexLiveTuneDecodingTests.swift */; };
 		59A5D3F60424E7F1BEF3D81F /* OfflinePlaybackSyncStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = B55733DDE10DDD70B9E80AFD /* OfflinePlaybackSyncStore.swift */; };
 		59AF9428B6F02EF7CC690EAC /* DownloadActionButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D31C38374E5081B8E28B646 /* DownloadActionButton.swift */; };
 		59DC86EB75FC8D4777BC9C66 /* FairPlayContentKeyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D05C89FEAE6510330E5EF3DB /* FairPlayContentKeyController.swift */; };
@@ -318,6 +319,7 @@
 		6463886ADCF5E8586139CAB0 /* ServerConnectionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46FC23599DFC642C5B1C521C /* ServerConnectionCoordinator.swift */; };
 		646EEFFFAB7EFC2872EF86A3 /* LibraryFilters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 780FF661A74C14E2E34D9556 /* LibraryFilters.swift */; };
 		64A39E2E1CADED5FC223363A /* PlayerViewModel+TrackSelection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E3EAF2638D0F06CB02215DF /* PlayerViewModel+TrackSelection.swift */; };
+		653D51A6D8E1168703465D18 /* PlexLiveTuneDecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65DA48F54DAE6EF5F09592A1 /* PlexLiveTuneDecodingTests.swift */; };
 		666B9AFC7B362B92918F1A9D /* LiveTVGuideGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56A0D0B29D5591A4256C62F8 /* LiveTVGuideGridView.swift */; };
 		66E1D7C55FA30E46680349AD /* PlayerLandscapeOrientation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F35F34FAAABDC0F5B8B9D5C /* PlayerLandscapeOrientation.swift */; };
 		66EB735804BB951E1BC8FF87 /* SubtitleDownloadApplicationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFF668CF41F1878121D52A48 /* SubtitleDownloadApplicationTests.swift */; };
@@ -1040,6 +1042,7 @@
 		626FEE28813E63C65C481790 /* VideoDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDetailViewModel.swift; sourceTree = "<group>"; };
 		639F034A9989DA389277B92E /* HomeRecommendationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeRecommendationEngine.swift; sourceTree = "<group>"; };
 		63E4168938707C67A8369F76 /* TopShelfLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopShelfLink.swift; sourceTree = "<group>"; };
+		65DA48F54DAE6EF5F09592A1 /* PlexLiveTuneDecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexLiveTuneDecodingTests.swift; sourceTree = "<group>"; };
 		66ADD75A9B1884506EA1343D /* AnalyticsClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsClient.swift; sourceTree = "<group>"; };
 		66CB45494E49E1F876C6E2B2 /* DuskIconDawn.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconDawn.icon; sourceTree = "<group>"; };
 		67267CA57BCFF55726919B4D /* UserPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserPreferences.swift; sourceTree = "<group>"; };
@@ -1690,6 +1693,7 @@
 				D951B0B025AC02D32BB3473B /* PlexDownloadQueueTests.swift */,
 				8D8D87EAA0A98DDFAD72DA51 /* PlexEditionTests.swift */,
 				BC0912EBCB8B310391788960 /* PlexExtrasTests.swift */,
+				65DA48F54DAE6EF5F09592A1 /* PlexLiveTuneDecodingTests.swift */,
 				1E198E305F60A7C171B58533 /* PlexLiveTVGuideMatchingTests.swift */,
 				7417D58AC5EB13018CBFAC8C /* PlexMediaPartDecodingTests.swift */,
 				F2FE4A2D4229F5175BA1D250 /* PlexRatingDisplayTests.swift */,
@@ -3014,6 +3018,7 @@
 				9E5904F94765AF724C13DE1E /* PlexEditionTests.swift in Sources */,
 				2BB606299547BA096D2E6AA4 /* PlexExtrasTests.swift in Sources */,
 				AD188E1FF7D84B108A1727CF /* PlexLiveTVGuideMatchingTests.swift in Sources */,
+				59957A6DFFB74E53169C0A7E /* PlexLiveTuneDecodingTests.swift in Sources */,
 				64264B11E47E9184E5E825B5 /* PlexMediaPartDecodingTests.swift in Sources */,
 				E307814B6A20787BB5F42C91 /* PlexRatingDisplayTests.swift in Sources */,
 				593CCA6EB188B336F69F7D23 /* PlexTransportSecurityTests.swift in Sources */,
@@ -3082,6 +3087,7 @@
 				E10AA306D996F340AE8885DE /* PlexEditionTests.swift in Sources */,
 				E72B5C17E44F5156AEEF73AB /* PlexExtrasTests.swift in Sources */,
 				57C0C01D754117A2C6E86B6D /* PlexLiveTVGuideMatchingTests.swift in Sources */,
+				653D51A6D8E1168703465D18 /* PlexLiveTuneDecodingTests.swift in Sources */,
 				1C71D4686961A2D0D78A3C60 /* PlexMediaPartDecodingTests.swift in Sources */,
 				A37DA80927B15BEF902B6EC5 /* PlexRatingDisplayTests.swift in Sources */,
 				6CDAB6A58ED0E6F51F308EBA /* PlexTransportSecurityTests.swift in Sources */,

@@ -627,7 +627,19 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   tune request and reuse it for timeline keepalives. Plex server
   versions return playable media under direct Metadata or nested
   `MediaSubscription > MediaGrabOperation > Metadata/Video`; nodes can be
-  objects or arrays, so decoding must tolerate every form.
+  objects or arrays, so decoding must tolerate every form. Numbers are not
+  typed either: PMS 1.43 (Threadfin/HDHomeRun tuner) sends `Media.id`,
+  `Part.id` and `Stream.id` as strings, so `TuneMedia`/`TunePart`/`TuneStream`
+  read every number leniently. A strict `Int` used to drop the whole Media and
+  play the session as codec-less media through VLCKit.
+- A refused tune has no session key: the grab operation carries
+  `status: "error"`, an `error` text and, for a busy tuner, `Conflicts`
+  ("The recording conflicts with other recordings"). `tuneFailureMessage`
+  turns that into "All tuners are in use…". One-tuner devices are common
+  (Threadfin defaults to 1). Plex keeps a channel's tuner session for ~3–4
+  minutes after the last consumer stops, and a re-tune of the SAME channel
+  reuses it (it is shared between viewers), so Dusk stops only its own
+  consumer transcode and never the `/livetv/sessions` static transcode.
 - Feed the returned `/livetv/sessions/{sessionID}` key to Plex's universal HLS
   decision/start flow with direct stream enabled. The session key is a virtual
   resource, not a library file. Use the response `Part.key` consumer URL only

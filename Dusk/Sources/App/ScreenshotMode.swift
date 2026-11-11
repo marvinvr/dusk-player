@@ -168,6 +168,9 @@ enum ScreenshotMode {
         /// Settings › Live TV › IPTV Sources; the Live TV tab; an IPTV
         /// channel playing (`-DuskScreenshotIPTVChannel`).
         case iptvSources, liveTV, iptvPlayer
+        /// The n-th channel (`-DuskScreenshotIPTVChannel`) of the server's
+        /// Plex Live TV lineup, tuned and playing.
+        case plexLivePlayer
         /// The Playlists tab; `playlist` opens `-DuskScreenshotItem <playlist
         /// ratingKey>`; `playlistPlay` plays it from item
         /// `-DuskScreenshotPlaylistStart <n>`; `addToPlaylist` opens the
@@ -192,6 +195,8 @@ enum ScreenshotMode {
         var playlistStart = 0
         /// Play this channel of the first IPTV source.
         var iptvChannelIndex: Int?
+        /// Tune this channel of the Plex Live TV lineup.
+        var plexLiveChannelIndex: Int?
     }
 
     enum Sheet: String, Identifiable {
@@ -332,6 +337,9 @@ enum ScreenshotMode {
         case .iptvPlayer:
             destination.tab = .liveTV
             destination.iptvChannelIndex = iptvChannelIndex
+        case .plexLivePlayer:
+            destination.tab = .liveTV
+            destination.plexLiveChannelIndex = iptvChannelIndex
         case .supporter:
             destination.tab = .settings
             destination.sheet = .supporter

@@ -530,6 +530,9 @@ private extension MainTabView {
                 if let index = destination.iptvChannelIndex {
                     await playScreenshotIPTVChannel(index)
                 }
+                if let index = destination.plexLiveChannelIndex {
+                    await playScreenshotPlexLiveChannel(index)
+                }
                 if let playID = destination.playID {
                     await playback.playForScreenshot(
                         id: playID,
@@ -539,6 +542,23 @@ private extension MainTabView {
                 return
             }
             try? await Task.sleep(for: .milliseconds(250))
+            if Task.isCancelled { return }
+        }
+    }
+
+    /// Tunes the n-th channel of the server's Plex Live TV lineup, like the
+    /// guide's Watch Live on a row without a programme.
+    func playScreenshotPlexLiveChannel(_ index: Int) async {
+        for _ in 0..<40 {
+            if case let .found(provider) = await plexService.discoverLiveTVProvider(),
+               let channels = try? await plexService.getLiveTVChannels(provider: provider),
+               !channels.isEmpty {
+                let channel = channels[min(max(index, 0), channels.count - 1)]
+                let lineup = PlexLiveTVLineup(provider: provider, channels: channels, programs: [])
+                await playback.playLiveTV(channel: channel, program: nil, lineup: lineup)
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(500))
             if Task.isCancelled { return }
         }
     }

@@ -13,6 +13,8 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
     case httpError(statusCode: Int)
     case decodingError(String)
     case networkError(String)
+    /// The server answered and said why it refused; shown as is.
+    case serverMessage(String)
 
     var errorDescription: String? {
         switch self {
@@ -40,6 +42,8 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
             "Failed to parse server response: \(detail)"
         case .networkError(let detail):
             "Network error: \(detail)"
+        case .serverMessage(let message):
+            message
         }
     }
 

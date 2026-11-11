@@ -752,6 +752,22 @@ struct PlexLiveTuneResponse: Decodable {
             return Metadata.lazy.compactMap(\.tunedSession).first
                 ?? Video.lazy.compactMap(\.tunedSession).first
         }
+
+        /// Why Plex refused the tune, for a response without a session. A
+        /// tuner conflict (a one-tuner HDHomeRun/Threadfin device already on
+        /// another channel; Plex keeps a closed channel's tuner for a few
+        /// minutes) gets a message that says so instead of a parse error.
+        var tuneFailureMessage: String? {
+            let operations = MediaSubscription.flatMap(\.MediaGrabOperation)
+            if operations.contains(where: \.hasConflicts)
+                || operations.contains(where: { $0.error?.localizedCaseInsensitiveContains("conflict") == true }) {
+                return String(
+                    localized: "All tuners are in use. Stop another Live TV stream or recording, or try again in a few minutes."
+                )
+            }
+            return operations.lazy.compactMap { $0.error?.nilIfEmpty }.first
+                ?? message?.nilIfEmpty
+        }
     }
 
     struct PlayableMetadata: Decodable {
@@ -815,15 +831,25 @@ struct PlexLiveTuneResponse: Decodable {
     struct MediaGrabOperation: Decodable {
         let Metadata: [PlayableMetadata]
         let Video: [PlayableMetadata]
+        /// "inprogress" for a tuned channel, "error" when the grab was refused.
+        let status: String?
+        /// Why a refused grab failed, e.g. "The recording conflicts with other
+        /// recordings" when every tuner of the device is in use.
+        let error: String?
+        /// Present when the grab was refused for a tuner conflict.
+        let hasConflicts: Bool
 
         private enum CodingKeys: String, CodingKey {
-            case Metadata, Video
+            case Metadata, Video, status, error, Conflicts
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             Metadata = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Metadata)
             Video = container.decodeOneOrMany(PlayableMetadata.self, forKey: .Video)
+            status = container.lenientString(forKey: .status)
+            error = container.lenientString(forKey: .error)
+            hasConflicts = container.contains(.Conflicts)
         }
     }
 
@@ -854,6 +880,33 @@ struct PlexLiveTuneResponse: Decodable {
         let bitrate: Int?
         let duration: Int?
         let Part: [TunePart]?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, uuid, container, videoCodec, audioCodec, videoResolution, audioChannels
+            case width, height, bitrate, duration, Part
+        }
+
+        // The tune answer is not typed like library metadata: PMS 1.43 sends
+        // `Media.id`, `Part.id` and `Stream.id` as strings ("222512"). One
+        // strict `Int` threw away the whole Media, so the session fell back to
+        // codec-less media, the resolver sent it to VLCKit as "unknown" video
+        // and Plex Live TV only ever played (if at all) through libvlc's HLS.
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = container.lenientInt(forKey: .id)
+            uuid = container.lenientString(forKey: .uuid)
+            self.container = container.lenientString(forKey: .container)
+            videoCodec = container.lenientString(forKey: .videoCodec)
+            audioCodec = container.lenientString(forKey: .audioCodec)
+            videoResolution = container.lenientString(forKey: .videoResolution)
+            audioChannels = container.lenientInt(forKey: .audioChannels)
+            width = container.lenientInt(forKey: .width)
+            height = container.lenientInt(forKey: .height)
+            bitrate = container.lenientInt(forKey: .bitrate)
+            duration = container.lenientInt(forKey: .duration)
+            let parts = container.decodeOneOrMany(TunePart.self, forKey: .Part)
+            Part = parts.isEmpty ? nil : parts
+        }
 
         var sessionPath: String? {
             if let uuid = uuid?.nilIfEmpty {
@@ -915,6 +968,20 @@ struct PlexLiveTuneResponse: Decodable {
         let duration: Int?
         let Stream: [TuneStream]?
 
+        private enum CodingKeys: String, CodingKey {
+            case id, key, container, duration, Stream
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = container.lenientInt(forKey: .id)
+            key = container.lenientString(forKey: .key)
+            self.container = container.lenientString(forKey: .container)
+            duration = container.lenientInt(forKey: .duration)
+            let streams = container.decodeOneOrMany(TuneStream.self, forKey: .Stream)
+            Stream = streams.isEmpty ? nil : streams
+        }
+
         func makePart(id fallbackID: Int, sessionPath: String) -> PlexMediaPart {
             PlexMediaPart(
                 id: id ?? fallbackID,
@@ -949,6 +1016,29 @@ struct PlexLiveTuneResponse: Decodable {
         let channels: Int?
         let audioChannelLayout: String?
         let samplingRate: Int?
+
+        private enum CodingKeys: String, CodingKey {
+            case id, index, streamType, codec, width, height, bitrate, frameRate, bitDepth
+            case profile, level, channels, audioChannelLayout, samplingRate
+        }
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            id = container.lenientInt(forKey: .id)
+            index = container.lenientInt(forKey: .index)
+            streamType = container.lenientInt(forKey: .streamType)
+            codec = container.lenientString(forKey: .codec)
+            width = container.lenientInt(forKey: .width)
+            height = container.lenientInt(forKey: .height)
+            bitrate = container.lenientInt(forKey: .bitrate)
+            frameRate = container.lenientDouble(forKey: .frameRate)
+            bitDepth = container.lenientInt(forKey: .bitDepth)
+            profile = container.lenientString(forKey: .profile)
+            level = container.lenientInt(forKey: .level)
+            channels = container.lenientInt(forKey: .channels)
+            audioChannelLayout = container.lenientString(forKey: .audioChannelLayout)
+            samplingRate = container.lenientInt(forKey: .samplingRate)
+        }
 
         func makeStream(id fallbackID: Int) -> PlexStream? {
             guard let streamType, let type = PlexStreamType(rawValue: streamType) else {
@@ -1005,5 +1095,40 @@ private extension KeyedDecodingContainer {
             return [value]
         }
         return []
+    }
+
+    /// Numbers the tune answer may send as JSON numbers or as strings.
+    func lenientInt(forKey key: Key) -> Int? {
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Double.self, forKey: key), value.isFinite {
+            return Int(value)
+        }
+        if let text = try? decodeIfPresent(String.self, forKey: key) {
+            let trimmed = text.trimmingCharacters(in: .whitespaces)
+            return Int(trimmed) ?? Double(trimmed).flatMap { $0.isFinite ? Int($0) : nil }
+        }
+        return nil
+    }
+
+    func lenientDouble(forKey key: Key) -> Double? {
+        if let value = try? decodeIfPresent(Double.self, forKey: key) {
+            return value
+        }
+        if let text = try? decodeIfPresent(String.self, forKey: key) {
+            return Double(text.trimmingCharacters(in: .whitespaces))
+        }
+        return nil
+    }
+
+    func lenientString(forKey key: Key) -> String? {
+        if let value = try? decodeIfPresent(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? decodeIfPresent(Int.self, forKey: key) {
+            return String(value)
+        }
+        return nil
     }
 }

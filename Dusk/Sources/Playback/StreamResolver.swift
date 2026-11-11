@@ -261,6 +261,17 @@ enum StreamResolver {
                 requiresServerTranscode: true
             )
         }
+        // A tune answer Dusk could not read leaves codec-less fallback media.
+        // That says nothing about the stream: Plex delivers Live TV through
+        // the universal transcoder in what Dusk's profile asks for (H.264 +
+        // AAC/AC-3/E-AC-3 in MPEG-TS HLS), which AVPlayer plays. "Unknown"
+        // video used to route it to VLCKit, whose HLS demuxer started late
+        // and lost its clock on every source timestamp jump.
+        let hasVideoMetadata = media.videoCodec?.nilIfEmpty != nil
+            || media.parts.contains { $0.streams.contains { $0.streamType == .video } }
+        guard hasVideoMetadata else {
+            return Decision(engine: .avPlayer, reason: "Plex Live HLS without codec details plays through AVPlayer")
+        }
         if let decision = videoDecision(for: media) {
             return decision
         }

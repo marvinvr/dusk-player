@@ -246,9 +246,9 @@ extension PlexService {
         let response = try decodeJSON(PlexLiveTuneResponse.self, from: data, serverID: targetID)
         guard let tuned = response.MediaContainer.tunedSession,
               let sessionID = tuned.sessionID else {
-            let message = response.MediaContainer.message?.nilIfEmpty
+            let message = response.MediaContainer.tuneFailureMessage
                 ?? "Plex did not return a Live TV session."
-            throw PlexServiceError.decodingError(message)
+            throw PlexServiceError.serverMessage(message)
         }
 
         let sessionPath = tuned.sessionPath
