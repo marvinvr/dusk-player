@@ -13,6 +13,11 @@ enum AudioOffsetPolicy {
     static let stepMilliseconds = 50
     static let range = -2000...2000
 
+    /// Hint under the control when an offset can be applied. Both platforms
+    /// show this; an unavailable session replaces it with the reason.
+    static let timingDescription =
+        "Adjusts audio timing. Positive values delay audio; negative values advance it."
+
     enum Availability: Equatable {
         case available
         case unavailable(reason: String)

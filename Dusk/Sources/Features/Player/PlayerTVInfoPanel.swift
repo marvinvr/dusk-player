@@ -311,7 +311,7 @@ struct PlayerTVInfoPanel: View {
         }
         .focusSection()
 
-        Text(availability.unavailableReason ?? "Positive values delay the audio.")
+        Text(availability.unavailableReason ?? AudioOffsetPolicy.timingDescription)
             .font(DuskFont.TV.caption)
             .foregroundStyle(Color.duskTextSecondary)
             .padding(.top, 2)
@@ -473,6 +473,31 @@ struct PlayerTVInfoPanel: View {
             .padding(.vertical, 12)
     }
 
+    /// The − and + glyphs are shorter than the Reset label, so a button sized
+    /// to its symbol sits at a different height. A symbol button is laid out
+    /// as that label (one line, then squeezed to the glyph width) with the
+    /// symbol drawn on top, so the three controls share one height.
+    @ViewBuilder
+    private func compactPanelButtonLabel(title: String?, systemImage: String?) -> some View {
+        if let systemImage {
+            Text("Reset")
+                .font(DuskFont.TV.rowTitle)
+                .lineLimit(1)
+                .fixedSize()
+                .opacity(0)
+                .accessibilityHidden(true)
+                .frame(width: 34)
+                .overlay {
+                    Image(systemName: systemImage)
+                        .font(DuskFont.TV.glyphSmall.weight(.semibold))
+                }
+        } else if let title {
+            Text(title)
+                .font(DuskFont.TV.rowTitle)
+                .lineLimit(1)
+        }
+    }
+
     private func compactPanelButton(
         id: String,
         title: String? = nil,
@@ -484,31 +509,22 @@ struct PlayerTVInfoPanel: View {
         let isFocused = focusedRow == id
 
         return Button(action: action) {
-            Group {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .font(DuskFont.TV.glyphSmall.weight(.semibold))
-                        .frame(width: 34)
-                } else if let title {
-                    Text(title)
-                        .font(DuskFont.TV.rowTitle)
+            compactPanelButtonLabel(title: title, systemImage: systemImage)
+                .foregroundStyle(Color.duskTextPrimary)
+                .padding(.horizontal, 26)
+                .padding(.vertical, 16)
+                .background(
+                    isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.55),
+                    in: RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
+                        .strokeBorder(
+                            isFocused ? .white.opacity(0.35) : .white.opacity(0.04),
+                            lineWidth: 1
+                        )
                 }
-            }
-            .foregroundStyle(Color.duskTextPrimary)
-            .padding(.horizontal, 26)
-            .padding(.vertical, 16)
-            .background(
-                isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.55),
-                in: RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isFocused ? .white.opacity(0.35) : .white.opacity(0.04),
-                        lineWidth: 1
-                    )
-            }
-            .opacity(isDisabled ? 0.5 : 1)
+                .opacity(isDisabled ? 0.5 : 1)
         }
         .duskSuppressTVOSButtonChrome()
         .focusEffectDisabled()

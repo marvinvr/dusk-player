@@ -192,7 +192,7 @@ struct PlayerAudioOffsetSection: View {
                 .listRowBackground(Color.duskSurface)
             }
         } footer: {
-            Text(availability.unavailableReason ?? "Positive values delay the audio.")
+            Text(availability.unavailableReason ?? AudioOffsetPolicy.timingDescription)
                 .foregroundStyle(Color.duskTextSecondary)
         }
     }

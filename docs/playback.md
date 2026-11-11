@@ -2301,8 +2301,10 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 
 - Audio options in the player (iOS: a `Stepper` section under the Audio
   sheet's tracks, `PlayerAudioOffsetSection`; tvOS: an Audio Offset group of
-  −/+/Reset buttons at the end of the panel's Audio tab). Steps of 50 ms,
-  clamped to ±2000 ms, positive delays the audio. Per item: the value lives on
+  −/+/Reset buttons at the end of the panel's Audio tab, one shared height).
+  Steps of 50 ms, clamped to ±2000 ms. When the offset can be applied, the
+  hint is "Adjusts audio timing. Positive values delay audio; negative values
+  advance it." Per item: the value lives on
   `PlaybackCoordinator.audioOffsetMilliseconds` and `resetAudioOffset()` runs
   when the next item's (or live channel's) engine commits and in
   `clearPlayerState`. Not remembered per item, no global setting.
