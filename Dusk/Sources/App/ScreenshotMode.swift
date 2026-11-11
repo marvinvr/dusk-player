@@ -530,7 +530,7 @@ struct ScreenshotSheetPresenter: ViewModifier {
                     try? await Task.sleep(for: .milliseconds(250))
                 }
             }
-            .sheet(item: $sheet) { sheet in
+            .duskPopUp(item: $sheet) { sheet in
                 switch sheet {
                 case .supporter:
                     #if os(tvOS)

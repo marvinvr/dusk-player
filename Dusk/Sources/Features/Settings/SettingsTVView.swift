@@ -14,7 +14,7 @@ struct SettingsTVView: View {
         SettingsContainer(viewModel: viewModel) {
             settingsContent
         }
-        .sheet(isPresented: $showsSupporterSheet) {
+        .duskPopUp(isPresented: $showsSupporterSheet) {
             SupporterView(context: .settings)
         }
     }

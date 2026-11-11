@@ -444,10 +444,9 @@ struct SupporterView: View {
     // MARK: - tvOS
 
     #if os(tvOS)
+    /// No backdrop of its own: `duskPopUp` lays it over the blurred page.
     private var tvBody: some View {
         ZStack {
-            Color.duskBackground.ignoresSafeArea()
-
             ScrollView {
                 VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing + 8) {
                     VStack(alignment: .leading, spacing: 0) {
@@ -521,6 +520,7 @@ struct SupporterView: View {
                 .padding(.horizontal, 60)
                 .padding(.top, 64)
                 .padding(.bottom, 96)
+                .frame(maxWidth: .infinity)
             }
         }
     }
