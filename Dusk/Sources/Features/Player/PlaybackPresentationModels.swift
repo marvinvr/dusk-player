@@ -182,6 +182,12 @@ struct PlaybackSource: Sendable {
     /// Present only for a past IPTV programme played back (catch-up): what
     /// the on-demand player's header names, since there are no Plex details.
     var iptvCatchUp: IPTVCatchUpPlayback? = nil
+
+    /// A live window that only grows: a tuned Plex channel or a live IPTV
+    /// channel (not a catch-up programme).
+    var isLiveStream: Bool {
+        liveTVContext != nil || (iptvStream.map { !$0.isCatchUp } ?? false)
+    }
 }
 
 struct IPTVCatchUpPlayback: Sendable, Hashable {

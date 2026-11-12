@@ -818,6 +818,21 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         addTimeObserver()
         startVideoQualityMonitor(for: item)
         loadValidationTask = nil
+
+        // A live stream asks to play right away instead of after
+        // `.readyToPlay`. Plex Live TV opens with a playlist of one segment,
+        // too short for AVPlayer to pick a live start point. On devices
+        // (TestFlight, Threadfin channels) AVPlayer fetched that playlist
+        // once and never reloaded it while the rate was 0, so the item never
+        // became ready, `prepareReadyItemForPlayback` never called play(),
+        // and the player sat on a black screen with a spinner. The simulator
+        // keeps reloading at rate 0, which is why it always played. With a
+        // rate requested, AVPlayer reloads the growing playlist and starts as
+        // soon as the window allows (`automaticallyWaitsToMinimizeStalling`).
+        // The play() after readiness is then a no-op.
+        if source.isLiveStream, source.shouldAutoPlay, (source.startPosition ?? 0) <= 0 {
+            player.play()
+        }
     }
 
     // MARK: - Private: Dolby Vision 7 conversion

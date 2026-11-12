@@ -84,6 +84,14 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   1.43, whatever the client profile says) and serves 1 s segments. A slate
   that loops every ~4 s arrives in 4 s bursts, so AVPlayer needs ~11–16 s to
   start and may hit one live-edge stall that `recoverFromStall` clears.
+- AVPlayer gets `play()` as soon as a live item (`PlaybackSource.isLiveStream`)
+  is attached, not after `.readyToPlay`. Plex's first live media playlist can
+  hold a single segment (the index request itself starts the transcoder and
+  blocks ~3–4 s). On devices AVPlayer fetched it once and never reloaded it at
+  rate 0, so it never became ready and the player hung on the spinner
+  (TestFlight, Nov 2026; server log: one pair of `base/index.m3u8` requests,
+  no segments, `state=buffering` timelines). The simulator reloads at rate 0
+  and always played, so a simulator run does not prove this path.
 - Debug harness: `-DuskScreenshotScreen plexLivePlayer
   -DuskScreenshotIPTVChannel <n>` tunes the n-th channel of the server's Plex
   Live TV lineup (with a fake plex.tv listing a real server, it plays a real
