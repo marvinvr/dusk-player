@@ -438,7 +438,7 @@ struct LiveTVGuideRuler: View {
     private func label(for mark: LiveTVGuideTimeline.Mark) -> String {
         let time = mark.date.formatted(date: .omitted, time: .shortened)
         guard mark.namesDay, !Calendar.current.isDate(mark.date, inSameDayAs: now) else { return time }
-        return "\(mark.date.formatted(.dateTime.weekday(.abbreviated))) \(time)"
+        return "\(LiveTVGuideDayName.short(mark.date, now: now)) \(time)"
     }
 
     private var tickSpacing: CGFloat {
@@ -701,7 +701,7 @@ private struct LiveTVGuideSectionScroller: View {
         // than on its start; the past is a scroll to the left.
         .onAppear { scrollToNow(animated: false) }
         .onChange(of: jump) { _, jump in
-            if let day = jump.day, section.lineup.provider.isIPTV {
+            if let day = jump.day {
                 scroll(toDay: day)
             } else {
                 scrollToNow(animated: true)
@@ -874,12 +874,8 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
     @Binding var cursors: [String: LiveTVGuideCursor]
     let select: (LiveTVGuideCell, LiveTVGuideRow, PlexLiveTVLineup) -> Void
     let showDetails: (PlexLiveProgram) -> Void
-    /// Back to now (switching to the "Now" grid when another day is up).
+    /// Back to now.
     let jumpToNow: () -> Void
-    /// Left past the first programme (or Right past the last) of a section
-    /// fetched per day (Plex): the day that holds `date`, if there is one,
-    /// takes over.
-    let crossDay: (LiveTVGuideSection, LiveTVGuideCursor.Step, Date) -> Void
     /// The focused section, for the day the corner should name.
     @ViewBuilder let corner: (LiveTVGuideSection?, LiveTVGuideCursor?) -> Corner
 
@@ -1109,17 +1105,11 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
         return min(max(offset - x0, 0), max(width - 160, 0))
     }
 
-    /// A section with its whole guide on one axis (IPTV) just ends. Past either
-    /// end of a section fetched per day the neighbouring day takes over, so
-    /// Left keeps going back through the past.
+    /// Every section (Plex and IPTV) has its whole guide on one axis, so a
+    /// step past either end just stops.
     private func step(_ step: LiveTVGuideCursor.Step, in row: LiveTVGuideRow, section: LiveTVGuideSection) {
         var next = cursor(for: section)
-        guard next.step(step, in: row, timeline: section.timeline, viewport: viewport) else {
-            if !section.lineup.provider.isIPTV {
-                crossDay(section, step, LiveTVGuideCursor.crossingTime(step, in: row, timeline: section.timeline))
-            }
-            return
-        }
+        guard next.step(step, in: row, timeline: section.timeline, viewport: viewport) else { return }
         withAnimation(.smooth(duration: 0.28)) { cursors[section.id] = next }
     }
 
@@ -1262,20 +1252,25 @@ struct LiveTVGuideInfoPanel: View {
             var parts: [String] = []
             if let episode = cell.program?.episodeDisplayTitle { parts.append(episode) }
             if let program = cell.program, let beginsAt = program.beginsAt, let endsAt = program.endsAt {
-                let day = Calendar.current.isDateInToday(beginsAt) ? "" : beginsAt.formatted(.dateTime.weekday(.abbreviated)) + " "
+                let day = Calendar.current.isDateInToday(beginsAt) ? "" : LiveTVGuideDayName.short(beginsAt, now: now) + " "
                 parts.append("\(day)\(beginsAt.formatted(date: .omitted, time: .shortened)) – \(endsAt.formatted(date: .omitted, time: .shortened))")
                 if program.isAiring(at: now) {
                     let left = Int(endsAt.timeIntervalSince(now) / 60)
                     parts.append(left >= 60 ? "\(left / 60) hr \(left % 60) min left" : "\(max(left, 1)) min left")
                 } else if beginsAt > now {
                     let until = Int(beginsAt.timeIntervalSince(now) / 60)
-                    parts.append(until >= 60 ? "in \(until / 60) hr \(until % 60) min" : "in \(max(until, 1)) min")
+                    if until >= 24 * 60 {
+                        let days = until / (24 * 60)
+                        parts.append(days == 1 ? "in 1 day" : "in \(days) days")
+                    } else {
+                        parts.append(until >= 60 ? "in \(until / 60) hr \(until % 60) min" : "in \(max(until, 1)) min")
+                    }
                 } else {
                     parts.append(cell.isReplayable ? "Select to watch" : "Aired")
                 }
             } else if cell.isCollapsedGap {
                 let span = [cell.start, cell.end]
-                    .map { "\($0.formatted(.dateTime.weekday(.abbreviated))) \($0.formatted(date: .omitted, time: .shortened))" }
+                    .map { "\(LiveTVGuideDayName.short($0, now: now)) \($0.formatted(date: .omitted, time: .shortened))" }
                     .joined(separator: " – ")
                 parts.append("\(span) · Select to skip")
             } else if cell.program == nil {
@@ -1300,3 +1295,16 @@ struct LiveTVGuideInfoPanel: View {
     }
 }
 #endif
+
+/// The day a guide label names. A weekday alone is fine within the week;
+/// the guide reaches up to three weeks ahead, where "Thu" could be any of
+/// three Thursdays, so from 6 days away it carries the date too ("Thu 19").
+enum LiveTVGuideDayName {
+    static func short(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        let days = calendar.dateComponents(
+            [.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: date)
+        ).day ?? 0
+        guard abs(days) >= 6 else { return date.formatted(.dateTime.weekday(.abbreviated)) }
+        return date.formatted(.dateTime.weekday(.abbreviated).day())
+    }
+}

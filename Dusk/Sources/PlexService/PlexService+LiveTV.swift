@@ -198,6 +198,27 @@ extension PlexService {
         return PlexLiveTVLineup(provider: provider, channels: channels, programs: programs)
     }
 
+    /// Every channel's airings that overlap `window`, in one request: the
+    /// grid takes a time range (`endsAt>` / `beginsAt<`) the way Plex Web
+    /// asks for its guide, and then answers for all channels at once. A
+    /// day's range costs one request however many channels there are, where
+    /// `date=` needs one per channel (see `getLiveTVGuide(dates:)`).
+    func getLiveTVGuideAirings(
+        provider: PlexLiveTVProvider,
+        window: LiveTVGuideWindow,
+        serverID: String? = nil
+    ) async throws -> [PlexLiveProgram] {
+        try await fetchMetadata(
+            path: provider.gridKey,
+            queryItems: [
+                // Strict: an airing that ends right at the start is not in it.
+                URLQueryItem(name: "endsAt>", value: String(Int(window.start.timeIntervalSince1970))),
+                URLQueryItem(name: "beginsAt<", value: String(Int(window.end.timeIntervalSince1970))),
+            ],
+            serverID: serverID ?? provider.serverID ?? liveTVServerID
+        )
+    }
+
     private func liveTVGridPrograms(
         provider: PlexLiveTVProvider,
         channel: PlexLiveChannel,

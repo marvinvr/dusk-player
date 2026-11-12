@@ -1160,12 +1160,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `play.fill`. Select on a replayable block plays it back in the normal
   on-demand player (`PlaybackCoordinator.playIPTVCatchUp` / library `play`);
   any other ended block opens the details. Past days (`-1…-N`, N = the longest
-  IPTV `catchup-days`) appear in the day menu; IPTV sources just scroll there.
-  tvOS: Left past the first block of the Plex grid switches its day
-  (`crossDay` → `dayOffset(containing:)`, placement applied by the grid through
-  `LiveTVGuideCursor.pending`), Right past the last to the next; IPTV sources stay
-  put. The corner names the focused section's day. Play/Pause jumps every section
-  to now. iOS: the day menu for other Plex days.
+  IPTV `catchup-days`) appear in the day menu. Every section, Plex included,
+  holds its whole guide on one axis, so picking a day just scrolls each section
+  there (tvOS through `LiveTVGuideCursor.pending`); Left/Right past either end
+  stops. The corner names the focused section's day. Play/Pause jumps every
+  section to now. Day names carry the date from 6 days away ("Thu 19"), since
+  the Plex guide reaches up to 3 weeks ahead.
 - A Plex DVR with more than one tuner device (e.g. an HDHomeRun and a Threadfin
   or ErsatzTV emulation) gets one Plex section per device, headed by the device
   name, exactly like IPTV sources: `LiveTVViewModel` reads `/livetv/dvrs/{id}`

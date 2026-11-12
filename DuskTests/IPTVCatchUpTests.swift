@@ -256,6 +256,36 @@ struct LiveTVGuideCatchUpTests {
         #expect(timeline.collapses.isEmpty)
     }
 
+    /// A window that ends in nothing (the old Plex "Now" grid: now + 12 h
+    /// with no guide past now) collapses to its end. The ruler must not put
+    /// a "resumes at" label there: it printed the end time right past the
+    /// marker.
+    @Test func noRulerLabelAfterATrailingCollapse() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let onNow = try program("now", from: now.addingTimeInterval(-600), to: now.addingTimeInterval(1800))
+        let lineup = PlexLiveTVLineup(
+            provider: PlexLiveTVProvider(identifier: "p", providerIdentifier: "p", title: "P", dvrID: 1, gridKey: "/g"),
+            guides: [PlexLiveChannelGuide(channel: channel, programs: [onNow])]
+        )
+        let end = now.addingTimeInterval(12 * 3600 + 7 * 60)
+        let timeline = LiveTVGuideTimeline(
+            window: LiveTVGuideWindow(start: now.addingTimeInterval(-1800), end: end),
+            lineup: lineup, now: now, pointsPerMinute: 5, collapsedWidth: 100, collapsesTrailingGap: true
+        )
+        let collapse = try #require(timeline.collapses.last)
+        #expect(collapse.end == timeline.end)
+        let marks = timeline.marks()
+        #expect(marks.allSatisfy { $0.date < collapse.start })
+    }
+
+    /// After an inner collapse the label naming where the guide resumes stays.
+    @Test func rulerNamesWhereTheGuideResumes() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let (timeline, _) = try sparse(now: now)
+        let collapse = try #require(timeline.collapses.last)
+        #expect(timeline.marks().contains { $0.date == collapse.end && $0.namesDay })
+    }
+
     /// One channel without a guide must not become one long tunable cell.
     @Test func theLiveGapIsOnlyTheNowZone() throws {
         let now = Date(timeIntervalSince1970: 1_793_000_000)

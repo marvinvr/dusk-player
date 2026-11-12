@@ -580,19 +580,22 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   `tv.plex.providers.epg.*` identifiers.
 - Load stations from the provider's `/lineups/dvr/channels` path and currently
   airing programs from `/watchnow/all`.
-- Date guide requests use the advertised grid key with ONE `channelGridKey`
-  plus `date=yyyy-MM-dd` per channel (`getLiveTVGuide` runs a few at a time).
-  Plex answers only for the last of repeated `channelGridKey` values (checked
-  on PMS 1.43.5 with XMLTV and cloud guides) and returns nothing for comma
-  lists. Plex drops airings that already ended, so today's grid starts now.
-- The guide shows a `LiveTVGuideWindow`, picked by day offset (never a stored
-  date): "Now" runs from the current time 12 hours ahead and asks for every
-  local day it crosses (`getLiveTVGuide(dates:)`, so late evening also gets
-  tomorrow's morning); later days run midnight to midnight. "Now" keeps up to
-  midnight / 12 h of the past for catch-up, but Plex is asked only from today
-  (`plexGridDays`). Past days exist only while an IPTV source has catch-up;
-  Plex is still asked for them and shows whatever it returns (in practice
-  nothing).
+- The guide grid takes a time range with no `channelGridKey`
+  (`grid?endsAt>=<start>&beginsAt<=<end>`, sent as the strict, percent-encoded
+  `endsAt%3E=` / `beginsAt%3C=`) and then answers for every channel at once,
+  like Plex Web (`getLiveTVGuideAirings`, checked on PMS 1.43.5 XMLTV). The
+  older form, ONE `channelGridKey` plus `date=yyyy-MM-dd` per channel
+  (`getLiveTVGuide(dates:)`), answers only for the last of repeated
+  `channelGridKey` values and nothing for comma lists; it stays as the fallback
+  when a server ignores the range (nothing at all for today and tomorrow), and
+  for the player's schedule. Plex drops airings that already ended (only the
+  one still on is kept), so there is no Plex past beyond recordings.
+- `LiveTVViewModel` loads the Plex guide continuously, like an IPTV source:
+  one ranged request per local day, today + tomorrow first (refreshed every
+  15 min), then the following days 3 at a time (every 3 h) until a day comes
+  back with nothing at all, 21 days, or 20 000 airings. The section draws its
+  whole guide on one axis (`timelineWindow(of:)`); the day menu only scrolls.
+  Past days in the menu exist only while an IPTV source has catch-up.
 - Catch-up on Plex: Plex has none. A past airing (`PlexLiveProgram.guid`,
   `plex://…`) is playable only when `/library/all?guid=` on the DVR's server
   finds a library copy (`liveTVRecording`, normally the DVR recording);

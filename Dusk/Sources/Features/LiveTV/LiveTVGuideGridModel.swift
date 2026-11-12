@@ -167,7 +167,10 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
         func addStretch(until stretchEnd: Date) {
             var tick = Self.floorToTick(stretchStart)
             if tick < stretchStart { tick = tick.addingTimeInterval(Self.tickInterval) }
-            if followsCollapse {
+            // A collapse that runs to the end of the axis has nothing after
+            // it: a label there printed the end time (now + 12 h, "9:07"
+            // again) right past the marker.
+            if followsCollapse, stretchStart < stretchEnd {
                 marks.append(Mark(date: stretchStart, namesDay: true))
                 // A half hour right after that label would print over it.
                 if tick.timeIntervalSince(stretchStart) < 20 * 60 { tick = tick.addingTimeInterval(Self.tickInterval) }
