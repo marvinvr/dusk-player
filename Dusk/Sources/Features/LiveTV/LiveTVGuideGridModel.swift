@@ -209,6 +209,33 @@ struct LiveTVGuideTimeline: Hashable, Sendable {
     }
 }
 
+extension PlexLiveTVLineup {
+    /// An airing at least this long is a placeholder, not a programme.
+    static let fillerAiringLength: TimeInterval = 12 * 60 * 60
+
+    /// The lineup with its filler airings taken out, so the guide treats
+    /// them as the empty time they stand for (and collapses them). Some
+    /// tuners (a Threadfin relay, say) cover the time between live events
+    /// with a placeholder programme ("No live session") where an IPTV guide
+    /// would leave a gap. A title that runs for `fillerAiringLength` or more
+    /// at a stretch on a channel is that placeholder; its shorter airings on
+    /// the same channel (between two sessions on one day) go too.
+    func removingFillerAirings() -> PlexLiveTVLineup {
+        PlexLiveTVLineup(provider: provider, guides: guides.map { guide in
+            let fillerTitles = Set(guide.programs.compactMap { program -> String? in
+                guard let beginsAt = program.beginsAt, let endsAt = program.endsAt,
+                      endsAt.timeIntervalSince(beginsAt) >= Self.fillerAiringLength else { return nil }
+                return program.title
+            })
+            guard !fillerTitles.isEmpty else { return guide }
+            return PlexLiveChannelGuide(
+                channel: guide.channel,
+                programs: guide.programs.filter { !fillerTitles.contains($0.title) }
+            )
+        })
+    }
+}
+
 /// One cell of a channel row: a programme, the stretch the guide says nothing
 /// about, or the marker for a collapsed stretch. Gaps are cells too, so a
 /// channel with a patchy (or no) guide still has something to land on and tune.

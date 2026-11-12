@@ -179,14 +179,17 @@ struct LiveTVRootContent: View {
             ))
         }
         for plex in plexSections {
+            // Placeholder airings drawn as empty time, so they collapse the
+            // way an IPTV guide's empty stretches do.
+            let lineup = plex.lineup.removingFillerAirings()
             add(
-                id: plex.id, title: plex.title, lineup: plex.lineup,
+                id: plex.id, title: plex.title, lineup: lineup,
                 // The day the lineup holds, not the one just picked: its old
                 // programmes on the new day's axis would read as a day with
                 // nothing on, and a pending placement would land on that.
                 window: LiveTVViewModel.timelineWindow(
                     forDayOffset: viewModel.loadedDayOffset ?? viewModel.selectedDayOffset,
-                    lineups: [plex.lineup],
+                    lineups: [lineup],
                     now: now
                 ),
                 collapsesTrailingGap: true

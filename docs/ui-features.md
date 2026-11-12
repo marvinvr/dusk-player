@@ -1176,6 +1176,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   All device sections share the Plex day (a tvOS day cross moves the others to
   the same moment) and playing from any of them still switches within all Plex
   channels.
+- Plex sections drop filler airings before the axis is built
+  (`PlexLiveTVLineup.removingFillerAirings`): a title that runs 12 h or more at
+  a stretch on a channel (a Threadfin relay's "No live session" between
+  events) is placeholder, and all its airings on that channel become empty time,
+  so they collapse like an IPTV guide's gaps. Playback and the channel list
+  still use the full lineup.
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.
