@@ -140,6 +140,7 @@ struct PlaylistsRootContent: View {
             } label: {
                 Label("Shuffle", systemImage: "shuffle")
             }
+            PinPlaylistToHomeButton(playlist: playlist)
             if !playlist.smart {
                 Button {
                     renameText = playlist.title

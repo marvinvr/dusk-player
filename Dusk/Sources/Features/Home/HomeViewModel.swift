@@ -107,6 +107,10 @@ final class HomeViewModel {
     private(set) var hubs: [PlexHub] = []
     private(set) var personalizedShelves: [HomePersonalizedShelf] = []
     private(set) var continueWatching: [PlexItem] = []
+    /// One row per playlist pinned to Home, in pin order. See
+    /// `refreshPinnedPlaylists()`.
+    private(set) var pinnedPlaylistRows: [HomePinnedPlaylistRow] = []
+    private var pinnedPlaylistsTask: Task<Void, Never>?
     private(set) var isLoading = false
     private(set) var error: String?
 
@@ -197,6 +201,7 @@ final class HomeViewModel {
         let generation = loadGeneration
         let currentMaxRecentlyAddedItems = self.maxRecentlyAddedItems
         refreshWatchlist()
+        refreshPinnedPlaylists()
         recentlyAddedExpansionTask?.cancel()
         personalizedShelvesTask?.cancel()
         loadTask?.cancel()
@@ -584,6 +589,51 @@ final class HomeViewModel {
     func refreshWatchlist(force: Bool = false) {
         let service = plexService
         Task { await service.loadWatchlist(force: force) }
+    }
+
+    // MARK: - Pinned playlists
+
+    /// Reloads the pinned playlists' items beside Home's own load, never
+    /// holding its first paint. An unpinned row goes at once; a playlist
+    /// whose server does not answer keeps the row it had; one that is gone
+    /// or empty has no row (the pin stays until removed in Settings).
+    func refreshPinnedPlaylists() {
+        pinnedPlaylistsTask?.cancel()
+        let service = plexService
+        let profileID = service.activeProfileID
+        let pins = service.pinnedPlaylistPins
+        let previous = Dictionary(pinnedPlaylistRows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        pinnedPlaylistRows = pins.compactMap { previous[$0.id] }
+        guard !pins.isEmpty else { return }
+
+        pinnedPlaylistsTask = Task { @MainActor [weak self] in
+            var rows: [HomePinnedPlaylistRow] = []
+            for pin in pins {
+                let entries: [PlexPlaylistEntry]
+                do {
+                    entries = try await service.getPlaylistEntries(ratingKey: pin.id.ratingKey, serverID: pin.id.serverID)
+                } catch {
+                    if Task.isCancelled { return }
+                    if !Self.isGone(error), let row = previous[pin.id] { rows.append(row) }
+                    continue
+                }
+                if Task.isCancelled { return }
+                let title = service.playlists.playlist(id: pin.id)?.title ?? pin.title
+                if title != pin.title {
+                    service.pinnedPlaylists.updateTitle(title, for: pin.id, profileID: profileID)
+                }
+                if !entries.isEmpty {
+                    rows.append(HomePinnedPlaylistRow(id: pin.id, title: title, entries: entries))
+                }
+            }
+            guard let self, !Task.isCancelled, service.activeProfileID == profileID else { return }
+            pinnedPlaylistRows = rows
+        }
+    }
+
+    private static func isGone(_ error: any Error) -> Bool {
+        if case let PlexServiceError.httpError(statusCode) = error { return statusCode == 404 }
+        return false
     }
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {

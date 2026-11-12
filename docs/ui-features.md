@@ -1250,6 +1250,23 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   "New Playlist…" (Plex cannot create an empty playlist, so a new one starts
   with the item). A show or season asks "Add N episodes?" first; Plex expands
   it and skips episodes already in the playlist, and the confirmation says so.
+- Pin to Home: playlist cards (context menu) and the playlist page's More
+  menu toggle **Pin to Home / Unpin from Home** (`PinPlaylistToHomeButton`).
+  `PlexService.pinnedPlaylists` (`PinnedPlaylistStore`) keeps the pins in
+  UserDefaults per Plex profile (`PinnedHomePlaylists.v1.<profileID>`), each
+  with its server-scoped id and last title; deleting a playlist unpins it,
+  renaming updates the title. Home (`HomeViewModel.refreshPinnedPlaylists`, run
+  beside every Home load and on pin changes, never holding first paint) shows
+  one `HomePinnedPlaylistShelf` per pin, in pin order, right after the hero /
+  compact Continue Watching and before Live TV; on tvOS the first pinned row is
+  the hero's down-press target. Posters are 2:3, one card per title (first 30;
+  Show All opens the playlist page when there are more); select plays the
+  playlist from that item like the playlist page. Menu: Play from Here,
+  watched marks, Go to Details, Go to Playlist, Unpin from Home. A server that
+  does not answer keeps the row it had; a gone (404) or empty playlist has no
+  row but keeps its pin. Settings › Home › **Pinned Playlists**
+  (`PinnedPlaylistsSettingsView`) lists the pins: iOS swipe/Edit to unpin and
+  drag to reorder, tvOS Select unpins (and pops back once the list is empty).
 - Play-through lists: grids and rows of Videos libraries and their folders
   (`LibraryItemsView`, channel/hub rows of `LibraryRecommendationsView`) and
   collection pages pass `playThroughTitle` to `PlexItemPosterGrid` /

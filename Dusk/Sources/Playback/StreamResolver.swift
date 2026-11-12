@@ -97,10 +97,13 @@ enum StreamResolver {
     // MARK: - Resolution
 
     /// Choose the most appropriate Plex media version for playback.
-    /// Preference is treated as a target, not a hard failure condition.
+    /// Preference is treated as a target, not a hard failure condition:
+    /// `preferredVersion` picks among the playable versions and falls back to
+    /// Automatic (the Max Resolution target) when none fits.
     static func selectMediaVersion(
         from mediaVersions: [PlexMedia],
-        preferredMaxResolution: MaxResolution
+        preferredMaxResolution: MaxResolution,
+        preferredVersion: PreferredMediaVersion = .automatic
     ) -> PlexMedia? {
         let playableCandidates = mediaVersions.enumerated().compactMap { entry -> MediaCandidate? in
             let (index, media) = entry
@@ -118,6 +121,10 @@ enum StreamResolver {
 
         guard !candidates.isEmpty else { return mediaVersions.first }
         guard candidates.count > 1 else { return candidates.first?.media }
+
+        if let preferred = preferredCandidate(in: candidates, preference: preferredVersion) {
+            return preferred.media
+        }
 
         let targetHeight = preferredMaxResolution.selectionTargetMaxHeight
 
@@ -146,6 +153,33 @@ enum StreamResolver {
         return candidates
             .sorted(by: sortUnknownHeights)
             .first?.media
+    }
+
+    /// The version `preference` asks for, or nil for Automatic (also when
+    /// nothing fits: no 1080p version, no size or bitrate to compare).
+    private static func preferredCandidate(
+        in candidates: [MediaCandidate],
+        preference: PreferredMediaVersion
+    ) -> MediaCandidate? {
+        switch preference {
+        case .automatic:
+            return nil
+        case .highestQuality:
+            guard candidates.contains(where: { $0.height != nil || $0.bitrate > 0 }) else { return nil }
+            return candidates.sorted(by: sortWithinTarget).first
+        case .fullHD:
+            return candidates.filter(\.isFullHD).sorted(by: sortWithinTarget).first
+        case .smallestFile:
+            let sized = candidates.compactMap { candidate in candidate.fileSize.map { (candidate, $0) } }
+            if !sized.isEmpty {
+                return sized.min { lhs, rhs in
+                    lhs.1 == rhs.1 ? lhs.0.index < rhs.0.index : lhs.1 < rhs.1
+                }?.0
+            }
+            return candidates.filter { $0.bitrate > 0 }.min { lhs, rhs in
+                lhs.bitrate == rhs.bitrate ? lhs.index < rhs.index : lhs.bitrate < rhs.bitrate
+            }
+        }
     }
 
     /// Inspect a `PlexMedia` and decide which engine should play it.
@@ -732,6 +766,26 @@ private extension StreamResolver {
 
         var isOptimizedForStreaming: Bool {
             media.optimizedForStreaming == 1
+        }
+
+        /// Plex's own "1080" label first; otherwise the frame, by width or
+        /// height, so a 1920×800 scope film and a 1440×1080 4:3 one count.
+        var isFullHD: Bool {
+            if let resolution = media.videoResolution?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+               !resolution.isEmpty {
+                return resolution == "1080" || resolution == "1080p"
+            }
+            let width = (media.width ?? Self.primaryVideoStream(in: media)?.width).flatMap { $0 > 0 ? $0 : nil }
+            if let width, width > 2200 { return false }
+            return width.map { (1700...2200).contains($0) } == true
+                || height.map { (1000...1200).contains($0) } == true
+        }
+
+        /// Every part's size added up; nil when any part has none.
+        var fileSize: Int? {
+            let sizes = media.parts.map(\.size)
+            guard !sizes.isEmpty, sizes.allSatisfy({ ($0 ?? 0) > 0 }) else { return nil }
+            return sizes.reduce(0) { $0 + ($1 ?? 0) }
         }
 
         private static func resolveHeight(for media: PlexMedia) -> Int? {

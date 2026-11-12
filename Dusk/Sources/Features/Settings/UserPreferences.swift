@@ -13,6 +13,7 @@ final class UserPreferences {
 
     private enum Keys {
         static let maxResolution = "maxResolution"
+        static let preferredVersion = "preferredVersion"
         static let defaultSubtitleLanguage = "defaultSubtitleLanguage"
         static let subtitleForcedOnly = "subtitleForcedOnly"
         static let subtitleFontSize = "subtitleFontSize"
@@ -68,6 +69,12 @@ final class UserPreferences {
 
     var maxResolution: MaxResolution {
         didSet { UserDefaults.standard.set(maxResolution.rawValue, forKey: Keys.maxResolution) }
+    }
+
+    /// Which Plex version plays when a title has several and none was picked
+    /// with Play Version (`StreamResolver.selectMediaVersion`).
+    var preferredVersion: PreferredMediaVersion {
+        didSet { UserDefaults.standard.set(preferredVersion.rawValue, forKey: Keys.preferredVersion) }
     }
 
     /// ISO 639-1 code of the language automatic subtitle selection looks for.
@@ -445,6 +452,9 @@ final class UserPreferences {
             maxResolution = .auto
         }
 
+        let preferredVersion = defaults.string(forKey: Keys.preferredVersion)
+            .flatMap(PreferredMediaVersion.init(rawValue:)) ?? .automatic
+
         let subtitleSettings = Self.storedSubtitleSettings(defaults: defaults)
         let subtitleFontSize: SubtitleFontSize
         if let raw = defaults.string(forKey: Keys.subtitleFontSize),
@@ -534,6 +544,7 @@ final class UserPreferences {
         let hiddenLibraryTabs = Self.storedHiddenLibraryTabs(defaults: defaults)
 
         self.maxResolution = maxResolution
+        self.preferredVersion = preferredVersion
         self.defaultSubtitleLanguage = subtitleSettings.language
         self.subtitleMode = subtitleSettings.mode
         self.forcedSubtitlesEnabled = subtitleSettings.forcedSubtitlesEnabled
@@ -960,6 +971,27 @@ enum MaxResolution: String, CaseIterable, Identifiable {
             1080
         case .sevenTwentyP:
             720
+        }
+    }
+}
+
+/// Settings › Playback › Preferred Version. Automatic is Dusk's own pick
+/// (Max Resolution as the target); the others fall back to it when no
+/// version fits.
+enum PreferredMediaVersion: String, CaseIterable, Identifiable, Sendable {
+    case automatic
+    case highestQuality
+    case fullHD = "1080p"
+    case smallestFile
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .automatic: "Automatic"
+        case .highestQuality: "Highest Quality"
+        case .fullHD: "1080p"
+        case .smallestFile: "Smallest File"
         }
     }
 }

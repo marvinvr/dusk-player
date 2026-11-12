@@ -70,6 +70,9 @@ final class PlexService {
     /// `PlexService+Playlists`.
     let playlists = PlaylistStore()
 
+    /// The playlists pinned to Home for each profile. See `PinnedPlaylistStore`.
+    let pinnedPlaylists = PinnedPlaylistStore()
+
     /// The account's Plex Watchlist (plex.tv). See `PlexService+Watchlist`.
     let watchlist = WatchlistStore()
 

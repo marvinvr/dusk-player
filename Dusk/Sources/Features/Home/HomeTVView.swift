@@ -440,6 +440,10 @@ struct HomeTVView: View {
             return .continueWatching
         }
 
+        if let row = viewModel.pinnedPlaylistRows.first {
+            return .pinnedPlaylist(row.id)
+        }
+
         if showsLiveTV,
            liveTVViewModel.nowPlayingLineup?.guides.contains(where: { $0.currentProgram() != nil }) == true {
             return .liveTV
@@ -485,6 +489,11 @@ struct HomeTVView: View {
                 play: play
             )
             .homeTVShelfFocus(focus(.continueWatching))
+        }
+
+        ForEach(viewModel.pinnedPlaylistRows) { row in
+            HomePinnedPlaylistShelf(row: row, viewModel: viewModel)
+                .homeTVShelfFocus(focus(.pinnedPlaylist(row.id)))
         }
 
         if showsLiveTV {
@@ -917,6 +926,7 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
 private enum HomeTVShelfID: Hashable {
     case outageNote
     case continueWatching
+    case pinnedPlaylist(PlexItemID)
     case liveTV
     case hub(AnyHashable)
     case watchlist

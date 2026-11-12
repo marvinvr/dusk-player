@@ -910,8 +910,18 @@ so the whole live HUD is derived from one instant.
   backed by per-part `accessible`/`exists`). This avoids picking a stale version
   Plex keeps after a file is deleted and re-added, which would 404 on direct play
   and surface as "not available". It falls back to all candidates when nothing is
-  explicitly flagged available. With multiple candidates it targets
-  `preferences.maxResolution`.
+  explicitly flagged available. With multiple candidates it first applies
+  Settings › Playback › **Preferred Version** (`preferences.preferredVersion`,
+  `PreferredMediaVersion`), then targets `preferences.maxResolution`.
+- Preferred Version: Automatic (the Max Resolution target below), Highest
+  Quality (tallest, then highest bitrate; ignores Max Resolution), 1080p (Plex's
+  `videoResolution` "1080", else a 1700–2200 px width or 1000–1200 px height, so
+  scope and 4:3 1080p count; best bitrate among them), Smallest File (sum of
+  part `size`, else lowest bitrate). No match (no 1080p version, no size or
+  bitrate) falls back to Automatic. Only the playback coordinator's
+  `resolveMediaVersion` passes it; pre-rolls and downloads stay on their own
+  targets, and Play Version still picks an exact version per play.
+  `PreferredVersionSelectionTests` covers it.
 - `MaxResolution.auto` targets 1080p on iOS/iPadOS and 4K on tvOS.
 - The preferred resolution is a target, not a hard failure: choose the highest
   height at/below target, then closest above target, then unknown-height

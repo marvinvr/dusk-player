@@ -150,6 +150,15 @@ struct SettingsTVView: View {
 
                     tvRowDivider
 
+                    TVSettingsNavigationRow(
+                        title: "Pinned Playlists",
+                        detail: SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count)
+                    ) {
+                        PinnedPlaylistsSettingsView()
+                    }
+
+                    tvRowDivider
+
                     TVSettingsToggleRow(title: "Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
 
                     tvRowDivider
@@ -174,6 +183,15 @@ struct SettingsTVView: View {
                         options: MaxResolution.allCases,
                         selection: $preferences.maxResolution,
                         selectedTitle: preferences.maxResolution.displayName
+                    ) { $0.displayName }
+
+                    tvRowDivider
+
+                    TVSettingsMenuRow(
+                        title: "Preferred Version",
+                        options: PreferredMediaVersion.allCases,
+                        selection: $preferences.preferredVersion,
+                        selectedTitle: preferences.preferredVersion.displayName
                     ) { $0.displayName }
 
                     tvRowDivider

@@ -77,6 +77,10 @@ struct HomeView: View {
             .onChange(of: plexService.libraryOrder.hiddenSectionIdentities) { _, _ in
                 viewModel?.hiddenLibrariesDidChange()
             }
+            // Pinning or unpinning a playlist (its page, Home, Settings › Home).
+            .onChange(of: plexService.pinnedPlaylistPins.map(\.id)) { _, _ in
+                viewModel?.refreshPinnedPlaylists()
+            }
             .onChange(of: preferences.personalizedShelvesEnabled) { _, enabled in
                 viewModel?.setPersonalizedShelvesEnabled(enabled)
             }

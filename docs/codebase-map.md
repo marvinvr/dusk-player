@@ -270,6 +270,8 @@ Playlists:
 
 - `PlexService.playlists` (`PlaylistStore`) is the one copy of the account's
   video playlists; `PlexService+Playlists` loads and edits them.
+- `PlexService.pinnedPlaylists` (`PinnedPlaylistStore`) holds the per-profile
+  playlists pinned to Home; Home renders them with `HomePinnedPlaylistShelf`.
 - `PlaylistsView`, `PlaylistDetailView`/`PlaylistDetailViewModel`,
   `PlaylistActions` and `AddToPlaylist.swift` (target, presenter, menu/hero
   buttons, sheet) live in `Features/Playlists`. See `docs/ui-features.md` →

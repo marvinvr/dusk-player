@@ -259,6 +259,10 @@ struct PlaylistDetailView: View {
             }
             .disabled(!viewModel.canPlay)
 
+            if let playlist = viewModel.playlist {
+                PinPlaylistToHomeButton(playlist: playlist)
+            }
+
             if viewModel.canEdit {
                 #if !os(tvOS)
                 Button {
@@ -423,6 +427,24 @@ struct PlaylistDetailView: View {
             get: { viewModel.actionError != nil },
             set: { if !$0 { viewModel.actionError = nil } }
         )
+    }
+}
+
+// MARK: - Pin to Home
+
+/// "Pin to Home" / "Unpin from Home" for a playlist's menus: a pinned
+/// playlist gets its own row near the top of Home (`HomePinnedPlaylistShelf`).
+struct PinPlaylistToHomeButton: View {
+    @Environment(PlexService.self) private var plexService
+    let playlist: PlexPlaylist
+
+    var body: some View {
+        let isPinned = plexService.isPlaylistPinned(playlist.id)
+        Button {
+            plexService.setPlaylistPinned(!isPinned, id: playlist.id, title: playlist.title)
+        } label: {
+            Label(isPinned ? "Unpin from Home" : "Pin to Home", systemImage: isPinned ? "pin.slash" : "pin")
+        }
     }
 }
 

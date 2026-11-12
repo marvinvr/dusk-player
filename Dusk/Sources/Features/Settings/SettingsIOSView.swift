@@ -234,6 +234,18 @@ struct SettingsIOSView: View {
                         .foregroundStyle(Color.duskTextPrimary)
                 }
 
+                NavigationLink {
+                    PinnedPlaylistsSettingsView()
+                } label: {
+                    HStack {
+                        Text("Pinned Playlists")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Spacer()
+                        Text(SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count))
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+
                 Toggle("Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
                     .foregroundStyle(Color.duskTextPrimary)
                 Toggle("Show Live TV", isOn: $preferences.showsLiveTVOnHome)
@@ -263,6 +275,13 @@ struct SettingsIOSView: View {
                 Picker("Max Resolution", selection: $preferences.maxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
                         Text(resolution.displayName).tag(resolution)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Picker("Preferred Version", selection: $preferences.preferredVersion) {
+                    ForEach(PreferredMediaVersion.allCases) { version in
+                        Text(version.displayName).tag(version)
                     }
                 }
                 .foregroundStyle(Color.duskTextPrimary)

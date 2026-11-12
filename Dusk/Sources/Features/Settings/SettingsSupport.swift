@@ -17,7 +17,7 @@ enum SettingsSupport {
         }
     }
 
-    static let playbackDefaultsFooterText = "Choose preferred stream quality. Audio & Subtitles sets the languages Dusk plays and when subtitles turn on. AI Upscaling sharpens lower-resolution video when the source benefits from it, but can increase power usage."
+    static let playbackDefaultsFooterText = "Choose preferred stream quality. Preferred Version picks which version plays when a title has more than one. Audio & Subtitles sets the languages Dusk plays and when subtitles turn on. AI Upscaling sharpens lower-resolution video when the source benefits from it, but can increase power usage."
     static let audioLanguageFooterText = "Dusk plays audio in this language when a title has it. Original keeps each title’s own audio."
     static let subtitlesFooterText = "Auto turns subtitles on when the audio isn’t in your subtitle language, and otherwise shows only forced subtitles, which translate foreign dialogue and signs. Off shows only forced subtitles. Style System follows Accessibility › Subtitles & Captioning in the system Settings; Dusk always uses white text on a dark box. Size can also be changed from the player."
     static let subtitlesAdvancedFooterText = "Turn off Forced Subtitles to see subtitles only when Auto or Always calls for them, or when you pick a track. Until you change them here, these settings follow the language settings of your Plex account. A track you pick in the player is remembered for that show and wins over them."
@@ -35,7 +35,11 @@ enum SettingsSupport {
     #endif
     static let downloadsFooterText = "Preferred Version picks which Plex version is downloaded when a title has several. Download quality is chosen each time you start a download. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
     static let librariesFooterText = "Choose which library and Live TV destinations appear in the navigation bar and the order they use. Hidden Libraries removes a library from Dusk completely, including Home and search. Server Priority decides which of your servers Dusk uses, and which one plays a title that is on more than one."
-    static let homeFooterText = "Hidden Rows chooses which of Plex’s rows appear on Home. Personalized shelves add recommendations from Dusk to Home. Show Live TV adds currently airing channels without changing the Live TV tab."
+    static func pinnedPlaylistsSummary(_ count: Int) -> String {
+        count == 0 ? "None" : String(count)
+    }
+
+    static let homeFooterText = "Hidden Rows chooses which of Plex’s rows appear on Home. Pinned Playlists appear near the top. Personalized shelves add recommendations from Dusk to Home. Show Live TV adds currently airing channels without changing the Live TV tab."
     static let homeTVFooterText = homeFooterText + " Show Clock puts the current time at the top right of Home."
     static let homeAdvancedFooterText = "Compact Continue Watching replaces the large artwork at the top of Home with a smaller Continue Watching row, like the one on library pages."
     static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app. Blur Unwatched Episodes hides the images of episodes you haven’t finished, so they can’t spoil anything."

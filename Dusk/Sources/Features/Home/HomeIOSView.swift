@@ -123,6 +123,10 @@ struct HomeIOSView: View {
                             )
                         }
 
+                        ForEach(viewModel.pinnedPlaylistRows) { row in
+                            HomePinnedPlaylistShelf(row: row, viewModel: viewModel)
+                        }
+
                         if showsLiveTV {
                             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
                         }

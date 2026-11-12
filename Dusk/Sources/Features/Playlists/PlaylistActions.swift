@@ -31,6 +31,7 @@ struct PlaylistActions {
         try await plexService.renamePlaylist(playlist, to: trimmed)
         let renamed = playlist.renamed(trimmed)
         plexService.playlists.upsert(renamed, sessionGeneration: session)
+        plexService.pinnedPlaylists.updateTitle(trimmed, for: playlist.id, profileID: plexService.activeProfileID)
         return renamed
     }
 
@@ -38,6 +39,7 @@ struct PlaylistActions {
         let session = plexService.playlists.sessionGeneration
         try await plexService.deletePlaylist(playlist)
         plexService.playlists.remove(playlist.id, sessionGeneration: session)
+        plexService.setPlaylistPinned(false, id: playlist.id, title: playlist.title)
     }
 
     /// Where Play / Resume starts: the first item that is not fully watched

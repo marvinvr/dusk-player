@@ -2308,7 +2308,8 @@ extension PlaybackCoordinator {
 
         return StreamResolver.selectMediaVersion(
             from: details.media,
-            preferredMaxResolution: preferences.maxResolution
+            preferredMaxResolution: preferences.maxResolution,
+            preferredVersion: preferences.preferredVersion
         )
     }
 }
