@@ -1825,6 +1825,44 @@ extension PlaybackCoordinator {
         isAutomaticDirectPlayFallbackActive = false
     }
 
+    /// One-shot fallback for a Plex Live TV direct play (the tuner stream
+    /// as it is): when the engine fails on it, the channel is tuned again
+    /// through the Plex transcoder, which normalises whatever the tuner
+    /// sends. Shares the direct-play watch's task, so finalize, clear and
+    /// engine swaps cancel it.
+    func startLiveDirectPlayFallbackWatch(
+        channel: PlexLiveChannel,
+        program: PlexLiveProgram?,
+        lineup: PlexLiveTVLineup
+    ) {
+        cancelDirectPlayFallbackWatch()
+        let expectedPresentationID = playerPresentationID
+        directPlayFallbackWatchTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled, let self,
+                      self.playerPresentationID == expectedPresentationID,
+                      !self.didFinalizeCurrentSession,
+                      let engine = self.engine else {
+                    return
+                }
+                guard engine.state == .error || engine.error != nil else { continue }
+                self.directPlayFallbackWatchTask = nil
+                playbackSessionLogger.error(
+                    "Live TV direct play failed (\(engine.error?.errorDescription ?? "engine error", privacy: .public)); tuning again through the Plex transcoder"
+                )
+                ErrorReporter.report(.engineFallback, reason: .liveTVTranscode, error: engine.error)
+                await self.playLiveTV(
+                    channel: channel,
+                    program: program ?? self.activeLiveTVContext?.program(at: .now),
+                    lineup: lineup,
+                    allowsDirectPlay: false
+                )
+                return
+            }
+        }
+    }
+
     /// One-shot delivery-ladder fallback: an online direct-play attempt died
     /// with an engine error, so restart at the same position as a server HLS
     /// stream (direct-stream/remux). If this attempt itself fails, the normal

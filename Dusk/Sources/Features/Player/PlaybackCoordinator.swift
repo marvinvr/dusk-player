@@ -447,7 +447,8 @@ final class PlaybackCoordinator {
     func playLiveTV(
         channel: PlexLiveChannel,
         program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup
+        lineup: PlexLiveTVLineup,
+        allowsDirectPlay: Bool = true
     ) async {
         if let stream = channel.iptv {
             await playIPTV(channel: channel, stream: stream, program: program, lineup: lineup)
@@ -472,7 +473,8 @@ final class PlaybackCoordinator {
         do {
             let tune = try await plexService.tuneLiveTV(
                 provider: lineup.provider,
-                channel: channel
+                channel: channel,
+                allowsDirectPlay: allowsDirectPlay
             )
             guard currentPlaybackAttemptID == attemptID else { return }
 
@@ -563,6 +565,9 @@ final class PlaybackCoordinator {
             )
             startTimelineReporting()
             startLiveTVScheduleRefresh()
+            if tune.isDirectPlay {
+                startLiveDirectPlayFallbackWatch(channel: channel, program: program, lineup: lineup)
+            }
         } catch {
             guard currentPlaybackAttemptID == attemptID else { return }
             loadError = error.localizedDescription

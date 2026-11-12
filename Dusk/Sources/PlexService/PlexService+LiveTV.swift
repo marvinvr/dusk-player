@@ -256,10 +256,14 @@ extension PlexService {
         }
     }
 
+    /// Tunes `channel` and picks the stream: the live session itself when
+    /// the tuned stream plays in AVPlayer as is (`allowsDirectPlay`, see
+    /// `TuneMedia.supportsLiveDirectPlay`), otherwise a Plex transcode.
     func tuneLiveTV(
         provider: PlexLiveTVProvider,
         channel: PlexLiveChannel,
-        serverID: String? = nil
+        serverID: String? = nil,
+        allowsDirectPlay: Bool = true
     ) async throws -> PlexLiveTuneResult {
         let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
         let path = "/livetv/dvrs/\(provider.dvrID)/channels/\(channel.tuneIdentifier)/tune"
@@ -288,6 +292,25 @@ extension PlexService {
             ?? makeFallbackLiveTVMedia(sessionPath: sessionPath)
         guard let part = media.firstAvailablePart else {
             throw PlexServiceError.decodingError("Plex did not return a playable Live TV stream.")
+        }
+
+        if allowsDirectPlay,
+           tuned.media?.supportsLiveDirectPlay == true,
+           let directURL = await liveTVDirectPlayURL(
+            sessionPath: sessionPath,
+            sessionIdentifier: playbackSessionIdentifier,
+            serverID: targetID
+           ) {
+            return PlexLiveTuneResult(
+                serverID: targetID,
+                sessionID: sessionID,
+                playbackSessionIdentifier: playbackSessionIdentifier,
+                transcodeSessionID: nil,
+                playbackURL: directURL,
+                media: media,
+                part: part,
+                isDirectPlay: true
+            )
         }
 
         let requestedTranscodeSessionID = UUID().uuidString

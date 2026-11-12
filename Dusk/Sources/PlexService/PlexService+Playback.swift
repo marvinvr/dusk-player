@@ -430,6 +430,89 @@ extension PlexService {
         )
     }
 
+    /// Live TV direct play: the live session's own HLS (the tuner stream as
+    /// the grabber copies it into 1 s MPEG-TS segments), with no second
+    /// transcoder in between. Plex answers a `directPlay=1` decision for the
+    /// session with the consumer's playlist,
+    /// `/livetv/sessions/{uuid}/{sessionIdentifier}/index.m3u8`, and only
+    /// serves that playlist once the decision registered the consumer, so
+    /// `sessionIdentifier` must be the one the tune was sent with.
+    ///
+    /// Why not the transcoder: Live TV media has no bitrate, which Plex reads
+    /// as 2147483647 kbps. On any connection Plex counts as remote (Plex
+    /// behind a reverse proxy, Tailscale) that "exceeds" the WAN upload
+    /// limit, so Plex rewrites the request to a 1280x720 quality-99
+    /// re-encode with direct stream disabled — every live channel at 720p,
+    /// whatever `directStream`/bitrate Dusk asks for. Direct play is not
+    /// bitrate-limited that way. Nil when Plex does not answer with a direct
+    /// play of the live session; the caller then transcodes.
+    func liveTVDirectPlayURL(
+        sessionPath: String,
+        sessionIdentifier: String,
+        serverID: String
+    ) async -> URL? {
+        guard let connection = pool.connection(for: serverID) else { return nil }
+        var queryItems = transcodeQueryItems(
+            ratingKey: sessionPath,
+            mediaIndex: 0,
+            sourcePath: sessionPath,
+            mode: .directStreamFallback,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: sessionIdentifier,
+            audioStreamID: nil,
+            subtitleStreamID: nil,
+            token: connection.token
+        )
+        if let index = queryItems.firstIndex(where: { $0.name == "directPlay" }) {
+            queryItems[index].value = "1"
+        }
+        do {
+            let data = try await rawServerRequest(
+                path: "/video/:/transcode/universal/decision",
+                queryItems: queryItems,
+                serverID: serverID
+            )
+            let decision = try decodeJSON(PlexTranscodeDecisionResponse.self, from: data)
+            guard let key = decision.directPlayPartKey,
+                  key.hasPrefix("\(sessionPath)/"),
+                  let url = Self.liveTVDirectPlayURL(
+                    baseURL: connection.baseURL,
+                    partKey: key,
+                    token: connection.token
+                  ) else {
+                plexPlaybackLogger.notice(
+                    "Live TV direct play declined for \(sessionPath, privacy: .public): \(decision.MediaContainer.mdeDecisionText ?? decision.MediaContainer.generalDecisionText ?? "no direct play part", privacy: .public)"
+                )
+                return nil
+            }
+            plexPlaybackLogger.notice(
+                "Constructed Live TV direct play URL: \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+            )
+            return url
+        } catch {
+            plexPlaybackLogger.error(
+                "Live TV direct play decision failed for \(sessionPath, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// The decision's part key on the server, with the token, minus
+    /// `X-Plex-Incomplete-Segments` (Plex adds it to the key): on a cold tune
+    /// it opens the playlist with one `#EXTINF:0` segment that AVPlayer never
+    /// gets past (see `transcodeQueryItems`).
+    static func liveTVDirectPlayURL(baseURL: URL, partKey: String, token: String?) -> URL? {
+        guard var components = URLComponents(string: baseURL.absoluteString + partKey) else { return nil }
+        var items = (components.queryItems ?? []).filter {
+            $0.name != "X-Plex-Incomplete-Segments" && $0.name != "X-Plex-Token"
+        }
+        if let token {
+            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+        components.queryItems = items.isEmpty ? nil : items
+        return components.url
+    }
+
     /// Plex session hygiene: tells the server to reap the transcoder for a
     /// finished session so it stops burning CPU/disk on the server. Errors are
     /// logged, never thrown — this call is best-effort by design.
@@ -836,6 +919,8 @@ private struct PlexTranscodeDecisionResponse: Decodable {
 
     struct PlannedPart: Decodable {
         let container: String?
+        let key: String?
+        let decision: String?
         let Stream: [PlannedStream]?
     }
 
@@ -913,7 +998,15 @@ private struct PlexTranscodeDecisionResponse: Decodable {
         )
     }
 
-    var outcome: PlexService.TranscodeDecisionOutcome {
+    /// The part Plex plans to direct play (a Live TV session's consumer
+    /// playlist), nil for any other decision.
+    var directPlayPartKey: String? {
+        guard let part = MediaContainer.metadata?.first?.Media?.first?.Part?.first,
+              part.decision?.lowercased() == "directplay" else { return nil }
+        return part.key?.nilIfEmpty
+    }
+
+        var outcome: PlexService.TranscodeDecisionOutcome {
         let general = MediaContainer.generalDecisionCode
         let transcode = MediaContainer.transcodeDecisionCode
         let mde = MediaContainer.mdeDecisionCode

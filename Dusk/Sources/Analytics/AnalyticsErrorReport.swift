@@ -76,6 +76,7 @@ enum AnalyticsErrorReason: String, Sendable {
     case hdrRemuxRecovery = "hdr_remux_recovery"
     case remuxToDirectPlay = "remux_to_direct_play"
     case directPlayToServerStream = "direct_play_to_server_stream"
+    case liveTVTranscode = "live_tv_transcode"
     case remoteRefusalToLocal = "remote_refusal_to_local"
     // engine_fallback_failed / transcode_failed
     case serverStreamUnavailable = "server_stream_unavailable"

@@ -624,6 +624,9 @@ struct PlexLiveTuneResult: Sendable {
     let playbackURL: URL
     let media: PlexMedia
     let part: PlexMediaPart
+    /// Playing the live session's own HLS (the tuner stream, copied), not a
+    /// Plex transcode. See `PlexService.liveTVDirectPlayURL`.
+    var isDirectPlay = false
 }
 
 // MARK: - Plex response envelopes
@@ -924,6 +927,28 @@ struct PlexLiveTuneResponse: Decodable {
                 .first { $0.contains("/livetv/sessions/") }
         }
 
+        /// Whether the live session's own HLS (the tuner stream as the
+        /// grabber copies it, no re-encode) plays in AVPlayer as it is:
+        /// MPEG-TS with progressive 8-bit H.264 and AAC/AC-3/E-AC-3/MP3
+        /// audio. Anything else (MPEG-2 broadcast video, interlaced or 10-bit
+        /// H.264, MP2 audio, unknown codecs) goes through the transcoder.
+        var supportsLiveDirectPlay: Bool {
+            let streams = (Part ?? []).flatMap { $0.Stream ?? [] }
+            let video = streams.filter { $0.streamType == PlexStreamType.video.rawValue }
+            let audio = streams.filter { $0.streamType == PlexStreamType.audio.rawValue }
+            guard (container ?? "mpegts").lowercased() == "mpegts",
+                  (videoCodec ?? video.first?.codec)?.lowercased() == "h264",
+                  !video.contains(where: { $0.scanType?.lowercased() == "interlaced" }),
+                  !video.contains(where: { ($0.bitDepth ?? 8) > 8 }) else {
+                return false
+            }
+            let audioCodecs = audio.isEmpty
+                ? [audioCodec].compactMap { $0?.lowercased() }
+                : audio.map { $0.codec?.lowercased() ?? "" }
+            return !audioCodecs.isEmpty
+                && audioCodecs.allSatisfy { ["aac", "ac3", "eac3", "mp3"].contains($0) }
+        }
+
         func makeMedia(sessionPath: String) -> PlexMedia {
             let convertedParts = (Part ?? []).enumerated().map { index, part in
                 part.makePart(id: index, sessionPath: sessionPath)
@@ -1016,10 +1041,11 @@ struct PlexLiveTuneResponse: Decodable {
         let channels: Int?
         let audioChannelLayout: String?
         let samplingRate: Int?
+        let scanType: String?
 
         private enum CodingKeys: String, CodingKey {
             case id, index, streamType, codec, width, height, bitrate, frameRate, bitDepth
-            case profile, level, channels, audioChannelLayout, samplingRate
+            case profile, level, channels, audioChannelLayout, samplingRate, scanType
         }
 
         init(from decoder: Decoder) throws {
@@ -1038,6 +1064,7 @@ struct PlexLiveTuneResponse: Decodable {
             channels = container.lenientInt(forKey: .channels)
             audioChannelLayout = container.lenientString(forKey: .audioChannelLayout)
             samplingRate = container.lenientInt(forKey: .samplingRate)
+            scanType = container.lenientString(forKey: .scanType)
         }
 
         func makeStream(id fallbackID: Int) -> PlexStream? {

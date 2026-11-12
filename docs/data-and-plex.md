@@ -643,10 +643,29 @@ Files: `PlexService+LiveTV.swift` and `PlexLiveTV.swift`.
   minutes after the last consumer stops, and a re-tune of the SAME channel
   reuses it (it is shared between viewers), so Dusk stops only its own
   consumer transcode and never the `/livetv/sessions` static transcode.
-- Feed the returned `/livetv/sessions/{sessionID}` key to Plex's universal HLS
-  decision/start flow with direct stream enabled. The session key is a virtual
-  resource, not a library file. Use the response `Part.key` consumer URL only
-  when the decision explicitly reports direct-play-only delivery.
+- Direct play first (`liveTVDirectPlayURL`): when the tuned stream plays in
+  AVPlayer as is (`TuneMedia.supportsLiveDirectPlay`: MPEG-TS, progressive
+  8-bit H.264, AAC/AC-3/E-AC-3/MP3), Dusk sends a `directPlay=1` decision for
+  the session with `session` = the tune's `X-Plex-Session-Identifier` and
+  plays the answered `Part.key`,
+  `/livetv/sessions/{uuid}/{sessionIdentifier}/index.m3u8`: the grabber's
+  copy of the tuner stream in 1 s TS segments, no second transcoder. That
+  playlist 404s ("Failed to find consumer") until such a decision registered
+  the consumer. Strip the `X-Plex-Incomplete-Segments=1` Plex puts on the key.
+  `transcodeSessionID` is nil (nothing to ping/stop). An engine error on it
+  re-tunes once through the transcoder (`startLiveDirectPlayFallbackWatch`).
+- Why not the transcoder (PMS 1.43.5, 2026-11-12): Live TV media has no
+  bitrate, which Plex counts as 2147483647 kbps. On a connection Plex calls
+  WAN (everything through the plex.mvr.bz reverse proxy, Tailscale) that
+  "exceeds" `WanTotalMaxUploadRate`, and Plex rewrites the request to a
+  1280x720 quality-99 VAAPI re-encode with direct stream disabled, whatever
+  `directStream`/bitrate/resolution the client sends (log: "Reducing playback
+  quality … disable video DS"). Direct play has no such cap. Cold Threadfin
+  tune in the simulator: playing after 11.9 s transcoded vs 5.8 s direct.
+- Otherwise feed the `/livetv/sessions/{sessionID}` key to Plex's universal
+  HLS decision/start flow with direct stream enabled (MPEG-2/interlaced
+  broadcast video, MP2 audio). The session key is a virtual resource, not a
+  library file.
 - Program-guide history is metadata, not a recording catalogue. A tuned HLS
   session can seek only inside Plex's sliding time-shift window; never imply
   that an arbitrary past guide item is playable.
