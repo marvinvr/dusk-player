@@ -110,6 +110,17 @@ extension PlexService {
         }
     }
 
+    /// The DVR's tuner devices and the channels mapped to each, so the guide
+    /// can show one section per device.
+    func getLiveTVDevices(
+        provider: PlexLiveTVProvider,
+        serverID: String? = nil
+    ) async throws -> [PlexLiveTVDevice] {
+        let targetID = try resolveServerID(serverID ?? provider.serverID ?? liveTVServerID)
+        let data = try await rawServerRequest(path: "/livetv/dvrs/\(provider.dvrID)", serverID: targetID)
+        return try decodeJSON(PlexLiveTVDVRResponse.self, from: data, serverID: targetID).devices
+    }
+
     func getLiveTVNowPlaying(
         provider: PlexLiveTVProvider,
         channels: [PlexLiveChannel],

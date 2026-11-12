@@ -16,6 +16,10 @@ final class LiveTVViewModel {
 
     private(set) var provider: PlexLiveTVProvider?
     private(set) var channels: [PlexLiveChannel] = []
+    /// The DVR's tuner devices. Empty until the server has said (the guide
+    /// then shows Plex as one section).
+    private(set) var devices: [PlexLiveTVDevice] = []
+    private var hasLoadedDevices = false
     private(set) var lineup: PlexLiveTVLineup?
     private(set) var nowPlayingLineup: PlexLiveTVLineup?
     /// 0 is "Now" (`nowLookback` back to the next
@@ -59,6 +63,12 @@ final class LiveTVViewModel {
     var iptvLineups: [IPTVSourceLineup] { iptvService?.lineups ?? [] }
 
     /// Whether anything (Plex or IPTV) has a guide to show.
+    /// The Plex lineup split per tuner device (each its own guide section,
+    /// like an IPTV source), or nil when there is only one.
+    var plexDeviceLineups: [PlexLiveTVDeviceLineup]? {
+        lineup?.groupedByDevice(devices)
+    }
+
     var hasGuide: Bool { lineup != nil || !(iptvService?.lineups.isEmpty ?? true) }
 
     var isLoadingAny: Bool { isLoading || iptvService?.isLoading == true }
@@ -126,6 +136,8 @@ final class LiveTVViewModel {
               discoveredProfileID != plexService.serverContentRevision.profileID else { return }
         provider = nil
         channels = []
+        devices = []
+        hasLoadedDevices = false
         lineup = nil
         fetchedLineup = nil
         nowPlayingLineup = nil
@@ -211,6 +223,13 @@ final class LiveTVViewModel {
 
             if channels.isEmpty || refreshChannels {
                 channels = try await plexService.getLiveTVChannels(provider: provider)
+            }
+            // Only groups the guide: a failure must not cost the channels,
+            // and is asked again on the next load.
+            if !hasLoadedDevices || refreshChannels,
+               let found = try? await plexService.getLiveTVDevices(provider: provider) {
+                devices = found
+                hasLoadedDevices = true
             }
             let fetched = try await plexService.getLiveTVGuide(
                 provider: provider,

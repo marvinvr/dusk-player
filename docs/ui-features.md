@@ -1166,6 +1166,16 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `LiveTVGuideCursor.pending`), Right past the last to the next; IPTV sources stay
   put. The corner names the focused section's day. Play/Pause jumps every section
   to now. iOS: the day menu for other Plex days.
+- A Plex DVR with more than one tuner device (e.g. an HDHomeRun and a Threadfin
+  or ErsatzTV emulation) gets one Plex section per device, headed by the device
+  name, exactly like IPTV sources: `LiveTVViewModel` reads `/livetv/dvrs/{id}`
+  with the channels (`PlexService.getLiveTVDevices`, best effort), and
+  `PlexLiveTVLineup.groupedByDevice` splits the lineup by
+  `ChannelMapping.channelKey` (= `Channel.id`); unmapped channels keep a last
+  section under the provider title, one device stays the single `plex` section.
+  All device sections share the Plex day (a tvOS day cross moves the others to
+  the same moment) and playing from any of them still switches within all Plex
+  channels.
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.

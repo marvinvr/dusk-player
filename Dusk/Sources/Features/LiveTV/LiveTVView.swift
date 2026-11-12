@@ -160,6 +160,8 @@ struct LiveTVRootContent: View {
 
     /// The Plex lineup, on the selected day, then each IPTV source after it
     /// with its whole guide, headed by the name it was given in Settings.
+    /// A DVR with several tuner devices gets one Plex section per device,
+    /// headed by the device's name, the same way IPTV sources are split.
     private func guideSections(metrics: LiveTVGuideMetrics, now: Date) -> [LiveTVGuideSection] {
         var sections: [LiveTVGuideSection] = []
         func add(id: String, title: String, lineup: PlexLiveTVLineup, window: LiveTVGuideWindow, collapsesTrailingGap: Bool) {
@@ -176,15 +178,15 @@ struct LiveTVRootContent: View {
                 isReplayable: { program, channel in viewModel.canReplay(program, on: channel, now: now) }
             ))
         }
-        if let lineup = viewModel.lineup {
+        for plex in plexSections {
             add(
-                id: "plex", title: lineup.provider.title, lineup: lineup,
+                id: plex.id, title: plex.title, lineup: plex.lineup,
                 // The day the lineup holds, not the one just picked: its old
                 // programmes on the new day's axis would read as a day with
                 // nothing on, and a pending placement would land on that.
                 window: LiveTVViewModel.timelineWindow(
                     forDayOffset: viewModel.loadedDayOffset ?? viewModel.selectedDayOffset,
-                    lineups: [lineup],
+                    lineups: [plex.lineup],
                     now: now
                 ),
                 collapsesTrailingGap: true
@@ -198,6 +200,14 @@ struct LiveTVRootContent: View {
             )
         }
         return sections
+    }
+
+    /// The Plex guide sections: one per tuner device, or the whole lineup
+    /// as one section when there is a single device.
+    private var plexSections: [PlexLiveTVDeviceLineup] {
+        if let groups = viewModel.plexDeviceLineups { return groups }
+        guard let lineup = viewModel.lineup else { return [] }
+        return [PlexLiveTVDeviceLineup(id: "plex", title: lineup.provider.title, lineup: lineup)]
     }
 
     /// Live plays; later shows the details; the past plays back when it can
@@ -262,11 +272,11 @@ struct LiveTVRootContent: View {
         let offset = viewModel.selectedDayOffset
         let day = offset == 0 ? nil : LiveTVGuideWindow.forDayOffset(offset).start
         #if os(tvOS)
-        var sectionIDs = viewModel.iptvLineups.map { "iptv-\($0.source.id)" }
-        if viewModel.lineup != nil { sectionIDs.append("plex") }
+        let plexIDs = Set(plexSections.map(\.id))
+        let sectionIDs = viewModel.iptvLineups.map { "iptv-\($0.source.id)" } + plexIDs
         for id in sectionIDs {
             var cursor = tvCursors[id] ?? LiveTVGuideCursor(time: .now)
-            if let day, id != "plex" {
+            if let day, !plexIDs.contains(id) {
                 cursor.pending = .day(day)
             } else {
                 cursor.pending = .now
@@ -288,7 +298,16 @@ struct LiveTVRootContent: View {
         var cursor = tvCursors[section.id] ?? LiveTVGuideCursor(time: .now)
         cursor.pending = .time(date, step)
         tvCursors[section.id] = cursor
-        Task { await viewModel.selectDayOffset(offset) }
+        Task {
+            await viewModel.selectDayOffset(offset)
+            // The other tuner devices are on the same Plex day: they follow
+            // to the same moment.
+            for id in plexSections.map(\.id) where id != section.id {
+                var other = tvCursors[id] ?? LiveTVGuideCursor(time: .now)
+                other.pending = .day(date)
+                tvCursors[id] = other
+            }
+        }
     }
     #endif
 
@@ -351,6 +370,8 @@ struct LiveTVRootContent: View {
     /// the in-player channel list then switches within.
     private func play(channel: PlexLiveChannel, program: PlexLiveProgram?, lineup: PlexLiveTVLineup) {
         let program = program.flatMap { $0.isAiring() ? $0 : nil }
+        // A tuner device's section switches within all Plex channels, as before.
+        let lineup = lineup.provider.isIPTV ? lineup : (viewModel.lineup ?? lineup)
         Task {
             await playback.playLiveTV(channel: channel, program: program, lineup: lineup)
         }
