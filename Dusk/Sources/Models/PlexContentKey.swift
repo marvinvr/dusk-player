@@ -89,8 +89,11 @@ extension PlexContentKey {
         }
 
         let namespace = isClip ? "clip" : type.rawValue
+        // Some agents send an external URI as the scalar guid rather than in
+        // Guid[]. Provider-prefixed IDs are equally strong in either location.
+        let externalGuids = guids + [guid.map { PlexGuid(id: $0) }].compactMap { $0 }
         for provider in externalProviders {
-            if let value = guids.lazy.compactMap({ $0.value(for: provider) }).first {
+            if let value = externalGuids.lazy.compactMap({ $0.value(for: provider) }).first {
                 return .external(provider: provider, namespace: namespace, id: value.lowercased() + editionSuffix)
             }
         }
@@ -217,4 +220,58 @@ extension PlexItem {
 extension PlexMediaDetails {
     /// Cross-server content identity. See `PlexContentKey`.
     var contentKey: PlexContentKey { PlexContentKey(details: self) }
+}
+
+// Movie copies may use different Plex agents but still share an external ID.
+// Keep editions in every alias, just as in the primary content key.
+extension PlexContentKey {
+    var isMovie: Bool {
+        switch self {
+        case .plex(let guid): guid.hasPrefix("plex://movie/")
+        case .external(_, let namespace, _): namespace == "movie"
+        default: false
+        }
+    }
+
+    var movieEdition: String? {
+        let value: String
+        switch self {
+        case .plex(let guid): value = guid
+        case .external(_, _, let id): value = id
+        default: return nil
+        }
+        return value.components(separatedBy: "|edition:").dropFirst().first
+    }
+
+    static func movieKeys(
+        guid: String?, guids: [PlexGuid], title: String, year: Int?,
+        edition: String?, identity: PlexItemID
+    ) -> Set<PlexContentKey> {
+        var keys = Set<PlexContentKey>()
+        for external in guids {
+            let key = resolve(guid: nil, guids: [external], type: .movie,
+                              title: title, year: year, edition: edition, identity: identity)
+            if key.isStrong { keys.insert(key) }
+        }
+        let primary = resolve(guid: guid, guids: guids, type: .movie,
+                              title: title, year: year, edition: edition, identity: identity)
+        if primary.isStrong { keys.insert(primary) }
+        return keys
+    }
+}
+
+extension PlexItem {
+    var movieContentKeys: Set<PlexContentKey> {
+        guard type == .movie, !isClip else { return [] }
+        return PlexContentKey.movieKeys(guid: guid, guids: guids, title: title,
+                                       year: year, edition: editionTitle, identity: id)
+    }
+}
+
+extension PlexMediaDetails {
+    var movieContentKeys: Set<PlexContentKey> {
+        guard type == .movie, !isClip else { return [] }
+        return PlexContentKey.movieKeys(guid: guid, guids: guids, title: title,
+                                       year: year, edition: editionTitle, identity: id)
+    }
 }

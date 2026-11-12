@@ -35,16 +35,6 @@ enum HubMerge {
     /// - Parameter lists: one entry per connected server (`.home`) or per
     ///   library (`.libraryType`), in priority order.
     static func merge(_ lists: [[PlexHub]], mode: Mode = .home) -> MergedPlexHubs {
-        // One source: nothing to collapse, and `PlexHub.sources` already carries
-        // that server, so "Show All" keeps working unchanged.
-        guard lists.count > 1 else {
-            let hubs = lists.first ?? []
-            return MergedPlexHubs(
-                hubs: hubs,
-                alternates: PlexItemMerge.alternates(in: hubs.map(\.items))
-            )
-        }
-
         var groups: [[PlexHub]] = []
         var identities: [String] = []
         var groupsByKey: [String: [Int]] = [:]

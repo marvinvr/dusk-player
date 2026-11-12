@@ -17,14 +17,6 @@ struct MergedSearchResults: Sendable {
 enum SearchMerge {
     /// - Parameter lists: one entry per connected server, in priority order.
     static func merge(_ lists: [[PlexSearchResult]]) -> MergedSearchResults {
-        guard lists.count > 1 else {
-            let groups = lists.first ?? []
-            return MergedSearchResults(
-                groups: groups,
-                alternates: PlexItemMerge.alternates(in: groups.map(\.items))
-            )
-        }
-
         var groupedResults: [String: [PlexSearchResult]] = [:]
         var order: [String] = []
 

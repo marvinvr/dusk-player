@@ -187,10 +187,12 @@ so the whole live HUD is derived from one instant.
   Plex's remote-streaming rule is not judged up front: a server that refuses the
   stream as remote gets one LAN re-race and retry, and only then the Plex Pass /
   Remote Watch Pass explanation (see `data-and-plex.md` → Remote streaming).
-- **The requested instance always represents its own server.** An alternate on
-  the *same* server is never substituted for it: two items can share a weak
-  (heuristic) content key — two guid-less clips both called "Trailer" — and
-  swapping them would play a different file, on single-server accounts too.
+- Strong movie alternates include other libraries on the same server. Automatic
+  startup discovers same-server copies with `PlexService.movieCopies`, applies
+  `StreamResolver.selectMediaVersion` to their combined Media versions, and starts
+  the owning item. A failed preferred copy can retry the requested copy before
+  leaving the server. Exact Play Version and SharePlay choices stay on the
+  requested item; local downloads keep their existing selection rules.
 - **A copy that carries progress plays first.** When the caller passes a
   positive `resumeOffsetMilliseconds`, that instance becomes candidate #0
   regardless of priority (`prefersRequestedInstance`): the offset belongs to
@@ -920,7 +922,11 @@ so the whole live HUD is derived from one instant.
   part `size`, else lowest bitrate). No match (no 1080p version, no size or
   bitrate) falls back to Automatic. Only the playback coordinator's
   `resolveMediaVersion` passes it; pre-rolls and downloads stay on their own
-  targets, and Play Version still picks an exact version per play.
+  targets, and Play Version still picks an exact version per play. Online movies
+  compare all copies on the selected server, including separate libraries;
+  matching-duration copies carry the most advanced progress into the chosen file.
+  Movie details list resolution, HDR/SDR (when known), total part size and library
+  name for every copy. TV keeps its existing per-item version selection.
   `PreferredVersionSelectionTests` covers it.
 - `MaxResolution.auto` targets 1080p on iOS/iPadOS and 4K on tvOS.
 - The preferred resolution is a target, not a hard failure: choose the highest

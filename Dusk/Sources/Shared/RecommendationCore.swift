@@ -174,15 +174,17 @@ struct RecommendationSeenTitles {
 
     func contains(_ item: PlexItem) -> Bool {
         ids.contains(item.id) || contentKeys.contains(item.contentKey)
+            || !item.movieContentKeys.isDisjoint(with: contentKeys)
     }
 
     /// Returns false when the title was already used.
     @discardableResult
     mutating func insert(_ item: PlexItem) -> Bool {
-        guard !contains(item) else { return false }
+        let alreadySeen = contains(item)
         ids.insert(item.id)
         contentKeys.insert(item.contentKey)
-        return true
+        contentKeys.formUnion(item.movieContentKeys)
+        return !alreadySeen
     }
 
     mutating func formUnion(_ items: some Sequence<PlexItem>) {

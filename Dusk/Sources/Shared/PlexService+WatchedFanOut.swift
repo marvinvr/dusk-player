@@ -20,13 +20,18 @@ extension PlexService {
     /// caller can surface it. The other copies are best effort — a server that
     /// refuses must not make the action look like it failed.
     func setWatchedAcrossServers(_ watched: Bool, id: PlexItemID) async throws {
+        // A library grid may not have visited a merged surface yet. Discover
+        // same-server movie copies before the explicit action reaches Plex.
+        if alternates.contentKey(for: id)?.isMovie != false,
+           let details = try? await getMediaDetails(ratingKey: id.ratingKey, serverID: id.serverID),
+           !details.movieContentKeys.isEmpty {
+            _ = await movieCopies(for: details, includeOtherServers: false)
+        }
         try await setWatched(watched, ratingKey: id.ratingKey, serverID: id.serverID)
 
         for instance in alternates.instances(of: id) {
             guard let serverID = instance.serverID,
-                  // Never twice on one server: a same-server "alternate" is a
-                  // different item that only shares a weak content key.
-                  serverID != id.serverID,
+                  instance != id,
                   pool.connection(for: serverID) != nil else {
                 continue
             }

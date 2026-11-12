@@ -25,6 +25,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     /// The library section the item belongs to, as a string key usable with the
     /// `/library/sections/{id}/...` endpoints. Plex serializes it as a number.
     let librarySectionID: String?
+    let librarySectionTitle: String?
     let title: String
     /// Plex edition name; see `PlexItem.editionTitle`.
     let editionTitle: String?
@@ -89,7 +90,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
     let media: [PlexMedia]
 
     enum CodingKeys: String, CodingKey {
-        case ratingKey, key, type, subtype, librarySectionID, title, editionTitle, summary, year, guid
+        case ratingKey, key, type, subtype, librarySectionID, librarySectionTitle, title, editionTitle, summary, year, guid
         case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating, primaryExtraKey
         case rating, audienceRating, ratingImage, audienceRatingImage, userRating, studio, originallyAvailableAt
         case childCount, leafCount, viewedLeafCount
@@ -119,6 +120,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
         } else {
             librarySectionID = (try? container.decodeIfPresent(String.self, forKey: .librarySectionID)) ?? nil
         }
+        librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
         title = try container.decode(String.self, forKey: .title)
         editionTitle = PlexItem.trimmedEditionTitle(try container.decodeIfPresent(String.self, forKey: .editionTitle))
         summary = try container.decodeIfPresent(String.self, forKey: .summary)

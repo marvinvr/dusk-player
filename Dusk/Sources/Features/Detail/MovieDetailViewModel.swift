@@ -13,6 +13,16 @@ final class MovieDetailViewModel {
     var ratingKey: String { id.ratingKey }
 
     private(set) var details: PlexMediaDetails?
+    private(set) var copies: [PlexMediaDetails] = []
+
+    var versions: [MoviePlaybackVersion] {
+        MoviePlaybackVersion.versions(in: copies.isEmpty ? [details].compactMap { $0 } : copies)
+    }
+
+    var resumeDetails: PlexMediaDetails? {
+        MoviePlaybackVersion.mostAdvancedCopy(in: copies) ?? details
+    }
+
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
@@ -45,7 +55,9 @@ final class MovieDetailViewModel {
         }
 
         do {
-            details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
+            let fetched = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
+            details = fetched
+            copies = await plexService.movieCopies(for: fetched)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -75,7 +87,7 @@ final class MovieDetailViewModel {
                 targetWatched,
                 id: PlexItemID(serverID: serverID, ratingKey: ratingKey)
             )
-            self.details = try await plexService.getMediaDetails(ratingKey: ratingKey, serverID: serverID)
+            await refreshDetails()
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
@@ -94,7 +106,7 @@ final class MovieDetailViewModel {
 
     var isWatched: Bool {
         _ = offlineStateVersion
-        let fallback = (details?.viewCount ?? 0) > 0
+        let fallback = (resumeDetails?.viewCount ?? 0) > 0
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID,
             ratingKey: ratingKey,
@@ -118,8 +130,8 @@ final class MovieDetailViewModel {
         guard let offset = offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID,
             ratingKey: ratingKey,
-            fallback: details?.viewOffset
-        ) ?? details?.viewOffset, offset > 0 else { return nil }
+            fallback: resumeDetails?.viewOffset
+        ) ?? resumeDetails?.viewOffset, offset > 0 else { return nil }
         return TimeInterval(offset) / 1000.0
     }
 

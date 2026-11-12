@@ -542,6 +542,23 @@ extension DetailHeroSection where Supertitle == EmptyView {
     }
 }
 
+struct MovieCopyVersionMenu: View {
+    let versions: [MoviePlaybackVersion]
+    let onSelect: (MoviePlaybackVersion) -> Void
+
+    var body: some View {
+        if !versions.isEmpty {
+            Menu {
+                ForEach(versions) { version in
+                    Button(version.label) { onSelect(version) }
+                }
+            } label: {
+                Label("Play Version", systemImage: "play.square")
+            }
+        }
+    }
+}
+
 struct PlayVersionContextMenu: View {
     let versions: [PlexMedia]
     let onSelectVersion: (PlexMedia) -> Void

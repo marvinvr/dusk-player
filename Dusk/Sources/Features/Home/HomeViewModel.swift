@@ -1024,11 +1024,13 @@ final class HomeViewModel {
                 excludedIDs.insert(PlexItemID(serverID: item.serverID, ratingKey: ratingKey))
             }
             excludedContentKeys.insert(item.contentKey)
+            excludedContentKeys.formUnion(item.movieContentKeys)
         }
 
         return shelves.compactMap { shelf in
             let filteredItems = shelf.items.filter {
                 !excludedIDs.contains($0.id) && !excludedContentKeys.contains($0.contentKey)
+                    && $0.movieContentKeys.isDisjoint(with: excludedContentKeys)
             }
 
             guard filteredItems.count >= min(2, maxRecentlyAddedItems) else { return nil }

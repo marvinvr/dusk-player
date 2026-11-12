@@ -11,19 +11,24 @@ enum ContinueWatchingMerge {
     /// - Parameter lists: one entry per connected server, in priority order.
     static func merge(_ lists: [[PlexItem]]) -> MergedPlexItems {
         let alternates = PlexItemMerge.alternates(in: lists)
+        let keys = PlexItemMerge.contentKeys(in: lists)
 
         // One server: Plex already ordered this row, and re-sorting it here
         // would change what a single-server install has always shown.
         guard lists.count > 1 else {
-            return MergedPlexItems(items: lists.first ?? [], alternates: alternates)
+            return PlexItemMerge.interleave(lists)
         }
 
         var representatives: [PlexContentKey: Candidate] = [:]
         var order: [PlexContentKey] = []
 
         for (rank, list) in lists.enumerated() {
-            for item in list {
-                let key = item.contentKey
+            for item in PlexItemMerge.interleave([list]).items {
+                var key = keys[item.id] ?? item.contentKey
+                if let existing = representatives[key], existing.item.serverID == item.serverID,
+                   existing.item.id != item.id, item.movieContentKeys.isEmpty {
+                    key = .instance(item.id)
+                }
                 let candidate = Candidate(item: item, rank: rank)
                 guard let existing = representatives[key] else {
                     representatives[key] = candidate
@@ -52,13 +57,16 @@ enum ContinueWatchingMerge {
         return MergedPlexItems(items: sorted, alternates: alternates)
     }
 
-    /// The copy that best represents a title: the one played most recently,
-    /// then the one furthest in, then the one on the highest-priority server.
+    /// Movies use the most advanced copy. TV uses recency, then offset and
+    /// server priority, as before.
     private struct Candidate {
         let item: PlexItem
         let rank: Int
 
         func wins(over other: Candidate) -> Bool {
+            if !item.movieContentKeys.isEmpty, !other.item.movieContentKeys.isEmpty {
+                return PlexItemMerge.isMoreAdvanced(item, than: other.item)
+            }
             let lastViewedAt = item.lastViewedAt ?? 0
             let otherLastViewedAt = other.item.lastViewedAt ?? 0
             if lastViewedAt != otherLastViewedAt { return lastViewedAt > otherLastViewedAt }

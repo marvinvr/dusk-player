@@ -12,7 +12,7 @@ Dusk/Sources
   Models/              Plex response models and app-facing media structs
   PlexService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
-                       the alternates index, and library server labelling
+                       same-server movie copies, the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
   IPTVService/         IPTV sources per Plex profile: M3U/XMLTV parsers, lineup
                        mapping onto the Live TV models, loader (see docs/iptv.md)

@@ -44,21 +44,17 @@ struct PlaybackSourceResolver {
             : plexService.alternates.instances(of: id)
         let requested = normalizedRequestedID(id)
 
-        var seenServers = Set<String>()
+        var seen = Set<PlexItemID>()
         var usable: [PlexItemID] = []
 
         for instance in orderedByPriority(normalized(instances, requestedBy: id)) {
             guard let serverID = instance.serverID,
                   plexService.serverPriority.isEnabled(serverID),
                   plexService.pool.connection(for: serverID) != nil,
-                  seenServers.insert(serverID).inserted else {
+                  seen.insert(instance).inserted else {
                 continue
             }
-            // The instance the caller asked for always represents its own
-            // server. Two items on one server can share a weak content key (two
-            // guid-less clips called "Trailer"), and swapping the tapped one for
-            // its "alternate" would play a different file.
-            usable.append(serverID == requested.serverID ? requested : instance)
+            usable.append(instance)
         }
 
         if prefersRequestedInstance, let index = usable.firstIndex(of: requested), index != 0 {

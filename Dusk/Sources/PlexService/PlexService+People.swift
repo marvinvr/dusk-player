@@ -17,13 +17,14 @@ extension PlexService {
     func getPersonMedia(personID: String, serverID: String? = nil) async throws -> [PlexItem] {
         let items: [PlexItem] = try await fetchMetadata(
             path: "/library/people/\(personID)/media",
+            queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
             serverID: serverID
         )
 
         let hiddenLibraries = await loadedHiddenLibraryFilter()
-        var seen = Set<PlexItemID>()
-        return hiddenLibraries.filtering(items)
-            .filter { $0.type == .movie || $0.type == .show }
-            .filter { seen.insert($0.id).inserted }
+        let merged = PlexItemMerge.interleave([hiddenLibraries.filtering(items)
+            .filter { $0.type == .movie || $0.type == .show }])
+        registerAlternates(merged.alternates)
+        return merged.items
     }
 }

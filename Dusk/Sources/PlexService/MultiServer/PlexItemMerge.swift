@@ -20,10 +20,8 @@ struct MergedPlexItems: Sendable {
 /// what keeps a progressively rendered screen from reshuffling itself as more
 /// servers answer.
 ///
-/// A single list is always returned verbatim. Dusk is a single-server app for
-/// most people, and "merging" one server's row must never be able to reorder or
-/// drop anything — a heuristic content key (title/year, used when a server sends
-/// no guids) can legitimately collide for two different items on one server.
+/// Strong movie identities also collapse copies from libraries on one server.
+/// Weak identities and same-server TV items retain their own rows.
 enum PlexItemMerge {
     /// Movie additions form one timeline across libraries/servers. Interleaving
     /// puts an old library's newest movie ahead of another library's newer ones.
@@ -42,26 +40,19 @@ enum PlexItemMerge {
             let rightDate = rhs.element.addedAt ?? Int.min
             return leftDate == rightDate ? lhs.offset < rhs.offset : leftDate > rightDate
         }
-        var placed: Set<PlexContentKey> = []
-        let items = sorted.compactMap { entry -> PlexItem? in
-            placed.insert(entry.element.contentKey).inserted ? entry.element : nil
-        }
-        return MergedPlexItems(items: items, alternates: alternates(in: lists))
+        let merged = interleave([sorted.map(\.element)])
+        return MergedPlexItems(items: merged.items, alternates: alternates(in: lists))
     }
 
     /// Deduplicates by content key and visits the servers round-robin, so a row
     /// leads with the highest-priority server's newest item but still shows what
     /// the others have without scrolling to the end.
     static func interleave(_ lists: [[PlexItem]]) -> MergedPlexItems {
+        let keys = contentKeys(in: lists)
         let alternates = alternates(in: lists)
-
-        guard lists.count > 1 else {
-            return MergedPlexItems(items: lists.first ?? [], alternates: alternates)
-        }
-
         var merged: [PlexItem] = []
         merged.reserveCapacity(lists.reduce(0) { $0 + $1.count })
-        var placed: Set<PlexContentKey> = []
+        var placed: [PlexContentKey: [Int]] = [:]
         var cursors = [Int](repeating: 0, count: lists.count)
         var didAdvance = true
 
@@ -76,7 +67,18 @@ enum PlexItemMerge {
                 // A copy that lost the dedupe is consumed rather than skipped:
                 // it already contributed its id to `alternates`, and leaving the
                 // cursor on it would stall this server's turn.
-                if placed.insert(item.contentKey).inserted {
+                let key = keys[item.id] ?? item.contentKey
+                let existing = placed[key, default: []].first { offset in
+                    let other = merged[offset]
+                    return other.id == item.id || other.serverID != item.serverID
+                        || (!item.movieContentKeys.isEmpty && !other.movieContentKeys.isEmpty)
+                }
+                if let existing {
+                    if !item.movieContentKeys.isEmpty, isMoreAdvanced(item, than: merged[existing]) {
+                        merged[existing] = item
+                    }
+                } else {
+                    placed[key, default: []].append(merged.count)
                     merged.append(item)
                 }
             }
@@ -85,25 +87,19 @@ enum PlexItemMerge {
         return MergedPlexItems(items: merged, alternates: alternates)
     }
 
-    /// Every copy of every piece of content in `lists`, in the order the lists
-    /// were given — which is server-priority order, so the first entry is the
-    /// copy playback should prefer.
-    ///
-    /// Only content that is identified by a strong key (a Plex or external id)
-    /// is listed, and only once per server: a title/year guess may collapse two
-    /// rows on screen, but it must never tell playback that another server's
-    /// file — or a second file on the same server — is the one the user asked
-    /// for. See `ContentAlternatesIndex`.
+    /// Strong movie copies include every rating key, including the same server.
+    /// TV keeps the existing one-copy-per-server behavior.
     static func alternates(in lists: [[PlexItem]]) -> [PlexContentKey: [PlexItemID]] {
         var alternates: [PlexContentKey: [PlexItemID]] = [:]
+        let keys = contentKeys(in: lists)
 
         for list in lists {
             for item in list {
-                let key = item.contentKey
+                let key = keys[item.id] ?? item.contentKey
                 guard key.isStrong else { continue }
                 var known = alternates[key] ?? []
                 guard !known.contains(item.id),
-                      !known.contains(where: { $0.serverID == item.id.serverID }) else { continue }
+                      (key.isMovie || !known.contains(where: { $0.serverID == item.id.serverID })) else { continue }
                 known.append(item.id)
                 alternates[key] = known
             }
@@ -112,8 +108,7 @@ enum PlexItemMerge {
         return alternates
     }
 
-    /// Merges two alternate tables, keeping the left one's ordering and the
-    /// one-copy-per-server rule.
+    /// Merges alternate tables, retaining copy identity and source ordering.
     static func combine(
         _ lhs: [PlexContentKey: [PlexItemID]],
         _ rhs: [PlexContentKey: [PlexItemID]]
@@ -122,11 +117,40 @@ enum PlexItemMerge {
         for (key, ids) in rhs {
             var known = combined[key] ?? []
             for id in ids where !known.contains(id)
-                && !known.contains(where: { $0.serverID == id.serverID }) {
+                && (key.isMovie || !known.contains(where: { $0.serverID == id.serverID })) {
                 known.append(id)
             }
             combined[key] = known
         }
         return combined
+    }
+
+    /// Resolve overlapping movie aliases transitively, so a Plex GUID on one
+    /// item and an IMDb-only legacy item can identify the same movie.
+    static func contentKeys(in lists: [[PlexItem]]) -> [PlexItemID: PlexContentKey] {
+        var parents: [PlexContentKey: PlexContentKey] = [:]
+        func root(_ key: PlexContentKey) -> PlexContentKey {
+            var value = key
+            while let parent = parents[value], parent != value { value = parent }
+            return value
+        }
+        for item in lists.flatMap({ $0 }) {
+            let primary = root(item.contentKey)
+            for alias in item.movieContentKeys {
+                let other = root(alias)
+                if other != primary { parents[other] = primary }
+            }
+        }
+        return Dictionary(lists.flatMap { $0 }.map { ($0.id, root($0.contentKey)) },
+                          uniquingKeysWith: { first, _ in first })
+    }
+
+    static func isMoreAdvanced(_ item: PlexItem, than other: PlexItem) -> Bool {
+        let watched = (item.viewCount ?? 0) > 0
+        let otherWatched = (other.viewCount ?? 0) > 0
+        if watched != otherWatched { return watched }
+        let progress = Double(item.viewOffset ?? 0) / Double(max(item.duration ?? 1, 1))
+        let otherProgress = Double(other.viewOffset ?? 0) / Double(max(other.duration ?? 1, 1))
+        return progress > otherProgress
     }
 }

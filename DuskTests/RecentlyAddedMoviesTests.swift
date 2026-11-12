@@ -79,12 +79,12 @@ struct RecentlyAddedMoviesTests {
         #expect(merged.items.map(\.ratingKey) == ["a", "b", "c", "missing-a", "missing-b"])
     }
 
-    @Test func singleSourceKeepsPlexOrderAndDistinctCopies() throws {
+    @Test func singleSourceCollapsesStrongMovieCopies() throws {
         let source = try hub(section: 1, items: [
             movie("a", addedAt: 100, guid: "plex://movie/shared"),
             movie("b", addedAt: 100, guid: "plex://movie/shared"),
         ])
-        #expect(PlexItemMerge.hubItems([source.items], for: source).items == source.items)
+        #expect(PlexItemMerge.hubItems([source.items], for: source).items == [source.items[0]])
     }
 
     @Test func otherHubsRetainInterleaving() throws {

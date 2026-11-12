@@ -248,9 +248,9 @@ struct MovieDetailView: View {
             guard !viewModel.isUsingCachedData || viewModel.isPlayableOffline else { return }
             Task {
                 await playback.play(
-                    id: details.id,
-                    resumeOffsetMilliseconds: details.viewOffset,
-                    resumeOffsetDurationMilliseconds: details.duration,
+                    id: viewModel.resumeDetails?.id ?? details.id,
+                    resumeOffsetMilliseconds: viewModel.resumeDetails?.viewOffset,
+                    resumeOffsetDurationMilliseconds: viewModel.resumeDetails?.duration,
                     placeholder: PlaybackPlaceholder(details: details),
                     queue: playThrough?.queue(startingAt: details.id)
                 )
@@ -266,12 +266,12 @@ struct MovieDetailView: View {
         .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
         .contextMenu {
             if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
-                PlayVersionContextMenu(versions: details.media) { version in
+                MovieCopyVersionMenu(versions: viewModel.versions) { version in
                     Task {
                         await playback.playVersion(
-                            id: details.id,
-                            mediaID: version.id,
-                            resumeOffsetMilliseconds: details.viewOffset,
+                            id: version.details.id,
+                            mediaID: version.media.id,
+                            resumeOffsetMilliseconds: version.details.viewOffset,
                             placeholder: PlaybackPlaceholder(details: details)
                         )
                     }

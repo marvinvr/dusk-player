@@ -203,6 +203,24 @@ enum MediaTextFormatter {
         return parts.isEmpty ? "Version \(media.id)" : parts.joined(separator: " · ")
     }
 
+    static func movieCopyVersionLabel(_ media: PlexMedia, library: String?) -> String {
+        var parts = [playbackVersionResolution(media)].compactMap { $0 }
+        let video = media.parts.flatMap(\.streams).first { $0.streamType == .video }
+        if video?.doviPresent == true || video?.doviProfile != nil {
+            parts.append("Dolby Vision")
+        } else if let video, StreamResolver.hdrTransfer(of: video) != nil {
+            parts.append(StreamResolver.hdrVideoLabel(for: media))
+        } else if video != nil {
+            parts.append("SDR")
+        }
+        let sizes = media.parts.compactMap(\.size)
+        if sizes.count == media.parts.count, !sizes.isEmpty, sizes.allSatisfy({ $0 > 0 }) {
+            parts.append(ByteCountFormatter.string(fromByteCount: Int64(sizes.reduce(0, +)), countStyle: .file))
+        }
+        if let library = library?.nilIfEmpty { parts.append(library) }
+        return parts.joined(separator: " · ")
+    }
+
     private static func pluralizedCount(
         _ count: Int?,
         singular: String,

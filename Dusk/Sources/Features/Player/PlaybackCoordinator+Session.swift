@@ -88,6 +88,7 @@ extension PlaybackCoordinator {
                     selectedMediaID: selectedMediaID,
                     prerollFeature: prerollFeature,
                     attemptID: attemptID,
+                    allowsMovieCopySelection: !restrictToItemServer && selectedMediaID == nil,
                     fetchDeadline: isLastCandidate ? nil : Self.candidateFetchDeadline
                 )
             }
@@ -171,6 +172,9 @@ extension PlaybackCoordinator {
         prerollFeature: PrerollPlayback.Feature? = nil,
         attemptID: UUID,
         suppressLocalDownload: Bool = false,
+        allowsMovieCopySelection: Bool = false,
+        preparedDetails: PlexMediaDetails? = nil,
+        prefersMergedMovieProgress: Bool = false,
         fetchDeadline: Duration? = nil
     ) async -> PlaybackSessionOutcome {
         let ratingKey = id.ratingKey
@@ -197,9 +201,12 @@ extension PlaybackCoordinator {
         // Plex enforces its remote-streaming rule on the stream, not on the
         // metadata: a refused details fetch is some other problem.
         var didFetchDetails = false
+        var movieResumeSource: PlexMediaDetails?
         do {
             let details: PlexMediaDetails
-            if !suppressLocalDownload,
+            if let preparedDetails {
+                details = preparedDetails
+            } else if !suppressLocalDownload,
                downloadManager?.isPlayableOffline(id: id) == true,
                let cachedDetails = downloadManager?.cachedMediaDetails(for: id) {
                 details = cachedDetails
@@ -235,6 +242,35 @@ extension PlaybackCoordinator {
             // When the matching Plex server is reachable, ask it for HLS even if
             // this item also has a completed local download.
             let localURL = (wantsAirPlay || suppressLocalDownload) ? nil : downloadedURL
+            if allowsMovieCopySelection, localURL == nil, !details.movieContentKeys.isEmpty {
+                let copies = await plexService.movieCopies(for: details, includeOtherServers: false, checkFiles: true)
+                    .filter { $0.serverID == details.serverID }
+                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID,
+                      profileSession == plexService.serverSessionToken else { return .superseded }
+                movieResumeSource = MoviePlaybackVersion.mostAdvancedCopy(in: copies)
+                if let version = MoviePlaybackVersion.preferred(
+                    in: copies, maxResolution: preferences.maxResolution, preference: preferences.preferredVersion
+                ), version.details.id != details.id {
+                    let outcome = await startPlaybackSession(
+                        id: version.details.id,
+                        startPositionOverride: startPositionOverride,
+                        resumeOffsetMilliseconds: movieResumeSource?.viewOffset ?? resumeOffsetMilliseconds,
+                        resumeOffsetDurationMilliseconds: movieResumeSource?.duration ?? resumeOffsetDurationMilliseconds,
+                        carriesRequestedOffset: movieResumeSource?.id == version.details.id,
+                        selectedMediaID: version.media.id,
+                        prerollFeature: prerollFeature,
+                        attemptID: attemptID,
+                        suppressLocalDownload: suppressLocalDownload,
+                        preparedDetails: version.details,
+                        prefersMergedMovieProgress: true,
+                        fetchDeadline: fetchDeadline
+                    )
+                    switch outcome {
+                    case .started, .superseded: return outcome
+                    case .hardFailure, .refusedRemotely: break // Try the requested copy before leaving this server.
+                    }
+                }
+            }
             if let prerollFeature,
                localURL == nil, !wantsAirPlay,
                startPositionOverride == 0 || (startPositionOverride == nil && !resumesMidway(
@@ -277,6 +313,7 @@ extension PlaybackCoordinator {
                     prerollFeature: prerollFeature,
                     attemptID: attemptID,
                     suppressLocalDownload: true,
+                    allowsMovieCopySelection: allowsMovieCopySelection,
                     fetchDeadline: fetchDeadline
                 )
             }
@@ -563,17 +600,20 @@ extension PlaybackCoordinator {
             // Hub/list responses can carry the current Plex viewOffset even when
             // the item-detail response omits it. Keep that initiating offset as
             // a fallback so tapping a visible "Resume" item cannot silently
-            // become playback from zero. A detail offset still wins when Plex
-            // returns one, and the explicit startPositionOverride used by
+            // become playback from zero. Merged movies carry their most advanced
+            // offset across matching runtimes; other sessions prefer the copy's
+            // own detail offset. The explicit startPositionOverride used by
             // "Play From Start" wins below.
             let detailViewOffset = details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
             let initiatingViewOffset = carriedResumeOffsetMs(
-                resumeOffsetMilliseconds,
-                referenceDurationMs: resumeOffsetDurationMilliseconds,
+                movieResumeSource?.viewOffset ?? resumeOffsetMilliseconds,
+                referenceDurationMs: movieResumeSource?.duration ?? resumeOffsetDurationMilliseconds,
                 candidateDurationMs: details.duration,
-                carriesRequestedOffset: carriesRequestedOffset
+                carriesRequestedOffset: movieResumeSource.map { $0.id == details.id } ?? carriesRequestedOffset
             )
-            let serverViewOffset = detailViewOffset ?? initiatingViewOffset
+            let serverViewOffset = (movieResumeSource != nil || prefersMergedMovieProgress)
+                ? (initiatingViewOffset ?? detailViewOffset)
+                : (detailViewOffset ?? initiatingViewOffset)
             let effectiveViewOffset = usesLocalDownload
                 ? offlinePlaybackSyncManager?.effectiveViewOffsetMs(
                     serverID: serverID,

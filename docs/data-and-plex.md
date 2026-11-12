@@ -859,30 +859,44 @@ and `registerAlternates(_:)`.
 Every merge takes its per-server lists in **priority order** and is a pure
 function of them. That is what makes progressive rendering safe: a screen can
 merge what it has, render, and merge again when the next server answers without
-deriving a different list. A single list is always returned verbatim — a
-single-server install must never see its rows reordered or deduplicated, because
-a heuristic content key can legitimately collide on one server.
+deriving a different list. Strong movie identities also merge across libraries
+on one server, even when only one server answers. Movie keys include Plex and
+external-ID aliases (TMDB/IMDb), with edition boundaries preserved. Weak
+same-server matches and TV copies stay separate; title/year alone cannot merge
+two libraries' movies. Individual library grids and playlist membership/order
+remain per source; search, Home, merged hubs, recommendations and person titles
+use the merged entries. Movie representatives carry watched state first, then
+the greatest progress fraction (offset/duration); equal progress keeps source
+order. This also governs movie Continue Watching representatives.
 
 - `ContentAlternatesIndex` (`plexService.alternates`) is the side table the merges
   fill and playback reads: `register(_:for:)` records that these `PlexItemID`s are
   the same content, `instances(of:)` returns every known copy. It accumulates for
   the whole session and is cleared by `tearDownServerSessions()` (sign-out, Plex Home switch),
   because rating keys only mean something for the account that fetched them.
-  Two registration rules exist because playing the wrong file is worse than
-  offering no fallback: **only strong keys are recorded** (`PlexContentKey.isStrong`),
-  and **at most one id per (key, server)** — two copies on one server are two
-  files, so `instances(of:)` returns the id it was asked about plus copies on
-  *other* servers only. An id seen later under a better key is moved, never left
-  listed under both. `PlexItemMerge.alternates(in:)`/`combine(_:_:)` apply the
-  same rules to the tables they hand out.
-- Continue Watching: representative = newest `lastViewedAt`, then larger
+  Only strong keys are recorded. Movies retain every server-scoped rating key,
+  including multiple libraries on the same server; TV keeps at most one copy
+  per server. A later registration bridging two keys joins their known copies.
+  `PlexItemMerge.alternates(in:)`/`combine(_:_:)` retain the same identities.
+- `PlexService.movieCopies(for:)` discovers movies with per-title
+  `/library/all?guid=…&includeGuids=1` lookups, filtered against strong aliases,
+  edition and hidden-library rules, then loads each copy's details. It also
+  works from an unmerged library grid. The detail version picker keeps each
+  version's owning item ID, media ID and library name. Startup compares media
+  within its selected server; existing server priority stays authoritative.
+  Explicit watched/unwatched actions discover same-server movie copies before
+  using `setWatchedAcrossServers` to reach every known copy. Timelines still
+  belong only to the played copy. `MovieLibraryMergeTests` covers the pure merge,
+  aliases, progress, alternate registration and version choices.
+- Continue Watching (TV): representative = newest `lastViewedAt`, then larger
   `viewOffset`, then lowest server rank; the row is then sorted newest-first. The
   other copies are registered as alternates (in rank order) for playback fallback.
 - Hubs: keyed on `hubIdentifier` with its trailing numeric section suffix
   stripped, plus type (normalized title as fallback). Deduped by content key and
   round-robin interleaved in priority order, except merged Recently Added Movies:
   `PlexItemMerge.hubItems` sorts those by `addedAt` descending before deduplication
-  (newest copy wins; ties keep source priority/order; missing dates come last).
+  (newest addition determines placement; movie progress determines the displayed
+  copy; ties keep source priority/order; missing dates come last).
   This applies to full and promoted hub rows, repeated-title folding before its
   cap, inline expansion, and Show All. Single-source rows and TV grouping retain
   Plex's order; update/release dates never replace `addedAt`. `PlexHub.sources` records each

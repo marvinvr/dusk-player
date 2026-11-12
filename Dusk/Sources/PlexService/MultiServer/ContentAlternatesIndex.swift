@@ -32,53 +32,39 @@ final class ContentAlternatesIndex {
     /// - only **strong** keys are recorded (a Plex or external id). A title/year
     ///   guess is good enough to collapse a row on screen, not to decide which
     ///   file to play.
-    /// - at most one id per server and key. Two copies on one server are two
-    ///   files; the one the user tapped is the one that plays, and the index
-    ///   never offers the other in its place.
+    /// - same-server copies are accepted only for strong movie keys. TV keeps
+    ///   its existing one-copy-per-server behavior until episode mapping exists.
     func register(_ ids: [PlexItemID], for key: PlexContentKey) {
         guard key.isStrong, !ids.isEmpty else { return }
 
+        // A later response may bridge a Plex key and an external key. Preserve
+        // every already-known copy rather than moving just the bridging item.
+        let previousKeys = Set(ids.compactMap { keysByIdentifier[$0] })
         var known = identifiersByKey[key] ?? []
-        var changed = false
-
-        for id in ids {
-            // The same copy can be seen under a better key later (a row fetched
-            // with `includeGuids=1` after one without). Move it rather than
-            // leaving it listed under both.
-            if let previous = keysByIdentifier[id], previous != key {
-                remove(id, fromKey: previous)
+        for previous in previousKeys where previous != key {
+            let previousIDs = identifiersByKey[previous] ?? []
+            if key.isMovie, previous.isMovie, key.movieEdition == previous.movieEdition {
+                for id in previousIDs where !known.contains(id) { known.append(id) }
+                identifiersByKey[previous] = nil
+            } else {
+                // Re-matching metadata or changing an edition is not an alias
+                // bridge. Move only the affected instances, leaving others put.
+                let remaining = previousIDs.filter { !ids.contains($0) }
+                identifiersByKey[previous] = remaining.isEmpty ? nil : remaining
             }
-            if keysByIdentifier[id] != key {
-                keysByIdentifier[id] = key
-                changed = true
-            }
-            guard !known.contains(id),
-                  !known.contains(where: { $0.serverID == id.serverID }) else { continue }
+        }
+        for id in ids where !known.contains(id) {
+            guard key.isMovie || !known.contains(where: { $0.serverID == id.serverID }) else { continue }
             known.append(id)
-            changed = true
         }
-
-        guard changed else { return }
-        identifiersByKey[key] = known
+        if identifiersByKey[key] != known { identifiersByKey[key] = known }
+        for id in known + ids where keysByIdentifier[id] != key { keysByIdentifier[id] = key }
     }
 
-    /// Every known instance of the same content, including `id` itself.
-    ///
-    /// Unordered beyond `id` coming first — callers rank the rest themselves
-    /// (playback sorts by server priority). Returns `[id]` when the content was
-    /// never merged. Copies on `id`'s own server are never returned: that server
-    /// is already represented by the copy that was asked about.
+    /// Every known instance, with the requested copy first.
     func instances(of id: PlexItemID) -> [PlexItemID] {
-        guard let key = keysByIdentifier[id], let known = identifiersByKey[key] else {
-            return [id]
-        }
-        return [id] + known.filter { $0 != id && $0.serverID != id.serverID }
-    }
-
-    private func remove(_ id: PlexItemID, fromKey key: PlexContentKey) {
-        guard var known = identifiersByKey[key] else { return }
-        known.removeAll { $0 == id }
-        identifiersByKey[key] = known.isEmpty ? nil : known
+        guard let key = keysByIdentifier[id], let known = identifiersByKey[key] else { return [id] }
+        return [id] + known.filter { $0 != id && (key.isMovie || $0.serverID != id.serverID) }
     }
 
     /// The content key an id was registered under, if the index has seen it.
