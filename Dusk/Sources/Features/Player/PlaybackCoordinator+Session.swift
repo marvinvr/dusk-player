@@ -379,6 +379,7 @@ extension PlaybackCoordinator {
             var engineType = resolverDecision.engine
             var resolverReason = resolverDecision.reason
             var transcodeSessionID: String?
+            var hdrRemuxFallback: HDRRemuxFallback?
             var spatialAudioStreamIDs: (audio: Int?, subtitle: Int?, convertsAudio: Bool, restoresDolbyAtmos: Bool)?
 
             if let localURL {
@@ -475,6 +476,7 @@ extension PlaybackCoordinator {
                         sanitizedURL = plexService.sanitizedPlaybackURLString(for: dolbyVisionRemux.url)
                         playbackDecision = .spatialAudio
                         transcodeSessionID = dolbyVisionRemux.transcodeSessionID
+                        hdrRemuxFallback = dolbyVisionRemux.fallback
                         engineType = .avPlayer
                         resolverReason = dolbyVisionRemux.reason
                         spatialAudioStreamIDs = (
@@ -557,6 +559,7 @@ extension PlaybackCoordinator {
                         sanitizedURL = plexService.sanitizedPlaybackURLString(for: remux.url)
                         playbackDecision = .spatialAudio
                         transcodeSessionID = remux.transcodeSessionID
+                        hdrRemuxFallback = remux.fallback
                         engineType = .avPlayer
                         resolverReason = remux.reason
                         spatialAudioStreamIDs = (audioStreamID, subtitleStreamID, remux.convertsAudio, remux.restoresDolbyAtmos)
@@ -776,9 +779,10 @@ extension PlaybackCoordinator {
                     preferredLanguage: preferences.defaultAudioLanguage
                 ),
                 locality: sourceLocality(for: playbackURL, serverID: serverID),
-                restoresDolbyAtmos: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
+                restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
                 dolbyVisionRemux: dolbyVisionRemux,
-                dolbyVision7Conversion: dolbyVision7Conversion
+                dolbyVision7Conversion: dolbyVision7Conversion,
+                hdrRemuxFallback: hdrRemuxFallback
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1317,7 +1321,8 @@ extension PlaybackCoordinator {
         startPosition: TimeInterval?,
         shouldAutoPlay: Bool = true,
         audioTrackPositionOverride: Int? = nil,
-        audioChannelCountOverride: Int? = nil
+        audioChannelCountOverride: Int? = nil,
+        hdrRemuxFallback: HDRRemuxFallback? = nil
     ) {
         // Once the audio offset moved this item to VLCKit, it stays there.
         let engineType = AudioOffsetPolicy.replacementEngine(
@@ -1421,9 +1426,10 @@ extension PlaybackCoordinator {
                 preferredLanguage: preferences.defaultAudioLanguage
             ),
             locality: sourceLocality(for: playbackURL, serverID: activePlaybackServerID),
-            restoresDolbyAtmos: playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
+            restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
             dolbyVisionRemux: dolbyVisionRemux,
-            dolbyVision7Conversion: dolbyVision7Conversion
+            dolbyVision7Conversion: dolbyVision7Conversion,
+            hdrRemuxFallback: hdrRemuxFallback
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,
@@ -1947,25 +1953,25 @@ extension PlaybackCoordinator {
             )
         }
 
-        // A failed Dolby Vision profile 5 remux goes down to the server
-        // stream like direct play would: plain direct play is what cannot
-        // render it in the first place.
-        let isFailedDolbyVisionRemux = debugInfo.map {
-            $0.decision.isSpatialAudio && StreamResolver.isDolbyVisionProfile5($0.media)
-        } ?? false
-        if debugInfo?.decision.isSpatialAudio == true, !isFailedDolbyVisionRemux {
+        if let debugInfo, debugInfo.decision.isSpatialAudio {
             let failureDescription = engine?.error?.errorDescription ?? "engine reported state .error"
-            // HDR already on screen must not silently turn into VLCKit's flat
-            // 8-bit picture (#59). Only a remux that never played takes the
-            // direct-play rung below.
-            if didRemuxReachPlayback, let part = debugInfo?.part, StreamResolver.containsHDRVideo(inPart: part) {
-                reportFallback(.hdrRemuxRecovery)
-                await recoverLiveHDRRemux(failureDescription: failureDescription)
-                return
+            if StreamResolver.containsHDRVideo(inPart: debugInfo.part) {
+                // Once HDR has played, every recovery stays on AVPlayer (#59).
+                if didRemuxReachPlayback {
+                    reportFallback(.hdrRemuxRecovery)
+                    await recoverLiveHDRRemux(failureDescription: failureDescription)
+                    return
+                }
+                // A signaling-loader failure must not send a watchable HDR
+                // MKV straight to VLC's SDR renderer (#75). Try plain Plex
+                // fMP4, then copied video with E-AC-3, before direct play.
+                if await retryHDRRemuxOnServer(failureDescription: failureDescription) {
+                    return
+                }
             }
             reportFallback(.remuxToDirectPlay)
             await leaveSpatialAudioRemux(
-                reason: "Spatial-audio remux failed (\(failureDescription)); automatic direct-play fallback",
+                reason: "Remux recovery exhausted (\(failureDescription)); automatic direct-play fallback",
                 keepsExplicitTracks: false
             )
             return
@@ -1977,7 +1983,7 @@ extension PlaybackCoordinator {
               let details = activeItemDetails,
               let ratingKey,
               let debugInfo,
-              debugInfo.decision.isDirectPlay || isFailedDolbyVisionRemux,
+              debugInfo.decision.isDirectPlay,
               let engine else {
             return
         }

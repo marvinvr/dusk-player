@@ -455,15 +455,23 @@ so the whole live HUD is derived from one instant.
 - The same session type carries the undecodable-audio fallback (video copied,
   audio converted by Plex); see "Dolby TrueHD decoding" below. The setting
   gates only the Dolby remux, not that fallback.
-- Failure: the direct-play failure watch is armed for remux sessions too; an
-  engine error moves the session to plain direct play (VLCKit) at the same
-  position instead of surfacing an error. The exception is HDR/Dolby Vision
-  video once that remux has played (`didRemuxReachPlayback`): VLCKit would swap
-  HDR for a flat 8-bit picture mid-film (#59), so
-  `recoverLiveHDRRemux` asks Plex for a fresh session at the live position, up
-  to 3 times per item, then leaves the error overlay up. An HDR remux that
-  never played still takes the direct-play rung, as does DV5's server-stream
-  rung, so a file AVPlayer cannot open at all stays watchable.
+- Failure: the failure watch is armed for remux sessions too. SDR remux
+  errors return to direct play. HDR/Dolby Vision startup errors first try a
+  fresh Plex fMP4 remux with copied HEVC/audio, then copied video with E-AC-3
+  audio conversion, before the last-resort direct play (VLCKit for MKV).
+  `PlaybackSource.hdrRemuxFallback` bounds those two rungs; both validate the
+  server's actual decision and reject video conversion, MPEG-TS, and subtitle
+  burning. They omit optional Atmos restoration so a signaling-loader failure
+  can be bypassed, retaining Dolby Vision signaling and the resume position.
+  A declined/failed initial remux request also tries the converted-audio rung
+  after eligibility has passed. Forced engines and disabled HDR preferences
+  keep their normal eligibility rules.
+  Once a remux has played (`didRemuxReachPlayback`), recovery never switches
+  HDR to VLC mid-film (#59): `recoverLiveHDRRemux` requests fresh sessions up
+  to 3 times per item, then leaves the error overlay up. This includes DV5 and
+  the server fallback rungs. A file that never plays can still reach VLC (#75).
+  `PlaybackFallbackTests` exercises the coordinator's real ladder using silent
+  fake engines and Plex decisions, including rejected decisions and exhaustion.
 - AirPlay: selecting a route rebuilds a remux session as AirPlay HLS, like
   direct play, because the fMP4/HEVC remux targets this device.
 
@@ -491,8 +499,9 @@ so the whole live HUD is derived from one instant.
   `PlaybackSource.dolbyVisionRemux`.
 - tvOS display matching requests a `dvh1` / PQ / BT.2020 mode for these
   sessions (DV5 streams carry no usable color tags).
-- Ladder: remux declined → server stream → direct play (VLCKit). A remux that
-  fails after starting goes to the server stream, not VLCKit.
+- Ladder: a declined remux tries copied video with E-AC-3 first; startup
+  decoder failures follow the HDR server-remux rungs above. A remux that has
+  played stays on AVPlayer during recovery.
 - Not yet verified against a real PMS: whether Plex already writes `dvcC` or
   `dvh1` itself (the patch then changes nothing) and whether it keeps the RPU
   NAL units on copy. Picking an unsupported subtitle mid-session keeps the
@@ -526,9 +535,9 @@ so the whole live HUD is derived from one instant.
   use local lossless decoding on Dusk's VLCKit build. TrueHD with a copyable
   sibling remuxes the sibling (see "Dolby TrueHD decoding").
 - Delivery and acceptance are the Atmos remux's
-  (`requestSpatialAudioRemux`, session type `.spatialAudio`, lossless only,
-  any failure → plain direct play). A file can qualify for Atmos, HDR or
-  both; the session reason names what qualified, e.g. `Dolby Atmos + Dolby
+  (`requestSpatialAudioRemux`, session type `.spatialAudio`, initially lossless;
+  failed requests/decoder startup use the HDR server-remux rungs above). A file
+  can qualify for Atmos, HDR or both; the session reason names what qualified, e.g. `Dolby Atmos + Dolby
   Vision 8.1 via lossless Plex remux`. A declined track change (e.g. DTS audio)
   keeps the working HDR remux and its previous tracks instead of moving to VLC.
 - Formats:
@@ -561,8 +570,8 @@ so the whole live HUD is derived from one instant.
     bitrate ≤ 40/160 Mbit/s Main/High); otherwise, or with metadata missing,
     the source's level stays. It is not OS-gated, because a declaration the
     content satisfies is truthful everywhere. A wrong guess (peaks above the
-    average) costs one decoder error, which the failure watch turns into
-    VLCKit direct play — the same outcome as an uncapped refusal.
+    average) costs one decoder error, which the failure watch takes through
+    the HDR server-remux ladder before considering VLCKit direct play.
   - **Dolby Vision 7** (FEL/MEL, dual layer): converted to 8.1 on device
     while `dolbyVision7ConversionEnabled` is on — see "Dolby Vision 7
     (on-device 8.1 conversion)" below. With the setting off, or after a

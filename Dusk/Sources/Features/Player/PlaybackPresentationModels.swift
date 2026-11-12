@@ -169,6 +169,9 @@ struct PlaybackSource: Sendable {
     /// AVPlayer only; nil for every other session.
     var dolbyVision7Conversion: DolbyVisionConfiguration? = nil
 
+    /// Startup recovery rungs after a failed HDR signaling/remux attempt.
+    var hdrRemuxFallback: HDRRemuxFallback? = nil
+
     /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
     var usesRemuxHLSLoader: Bool {
         (restoresDolbyAtmos || dolbyVisionRemux != nil) && dolbyVision7Conversion == nil
@@ -374,6 +377,13 @@ struct PlaybackDebugInfo: Sendable {
         }
         return "\(value) kbps"
     }
+}
+
+/// Bounded HDR startup recovery. Both rungs require copied video; the second
+/// lets Plex replace problematic audio with E-AC-3 before the VLC last resort.
+enum HDRRemuxFallback: Sendable {
+    case copiedAudio
+    case convertedAudio
 }
 
 enum PlaybackDecision: Sendable, Equatable {

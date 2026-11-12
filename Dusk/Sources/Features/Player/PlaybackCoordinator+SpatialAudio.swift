@@ -22,6 +22,7 @@ extension PlaybackCoordinator {
         /// Plex converts the audio (instead of copying it) in this remux.
         let convertsAudio: Bool
         let restoresDolbyAtmos: Bool
+        var fallback: HDRRemuxFallback? = nil
     }
 
     var isSpatialAudioSession: Bool {
@@ -183,6 +184,16 @@ extension PlaybackCoordinator {
             return nil
         }
 
+        func hdrFallback() async -> SpatialAudioRemux? {
+            guard StreamResolver.containsHDRVideo(inPart: part), !Task.isCancelled else { return nil }
+            return await requestHDRServerRemux(
+                ratingKey: ratingKey, mediaIndex: mediaIndex, part: part,
+                audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
+                sessionIdentifier: sessionIdentifier, serverID: serverID,
+                stages: [.convertedAudio]
+            )
+        }
+
         let transcodeSessionID = UUID().uuidString
         do {
             let result = try await plexService.spatialAudioRemuxURL(
@@ -213,9 +224,9 @@ extension PlaybackCoordinator {
                   subtitleStreamID == nil || result.streams.subtitleLocation == "segments-subs" else {
                 stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
                 spatialAudioLogger.notice(
-                    "Plex declined a compatible spatial-audio remux for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.streams.logDescription, privacy: .public)); keeping direct play"
+                    "Plex declined a compatible spatial-audio remux for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public), \(result.streams.logDescription, privacy: .public)); trying HDR server recovery where eligible"
                 )
-                return nil
+                return await hdrFallback()
             }
 
             spatialAudioLogger.notice(
@@ -259,9 +270,9 @@ extension PlaybackCoordinator {
         } catch {
             stopTranscodeSessionInBackground(transcodeSessionID, serverID: serverID)
             spatialAudioLogger.error(
-                "Spatial-audio remux request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); keeping direct play"
+                "Spatial-audio remux request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); trying HDR server recovery where eligible"
             )
-            return nil
+            return await hdrFallback()
         }
     }
 
@@ -295,6 +306,100 @@ extension PlaybackCoordinator {
             transitionLabel: "retrying the remux without Dolby Vision 7 conversion (\(failureDescription))",
             declineReason: "Remux unavailable after Dolby Vision 7 conversion failed; direct play"
         )
+    }
+
+    /// A separate startup ladder, bypassing optional Atmos signaling. Never
+    /// accepts a video transcode or a subtitle burn: that would lose HDR.
+    /// Returns true for a superseded request as well as a prepared replacement.
+    func retryHDRRemuxOnServer(failureDescription: String) async -> Bool {
+        guard !didFinalizeCurrentSession, !activePlaybackUsesLocalDownload,
+              !isSwitchingQuality, !isPreparingAirPlay,
+              let details = activeItemDetails, let ratingKey, let debugInfo,
+              let mediaIndex = details.media.firstIndex(where: { $0.id == debugInfo.media.id }) else {
+            return false
+        }
+        let media = details.media[mediaIndex]
+        let part = debugInfo.part
+        let expectedPresentationID = playerPresentationID
+        let serverID = activePlaybackServerID
+        let resumePosition = currentResumePosition
+        let sessionIdentifier = activePlaybackSessionIdentifier ?? UUID().uuidString
+        activePlaybackSessionIdentifier = sessionIdentifier
+        let stages: [HDRRemuxFallback] = switch playbackSource?.hdrRemuxFallback {
+        case nil: [.copiedAudio, .convertedAudio]
+        case .copiedAudio: [.convertedAudio]
+        case .convertedAudio: []
+        }
+        let remux = await requestHDRServerRemux(
+            ratingKey: ratingKey, mediaIndex: mediaIndex, part: part,
+            audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID,
+            sessionIdentifier: sessionIdentifier, serverID: serverID, stages: stages
+        )
+        guard !didFinalizeCurrentSession, playerPresentationID == expectedPresentationID,
+              self.ratingKey == ratingKey, !Task.isCancelled else {
+            if let remux { stopTranscodeSessionInBackground(remux.transcodeSessionID, serverID: serverID) }
+            return true
+        }
+        guard let remux else { return false }
+        if let oldSessionID = activeTranscodeSessionID {
+            stopTranscodeSessionInBackground(oldSessionID, serverID: serverID)
+        }
+        activeTranscodeSessionID = remux.transcodeSessionID
+        remuxAudioConversion = remux.convertsAudio
+            ? RemuxAudioConversion(audioStreamID: activeAudioStreamID, restoresDolbyAtmos: false)
+            : nil
+        activateReplacementAttempt(
+            transitionLabel: "retrying HDR through a Plex server remux",
+            attemptID: UUID(), details: details, ratingKey: ratingKey,
+            media: media, part: part, playbackURL: remux.url,
+            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
+            playbackDecision: .spatialAudio, engineType: .avPlayer,
+            resolverReason: "HDR remux failed (\(failureDescription)); \(remux.reason)",
+            videoEnhancementRequest: .disabled, startPosition: resumePosition,
+            hdrRemuxFallback: remux.fallback
+        )
+        return true
+    }
+
+    private func requestHDRServerRemux(
+        ratingKey: String, mediaIndex: Int, part: PlexMediaPart,
+        audioStreamID: Int?, subtitleStreamID: Int?,
+        sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
+    ) async -> SpatialAudioRemux? {
+        let audio = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
+        for stage in stages {
+            guard !Task.isCancelled else { return nil }
+            let convertsAudio = stage == .convertedAudio
+            let sessionID = UUID().uuidString
+            do {
+                let result = try await plexService.spatialAudioRemuxURL(
+                    ratingKey: ratingKey, mediaIndex: mediaIndex,
+                    sessionIdentifier: sessionIdentifier, transcodeSessionID: sessionID,
+                    audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
+                    convertsAudio: convertsAudio, serverID: serverID
+                )
+                let streams = result.streams
+                let copiesHDRVideo = streams.container?.lowercased() == "mp4"
+                    && streams.videoCodec?.lowercased() == "hevc" && streams.videoDecision == "copy"
+                let compatible = copiesHDRVideo && (convertsAudio
+                    ? streams.isConvertedAudioRemux(sourceChannels: audio?.channels)
+                    : streams.isLosslessRemux
+                        && ["aac", "ac3", "eac3"].contains(streams.audioCodec?.lowercased() ?? ""))
+                guard case .transcodeAvailable = result.outcome, compatible, !Task.isCancelled else {
+                    stopTranscodeSessionInBackground(sessionID, serverID: serverID)
+                    continue
+                }
+                return SpatialAudioRemux(
+                    url: result.url, transcodeSessionID: sessionID,
+                    reason: "Plex server remux (video copied, audio \(convertsAudio ? "converted to E-AC-3" : "copied"))",
+                    convertsAudio: convertsAudio, restoresDolbyAtmos: false, fallback: stage
+                )
+            } catch {
+                stopTranscodeSessionInBackground(sessionID, serverID: serverID)
+                spatialAudioLogger.error("HDR server remux request failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        return nil
     }
 
     /// A live HDR remux died, typically because Plex dropped the transcode
@@ -427,7 +532,8 @@ extension PlaybackCoordinator {
             resolverReason: remux.reason,
             videoEnhancementRequest: .disabled,
             startPosition: resumePosition,
-            shouldAutoPlay: wasPlaying
+            shouldAutoPlay: wasPlaying,
+            hdrRemuxFallback: remux.fallback
         )
         return true
     }
@@ -507,7 +613,8 @@ extension PlaybackCoordinator {
             resolverReason: remux.reason,
             videoEnhancementRequest: .disabled,
             startPosition: resumePosition,
-            shouldAutoPlay: wasPlaying
+            shouldAutoPlay: wasPlaying,
+            hdrRemuxFallback: remux.fallback
         )
         return true
     }

@@ -4,7 +4,7 @@ import SwiftUI
 import Testing
 @testable import Dusk
 
-@Suite("Automatic playback recovery presentation")
+@Suite("Automatic playback recovery presentation", .serialized)
 @MainActor
 struct PlaybackFallbackTests {
     @Test func explicitSubtitleOffWaitsForTheLoadedEngine() {
@@ -162,17 +162,22 @@ struct PlaybackFallbackTests {
 
     /// A coordinator on a failed HDR remux, with a server, so plain direct play
     /// is genuinely available and only the policy can keep it away.
-    private func failedHDRRemux() throws -> (PlaybackCoordinator, FailedPlaybackEngine) {
-        let service = PlexService(urlProtocolClasses: [SubtitleDecisionProtocol.self])
+    private func failedHDRRemux(
+        host: String = "plex.invalid",
+        protocolClass: AnyClass = SubtitleDecisionProtocol.self,
+        videoFields: String = #""bitDepth":10,"colorTrc":"smpte2084""#
+    ) throws -> (PlaybackCoordinator, FailedPlaybackEngine) {
+        let service = PlexService(urlProtocolClasses: [protocolClass])
         let server = try JSONDecoder().decode(PlexServer.self, from: Data(#"{"name":"Test","clientIdentifier":"hdr-server","connections":[]}"#.utf8))
-        service.pool.adopt(server: server, baseURL: URL(string: "https://plex.invalid")!, token: "test", connection: nil)
+        service.pool.adopt(server: server, baseURL: URL(string: "https://\(host)")!, token: "test", connection: nil)
         let playback = PlaybackCoordinator(plexService: service)
-        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data(#"""
+        let details = try JSONDecoder().decode(PlexMediaDetails.self, from: Data("""
             {"ratingKey":"1","key":"/library/metadata/1","type":"movie","title":"HDR",
              "Media":[{"id":1,"container":"mkv","videoCodec":"hevc","Part":[{"id":2,"key":"/clip.mkv","Stream":[
-               {"id":3,"streamType":1,"codec":"hevc","bitDepth":10,"colorTrc":"smpte2084"}
+               {"id":3,"streamType":1,"codec":"hevc",\(videoFields)},
+               {"id":4,"streamType":2,"codec":"eac3","channels":6,"profile":"dolby digital plus + dolby atmos"}
              ]}]}]}
-            """#.utf8))
+            """.utf8))
         let media = try #require(details.media.first)
         let engine = FailedPlaybackEngine()
         playback.showPlayer = true
@@ -180,6 +185,12 @@ struct PlaybackFallbackTests {
         playback.ratingKey = "1"
         playback.activeItemDetails = details
         playback.activePlaybackServerID = "hdr-server"
+        playback.activeAudioStreamID = 4
+        playback.activeTranscodeSessionID = "failed-remux"
+        playback.playbackSource = PlaybackSource(url: URL(string: "https://\(host)/remux.m3u8")!, startPosition: 123, context: PlaybackAttemptContext(
+            attemptID: UUID(), title: "HDR", ratingKey: "1", engine: .avPlayer,
+            resolverReason: "HDR remux", mediaID: 1, partID: 2, sanitizedPlaybackURL: "https://plex.invalid/remux.m3u8"
+        ))
         playback.debugInfo = PlaybackDebugInfo(
             title: "HDR", engine: .avPlayer, decision: .spatialAudio,
             media: media, part: media.parts[0], attemptID: UUID(),
@@ -203,12 +214,73 @@ struct PlaybackFallbackTests {
         #expect(!playback.isAutomaticDirectPlayFallbackPending)
     }
 
-    @Test func hdrRemuxThatNeverPlayedStillFallsBackToDirectPlay() async throws {
-        let (playback, engine) = try failedHDRRemux()
+    @Test(arguments: [
+        #""bitDepth":10,"colorTrc":"smpte2084""#,
+        #""DOVIPresent":true,"DOVIProfile":5,"DOVIBLCompatID":0"#,
+        #""DOVIPresent":true,"DOVIProfile":8,"DOVIBLCompatID":1"#,
+        #""colorTrc":"arib-std-b67""#,
+    ])
+    func hdrStartupTriesServerCopyThenEAC3BeforeVLCKit(videoFields: String) async throws {
+        let (playback, _) = try failedHDRRemux(protocolClass: HDRRemuxDecisionProtocol.self, videoFields: videoFields)
         defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
         await playback.performDirectPlayServerStreamFallback()
-        #expect(playback.engine !== engine)
+        #expect(playback.debugInfo?.engine == .avPlayer)
+        #expect(playback.playbackSource?.hdrRemuxFallback == .copiedAudio)
+        #expect(playback.playbackSource?.restoresDolbyAtmos == false)
+        #expect(playback.playbackSource?.startPosition == 123)
+        #expect(try fallbackQuery(playback)["directStreamAudio"] == "1")
+        #expect(playback.activeTranscodeSessionID != "failed-remux")
+
+        playback.engine = FailedPlaybackEngine()
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.debugInfo?.engine == .avPlayer)
+        #expect(playback.playbackSource?.hdrRemuxFallback == .convertedAudio)
+        #expect(try fallbackQuery(playback)["directStreamAudio"] == "0")
+        #expect(playback.playbackSource?.startPosition == 123)
+
+        playback.engine = FailedPlaybackEngine()
+        await playback.performDirectPlayServerStreamFallback()
         #expect(playback.debugInfo?.decision.isDirectPlay == true)
+        #expect(playback.debugInfo?.engine == .vlcKit)
+        #expect(playback.activeTranscodeSessionID == nil)
+    }
+
+    @Test(arguments: ["video-transcode.plex.invalid", "mpegts.plex.invalid", "h264.plex.invalid", "burn.plex.invalid", "refuse.plex.invalid"])
+    func incompatibleServerDecisionsExhaustBeforeVLCLastResort(host: String) async throws {
+        let (playback, _) = try failedHDRRemux(host: host, protocolClass: HDRRemuxDecisionProtocol.self)
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.debugInfo?.decision.isDirectPlay == true)
+        #expect(playback.debugInfo?.engine == .vlcKit)
+    }
+
+    @Test func failedServerCopyDecisionTriesEAC3Immediately() async throws {
+        let (playback, _) = try failedHDRRemux(host: "convert-only.plex.invalid", protocolClass: HDRRemuxDecisionProtocol.self)
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.debugInfo?.engine == .avPlayer)
+        #expect(playback.playbackSource?.hdrRemuxFallback == .convertedAudio)
+    }
+
+    @Test func serverFallbackThatPlayedNeverSwitchesToVLCKit() async throws {
+        let (playback, _) = try failedHDRRemux(protocolClass: HDRRemuxDecisionProtocol.self)
+        defer { playback.engine?.stop(); playback.cancelDirectPlayFallbackWatch() }
+        await playback.performDirectPlayServerStreamFallback()
+        let source = playback.playbackSource
+        let failedEngine = FailedPlaybackEngine()
+        playback.engine = failedEngine
+        playback.didRemuxReachPlayback = true
+        playback.liveRemuxRecoveryAttempts = 3
+        await playback.performDirectPlayServerStreamFallback()
+        #expect(playback.engine === failedEngine)
+        #expect(playback.playbackSource?.url == source?.url)
+        #expect(playback.debugInfo?.engine == .avPlayer)
+    }
+
+    private func fallbackQuery(_ playback: PlaybackCoordinator) throws -> [String: String] {
+        let url = try #require(playback.playbackSource?.url)
+        let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        return Dictionary(uniqueKeysWithValues: items.map { ($0.name, $0.value ?? "") })
     }
 
     @Test func aPausedSessionNeverRunsStallRecovery() {
@@ -345,6 +417,34 @@ struct PlexServerSubtitleTests {
         #expect(playback.activeAudioStreamID == 4)
         #expect(playback.qualitySwitchError != nil)
     }
+}
+
+/// Deterministic Plex decisions; no media is loaded and no audio is opened.
+private final class HDRRemuxDecisionProtocol: URLProtocol, @unchecked Sendable {
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() {
+        let url = request.url!
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        let convertsAudio = query.first { $0.name == "directStreamAudio" }?.value == "0"
+        let host = url.host ?? ""
+        let refused = host == "refuse.plex.invalid" || (host == "convert-only.plex.invalid" && !convertsAudio)
+        let container = host == "mpegts.plex.invalid" ? "mpegts" : "mp4"
+        let video = host == "video-transcode.plex.invalid" ? "transcode" : "copy"
+        let videoCodec = host == "h264.plex.invalid" ? "h264" : "hevc"
+        let subtitle = host == "burn.plex.invalid" ? #",{"streamType":3,"decision":"burn","location":"embedded"}"# : ""
+        let body = """
+            {"MediaContainer":{"generalDecisionCode":\(refused ? 2000 : 1001),"Metadata":[{"Media":[{
+            "container":"\(container)","Part":[{"Stream":[
+            {"streamType":1,"codec":"\(videoCodec)","decision":"\(video)"},
+            {"streamType":2,"codec":"eac3","decision":"\(convertsAudio ? "transcode" : "copy")","channels":6}\(subtitle)
+            ]}]}]}]}}
+            """
+        client?.urlProtocol(self, didReceive: HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: nil)!, cacheStoragePolicy: .notAllowed)
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+    override func stopLoading() {}
 }
 
 private final class SubtitleDecisionProtocol: URLProtocol, @unchecked Sendable {
