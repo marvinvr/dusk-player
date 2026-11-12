@@ -626,7 +626,6 @@ extension PlexService {
             URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier),
             URLQueryItem(name: "X-Plex-Client-Profile-Extra", value: clientProfileExtra),
             URLQueryItem(name: "X-Plex-Client-Profile-Name", value: "Generic"),
-            URLQueryItem(name: "X-Plex-Incomplete-Segments", value: "1"),
             URLQueryItem(name: "X-Plex-Features", value: "external-media,indirect-media"),
             URLQueryItem(name: "X-Plex-Language", value: "en"),
             URLQueryItem(name: "X-Plex-Product", value: "Dusk"),
@@ -642,6 +641,15 @@ extension PlexService {
 
         if isLiveTVSource {
             items.append(URLQueryItem(name: "offset", value: "-1"))
+        } else {
+            // Never for Live TV. With it, a freshly tuned channel's first
+            // media playlist is a single `#EXTINF:0.000000` segment (the one
+            // still being written). AVPlayer takes that playlist, then never
+            // reloads it, never requests a segment and never fails: an
+            // endless spinner (TestFlight, Threadfin channels; reproduced in
+            // the simulator against a cold tune). Without it Plex holds the
+            // first playlist until whole segments exist, like the Plex app.
+            items.append(URLQueryItem(name: "X-Plex-Incomplete-Segments", value: "1"))
         }
 
         if case .spatialAudioRemux = mode {

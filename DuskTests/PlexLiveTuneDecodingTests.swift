@@ -83,3 +83,31 @@ struct PlexLiveTuneDecodingTests {
         #expect(message.contains("tuners are in use"))
     }
 }
+
+/// A cold Plex Live TV tune with `X-Plex-Incomplete-Segments=1` opens with a
+/// media playlist holding one `#EXTINF:0.000000` segment, on which AVPlayer
+/// hangs forever without reloading or failing.
+@Suite("Plex Live TV transcode request")
+@MainActor
+struct PlexLiveTVTranscodeRequestTests {
+    @Test func liveTVNeverAsksForIncompleteSegments() {
+        let names = query(sourcePath: "/livetv/sessions/c83fb5ad-5720-40a6-9731-6beb44e38db9")
+        #expect(names["X-Plex-Incomplete-Segments"] == nil)
+        #expect(names["offset"] == "-1")
+        #expect(names["copyts"] == "0")
+    }
+
+    @Test func libraryTranscodesKeepIncompleteSegments() {
+        let names = query(sourcePath: nil)
+        #expect(names["X-Plex-Incomplete-Segments"] == "1")
+        #expect(names["offset"] == nil)
+    }
+
+    private func query(sourcePath: String?) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: PlexService().transcodeQueryItems(
+            ratingKey: "1", mediaIndex: 0, sourcePath: sourcePath, mode: .directStreamFallback,
+            sessionIdentifier: "session", transcodeSessionID: "transcode",
+            audioStreamID: nil, subtitleStreamID: nil, token: nil
+        ).map { ($0.name, $0.value ?? "") })
+    }
+}

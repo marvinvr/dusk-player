@@ -118,6 +118,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var timeControlStatusObserver: NSKeyValueObservation?
     @ObservationIgnored nonisolated(unsafe) private var playbackEndedObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var playbackStalledObserver: NSObjectProtocol?
+    @ObservationIgnored nonisolated(unsafe) private var itemLogObservers: [NSObjectProtocol] = []
     @ObservationIgnored nonisolated(unsafe) private var subtitleSelectionObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var captionStyleObserver: NSObjectProtocol?
     #if os(iOS)
@@ -217,6 +218,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             NotificationCenter.default.removeObserver(playbackStalledObserver)
             self.playbackStalledObserver = nil
         }
+        itemLogObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        itemLogObservers = []
         if let subtitleSelectionObserver {
             NotificationCenter.default.removeObserver(subtitleSelectionObserver)
         }
@@ -815,21 +818,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         observeSubtitleSelection(for: item)
         observePlaybackEnd(for: item)
         observePlaybackStall(for: item)
+        observeItemLogs(for: item)
         addTimeObserver()
         startVideoQualityMonitor(for: item)
         loadValidationTask = nil
 
         // A live stream asks to play right away instead of after
-        // `.readyToPlay`. Plex Live TV opens with a playlist of one segment,
-        // too short for AVPlayer to pick a live start point. On devices
-        // (TestFlight, Threadfin channels) AVPlayer fetched that playlist
-        // once and never reloaded it while the rate was 0, so the item never
-        // became ready, `prepareReadyItemForPlayback` never called play(),
-        // and the player sat on a black screen with a spinner. The simulator
-        // keeps reloading at rate 0, which is why it always played. With a
-        // rate requested, AVPlayer reloads the growing playlist and starts as
-        // soon as the window allows (`automaticallyWaitsToMinimizeStalling`).
-        // The play() after readiness is then a no-op.
+        // `.readyToPlay`. A cold Plex Live TV tune opens with a playlist of
+        // one or two 1 s segments; at rate 0 AVPlayer loads it once and the
+        // item never becomes ready (reproduced in the simulator: still not
+        // ready after 40 s), so a play() gated on readiness never comes.
+        // With a rate requested it reloads the growing playlist and starts
+        // as soon as the window allows (`automaticallyWaitsToMinimizeStalling`);
+        // the play() after readiness is then a no-op. The other half of that
+        // spinner was incomplete segments (see `transcodeQueryItems`).
         if source.isLiveStream, source.shouldAutoPlay, (source.startPosition ?? 0) <= 0 {
             player.play()
         }
@@ -1153,9 +1155,60 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, self.player.timeControlStatus != .paused else { return }
+                if let context = self.currentAttemptContext {
+                    avPlayerEngineLogger.notice(
+                        "Playback attempt \(context.attemptLabel, privacy: .public) AVPlayer stalled at \(self.player.currentTime().seconds, privacy: .public)s"
+                    )
+                }
                 self.isBuffering = true
             }
         }
+    }
+
+    /// Mirrors the item's access and error logs into the unified log, so a
+    /// stream that never starts shows which playlist or segment AVPlayer
+    /// fetched last and what it rejected (Plex Live TV hung on a spinner
+    /// with nothing but the server log to go on). URLs lose their query: it
+    /// can carry the Plex token or IPTV credentials.
+    private func observeItemLogs(for item: AVPlayerItem) {
+        let center = NotificationCenter.default
+        let access = center.addObserver(
+            forName: AVPlayerItem.newAccessLogEntryNotification,
+            object: item,
+            queue: .main
+        ) { [weak self, weak item] _ in
+            guard let event = item?.accessLog()?.events.last else { return }
+            let line = "requests \(event.numberOfMediaRequests), stalls \(event.numberOfStalls), startup \(String(format: "%.2f", event.startupTime))s, indicated \(Int(event.indicatedBitrate)), observed \(Int(event.observedBitrate)), transferred \(event.numberOfBytesTransferred) B, uri \(Self.logSafeURI(event.uri))"
+            Task { @MainActor [weak self] in
+                guard let label = self?.currentAttemptContext?.attemptLabel else { return }
+                avPlayerEngineLogger.notice(
+                    "Playback attempt \(label, privacy: .public) AVPlayer access log: \(line, privacy: .public)"
+                )
+            }
+        }
+        let errors = center.addObserver(
+            forName: AVPlayerItem.newErrorLogEntryNotification,
+            object: item,
+            queue: .main
+        ) { [weak self, weak item] _ in
+            guard let event = item?.errorLog()?.events.last else { return }
+            let line = "\(event.errorDomain) \(event.errorStatusCode) \(event.errorComment ?? "-"), uri \(Self.logSafeURI(event.uri))"
+            Task { @MainActor [weak self] in
+                guard let label = self?.currentAttemptContext?.attemptLabel else { return }
+                avPlayerEngineLogger.error(
+                    "Playback attempt \(label, privacy: .public) AVPlayer error log: \(line, privacy: .public)"
+                )
+            }
+        }
+        itemLogObservers = [access, errors]
+    }
+
+    nonisolated private static func logSafeURI(_ uri: String?) -> String {
+        guard let uri, var components = URLComponents(string: uri) else { return uri ?? "-" }
+        components.query = nil
+        components.user = nil
+        components.password = nil
+        return components.string ?? "-"
     }
 
     private func removePlaybackEndedObserver() {
@@ -1170,6 +1223,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             NotificationCenter.default.removeObserver(playbackStalledObserver)
             self.playbackStalledObserver = nil
         }
+        itemLogObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        itemLogObservers = []
     }
 
     private func startEnhancedVideoDisplayLink() {

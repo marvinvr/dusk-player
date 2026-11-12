@@ -84,14 +84,25 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   1.43, whatever the client profile says) and serves 1 s segments. A slate
   that loops every ~4 s arrives in 4 s bursts, so AVPlayer needs ~11–16 s to
   start and may hit one live-edge stall that `recoverFromStall` clears.
+- Live TV transcode requests never send `X-Plex-Incomplete-Segments=1`
+  (library transcodes still do). With it, a cold tune's first media playlist
+  is one `#EXTINF:0.000000` segment (the one still being written); AVPlayer
+  loads it once, then never reloads, never requests a segment and never fails,
+  so the player hangs on the spinner (TestFlight builds 94/95, Nov 2026; server
+  log: one `base/index.m3u8`, no `.ts`, `state=buffering` timelines). A warm
+  tune (the channel already held) opens with whole segments and plays, which
+  is why it looked device-only. Without the flag Plex holds the first playlist
+  (~3–4 s) until whole segments exist, as for the Plex app. Reproduce with a
+  plain AVPlayer on the start URL right after a cold tune.
 - AVPlayer gets `play()` as soon as a live item (`PlaybackSource.isLiveStream`)
-  is attached, not after `.readyToPlay`. Plex's first live media playlist can
-  hold a single segment (the index request itself starts the transcoder and
-  blocks ~3–4 s). On devices AVPlayer fetched it once and never reloaded it at
-  rate 0, so it never became ready and the player hung on the spinner
-  (TestFlight, Nov 2026; server log: one pair of `base/index.m3u8` requests,
-  no segments, `state=buffering` timelines). The simulator reloads at rate 0
-  and always played, so a simulator run does not prove this path.
+  is attached, not after `.readyToPlay`. Needed as well: even with whole
+  segments, a cold tune at rate 0 loads the first playlist once and never
+  becomes ready (simulator, 40 s), so a readiness-gated play() never comes.
+  Both halves were verified against a cold tune of the real server; either
+  one alone still hangs.
+- `AVPlayerEngine` mirrors the item's access and error logs (query stripped)
+  and stalls into the `AVPlayerEngine` log category, so a stream that never
+  starts shows the last playlist or segment AVPlayer touched.
 - Debug harness: `-DuskScreenshotScreen plexLivePlayer
   -DuskScreenshotIPTVChannel <n>` tunes the n-th channel of the server's Plex
   Live TV lineup (with a fake plex.tv listing a real server, it plays a real
