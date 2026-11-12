@@ -102,7 +102,9 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
   one alone still hangs.
 - `AVPlayerEngine` mirrors the item's access and error logs (query stripped)
   and stalls into the `AVPlayerEngine` log category, so a stream that never
-  starts shows the last playlist or segment AVPlayer touched.
+  starts shows the last playlist or segment AVPlayer touched. The same
+  observers feed opt-in error reports (error-log domain + status, stalls,
+  dropped frames; never the URI or comment): see `analytics.md` → Error reports.
 - Debug harness: `-DuskScreenshotScreen plexLivePlayer
   -DuskScreenshotIPTVChannel <n>` tunes the n-th channel of the server's Plex
   Live TV lineup (with a fake plex.tv listing a real server, it plays a real

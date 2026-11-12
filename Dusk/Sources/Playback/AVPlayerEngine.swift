@@ -119,6 +119,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var playbackEndedObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var playbackStalledObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var itemLogObservers: [NSObjectProtocol] = []
+    /// One `dropped_frames` report per item.
+    @ObservationIgnored private var didReportDroppedFrames = false
     @ObservationIgnored nonisolated(unsafe) private var subtitleSelectionObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var captionStyleObserver: NSObjectProtocol?
     #if os(iOS)
@@ -736,6 +738,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
                 )
             }
+            var report = AnalyticsErrorReport(.playbackEngineFailed, reason: .itemFailed, error: itemError)
+            report.kind = AnalyticsErrorSanitizer.kind(of: playbackError)
+            report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
+            ErrorReporter.report(report)
             error = playbackError
             state = .error
             isBuffering = false
@@ -891,6 +897,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         avPlayerEngineLogger.error(
             "Playback attempt \(self.currentAttemptContext?.attemptLabel ?? "unknown", privacy: .public) Dolby Vision 7 conversion failed: \(String(describing: conversionError), privacy: .public)"
         )
+        ErrorReporter.report(.decoderFailed, reason: .dolbyVision7Conversion, error: conversionError, engine: .avPlayer)
         player.pause()
         error = .unknown("Dolby Vision 7 conversion failed.")
         state = .error
@@ -1022,6 +1029,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer \(message, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
+        // `message` is log-only: it can hold a server's own error text.
+        ErrorReporter.report(.playbackEngineFailed, reason: .loadFailed, error: error, engine: .avPlayer)
 
         self.error = error
         state = .error
@@ -1160,6 +1169,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                         "Playback attempt \(context.attemptLabel, privacy: .public) AVPlayer stalled at \(self.player.currentTime().seconds, privacy: .public)s"
                     )
                 }
+                ErrorReporter.report(.playbackStalled, engine: .avPlayer)
                 self.isBuffering = true
             }
         }
@@ -1177,13 +1187,21 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             object: item,
             queue: .main
         ) { [weak self, weak item] _ in
-            guard let event = item?.accessLog()?.events.last else { return }
+            guard let events = item?.accessLog()?.events, let event = events.last else { return }
+            // Totals over the item: each variant switch starts a new event.
+            let dropped = events.reduce(0) { $0 + max(0, $1.numberOfDroppedVideoFrames) }
+            let watched = events.reduce(0.0) { $0 + max(0, $1.durationWatched) }
             let line = "requests \(event.numberOfMediaRequests), stalls \(event.numberOfStalls), startup \(String(format: "%.2f", event.startupTime))s, indicated \(Int(event.indicatedBitrate)), observed \(Int(event.observedBitrate)), transferred \(event.numberOfBytesTransferred) B, uri \(Self.logSafeURI(event.uri))"
             Task { @MainActor [weak self] in
-                guard let label = self?.currentAttemptContext?.attemptLabel else { return }
+                guard let self, let label = self.currentAttemptContext?.attemptLabel else { return }
                 avPlayerEngineLogger.notice(
                     "Playback attempt \(label, privacy: .public) AVPlayer access log: \(line, privacy: .public)"
                 )
+                if !self.didReportDroppedFrames,
+                   DroppedFrameThreshold.isExceeded(dropped: dropped, watchedSeconds: watched) {
+                    self.didReportDroppedFrames = true
+                    ErrorReporter.report(.droppedFrames, engine: .avPlayer, count: dropped)
+                }
             }
         }
         let errors = center.addObserver(
@@ -1193,13 +1211,20 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         ) { [weak self, weak item] _ in
             guard let event = item?.errorLog()?.events.last else { return }
             let line = "\(event.errorDomain) \(event.errorStatusCode) \(event.errorComment ?? "-"), uri \(Self.logSafeURI(event.uri))"
+            // Domain and status only: the comment and URI stay in the log.
+            var report = AnalyticsErrorReport(.playbackStreamError)
+            report.domain = AnalyticsErrorSanitizer.domain(event.errorDomain)
+            report.code = event.errorStatusCode
+            report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
             Task { @MainActor [weak self] in
+                ErrorReporter.report(report)
                 guard let label = self?.currentAttemptContext?.attemptLabel else { return }
                 avPlayerEngineLogger.error(
                     "Playback attempt \(label, privacy: .public) AVPlayer error log: \(line, privacy: .public)"
                 )
             }
         }
+        didReportDroppedFrames = false
         itemLogObservers = [access, errors]
     }
 

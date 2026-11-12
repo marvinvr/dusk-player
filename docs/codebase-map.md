@@ -8,7 +8,7 @@ ownership and flow, not a full symbol index.
 ```text
 Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes, server connect pass
-  Analytics/           Anonymous event vocabulary and fire-and-forget reporting
+  Analytics/           Anonymous event + error vocabulary and fire-and-forget reporting
   Models/              Plex response models and app-facing media structs
   PlexService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),

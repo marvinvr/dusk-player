@@ -658,6 +658,7 @@ extension PlayerViewModel {
         stallRecoveryAttempts += 1
         lastStallRecoveryAt = now
         stalledPlaybackStartedAt = now
+        ErrorReporter.report(.playbackStallRecovery, count: stallRecoveryAttempts)
         engine.recoverFromStall()
     }
 

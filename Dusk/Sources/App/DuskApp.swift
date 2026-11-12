@@ -156,6 +156,8 @@ struct DuskApp: App {
             downloadManager: downloads,
             offlinePlaybackSyncManager: playbackSync
         )
+        ErrorReporter.client = analyticsClient
+        ErrorReporter.playbackProfile = { [weak coordinator] in coordinator?.errorReportingProfile }
         let trakt = TraktService(plexService: service)
         coordinator.traktService = trakt
         _traktService = State(initialValue: trakt)

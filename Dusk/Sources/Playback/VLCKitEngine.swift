@@ -218,8 +218,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             currentVideoQuality = nil
             lastVideoQualityRefresh = nil
             smoothedVideoBitrate = nil
+            didReportDroppedFrames = false
         }
     }
+    /// One `dropped_frames` report per session.
+    @ObservationIgnored private var didReportDroppedFrames = false
     private(set) var currentVideoQuality: PlaybackVideoQuality?
     @ObservationIgnored private var lastVideoQualityRefresh: Date?
     @ObservationIgnored private var smoothedVideoBitrate: Double?
@@ -1605,10 +1608,14 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             vlcKitEngineLogger.error(
                 "Playback attempt \(attemptLabel, privacy: .public) VLCKit entered error state. parsedStatus=\(parsedStatus, privacy: .public) currentTime=\(self.currentTime, privacy: .public) duration=\(self.duration, privacy: .public) URL=\(urlLabel, privacy: .public) libraryError=\(libraryError ?? "<none>", privacy: .public)"
             )
-            error = PlaybackError.fromDirectPlayFailureMessage(
+            let vlcError = PlaybackError.fromDirectPlayFailureMessage(
                 libraryError ?? vlcPlaybackErrorMessage(),
                 fallback: vlcPlaybackErrorMessage()
             )
+            // libvlc's message is free text (it can name the URL): only the
+            // classified `PlaybackError` case is reported.
+            ErrorReporter.report(.playbackEngineFailed, reason: .engineError, error: vlcError, engine: .vlcKit)
+            error = vlcError
             clearPendingSeek()
             loadValidationTask = nil
 
@@ -1661,6 +1668,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                denominator > 0 {
                 quality.frameRate = PlaybackVideoQuality.snappedFrameRate(rate / denominator)
             }
+        }
+
+        if !didReportDroppedFrames, let stats = mediaPlayer.media?.statistics,
+           DroppedFrameThreshold.isExceeded(dropped: Int(stats.lostPictures), displayed: Int(stats.displayedPictures)) {
+            didReportDroppedFrames = true
+            ErrorReporter.report(.droppedFrames, engine: .vlcKit, count: Int(stats.lostPictures))
         }
 
         // libvlc's rate is in bytes per microsecond and swings with every demux
@@ -2152,6 +2165,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) \(message, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
+        ErrorReporter.report(.playbackEngineFailed, reason: .loadFailed, error: error, engine: .vlcKit)
 
         self.error = error
         state = .error
@@ -2376,6 +2390,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             vlcKitEngineLogger.error(
                 "libvlc could not open the TrueHD decoder for track \(trackID, privacy: .public); handing it to the Plex fallback"
             )
+            ErrorReporter.report(.decoderFailed, reason: .trueHD, engine: .vlcKit)
             return
         }
 

@@ -1285,6 +1285,7 @@ final class DownloadManager {
                 }
                 return
             }
+            ErrorReporter.report(.downloadFailed, reason: .prepare, error: error)
             update(globalKey: record.globalKey) {
                 $0.status = .failed
                 $0.downloadTaskIdentifier = nil
@@ -1558,6 +1559,7 @@ final class DownloadManager {
             }
         } catch {
             try? FileManager.default.removeItem(at: temporaryURL)
+            ErrorReporter.report(.downloadFailed, reason: .finalize, error: error)
             update(globalKey: globalKey) { item in
                 item.status = .failed
                 item.wasPausedForProfileSwitch = false
@@ -2130,6 +2132,9 @@ final class DownloadManager {
                 finishProfileSuspension(taskIdentifier: taskIdentifier)
                 return
             }
+            if let status = record(globalKey: globalKey)?.status, status != .completed, status != .cancelled {
+                ErrorReporter.report(.downloadFailed, reason: .transfer, error: error)
+            }
             update(globalKey: globalKey) { item in
                 guard item.status != .completed && item.status != .cancelled else { return }
                 item.status = .failed
@@ -2304,6 +2309,7 @@ final class DownloadManager {
                 )
                 reconciledRecords.append(record)
             } catch {
+                ErrorReporter.report(.downloadFailed, reason: .validate, error: error)
                 record.status = .failed
                 record.errorMessage = downloadErrorMessage(for: error)
                 record.downloadTaskIdentifier = nil

@@ -17,7 +17,9 @@ import UIKit
 ///   Rybbit never has to fall back to its default identity, which is a hash of
 ///   IP and User-Agent.
 /// - **Nothing Plex-derived is ever reported.** No titles, servers, libraries,
-///   search terms, or playback state. See `docs/analytics.md`.
+///   search terms, or playback state. Error reports carry a technical profile
+///   (codec, container, HDR format, resolution bucket) only through the
+///   allowlists in `AnalyticsErrorSanitizer`. See `docs/analytics.md`.
 /// - **Nothing is ever surfaced to the user.** No error state, no spinner, no
 ///   log. A failure to report is invisible by design.
 /// - **Debug builds report nothing**, so development never pollutes counters.
@@ -45,6 +47,7 @@ final class AnalyticsClient {
 
     private let preferences: UserPreferences
     private let defaults: UserDefaults
+    @ObservationIgnored private var errorRateLimiter = AnalyticsErrorRateLimiter()
 
     init(preferences: UserPreferences, defaults: UserDefaults = .standard) {
         self.preferences = preferences
@@ -68,6 +71,19 @@ final class AnalyticsClient {
     func record(_ event: AnalyticsEvent) {
         guard isActive else { return }
         guard let body = payload(for: event) else { return }
+
+        Task.detached(priority: .background) {
+            await Self.post(body)
+        }
+    }
+
+    /// Sends one error report as a Rybbit `error` event, unless the same
+    /// error went out recently or too many have (`AnalyticsErrorRateLimiter`).
+    /// Same consent gate, same transport, same silence on failure.
+    func recordError(_ report: AnalyticsErrorReport, now: Date = .now) {
+        guard isActive else { return }
+        guard errorRateLimiter.allow(report.signature, now: now) else { return }
+        guard let body = errorPayload(for: report) else { return }
 
         Task.detached(priority: .background) {
             await Self.post(body)
@@ -115,6 +131,38 @@ final class AnalyticsClient {
         return try? JSONEncoder().encode(body)
     }
 
+    private func errorPayload(for report: AnalyticsErrorReport) -> Data? {
+        guard let properties = Self.encodedErrorProperties(for: report) else { return nil }
+        let body = Payload(
+            siteID: Configuration.siteID,
+            type: "error",
+            eventName: report.category.rawValue,
+            properties: properties,
+            userID: installID,
+            hostname: Configuration.hostname,
+            pathname: report.category.path,
+            userAgent: Self.userAgent,
+            language: Self.language
+        )
+        return try? JSONEncoder().encode(body)
+    }
+
+    /// The error report's own fields plus the device envelope. Rybbit's
+    /// `error` type requires a string `message` and caps the bag at 4 KB; a
+    /// report is a few hundred bytes.
+    static func encodedErrorProperties(for report: AnalyticsErrorReport) -> String? {
+        var properties = report.properties
+        properties["app_version"] = .string(appVersion)
+        properties["platform"] = .string(platform)
+        properties["os_version"] = .string(osVersion)
+        properties["device_model"] = .string(deviceModel)
+
+        guard let data = try? JSONEncoder().encode(properties),
+              let string = String(data: data, encoding: .utf8),
+              data.count <= 4096 else { return nil }
+        return string
+    }
+
     /// Rybbit takes `properties` as a JSON-encoded *string*, and only supports
     /// string and number values with no nesting.
     private func encodedProperties(for event: AnalyticsEvent) -> String? {
@@ -137,16 +185,33 @@ final class AnalyticsClient {
 
     // MARK: - Environment
 
-    private static let appVersion: String = {
+    static let appVersion: String = {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "unknown"
     }()
 
-    private static let platform: String = {
+    static let platform: String = {
         #if os(tvOS)
         return "tvos"
         #else
         return UIDevice.current.userInterfaceIdiom == .pad ? "ipados" : "ios"
         #endif
+    }()
+
+    private static let osVersion: String = UIDevice.current.systemVersion
+
+    /// The hardware identifier (`AppleTV14,1`, `iPhone17,3`), which names a
+    /// model, not a device. The simulator reports its host's `arm64`, so it
+    /// reads the simulated model instead.
+    static let deviceModel: String = {
+        if let simulated = ProcessInfo.processInfo.environment["SIMULATOR_MODEL_IDENTIFIER"] {
+            return simulated
+        }
+        var info = utsname()
+        uname(&info)
+        let machine = withUnsafeBytes(of: &info.machine) { buffer in
+            String(decoding: buffer.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        return machine.isEmpty ? "unknown" : machine
     }()
 
     /// Sent explicitly so Rybbit is not left parsing URLSession's default

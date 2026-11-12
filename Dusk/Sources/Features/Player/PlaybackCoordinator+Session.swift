@@ -72,6 +72,7 @@ extension PlaybackCoordinator {
 
         var firstFailureMessage: String?
         var wasRefusedRemotely = false
+        lastStartFailureError = nil
 
         for (index, candidate) in candidates.enumerated() {
             let isLastCandidate = index == candidates.index(before: candidates.endIndex)
@@ -129,6 +130,14 @@ extension PlaybackCoordinator {
         // A server that refused the stream as remote has the one answer the
         // viewer can act on (be home, or get a pass); it beats another
         // server's generic error.
+        ErrorReporter.report(
+            .playbackStartFailed,
+            reason: wasRefusedRemotely ? .remoteRefused : .allCandidatesFailed,
+            error: lastStartFailureError,
+            count: candidates.count
+        )
+        lastStartFailureError = nil
+
         if wasRefusedRemotely {
             loadError = RemotePlaybackRefusal.message
             return false
@@ -473,6 +482,7 @@ extension PlaybackCoordinator {
                             if StreamResolver.containsAV1(media) {
                                 return .hardFailure(error.localizedDescription)
                             }
+                            ErrorReporter.report(.transcodeFailed, reason: .serverStreamRequestFailed, error: error)
                             playbackSessionLogger.error(
                                 "Server stream request failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); proceeding with direct play"
                             )
@@ -765,6 +775,7 @@ extension PlaybackCoordinator {
         } catch {
             // Don't surface an error for a superseded/dismissed attempt.
             guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else { return .superseded }
+            lastStartFailureError = error
             playbackSessionLogger.error(
                 "Playback attempt failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
@@ -981,9 +992,11 @@ extension PlaybackCoordinator {
                     activeTranscodeSessionID = newTranscodeSessionID
                     playbackURL = result.url
                 case .directPlayOnly:
+                    ErrorReporter.report(.transcodeFailed, reason: .qualitySwitch)
                     presentQualitySwitchError("Plex reported that this item can only direct play.")
                     return
                 case let .failed(message):
+                    ErrorReporter.report(.transcodeFailed, reason: .qualitySwitch)
                     presentQualitySwitchError(message ?? "Plex could not start a transcode session.")
                     return
                 }
@@ -1017,6 +1030,7 @@ extension PlaybackCoordinator {
             playbackSessionLogger.error(
                 "Quality switch failed for ratingKey \(ratingKey, privacy: .public), preset \(preset.displayName, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
+            ErrorReporter.report(.transcodeFailed, reason: .qualitySwitch, error: error)
             presentQualitySwitchError(error.localizedDescription)
         }
     }
@@ -1188,6 +1202,7 @@ extension PlaybackCoordinator {
             }
             guard case .transcodeAvailable = result.outcome else {
                 stopTranscodeSessionInBackground(newTranscodeSessionID, serverID: activePlaybackServerID)
+                ErrorReporter.report(.transcodeFailed, reason: .airPlay)
                 presentQualitySwitchError(airPlayUnavailableMessage(for: result.outcome))
                 return
             }
@@ -1225,6 +1240,7 @@ extension PlaybackCoordinator {
             playbackSessionLogger.error(
                 "AirPlay preparation failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
+            ErrorReporter.report(.transcodeFailed, reason: .airPlay, error: error)
             presentQualitySwitchError("Couldn’t prepare AirPlay: \(error.localizedDescription)")
         }
     }
@@ -1825,7 +1841,14 @@ extension PlaybackCoordinator {
             }
         }
 
+        // What the engine died of, reported once per rung taken below.
+        let engineError = engine?.error
+        func reportFallback(_ reason: AnalyticsErrorReason) {
+            ErrorReporter.report(.engineFallback, reason: reason, error: engineError)
+        }
+
         if let debugInfo, StreamResolver.containsAV1(debugInfo.media) {
+            reportFallback(.av1ServerStream)
             await rebuildServerStreamSession(reason: "AV1 local decode or remux failed")
             return
         }
@@ -1837,6 +1860,7 @@ extension PlaybackCoordinator {
         if debugInfo?.decision.isSpatialAudio == true, playbackSource?.dolbyVision7Conversion != nil {
             let failureDescription = engine?.error?.errorDescription ?? "engine reported state .error"
             isDolbyVision7ConversionSuppressed = true
+            reportFallback(.dolbyVision7ConversionRetry)
             if await retryRemuxWithoutDolbyVision7Conversion(failureDescription: failureDescription) {
                 return
             }
@@ -1857,9 +1881,11 @@ extension PlaybackCoordinator {
             // 8-bit picture (#59). Only a remux that never played takes the
             // direct-play rung below.
             if didRemuxReachPlayback, let part = debugInfo?.part, StreamResolver.containsHDRVideo(inPart: part) {
+                reportFallback(.hdrRemuxRecovery)
                 await recoverLiveHDRRemux(failureDescription: failureDescription)
                 return
             }
+            reportFallback(.remuxToDirectPlay)
             await leaveSpatialAudioRemux(
                 reason: "Spatial-audio remux failed (\(failureDescription)); automatic direct-play fallback",
                 keepsExplicitTracks: false
@@ -1927,6 +1953,7 @@ extension PlaybackCoordinator {
             }
 
             guard case .transcodeAvailable = result.outcome else {
+                ErrorReporter.report(.engineFallbackFailed, reason: .serverStreamUnavailable, error: engineError)
                 playbackSessionLogger.error(
                     "Server-stream fallback unavailable for ratingKey \(ratingKey, privacy: .public) (outcome \(String(describing: result.outcome), privacy: .public)); leaving the error surface in place"
                 )
@@ -1937,6 +1964,7 @@ extension PlaybackCoordinator {
                 stopTranscodeSessionInBackground(failedRemuxSessionID, serverID: activePlaybackServerID)
             }
             activeTranscodeSessionID = transcodeSessionID
+            reportFallback(.directPlayToServerStream)
             activateReplacementAttempt(
                 transitionLabel: "falling back to server stream after direct-play failure",
                 attemptID: UUID(),
@@ -1956,6 +1984,7 @@ extension PlaybackCoordinator {
             playbackSessionLogger.error(
                 "Server-stream fallback failed for ratingKey \(ratingKey, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
             )
+            ErrorReporter.report(.engineFallbackFailed, reason: .serverStreamRequestFailed, error: error)
             if plexService.isRemotePlaybackRefusal(error, serverID: activePlaybackServerID) {
                 await recoverFromRemotePlaybackRefusal(
                     details: details,
@@ -1992,6 +2021,7 @@ extension PlaybackCoordinator {
         }
 
         if isLocalNow, let directPlayURL = plexService.directPlayURL(for: part, serverID: serverID) {
+            ErrorReporter.report(.engineFallback, reason: .remoteRefusalToLocal)
             activateReplacementAttempt(
                 transitionLabel: "retrying direct play over the local network after Plex refused remote playback",
                 attemptID: UUID(),
@@ -2241,6 +2271,24 @@ extension PlaybackCoordinator {
         return StreamResolver.selectMediaVersion(
             from: details.media,
             preferredMaxResolution: preferences.maxResolution
+        )
+    }
+}
+
+// MARK: - Error reporting
+
+extension PlaybackCoordinator {
+    /// What `ErrorReporter` attaches to a playback error: the technical
+    /// profile of the current session, through the sanitizer's allowlists.
+    /// Never the title, rating key, server or URL in `debugInfo`.
+    var errorReportingProfile: AnalyticsMediaProfile? {
+        guard let debugInfo else { return nil }
+        return AnalyticsErrorSanitizer.profile(
+            engine: debugInfo.engine,
+            decision: debugInfo.decision,
+            locality: playbackSource?.locality,
+            media: debugInfo.media,
+            part: debugInfo.part
         )
     }
 }

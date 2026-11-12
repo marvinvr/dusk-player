@@ -227,6 +227,9 @@ final class PlaybackCoordinator {
     /// start and swaps the session to the server-stream ladder rung when the
     /// engine fails. Cancelled on finalize/clear/engine swap.
     @ObservationIgnored nonisolated(unsafe) var directPlayFallbackWatchTask: Task<Void, Never>?
+    /// The last thrown error of the current candidate walk, so its one
+    /// `playback_start_failed` report carries a domain and code.
+    @ObservationIgnored var lastStartFailureError: (any Error)?
     @ObservationIgnored nonisolated(unsafe) var airPlayTransitionTask: Task<Void, Never>?
     /// Serializes Atmos-remux rebuilds after track changes.
     @ObservationIgnored nonisolated(unsafe) var spatialAudioTransitionTask: Task<Void, Never>?

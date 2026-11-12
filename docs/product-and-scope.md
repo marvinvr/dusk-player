@@ -89,7 +89,9 @@ analytics or crash-reporting SDKs, no profiles, and nothing shared with anyone.
 
 The one exception is the anonymous event reporting described in `analytics.md`,
 sent to our own self-hosted Rybbit instance. It is opt-out in Settings and bound
-by hard rules: a closed event vocabulary, no Plex-derived data of any kind, an
+by hard rules: a closed event and error vocabulary, no Plex-derived data beyond
+the allowlisted technical profile on error reports (codec, container, HDR
+format, resolution bucket), error codes but never error messages, an
 app-generated random identifier rather than anything device- or account-derived,
 and no retry queue on device. Those rules are what keep the published privacy
 policy accurate — treat a change that breaks one of them as a policy change, not

@@ -336,6 +336,7 @@ struct SignInView: View {
             openAuthURL(url)
             #endif
         } catch {
+            ErrorReporter.report(.signInFailed, reason: .pinRequest, error: error)
             self.error = error.localizedDescription
             isSigningIn = false
         }
@@ -376,6 +377,7 @@ struct SignInView: View {
             isSigningIn = false
             linkPinCode = nil
             authURL = nil
+            ErrorReporter.report(.signInFailed, reason: .timeout)
             error = "Sign-in timed out. Please try again."
         }
     }

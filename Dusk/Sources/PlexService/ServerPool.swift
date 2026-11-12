@@ -682,9 +682,11 @@ final class ServerPool {
                 "Server \(server.name, privacy: .public) rejected its access token"
             )
             states[serverID] = .unauthorized
+            ErrorReporter.report(.connectionFailed, reason: .unauthorized, count: work.candidates.count)
         case let .failed(reason):
             // The current endpoint was a candidate too, so nothing works.
             states[serverID] = .offline(reason)
+            ErrorReporter.report(.connectionFailed, reason: .unreachable, count: work.candidates.count)
         }
     }
 }
