@@ -30,28 +30,10 @@ struct SettingsIOSView: View {
         .sheet(isPresented: $showsSupporterSheet) {
             SupporterView(context: .settings)
         }
-        .sheet(isPresented: $showsIconPicker) {
-            AppIconPickerView()
-        }
-        .confirmationDialog(
-            "Delete all downloads?",
-            isPresented: $confirmsDeletingDownloads,
-            titleVisibility: .visible
-        ) {
-            Button("Delete All Downloads", role: .destructive) {
-                downloadManager.deleteAllDownloads()
-                offlinePlaybackSyncManager.deleteAllLocalState()
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
-        }
     }
 
     @ViewBuilder
     private var settingsContent: some View {
-        @Bindable var preferences = preferences
-
         List {
             Section {
                 Button {
@@ -122,458 +104,92 @@ struct SettingsIOSView: View {
 
             Section {
                 NavigationLink {
-                    SeerrSettingsView()
+                    SettingsIOSPage(title: "Live TV") { liveTVSection }
                 } label: {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("Seerr")
-                            .foregroundStyle(Color.duskTextPrimary)
-                        Text(seerrService.connectionSubtitle)
-                            .font(.caption)
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-                if traktService.isAvailable {
-                    NavigationLink {
-                        TraktSettingsView()
-                    } label: {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text("Trakt")
-                                .foregroundStyle(Color.duskTextPrimary)
-                            Text(traktService.connectionSubtitle)
-                                .font(.caption)
-                                .foregroundStyle(Color.duskTextSecondary)
-                        }
-                    }
-                }
-            } header: {
-                Text("Integrations")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable))
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                NavigationLink {
-                    IPTVSourcesSettingsView()
-                } label: {
-                    HStack {
-                        Text("IPTV Sources")
-                            .foregroundStyle(Color.duskTextPrimary)
-                        Spacer()
-                        Text(SettingsSupport.iptvSourcesSummary(iptvService.sources.count))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-            } header: {
-                Text("Live TV")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.liveTVFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                NavigationLink {
-                    LibraryTabSettingsView()
-                } label: {
-                    HStack {
-                        Text("Navigation Tabs")
-                            .foregroundStyle(Color.duskTextPrimary)
-
-                        Spacer()
-
-                        Text(SettingsSupport.libraryTabsSummary(preferences))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
+                    settingsPageLabel("Live TV")
                 }
 
                 NavigationLink {
-                    HiddenLibrariesSettingsView()
+                    SettingsIOSPage(title: "Libraries") { librariesSection }
                 } label: {
-                    HStack {
-                        Text("Hidden Libraries")
-                            .foregroundStyle(Color.duskTextPrimary)
-
-                        Spacer()
-
-                        Text(SettingsSupport.hiddenLibrariesSummary(plexService))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
+                    settingsPageLabel("Libraries")
                 }
 
                 NavigationLink {
-                    ServerPrioritySettingsView()
+                    SettingsIOSPage(title: "Home") { homeSection }
                 } label: {
-                    HStack {
-                        Text("Server Priority")
-                            .foregroundStyle(Color.duskTextPrimary)
-
-                        Spacer()
-
-                        Text(SettingsSupport.serverPrioritySummary(plexService))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-            } header: {
-                Text("Libraries")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.librariesFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                NavigationLink {
-                    HiddenHomeRowsSettingsView()
-                } label: {
-                    Text("Hidden Rows")
-                        .foregroundStyle(Color.duskTextPrimary)
+                    settingsPageLabel("Home")
                 }
 
                 NavigationLink {
-                    PinnedPlaylistsSettingsView()
+                    SettingsIOSPage(title: "Home Advanced") { homeAdvancedSection }
                 } label: {
-                    HStack {
-                        Text("Pinned Playlists")
-                            .foregroundStyle(Color.duskTextPrimary)
-                        Spacer()
-                        Text(SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
+                    settingsPageLabel("Home Advanced")
                 }
-
-                Toggle("Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-                Toggle("Show Live TV", isOn: $preferences.showsLiveTVOnHome)
-                    .foregroundStyle(Color.duskTextPrimary)
-            } header: {
-                Text("Home")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.homeFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Toggle("Compact Continue Watching", isOn: $preferences.compactHomeContinueWatching)
-                    .foregroundStyle(Color.duskTextPrimary)
-            } header: {
-                Text("Home Advanced")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.homeAdvancedFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Picker("Max Resolution", selection: $preferences.maxResolution) {
-                    ForEach(MaxResolution.allCases) { resolution in
-                        Text(resolution.displayName).tag(resolution)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Picker("Preferred Version", selection: $preferences.preferredVersion) {
-                    ForEach(PreferredMediaVersion.allCases) { version in
-                        Text(version.displayName).tag(version)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
 
                 NavigationLink {
-                    AudioSubtitleSettingsView()
+                    SettingsIOSPage(title: "Playback Defaults") { playbackDefaultsSection }
                 } label: {
-                    HStack {
-                        Text("Audio & Subtitles")
-                            .foregroundStyle(Color.duskTextPrimary)
-                            .layoutPriority(1)
-
-                        Spacer()
-
-                        Text(SettingsSupport.audioSubtitlesSummary(preferences))
-                            .foregroundStyle(Color.duskTextSecondary)
-                            .lineLimit(1)
-                    }
+                    settingsPageLabel("Playback Defaults")
                 }
 
-                Picker("AI Upscaling", selection: $preferences.videoEnhancementMode) {
-                    ForEach(VideoEnhancementMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-            } header: {
-                Text("Playback Defaults")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.playbackDefaultsFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                if UIDevice.current.userInterfaceIdiom == .phone {
-                    Toggle("Always Play in Landscape", isOn: $preferences.alwaysPlayInLandscape)
-                        .foregroundStyle(Color.duskTextPrimary)
-                }
-
-                Picker("Auto-Skip Intros", selection: $preferences.autoSkipIntroMode) {
-                    ForEach(AutoSkipIntroMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Continuous Play", isOn: $preferences.continuousPlayEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                if preferences.continuousPlayEnabled {
-                    Picker("Next Episode Delay", selection: $preferences.continuousPlayCountdown) {
-                        ForEach(ContinuousPlayCountdown.allCases) { countdown in
-                            Text(countdown.displayName).tag(countdown)
-                        }
-                    }
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                    Picker(
-                        "Pause After",
-                        selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit
-                    ) {
-                        ForEach(SettingsSupport.passoutProtectionEpisodeOptions, id: \.self) { episodeLimit in
-                            Text(SettingsSupport.passoutProtectionDisplayName(for: episodeLimit))
-                                .tag(episodeLimit as Int?)
-                        }
-                    }
-                    .foregroundStyle(Color.duskTextPrimary)
-                }
-
-                Toggle("Episode Buttons", isOn: $preferences.playerEpisodeButtonsEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Double-Tap to Seek", isOn: $preferences.playerDoubleTapSeekEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                if preferences.playerDoubleTapSeekEnabled {
-                    Picker("Back Jump", selection: $preferences.playerDoubleTapBackwardInterval) {
-                        ForEach(PlayerSeekInterval.allCases) { interval in
-                            Text(interval.displayName).tag(interval)
-                        }
-                    }
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                    Picker("Forward Jump", selection: $preferences.playerDoubleTapForwardInterval) {
-                        ForEach(PlayerSeekInterval.allCases) { interval in
-                            Text(interval.displayName).tag(interval)
-                        }
-                    }
-                    .foregroundStyle(Color.duskTextPrimary)
-                }
-            } header: {
-                Text("Playback Behavior")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.playbackBehaviorFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Picker("Preferred Version", selection: $preferences.downloadMaxResolution) {
-                    ForEach(MaxResolution.allCases) { resolution in
-                        Text(resolution.displayName).tag(resolution)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Wi-Fi Only", isOn: $preferences.downloadsWifiOnly)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Picker("Simultaneous Downloads", selection: $preferences.maximumActiveDownloads) {
-                    ForEach(DownloadConcurrency.allCases) { concurrency in
-                        Text(concurrency.displayName).tag(concurrency)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Picker("Keep Free", selection: $preferences.downloadFreeSpaceReserve) {
-                    ForEach(DownloadFreeSpaceReserve.allCases) { reserve in
-                        Text(reserve.displayName).tag(reserve)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                HStack {
-                    Text("Storage Used")
-                        .foregroundStyle(Color.duskTextPrimary)
-                    Spacer()
-                    Text(formattedBytes(downloadManager.storageUsageBytes))
-                        .foregroundStyle(Color.duskTextSecondary)
-                }
-
-                if let availableStorageBytes = downloadManager.availableStorageBytes {
-                    HStack {
-                        Text("Available")
-                            .foregroundStyle(Color.duskTextPrimary)
-                        Spacer()
-                        Text(formattedBytes(availableStorageBytes))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-                }
-
-                if offlinePlaybackSyncManager.pendingSyncCount > 0 {
-                    HStack {
-                        Text("Pending Watch Sync")
-                            .foregroundStyle(Color.duskTextPrimary)
-                        Spacer()
-                        Text("\(offlinePlaybackSyncManager.pendingSyncCount)")
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
-
-                    Button {
-                        Task {
-                            await offlinePlaybackSyncManager.syncPendingActions(force: true)
-                        }
-                    } label: {
-                        if offlinePlaybackSyncManager.isSyncing {
-                            Label("Syncing Watch Progress", systemImage: "arrow.triangle.2.circlepath")
-                        } else {
-                            Label("Sync Watch Progress Now", systemImage: "arrow.triangle.2.circlepath")
-                        }
-                    }
-                    .disabled(offlinePlaybackSyncManager.isSyncing)
-                    .duskSuppressTVOSButtonChrome()
-                }
-
-                Button("Delete All Downloads", role: .destructive) {
-                    confirmsDeletingDownloads = true
-                }
-                .disabled(downloadManager.records.isEmpty)
-                .duskSuppressTVOSButtonChrome()
-            } header: {
-                Text("Downloads")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.downloadsFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Picker("Appearance", selection: $preferences.appearanceMode) {
-                    ForEach(AppearanceMode.allCases) { mode in
-                        Text(mode.displayName).tag(mode)
-                    }
-                }
-                .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Blur Unwatched Episodes", isOn: $preferences.blursUnwatchedEpisodes)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Button {
-                    showsIconPicker = true
+                NavigationLink {
+                    SettingsIOSPage(title: "Playback Behavior") { playbackBehaviorSection }
                 } label: {
-                    HStack {
-                        Text("App Icon")
-                            .foregroundStyle(Color.duskTextPrimary)
-
-                        Spacer()
-
-                        Text(DuskAppIcon.current.displayName)
-                            .foregroundStyle(Color.duskTextSecondary)
-
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
+                    settingsPageLabel("Playback Behavior")
                 }
-                .duskSuppressTVOSButtonChrome()
-            } header: {
-                Text("Appearance")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.appearanceFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
 
-            Section {
-                Toggle("Advanced Playback Controls", isOn: $preferences.playerAdvancedControlsEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Dolby Atmos & Spatial Audio", isOn: $preferences.spatialAudioRemuxEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("HDR & Dolby Vision", isOn: $preferences.hdrVideoRemuxEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Dolby Vision 7 → 8.1", isOn: $preferences.dolbyVision7ConversionEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .disabled(!preferences.hdrVideoRemuxEnabled)
-
-                Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
-                    .foregroundStyle(Color.duskTextPrimary)
-            } header: {
-                Text("Playback Advanced")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.playbackAdvancedFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
-
-            Section {
-                Button {
-                    viewModel.clearImageCache()
+                NavigationLink {
+                    SettingsIOSPage(title: "Downloads") { downloadsSection }
+                        .confirmationDialog(
+                            "Delete all downloads?",
+                            isPresented: $confirmsDeletingDownloads,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete All Downloads", role: .destructive) {
+                                downloadManager.deleteAllDownloads()
+                                offlinePlaybackSyncManager.deleteAllLocalState()
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
+                        }
                 } label: {
-                    HStack {
-                        Text("Clear Image Cache")
-                        Spacer()
-                        Text(viewModel.formattedCacheSize)
-                            .foregroundStyle(Color.duskTextSecondary)
-                    }
+                    settingsPageLabel("Downloads")
                 }
-                .foregroundStyle(Color.duskTextPrimary)
-                .duskSuppressTVOSButtonChrome()
-            } header: {
-                Text("Storage")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(viewModel.storageFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
-            .listRowBackground(Color.duskSurface)
 
-            Section {
-                Toggle("Help Improve Dusk", isOn: $preferences.analyticsEnabled)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Link(destination: SettingsSupport.privacyPolicyURL) {
-                    SettingsAboutRow(
-                        title: "Privacy Policy",
-                        subtitle: "getdusk.app/privacy",
-                        systemImage: "hand.raised",
-                        trailingSystemImage: "arrow.up.right"
-                    )
+                NavigationLink {
+                    SettingsIOSPage(title: "Appearance") { appearanceSection }
+                        .sheet(isPresented: $showsIconPicker) {
+                            AppIconPickerView()
+                        }
+                } label: {
+                    settingsPageLabel("Appearance")
                 }
-                .foregroundStyle(Color.duskTextPrimary)
-            } header: {
-                Text("Privacy")
-                    .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.privacyFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
+
+                NavigationLink {
+                    SettingsIOSPage(title: "Playback Advanced") { playbackAdvancedSection }
+                } label: {
+                    settingsPageLabel("Playback Advanced")
+                }
+
+                NavigationLink {
+                    SettingsIOSPage(title: "Storage") { storageSection }
+                } label: {
+                    settingsPageLabel("Storage")
+                }
+
+                NavigationLink {
+                    SettingsIOSPage(title: "Privacy") { privacySection }
+                } label: {
+                    settingsPageLabel("Privacy")
+                }
+
+                NavigationLink {
+                    SettingsIOSPage(title: "Integrations") { integrationsSection }
+                } label: {
+                    settingsPageLabel("Integrations")
+                }
             }
             .listRowBackground(Color.duskSurface)
 
@@ -677,6 +293,484 @@ struct SettingsIOSView: View {
         .duskScrollContentBackgroundHidden()
     }
 
+    private func settingsPageLabel(_ title: String) -> some View {
+        Text(title)
+            .foregroundStyle(Color.duskTextPrimary)
+    }
+
+    @ViewBuilder
+    private var integrationsSection: some View {
+        Section {
+            NavigationLink {
+                SeerrSettingsView()
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Seerr")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Text(seerrService.connectionSubtitle)
+                        .font(.caption)
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            if traktService.isAvailable {
+                NavigationLink {
+                    TraktSettingsView()
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Trakt")
+                            .foregroundStyle(Color.duskTextPrimary)
+                        Text(traktService.connectionSubtitle)
+                            .font(.caption)
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+            }
+        } footer: {
+            Text(SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable))
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var liveTVSection: some View {
+        Section {
+            NavigationLink {
+                IPTVSourcesSettingsView()
+            } label: {
+                HStack {
+                    Text("IPTV Sources")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text(SettingsSupport.iptvSourcesSummary(iptvService.sources.count))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+        } footer: {
+            Text(SettingsSupport.liveTVFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var librariesSection: some View {
+        Section {
+            NavigationLink {
+                LibraryTabSettingsView()
+            } label: {
+                HStack {
+                    Text("Navigation Tabs")
+                        .foregroundStyle(Color.duskTextPrimary)
+
+                    Spacer()
+
+                    Text(SettingsSupport.libraryTabsSummary(preferences))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+
+            NavigationLink {
+                HiddenLibrariesSettingsView()
+            } label: {
+                HStack {
+                    Text("Hidden Libraries")
+                        .foregroundStyle(Color.duskTextPrimary)
+
+                    Spacer()
+
+                    Text(SettingsSupport.hiddenLibrariesSummary(plexService))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+
+            NavigationLink {
+                ServerPrioritySettingsView()
+            } label: {
+                HStack {
+                    Text("Server Priority")
+                        .foregroundStyle(Color.duskTextPrimary)
+
+                    Spacer()
+
+                    Text(SettingsSupport.serverPrioritySummary(plexService))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+        } footer: {
+            Text(SettingsSupport.librariesFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var homeSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            NavigationLink {
+                HiddenHomeRowsSettingsView()
+            } label: {
+                Text("Hidden Rows")
+                    .foregroundStyle(Color.duskTextPrimary)
+            }
+
+            NavigationLink {
+                PinnedPlaylistsSettingsView()
+            } label: {
+                HStack {
+                    Text("Pinned Playlists")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text(SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+
+            Toggle("Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+            Toggle("Show Live TV", isOn: $preferences.showsLiveTVOnHome)
+                .foregroundStyle(Color.duskTextPrimary)
+        } footer: {
+            Text(SettingsSupport.homeFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var homeAdvancedSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Toggle("Compact Continue Watching", isOn: $preferences.compactHomeContinueWatching)
+                .foregroundStyle(Color.duskTextPrimary)
+        } footer: {
+            Text(SettingsSupport.homeAdvancedFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var playbackDefaultsSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Picker("Max Resolution", selection: $preferences.maxResolution) {
+                ForEach(MaxResolution.allCases) { resolution in
+                    Text(resolution.displayName).tag(resolution)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            Picker("Preferred Version", selection: $preferences.preferredVersion) {
+                ForEach(PreferredMediaVersion.allCases) { version in
+                    Text(version.displayName).tag(version)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            NavigationLink {
+                AudioSubtitleSettingsView()
+            } label: {
+                HStack {
+                    Text("Audio & Subtitles")
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .layoutPriority(1)
+
+                    Spacer()
+
+                    Text(SettingsSupport.audioSubtitlesSummary(preferences))
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(1)
+                }
+            }
+
+            Picker("AI Upscaling", selection: $preferences.videoEnhancementMode) {
+                ForEach(VideoEnhancementMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+        } footer: {
+            Text(SettingsSupport.playbackDefaultsFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var playbackBehaviorSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            if UIDevice.current.userInterfaceIdiom == .phone {
+                Toggle("Always Play in Landscape", isOn: $preferences.alwaysPlayInLandscape)
+                    .foregroundStyle(Color.duskTextPrimary)
+            }
+
+            Picker("Auto-Skip Intros", selection: $preferences.autoSkipIntroMode) {
+                ForEach(AutoSkipIntroMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Continuous Play", isOn: $preferences.continuousPlayEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            if preferences.continuousPlayEnabled {
+                Picker("Next Episode Delay", selection: $preferences.continuousPlayCountdown) {
+                    ForEach(ContinuousPlayCountdown.allCases) { countdown in
+                        Text(countdown.displayName).tag(countdown)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Picker(
+                    "Pause After",
+                    selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit
+                ) {
+                    ForEach(SettingsSupport.passoutProtectionEpisodeOptions, id: \.self) { episodeLimit in
+                        Text(SettingsSupport.passoutProtectionDisplayName(for: episodeLimit))
+                            .tag(episodeLimit as Int?)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+            }
+
+            Toggle("Episode Buttons", isOn: $preferences.playerEpisodeButtonsEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Double-Tap to Seek", isOn: $preferences.playerDoubleTapSeekEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            if preferences.playerDoubleTapSeekEnabled {
+                Picker("Back Jump", selection: $preferences.playerDoubleTapBackwardInterval) {
+                    ForEach(PlayerSeekInterval.allCases) { interval in
+                        Text(interval.displayName).tag(interval)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+
+                Picker("Forward Jump", selection: $preferences.playerDoubleTapForwardInterval) {
+                    ForEach(PlayerSeekInterval.allCases) { interval in
+                        Text(interval.displayName).tag(interval)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+            }
+        } footer: {
+            Text(SettingsSupport.playbackBehaviorFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var downloadsSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Picker("Preferred Version", selection: $preferences.downloadMaxResolution) {
+                ForEach(MaxResolution.allCases) { resolution in
+                    Text(resolution.displayName).tag(resolution)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Wi-Fi Only", isOn: $preferences.downloadsWifiOnly)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Picker("Simultaneous Downloads", selection: $preferences.maximumActiveDownloads) {
+                ForEach(DownloadConcurrency.allCases) { concurrency in
+                    Text(concurrency.displayName).tag(concurrency)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            Picker("Keep Free", selection: $preferences.downloadFreeSpaceReserve) {
+                ForEach(DownloadFreeSpaceReserve.allCases) { reserve in
+                    Text(reserve.displayName).tag(reserve)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            HStack {
+                Text("Storage Used")
+                    .foregroundStyle(Color.duskTextPrimary)
+                Spacer()
+                Text(formattedBytes(downloadManager.storageUsageBytes))
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+
+            if let availableStorageBytes = downloadManager.availableStorageBytes {
+                HStack {
+                    Text("Available")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text(formattedBytes(availableStorageBytes))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+
+            if offlinePlaybackSyncManager.pendingSyncCount > 0 {
+                HStack {
+                    Text("Pending Watch Sync")
+                        .foregroundStyle(Color.duskTextPrimary)
+                    Spacer()
+                    Text("\(offlinePlaybackSyncManager.pendingSyncCount)")
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+
+                Button {
+                    Task {
+                        await offlinePlaybackSyncManager.syncPendingActions(force: true)
+                    }
+                } label: {
+                    if offlinePlaybackSyncManager.isSyncing {
+                        Label("Syncing Watch Progress", systemImage: "arrow.triangle.2.circlepath")
+                    } else {
+                        Label("Sync Watch Progress Now", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                }
+                .disabled(offlinePlaybackSyncManager.isSyncing)
+                .duskSuppressTVOSButtonChrome()
+            }
+
+            Button("Delete All Downloads", role: .destructive) {
+                confirmsDeletingDownloads = true
+            }
+            .disabled(downloadManager.records.isEmpty)
+            .duskSuppressTVOSButtonChrome()
+        } footer: {
+            Text(SettingsSupport.downloadsFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var appearanceSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Picker("Appearance", selection: $preferences.appearanceMode) {
+                ForEach(AppearanceMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Blur Unwatched Episodes", isOn: $preferences.blursUnwatchedEpisodes)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Button {
+                showsIconPicker = true
+            } label: {
+                HStack {
+                    Text("App Icon")
+                        .foregroundStyle(Color.duskTextPrimary)
+
+                    Spacer()
+
+                    Text(DuskAppIcon.current.displayName)
+                        .foregroundStyle(Color.duskTextSecondary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            .duskSuppressTVOSButtonChrome()
+        } footer: {
+            Text(SettingsSupport.appearanceFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var playbackAdvancedSection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Toggle("Advanced Playback Controls", isOn: $preferences.playerAdvancedControlsEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Dolby Atmos & Spatial Audio", isOn: $preferences.spatialAudioRemuxEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("HDR & Dolby Vision", isOn: $preferences.hdrVideoRemuxEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Dolby Vision 7 → 8.1", isOn: $preferences.dolbyVision7ConversionEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+                .disabled(!preferences.hdrVideoRemuxEnabled)
+
+            Toggle("Force AVPlayer", isOn: $preferences.forceAVPlayer)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
+                .foregroundStyle(Color.duskTextPrimary)
+        } footer: {
+            Text(SettingsSupport.playbackAdvancedFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var storageSection: some View {
+        Section {
+            Button {
+                viewModel.clearImageCache()
+            } label: {
+                HStack {
+                    Text("Clear Image Cache")
+                    Spacer()
+                    Text(viewModel.formattedCacheSize)
+                        .foregroundStyle(Color.duskTextSecondary)
+                }
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+            .duskSuppressTVOSButtonChrome()
+        } footer: {
+            Text(viewModel.storageFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
+    @ViewBuilder
+    private var privacySection: some View {
+        @Bindable var preferences = preferences
+
+        Section {
+            Toggle("Help Improve Dusk", isOn: $preferences.analyticsEnabled)
+                .foregroundStyle(Color.duskTextPrimary)
+
+            Link(destination: SettingsSupport.privacyPolicyURL) {
+                SettingsAboutRow(
+                    title: "Privacy Policy",
+                    subtitle: "getdusk.app/privacy",
+                    systemImage: "hand.raised",
+                    trailingSystemImage: "arrow.up.right"
+                )
+            }
+            .foregroundStyle(Color.duskTextPrimary)
+        } footer: {
+            Text(SettingsSupport.privacyFooterText)
+                .foregroundStyle(Color.duskTextSecondary)
+        }
+        .listRowBackground(Color.duskSurface)
+    }
+
     private var accountSheetPresented: Binding<Bool> {
         Binding(
             get: { presentedAccountURL != nil },
@@ -696,6 +790,22 @@ struct SettingsIOSView: View {
 
     private func formattedBytes(_ value: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    }
+}
+
+/// One settings section on its own page, pushed from a root row.
+private struct SettingsIOSPage<Content: View>: View {
+    let title: String
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        List {
+            content()
+        }
+        .contentMargins(.top, 12, for: .scrollContent)
+        .duskScrollContentBackgroundHidden()
+        .background(Color.duskBackground.ignoresSafeArea())
+        .duskNavigationTitle(title)
     }
 }
 

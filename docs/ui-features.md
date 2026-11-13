@@ -1313,7 +1313,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Plex detail routes, playback, downloads, or watch-state actions.
 - `SettingsView` selects the platform shell. Shared sheet/navigation chrome is in
   `SettingsContainer`.
-- The Integrations section links to `SeerrSettingsView`. Both platforms accept
+- The Integrations page links to `SeerrSettingsView`. Both platforms accept
   only a server URL and connect using the active Plex identity; tvOS uses native
   keyboard/Remote input rather than a browser login.
 - Integrations also links to `TraktSettingsView` when the build carries Trakt
@@ -1393,10 +1393,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   is enough for both platforms. Playback matching then canonicalizes Plex/VLCKit
   ISO 639-2 codes (`rum`/`ron` → `ro`) in `PlayerViewModel.normalizedLanguageCode`.
 - Both settings pages lead with a supporter row (thank-you state for supporters),
-  followed by Plex Home when applicable. There is no "Plex Server" section and no
-  server picker: servers are managed in Navigation › Server Priority. Everyday playback
-  and appearance settings follow, while engine overrides, storage, About, and
-  Account stay lower on the page. AI Upscaling is a normal Playback Default;
+  followed by Plex Home when applicable. Every other section is a sub-page row on
+  the root, in this order: Live TV, Libraries, Home, Home Advanced, Playback
+  Defaults, Playback Behavior, Downloads (iOS), Appearance, Playback Advanced,
+  Storage, Privacy, Integrations. Each page holds that section's rows unchanged
+  (`SettingsIOSPage` / `TVSettingsPage`; tvOS repeats the section header because
+  it has no navigation title). About and Account stay inline at the bottom. There
+  is no "Plex Server" section and no server picker: servers are managed in
+  Libraries › Server Priority. AI Upscaling is a normal Playback Default;
   Playback Advanced is reserved for forced engine selection. The iOS Appearance
   section has an App Icon row opening `AppIconPickerView`. The supporter tier
   itself (StoreKit products, status rules, the iOS/iPadOS prompt schedule, alternate

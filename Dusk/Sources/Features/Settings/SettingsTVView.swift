@@ -20,8 +20,6 @@ struct SettingsTVView: View {
     }
 
     private var settingsContent: some View {
-        @Bindable var preferences = preferences
-
         return ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 Text("Settings")
@@ -84,250 +82,70 @@ struct SettingsTVView: View {
                     }
                 }
 
-                TVSettingsSection(
-                    title: "Integrations",
-                    footer: SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable)
-                ) {
-                    TVSettingsNavigationRow(
-                        title: "Seerr",
-                        detail: seerrService.connectionSubtitle
-                    ) {
-                        SeerrSettingsView()
-                    }
-                    if traktService.isAvailable {
-                        TVSettingsNavigationRow(
-                            title: "Trakt",
-                            detail: traktService.connectionSubtitle
-                        ) {
-                            TraktSettingsView()
-                        }
-                    }
-                }
-
-                TVSettingsSection(title: "Live TV", footer: SettingsSupport.liveTVFooterText) {
-                    TVSettingsNavigationRow(
-                        title: "IPTV Sources",
-                        detail: SettingsSupport.iptvSourcesSummary(iptvService.sources.count)
-                    ) {
-                        IPTVSourcesSettingsView()
-                    }
-                }
-
-                TVSettingsSection(
-                    title: "Libraries",
-                    footer: SettingsSupport.librariesFooterText
-                ) {
-                    TVSettingsNavigationRow(
-                        title: "Navigation Tabs",
-                        detail: SettingsSupport.libraryTabsSummary(preferences)
-                    ) {
-                        LibraryTabSettingsView()
+                TVSettingsSection {
+                    TVSettingsNavigationRow(title: "Live TV") {
+                        TVSettingsPage { liveTVSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsNavigationRow(
-                        title: "Hidden Libraries",
-                        detail: SettingsSupport.hiddenLibrariesSummary(plexService)
-                    ) {
-                        HiddenLibrariesSettingsView()
+                    TVSettingsNavigationRow(title: "Libraries") {
+                        TVSettingsPage { librariesSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsNavigationRow(
-                        title: "Server Priority",
-                        detail: SettingsSupport.serverPrioritySummary(plexService)
-                    ) {
-                        ServerPrioritySettingsView()
-                    }
-                }
-
-                TVSettingsSection(title: "Home", footer: SettingsSupport.homeTVFooterText) {
-                    TVSettingsNavigationRow(title: "Hidden Rows") {
-                        HiddenHomeRowsSettingsView()
+                    TVSettingsNavigationRow(title: "Home") {
+                        TVSettingsPage { homeSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsNavigationRow(
-                        title: "Pinned Playlists",
-                        detail: SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count)
-                    ) {
-                        PinnedPlaylistsSettingsView()
+                    TVSettingsNavigationRow(title: "Home Advanced") {
+                        TVSettingsPage { homeAdvancedSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsToggleRow(title: "Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Show Live TV", isOn: $preferences.showsLiveTVOnHome)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Show Clock", isOn: $preferences.showsClock)
-                }
-
-                TVSettingsSection(title: "Home Advanced", footer: SettingsSupport.homeAdvancedFooterText) {
-                    TVSettingsToggleRow(
-                        title: "Compact Continue Watching",
-                        isOn: $preferences.compactHomeContinueWatching
-                    )
-                }
-
-                TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
-                    TVSettingsMenuRow(
-                        title: "Max Resolution",
-                        options: MaxResolution.allCases,
-                        selection: $preferences.maxResolution,
-                        selectedTitle: preferences.maxResolution.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsMenuRow(
-                        title: "Preferred Version",
-                        options: PreferredMediaVersion.allCases,
-                        selection: $preferences.preferredVersion,
-                        selectedTitle: preferences.preferredVersion.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(
-                        title: "Audio & Subtitles",
-                        detail: SettingsSupport.audioSubtitlesSummary(preferences)
-                    ) {
-                        AudioSubtitleSettingsView()
+                    TVSettingsNavigationRow(title: "Playback Defaults") {
+                        TVSettingsPage { playbackDefaultsSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsMenuRow(
-                        title: "AI Upscaling",
-                        options: VideoEnhancementMode.allCases,
-                        selection: $preferences.videoEnhancementMode,
-                        selectedTitle: preferences.videoEnhancementMode.displayName
-                    ) { $0.displayName }
-                }
-
-                TVSettingsSection(title: "Playback Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
-                    TVSettingsMenuRow(
-                        title: "Auto-Skip Intros",
-                        options: AutoSkipIntroMode.allCases,
-                        selection: $preferences.autoSkipIntroMode,
-                        selectedTitle: preferences.autoSkipIntroMode.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Continuous Play", isOn: $preferences.continuousPlayEnabled)
-
-                    if preferences.continuousPlayEnabled {
-                        tvRowDivider
-
-                        TVSettingsMenuRow(
-                            title: "Next Episode Delay",
-                            options: ContinuousPlayCountdown.allCases,
-                            selection: $preferences.continuousPlayCountdown,
-                            selectedTitle: preferences.continuousPlayCountdown.displayName
-                        ) { $0.displayName }
-
-                        tvRowDivider
-
-                        TVSettingsMenuRow(
-                            title: "Pause After",
-                            options: SettingsSupport.passoutProtectionEpisodeOptions,
-                            selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit,
-                            selectedTitle: SettingsSupport.passoutProtectionDisplayName(
-                                for: preferences.continuousPlayPassoutProtectionEpisodeLimit
-                            )
-                        ) {
-                            SettingsSupport.passoutProtectionDisplayName(for: $0)
-                        }
+                    TVSettingsNavigationRow(title: "Playback Behavior") {
+                        TVSettingsPage { playbackBehaviorSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsMenuRow(
-                        title: "Back Jump",
-                        options: PlayerSeekInterval.allCases,
-                        selection: $preferences.playerDoubleTapBackwardInterval,
-                        selectedTitle: preferences.playerDoubleTapBackwardInterval.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsMenuRow(
-                        title: "Forward Jump",
-                        options: PlayerSeekInterval.allCases,
-                        selection: $preferences.playerDoubleTapForwardInterval,
-                        selectedTitle: preferences.playerDoubleTapForwardInterval.displayName
-                    ) { $0.displayName }
-                }
-
-                TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {
-                    TVSettingsMenuRow(
-                        title: "Appearance",
-                        options: AppearanceMode.allCases,
-                        selection: $preferences.appearanceMode,
-                        selectedTitle: preferences.appearanceMode.displayName
-                    ) { $0.displayName }
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(
-                        title: "Blur Unwatched Episodes",
-                        isOn: $preferences.blursUnwatchedEpisodes
-                    )
-                }
-
-                TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
-                    TVSettingsToggleRow(
-                        title: "Advanced Playback Controls",
-                        isOn: $preferences.playerAdvancedControlsEnabled
-                    )
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Dolby Atmos", isOn: $preferences.spatialAudioRemuxEnabled)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "HDR & Dolby Vision", isOn: $preferences.hdrVideoRemuxEnabled)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Dolby Vision 7 → 8.1", isOn: $preferences.dolbyVision7ConversionEnabled)
-                        .disabled(!preferences.hdrVideoRemuxEnabled)
-                        .opacity(preferences.hdrVideoRemuxEnabled ? 1 : 0.5)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
-
-                    tvRowDivider
-
-                    TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
-                }
-
-                TVSettingsSection(title: "Storage", footer: viewModel.storageFooterText) {
-                    TVSettingsActionRow(
-                        title: "Clear Image Cache",
-                        detail: viewModel.formattedCacheSize
-                    ) {
-                        viewModel.clearImageCache()
+                    TVSettingsNavigationRow(title: "Appearance") {
+                        TVSettingsPage { appearanceSection }
                     }
-                }
 
-                TVSettingsSection(title: "Privacy", footer: SettingsSupport.privacyFooterText) {
-                    TVSettingsToggleRow(title: "Help Improve Dusk", isOn: $preferences.analyticsEnabled)
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(title: "Playback Advanced") {
+                        TVSettingsPage { playbackAdvancedSection }
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(title: "Storage") {
+                        TVSettingsPage { storageSection }
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(title: "Privacy") {
+                        TVSettingsPage { privacySection }
+                    }
+
+                    tvRowDivider
+
+                    TVSettingsNavigationRow(title: "Integrations") {
+                        TVSettingsPage { integrationsSection }
+                    }
                 }
 
                 TVSettingsSection(title: "About", footer: SettingsSupport.aboutFooterText) {
@@ -390,6 +208,299 @@ struct SettingsTVView: View {
         }
     }
 
+    @ViewBuilder
+    private var integrationsSection: some View {
+        TVSettingsSection(
+            title: "Integrations",
+            footer: SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable)
+        ) {
+            TVSettingsNavigationRow(
+                title: "Seerr",
+                detail: seerrService.connectionSubtitle
+            ) {
+                SeerrSettingsView()
+            }
+            if traktService.isAvailable {
+                TVSettingsNavigationRow(
+                    title: "Trakt",
+                    detail: traktService.connectionSubtitle
+                ) {
+                    TraktSettingsView()
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var liveTVSection: some View {
+        TVSettingsSection(title: "Live TV", footer: SettingsSupport.liveTVFooterText) {
+            TVSettingsNavigationRow(
+                title: "IPTV Sources",
+                detail: SettingsSupport.iptvSourcesSummary(iptvService.sources.count)
+            ) {
+                IPTVSourcesSettingsView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var librariesSection: some View {
+        TVSettingsSection(
+            title: "Libraries",
+            footer: SettingsSupport.librariesFooterText
+        ) {
+            TVSettingsNavigationRow(
+                title: "Navigation Tabs",
+                detail: SettingsSupport.libraryTabsSummary(preferences)
+            ) {
+                LibraryTabSettingsView()
+            }
+
+            tvRowDivider
+
+            TVSettingsNavigationRow(
+                title: "Hidden Libraries",
+                detail: SettingsSupport.hiddenLibrariesSummary(plexService)
+            ) {
+                HiddenLibrariesSettingsView()
+            }
+
+            tvRowDivider
+
+            TVSettingsNavigationRow(
+                title: "Server Priority",
+                detail: SettingsSupport.serverPrioritySummary(plexService)
+            ) {
+                ServerPrioritySettingsView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var homeSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Home", footer: SettingsSupport.homeTVFooterText) {
+            TVSettingsNavigationRow(title: "Hidden Rows") {
+                HiddenHomeRowsSettingsView()
+            }
+
+            tvRowDivider
+
+            TVSettingsNavigationRow(
+                title: "Pinned Playlists",
+                detail: SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count)
+            ) {
+                PinnedPlaylistsSettingsView()
+            }
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Show Live TV", isOn: $preferences.showsLiveTVOnHome)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Show Clock", isOn: $preferences.showsClock)
+        }
+    }
+
+    @ViewBuilder
+    private var homeAdvancedSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Home Advanced", footer: SettingsSupport.homeAdvancedFooterText) {
+            TVSettingsToggleRow(
+                title: "Compact Continue Watching",
+                isOn: $preferences.compactHomeContinueWatching
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var playbackDefaultsSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
+            TVSettingsMenuRow(
+                title: "Max Resolution",
+                options: MaxResolution.allCases,
+                selection: $preferences.maxResolution,
+                selectedTitle: preferences.maxResolution.displayName
+            ) { $0.displayName }
+
+            tvRowDivider
+
+            TVSettingsMenuRow(
+                title: "Preferred Version",
+                options: PreferredMediaVersion.allCases,
+                selection: $preferences.preferredVersion,
+                selectedTitle: preferences.preferredVersion.displayName
+            ) { $0.displayName }
+
+            tvRowDivider
+
+            TVSettingsNavigationRow(
+                title: "Audio & Subtitles",
+                detail: SettingsSupport.audioSubtitlesSummary(preferences)
+            ) {
+                AudioSubtitleSettingsView()
+            }
+
+            tvRowDivider
+
+            TVSettingsMenuRow(
+                title: "AI Upscaling",
+                options: VideoEnhancementMode.allCases,
+                selection: $preferences.videoEnhancementMode,
+                selectedTitle: preferences.videoEnhancementMode.displayName
+            ) { $0.displayName }
+        }
+    }
+
+    @ViewBuilder
+    private var playbackBehaviorSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Playback Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
+            TVSettingsMenuRow(
+                title: "Auto-Skip Intros",
+                options: AutoSkipIntroMode.allCases,
+                selection: $preferences.autoSkipIntroMode,
+                selectedTitle: preferences.autoSkipIntroMode.displayName
+            ) { $0.displayName }
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Auto-Skip Credits", isOn: $preferences.autoSkipCredits)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Continuous Play", isOn: $preferences.continuousPlayEnabled)
+
+            if preferences.continuousPlayEnabled {
+                tvRowDivider
+
+                TVSettingsMenuRow(
+                    title: "Next Episode Delay",
+                    options: ContinuousPlayCountdown.allCases,
+                    selection: $preferences.continuousPlayCountdown,
+                    selectedTitle: preferences.continuousPlayCountdown.displayName
+                ) { $0.displayName }
+
+                tvRowDivider
+
+                TVSettingsMenuRow(
+                    title: "Pause After",
+                    options: SettingsSupport.passoutProtectionEpisodeOptions,
+                    selection: $preferences.continuousPlayPassoutProtectionEpisodeLimit,
+                    selectedTitle: SettingsSupport.passoutProtectionDisplayName(
+                        for: preferences.continuousPlayPassoutProtectionEpisodeLimit
+                    )
+                ) {
+                    SettingsSupport.passoutProtectionDisplayName(for: $0)
+                }
+            }
+
+            tvRowDivider
+
+            TVSettingsMenuRow(
+                title: "Back Jump",
+                options: PlayerSeekInterval.allCases,
+                selection: $preferences.playerDoubleTapBackwardInterval,
+                selectedTitle: preferences.playerDoubleTapBackwardInterval.displayName
+            ) { $0.displayName }
+
+            tvRowDivider
+
+            TVSettingsMenuRow(
+                title: "Forward Jump",
+                options: PlayerSeekInterval.allCases,
+                selection: $preferences.playerDoubleTapForwardInterval,
+                selectedTitle: preferences.playerDoubleTapForwardInterval.displayName
+            ) { $0.displayName }
+        }
+    }
+
+    @ViewBuilder
+    private var appearanceSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {
+            TVSettingsMenuRow(
+                title: "Appearance",
+                options: AppearanceMode.allCases,
+                selection: $preferences.appearanceMode,
+                selectedTitle: preferences.appearanceMode.displayName
+            ) { $0.displayName }
+
+            tvRowDivider
+
+            TVSettingsToggleRow(
+                title: "Blur Unwatched Episodes",
+                isOn: $preferences.blursUnwatchedEpisodes
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var playbackAdvancedSection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
+            TVSettingsToggleRow(
+                title: "Advanced Playback Controls",
+                isOn: $preferences.playerAdvancedControlsEnabled
+            )
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Dolby Atmos", isOn: $preferences.spatialAudioRemuxEnabled)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "HDR & Dolby Vision", isOn: $preferences.hdrVideoRemuxEnabled)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Dolby Vision 7 → 8.1", isOn: $preferences.dolbyVision7ConversionEnabled)
+                .disabled(!preferences.hdrVideoRemuxEnabled)
+                .opacity(preferences.hdrVideoRemuxEnabled ? 1 : 0.5)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Force AVPlayer", isOn: $preferences.forceAVPlayer)
+
+            tvRowDivider
+
+            TVSettingsToggleRow(title: "Force VLCKit", isOn: $preferences.forceVLCKit)
+        }
+    }
+
+    @ViewBuilder
+    private var storageSection: some View {
+        TVSettingsSection(title: "Storage", footer: viewModel.storageFooterText) {
+            TVSettingsActionRow(
+                title: "Clear Image Cache",
+                detail: viewModel.formattedCacheSize
+            ) {
+                viewModel.clearImageCache()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var privacySection: some View {
+        @Bindable var preferences = preferences
+
+        TVSettingsSection(title: "Privacy", footer: SettingsSupport.privacyFooterText) {
+            TVSettingsToggleRow(title: "Help Improve Dusk", isOn: $preferences.analyticsEnabled)
+        }
+    }
+
     private var tvRowDivider: some View {
         Rectangle()
             .fill(Color.duskTextSecondary.opacity(0.16))
@@ -401,5 +512,24 @@ struct SettingsTVView: View {
             get: { plexService.automaticHomeSignIn },
             set: { plexService.automaticHomeSignIn = $0 }
         )
+    }
+}
+
+/// One settings section on its own page, pushed from a root row. Laid out
+/// like the root page so the card lines up the same way.
+private struct TVSettingsPage<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                content()
+            }
+            .frame(maxWidth: 980, alignment: .leading)
+            .padding(.horizontal, 60)
+            .padding(.top, 48)
+            .padding(.bottom, 88)
+        }
+        .background(Color.duskBackground.ignoresSafeArea())
     }
 }
