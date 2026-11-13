@@ -98,9 +98,11 @@ struct HomeCinematicHeroLayout {
         layout.contentHorizontalPadding = MacUILayout.contentInset
         layout.pagerHorizontalPadding = MacUILayout.contentInset
         layout.contentTopPadding = 16
-        layout.pagerBottomPadding = macBottomFadeHeight + 6
-        layout.contentBottomPaddingWithPager = macBottomFadeHeight + 6 + 10 + 18
-        layout.contentBottomPaddingWithoutPager = macBottomFadeHeight + 14
+        // The dark art runs on `macDarkClearance` under the pager (the
+        // button row sits ~50pt above the fade), then the short fade.
+        layout.pagerBottomPadding = macBottomFadeHeight + macDarkClearance
+        layout.contentBottomPaddingWithPager = macBottomFadeHeight + macDarkClearance + 10 + 18
+        layout.contentBottomPaddingWithoutPager = macBottomFadeHeight + 40
         layout.actionsTopPadding = 2
         layout.titleFontSize = 40
         layout.titleLogoMaxWidth = 360
@@ -136,7 +138,12 @@ struct HomeCinematicHeroLayout {
     /// The hero's bottom strip whose art eases out onto the page background,
     /// below the text, button and pager, so the dark hero meets a light or
     /// dark page without a band.
-    static let macBottomFadeHeight: CGFloat = 48
+    /// Short and steep: a long fade from dark art onto a light page reads
+    /// as a muddy grey band.
+    static let macBottomFadeHeight: CGFloat = 64
+
+    /// Dark hero left between the pager and the start of the fade.
+    static let macDarkClearance: CGFloat = 24
     #endif
 
     /// Apple TV: the hero owns the **entire** screen. Heights come from the
@@ -2267,7 +2274,6 @@ private struct MacHomeHeroScrim: View {
     /// The leading shade behind the text; left out of the copy that extends
     /// under the sidebar, which would otherwise show as a dark smudge there.
     var includesLeadingShade = true
-    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -2278,10 +2284,10 @@ private struct MacHomeHeroScrim: View {
                     .init(color: .black.opacity(0.08), location: 0.42),
                     .init(color: .black.opacity(0.5), location: 0.72),
                     .init(color: .black.opacity(0.72), location: 0.9),
-                    // Under the pager and the fade: on the light page the
-                    // shade eases off, so the art dissolves into the page
-                    // instead of a dark band turning grey.
-                    .init(color: .black.opacity(colorScheme == .dark ? 0.78 : 0.3), location: 1),
+                    // The same dark bottom in both appearances: the hero is
+                    // a dark context down to the fade, which (the mask)
+                    // takes it straight to the page.
+                    .init(color: .black.opacity(0.78), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -2315,9 +2321,9 @@ private struct MacHomeHeroFadeMask: View {
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0),
-                    .init(color: .black.opacity(0.82), location: 0.25),
-                    .init(color: .black.opacity(0.5), location: 0.5),
-                    .init(color: .black.opacity(0.2), location: 0.75),
+                    .init(color: .black.opacity(0.9), location: 0.18),
+                    .init(color: .black.opacity(0.55), location: 0.45),
+                    .init(color: .black.opacity(0.18), location: 0.75),
                     .init(color: .black.opacity(0), location: 1),
                 ],
                 startPoint: .top,

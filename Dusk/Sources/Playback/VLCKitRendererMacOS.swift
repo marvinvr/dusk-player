@@ -91,6 +91,37 @@ private final class MacOSVLCRendererContainerView: NSView {
     /// Clicks belong to the SwiftUI player HUD above the picture.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
+    override var mouseDownCanMoveWindow: Bool { false }
+
+    /// libvlc's macOS video view (`VLCVideoLayerView`, or `VLCOpenGLVideoView`
+    /// for the legacy output) is opaque and answers `mouseDownCanMoveWindow`
+    /// with YES: VLC.app drags its window by the picture. `hitTest` above
+    /// keeps it out of AppKit's click routing, but the window server's drag
+    /// region is built from opaque descendants without asking `hitTest`, so
+    /// the picture (and the HUD drawn over it) can turn into window-drag
+    /// area, where a real click starts a window move instead of reaching
+    /// the play bar. The AVPlayer host is opaque and never moves the window;
+    /// the VLC view gets the same answer.
+    override func didAddSubview(_ subview: NSView) {
+        super.didAddSubview(subview)
+        Self.disableWindowMoving(for: subview)
+    }
+
+    private static func disableWindowMoving(for view: NSView) {
+        let viewClass: AnyClass = type(of: view)
+        // Once replaced, the class answers NO and is never patched again.
+        guard view.mouseDownCanMoveWindow else { return }
+        let selector = #selector(getter: NSView.mouseDownCanMoveWindow)
+        guard let method = class_getInstanceMethod(viewClass, selector) else { return }
+        let block: @convention(block) (AnyObject) -> Bool = { _ in false }
+        class_replaceMethod(
+            viewClass,
+            selector,
+            imp_implementationWithBlock(block),
+            method_getTypeEncoding(method)
+        )
+    }
+
     override func layout() {
         super.layout()
         onLayout?()

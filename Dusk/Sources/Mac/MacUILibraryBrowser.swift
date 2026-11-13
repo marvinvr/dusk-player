@@ -36,7 +36,8 @@ struct MacLibraryBrowser: View {
             // The library picker is the window title's own menu
             // (`toolbarTitleMenu`), so there's one title, and the toolbar
             // keeps the same layout in every mode.
-            .navigationTitle(windowTitle)
+            .navigationTitle(libraryType.tabTitle)
+            .navigationSubtitle(windowSubtitle)
             .toolbarTitleMenu {
                 if libraries.count > 1 {
                     Picker("Library", selection: titleMenuBinding) {
@@ -72,11 +73,18 @@ struct MacLibraryBrowser: View {
             }
     }
 
-    /// "Movies" in Recommended (it merges every library of the type); the
-    /// picked library's name in Library/Collections when there are several.
-    private var windowTitle: String {
-        guard libraries.count > 1, mode != .recommended else { return libraryType.tabTitle }
-        return viewModel.displayTitle(for: selectedLibrary)
+    /// One window title in every mode ("Movies"); with several libraries of
+    /// the type, Library/Collections name the browsed one underneath it
+    /// ("Living Room" for a "Movies" library on that server, "4K Movies · Living
+    /// Room" otherwise). Recommended merges them all and has none.
+    private var windowSubtitle: String {
+        guard libraries.count > 1, mode != .recommended else { return "" }
+        let title = viewModel.displayTitle(for: selectedLibrary)
+        let sameNamePrefix = libraryType.tabTitle + " · "
+        if title.hasPrefix(sameNamePrefix) {
+            return String(title.dropFirst(sameNamePrefix.count))
+        }
+        return title == libraryType.tabTitle ? "" : title
     }
 
     /// Checks the browsed library in Library/Collections. In Recommended

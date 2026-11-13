@@ -637,8 +637,15 @@ struct MacPlayerTopBar: View {
 private struct MacPlayerScrims: View {
     var body: some View {
         VStack(spacing: 0) {
+            // Holds most of its strength across the title row before it
+            // eases off, so the title stays legible on bright footage.
             LinearGradient(
-                colors: [.black.opacity(0.55), .black.opacity(0)],
+                stops: [
+                    .init(color: .black.opacity(0.55), location: 0),
+                    .init(color: .black.opacity(0.42), location: 0.35),
+                    .init(color: .black.opacity(0.14), location: 0.7),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -710,10 +717,28 @@ private struct MacPlayerScrubber: View {
                 }
             }
 
+            // Under the pointer: the track lightens up to it, the way
+            // QuickTime's does, so the hover reads before the bubble.
+            if let hoverX, !viewModel.isScrubbing, width > 0 {
+                Capsule()
+                    .fill(.white.opacity(0.2))
+                    .frame(width: max(min(max(hoverX, 0), width), trackHeight), height: trackHeight)
+            }
+
             Capsule()
                 .fill(.white.opacity(0.95))
                 .frame(width: max(width * progress, trackHeight), height: trackHeight)
                 .opacity(progress > 0 ? 1 : 0)
+
+            if let hoverX, !viewModel.isScrubbing, width > 0 {
+                // A slim marker at the pointer, over the played part too.
+                Capsule()
+                    .fill(.white)
+                    .frame(width: 2, height: activeTrackHeight + 5)
+                    .shadow(color: .black.opacity(0.35), radius: 1)
+                    .offset(x: min(max(hoverX, 1), width - 1) - 1)
+                    .allowsHitTesting(false)
+            }
 
             Circle()
                 .fill(.white)

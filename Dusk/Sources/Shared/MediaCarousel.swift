@@ -103,12 +103,23 @@ private struct MacShelfPagingScrollView<Content: View>: View {
 
     @State private var position = ScrollPosition(edge: .leading)
     @State private var metrics = ShelfScrollMetrics()
+    /// Bumped to make the scroll view report its geometry again (see
+    /// `ShelfScrollMetrics.generation`).
+    @State private var measureGeneration = 0
     @State private var isHovered = false
 
+    /// Offsets as the scroll view reports them: with a leading content
+    /// inset (the safe area beside the sidebar) a row at rest sits at
+    /// `-inset`, not 0, so both ends come from the geometry, never from 0.
     private struct ShelfScrollMetrics: Equatable {
         var offset: CGFloat = 0
+        var minOffset: CGFloat = 0
         var maxOffset: CGFloat = 0
         var viewport: CGFloat = 0
+        /// `onScrollGeometryChange` reports changes only, never the first
+        /// value, so a row laid out once at its final size never had any
+        /// metrics. Changing this re-runs the transform with a new value.
+        var generation = 0
     }
 
     var body: some View {
@@ -116,11 +127,16 @@ private struct MacShelfPagingScrollView<Content: View>: View {
             content()
         }
         .scrollPosition($position)
-        .onScrollGeometryChange(for: ShelfScrollMetrics.self) { geometry in
-            ShelfScrollMetrics(
+        .onScrollGeometryChange(for: ShelfScrollMetrics.self) { [measureGeneration] geometry in
+            let minOffset = -geometry.contentInsets.leading
+            let maxOffset = geometry.contentSize.width + geometry.contentInsets.trailing
+                - geometry.containerSize.width
+            return ShelfScrollMetrics(
                 offset: geometry.contentOffset.x,
-                maxOffset: max(geometry.contentSize.width - geometry.containerSize.width, 0),
-                viewport: geometry.containerSize.width
+                minOffset: minOffset,
+                maxOffset: max(maxOffset, minOffset),
+                viewport: geometry.containerSize.width,
+                generation: measureGeneration
             )
         } action: { _, new in
             metrics = new
@@ -128,10 +144,14 @@ private struct MacShelfPagingScrollView<Content: View>: View {
         .overlay(alignment: .topLeading) {
             chevrons
         }
-        .onHover { isHovered = $0 }
+        .onHover { inside in
+            isHovered = inside
+            if inside { measureGeneration += 1 }
+        }
+        .task { measureGeneration += 1 }
     }
 
-    private var canPageBack: Bool { metrics.offset > 1 }
+    private var canPageBack: Bool { metrics.offset > metrics.minOffset + 1 }
     private var canPageForward: Bool { metrics.offset < metrics.maxOffset - 1 }
 
     private var chevrons: some View {
@@ -171,7 +191,7 @@ private struct MacShelfPagingScrollView<Content: View>: View {
     /// edge comes round in full), clamped to the row.
     private func page(by direction: CGFloat) {
         let step = max(metrics.viewport - horizontalPadding * 2, 1)
-        let target = min(max(metrics.offset + direction * step, 0), metrics.maxOffset)
+        let target = min(max(metrics.offset + direction * step, metrics.minOffset), metrics.maxOffset)
         withAnimation(.smooth(duration: 0.4)) {
             position.scrollTo(x: target)
         }

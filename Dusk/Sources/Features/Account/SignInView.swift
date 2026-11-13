@@ -14,6 +14,7 @@ struct SignInView: View {
     #if os(macOS)
     /// The user chose "Use a code" instead of the browser approval page.
     @State private var macUsesLinkCodeOnly = false
+    @State private var macIsHoveringCodeLink = false
     #endif
 
     var body: some View {
@@ -108,14 +109,19 @@ struct SignInView: View {
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
 
-            // A quiet secondary text button, not a blue link (no tint).
-            Button("Use a code on plex.tv/link instead") {
+            // A quiet link, not a blue one (no tint): link cursor, and
+            // underlined under the pointer so it reads as clickable.
+            Button {
                 Task { await signIn(opensBrowser: false) }
+            } label: {
+                Text("Use a code on plex.tv/link instead")
+                    .underline(macIsHoveringCodeLink)
             }
             .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(macIsHoveringCodeLink ? .primary : .secondary)
             .font(.callout)
             .pointerStyle(.link)
+            .onHover { macIsHoveringCodeLink = $0 }
             .help("Sign in from any browser or device with a four-character code")
         }
     }

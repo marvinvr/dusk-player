@@ -97,6 +97,9 @@ struct FeatureErrorView: View {
                         retryAction()
                     }
                 }
+                // The default button (Return), drawn as one, ahead of the
+                // secondary "Open … Settings…".
+                .keyboardShortcut(.defaultAction)
             }
         }
         .macStatePageToolbar()

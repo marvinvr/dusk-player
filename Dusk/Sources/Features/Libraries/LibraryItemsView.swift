@@ -337,6 +337,7 @@ struct LibraryItemsView: View {
                 macToolbarMenuLabel(viewModel.selectedGenre.title, systemImage: "theatermasks")
             }
             .help("Genre: \(viewModel.selectedGenre.title)")
+            .id("genre|\(viewModel.selectedGenre.title)|\(macUsesCompactToolbar)")
         }
 
         Button {
@@ -384,18 +385,21 @@ struct LibraryItemsView: View {
             macToolbarMenuLabel(viewModel.selectedSort.title, systemImage: "arrow.up.arrow.down")
         }
         .help("Sort: \(viewModel.selectedSort.title)")
+        .id("sort|\(viewModel.selectedSort.title)|\(macUsesCompactToolbar)")
     }
 
     /// The current value as the menu's title, or only an icon in a narrow
-    /// window.
-    @ViewBuilder
+    /// window. One `Label` in both modes (only its style changes), sized to
+    /// its whole title, and identified by what it shows: the toolbar measures
+    /// a hosted item once, so without a new identity a wider title (a long
+    /// genre, or the window growing out of the compact mode) stayed squeezed
+    /// into the old width ("All…", "Ti…").
     private func macToolbarMenuLabel(_ title: String, systemImage: String) -> some View {
-        if macUsesCompactToolbar {
-            Label(title, systemImage: systemImage)
-                .labelStyle(.iconOnly)
-        } else {
-            Text(title)
-        }
+        Label(title, systemImage: systemImage)
+            .labelStyle(MacToolbarMenuLabelStyle(iconOnly: macUsesCompactToolbar))
+            .accessibilityLabel(title)
+            .fixedSize()
+            .id("\(title)|\(macUsesCompactToolbar)")
     }
     #endif
 
@@ -749,3 +753,19 @@ struct LibraryItemsView: View {
         )
     }
 }
+
+#if os(macOS)
+/// A toolbar menu's label: the current value's title, or its icon alone in a
+/// narrow window.
+private struct MacToolbarMenuLabelStyle: LabelStyle {
+    let iconOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            configuration.icon
+        } else {
+            configuration.title
+        }
+    }
+}
+#endif

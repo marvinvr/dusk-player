@@ -219,7 +219,13 @@ struct LiveTVGuideBlock: View {
         } else if isDimmedPast {
             Color.duskBackground.overlay(Color.duskSurface.opacity(cell.isReplayable ? 0.75 : 0.5))
         } else if isLive {
+            #if os(macOS)
+            // One surface for what is on and what comes next; "now" is the
+            // elapsed shading and the now line, not a second fill.
+            Color.duskSurface
+            #else
             Color.duskBackground.overlay(Color.duskTextPrimary.opacity(0.1))
+            #endif
         } else if cell.program == nil {
             Color.duskBackground.overlay(Color.duskSurface.opacity(0.6))
         } else {
@@ -356,7 +362,24 @@ struct LiveTVGuideChannelCell: View {
         }
     }
 
+    @ViewBuilder
     private var placeholder: some View {
+        #if os(macOS)
+        if metrics.showsChannelName, channel.displayNumber != nil {
+            // The number is already written under the name beside the tile.
+            Image(systemName: "tv")
+                .font(.body)
+                .foregroundStyle(Color.duskTextSecondary)
+                .accessibilityHidden(true)
+        } else {
+            placeholderText
+        }
+        #else
+        placeholderText
+        #endif
+    }
+
+    private var placeholderText: some View {
         Text(channel.displayNumber ?? String(channel.displayTitle.prefix(3)))
             .font(DuskFont.cardTitle(ios: .caption.weight(.bold)))
             .foregroundStyle(Color.duskTextSecondary)
@@ -389,10 +412,17 @@ struct LiveTVGuideRuler: View {
                         .font(DuskFont.metadata(ios: .caption.weight(.medium)).monospacedDigit())
                         .foregroundStyle(Color.duskTextSecondary)
                         .fixedSize()
+                        #if !os(macOS)
                         // The now pill covers this stretch; two times on top
                         // of each other read as neither.
-                        .opacity(abs(now.timeIntervalSince(mark.date) - 6 * 60) < 13 * 60 && timeline.contains(now) ? 0 : 1)
+                        .opacity(isCoveredByNowPill(mark) ? 0 : 1)
+                        #endif
                 }
+                #if os(macOS)
+                // The tick goes with its label: a bare tick beside the pill
+                // reads as a stray line.
+                .opacity(isCoveredByNowPill(mark) ? 0 : 1)
+                #endif
                 .offset(x: timeline.x(for: mark.date))
                 #if !os(tvOS)
                 .visualEffect { [pinnedColumnWidth, x = timeline.x(for: mark.date)] content, proxy in
@@ -421,11 +451,31 @@ struct LiveTVGuideRuler: View {
                     .padding(.vertical, pillPadding / 2.5)
                     .background(Color.duskTextPrimary, in: Capsule())
                     .fixedSize()
+                    #if os(macOS)
+                    // Centred on the now line by a zero-width frame: an
+                    // alignment guide would push the ZStack's leading edge
+                    // out by half the pill and shift the whole ruler (pill
+                    // and ticks) right of the grid underneath.
+                    .frame(width: 0)
+                    #else
                     .alignmentGuide(.leading) { $0.width / 2 }
+                    #endif
                     .offset(x: timeline.x(for: now))
             }
         }
         .frame(width: timeline.width, height: metrics.rulerHeight, alignment: .leading)
+    }
+
+    private func isCoveredByNowPill(_ mark: LiveTVGuideTimeline.Mark) -> Bool {
+        guard timeline.contains(now) else { return false }
+        #if os(macOS)
+        // By distance on the axis: the centred pill is about 50pt wide, a
+        // tick and its "18:30" about 45pt, plus a little air either side.
+        let distance = timeline.x(for: now) - timeline.x(for: mark.date)
+        return distance > -32 && distance < 76
+        #else
+        return abs(now.timeIntervalSince(mark.date) - 6 * 60) < 13 * 60
+        #endif
     }
 
     private var visibleMarks: [LiveTVGuideTimeline.Mark] {

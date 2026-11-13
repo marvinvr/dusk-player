@@ -283,6 +283,7 @@ struct LibraryFiltersPopover: View {
                         Text(status.title).tag(status)
                     }
                 }
+                .frame(width: Self.popUpWidth)
 
                 ForEach(valueFields) { field in
                     LibraryFilterValuePicker(
@@ -293,6 +294,7 @@ struct LibraryFiltersPopover: View {
                             set: { choice in update { $0.choices[field.parameter] = choice } }
                         )
                     )
+                    .frame(width: Self.popUpWidth)
                 }
 
                 if !toggleFields.isEmpty {
@@ -326,6 +328,10 @@ struct LibraryFiltersPopover: View {
         .frame(minWidth: 300, alignment: .leading)
         .fixedSize()
     }
+
+    /// One width for every pop-up, so the column reads as one edge
+    /// whatever the current values are ("Any" or "Science Fiction").
+    private static let popUpWidth: CGFloat = 190
 
     private func update(_ change: (inout LibraryFilterState) -> Void) {
         var state = viewModel.filterState
