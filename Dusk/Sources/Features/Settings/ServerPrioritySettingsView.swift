@@ -119,9 +119,6 @@ struct ServerPrioritySettingsView: View {
                 if let accountError = viewModel.accountError {
                     Text(accountError)
                         .foregroundStyle(Color.duskTextSecondary)
-                } else {
-                    Text(Self.refreshFooterText)
-                        .foregroundStyle(Color.duskTextSecondary)
                 }
             }
             .listRowBackground(Color.duskSurface)
@@ -259,13 +256,12 @@ struct ServerPrioritySettingsView: View {
 
     private static let noServersMessage = "No Plex servers found on your account."
     private static let nothingEnabledMessage = "Every server is turned off, so Dusk has nothing to show. Downloads still play. Turn a server back on to bring your libraries back."
-    private static let refreshFooterText = "Looks for servers that have come online or been shared with you since Dusk last checked."
 
     private static func footerText(isSingleServer: Bool) -> String {
         guard !isSingleServer else {
-            return "Dusk uses this server for everything. Turning it off leaves Dusk with nothing to show until you turn it back on."
+            return "Turning it off leaves Dusk empty until you turn it back on."
         }
-        return "Dusk uses every server that is on and merges what they hold. When the same title is on more than one, the server highest in this list plays it. A server that is off is ignored completely — no libraries, no Continue Watching, no search results."
+        return "When a title is on several servers, the highest one plays it."
     }
 }
 

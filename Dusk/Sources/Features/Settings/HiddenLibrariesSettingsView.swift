@@ -11,7 +11,7 @@ struct HiddenLibrariesSettingsView: View {
     @Environment(PlexService.self) private var plexService
     @State private var viewModel: LibraryOrderSettingsViewModel?
 
-    static let footerText = "Turn off a library to hide it everywhere in Dusk, including Home and search. This is saved to your Plex account, so other Plex apps hide it too."
+    static let footerText = "Hidden libraries are also hidden in other Plex apps."
 
     var body: some View {
         content

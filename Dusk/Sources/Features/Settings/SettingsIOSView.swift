@@ -42,10 +42,10 @@ struct SettingsIOSView: View {
                     SettingsAboutRow(
                         title: supporterStore.isSupporter ? "You're a Supporter" : "Support Dusk",
                         subtitle: supporterStore.hasActiveSubscription
-                            ? "Dusk Supporter — thank you for making Dusk possible ❤️"
+                            ? "Subscribed. Thank you ❤️"
                             : supporterStore.isSupporter
-                            ? "Thank you for making Dusk possible ❤️"
-                            : "Free, no ads, no tracking — chip in if you like it",
+                            ? "Thank you ❤️"
+                            : "Optional, unlocks alternate app icons",
                         systemImage: "heart.fill",
                         trailingSystemImage: "chevron.right"
                     )
@@ -96,7 +96,7 @@ struct SettingsIOSView: View {
                     Text("Plex Home")
                         .foregroundStyle(Color.duskTextSecondary)
                 } footer: {
-                    Text("When off, Dusk asks who’s watching whenever it starts.")
+                    Text("When off, Dusk asks who’s watching at launch.")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
                 .listRowBackground(Color.duskSurface)
@@ -226,9 +226,6 @@ struct SettingsIOSView: View {
             } header: {
                 Text("About")
                     .foregroundStyle(Color.duskTextSecondary)
-            } footer: {
-                Text(SettingsSupport.aboutFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
 
@@ -240,7 +237,7 @@ struct SettingsIOSView: View {
                 } label: {
                     SettingsAboutRow(
                         title: "Manage Plex Account",
-                        subtitle: "Open Plex account settings",
+                        subtitle: "plex.tv",
                         systemImage: "person.circle",
                         trailingSystemImage: "safari"
                     )
@@ -253,7 +250,7 @@ struct SettingsIOSView: View {
                 } label: {
                     SettingsAboutRow(
                         title: "Delete Plex Account",
-                        subtitle: "Open the Plex deletion controls",
+                        subtitle: "plex.tv",
                         systemImage: "trash",
                         trailingSystemImage: "safari",
                         titleColor: .red
@@ -265,9 +262,6 @@ struct SettingsIOSView: View {
                     plexService.signOut()
                 }
                 .duskSuppressTVOSButtonChrome()
-            } footer: {
-                Text(SettingsSupport.accountManagementFooterText + " " + SettingsSupport.accountFooterText)
-                    .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
         }
@@ -308,7 +302,7 @@ struct SettingsIOSView: View {
                 }
             }
         } footer: {
-            Text(SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable))
+            Text(SettingsSupport.integrationsFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
         }
         .listRowBackground(Color.duskSurface)
@@ -379,9 +373,6 @@ struct SettingsIOSView: View {
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
-        } footer: {
-            Text(SettingsSupport.librariesFooterText)
-                .foregroundStyle(Color.duskTextSecondary)
         }
         .listRowBackground(Color.duskSurface)
     }
@@ -679,9 +670,6 @@ struct SettingsIOSView: View {
                 }
             }
             .duskSuppressTVOSButtonChrome()
-        } footer: {
-            Text(SettingsSupport.appearanceFooterText)
-                .foregroundStyle(Color.duskTextSecondary)
         }
         .listRowBackground(Color.duskSurface)
     }

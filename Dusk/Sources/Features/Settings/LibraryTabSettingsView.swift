@@ -32,7 +32,7 @@ struct LibraryTabSettingsView: View {
                 Text("Navigation Tabs")
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
-                Text("Turn off a destination to remove it from the navigation bar. Tap Edit, then drag to change the order.")
+                Text("Tap Edit, then drag to reorder.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
@@ -49,10 +49,7 @@ struct LibraryTabSettingsView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                TVSettingsSection(
-                    title: "Visibility",
-                    footer: "Turn off a destination to remove it from the navigation bar."
-                ) {
+                TVSettingsSection(title: "Visibility") {
                     ForEach(Array(preferences.libraryTabOrder.enumerated()), id: \.element) { index, libraryType in
                         if index > 0 {
                             tvRowDivider
@@ -65,10 +62,7 @@ struct LibraryTabSettingsView: View {
                     }
                 }
 
-                TVSettingsSection(
-                    title: "Order",
-                    footer: "Choose the position of each destination in the navigation bar."
-                ) {
+                TVSettingsSection(title: "Order") {
                     ForEach(Array(preferences.libraryTabOrder.enumerated()), id: \.element) { index, libraryType in
                         if index > 0 {
                             tvRowDivider

@@ -73,9 +73,6 @@ struct ConnectionDiagnosticsView: View {
                         Text("Probing…").foregroundStyle(Color.duskTextSecondary)
                     }
                 }
-            } footer: {
-                Text(Self.footerText)
-                    .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
 
@@ -109,7 +106,7 @@ struct ConnectionDiagnosticsView: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                TVSettingsSection(title: "Connections", footer: Self.footerText) {
+                TVSettingsSection(title: "Connections") {
                     TVSettingsActionRow(title: "Test Every Connection", isLoading: isTesting, action: testAll)
                     TVSettingsActionRow(title: "Re-select Now", action: reselect)
                 }
@@ -149,8 +146,6 @@ struct ConnectionDiagnosticsView: View {
     #endif
 
     // MARK: - Copy
-
-    private static let footerText = "Every address Dusk can reach each server at, how it answered and which one is in use. Test Every Connection waits for all of them; Re-select Now picks the best again."
 
     static func milliseconds(_ seconds: TimeInterval) -> String {
         "\(Int((seconds * 1000).rounded())) ms"

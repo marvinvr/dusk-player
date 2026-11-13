@@ -41,7 +41,7 @@ struct SettingsTVView: View {
                 if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
                     TVSettingsSection(
                         title: "Plex Home",
-                        footer: "When off, Dusk asks who’s watching whenever it starts."
+                        footer: "When off, Dusk asks who’s watching at launch."
                     ) {
                         HStack(spacing: 22) {
                             PlexHomeUserAvatar(user: activeUser, size: 68)
@@ -128,7 +128,7 @@ struct SettingsTVView: View {
                     }
                 }
 
-                TVSettingsSection(title: "About", footer: SettingsSupport.aboutFooterText) {
+                TVSettingsSection(title: "About") {
                     HStack(spacing: 20) {
                         Text("Version")
                             .font(DuskFont.rowTitle(ios: .headline))
@@ -173,7 +173,7 @@ struct SettingsTVView: View {
 
                 privacySection
 
-                TVSettingsSection(title: "Account", footer: SettingsSupport.accountFooterText) {
+                TVSettingsSection(title: "Account") {
                     TVSettingsActionRow(
                         title: "Sign Out",
                         tint: .red,
@@ -192,9 +192,7 @@ struct SettingsTVView: View {
 
     @ViewBuilder
     private var integrationsSection: some View {
-        TVSettingsSection(
-            footer: SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable)
-        ) {
+        TVSettingsSection(footer: SettingsSupport.integrationsFooterText) {
             TVSettingsNavigationRow(
                 title: "Seerr",
                 detail: seerrService.connectionSubtitle
@@ -226,9 +224,7 @@ struct SettingsTVView: View {
 
     @ViewBuilder
     private var librariesSection: some View {
-        TVSettingsSection(
-            footer: SettingsSupport.librariesFooterText
-        ) {
+        TVSettingsSection {
             TVSettingsNavigationRow(
                 title: "Navigation Tabs",
                 detail: SettingsSupport.libraryTabsSummary(preferences)
@@ -260,7 +256,7 @@ struct SettingsTVView: View {
     private var homeSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(footer: SettingsSupport.homeTVFooterText) {
+        TVSettingsSection(footer: SettingsSupport.homeFooterText) {
             TVSettingsNavigationRow(title: "Hidden Rows") {
                 HiddenHomeRowsSettingsView()
             }
@@ -409,7 +405,7 @@ struct SettingsTVView: View {
     private var appearanceSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(footer: SettingsSupport.appearanceFooterText) {
+        TVSettingsSection {
             TVSettingsMenuRow(
                 title: "Appearance",
                 options: AppearanceMode.allCases,

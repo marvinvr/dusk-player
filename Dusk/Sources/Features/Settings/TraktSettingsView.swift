@@ -5,7 +5,7 @@ import SwiftUI
 struct TraktSettingsView: View {
     @Environment(TraktService.self) private var trakt
 
-    static let footerText = "Movies and episodes you finish are added to your Trakt history. Dusk uses Trakt but is not endorsed or certified by Trakt."
+    static let footerText = "Dusk uses Trakt but is not endorsed or certified by Trakt."
 
     var body: some View {
         Group {
