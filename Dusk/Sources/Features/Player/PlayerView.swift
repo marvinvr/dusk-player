@@ -1397,6 +1397,9 @@ private struct PlayerSessionView: View {
             playback.dismissUpNextPoster(userInitiated: true)
             return true
         }
+        hudController.onHaltUpNextPosterCountdown = {
+            playback.haltUpNextPosterCountdown()
+        }
         hudController.isBottomTrailingControlVisible = hasBottomTrailingFocusControl
         hudController.backwardSeekInterval = preferences.playerDoubleTapBackwardInterval.timeInterval
         hudController.forwardSeekInterval = preferences.playerDoubleTapForwardInterval.timeInterval

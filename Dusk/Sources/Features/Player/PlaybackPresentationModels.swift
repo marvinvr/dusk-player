@@ -741,7 +741,9 @@ struct UpNextPosterPresentation: Sendable {
     /// See `UpNextPresentation.queueIndex` / `queueTitle`.
     var queueIndex: Int? = nil
     var queueTitle: String? = nil
-    let mode: Mode
+    /// `var` so Back on tvOS can turn a running countdown into
+    /// `autoAdvanceAtEnd` (`PlaybackCoordinator.haltUpNextPosterCountdown`).
+    var mode: Mode
     /// Identifies the credits marker that triggered this poster, so repeat
     /// notifications for the same marker don't re-resolve the next episode.
     let creditsMarkerID: Int

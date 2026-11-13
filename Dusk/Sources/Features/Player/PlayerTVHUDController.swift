@@ -159,6 +159,9 @@ final class PlayerTVHUDController {
     /// Returns true when it actually dismissed something; false lets Down fall
     /// through to opening the panel (the Skip Intro chip cannot be dismissed).
     @ObservationIgnored var onDismissBottomTrailingControl: (() -> Bool)?
+    /// Stops the Up Next poster's countdown and keeps the poster (#76).
+    /// Returns false when no poster countdown is running.
+    @ObservationIgnored var onHaltUpNextPosterCountdown: (() -> Bool)?
 
     @ObservationIgnored private var isPanActive = false
     /// The live pan began on the action row, so it moves the selection along
@@ -220,6 +223,7 @@ final class PlayerTVHUDController {
         onDismissPlayer = nil
         onActivateBottomTrailingControl = nil
         onDismissBottomTrailingControl = nil
+        onHaltUpNextPosterCountdown = nil
     }
 
     // MARK: - Mode
@@ -324,11 +328,13 @@ final class PlayerTVHUDController {
                 cancelAccumulatedSeek()
                 return
             }
-            // A running auto-skip countdown takes Back next (#76): it stops
-            // the countdown and leaves the chip up for a manual skip, instead
-            // of hiding the HUD or closing the player.
+            // A running auto-skip or Up Next poster countdown takes Back next
+            // (#76): it stops the countdown and leaves the chip or poster up
+            // for a manual press, instead of hiding the HUD or closing the
+            // player.
             if mode == .hidden || mode == .transport,
-               viewModel?.haltAutoSkipCountdown() == true {
+               viewModel?.haltAutoSkipCountdown() == true
+                || onHaltUpNextPosterCountdown?() == true {
                 return
             }
         }

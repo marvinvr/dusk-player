@@ -372,6 +372,24 @@ extension PlaybackCoordinator {
         }
     }
 
+    /// Back on the tvOS remote while the poster counts down (#76): Plex can
+    /// place the credits marker early, so the viewer stops the countdown
+    /// without leaving the player. The poster stays for a manual Play Next and
+    /// drops its sweep; like Auto-Skip Credits off, the next episode still
+    /// follows when this one really ends. The marker was already spent when
+    /// the countdown armed, so re-entering the credits raises no new countdown.
+    /// Returns false when no countdown is running, leaving Back to its usual job.
+    @discardableResult
+    func haltUpNextPosterCountdown() -> Bool {
+        guard var poster = upNextPoster, poster.isTimed, !poster.isStarting else { return false }
+        cancelUpNextPosterCountdown()
+        poster.mode = .autoAdvanceAtEnd
+        poster.secondsRemaining = nil
+        poster.countdownClock = nil
+        upNextPoster = poster
+        return true
+    }
+
     func cancelUpNextPosterCountdown() {
         upNextPosterCountdownTask?.cancel()
         upNextPosterCountdownTask = nil

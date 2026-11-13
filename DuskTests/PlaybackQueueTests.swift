@@ -291,6 +291,50 @@ struct UpNextResolutionTests {
         #expect(playback.adjacentEpisodes?.previous?.queueIndex == 0)
     }
 
+    /// #76: Back stops the poster countdown but keeps the poster, which
+    /// still advances when the episode really ends.
+    @Test func haltingThePosterCountdownKeepsThePoster() async throws {
+        let (playback, _) = try makeEpisodeSession()
+        defer { playback.cancelUpNextPosterCountdown() }
+        let next = episodeItem("102")
+        playback.upNextPoster = UpNextPosterPresentation(
+            item: next,
+            mode: .timedAutoplay(countdown: 30),
+            creditsMarkerID: 7,
+            secondsRemaining: 30,
+            countdownClock: UpNextCountdownClock(duration: 30)
+        )
+        playback.startUpNextPosterCountdown()
+        #expect(playback.upNextPosterCountdownTask != nil)
+
+        #expect(playback.haltUpNextPosterCountdown())
+
+        let poster = try #require(playback.upNextPoster)
+        #expect(poster.item.ratingKey == "102")
+        #expect(poster.mode == .autoAdvanceAtEnd)
+        #expect(poster.autoAdvancesAtEnd)
+        #expect(poster.countdownClock == nil)
+        #expect(poster.secondsRemaining == nil)
+        #expect(playback.upNextPosterCountdownTask == nil)
+
+        // The cancelled loop publishes nothing more.
+        try await Task.sleep(for: .milliseconds(250))
+        #expect(playback.upNextPoster?.countdownClock == nil)
+        #expect(playback.upNextPoster?.isStarting == false)
+
+        // Nothing left to halt: Back goes back to its usual job.
+        #expect(!playback.haltUpNextPosterCountdown())
+    }
+
+    @Test func haltDoesNothingForAnUntimedPoster() throws {
+        let (playback, _) = try makeEpisodeSession()
+        #expect(!playback.haltUpNextPosterCountdown())
+
+        playback.upNextPoster = UpNextPosterPresentation(item: episodeItem("102"), mode: .manual, creditsMarkerID: 7)
+        #expect(!playback.haltUpNextPosterCountdown())
+        #expect(playback.upNextPoster?.mode == .manual)
+    }
+
     /// Review #4: an item found gone after the poster went up moves the
     /// poster on to the following item (or away at the end).
     @Test func aGoneItemMovesTheVisiblePosterOn() throws {
