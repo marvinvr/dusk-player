@@ -6,7 +6,8 @@ import SwiftUI
 /// Collections, like the TV app's mode switch, instead of iOS's three pushed
 /// screens that were all titled "Movies". Collections only shows when the
 /// library has any. With several libraries of the type, Recommended merges
-/// them and Library/Collections get a library pop-up next to the switch.
+/// them and the window title's menu picks the library Library/Collections
+/// browse.
 ///
 /// The modes are this view's state, so a detail page pushed from any of them
 /// comes back to the same mode.
@@ -31,12 +32,27 @@ struct MacLibraryBrowser: View {
 
     var body: some View {
         content
+            .environment(\.macUIHostsLibraryTitle, true)
+            // The library picker is the window title's own menu
+            // (`toolbarTitleMenu`), so there's one title, and the toolbar
+            // keeps the same layout in every mode.
+            .navigationTitle(windowTitle)
+            .toolbarTitleMenu {
+                if libraries.count > 1 {
+                    Picker("Library", selection: titleMenuBinding) {
+                        ForEach(libraries) { library in
+                            Text(viewModel.displayTitle(for: library)).tag(Optional(library.id))
+                        }
+                    }
+                    .pickerStyle(.inline)
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .principal) {
                     Picker("View", selection: $mode) {
                         Text("Recommended").tag(Mode.recommended)
                         Text("Library").tag(Mode.library)
-                        if hasCollections {
+                        if showsCollectionsSegment {
                             Text("Collections").tag(Mode.collections)
                         }
                     }
@@ -44,26 +60,44 @@ struct MacLibraryBrowser: View {
                     .labelsHidden()
                     .fixedSize()
                 }
-
-                if libraries.count > 1, mode != .recommended {
-                    ToolbarItem(placement: .navigation) {
-                        Picker("Library", selection: libraryBinding) {
-                            ForEach(libraries) { library in
-                                Text(viewModel.displayTitle(for: library)).tag(library.id)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .fixedSize()
-                        .help("Library")
-                    }
-                }
             }
             .task(id: selectedLibrary.id) {
                 await loadCollectionsAvailability(for: selectedLibrary)
             }
-            .onChange(of: hasCollections) { _, has in
-                if !has, mode == .collections { mode = .library }
+            // A library found to have no collections leaves Collections.
+            .onChange(of: collectionsAvailable[selectedLibrary.id]) { _, available in
+                if available == false, mode == .collections, !Self.holdsQACollectionsMode {
+                    mode = .library
+                }
             }
+    }
+
+    /// "Movies" in Recommended (it merges every library of the type); the
+    /// picked library's name in Library/Collections when there are several.
+    private var windowTitle: String {
+        guard libraries.count > 1, mode != .recommended else { return libraryType.tabTitle }
+        return viewModel.displayTitle(for: selectedLibrary)
+    }
+
+    /// Checks the browsed library in Library/Collections. In Recommended
+    /// nothing is checked, and picking a library opens it in Library.
+    private var titleMenuBinding: Binding<String?> {
+        Binding(
+            get: { mode == .recommended ? nil : selectedLibrary.id },
+            set: { id in
+                guard let id else { return }
+                selectedLibraryID = id
+                if mode == .recommended { mode = .library }
+            }
+        )
+    }
+
+    /// A third segment only for a library that has collections. Also kept
+    /// while Collections is the current mode, so the switch never shows no
+    /// selection (the availability check still running, or QA's
+    /// `-DuskMacLibraryMode collections` on a library without any).
+    private var showsCollectionsSegment: Bool {
+        hasCollections || mode == .collections
     }
 
     @ViewBuilder
@@ -94,13 +128,6 @@ struct MacLibraryBrowser: View {
         libraries.first { $0.id == selectedLibraryID } ?? libraries[0]
     }
 
-    private var libraryBinding: Binding<String> {
-        Binding(
-            get: { selectedLibrary.id },
-            set: { selectedLibraryID = $0 }
-        )
-    }
-
     private var hasCollections: Bool {
         collectionsAvailable[selectedLibrary.id] == true
     }
@@ -125,6 +152,15 @@ struct MacLibraryBrowser: View {
         collectionsAvailable[library.id] = resolvedMode != .disabled && page?.items.isEmpty == false
     }
 
+    /// QA screenshots of the Collections empty state keep the forced mode.
+    private static var holdsQACollectionsMode: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "DuskMacLibraryMode") == Mode.collections.rawValue
+        #else
+        false
+        #endif
+    }
+
     private static var initialMode: Mode {
         #if DEBUG
         // QA screenshots: `-DuskMacLibraryMode library|collections`.
@@ -134,6 +170,33 @@ struct MacLibraryBrowser: View {
         }
         #endif
         return .recommended
+    }
+}
+
+extension EnvironmentValues {
+    /// Set by `MacLibraryBrowser`, which titles the window itself (with the
+    /// library menu); the Recommended/Library/Collections pages inside it
+    /// then leave the title alone.
+    @Entry var macUIHostsLibraryTitle = false
+}
+
+extension View {
+    /// A library page's window title, unless `MacLibraryBrowser` hosts it.
+    func macUILibraryPageTitle(_ title: String) -> some View {
+        modifier(MacUILibraryPageTitle(title: title))
+    }
+}
+
+private struct MacUILibraryPageTitle: ViewModifier {
+    let title: String
+    @Environment(\.macUIHostsLibraryTitle) private var isHosted
+
+    func body(content: Content) -> some View {
+        if isHosted {
+            content
+        } else {
+            content.navigationTitle(title)
+        }
     }
 }
 #endif

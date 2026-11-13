@@ -588,6 +588,10 @@ private struct SeasonEpisodeTextContent: View {
 
             if showsInlineSummary {
                 SeasonEpisodeSummaryText(episode: episode, lineLimit: 3)
+                    #if os(macOS)
+                    // A readable column on wide windows.
+                    .frame(maxWidth: 680, alignment: .leading)
+                    #endif
             }
         }
     }

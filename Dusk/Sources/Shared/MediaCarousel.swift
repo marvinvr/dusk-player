@@ -4,26 +4,46 @@ import SwiftUI
 struct MediaCarousel<Content: View>: View {
     let title: String
     let horizontalPadding: CGFloat
+    /// Mac: the full list behind the row, opened from the section title
+    /// ("Title ›", like the TV and Music apps). Ignored on iOS and tvOS.
+    var titleRoute: AppNavigationRoute? = nil
+    /// Mac: height of the cards' artwork, so the hover paging chevrons sit
+    /// centred on the artwork rather than on artwork plus titles.
+    var artworkHeight: CGFloat? = nil
     @ViewBuilder let content: () -> Content
 
     init(
         title: String,
         horizontalPadding: CGFloat = DuskPosterMetrics.carouselHorizontalPadding,
+        titleRoute: AppNavigationRoute? = nil,
+        artworkHeight: CGFloat? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.horizontalPadding = horizontalPadding
+        self.titleRoute = titleRoute
+        self.artworkHeight = artworkHeight
         self.content = content
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.carouselSectionSpacing) {
-            Text(title)
-                .font(DuskFont.sectionHeader(ios: .title3.bold()))
-                .foregroundStyle(Color.primary)
+            header
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, horizontalPadding)
 
+            #if os(macOS)
+            MacShelfPagingScrollView(
+                horizontalPadding: horizontalPadding,
+                artworkHeight: artworkHeight
+            ) {
+                CarouselItemStack(alignment: .top, spacing: DuskPosterMetrics.carouselItemSpacing) {
+                    content()
+                }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, DuskPosterMetrics.carouselBottomPadding)
+            }
+            #else
             ScrollView(.horizontal, showsIndicators: false) {
                 CarouselItemStack(alignment: .top, spacing: DuskPosterMetrics.carouselItemSpacing) {
                     content()
@@ -40,9 +60,124 @@ struct MediaCarousel<Content: View>: View {
             .scrollClipDisabled()
             #endif
             .carouselLeadingFocusLock(leadingInset: horizontalPadding)
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var header: some View {
+        let text = Text(title)
+            .font(DuskFont.sectionHeader(ios: .title3.bold()))
+            .foregroundStyle(Color.primary)
+        #if os(macOS)
+        if let titleRoute {
+            NavigationLink(value: titleRoute) {
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    text
+                    Image(systemName: "chevron.right")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .help("Show All")
+        } else {
+            text
+        }
+        #else
+        text
+        #endif
+    }
+}
+
+#if os(macOS)
+/// A shelf's horizontal scroll view on the Mac. While the pointer is over
+/// the shelf, glass chevrons at its leading and trailing edges (centred on
+/// the artwork) page it by one visible width, like the TV app's rows; each
+/// only shows when there is more to scroll that way.
+private struct MacShelfPagingScrollView<Content: View>: View {
+    let horizontalPadding: CGFloat
+    let artworkHeight: CGFloat?
+    @ViewBuilder let content: () -> Content
+
+    @State private var position = ScrollPosition(edge: .leading)
+    @State private var metrics = ShelfScrollMetrics()
+    @State private var isHovered = false
+
+    private struct ShelfScrollMetrics: Equatable {
+        var offset: CGFloat = 0
+        var maxOffset: CGFloat = 0
+        var viewport: CGFloat = 0
+    }
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            content()
+        }
+        .scrollPosition($position)
+        .onScrollGeometryChange(for: ShelfScrollMetrics.self) { geometry in
+            ShelfScrollMetrics(
+                offset: geometry.contentOffset.x,
+                maxOffset: max(geometry.contentSize.width - geometry.containerSize.width, 0),
+                viewport: geometry.containerSize.width
+            )
+        } action: { _, new in
+            metrics = new
+        }
+        .overlay(alignment: .topLeading) {
+            chevrons
+        }
+        .onHover { isHovered = $0 }
+    }
+
+    private var canPageBack: Bool { metrics.offset > 1 }
+    private var canPageForward: Bool { metrics.offset < metrics.maxOffset - 1 }
+
+    private var chevrons: some View {
+        HStack {
+            chevron("chevron.left", label: "Previous", isShown: canPageBack) { page(by: -1) }
+            Spacer(minLength: 0)
+            chevron("chevron.right", label: "Next", isShown: canPageForward) { page(by: 1) }
+        }
+        .padding(.horizontal, 6)
+        .frame(height: artworkHeight)
+        .frame(maxHeight: artworkHeight == nil ? .infinity : nil)
+    }
+
+    private func chevron(
+        _ systemImage: String,
+        label: String,
+        isShown: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        let isVisible = isHovered && isShown
+        return Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.body.weight(.semibold))
+                .frame(width: 18, height: 18)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+        .help(label)
+        .accessibilityLabel(label)
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .animation(.easeOut(duration: 0.16), value: isVisible)
+    }
+
+    /// One visible width (less the side insets, so the card cut off at the
+    /// edge comes round in full), clamped to the row.
+    private func page(by direction: CGFloat) {
+        let step = max(metrics.viewport - horizontalPadding * 2, 1)
+        let target = min(max(metrics.offset + direction * step, 0), metrics.maxOffset)
+        withAnimation(.smooth(duration: 0.4)) {
+            position.scrollTo(x: target)
         }
     }
 }
+#endif
 
 /// The items of a horizontally scrolling row.
 ///

@@ -154,7 +154,7 @@ struct MacRootView: View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             MacSidebar(
                 contentDestinations: contentDestinations,
-                showsDownloads: hasDownloads,
+                showsDownloads: showsDownloads,
                 selection: sidebarSelection
             )
         } detail: {
@@ -165,14 +165,13 @@ struct MacRootView: View {
                     destination: router.selection,
                     reload: router.reloadRevision(for: router.selection)
                 ))
-                // One soft edge under the transparent toolbar on every page
-                // (no opaque band); hero pages switch it off over their art
-                // (`macHeroUnderToolbar()`).
+                // One soft edge under the transparent toolbar on every page;
+                // hero pages switch it off over their art
+                // (`macHeroUnderToolbar()`). The toolbar background stays
+                // automatic here and on pushed screens: on macOS 26 that
+                // background is this edge effect, and hiding it let scrolled
+                // content overprint the title.
                 .scrollEdgeEffectStyle(.soft, for: .top)
-                // Screens without a scroll view at their root (empty and
-                // error states, Live TV) would otherwise get an opaque
-                // toolbar band.
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
                 .toolbar {
                     // A root screen offers Forward once Back left a screen;
                     // pushed screens carry their own pair
@@ -255,7 +254,7 @@ struct MacRootView: View {
     /// Everything the sidebar lists, in order; the Go menu numbers these.
     private var destinations: [MainTabItem] {
         var items: [MainTabItem] = [.home] + contentDestinations
-        if hasDownloads {
+        if showsDownloads {
             items.append(.downloads)
         }
         return items
@@ -288,8 +287,10 @@ struct MacRootView: View {
         return types
     }
 
-    private var hasDownloads: Bool {
-        DownloadsFeature.isVisible && !downloadManager.records.isEmpty
+    /// Always listed (with its own empty state), like the TV app's
+    /// Downloads, so the sidebar keeps its shape as downloads come and go.
+    private var showsDownloads: Bool {
+        DownloadsFeature.isVisible
     }
 
     private var resolvedLiveTVViewModel: LiveTVViewModel {

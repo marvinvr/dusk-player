@@ -46,7 +46,12 @@ struct HomeUserPickerView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                #if os(macOS)
+                // The standard window/sheet background throughout.
+                Color.clear
+                #else
                 Color.duskBackground.ignoresSafeArea()
+                #endif
 
                 if let pendingUser {
                     pinEntry(for: pendingUser)
@@ -74,7 +79,9 @@ struct HomeUserPickerView: View {
                 }
             }
             .toolbar {
-                if pendingUser == nil, let onCancel {
+                // The Mac's Cancel sits in the content, bottom-trailing: a
+                // sheet toolbar item becomes a separate footer band.
+                if !isMac, pendingUser == nil, let onCancel {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel", action: onCancel)
                             .tint(Color.duskTextSecondary)
@@ -155,6 +162,18 @@ struct HomeUserPickerView: View {
                 .frame(maxWidth: .infinity, minHeight: geometry.size.height)
             }
             .scrollBounceBehavior(.basedOnSize)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if let onCancel {
+                HStack {
+                    Spacer()
+                    Button("Cancel", action: onCancel)
+                        .keyboardShortcut(.cancelAction)
+                        .controlSize(.large)
+                        .disabled(switchingProfileID != nil)
+                }
+                .padding(MacUILayout.contentInset)
+            }
         }
         .navigationTitle("Who’s Watching?")
         .toolbar(removing: .title)
@@ -580,7 +599,7 @@ private struct MacHomeUserCard: View {
             .frame(width: Self.size.width, height: Self.size.height)
             .background(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(isHovered ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+                    .fill(isHovered ? AnyShapeStyle(.fill.secondary) : AnyShapeStyle(.fill.quaternary))
             )
             .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         }

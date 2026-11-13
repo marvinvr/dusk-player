@@ -81,6 +81,17 @@ extension View {
         #endif
     }
 
+    /// Room under the last section of a Mac detail page, so the page never
+    /// ends flush with the window's bottom edge. No-op on iOS and tvOS.
+    @ViewBuilder
+    func detailMacPageBottomInset() -> some View {
+        #if os(macOS)
+        self.padding(.bottom, 48)
+        #else
+        self
+        #endif
+    }
+
     /// The window title of a detail page (Window menu, Mission Control). The
     /// visible title is hidden over the hero by `macHeroUnderToolbar()`.
     /// No-op on iOS and tvOS, whose detail pages carry no bar title.
@@ -537,11 +548,12 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 text: descriptionText,
                 title: title,
                 collapsedLineLimit: 3,
+                font: macIsWide ? .title3 : .body,
                 lineSpacing: 2,
                 foregroundStyle: Color.primary.opacity(0.82),
                 allowsExpansion: false
             )
-            .frame(maxWidth: MacUILayout.readableTextWidth, alignment: .leading)
+            .frame(maxWidth: MacUILayout.readableTextWidth * (macIsWide ? 1.2 : 1), alignment: .leading)
             #else
             ExpandableSummaryText(
                 text: descriptionText,
@@ -556,17 +568,24 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     #endif
 
     #if os(macOS)
-    /// Gap between the bottom of the title block and the hero's bottom edge.
-    static var macBottomPadding: CGFloat { 20 }
+    /// Gap between the bottom of the title block and the hero's bottom edge;
+    /// most of it is the fade into the page, so the text block stays on the
+    /// dark scrim.
+    static var macBottomPadding: CGFloat { 48 }
     /// The last stretch of the hero, where the artwork fades into the page.
-    private static var macFadeHeight: CGFloat { 36 }
+    private static var macFadeHeight: CGFloat { 100 }
+
+    /// Very wide windows (2000pt displays) step the hero's type and controls
+    /// up one size so the text block doesn't shrink against the backdrop.
+    private var macIsWide: Bool { containerWidth >= 1600 }
+
     /// Width of the metadata + actions column; the synopsis sits to its right.
-    private static var macLeadingColumnWidth: CGFloat { 300 }
+    private var macLeadingColumnWidth: CGFloat { macIsWide ? 360 : 300 }
 
     /// Title artwork stays a fraction of the hero, so a small window still
     /// shows the actions above the fold.
     private var macLogoHeight: CGFloat {
-        min(140, max(heroHeight * 0.18, 64))
+        min(macIsWide ? 180 : 140, max(heroHeight * 0.18, 64))
     }
 
     /// One layout for every detail page: the title block (show logo
@@ -578,7 +597,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             VStack(alignment: .leading, spacing: 6) {
                 supertitle
                 titleView(height: macLogoHeight, alignment: .leading)
-                    .frame(maxWidth: 360, alignment: .leading)
+                    .frame(maxWidth: macIsWide ? 460 : 360, alignment: .leading)
                 if let titleAccessory { titleAccessory }
             }
 
@@ -586,8 +605,9 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 VStack(alignment: .leading, spacing: 16) {
                     subtitle
                     actions
+                        .environment(\.detailHeroMacControlSize, macIsWide ? .extraLarge : .large)
                 }
-                .frame(width: Self.macLeadingColumnWidth, alignment: .leading)
+                .frame(width: macLeadingColumnWidth, alignment: .leading)
 
                 descriptionColumn
             }
@@ -597,6 +617,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 
     private var macBackdrop: some View {
         let fadeStart = max(0, 1 - Self.macFadeHeight / max(heroHeight, 1))
+        let fadeSpan = 1 - fadeStart
         return ZStack {
             DetailHeroBackdrop(
                 imageURL: backdropURL,
@@ -604,17 +625,22 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading,
                 blursImage: blursBackdrop
             )
-            MacDetailHeroScrim()
+            MacDetailHeroScrim(fadeStart: fadeStart)
         }
         .environment(\.colorScheme, .dark)
         .frame(width: containerWidth, height: heroHeight, alignment: .leading)
-        // Fade the dark hero into the page background with a mask, so the page
-        // fill is the only colour at the seam (no grey band in Light mode).
+        // Fade the dark hero into the page background with a mask (the page
+        // fill is the only colour at the seam). Eased, and only below the
+        // text block, so Light mode gets a soft ramp rather than a band.
         .mask {
             LinearGradient(
                 stops: [
                     .init(color: .black, location: 0),
                     .init(color: .black, location: fadeStart),
+                    .init(color: .black.opacity(0.9), location: fadeStart + fadeSpan * 0.2),
+                    .init(color: .black.opacity(0.62), location: fadeStart + fadeSpan * 0.45),
+                    .init(color: .black.opacity(0.28), location: fadeStart + fadeSpan * 0.7),
+                    .init(color: .black.opacity(0.07), location: fadeStart + fadeSpan * 0.88),
                     .init(color: .clear, location: 1),
                 ],
                 startPoint: .top,
@@ -679,33 +705,128 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 }
 
 #if os(macOS)
-/// The Mac detail pages' "Media" section: one readable line such as
-/// "1080p · H.264 · AAC · 5.1" in plain secondary text.
+/// The Mac movie/episode pages' "Information" section, laid out like the TV
+/// app's: a grid of labelled cells (Video, Audio, Subtitles, File), each a
+/// small semibold label above secondary values.
 struct DetailMacMediaSection: View {
     let media: PlexMedia?
 
+    private struct Cell: Identifiable {
+        let label: String
+        let lines: [String]
+        var id: String { label }
+    }
+
     var body: some View {
-        if let line = media.flatMap(Self.line(for:)) {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Media")
-                    .font(.headline)
+        let cells = media.map(Self.cells(for:)) ?? []
+        if !cells.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Information")
+                    .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
-                Text(line)
-                    .font(.body)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 190, maximum: 300), spacing: 32, alignment: .topLeading)],
+                    alignment: .leading,
+                    spacing: 20
+                ) {
+                    ForEach(cells) { cell in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(cell.label)
+                                .font(.subheadline.weight(.semibold))
+                                .foregroundStyle(Color.primary)
+                            Text(cell.lines.joined(separator: "\n"))
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .lineSpacing(2)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                        .accessibilityElement(children: .combine)
+                    }
+                }
+                .textSelection(.enabled)
             }
         }
     }
 
-    static func line(for media: PlexMedia) -> String? {
-        let parts = [
-            media.videoResolution.map(resolution),
-            media.videoCodec.map(videoCodec),
-            media.audioCodec.map(audioCodec),
-            media.audioChannels.map(channels),
+    private static func cells(for media: PlexMedia) -> [Cell] {
+        let part = media.firstAvailablePart
+        let streams = part?.streams ?? []
+        var cells: [Cell] = []
+
+        let video = streams.first { $0.streamType == .video }
+        let videoLines = [
+            resolutionLine(media: media, stream: video),
+            [media.videoCodec.map(videoCodec), video?.frameRate.map(frameRate)]
+                .compactMap { $0 }.joined(separator: " · "),
+            video.flatMap(dynamicRange),
         ].compactMap { $0 }.filter { !$0.isEmpty }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        if !videoLines.isEmpty { cells.append(Cell(label: "Video", lines: videoLines)) }
+
+        let audio = streams.filter { $0.streamType == .audio }.map(trackTitle)
+        let audioLines = audio.isEmpty
+            ? [[media.audioCodec.map(audioCodec), media.audioChannels.map(channels)].compactMap { $0 }.joined(separator: " ")]
+            : audio
+        if let lines = capped(audioLines.filter { !$0.isEmpty }) {
+            cells.append(Cell(label: "Audio", lines: lines))
+        }
+
+        if let lines = capped(streams.filter { $0.streamType == .subtitle }.map(trackTitle)) {
+            cells.append(Cell(label: "Subtitles", lines: lines))
+        }
+
+        let fileLines = [
+            (part?.container ?? media.container).map { $0.uppercased() },
+            part?.size.map { ByteCountFormatter.string(fromByteCount: Int64($0), countStyle: .file) },
+            media.bitrate.map(bitrate),
+        ].compactMap { $0 }
+        if !fileLines.isEmpty { cells.append(Cell(label: "File", lines: fileLines)) }
+
+        return cells
+    }
+
+    /// At most four tracks, then "and N more".
+    private static func capped(_ lines: [String]) -> [String]? {
+        guard !lines.isEmpty else { return nil }
+        guard lines.count > 4 else { return lines }
+        return Array(lines.prefix(3)) + ["and \(lines.count - 3) more"]
+    }
+
+    private static func trackTitle(_ stream: PlexStream) -> String {
+        stream.displayTitle ?? stream.language ?? stream.codec?.uppercased() ?? "Unknown"
+    }
+
+    private static func resolutionLine(media: PlexMedia, stream: PlexStream?) -> String? {
+        let name = media.videoResolution.map(resolution)
+        let width = stream?.width ?? media.width
+        let height = stream?.height ?? media.height
+        let size = width.flatMap { w in height.map { "\(w)×\($0)" } }
+        switch (name, size) {
+        case let (name?, size?): return "\(name) (\(size))"
+        case let (name?, nil): return name
+        case let (nil, size?): return size
+        default: return nil
+        }
+    }
+
+    private static func frameRate(_ value: Double) -> String {
+        let rounded = (value * 1000).rounded() / 1000
+        return rounded.formatted(.number.precision(.fractionLength(0...3))) + " fps"
+    }
+
+    private static func dynamicRange(_ stream: PlexStream) -> String? {
+        if stream.doviPresent == true { return "Dolby Vision" }
+        switch stream.colorTrc?.lowercased() {
+        case "smpte2084": return "HDR10"
+        case "arib-std-b67": return "HLG"
+        default: return nil
+        }
+    }
+
+    private static func bitrate(_ kbps: Int) -> String {
+        kbps >= 1000
+            ? (Double(kbps) / 1000).formatted(.number.precision(.fractionLength(1))) + " Mbps"
+            : "\(kbps) kbps"
     }
 
     private static func resolution(_ value: String) -> String {
@@ -758,9 +879,14 @@ struct DetailMacMediaSection: View {
 }
 
 /// The Mac detail hero's dark scrim: a light darkening under the toolbar, a
-/// strong leading wash behind the title column and a bottom darkening behind
-/// the actions. Black only, so the hero reads the same in Light and Dark mode.
+/// strong leading wash behind the title column, a bottom-leading pool behind
+/// the metadata and actions (busy, bright art), and a bottom darkening that
+/// peaks where the fade into the page starts. Black only, so the hero reads
+/// the same in Light and Dark mode.
 private struct MacDetailHeroScrim: View {
+    /// Where the hero starts fading into the page (fraction of its height).
+    var fadeStart: CGFloat = 1
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -781,11 +907,24 @@ private struct MacDetailHeroScrim: View {
                 startPoint: .leading,
                 endPoint: .trailing
             )
+            EllipticalGradient(
+                stops: [
+                    .init(color: .black.opacity(0.5), location: 0),
+                    .init(color: .black.opacity(0.32), location: 0.45),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
+                center: .bottomLeading,
+                startRadiusFraction: 0,
+                endRadiusFraction: 0.75
+            )
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0), location: 0.3),
-                    .init(color: .black.opacity(0.55), location: 0.72),
-                    .init(color: .black.opacity(0.88), location: 1),
+                    .init(color: .black.opacity(0), location: max(0, fadeStart - 0.6)),
+                    .init(color: .black.opacity(0.55), location: max(0, fadeStart - 0.2)),
+                    .init(color: .black.opacity(0.8), location: fadeStart),
+                    // Eases off inside the fade, so the hero's tail melts
+                    // into the page instead of ending in a near-black band.
+                    .init(color: .black.opacity(0.45), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
@@ -914,6 +1053,8 @@ struct DetailHeroSecondaryIconLabel: View {
 
     #if os(tvOS)
     @Environment(\.isFocused) private var isFocused
+    #elseif os(macOS)
+    @Environment(\.detailHeroMacControlSize) private var macControlSize
     #endif
 
     var body: some View {
@@ -940,9 +1081,13 @@ struct DetailHeroSecondaryIconLabel: View {
         #elseif os(macOS)
         // A fixed square glyph box, so every secondary (buttons and the Rate
         // menu) is the same circle under `.buttonBorderShape(.circle)`.
+        let isLarge = macControlSize == .extraLarge
         Image(systemName: systemImage)
-            .font(.system(size: 13, weight: .semibold))
-            .frame(width: detailHeroMacSecondaryGlyphBox, height: detailHeroMacSecondaryGlyphBox)
+            .font(.system(size: isLarge ? 15 : 13, weight: .semibold))
+            .frame(
+                width: detailHeroMacSecondaryGlyphBox + (isLarge ? 4 : 0),
+                height: detailHeroMacSecondaryGlyphBox + (isLarge ? 4 : 0)
+            )
             // Full contrast, active window or not, like the download button.
             .foregroundStyle(Color.primary)
             .contentShape(Circle())
@@ -993,6 +1138,21 @@ struct DetailHeroSecondaryIconLabel: View {
 /// Side of the square glyph box in a Mac hero secondary button; with the
 /// `.large` glass circle's padding the button is ~32pt across.
 let detailHeroMacSecondaryGlyphBox: CGFloat = 18
+
+extension EnvironmentValues {
+    /// Control size of the Mac detail hero's buttons: `.large`, one step up
+    /// in very wide windows (`DetailHeroSection`).
+    @Entry var detailHeroMacControlSize: ControlSize = .large
+}
+
+/// Applies `detailHeroMacControlSize` to a hero button.
+private struct DetailHeroMacControlSizing: ViewModifier {
+    @Environment(\.detailHeroMacControlSize) private var size
+
+    func body(content: Content) -> some View {
+        content.controlSize(size)
+    }
+}
 #endif
 
 struct DetailHeroPrimaryActionButtonLabel: View {
@@ -1002,6 +1162,7 @@ struct DetailHeroPrimaryActionButtonLabel: View {
 
     #if os(macOS)
     @Environment(\.controlActiveState) private var controlActiveState
+    @Environment(\.detailHeroMacControlSize) private var macControlSize
     #endif
 
     var body: some View {
@@ -1011,7 +1172,7 @@ struct DetailHeroPrimaryActionButtonLabel: View {
         // platter loses its fill, so the label goes back to `primary` (white
         // in the hero's dark context) and stays legible.
         Label(title, systemImage: systemImage)
-            .font(.body.weight(.semibold))
+            .font((macControlSize == .extraLarge ? Font.title3 : .body).weight(.semibold))
             .lineLimit(1)
             .padding(.horizontal, 6)
             .foregroundStyle(controlActiveState == .inactive ? Color.primary : Color.black)
@@ -1103,7 +1264,7 @@ extension View {
         // Mac's large control size, hugging its label.
         self
             .buttonStyle(.glassProminent)
-            .controlSize(.large)
+            .modifier(DetailHeroMacControlSizing())
             .buttonBorderShape(.capsule)
             .tint(.white)
         #else
@@ -1142,7 +1303,7 @@ extension View {
         // renders as the same button (no indicator).
         self
             .buttonStyle(.glass)
-            .controlSize(.large)
+            .modifier(DetailHeroMacControlSizing())
             .buttonBorderShape(.circle)
             .menuStyle(.button)
             .menuIndicator(.hidden)

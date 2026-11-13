@@ -122,6 +122,7 @@ struct EpisodeDetailView: View {
                         .padding(.top, detailSectionSpacing)
                     #endif
                 }
+                .detailMacPageBottomInset()
                 .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
                 .padding(.bottom, 40)
@@ -154,11 +155,19 @@ struct EpisodeDetailView: View {
             // The season·episode marker rides directly under the title (so on iPad
             // it heads the right column), while the rest of the metadata stays in
             // the left column with the show logo and the actions.
-            titleAccessory: AnyView(
+            titleAccessory: macMarkerLeadsTitle ? nil : AnyView(
                 episodeMarkerRow()
                     .multilineTextAlignment(detailHeroTextAlignment(for: sizeClass))
             ),
             supertitle: {
+                #if os(macOS)
+                // Mac: show logo, then "Season 1 · Episode 3" in the metadata
+                // style, then the episode title (TV app order).
+                VStack(alignment: .leading, spacing: 14) {
+                    macShowTitleLink(containerWidth: containerWidth)
+                    episodeMarkerRow()
+                }
+                #else
                 if let showTitle = viewModel.showTitle {
                     DetailHeroShowTitleLink(
                         title: showTitle,
@@ -171,6 +180,7 @@ struct EpisodeDetailView: View {
                         }
                     )
                 }
+                #endif
             },
             subtitle: {
                 VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
@@ -184,6 +194,33 @@ struct EpisodeDetailView: View {
             }
         )
     }
+
+    /// The Mac puts the season·episode marker above the title, not under it.
+    private var macMarkerLeadsTitle: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private func macShowTitleLink(containerWidth: CGFloat) -> some View {
+        if let showTitle = viewModel.showTitle {
+            DetailHeroShowTitleLink(
+                title: showTitle,
+                logoURL: viewModel.showTitleLogoURL(
+                    width: Int((containerWidth * 0.5).rounded(.up)),
+                    height: 128
+                ),
+                showRoute: viewModel.showID.map {
+                    AppNavigationRoute.media(type: .show, id: $0)
+                }
+            )
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func episodeMarkerRow() -> some View {
@@ -234,7 +271,12 @@ struct EpisodeDetailView: View {
     // On iPad the season·episode marker sits under the episode title in the
     // right column as a quiet subtitle, so it reads smaller and greyer there.
     private var usesQuietMarker: Bool {
+        #if os(macOS)
+        // Matches the metadata line below the title on the Mac.
+        false
+        #else
         sizeClass == .regular
+        #endif
     }
 
     private var markerFont: Font {

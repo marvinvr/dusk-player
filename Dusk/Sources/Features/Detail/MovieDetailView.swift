@@ -129,7 +129,7 @@ struct MovieDetailView: View {
                     DetailMacMediaSection(media: details.media.first)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.top, detailSectionSpacing)
-                        .padding(.bottom, 56)
+                        .padding(.bottom, 48)
                     #else
                     mediaInfoSection()
                         .padding(.horizontal, horizontalPadding)

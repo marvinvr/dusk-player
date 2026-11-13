@@ -38,9 +38,9 @@ struct DownloadsRootContent: View {
     }
 
     #if os(macOS)
-    /// The Mac's Downloads: one list, the queue (with progress) above the
-    /// saved titles, size and state per row, hover and context actions.
-    /// Replaces the iOS poster grid and the queue sheet.
+    /// The Mac's Downloads: one selectable list (`MacDownloadsList`), the
+    /// queue above the saved titles. Replaces the iOS poster grid and the
+    /// queue sheet.
     private var macBody: some View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
@@ -400,202 +400,272 @@ struct DownloadsRootContent: View {
 }
 
 #if os(macOS)
-/// The Mac's Downloads list. Rows open the title; hover shows Show in Finder
-/// and Remove, the context menu has the same plus the queue controls.
+/// The Mac's Downloads: a standard inset list, the queue (with progress)
+/// above the saved titles. Rows select (⌘/⇧-click for several), double-click
+/// or Return opens, Delete removes (after a confirmation), and the context
+/// menu has Play, Show in Finder and Delete Download, plus the queue
+/// controls on queued rows. The saved total is the list's footer.
 private struct MacDownloadsList: View {
     @Environment(DownloadManager.self) private var downloadManager
+    @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
 
     let queued: [DownloadedMediaRecord]
     let downloaded: [DownloadedLibraryItem]
     let pendingSyncBanner: AnyView?
     let open: (AppNavigationRoute) -> Void
 
+    @State private var selection = Set<String>()
+    @State private var pendingDeletion: Set<String>?
+
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: MacUILayout.sectionSpacing) {
-                if let pendingSyncBanner {
-                    pendingSyncBanner
-                        // The banner brings its own 20pt iOS inset.
-                        .padding(.horizontal, -20)
-                }
+        List(selection: $selection) {
+            if let pendingSyncBanner {
+                pendingSyncBanner
+                    // The banner brings its own 20pt iOS inset.
+                    .padding(.horizontal, -20)
+                    .selectionDisabled()
+                    .listRowSeparator(.hidden)
+            }
 
-                if !queued.isEmpty {
-                    section("Downloading") {
-                        ForEach(queued) { record in
-                            MacDownloadQueueRow(record: record, open: open)
-                        }
-                    }
-                }
-
-                if !downloaded.isEmpty {
-                    section(queued.isEmpty ? nil : "Downloaded") {
-                        ForEach(downloaded) { item in
-                            MacDownloadedRow(item: item, open: open)
-                        }
+            if !queued.isEmpty {
+                Section("Downloading") {
+                    ForEach(queued) { record in
+                        MacDownloadQueueRow(record: record)
+                            .tag(Self.queuedTag(record))
                     }
                 }
             }
-            .padding(.horizontal, MacUILayout.contentInset)
-            .padding(.vertical, MacUILayout.contentInset)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
 
-    private func section<Rows: View>(_ title: String?, @ViewBuilder rows: () -> Rows) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            if let title {
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 8)
-            }
-            VStack(spacing: 0) {
-                rows()
-            }
-        }
-    }
-}
-
-/// Thumbnail, title and subtitle: the leading part of every Downloads row.
-private struct MacDownloadRowLabel: View {
-    let imageURL: URL?
-    let aspectRatio: CGFloat
-    let title: String
-    let subtitle: String?
-    var progress: Double? = nil
-
-    var body: some View {
-        HStack(spacing: 12) {
-            PosterArtwork(
-                imageURL: imageURL,
-                progress: progress,
-                width: aspectRatio < 1 ? 36 : 80,
-                imageAspectRatio: aspectRatio,
-                cornerRadius: 4
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                if let subtitle, !subtitle.isEmpty {
-                    Text(subtitle)
-                        .font(.callout)
+            if !downloaded.isEmpty {
+                Section {
+                    ForEach(downloaded) { item in
+                        MacDownloadedRow(item: item, sizeText: Self.sizeText(bytes(for: item)))
+                            .tag(Self.downloadedTag(item))
+                    }
+                } header: {
+                    if !queued.isEmpty {
+                        Text("Downloaded")
+                    }
+                } footer: {
+                    Text(footerText)
+                        .monospacedDigit()
                         .foregroundStyle(.secondary)
-                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 8)
                 }
             }
         }
-    }
-}
-
-/// A row's hover highlight and click target, list-style.
-private struct MacDownloadRowChrome<Label: View, Trailing: View>: View {
-    let action: () -> Void
-    @ViewBuilder let label: () -> Label
-    @ViewBuilder let trailing: (Bool) -> Trailing
-
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: action) {
-                label()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
+        .listStyle(.inset)
+        .scrollContentBackground(.hidden)
+        .environment(\.macDownloadsThumbnailColumnWidth, hasLandscapeRows ? 80 : 36)
+        .contextMenu(forSelectionType: String.self) { tags in
+            contextMenu(for: tags)
+        } primaryAction: { tags in
+            if let tag = tags.first, let route = route(for: tag) {
+                open(route)
             }
-            .buttonStyle(.plain)
-
-            trailing(isHovered)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 6)
-        .background(
-            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .fill(isHovered ? AnyShapeStyle(.fill.quaternary) : AnyShapeStyle(.clear))
-        )
-        .onHover { isHovered = $0 }
+        .onDeleteCommand {
+            let deletable = selection.filter(canRemove)
+            if !deletable.isEmpty {
+                pendingDeletion = deletable
+            }
+        }
+        .confirmationDialog(
+            deletionTitle,
+            isPresented: Binding(
+                get: { pendingDeletion != nil },
+                set: { if !$0 { pendingDeletion = nil } }
+            ),
+            presenting: pendingDeletion
+        ) { tags in
+            Button(deletionButtonTitle(tags), role: .destructive) {
+                remove(tags)
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("The files are removed from this Mac. You can download them again later.")
+        }
+        // Rows that went away (deleted, finished) leave the selection.
+        .onChange(of: allTags) { _, tags in
+            selection.formIntersection(tags)
+        }
     }
-}
 
-private struct MacDownloadedRow: View {
-    @Environment(DownloadManager.self) private var downloadManager
+    // MARK: Context menu
 
-    let item: DownloadedLibraryItem
-    let open: (AppNavigationRoute) -> Void
-
-    var body: some View {
-        let state = downloadManager.downloadState(for: item.scope)
-
-        MacDownloadRowChrome {
-            open(item.route)
-        } label: {
-            MacDownloadRowLabel(
-                imageURL: downloadManager.localArtworkURL(for: item.imagePath),
-                aspectRatio: item.imageAspectRatio,
-                title: item.title,
-                subtitle: item.subtitle
-            )
-        } trailing: { isHovered in
-            HStack(spacing: 14) {
-                if isHovered, !state.isDeleting {
-                    HStack(spacing: 4) {
-                        if !fileURLs.isEmpty {
-                            Button {
-                                NSWorkspace.shared.activateFileViewerSelecting(fileURLs)
-                            } label: {
-                                Image(systemName: "magnifyingglass")
-                            }
-                            .help("Show in Finder")
-                        }
+    @ViewBuilder
+    private func contextMenu(for tags: Set<String>) -> some View {
+        if tags.count == 1, let tag = tags.first {
+            if let item = downloadedItem(for: tag) {
+                let state = downloadManager.downloadState(for: item.scope)
+                if !state.isDeleting {
+                    if let record = playableRecord(item) {
                         Button {
-                            downloadManager.deleteDownload(scope: item.scope)
+                            play(record)
                         } label: {
-                            Image(systemName: "trash")
+                            Label("Play", systemImage: "play.fill")
                         }
-                        .help("Remove Download")
                     }
-                    .buttonStyle(.borderless)
-                }
-
-                Text(sizeText)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    .frame(width: 80, alignment: .trailing)
-
-                Group {
-                    if state.isDeleting {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.secondary)
+                    Button {
+                        open(item.route)
+                    } label: {
+                        Label("Open", systemImage: "info.circle")
+                    }
+                    showInFinderButton(for: tags)
+                    Divider()
+                    Button(role: .destructive) {
+                        pendingDeletion = tags
+                    } label: {
+                        Label("Delete Download", systemImage: "trash")
                     }
                 }
-                .frame(width: 20)
-                .help(state.isDeleting ? "Removing" : "Downloaded")
-            }
-        }
-        .opacity(state.isDeleting ? 0.5 : 1)
-        .disabled(state.isDeleting)
-        .contextMenu {
-            if !state.isDeleting {
-                Button("Open") { open(item.route) }
-                if !fileURLs.isEmpty {
-                    Button("Show in Finder") {
-                        NSWorkspace.shared.activateFileViewerSelecting(fileURLs)
-                    }
+            } else if let record = queuedRecord(for: tag) {
+                let scope = Self.scope(record)
+                let state = downloadManager.downloadState(for: scope)
+                Button {
+                    open(Self.route(record))
+                } label: {
+                    Label("Open", systemImage: "info.circle")
                 }
                 Divider()
-                Button("Remove Download", role: .destructive) {
-                    downloadManager.deleteDownload(scope: item.scope)
+                DownloadContextMenuContent(
+                    state: state,
+                    showsDelete: false,
+                    showsCancel: state.canCancel,
+                    onPause: { downloadManager.pauseDownload(scope: scope) },
+                    onResume: { downloadManager.resumeDownload(scope: scope) },
+                    onCancel: { downloadManager.cancelDownload(scope: scope) },
+                    onDelete: { downloadManager.deleteDownload(scope: scope) },
+                    onRetry: { downloadManager.retryDownload(id: record.itemID) }
+                )
+            }
+        } else if tags.count > 1 {
+            showInFinderButton(for: tags)
+            let removable = tags.filter(canRemove)
+            if !removable.isEmpty {
+                Divider()
+                Button(role: .destructive) {
+                    pendingDeletion = removable
+                } label: {
+                    Label(deletionButtonTitle(removable), systemImage: "trash")
                 }
             }
         }
     }
 
-    private var records: [DownloadedMediaRecord] {
+    @ViewBuilder
+    private func showInFinderButton(for tags: Set<String>) -> some View {
+        let urls = tags.compactMap(downloadedItem(for:)).flatMap(fileURLs(for:))
+        if !urls.isEmpty {
+            Button {
+                NSWorkspace.shared.activateFileViewerSelecting(urls)
+            } label: {
+                Label("Show in Finder", systemImage: "folder")
+            }
+        }
+    }
+
+    // MARK: Actions
+
+    private func canRemove(_ tag: String) -> Bool {
+        if let item = downloadedItem(for: tag) {
+            return !downloadManager.downloadState(for: item.scope).isDeleting
+        }
+        if let record = queuedRecord(for: tag) {
+            return downloadManager.downloadState(for: Self.scope(record)).canCancel
+        }
+        return false
+    }
+
+    /// Saved titles are deleted, queued ones cancelled.
+    private func remove(_ tags: Set<String>) {
+        for tag in tags {
+            if let item = downloadedItem(for: tag) {
+                downloadManager.deleteDownload(scope: item.scope)
+            } else if let record = queuedRecord(for: tag) {
+                downloadManager.cancelDownload(scope: Self.scope(record))
+            }
+        }
+        selection.subtract(tags)
+    }
+
+    private var deletionTitle: String {
+        guard let tags = pendingDeletion else { return "" }
+        if tags.count == 1, let tag = tags.first {
+            let title = downloadedItem(for: tag)?.title ?? queuedRecord(for: tag)?.displayTitle
+            if let title {
+                return "Delete the download of “\(title)”?"
+            }
+        }
+        return "Delete \(tags.count) downloads?"
+    }
+
+    private func deletionButtonTitle(_ tags: Set<String>) -> String {
+        tags.count == 1 ? "Delete Download" : "Delete \(tags.count) Downloads"
+    }
+
+    /// Movies and videos play straight from the list; a show opens its page
+    /// to pick an episode.
+    private func playableRecord(_ item: DownloadedLibraryItem) -> DownloadedMediaRecord? {
+        if case .movie(let record) = item {
+            return record
+        }
+        return nil
+    }
+
+    private func play(_ record: DownloadedMediaRecord) {
+        let offset = offlinePlaybackSyncManager.effectiveViewOffsetMs(
+            serverID: record.serverID,
+            ratingKey: record.ratingKey,
+            fallback: nil
+        )
+        Task {
+            await playback.play(id: record.itemID, resumeOffsetMilliseconds: offset)
+        }
+    }
+
+    /// Queued episodes and clips have 16:9 thumbnails.
+    private var hasLandscapeRows: Bool {
+        queued.contains { $0.type == .episode || $0.isClip } || downloaded.contains { $0.imageAspectRatio > 1 }
+    }
+
+    // MARK: Lookup
+
+    private static func queuedTag(_ record: DownloadedMediaRecord) -> String { "queued:" + record.id }
+    private static func downloadedTag(_ item: DownloadedLibraryItem) -> String { "saved:" + item.id }
+
+    private var allTags: Set<String> {
+        Set(queued.map(Self.queuedTag) + downloaded.map(Self.downloadedTag))
+    }
+
+    private func downloadedItem(for tag: String) -> DownloadedLibraryItem? {
+        downloaded.first { Self.downloadedTag($0) == tag }
+    }
+
+    private func queuedRecord(for tag: String) -> DownloadedMediaRecord? {
+        queued.first { Self.queuedTag($0) == tag }
+    }
+
+    private func route(for tag: String) -> AppNavigationRoute? {
+        if let item = downloadedItem(for: tag) {
+            return item.route
+        }
+        return queuedRecord(for: tag).map(Self.route)
+    }
+
+    fileprivate static func scope(_ record: DownloadedMediaRecord) -> DownloadScope {
+        DownloadScope(id: record.itemID, type: record.type)
+    }
+
+    private static func route(_ record: DownloadedMediaRecord) -> AppNavigationRoute {
+        record.isClip ? .downloadedVideo(id: record.itemID) : .downloadedMedia(type: record.type, id: record.itemID)
+    }
+
+    // MARK: Sizes
+
+    private func records(for item: DownloadedLibraryItem) -> [DownloadedMediaRecord] {
         switch item {
         case .movie(let record):
             return [record]
@@ -607,14 +677,97 @@ private struct MacDownloadedRow: View {
         }
     }
 
-    private var fileURLs: [URL] {
-        records.compactMap { downloadManager.localPlaybackURL(for: $0.itemID) }
+    private func fileURLs(for item: DownloadedLibraryItem) -> [URL] {
+        records(for: item).compactMap { downloadManager.localPlaybackURL(for: $0.itemID) }
     }
 
-    private var sizeText: String {
-        let bytes = records.reduce(Int64(0)) { $0 + ($1.totalBytes ?? $1.downloadedBytes) }
-        guard bytes > 0 else { return "" }
-        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    private func bytes(for item: DownloadedLibraryItem) -> Int64 {
+        records(for: item).reduce(Int64(0)) { $0 + ($1.totalBytes ?? $1.downloadedBytes) }
+    }
+
+    private static func sizeText(_ bytes: Int64) -> String {
+        bytes > 0 ? ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) : ""
+    }
+
+    /// "3 titles, 37.9 GB on this Mac", like Finder's status bar.
+    private var footerText: String {
+        let count = downloaded.count
+        let titles = count == 1 ? "1 title" : "\(count) titles"
+        let total = downloaded.reduce(Int64(0)) { $0 + bytes(for: $1) }
+        guard total > 0 else { return titles }
+        return "\(titles), \(Self.sizeText(total)) on this Mac"
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var macDownloadsThumbnailColumnWidth: CGFloat = 80
+}
+
+/// Thumbnail, title and subtitle: the leading part of every Downloads row.
+private struct MacDownloadRowLabel: View {
+    let imageURL: URL?
+    let aspectRatio: CGFloat
+    let title: String
+    let subtitle: String?
+    var progress: Double? = nil
+    @Environment(\.macDownloadsThumbnailColumnWidth) private var thumbnailColumnWidth
+
+    var body: some View {
+        HStack(spacing: 12) {
+            PosterArtwork(
+                imageURL: imageURL,
+                progress: progress,
+                width: aspectRatio < 1 ? 36 : 80,
+                imageAspectRatio: aspectRatio,
+                cornerRadius: 4
+            )
+            // One leading column for every row: posters and 16:9 frames
+            // line their titles up when the list mixes both.
+            .frame(width: thumbnailColumnWidth, height: 54, alignment: .leading)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+private struct MacDownloadedRow: View {
+    @Environment(DownloadManager.self) private var downloadManager
+
+    let item: DownloadedLibraryItem
+    let sizeText: String
+
+    var body: some View {
+        let isDeleting = downloadManager.downloadState(for: item.scope).isDeleting
+
+        HStack(spacing: 12) {
+            MacDownloadRowLabel(
+                imageURL: downloadManager.localArtworkURL(for: item.imagePath),
+                aspectRatio: item.imageAspectRatio,
+                title: item.title,
+                subtitle: isDeleting ? "Removing…" : item.subtitle
+            )
+
+            if isDeleting {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Text(sizeText)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .opacity(isDeleting ? 0.5 : 1)
     }
 }
 
@@ -622,86 +775,67 @@ private struct MacDownloadQueueRow: View {
     @Environment(DownloadManager.self) private var downloadManager
 
     let record: DownloadedMediaRecord
-    let open: (AppNavigationRoute) -> Void
 
     private var scope: DownloadScope {
-        DownloadScope(id: record.itemID, type: record.type)
+        MacDownloadsList.scope(record)
     }
 
     var body: some View {
         let state = downloadManager.downloadState(for: scope)
 
-        MacDownloadRowChrome {
-            open(record.isClip ? .downloadedVideo(id: record.itemID) : .downloadedMedia(type: record.type, id: record.itemID))
-        } label: {
+        HStack(spacing: 12) {
             MacDownloadRowLabel(
                 imageURL: downloadManager.localArtworkURL(for: record.thumbPath),
                 aspectRatio: record.type == .episode || record.isClip ? 16.0 / 9.0 : 2.0 / 3.0,
                 title: record.displayTitle,
                 subtitle: statusText(state)
             )
-        } trailing: { isHovered in
-            HStack(spacing: 14) {
-                if isHovered, !state.isDeleting {
-                    HStack(spacing: 4) {
-                        if state.canPause {
-                            Button { downloadManager.pauseDownload(scope: scope) } label: {
-                                Image(systemName: "pause")
-                            }
-                            .help("Pause Download")
-                        } else if state.status == .paused {
-                            Button { downloadManager.resumeDownload(scope: scope) } label: {
-                                Image(systemName: "play")
-                            }
-                            .help("Resume Download")
-                        } else if state.status == .failed {
-                            Button { downloadManager.retryDownload(id: record.itemID) } label: {
-                                Image(systemName: "arrow.clockwise")
-                            }
-                            .help("Retry Download")
-                        }
-                        if state.canCancel {
-                            Button { downloadManager.cancelDownload(scope: scope) } label: {
-                                Image(systemName: "xmark")
-                            }
-                            .help("Cancel Download")
-                        }
-                    }
-                    .buttonStyle(.borderless)
-                }
 
-                Group {
-                    if record.status == .downloading {
-                        ProgressView(value: record.progress)
-                    } else if record.status == .preparing, let progress = record.preparationProgress {
-                        ProgressView(value: progress)
-                    } else if record.status == .failed {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.red)
-                            .frame(maxWidth: .infinity, alignment: .trailing)
-                    } else {
-                        Color.clear
-                    }
+            Group {
+                if record.status == .downloading {
+                    ProgressView(value: record.progress)
+                } else if record.status == .preparing, let progress = record.preparationProgress {
+                    ProgressView(value: progress)
+                } else if record.status == .failed {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.red)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                } else {
+                    Color.clear
                 }
-                .frame(width: 120)
             }
+            .frame(width: 120)
+
+            Group {
+                if state.isDeleting {
+                    ProgressView()
+                        .controlSize(.small)
+                } else if state.canPause {
+                    Button { downloadManager.pauseDownload(scope: scope) } label: {
+                        Image(systemName: "pause.circle")
+                    }
+                    .help("Pause Download")
+                } else if state.status == .paused {
+                    Button { downloadManager.resumeDownload(scope: scope) } label: {
+                        Image(systemName: "play.circle")
+                    }
+                    .help("Resume Download")
+                } else if state.status == .failed {
+                    Button { downloadManager.retryDownload(id: record.itemID) } label: {
+                        Image(systemName: "arrow.clockwise.circle")
+                    }
+                    .help("Retry Download")
+                }
+            }
+            .buttonStyle(.borderless)
+            .imageScale(.large)
+            .frame(width: 24)
         }
-        .contextMenu {
-            DownloadContextMenuContent(
-                state: state,
-                showsDelete: false,
-                showsCancel: state.canCancel,
-                onPause: { downloadManager.pauseDownload(scope: scope) },
-                onResume: { downloadManager.resumeDownload(scope: scope) },
-                onCancel: { downloadManager.cancelDownload(scope: scope) },
-                onDelete: { downloadManager.deleteDownload(scope: scope) },
-                onRetry: { downloadManager.retryDownload(id: record.itemID) }
-            )
-        }
+        .padding(.vertical, 2)
     }
 
     private func statusText(_ state: DownloadControlState) -> String {
-        if state.isDeleting { return "Removing" }
+        if state.isDeleting { return "Removing…" }
         if let waitReason = downloadManager.queueWaitReason(for: record) { return waitReason }
         let size = { (bytes: Int64) in ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
         switch record.status {

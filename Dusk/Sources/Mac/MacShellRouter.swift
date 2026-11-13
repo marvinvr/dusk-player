@@ -202,10 +202,10 @@ extension EnvironmentValues {
 }
 
 /// A pushed screen in the main window: the stack's own back button gives way
-/// to the shell's back/forward pair, and the toolbar stays transparent (no
-/// opaque band over a screen without a scroll view at its root). Toolbar
-/// modifiers on the stack's container don't reach pushed screens, so each
-/// one carries them itself.
+/// to the shell's back/forward pair. Toolbar modifiers on the stack's
+/// container don't reach pushed screens, so each one carries them itself.
+/// The toolbar background is left automatic (the soft scroll edge on macOS
+/// 26); hero pages hide it over their art (`macHeroUnderToolbar()`).
 struct MacShellBackButtonHiding: ViewModifier {
     @Environment(\.macShellManagesBackNavigation) private var shellManagesBack
 
@@ -218,7 +218,8 @@ struct MacShellBackButtonHiding: ViewModifier {
                         MacShellBackForwardButtons()
                     }
                 }
-                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                // The shell's soft edge doesn't reach pushed screens either.
+                .scrollEdgeEffectStyle(.soft, for: .top)
         } else {
             content
         }

@@ -106,9 +106,10 @@ struct SearchRootContent: View {
             }
             .searchable(text: $vm.query, prompt: searchPrompt)
         #elseif os(macOS)
-        // The iPad layout: result shelves. The field is the sidebar's search
-        // field (`MacRootView`), as in Music and TV.
-        carouselResults(vm)
+        // A wrapping poster grid per result section, as in Music and TV on
+        // the Mac (shelves clipped cards mid-poster). The field is the
+        // sidebar's search field (`MacRootView`).
+        gridResults(vm)
             .onChange(of: macRouter?.searchQuery ?? "", initial: true) { _, query in
                 vm.query = query
             }
@@ -239,13 +240,13 @@ private extension SearchRootContent {
     }
 }
 
-// MARK: - iPhone Grid Results
+// MARK: - iPhone and Mac Grid Results
 
-#if os(iOS)
+#if os(iOS) || os(macOS)
 private extension SearchRootContent {
     /// Poster grid, one titled section per search hub. Used on iPhone, where a
     /// grid reads more naturally than carousels on a narrow screen and matches
-    /// the library grid.
+    /// the library grid, and on the Mac (the library grid's metrics).
     @ViewBuilder
     func gridResults(_ vm: SearchViewModel) -> some View {
         searchResults(vm) {

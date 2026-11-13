@@ -13,6 +13,11 @@ struct LibraryItemsView: View {
     @State private var jumpTask: Task<Void, Never>?
     @State private var isJumping = false
     @State private var showsFilters = false
+    #if os(macOS)
+    /// A narrow window: Genre and Sort go icon-only in the toolbar, so they
+    /// don't collapse into the overflow menu.
+    @State private var macUsesCompactToolbar = false
+    #endif
     @State private var scrollPosition = ScrollPosition()
     @State private var prependAnchor = PrependAnchor()
 
@@ -73,7 +78,11 @@ struct LibraryItemsView: View {
                 libraryContent
             }
         }
+        #if os(macOS)
+        .macUILibraryPageTitle(viewModel.navigationTitle)
+        #else
         .duskNavigationTitle(viewModel.navigationTitle)
+        #endif
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(tvOS)
         // A tvOS sheet is a small centred card; the filter lists need the room.
@@ -90,6 +99,11 @@ struct LibraryItemsView: View {
                     macBrowseToolbarItems
                 }
             }
+        }
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width < 900
+        } action: { isCompact in
+            macUsesCompactToolbar = isCompact
         }
         #else
         .sheet(isPresented: $showsFilters) {
@@ -320,21 +334,19 @@ struct LibraryItemsView: View {
                 .pickerStyle(.inline)
                 .labelsHidden()
             } label: {
-                Text(viewModel.selectedGenre.title)
+                macToolbarMenuLabel(viewModel.selectedGenre.title, systemImage: "theatermasks")
             }
-            .help("Genre")
+            .help("Genre: \(viewModel.selectedGenre.title)")
         }
 
         Button {
             showsFilters.toggle()
         } label: {
+            // A plain glyph in the glass button (no circle in a circle);
+            // with filters on it takes the system accent, like Mail's.
             let count = viewModel.filterState.activeCount
-            Label(
-                count > 0 ? "Filters (\(count))" : "Filters",
-                systemImage: count > 0
-                    ? "line.3.horizontal.decrease.circle.fill"
-                    : "line.3.horizontal.decrease.circle"
-            )
+            Label(count > 0 ? "Filters (\(count))" : "Filters", systemImage: "line.3.horizontal.decrease")
+                .foregroundStyle(count > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
         }
         .help(viewModel.filterState.activeCount > 0 ? "Filters (\(viewModel.filterState.activeCount) on)" : "Filters")
         .popover(isPresented: $showsFilters, arrowEdge: .bottom) {
@@ -369,9 +381,21 @@ struct LibraryItemsView: View {
                 .pickerStyle(.inline)
             }
         } label: {
-            Text(viewModel.selectedSort.title)
+            macToolbarMenuLabel(viewModel.selectedSort.title, systemImage: "arrow.up.arrow.down")
         }
-        .help("Sort")
+        .help("Sort: \(viewModel.selectedSort.title)")
+    }
+
+    /// The current value as the menu's title, or only an icon in a narrow
+    /// window.
+    @ViewBuilder
+    private func macToolbarMenuLabel(_ title: String, systemImage: String) -> some View {
+        if macUsesCompactToolbar {
+            Label(title, systemImage: systemImage)
+                .labelStyle(.iconOnly)
+        } else {
+            Text(title)
+        }
     }
     #endif
 

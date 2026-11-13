@@ -510,6 +510,29 @@ extension PlayerViewModel {
                 continue
             }
 
+            #if os(macOS)
+            // AVFoundation adds a "forced only" option next to every subtitle
+            // track it lists. Plex knows only the full track, so a forced twin
+            // must borrow its metadata instead of consuming the next stream
+            // (which relabelled it with another track's language).
+            if let source = forcedTwinSource(for: track, in: embeddedStreams, after: merged) {
+                merged.append(SubtitleTrack(
+                    id: track.id,
+                    displayTitle: source.extendedDisplayTitle ?? source.displayTitle ?? track.displayTitle,
+                    language: source.language ?? track.language,
+                    languageCode: Self.normalizedLanguageCode(source.languageCode ?? source.languageTag)
+                        ?? track.languageCode,
+                    codec: source.codec ?? track.codec,
+                    isForced: true,
+                    isHearingImpaired: source.isHearingImpaired ?? track.isHearingImpaired,
+                    isExternal: track.isExternal,
+                    plexStreamID: source.id,
+                    externalURL: track.externalURL
+                ))
+                continue
+            }
+            #endif
+
             let position = embeddedPosition
             embeddedPosition += 1
             guard !embeddedStreams.isEmpty, let source = popBestMatch(
@@ -539,6 +562,31 @@ extension PlayerViewModel {
         merged.append(contentsOf: unmountableExternalSubtitleTracks())
         return merged
     }
+
+    #if os(macOS)
+    /// The full Plex stream behind an AVPlayer synthesized forced-only option:
+    /// the one non-forced embedded stream in the option's language, when Plex
+    /// has no forced stream of its own in that language.
+    private func forcedTwinSource(
+        for track: SubtitleTrack,
+        in streams: [PlexStream],
+        after merged: [SubtitleTrack]
+    ) -> PlexStream? {
+        guard engine is AVPlayerEngine, track.isForced, track.externalURL == nil,
+              let language = Self.normalizedLanguageCode(track.languageCode) else { return nil }
+        let sameLanguage = streams.filter {
+            Self.normalizedLanguageCode($0.languageCode ?? $0.languageTag) == language
+        }
+        guard !sameLanguage.contains(where: { $0.isForced == true }) else { return nil }
+        let full = sameLanguage.filter { $0.isForced != true }
+        guard full.count > 1 else { return full.first }
+        // Several full tracks in the language: the twin follows its own.
+        let previousID = merged.last(where: {
+            !$0.isForced && Self.normalizedLanguageCode($0.languageCode) == language
+        })?.plexStreamID
+        return full.first { $0.id == previousID } ?? full.first
+    }
+    #endif
 
     /// Label for a sidecar the engine actually mounted: Plex metadata over
     /// libvlc's file name, with the Plex stream id kept for AirPlay handoffs.

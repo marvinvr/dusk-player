@@ -40,31 +40,45 @@ private struct MacUIHoverLiftModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
+        let isDark = colorScheme == .dark
         content
             .overlay {
-                // A hairline rim, so the lift also reads on a dark page where
-                // the shadow disappears; the light page has the shadow.
+                // STYLE §3.2's 1pt border, so a white poster keeps its edge
+                // on the light page (and a black one on the dark page). It
+                // brightens under the pointer on the dark page, where the
+                // lift's shadow disappears.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .strokeBorder(
-                        Color.white.opacity(isHovered && colorScheme == .dark ? 0.22 : 0),
-                        lineWidth: 1
-                    )
+                    .strokeBorder(borderColor(isDark: isDark), lineWidth: 1)
                     .allowsHitTesting(false)
             }
             .shadow(
-                color: .black.opacity(isHovered ? (colorScheme == .dark ? 0.55 : 0.28) : 0),
-                radius: 12,
-                y: 6
+                color: .black.opacity(shadowOpacity(isDark: isDark)),
+                radius: isHovered ? 12 : 3,
+                y: isHovered ? 6 : 1
             )
             .scaleEffect(isHovered ? 1.04 : 1)
             .offset(y: isHovered ? -2 : 0)
             .animation(.easeOut(duration: 0.16), value: isHovered)
     }
+
+    private func borderColor(isDark: Bool) -> Color {
+        if isDark {
+            return .white.opacity(isHovered ? 0.22 : 0.06)
+        }
+        return .black.opacity(0.08)
+    }
+
+    /// A very soft resting shadow on the light page only; the lift's shadow
+    /// in both.
+    private func shadowOpacity(isDark: Bool) -> Double {
+        if isHovered { return isDark ? 0.55 : 0.28 }
+        return isDark ? 0 : 0.08
+    }
 }
 
 extension EnvironmentValues {
-    /// Lines a poster card's title takes on the Mac: shelves keep one line,
-    /// grids reserve two so every row lines up. See `PosterCardText`.
+    /// Lines a poster card's title takes on the Mac (one, truncated with a
+    /// tooltip, on shelves and grids alike). See `PosterCardText`.
     @Entry var macUIPosterTitleLines = 1
 }
 #endif

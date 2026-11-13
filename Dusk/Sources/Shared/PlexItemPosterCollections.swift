@@ -116,6 +116,16 @@ struct ShowAllCarouselTile: View {
     }
 }
 
+/// The Mac opens a shelf's full list from its title ("Title ›"), so the
+/// dashed trailing tile is iOS/tvOS only.
+private var showsShowAllTile: Bool {
+    #if os(macOS)
+    false
+    #else
+    true
+    #endif
+}
+
 struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     @Environment(PlexService.self) private var plexService
 
@@ -144,7 +154,9 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding
+            horizontalPadding: horizontalPadding,
+            titleRoute: showAllRoute,
+            artworkHeight: posterWidth / imageAspectRatio
         ) {
             ForEach(items) { item in
                 PosterNavigationCard(
@@ -168,7 +180,7 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                 .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
-            if let showAllRoute {
+            if let showAllRoute, showsShowAllTile {
                 ShowAllCarouselTile(
                     route: showAllRoute,
                     width: posterWidth,
@@ -226,7 +238,9 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding
+            horizontalPadding: horizontalPadding,
+            titleRoute: showAllRoute,
+            artworkHeight: posterWidth / imageAspectRatio
         ) {
             ForEach(items) { item in
                 PosterActionCard(
@@ -246,7 +260,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                 .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
-            if let showAllRoute {
+            if let showAllRoute, showsShowAllTile {
                 ShowAllCarouselTile(
                     route: showAllRoute,
                     width: posterWidth,
@@ -313,10 +327,6 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
             }
         }
         .scrollTargetLayout(isEnabled: isScrollTargetLayout)
-        #if os(macOS)
-        // Grid titles take two lines, reserved, so each row lines up.
-        .environment(\.macUIPosterTitleLines, 2)
-        #endif
         #endif
     }
 

@@ -8,6 +8,7 @@ struct PlexUser: Codable, Sendable, Identifiable {
     let title: String?
     let friendlyName: String?
     let thumb: String?
+    let email: String?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -16,6 +17,7 @@ struct PlexUser: Codable, Sendable, Identifiable {
         case title
         case friendlyName
         case thumb
+        case email
     }
 
     init(from decoder: Decoder) throws {
@@ -39,6 +41,7 @@ struct PlexUser: Codable, Sendable, Identifiable {
         title = try container.decodeIfPresent(String.self, forKey: .title)
         friendlyName = try container.decodeIfPresent(String.self, forKey: .friendlyName)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
+        email = try? container.decodeIfPresent(String.self, forKey: .email)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -49,5 +52,6 @@ struct PlexUser: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(title, forKey: .title)
         try container.encodeIfPresent(friendlyName, forKey: .friendlyName)
         try container.encodeIfPresent(thumb, forKey: .thumb)
+        try container.encodeIfPresent(email, forKey: .email)
     }
 }

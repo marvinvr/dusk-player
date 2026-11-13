@@ -123,6 +123,7 @@ struct ShowDetailView: View {
                             .padding(.bottom, 56)
                     }
                 }
+                .detailMacPageBottomInset()
                 .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
@@ -327,7 +328,7 @@ struct ShowDetailView: View {
                                 availabilityBadge: viewModel.seasonAvailabilityBadge(season),
                                 isDimmed: viewModel.isSeasonUnavailableOffline(season),
                                 isWatched: season.isFullyWatched,
-                                unwatchedCount: season.unwatchedEpisodeCount
+                                unwatchedCount: seasonCardUnwatchedBadge(season)
                             ) {
                                 seasonContextMenu(season)
                             }
@@ -354,6 +355,16 @@ struct ShowDetailView: View {
                 .padding(.horizontal, horizontalPadding)
             }
         }
+    }
+
+    /// The Mac spells the unwatched count out in the card subtitle
+    /// (`seasonSubtitle`) instead of the corner badge.
+    private func seasonCardUnwatchedBadge(_ season: PlexSeason) -> Int? {
+        #if os(macOS)
+        nil
+        #else
+        season.unwatchedEpisodeCount
+        #endif
     }
 
     @ViewBuilder

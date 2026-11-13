@@ -38,7 +38,11 @@ struct LibraryCollectionsView: View {
                 grid
             }
         }
+        #if os(macOS)
+        .macUILibraryPageTitle(viewModel.navigationTitle)
+        #else
         .duskNavigationTitle(viewModel.navigationTitle)
+        #endif
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
             await viewModel.load()

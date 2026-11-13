@@ -105,6 +105,9 @@ struct MacPlayerHUD: View {
                 viewModel.endControlsInteractionHold()
             }
         }
+        .onChange(of: windowTitle, initial: true) { _, title in
+            commandTarget.setWindowTitle(title)
+        }
         .onDisappear {
             if isHoveringBar {
                 viewModel.endControlsInteractionHold()
@@ -115,11 +118,36 @@ struct MacPlayerHUD: View {
         }
     }
 
-    /// Episode title and season/episode (or year) on one quiet line.
+    /// "S1, E3 · Episode Title" for an episode, the edition (never the year)
+    /// for a movie; Live TV keeps the shared header's program/channel line.
     private var headerSubtitle: String? {
         guard let header = context.mediaHeader else { return nil }
+        if !viewModel.isLiveTV, viewModel.iptvCatchUp == nil, let details = playback.activeItemDetails {
+            if details.type == .episode {
+                let code: String? = switch (details.parentIndex, details.index) {
+                case let (season?, episode?): "S\(season), E\(episode)"
+                case let (nil, episode?): "E\(episode)"
+                case let (season?, nil): "S\(season)"
+                default: nil
+                }
+                let episodeTitle = details.grandparentTitle == nil ? nil : details.title
+                return [code, episodeTitle].compactMap { $0?.nilIfEmpty }.joined(separator: " · ").nilIfEmpty
+            }
+            return details.editionTitle?.nilIfEmpty
+        }
         let parts = [header.secondaryTitle, header.subtitle].compactMap { $0 }.filter { !$0.isEmpty }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// What the window is called while the player covers it (Window menu,
+    /// Mission Control, VoiceOver): the show and episode, or the movie.
+    private var windowTitle: String? {
+        guard let header = context.mediaHeader else { return nil }
+        if let details = playback.activeItemDetails, details.type == .episode,
+           details.grandparentTitle != nil, !viewModel.isLiveTV {
+            return "\(header.title) – \(details.title)"
+        }
+        return header.title
     }
 
     // MARK: - Play bar
@@ -173,7 +201,7 @@ struct MacPlayerHUD: View {
 
         return HStack(spacing: MacPlayerHUDLayout.transportSpacing) {
             if showsEpisodeButtons {
-                episodeButton(.previous)
+                episodeSlot(.previous)
             }
             if !viewModel.isLiveTV {
                 skipButton(direction: -1)
@@ -199,7 +227,7 @@ struct MacPlayerHUD: View {
                 skipButton(direction: 1)
             }
             if showsEpisodeButtons {
-                episodeButton(.next)
+                episodeSlot(.next)
             }
         }
     }
@@ -209,7 +237,7 @@ struct MacPlayerHUD: View {
             airPlayButton
 
             MacPlayerMenuButton(
-                systemName: "text.bubble",
+                systemName: "captions.bubble",
                 help: "Audio & Subtitles",
                 accessibilityLabel: "Audio and Subtitles",
                 accessibilityValue: context.subtitleControlTitle,
@@ -224,7 +252,9 @@ struct MacPlayerHUD: View {
                 items: moreMenuItems
             )
 
-            pictureInPictureButton
+            if showsPictureInPicture {
+                pictureInPictureButton
+            }
 
             Button {
                 commandTarget.toggleFullScreen()
@@ -243,21 +273,22 @@ struct MacPlayerHUD: View {
         }
     }
 
-    /// AirPlay is an AVPlayer feature; a VLCKit session keeps the slot, dimmed,
-    /// so the icons never shift between engines.
+    /// AirPlay is an AVPlayer feature; a VLCKit session has no button at all
+    /// rather than a permanently dimmed one.
     @ViewBuilder
     private var airPlayButton: some View {
         if let engine = viewModel.engine as? AVPlayerEngine {
-            MacPlayerRoutePicker(player: engine.routePickerPlayer)
-                .frame(width: MacPlayerHUDLayout.iconSize, height: MacPlayerHUDLayout.iconSize)
-                .help("AirPlay")
-                .accessibilityLabel("AirPlay")
-        } else {
-            MacPlayerHUDIcon(systemName: "airplay.video", isEnabledOverride: false)
-                .help("AirPlay isn't available for this video")
-                .accessibilityLabel("AirPlay")
-                .accessibilityValue("Unavailable")
+            MacPlayerAirPlayButton(
+                player: engine.routePickerPlayer,
+                isActive: playback.isAirPlayPlaybackActive
+            )
         }
+    }
+
+    /// Picture in Picture exists only for AVPlayer on the Mac (VLCKit's
+    /// sample-buffer PiP is iOS-only), so VLCKit sessions drop the button.
+    private var showsPictureInPicture: Bool {
+        viewModel.engine is AVPlayerEngine || viewModel.engine.isPictureInPictureActive
     }
 
     private var pictureInPictureButton: some View {
@@ -286,7 +317,7 @@ struct MacPlayerHUD: View {
                     .foregroundStyle(.white.opacity(0.7))
                     .fixedSize()
             } else {
-                timeLabel(MacPlayerTime.format(viewModel.displayPosition), alignment: .leading)
+                timeLabel(MacPlayerTime.format(viewModel.displayPosition), template: timeTemplate, alignment: .leading)
             }
 
             MacPlayerScrubber(viewModel: viewModel, scrubPreviewSource: scrubPreviewSource)
@@ -294,27 +325,52 @@ struct MacPlayerHUD: View {
             if !viewModel.isLiveTV {
                 timeLabel(
                     "\u{2212}" + MacPlayerTime.format(max(viewModel.duration - viewModel.displayPosition, 0)),
+                    template: "\u{2212}" + timeTemplate,
                     alignment: .trailing
                 )
             }
         }
     }
 
-    private func timeLabel(_ text: String, alignment: Alignment) -> some View {
-        Text(text)
+    /// The longest time this item can show, all digits zero: both labels
+    /// are sized from it so the track never changes length while playing.
+    private var timeTemplate: String {
+        MacPlayerTime.format(viewModel.duration)
+            .map { $0.isNumber ? "0" : String($0) }
+            .joined()
+    }
+
+    private func timeLabel(_ text: String, template: String, alignment: Alignment) -> some View {
+        Text(template)
+            .hidden()
+            .overlay(alignment: alignment) {
+                Text(text)
+                    .fixedSize()
+            }
             .font(.system(size: 12, weight: .medium).monospacedDigit())
             .foregroundStyle(.white.opacity(0.7))
             .lineLimit(1)
-            .frame(minWidth: 44, alignment: alignment)
             .fixedSize()
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
     }
 
     // MARK: - Buttons
 
-    /// Opt-in like on iOS (`playerEpisodeButtonsEnabled`); the Playback menu
-    /// always offers Previous/Next Episode.
+    /// Every episode with a neighbour gets the buttons on the Mac (the iOS
+    /// opt-in has no Mac setting); each side keeps its slot, empty when there
+    /// is no episode that way, so play stays centred.
     private var showsEpisodeButtons: Bool {
-        preferences.playerEpisodeButtonsEnabled && playback.adjacentEpisodes != nil
+        guard let adjacent = playback.adjacentEpisodes else { return false }
+        return adjacent.episode(.previous) != nil || adjacent.episode(.next) != nil
+    }
+
+    private func episodeSlot(_ direction: AdjacentEpisodeDirection) -> some View {
+        let exists = playback.adjacentEpisodes?.episode(direction) != nil
+        return episodeButton(direction)
+            .opacity(exists ? 1 : 0)
+            .allowsHitTesting(exists)
+            .accessibilityHidden(!exists)
     }
 
     private func episodeButton(_ direction: AdjacentEpisodeDirection) -> some View {
@@ -368,8 +424,7 @@ struct MacPlayerHUD: View {
         if !viewModel.audioTracks.isEmpty {
             items.append(.header("Audio"))
             let selectedAudioID = viewModel.selectedAudioTrackID ?? viewModel.engine.selectedAudioTrackID
-            for track in viewModel.audioTracks {
-                let label = MacPlayerTrackLabel.label(for: track)
+            for (track, label) in MacPlayerTrackLabel.audioRows(viewModel.audioTracks) {
                 items.append(.action(label.title, subtitle: label.detail, isOn: track.id == selectedAudioID) {
                     guard track.id != viewModel.selectedAudioTrackID else { return }
                     viewModel.selectAudio(track)
@@ -385,8 +440,10 @@ struct MacPlayerHUD: View {
                 guard viewModel.selectedSubtitleTrackID != nil else { return }
                 viewModel.selectSubtitle(nil)
             })
-            for track in viewModel.subtitleTracks {
-                let label = MacPlayerTrackLabel.label(for: track)
+            for (track, label) in MacPlayerTrackLabel.subtitleRows(
+                viewModel.subtitleTracks,
+                selectedID: selectedSubtitleID
+            ) {
                 items.append(.action(label.title, subtitle: label.detail, isOn: track.id == selectedSubtitleID) {
                     guard track.id != viewModel.selectedSubtitleTrackID else { return }
                     viewModel.selectSubtitle(track)
@@ -470,9 +527,18 @@ struct MacPlayerHUD: View {
             })
         }
 
-        items.append(.action("Zoom to Fill", isOn: viewModel.aspectFillEnabled) {
-            viewModel.toggleAspectFill()
-        })
+        items.append(.submenu(
+            "Zoom",
+            subtitle: viewModel.aspectFillEnabled ? "Fill Window" : "Fit to Window",
+            [
+                .action("Fit to Window", isOn: !viewModel.aspectFillEnabled) {
+                    if viewModel.aspectFillEnabled { viewModel.toggleAspectFill() }
+                },
+                .action("Fill Window", isOn: viewModel.aspectFillEnabled) {
+                    if !viewModel.aspectFillEnabled { viewModel.toggleAspectFill() }
+                },
+            ]
+        ))
 
         if context.hasSharePlayControl {
             items.append(.action(
@@ -487,7 +553,7 @@ struct MacPlayerHUD: View {
 
         if context.hasPlaybackInfo {
             items.append(.separator)
-            items.append(.action("Get Info") {
+            items.append(.action("Get Info", shortcut: ("i", .command)) {
                 viewModel.showPlaybackInfo = true
             })
         }
@@ -660,7 +726,18 @@ private struct MacPlayerScrubber: View {
         .frame(height: height)
         .contentShape(Rectangle())
         .animation(.easeOut(duration: 0.15), value: isActive)
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { newWidth in
+            width = newWidth
+            #if DEBUG
+            // `-DuskScreenshotScrubHover 0.4`: screenshot mode parks a pointer
+            // over the track, for captures of the hover state.
+            if ScreenshotMode.isActive, hoverX == nil,
+               let fraction = UserDefaults.standard.object(forKey: "DuskScreenshotScrubHover") as? Double
+                ?? Double(UserDefaults.standard.string(forKey: "DuskScreenshotScrubHover") ?? "") {
+                hoverX = newWidth * fraction
+            }
+            #endif
+        }
         .onContinuousHover(coordinateSpace: .local) { phase in
             switch phase {
             case .active(let location):

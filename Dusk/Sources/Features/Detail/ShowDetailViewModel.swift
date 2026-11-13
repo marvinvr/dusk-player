@@ -209,8 +209,12 @@ final class ShowDetailViewModel {
         #if os(macOS)
         // Online the card keeps one meaning ("9 Episodes"); the season's
         // download state lives on the season page and in Downloads.
+        // The unwatched count is spelled out here rather than as a badge.
         if !showsOfflineAvailability {
-            return MediaTextFormatter.episodeCount(season.leafCount)
+            let episodes = MediaTextFormatter.episodeCount(season.leafCount)
+            guard let unwatched = season.unwatchedEpisodeCount, unwatched > 0,
+                  unwatched != season.leafCount else { return episodes }
+            return [episodes, "\(unwatched) Unwatched"].compactMap { $0 }.joined(separator: " · ")
         }
         #endif
 

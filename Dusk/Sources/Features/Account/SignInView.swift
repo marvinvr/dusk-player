@@ -108,11 +108,14 @@ struct SignInView: View {
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
 
+            // A quiet secondary text button, not a blue link (no tint).
             Button("Use a code on plex.tv/link instead") {
                 Task { await signIn(opensBrowser: false) }
             }
-            .buttonStyle(.link)
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
             .font(.callout)
+            .pointerStyle(.link)
             .help("Sign in from any browser or device with a four-character code")
         }
     }

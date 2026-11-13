@@ -12,7 +12,16 @@ struct LibraryTabSettingsView: View {
             #endif
         }
         .duskSettingsPageBackground()
-        .duskNavigationTitle("Navigation Tabs")
+        .duskNavigationTitle(Self.pageTitle)
+    }
+
+    /// The Mac calls the destinations sidebar items; iOS and tvOS tabs.
+    private static var pageTitle: String {
+        #if os(macOS)
+        "Sidebar Items"
+        #else
+        "Navigation Tabs"
+        #endif
     }
 
     #if !os(tvOS)
@@ -29,11 +38,16 @@ struct LibraryTabSettingsView: View {
                 }
                 .onMove(perform: preferences.moveLibraryTabs)
             } header: {
-                Text("Navigation Tabs")
+                Text(Self.pageTitle)
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
+                #if os(macOS)
+                Text("Turn off a destination to remove it from the sidebar. Drag to change the order.")
+                    .foregroundStyle(Color.duskTextSecondary)
+                #else
                 Text("Turn off a destination to remove it from the navigation bar. Tap Edit, then drag to change the order.")
                     .foregroundStyle(Color.duskTextSecondary)
+                #endif
             }
             .duskSettingsRowBackground()
         }

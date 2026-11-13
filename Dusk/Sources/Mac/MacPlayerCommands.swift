@@ -81,6 +81,12 @@ struct MacPlayerCommands: Commands {
 
             Divider()
 
+            Button("Get Info") {
+                target?.showInfo()
+            }
+            .keyboardShortcut("i", modifiers: [.command])
+            .disabled(target?.canShowInfo != true)
+
             Button("Close Player") {
                 target?.close()
             }
@@ -135,6 +141,11 @@ final class MacPlayerCommandTarget {
     @ObservationIgnored private var windowControlsVisible = true
     @ObservationIgnored private var originalTitlebarAppearsTransparent: Bool?
     @ObservationIgnored private var originalToolbarVisible = false
+    /// The media title the window carries while the player covers it, and
+    /// the window's own title and title visibility to put back afterwards.
+    @ObservationIgnored private var playerWindowTitle: String?
+    @ObservationIgnored private var originalWindowTitle: String?
+    @ObservationIgnored private var originalTitleVisibility: NSWindow.TitleVisibility?
 
     // MARK: - State for the menu
 
@@ -201,6 +212,15 @@ final class MacPlayerCommandTarget {
         viewModel.touchControls()
     }
 
+    var canShowInfo: Bool {
+        isKeyboardEnabled && viewModel != nil
+    }
+
+    func showInfo() {
+        guard canShowInfo else { return }
+        viewModel?.showPlaybackInfo = true
+    }
+
     func playAdjacentEpisode(_ direction: AdjacentEpisodeDirection) {
         guard canPlayAdjacentEpisode(direction), let playback else { return }
         playback.playAdjacentEpisode(direction, isPastCredits: viewModel?.isPastCreditsMarker ?? false)
@@ -229,6 +249,7 @@ final class MacPlayerCommandTarget {
     func attach(to window: NSWindow?) {
         guard window !== self.window else { return }
         restoreWindowControls()
+        restoreWindowTitle()
         detachWindow()
         self.window = window
         guard let window else { return }
@@ -256,9 +277,45 @@ final class MacPlayerCommandTarget {
             originalWindowButtonHidden[type] = window.standardWindowButton(type)?.isHidden ?? false
         }
         applyWindowControls(animated: false)
+        applyWindowTitle()
         DispatchQueue.main.async { [weak self] in
             self?.applyWindowControls(animated: false)
+            self?.applyWindowTitle()
         }
+    }
+
+    // MARK: - Window title
+
+    /// Names the window after what is playing; its visible title stays hidden
+    /// (the HUD draws its own), so this is for the Window menu, Mission
+    /// Control and VoiceOver.
+    func setWindowTitle(_ title: String?) {
+        playerWindowTitle = title?.nilIfEmpty
+        applyWindowTitle()
+    }
+
+    private func applyWindowTitle() {
+        guard let window, let playerWindowTitle else { return }
+        if originalWindowTitle == nil {
+            originalWindowTitle = window.title
+            originalTitleVisibility = window.titleVisibility
+        }
+        window.titleVisibility = .hidden
+        if window.title != playerWindowTitle {
+            window.title = playerWindowTitle
+        }
+    }
+
+    private func restoreWindowTitle() {
+        guard let window else { return }
+        if let originalWindowTitle {
+            window.title = originalWindowTitle
+        }
+        if let originalTitleVisibility {
+            window.titleVisibility = originalTitleVisibility
+        }
+        originalWindowTitle = nil
+        originalTitleVisibility = nil
     }
 
     // MARK: - Traffic lights
@@ -369,6 +426,8 @@ final class MacPlayerCommandTarget {
         }
         didEnterFullScreenForPlayer = false
         restoreWindowControls()
+        restoreWindowTitle()
+        playerWindowTitle = nil
         detachWindow()
     }
 

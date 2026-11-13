@@ -1,5 +1,18 @@
 import SwiftUI
 
+extension View {
+    /// Context-menu content: Mac menus drop item icons unless asked, and the
+    /// TV/Music apps show them. No-op on iOS and tvOS.
+    @ViewBuilder
+    func duskMenuItemIcons() -> some View {
+        #if os(macOS)
+        labelStyle(.titleAndIcon)
+        #else
+        self
+        #endif
+    }
+}
+
 struct PosterNavigationCard<ContextMenuContent: View>: View {
     let route: AppNavigationRoute
     let imageURL: URL?
@@ -92,6 +105,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
         #endif
         .contextMenu {
             contextMenuContent()
+                .duskMenuItemIcons()
         }
         #endif
     }
@@ -209,6 +223,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
         #endif
         .contextMenu {
             contextMenuContent()
+                .duskMenuItemIcons()
         }
         #endif
     }

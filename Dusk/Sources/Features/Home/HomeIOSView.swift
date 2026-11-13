@@ -42,8 +42,16 @@ struct HomeIOSView: View {
             // The artwork runs under side insets (iPhone landscape, iPhone
             // Duo's vertical bar) like the top one; the hero keeps its title,
             // buttons, and pager inside them.
+            #if os(macOS)
+            // The Mac hero fills the detail column only; its art reaches
+            // under the floating sidebar through `backgroundExtensionEffect`
+            // (HomeCinematicHero), not by widening the hero.
+            let heroLeadingInset: CGFloat = 0
+            let heroTrailingInset: CGFloat = 0
+            #else
             let heroLeadingInset = geometry.safeAreaInsets.leading
             let heroTrailingInset = geometry.safeAreaInsets.trailing
+            #endif
             let heroWidth = geometry.size.width + heroLeadingInset + heroTrailingInset
 
             ScrollView {
@@ -56,7 +64,7 @@ struct HomeIOSView: View {
                             topInset: geometry.safeAreaInsets.top,
                             contentLeadingInset: heroLeadingInset,
                             contentTrailingInset: heroTrailingInset,
-                            layout: heroLayout,
+                            layout: heroLayout(width: heroWidth),
                             autoRotates: true,
                             supportsDragNavigation: true,
                             selectionResetRevision: heroSelectionResetRevision,
@@ -64,17 +72,10 @@ struct HomeIOSView: View {
                                 AnyView(
                                     callbacks.withContextMenu(
                                         AnyView(
-                                            Button {
+                                            heroPrimaryButton(for: item) {
                                                 callbacks.restartRotation()
                                                 play(item)
-                                            } label: {
-                                                HomeHeroActionButtonLabel(
-                                                    title: viewModel.heroPrimaryActionTitle(for: item),
-                                                    systemImage: "play.fill",
-                                                    fillsWidth: heroPrimaryButtonFillsWidth
-                                                )
                                             }
-                                            .homeHeroNativeButtonStyle()
                                         )
                                     )
                                     .frame(
@@ -250,7 +251,7 @@ struct HomeIOSView: View {
             PlexItemPosterCarouselSection(
                 title: hub.title,
                 items: items,
-                posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : 130,
+                posterWidth: isVideoHub ? DuskPosterMetrics.videoCarouselWidth : DuskPosterMetrics.carouselPosterWidth,
                 imageAspectRatio: isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0,
                 showAllRoute: viewModel.shouldShowAll(
                     for: hub,
@@ -294,7 +295,7 @@ struct HomeIOSView: View {
             PlexItemPosterCarouselSection(
                 title: shelf.title,
                 items: shelf.items,
-                posterWidth: 130,
+                posterWidth: DuskPosterMetrics.carouselPosterWidth,
                 showAllRoute: viewModel.showAllRoute(for: shelf),
                 subtitle: { item in
                     viewModel.subtitle(for: item)
@@ -354,6 +355,31 @@ struct HomeIOSView: View {
         #endif
     }
 
+    /// The hero's Play/Resume. The Mac uses the detail pages' primary
+    /// button (white prominent capsule), so playback looks the same on every
+    /// hero; iOS keeps Home's own style.
+    @ViewBuilder
+    private func heroPrimaryButton(for item: PlexItem, action: @escaping () -> Void) -> some View {
+        #if os(macOS)
+        Button(action: action) {
+            DetailHeroPrimaryActionButtonLabel(
+                title: viewModel.heroPrimaryActionTitle(for: item),
+                systemImage: "play.fill"
+            )
+        }
+        .detailHeroNativePrimaryButtonStyle()
+        #else
+        Button(action: action) {
+            HomeHeroActionButtonLabel(
+                title: viewModel.heroPrimaryActionTitle(for: item),
+                systemImage: "play.fill",
+                fillsWidth: heroPrimaryButtonFillsWidth
+            )
+        }
+        .homeHeroNativeButtonStyle()
+        #endif
+    }
+
     private var heroPrimaryButtonFillsWidth: Bool {
         #if os(macOS)
         // A Mac button hugs its label.
@@ -365,9 +391,9 @@ struct HomeIOSView: View {
 
     /// Regular-width iPad gets the near-full-screen hero; iPhone and compact
     /// iPad multitasking keep the shorter banner.
-    private var heroLayout: HomeCinematicHeroLayout {
+    private func heroLayout(width: CGFloat) -> HomeCinematicHeroLayout {
         #if os(macOS)
-        return .mac
+        return .mac(width: width)
         #else
         if UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular {
             return .iPad

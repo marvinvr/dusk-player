@@ -588,6 +588,9 @@ enum DuskPosterMetrics {
     static var carouselPosterWidth: CGFloat {
         #if os(tvOS)
         232
+        #elseif os(macOS)
+        // One poster size on every Mac shelf, close to the library grid's.
+        150
         #else
         130
         #endif
@@ -611,6 +614,9 @@ enum DuskPosterMetrics {
     static var videoCarouselWidth: CGFloat {
         #if os(tvOS)
         340
+        #elseif os(macOS)
+        // Same as `continueWatchingWidth`: one landscape card size per page.
+        260
         #else
         200
         #endif
@@ -619,6 +625,8 @@ enum DuskPosterMetrics {
     static var continueWatchingWidth: CGFloat {
         #if os(tvOS)
         420
+        #elseif os(macOS)
+        260
         #else
         280
         #endif
@@ -961,12 +969,19 @@ extension View {
     /// A hero page (Home, movie/show/season/episode detail) on the Mac: the
     /// page runs edge to edge under the transparent window toolbar, like the
     /// TV app. Apply it to the page's root `ScrollView` (not to the hero
-    /// itself). It makes the scroll view ignore the top safe area so the hero
-    /// artwork starts at the window's top edge, hides the toolbar background
-    /// and the visible toolbar title (the window title stays, for the Window
-    /// menu and Mission Control), and keeps the soft scroll-edge effect off
-    /// while the hero is still under the toolbar, so the artwork isn't
-    /// blurred at rest. No-op on iOS and tvOS.
+    /// itself). It pulls the scroll content up under the toolbar so the hero
+    /// artwork starts at the window's top edge, hides the visible toolbar
+    /// title (the window title stays, for the Window menu and Mission
+    /// Control) and the soft scroll-edge effect only while the hero is still
+    /// under the toolbar: the artwork isn't blurred at rest, and once
+    /// shelves/rows scroll under the toolbar the page title and the same soft
+    /// edge as every other page come back.
+    ///
+    /// Every other Mac page needs nothing: the shell leaves the toolbar
+    /// background automatic, which macOS 26 draws as the soft scroll edge
+    /// over a scroll view. Don't hide the toolbar background on a scrolling
+    /// page; that removes the edge effect and lets content overprint the
+    /// title. No-op on iOS and tvOS.
     @ViewBuilder
     func macHeroUnderToolbar() -> some View {
         #if os(macOS)
@@ -982,22 +997,44 @@ private struct MacHeroUnderToolbarModifier: ViewModifier {
     /// True once the page has scrolled far enough that the hero has left the
     /// toolbar area and shelves pass under it.
     @State private var isPastHero = false
+    /// The window toolbar's height (the scroll view's top safe-area inset).
+    @State private var toolbarInset: CGFloat = 0
 
     func body(content: Content) -> some View {
         content
-            .ignoresSafeArea(.container, edges: .top)
-            .onScrollGeometryChange(for: Bool.self) { geometry in
+            // The scroll view stays inside the safe area, so the system
+            // scroll edge effect knows where the toolbar is; the content is
+            // pulled up under the toolbar instead. (Ignoring the top safe
+            // area on the scroll view put the hero there too, but then no
+            // edge effect was ever drawn: scrolled rows ran bare under the
+            // toolbar.)
+            .contentMargins(.top, -toolbarInset, for: .scrollContent)
+            .onGeometryChange(for: CGFloat.self) { $0.safeAreaInsets.top } action: { toolbarInset = $0 }
+            // Scroll modifiers reach every scroll view inside the page too
+            // (the hero pager, horizontal shelves); only the page's own
+            // vertical scroll view decides, or a shelf reporting offset 0
+            // would switch the edge effect off again.
+            .onScrollGeometryChange(for: Bool?.self) { geometry in
+                guard geometry.contentSize.height > geometry.containerSize.height + 1 else { return nil }
                 let offset = geometry.contentOffset.y + geometry.contentInsets.top
                 let heroHeight = geometry.containerSize.height * MacUILayout.heroMaxHeightFraction
                 // The toolbar is ~52pt tall; switch the edge effect on as the
                 // hero's bottom edge reaches it.
                 return offset > max(heroHeight - 80, 120)
             } action: { _, isPast in
-                isPastHero = isPast
+                if let isPast {
+                    isPastHero = isPast
+                }
             }
+            // Only the edge effect toggles; the toolbar background stays
+            // automatic (on macOS 26 it IS this edge effect, and hiding it
+            // dynamically didn't reliably bring the edge back).
+            .scrollEdgeEffectStyle(.soft, for: .top)
             .scrollEdgeEffectHidden(!isPastHero, for: .top)
-            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-            .toolbar(removing: .title)
+            // The page title comes back once the hero has scrolled away (as
+            // in Music/TV): it is what the soft edge sits under, and a page
+            // with nothing in its toolbar (Home) gets no edge effect at all.
+            .toolbar(removing: isPastHero ? nil : .title)
     }
 }
 #endif

@@ -29,6 +29,10 @@ struct DownloadActionButton: View {
     /// already conveys download status, so the text label is dropped).
     var iconOnly = false
 
+    #if os(macOS)
+    @Environment(\.detailHeroMacControlSize) private var macControlSize
+    #endif
+
     @ViewBuilder
     var body: some View {
         if DownloadsFeature.isVisible {
@@ -40,9 +44,13 @@ struct DownloadActionButton: View {
                         #if os(macOS)
                         // The Mac hero's shared secondary circle (see
                         // `DetailHeroSecondaryIconLabel`).
+                        let glyphGrowth: CGFloat = macControlSize == .extraLarge ? 4 : 0
                         icon
-                            .font(.system(size: 13, weight: .semibold))
-                            .frame(width: detailHeroMacSecondaryGlyphBox, height: detailHeroMacSecondaryGlyphBox)
+                            .font(.system(size: 13 + glyphGrowth / 2, weight: .semibold))
+                            .frame(
+                                width: detailHeroMacSecondaryGlyphBox + glyphGrowth,
+                                height: detailHeroMacSecondaryGlyphBox + glyphGrowth
+                            )
                             .help(title)
                         #else
                         icon

@@ -114,9 +114,29 @@ struct HomeCinematicHeroLayout {
         return layout
     }()
 
-    /// The hero's bottom strip that fades into the window background, below
-    /// the text, button and pager, so the dark hero meets a light page cleanly.
-    static let macBottomFadeHeight: CGFloat = 28
+    /// `mac`, with the title block grown on a wide window (a 2000pt window
+    /// left a 360pt logo and 13pt text looking lost on an 800pt hero): the
+    /// logo, text width and summary/metadata sizes step up with the width,
+    /// up to a cap.
+    static func mac(width: CGFloat) -> HomeCinematicHeroLayout {
+        var layout = mac
+        let scale = min(max((width - 1100) / 700, 0), 1)
+        layout.titleLogoMaxWidth = (360 + 160 * scale).rounded()
+        layout.titleLogoMaxHeight = (110 + 40 * scale).rounded()
+        layout.titleFontSize = (40 + 12 * scale).rounded()
+        layout.maxContentWidth = (MacUILayout.readableTextWidth + 120 * scale).rounded()
+        if scale >= 0.5 {
+            layout.summaryFont = .title3
+            layout.metadataFont = .body.weight(.medium)
+            layout.episodeTitleFont = .title.weight(.semibold)
+        }
+        return layout
+    }
+
+    /// The hero's bottom strip whose art eases out onto the page background,
+    /// below the text, button and pager, so the dark hero meets a light or
+    /// dark page without a band.
+    static let macBottomFadeHeight: CGFloat = 48
     #endif
 
     /// Apple TV: the hero owns the **entire** screen. Heights come from the
@@ -242,9 +262,6 @@ struct HomeCinematicHero: View {
     #if os(macOS)
     /// The pointer is over the hero; shows `macPageChevrons`.
     @State private var isPointerOverHero = false
-    /// Top of the page's title block in the hero, so the chevrons can sit in
-    /// the artwork above it instead of over the logo.
-    @State private var macContentBlockTop: CGFloat = 0
     /// The Mac's right-click menu for a page (`macContextMenu(_:)`).
     var macContextMenuContent: ((PlexItem) -> AnyView)? = nil
     #endif
@@ -330,6 +347,20 @@ struct HomeCinematicHero: View {
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
         .clipped()
+        #if os(macOS)
+        // The sidebar floats over the window: the current page's art
+        // continues under it, mirrored and blurred by the system, like the TV
+        // app. A separate, unclipped layer, because the sliding pages are
+        // clipped to the hero.
+        .background(alignment: .top) {
+            macSidebarExtension(
+                resolvedIndex: resolvedIndex,
+                heroHeight: heroHeight,
+                backdropWidth: backdropWidth,
+                backdropHeight: backdropHeight
+            )
+        }
+        #endif
         .contentShape(Rectangle())
         .onChange(of: heroItemIDs) { _, ids in
             guard !ids.isEmpty else {
@@ -606,13 +637,14 @@ struct HomeCinematicHero: View {
         // A Mac menu has no lift preview, so SwiftUI's own menu is fine here.
         if let macContextMenuContent {
             callbacks.withContextMenu = { button in
-                AnyView(button.contextMenu { macContextMenuContent(item) })
+                AnyView(button.contextMenu { macContextMenuContent(item).duskMenuItemIcons() })
             }
         } else if let contextMenuActions {
             callbacks.withContextMenu = { button in
                 AnyView(
                     button.contextMenu {
                         HomeItemMenuButtons(actions: contextMenuActions(item))
+                            .labelStyle(.titleAndIcon)
                     }
                 )
             }
@@ -714,11 +746,17 @@ struct HomeCinematicHero: View {
                 )
 
                 #if os(macOS)
-                MacHomeHeroScrim(fadeHeight: HomeCinematicHeroLayout.macBottomFadeHeight)
+                MacHomeHeroScrim()
                 #else
                 DuskHeroBackdropOverlay(style: layout.backdropOverlayStyle)
                 #endif
             }
+            #if os(macOS)
+            // The art itself fades out at the bottom, onto the page
+            // background behind it, in either appearance (a dark scrim fading
+            // to a light page read as a grey band).
+            .mask { MacHomeHeroFadeMask(fadeHeight: HomeCinematicHeroLayout.macBottomFadeHeight) }
+            #endif
             .duskHeroBackdropBottomFade(layout.backdropBottomFadeStyle)
 
             #if os(iOS)
@@ -747,11 +785,14 @@ struct HomeCinematicHero: View {
                         detailsAction(item)
                     }
                     .contextMenu {
-                        if let macContextMenuContent {
-                            macContextMenuContent(item)
-                        } else if let contextMenuActions {
-                            HomeItemMenuButtons(actions: contextMenuActions(item))
+                        Group {
+                            if let macContextMenuContent {
+                                macContextMenuContent(item)
+                            } else if let contextMenuActions {
+                                HomeItemMenuButtons(actions: contextMenuActions(item))
+                            }
                         }
+                        .duskMenuItemIcons()
                     }
                     .accessibilityHidden(true)
             }
@@ -811,11 +852,6 @@ struct HomeCinematicHero: View {
             // The hero is a dark context in both appearances: white text on
             // the scrim, the dark-glass button.
             .environment(\.colorScheme, .dark)
-            .onGeometryChange(for: CGFloat.self) { proxy in
-                proxy.frame(in: .named(Self.macCoordinateSpace)).minY
-            } action: { top in
-                macContentBlockTop = top
-            }
             #endif
             .padding(.leading, contentLeadingInset + layout.contentHorizontalPadding)
             .padding(.trailing, contentTrailingInset + layout.contentHorizontalPadding)
@@ -834,14 +870,42 @@ struct HomeCinematicHero: View {
         if items.count > 1 {
             HomeHeroMacPageChevrons(
                 isVisible: isPointerOverHero,
-                topInset: topInset,
-                contentBlockTop: macContentBlockTop,
-                leadingPadding: contentLeadingInset + 12,
-                trailingPadding: contentTrailingInset + 12,
-                bottomPadding: layout.pagerBottomPadding - 10,
+                inset: MacUILayout.contentInset,
+                bottomPadding: layout.pagerBottomPadding - 9,
                 onPrevious: showPreviousHero,
                 onNext: showNextHero
             )
+        }
+    }
+
+    /// The current page's backdrop (with its scrim and bottom fade) behind
+    /// the hero, extended under the sidebar by the system.
+    @ViewBuilder
+    private func macSidebarExtension(
+        resolvedIndex: Int,
+        heroHeight: CGFloat,
+        backdropWidth: Int,
+        backdropHeight: Int
+    ) -> some View {
+        if items.indices.contains(resolvedIndex) {
+            let item = items[resolvedIndex]
+            ZStack {
+                heroBackdrop(
+                    for: item,
+                    width: backdropWidth,
+                    height: backdropHeight,
+                    heroHeight: heroHeight
+                )
+                MacHomeHeroScrim(includesLeadingShade: false)
+            }
+            .mask { MacHomeHeroFadeMask(fadeHeight: HomeCinematicHeroLayout.macBottomFadeHeight) }
+            .frame(height: heroHeight)
+            .id(item.id.storageKey)
+            .transition(.opacity)
+            .animation(.easeInOut(duration: heroPressTransitionDuration), value: item.id.storageKey)
+            .backgroundExtensionEffect()
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
         }
     }
     #endif
@@ -1048,6 +1112,12 @@ struct HomeCinematicHero: View {
 
     @ViewBuilder
     private func heroPager(currentIndex: Int) -> some View {
+        #if os(macOS)
+        // Dots carry no rotation progress, so no 20 Hz timeline.
+        macPagerDots(currentIndex: currentIndex)
+            // The dots' hit padding, so the first dot lines up with the text.
+            .padding(.horizontal, -4)
+        #else
         if autoRotates {
             TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
                 pagerContent(currentIndex: currentIndex, date: timeline.date)
@@ -1055,7 +1125,47 @@ struct HomeCinematicHero: View {
         } else {
             pagerContent(currentIndex: currentIndex, date: nil)
         }
+        #endif
     }
+
+    #if os(macOS)
+    /// Plain page dots, every page shown and clickable, the current one
+    /// white (macOS page controls, not iOS's shrinking pill window).
+    private func macPagerDots(currentIndex: Int) -> some View {
+        HStack(spacing: 2) {
+            ForEach(items.indices, id: \.self) { index in
+                Button {
+                    selectHero(at: index)
+                } label: {
+                    Circle()
+                        .fill(Color.white.opacity(index == currentIndex ? 0.95 : 0.4))
+                        .frame(width: 7, height: 7)
+                        .padding(4)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .modifier(MacHeroPagerPillHover(title: viewModel.displayTitle(for: items[index])))
+            }
+        }
+        .shadow(color: .black.opacity(0.25), radius: 2, y: 1)
+        .animation(.easeOut(duration: 0.2), value: currentIndex)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("Continue Watching"))
+        .accessibilityValue(
+            Text("\(viewModel.displayTitle(for: items[currentIndex])), \(currentIndex + 1) of \(items.count)")
+        )
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment:
+                selectHero(at: (currentIndex + 1) % items.count)
+            case .decrement:
+                selectHero(at: (currentIndex - 1 + items.count) % items.count)
+            @unknown default:
+                break
+            }
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func pagerContent(currentIndex: Int, date: Date?) -> some View {
@@ -2108,60 +2218,31 @@ private struct HeroButtonContextMenuInteraction: UIViewRepresentable {
 #endif
 
 #if os(macOS)
-/// The hero's hover chevrons on the Mac: neutral glass circles pinned to the
-/// hero's leading and trailing edges, only while the pointer is over it, in
-/// the artwork between the toolbar and the title block so they never cover
-/// the logo. A hero too short for that gets them as a pair at its bottom
-/// trailing corner, level with the pager.
+/// The hero's hover chevrons on the Mac: a pair of neutral glass circles at
+/// the hero's bottom trailing corner, level with the page dots, only while
+/// the pointer is over it. Not at the side edges: the title block starts at
+/// the same inset as the left one would (it sat on the logo), and higher up
+/// they covered faces in the art.
 private struct HomeHeroMacPageChevrons: View {
     let isVisible: Bool
-    let topInset: CGFloat
-    /// Top of the title block, in the hero's coordinates.
-    let contentBlockTop: CGFloat
-    let leadingPadding: CGFloat
-    let trailingPadding: CGFloat
+    let inset: CGFloat
+    /// Lines the buttons' centres up with the page dots.
     let bottomPadding: CGFloat
     let onPrevious: () -> Void
     let onNext: () -> Void
 
-    private let chevronSize: CGFloat = 32
-
     var body: some View {
-        let freeHeight = contentBlockTop - topInset
-
-        Group {
-            if freeHeight >= chevronSize + 24 {
-                HStack {
-                    previousButton
-                    Spacer(minLength: 0)
-                    nextButton
-                }
-                .padding(.leading, leadingPadding)
-                .padding(.trailing, trailingPadding)
-                .frame(maxHeight: .infinity, alignment: .top)
-                .padding(.top, topInset + (freeHeight - chevronSize) / 2)
-            } else {
-                HStack(spacing: 8) {
-                    previousButton
-                    nextButton
-                }
-                .padding(.trailing, trailingPadding)
-                .padding(.bottom, bottomPadding)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            }
+        HStack(spacing: 8) {
+            chevron("chevron.left", label: "Previous", action: onPrevious)
+            chevron("chevron.right", label: "Next", action: onNext)
         }
+        .padding(.trailing, inset)
+        .padding(.bottom, bottomPadding)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
         .environment(\.colorScheme, .dark)
         .opacity(isVisible ? 1 : 0)
         .allowsHitTesting(isVisible)
         .animation(.easeOut(duration: 0.18), value: isVisible)
-    }
-
-    private var previousButton: some View {
-        chevron("chevron.left", label: "Previous", action: onPrevious)
-    }
-
-    private var nextButton: some View {
-        chevron("chevron.right", label: "Next", action: onNext)
     }
 
     private func chevron(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
@@ -2180,10 +2261,13 @@ private struct HomeHeroMacPageChevrons: View {
 
 /// The Mac hero's scrim. Black, whatever the appearance, so the hero stays a
 /// dark context: a light top for the toolbar, the leading side and the bottom
-/// darkened under the text. Only the last `fadeHeight` points, below the text
-/// and the pager, fade into the window background.
+/// darkened under the text. The bottom fade onto the page is a mask
+/// (`MacHomeHeroFadeMask`), not a colour.
 private struct MacHomeHeroScrim: View {
-    let fadeHeight: CGFloat
+    /// The leading shade behind the text; left out of the copy that extends
+    /// under the sidebar, which would otherwise show as a dark smudge there.
+    var includesLeadingShade = true
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
         ZStack {
@@ -2193,32 +2277,54 @@ private struct MacHomeHeroScrim: View {
                     .init(color: .black.opacity(0.0), location: 0.2),
                     .init(color: .black.opacity(0.08), location: 0.42),
                     .init(color: .black.opacity(0.5), location: 0.72),
-                    .init(color: .black.opacity(0.82), location: 1),
+                    .init(color: .black.opacity(0.72), location: 0.9),
+                    // Under the pager and the fade: on the light page the
+                    // shade eases off, so the art dissolves into the page
+                    // instead of a dark band turning grey.
+                    .init(color: .black.opacity(colorScheme == .dark ? 0.78 : 0.3), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom
             )
 
+            if includesLeadingShade {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0.62), location: 0),
+                        .init(color: .black.opacity(0.36), location: 0.36),
+                        .init(color: .black.opacity(0.08), location: 0.66),
+                        .init(color: .black.opacity(0), location: 1),
+                    ],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            }
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// Opaque down to the last `fadeHeight` points, which ease out to clear, so
+/// the hero dissolves into whatever page background is behind it.
+private struct MacHomeHeroFadeMask: View {
+    let fadeHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
             LinearGradient(
                 stops: [
-                    .init(color: .black.opacity(0.72), location: 0),
-                    .init(color: .black.opacity(0.42), location: 0.36),
-                    .init(color: .black.opacity(0.1), location: 0.66),
+                    .init(color: .black, location: 0),
+                    .init(color: .black.opacity(0.82), location: 0.25),
+                    .init(color: .black.opacity(0.5), location: 0.5),
+                    .init(color: .black.opacity(0.2), location: 0.75),
                     .init(color: .black.opacity(0), location: 1),
                 ],
-                startPoint: .leading,
-                endPoint: .trailing
-            )
-
-            LinearGradient(
-                colors: [Color.duskBackground.opacity(0), Color.duskBackground],
                 startPoint: .top,
                 endPoint: .bottom
             )
             .frame(height: fadeHeight)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
-        .allowsHitTesting(false)
     }
 }
 
@@ -2230,7 +2336,6 @@ private struct MacHeroPagerPillHover: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            .padding(.vertical, 6)
             .contentShape(Rectangle())
             .scaleEffect(isHovered ? 1.2 : 1)
             .brightness(isHovered ? 0.15 : 0)

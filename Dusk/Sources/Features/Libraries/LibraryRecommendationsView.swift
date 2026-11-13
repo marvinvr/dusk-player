@@ -102,7 +102,11 @@ struct LibraryRecommendationsView: View {
             }
         }
         #endif
+        #if os(macOS)
+        .macUILibraryPageTitle(navigationTitle)
+        #else
         .duskNavigationTitle(navigationTitle)
+        #endif
         .duskNavigationBarTitleDisplayModeLarge()
     }
 

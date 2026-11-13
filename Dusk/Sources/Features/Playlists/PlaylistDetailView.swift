@@ -239,6 +239,7 @@ struct PlaylistDetailView: View {
             } label: {
                 Label("Play from Beginning", systemImage: "arrow.counterclockwise")
             }
+            .duskMenuItemIcons()
         }
         #endif
     }
@@ -347,6 +348,7 @@ struct PlaylistDetailView: View {
                 .listRowSeparatorTint(Color.duskTextSecondary.opacity(0.2))
                 .contextMenu {
                     entryContextMenu(entry)
+                        .duskMenuItemIcons()
                 }
                 .deleteDisabled(!viewModel.canEdit)
                 .moveDisabled(!viewModel.canEdit)

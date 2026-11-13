@@ -42,6 +42,11 @@ struct DetailRatingsLine: View {
     private let logoHeight: CGFloat = 28
     private let logoSpacing: CGFloat = 12
     private let sourceSpacing: CGFloat = 28
+    #elseif os(macOS)
+    // Single-line marks at about the 11pt line's height, on its centre line.
+    private let logoHeight: CGFloat = 13
+    private let logoSpacing: CGFloat = 5
+    private let sourceSpacing: CGFloat = 14
     #else
     @ScaledMetric(relativeTo: .subheadline) private var logoHeight: CGFloat = 16
     @ScaledMetric(relativeTo: .subheadline) private var logoSpacing: CGFloat = 7
@@ -57,7 +62,7 @@ struct DetailRatingsLine: View {
                 ForEach(ratings, id: \.self) { rating in
                     if let display = rating.display {
                         HStack(spacing: logoSpacing) {
-                            if let logo = display.logo {
+                            if let logo = Self.drawnLogo(display.logo) {
                                 Image(logo.rawValue)
                                     .resizable()
                                     .scaledToFit()
@@ -79,6 +84,17 @@ struct DetailRatingsLine: View {
             .lineLimit(1)
             .minimumScaleFactor(0.8)
         }
+    }
+
+    /// The logo drawn for a source, or nil for its text label. The Mac's
+    /// 11pt metadata line is too small for TMDB's stacked two-line mark, so
+    /// it reads "TMDB" like the text-only sources there.
+    private static func drawnLogo(_ logo: PlexRating.Logo?) -> PlexRating.Logo? {
+        #if os(macOS)
+        logo == .tmdb ? nil : logo
+        #else
+        logo
+        #endif
     }
 }
 
