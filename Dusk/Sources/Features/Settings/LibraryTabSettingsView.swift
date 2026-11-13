@@ -11,7 +11,7 @@ struct LibraryTabSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("Navigation Tabs")
     }
 
@@ -35,10 +35,10 @@ struct LibraryTabSettingsView: View {
                 Text("Turn off a destination to remove it from the navigation bar. Tap Edit, then drag to change the order.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
         #if !os(macOS)
         // The Mac reorders by dragging a row, no edit mode.
         .toolbar {

@@ -19,7 +19,7 @@ struct ServerPrioritySettingsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Server Priority")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
@@ -72,7 +72,7 @@ struct ServerPrioritySettingsView: View {
                 Section {
                     ServerPriorityNotice(message: Self.nothingEnabledMessage)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -89,7 +89,7 @@ struct ServerPrioritySettingsView: View {
                 Text(Self.footerText(isSingleServer: viewModel.isSingleServer))
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             Section {
                 Button {
@@ -124,10 +124,10 @@ struct ServerPrioritySettingsView: View {
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
         #if !os(macOS)
         // The Mac reorders by dragging a row, no edit mode.
         .toolbar {

@@ -92,10 +92,36 @@ struct ExpandableSummaryText: View {
                 .foregroundStyle(Color.primary)
                 .buttonStyle(.plain)
             }
+            #if os(macOS)
+            // The Mac hero's clamped synopsis: "More" opens the full text in
+            // a popover beside it, like the TV app.
+            if !allowsExpansion, isTruncated {
+                Button("More") {
+                    showsFullText = true
+                }
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.primary)
+                .buttonStyle(.plain)
+                .popover(isPresented: $showsFullText, arrowEdge: .bottom) {
+                    ScrollView {
+                        Text(text)
+                            .font(.body)
+                            .lineSpacing(3)
+                            .textSelection(.enabled)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(width: 420, alignment: .leading)
+                            .padding(16)
+                    }
+                    .frame(maxHeight: 420)
+                }
+            }
+            #endif
         }
+        #if !os(macOS)
         .sheet(isPresented: $showsFullText) {
             SummaryFullTextView(title: title, text: text)
         }
+        #endif
         #endif
     }
 }

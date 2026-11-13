@@ -128,6 +128,49 @@ struct ContentView: View {
     }
 
     private var homeBootstrapView: some View {
+        #if os(macOS)
+        macHomeBootstrapView
+        #else
+        iosHomeBootstrapView
+        #endif
+    }
+
+    #if os(macOS)
+    private var macHomeBootstrapView: some View {
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
+
+            if let homeBootstrapError {
+                ContentUnavailableView {
+                    Label("Couldn’t Load Plex", systemImage: "person.2.slash")
+                } description: {
+                    Text(homeBootstrapError)
+                } actions: {
+                    HStack(spacing: 10) {
+                        if AuthenticationFailure.requiresReauthentication(message: homeBootstrapError) {
+                            Button("Sign In") { signOut() }
+                        } else {
+                            Button("Sign Out") { signOut() }
+                            Button("Try Again") {
+                                Task { await bootstrapHomeIfNeeded(force: true) }
+                            }
+                            .disabled(isBootstrappingHome)
+                            .keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+    }
+    #endif
+
+    private var iosHomeBootstrapView: some View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
 

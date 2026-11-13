@@ -25,9 +25,19 @@ final class MacShellRouter {
     /// so this counts rather than flips.
     private var mountedShells = 0
 
-    /// Set by ⌘F and by choosing Search in the sidebar; the search screen
-    /// focuses its field and clears it (`macSearchFocusRequests`).
-    fileprivate(set) var isSearchFocusRequested = false
+    /// Set by ⌘F; the shell focuses the sidebar search field.
+    var isSearchFocusRequested = false
+    /// The sidebar search field's text (`.searchable(placement: .sidebar)` on
+    /// the split view, like Music and TV). Typing shows the Search destination
+    /// in the detail area; clearing it goes back to where the user was.
+    var searchQuery = "" {
+        didSet {
+            guard searchQuery != oldValue else { return }
+            searchQueryDidChange()
+        }
+    }
+    /// Where the user was when they started typing a search.
+    private var destinationBeforeSearch: MainTabItem?
     /// Bumped by ⌘R per destination; the shell remounts that destination so
     /// its screens load again.
     private(set) var reloadRevisions: [MainTabItem: Int] = [:]
@@ -36,6 +46,10 @@ final class MacShellRouter {
     var isSignOutConfirmationPresented = false
 
     private var paths: [MainTabItem: NavigationPath] = [:]
+    /// Per destination, the screens Back left (deepest last), so Forward
+    /// (⌘]) can return to them. Snapshots of the whole path, because a
+    /// `NavigationPath` can't hand its type-erased elements back.
+    private var forwardPaths: [MainTabItem: [NavigationPath]] = [:]
     /// The profile the navigation state belongs to. A profile switch starts
     /// over at Home, like the iOS shell remounting per profile.
     private var sessionID: String?
@@ -46,7 +60,10 @@ final class MacShellRouter {
         if session != sessionID {
             sessionID = session
             paths = [:]
+            forwardPaths = [:]
             reloadRevisions = [:]
+            searchQuery = ""
+            destinationBeforeSearch = nil
             selection = .home
         }
         mountedShells += 1
@@ -62,8 +79,10 @@ final class MacShellRouter {
     func updateDestinations(_ newDestinations: [MainTabItem]) {
         guard newDestinations != destinations else { return }
         destinations = newDestinations
-        if !newDestinations.contains(selection) {
+        // Search has no sidebar row (its field is the sidebar's search field).
+        if selection != .search, !newDestinations.contains(selection) {
             paths[selection] = nil
+            forwardPaths[selection] = nil
             selection = .home
         }
     }
@@ -78,8 +97,23 @@ final class MacShellRouter {
             return
         }
         selection = destination
-        if destination == .search {
-            isSearchFocusRequested = true
+        if destination != .search {
+            // Picking a sidebar destination ends the search, as in Music.
+            destinationBeforeSearch = nil
+            searchQuery = ""
+        }
+    }
+
+    private func searchQueryDidChange() {
+        let isSearching = !searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if isSearching, selection != .search {
+            destinationBeforeSearch = selection
+            selection = .search
+        } else if searchQuery.isEmpty, selection == .search, path(for: .search).isEmpty,
+                  let previous = destinationBeforeSearch {
+            // Cleared on the results page: back to where the search started.
+            destinationBeforeSearch = nil
+            selection = previous
         }
     }
 
@@ -90,26 +124,52 @@ final class MacShellRouter {
     func pathBinding(for destination: MainTabItem) -> Binding<NavigationPath> {
         Binding(
             get: { self.path(for: destination) },
-            set: { self.paths[destination] = $0 }
+            set: { self.applyPath($0, for: destination) }
         )
     }
 
     func setPath(_ path: NavigationPath, for destination: MainTabItem) {
         paths[destination] = path
+        forwardPaths[destination] = nil
+    }
+
+    /// A path change from the screens themselves (a link pushed, a pop):
+    /// a pop remembers the screen it left for Forward, a push starts a new
+    /// history, so Forward has nothing to return to.
+    private func applyPath(_ newPath: NavigationPath, for destination: MainTabItem) {
+        let oldPath = path(for: destination)
+        if newPath.count < oldPath.count {
+            forwardPaths[destination, default: []].append(oldPath)
+        } else if newPath.count > oldPath.count {
+            forwardPaths[destination] = nil
+        }
+        paths[destination] = newPath
     }
 
     var canGoBack: Bool {
         !path(for: selection).isEmpty
     }
 
+    var canGoForward: Bool {
+        !(forwardPaths[selection] ?? []).isEmpty
+    }
+
     func goBack() {
         guard var path = paths[selection], !path.isEmpty else { return }
+        forwardPaths[selection, default: []].append(path)
         path.removeLast()
         paths[selection] = path
     }
 
+    func goForward() {
+        guard var stack = forwardPaths[selection], let next = stack.popLast() else { return }
+        forwardPaths[selection] = stack
+        paths[selection] = next
+    }
+
     func popToRoot() {
         guard canGoBack else { return }
+        forwardPaths[selection, default: []].append(path(for: selection))
         withAnimation {
             paths[selection] = NavigationPath()
         }
@@ -117,10 +177,9 @@ final class MacShellRouter {
 
     // MARK: Commands
 
+    /// ⌘F: focuses the sidebar search field. The results replace the detail
+    /// area only once something is typed.
     func focusSearch() {
-        if selection != .search {
-            selection = .search
-        }
         isSearchFocusRequested = true
     }
 
@@ -132,29 +191,61 @@ final class MacShellRouter {
         reloadRevisions[destination, default: 0]
     }
 }
+#endif
 
-extension View {
-    /// Focuses a search field when ⌘F (Edit › Search) asks for it. Apply it on
-    /// the Mac next to the screen's `.searchable(text:isPresented:)`, passing the
-    /// same `isPresented` binding.
-    func macSearchFocusRequests(isPresented: Binding<Bool>) -> some View {
-        modifier(MacSearchFocusRequests(isPresented: isPresented))
+#if os(macOS)
+extension EnvironmentValues {
+    /// True inside the main window's detail column, where the toolbar's
+    /// back/forward pair (`MacRootView`) replaces each stack's own back button.
+    /// False in the Settings window and sheets, which keep the system one.
+    @Entry var macShellManagesBackNavigation = false
+}
+
+/// A pushed screen in the main window: the stack's own back button gives way
+/// to the shell's back/forward pair, and the toolbar stays transparent (no
+/// opaque band over a screen without a scroll view at its root). Toolbar
+/// modifiers on the stack's container don't reach pushed screens, so each
+/// one carries them itself.
+struct MacShellBackButtonHiding: ViewModifier {
+    @Environment(\.macShellManagesBackNavigation) private var shellManagesBack
+
+    func body(content: Content) -> some View {
+        if shellManagesBack {
+            content
+                .navigationBarBackButtonHidden(true)
+                .toolbar {
+                    ToolbarItemGroup(placement: .navigation) {
+                        MacShellBackForwardButtons()
+                    }
+                }
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        } else {
+            content
+        }
     }
 }
 
-private struct MacSearchFocusRequests: ViewModifier {
-    @Environment(MacShellRouter.self) private var router: MacShellRouter?
-    let isPresented: Binding<Bool>
+/// Back and Forward for the main window's current destination (Go › Back
+/// ⌘[ / Forward ⌘]).
+struct MacShellBackForwardButtons: View {
+    @Environment(MacShellRouter.self) private var router
 
-    func body(content: Content) -> some View {
-        content
-            // `initial`: the request usually arrives before the search screen
-            // is mounted, since ⌘F switches to it first.
-            .onChange(of: router?.isSearchFocusRequested ?? false, initial: true) { _, isRequested in
-                guard isRequested, let router else { return }
-                router.isSearchFocusRequested = false
-                isPresented.wrappedValue = true
-            }
+    var body: some View {
+        Button {
+            router.goBack()
+        } label: {
+            Label("Back", systemImage: "chevron.left")
+        }
+        .disabled(!router.canGoBack)
+        .help("Back")
+
+        Button {
+            router.goForward()
+        } label: {
+            Label("Forward", systemImage: "chevron.right")
+        }
+        .disabled(!router.canGoForward)
+        .help("Forward")
     }
 }
 #endif

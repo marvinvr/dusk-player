@@ -21,7 +21,20 @@ struct HomeItemContextMenu: View {
     var onRemoveFromContinueWatching: (() -> Void)?
 
     var body: some View {
+        #if os(macOS)
+        MacItemContextMenu(
+            item: item,
+            onMarkWatched: onMarkWatched,
+            onMarkUnwatched: onMarkUnwatched,
+            detailsRoute: AppNavigationRoute.destination(for: item),
+            detailsLabel: detailsLabel,
+            isContinueWatching: true,
+            onRemoveFromContinueWatching: onRemoveFromContinueWatching,
+            onSelectRoute: onSelectRoute
+        )
+        #else
         HomeItemMenuButtons(actions: actions(playlistPresenter: playlistPresenter))
+        #endif
     }
 
     func actions(playlistPresenter: AddToPlaylistPresenter?) -> [HomeItemMenuAction] {
@@ -95,6 +108,11 @@ struct HomeHeroActionButtonLabel: View {
     #if os(tvOS)
     private let minimumButtonWidth: CGFloat = 280
     #endif
+    #if os(macOS)
+    /// An inactive window draws prominent glass without its tint, as a dark
+    /// platter; the inverse label would vanish on it.
+    @Environment(\.controlActiveState) private var controlActiveState
+    #endif
 
     var body: some View {
         HStack(spacing: 8) {
@@ -122,6 +140,8 @@ struct HomeHeroActionButtonLabel: View {
     private var labelColor: Color {
         #if os(tvOS)
         .primary
+        #elseif os(macOS)
+        controlActiveState == .inactive ? .primary : .duskPrimaryActionLabel
         #else
         .duskPrimaryActionLabel
         #endif
@@ -138,6 +158,9 @@ struct HomeHeroActionButtonLabel: View {
     private var heroButtonMinHeight: CGFloat {
         #if os(tvOS)
         28
+        #elseif os(macOS)
+        // `.controlSize(.large)` sets the Mac height.
+        0
         #else
         32
         #endif
@@ -286,7 +309,8 @@ extension View {
                 .tint(Color.primary)
         }
         #elseif os(macOS)
-        // The iOS look; `.large` is the Mac's short, wide pill.
+        // The iOS look at Mac size: `.large` is the Mac's ~30pt pill, and the
+        // label hugs its text.
         self
             .buttonStyle(.glassProminent)
             .controlSize(.large)

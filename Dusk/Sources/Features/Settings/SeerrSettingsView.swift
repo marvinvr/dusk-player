@@ -12,7 +12,7 @@ struct SeerrSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("Seerr")
         .task {
             viewModel.load(from: seerrService)
@@ -55,7 +55,7 @@ struct SeerrSettingsView: View {
             } footer: {
                 Text("Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder).")
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let errorMessage = viewModel.errorMessage ?? seerrService.lastConnectionError {
                 Section {
@@ -69,7 +69,7 @@ struct SeerrSettingsView: View {
                         .disabled(viewModel.isWorking)
                     }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -93,9 +93,9 @@ struct SeerrSettingsView: View {
                     .disabled(viewModel.isWorking || viewModel.serverURL.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
     }
     #endif
 

@@ -131,6 +131,10 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     /// Set where the row is a list of videos to play through (a video
     /// library's rows): its movies and videos open knowing the row.
     var playThroughTitle: String? = nil
+    /// A card's title line; nil keeps `posterCardTitle`.
+    var cardTitle: ((PlexItem) -> String)? = nil
+    /// Whether `posterURL` hands back an unwatched episode's own still.
+    var isUnwatchedEpisodeImage: (PlexItem) -> Bool = { _ in false }
     @ViewBuilder let contextMenuContent: (PlexItem) -> ContextMenuContent
 
     var body: some View {
@@ -151,12 +155,13 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                         width: imageWidth,
                         height: imageHeight
                     ),
-                    title: item.posterCardTitle,
+                    title: cardTitle?(item) ?? item.posterCardTitle,
                     subtitle: subtitle(item),
                     progress: progress(item),
                     width: posterWidth,
                     imageAspectRatio: imageAspectRatio,
-                    isWatched: item.posterIsWatched
+                    isWatched: item.posterIsWatched,
+                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage(item)
                 ) {
                     contextMenuContent(item)
                 }
@@ -308,6 +313,10 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
             }
         }
         .scrollTargetLayout(isEnabled: isScrollTargetLayout)
+        #if os(macOS)
+        // Grid titles take two lines, reserved, so each row lines up.
+        .environment(\.macUIPosterTitleLines, 2)
+        #endif
         #endif
     }
 

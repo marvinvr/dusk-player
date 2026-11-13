@@ -1,8 +1,9 @@
 #if os(macOS)
 import SwiftUI
 
-/// The main window's source list: Home and Search, the content destinations in
-/// the user's library order, then Downloads.
+/// The main window's source list: Home, the content destinations in the
+/// user's library order, then Downloads. Search is the sidebar's search field
+/// (`MacRootView`), not a row. System sizes and stock section headers.
 struct MacSidebar: View {
     let contentDestinations: [MainTabItem]
     let showsDownloads: Bool
@@ -12,7 +13,6 @@ struct MacSidebar: View {
         List(selection: optionalSelection) {
             Section {
                 row(.home)
-                row(.search)
             }
 
             if !contentDestinations.isEmpty {

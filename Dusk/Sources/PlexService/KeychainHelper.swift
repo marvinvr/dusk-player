@@ -14,8 +14,26 @@ enum KeychainHelper {
     private static let service = "com.dusk-player.app"
     #endif
 
+    #if DEBUG && os(macOS)
+    /// Mac screenshot mode and `-DuskScreenshotSignedOut` captures never touch the
+    /// real Keychain: its items are real sign-ins, and a rebuilt ad-hoc signed
+    /// build blocks on a Keychain access prompt reading them. They get an
+    /// in-memory store for the life of the process instead.
+    private static var usesMemoryStore: Bool {
+        ScreenshotMode.isActive || ScreenshotMode.startsSignedOut
+    }
+    nonisolated(unsafe) private static var memoryStore: [String: Data] = [:]
+    private static let memoryStoreLock = NSLock()
+    #endif
+
     @discardableResult
     static func save(key: String, data: Data) -> Bool {
+        #if DEBUG && os(macOS)
+        if usesMemoryStore {
+            memoryStoreLock.withLock { memoryStore[key] = data }
+            return true
+        }
+        #endif
         delete(key: key)
 
         #if os(macOS)
@@ -42,6 +60,11 @@ enum KeychainHelper {
     }
 
     static func load(key: String) -> Data? {
+        #if DEBUG && os(macOS)
+        if usesMemoryStore {
+            return memoryStoreLock.withLock { memoryStore[key] }
+        }
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -59,6 +82,12 @@ enum KeychainHelper {
 
     @discardableResult
     static func delete(key: String) -> Bool {
+        #if DEBUG && os(macOS)
+        if usesMemoryStore {
+            memoryStoreLock.withLock { memoryStore[key] = nil }
+            return true
+        }
+        #endif
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,

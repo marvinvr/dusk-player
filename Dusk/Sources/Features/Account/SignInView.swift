@@ -11,6 +11,10 @@ struct SignInView: View {
     @State private var error: String?
     @State private var pollingTask: Task<Void, Never>?
     @State private var authURL: URL?
+    #if os(macOS)
+    /// The user chose "Use a code" instead of the browser approval page.
+    @State private var macUsesLinkCodeOnly = false
+    #endif
 
     var body: some View {
         ZStack {
@@ -34,10 +38,135 @@ struct SignInView: View {
     private var signInContent: some View {
         #if os(tvOS)
         tvSignInContent
+        #elseif os(macOS)
+        macSignInContent
         #else
         iosSignInContent
         #endif
     }
+
+    #if os(macOS)
+    /// The Mac's welcome screen: one centred group (logo, name, tagline, a
+    /// normal-width prominent button and the link-code alternative) under a
+    /// transparent title bar, nothing pinned to the window edges.
+    private var macSignInContent: some View {
+        VStack(spacing: 0) {
+            Image("LaunchLogo")
+                .resizable()
+                .scaledToFit()
+                .frame(width: 96, height: 96)
+
+            Text("Dusk")
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(Color.duskTextPrimary)
+                .padding(.top, 18)
+
+            Text("The Plex App we Deserve.")
+                .font(.title3)
+                .foregroundStyle(Color.duskTextSecondary)
+                .padding(.top, 4)
+
+            Group {
+                if isSigningIn {
+                    macSigningInContent
+                } else {
+                    macWelcomeActions
+                }
+            }
+            .padding(.top, 32)
+            .frame(minHeight: 150, alignment: .top)
+        }
+        .multilineTextAlignment(.center)
+        .frame(maxWidth: 420)
+        .padding(MacUILayout.contentInset)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // The window's title bar disappears behind the content here; the
+        // traffic lights float over the page like an onboarding window.
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        .animation(.default, value: isSigningIn)
+    }
+
+    private var macWelcomeActions: some View {
+        VStack(spacing: 14) {
+            if let error {
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Button {
+                Task { await signIn() }
+            } label: {
+                Text("Sign in with Plex")
+                    .frame(minWidth: 180)
+            }
+            // Bordered, not glass: its label stays legible while the window
+            // is inactive.
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .keyboardShortcut(.defaultAction)
+
+            Button("Use a code on plex.tv/link instead") {
+                Task { await signIn(opensBrowser: false) }
+            }
+            .buttonStyle(.link)
+            .font(.callout)
+            .help("Sign in from any browser or device with a four-character code")
+        }
+    }
+
+    private var macLinkInstructions: Text {
+        let link = Text("plex.tv/link").foregroundStyle(Color.duskTextPrimary)
+        if macUsesLinkCodeOnly {
+            return Text("Go to \(link) on any device and enter")
+        }
+        return Text("Approve Dusk in the browser that opened, or go to \(link) and enter")
+    }
+
+    private var macSigningInContent: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .controlSize(.small)
+                Text("Waiting for approval…")
+                    .font(.callout)
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+
+            if let linkPinCode {
+                VStack(spacing: 4) {
+                    macLinkInstructions
+                        .font(.callout)
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Text(linkPinCode)
+                        .font(.system(size: 34, weight: .semibold, design: .monospaced))
+                        .tracking(6)
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .textSelection(.enabled)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Button("Cancel") {
+                    cancelSignIn()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                if let url = URL(string: "https://plex.tv/link") {
+                    Button("Open plex.tv/link") {
+                        openURL(url)
+                    }
+                }
+            }
+            .controlSize(.large)
+            .padding(.top, 4)
+        }
+    }
+    #endif
 
     private var iosSignInContent: some View {
         VStack(spacing: 0) {
@@ -311,7 +440,9 @@ struct SignInView: View {
         }
     }
 
-    private func signIn() async {
+    /// `opensBrowser`: Mac only; false signs in with the plex.tv/link code
+    /// alone (the "use a code" option) and never opens the approval page.
+    private func signIn(opensBrowser: Bool = true) async {
         isSigningIn = true
         error = nil
         linkPinCode = nil
@@ -332,8 +463,21 @@ struct SignInView: View {
                 throw PlexServiceError.invalidURL
             }
 
+            #if os(macOS)
+            macUsesLinkCodeOnly = !opensBrowser
+            if opensBrowser {
+                startPolling(primaryPinID: browserPin.id, fallbackPinID: linkPin?.id)
+                openAuthURL(url)
+            } else if let linkPin {
+                // Only the link code can be approved, so it is polled first.
+                startPolling(primaryPinID: linkPin.id)
+            } else {
+                throw PlexServiceError.invalidURL
+            }
+            #else
             startPolling(primaryPinID: browserPin.id, fallbackPinID: linkPin?.id)
             openAuthURL(url)
+            #endif
             #endif
         } catch {
             ErrorReporter.report(.signInFailed, reason: .pinRequest, error: error)

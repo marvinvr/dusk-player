@@ -86,13 +86,37 @@ struct HomeCinematicHeroLayout {
     /// own 16:9 (`maxHeightToWidthRatio`), so a wide window doesn't crop the
     /// artwork to a strip, and a little short of the viewport so the first
     /// shelf shows under it.
+    ///
+    /// The height is worked out in `HomeCinematicHero.macHeroHeight` (at most
+    /// `MacUILayout.heroMaxHeightFraction` of the window, toolbar included),
+    /// and the page fades into the window background only in the last
+    /// `macBottomFadeHeight` points, below the pager.
     static let mac: HomeCinematicHeroLayout = {
         var layout = iPad
-        layout.heroHeightFactor = 0.86
-        layout.heroHeightRange = 440 ... 1100
-        layout.maxHeightToWidthRatio = 0.62
+        layout.heroHeightRange = 360 ... 1000
+        layout.maxContentWidth = MacUILayout.readableTextWidth
+        layout.contentHorizontalPadding = MacUILayout.contentInset
+        layout.pagerHorizontalPadding = MacUILayout.contentInset
+        layout.contentTopPadding = 16
+        layout.pagerBottomPadding = macBottomFadeHeight + 6
+        layout.contentBottomPaddingWithPager = macBottomFadeHeight + 6 + 10 + 18
+        layout.contentBottomPaddingWithoutPager = macBottomFadeHeight + 14
+        layout.actionsTopPadding = 2
+        layout.titleFontSize = 40
+        layout.titleLogoMaxWidth = 360
+        layout.titleLogoMaxHeight = 110
+        layout.titleBlockSpacingMovie = 12
+        layout.titleBlockSpacingOther = 10
+        layout.episodeTitleFont = .title2.weight(.semibold)
+        layout.metadataFont = .callout.weight(.medium)
+        layout.summaryFont = .body
+        layout.summaryLineSpacing = 2
         return layout
     }()
+
+    /// The hero's bottom strip that fades into the window background, below
+    /// the text, button and pager, so the dark hero meets a light page cleanly.
+    static let macBottomFadeHeight: CGFloat = 28
     #endif
 
     /// Apple TV: the hero owns the **entire** screen. Heights come from the
@@ -218,6 +242,11 @@ struct HomeCinematicHero: View {
     #if os(macOS)
     /// The pointer is over the hero; shows `macPageChevrons`.
     @State private var isPointerOverHero = false
+    /// Top of the page's title block in the hero, so the chevrons can sit in
+    /// the artwork above it instead of over the logo.
+    @State private var macContentBlockTop: CGFloat = 0
+    /// The Mac's right-click menu for a page (`macContextMenu(_:)`).
+    var macContextMenuContent: ((PlexItem) -> AnyView)? = nil
     #endif
     @State private var preloadedHeroBackdropImages: [String: PlatformImage] = [:]
     @State private var preloadedHeroTitleImages: [String: PlatformImage] = [:]
@@ -242,6 +271,9 @@ struct HomeCinematicHero: View {
     var body: some View {
         let resolvedIndex = resolvedHeroIndex
         let heroWidth = pixelAlignedLength(containerSize.width)
+        #if os(macOS)
+        let rawHeroHeight = macHeroHeight
+        #else
         let rawHeroHeight: CGFloat = layout.fillsContainerHeight
             // Full-bleed: the caller already sized `containerSize` to the whole
             // display, top safe area included, so adding `topInset` again would
@@ -253,6 +285,7 @@ struct HomeCinematicHero: View {
                 layout.maxHeightToWidthRatio.map { containerSize.width * $0 } ?? .infinity,
                 layout.fitsContainerHeight ? containerSize.height : .infinity
             ) + topInset
+        #endif
         let heroHeight = pixelAlignedLength(rawHeroHeight)
         let backdropWidth = Int(heroWidth.rounded(.up))
         let backdropHeight = Int(heroHeight.rounded(.up))
@@ -276,6 +309,9 @@ struct HomeCinematicHero: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
+        #if os(macOS)
+        .coordinateSpace(.named(Self.macCoordinateSpace))
+        #endif
         // An overlay, not a ZStack sibling: the pager must never size the
         // hero. As a sibling, a pager wider than the screen (one pill per
         // Continue Watching item) widened the whole ZStack and pushed the
@@ -283,6 +319,9 @@ struct HomeCinematicHero: View {
         .overlay(alignment: heroContentBlockAlignment) {
             if items.count > 1 {
                 heroPager(currentIndex: resolvedIndex)
+                    #if os(macOS)
+                    .environment(\.colorScheme, .dark)
+                    #endif
                     .padding(.leading, contentLeadingInset + layout.pagerHorizontalPadding)
                     .padding(.trailing, contentTrailingInset + layout.pagerHorizontalPadding)
                     .padding(.bottom, layout.pagerBottomPadding)
@@ -565,7 +604,11 @@ struct HomeCinematicHero: View {
         }
         #elseif os(macOS)
         // A Mac menu has no lift preview, so SwiftUI's own menu is fine here.
-        if let contextMenuActions {
+        if let macContextMenuContent {
+            callbacks.withContextMenu = { button in
+                AnyView(button.contextMenu { macContextMenuContent(item) })
+            }
+        } else if let contextMenuActions {
             callbacks.withContextMenu = { button in
                 AnyView(
                     button.contextMenu {
@@ -670,7 +713,11 @@ struct HomeCinematicHero: View {
                     heroHeight: heroHeight
                 )
 
+                #if os(macOS)
+                MacHomeHeroScrim(fadeHeight: HomeCinematicHeroLayout.macBottomFadeHeight)
+                #else
                 DuskHeroBackdropOverlay(style: layout.backdropOverlayStyle)
+                #endif
             }
             .duskHeroBackdropBottomFade(layout.backdropBottomFadeStyle)
 
@@ -700,7 +747,9 @@ struct HomeCinematicHero: View {
                         detailsAction(item)
                     }
                     .contextMenu {
-                        if let contextMenuActions {
+                        if let macContextMenuContent {
+                            macContextMenuContent(item)
+                        } else if let contextMenuActions {
                             HomeItemMenuButtons(actions: contextMenuActions(item))
                         }
                     }
@@ -710,7 +759,7 @@ struct HomeCinematicHero: View {
 
             VStack(alignment: heroContentHorizontalAlignment, spacing: 16) {
                 VStack(alignment: heroContentHorizontalAlignment, spacing: heroTitleBlockSpacing(for: item)) {
-                    heroTitle(for: item, contentWidth: contentWidth)
+                    heroTitle(for: item, contentWidth: contentWidth, heroHeight: heroHeight)
 
                     if let episodeTitle = viewModel.heroEpisodeTitle(for: item) {
                         Text(episodeTitle)
@@ -735,7 +784,7 @@ struct HomeCinematicHero: View {
                     Text(summary)
                         .font(layout.summaryFont)
                         .foregroundStyle(Color.primary.opacity(0.76))
-                        .lineLimit(layout.summaryLineLimit)
+                        .lineLimit(summaryLineLimit(heroHeight: heroHeight))
                         .lineSpacing(layout.summaryLineSpacing)
                         .multilineTextAlignment(heroTextAlignment)
                         .frame(maxWidth: contentWidth, alignment: heroContentFrameAlignment)
@@ -758,6 +807,16 @@ struct HomeCinematicHero: View {
                 .padding(.top, layout.actionsTopPadding)
                 .padding(.bottom, layout.actionsBottomPadding)
             }
+            #if os(macOS)
+            // The hero is a dark context in both appearances: white text on
+            // the scrim, the dark-glass button.
+            .environment(\.colorScheme, .dark)
+            .onGeometryChange(for: CGFloat.self) { proxy in
+                proxy.frame(in: .named(Self.macCoordinateSpace)).minY
+            } action: { top in
+                macContentBlockTop = top
+            }
+            #endif
             .padding(.leading, contentLeadingInset + layout.contentHorizontalPadding)
             .padding(.trailing, contentTrailingInset + layout.contentHorizontalPadding)
             .padding(.bottom, reservesPagerSpace ? layout.contentBottomPaddingWithPager : layout.contentBottomPaddingWithoutPager)
@@ -776,11 +835,46 @@ struct HomeCinematicHero: View {
             HomeHeroMacPageChevrons(
                 isVisible: isPointerOverHero,
                 topInset: topInset,
-                horizontalPadding: contentLeadingInset + 12,
+                contentBlockTop: macContentBlockTop,
+                leadingPadding: contentLeadingInset + 12,
+                trailingPadding: contentTrailingInset + 12,
+                bottomPadding: layout.pagerBottomPadding - 10,
                 onPrevious: showPreviousHero,
                 onNext: showNextHero
             )
         }
+    }
+    #endif
+
+    private func summaryLineLimit(heroHeight: CGFloat) -> Int {
+        #if os(macOS)
+        heroHeight < 480 ? 2 : 3
+        #else
+        layout.summaryLineLimit
+        #endif
+    }
+
+    #if os(macOS)
+    static let macCoordinateSpace = "DuskMacHomeHero"
+
+    /// At most `MacUILayout.heroMaxHeightFraction` of the window (the hero
+    /// runs under the toolbar, so that is the container plus `topInset`) and
+    /// never taller than half its width, so the first shelf always shows.
+    private var macHeroHeight: CGFloat {
+        let windowHeight = containerSize.height + topInset
+        let height = min(
+            windowHeight * MacUILayout.heroMaxHeightFraction,
+            containerSize.width * 0.5,
+            layout.heroHeightRange.upperBound
+        )
+        return max(height, layout.heroHeightRange.lowerBound)
+    }
+
+    /// The Mac's right-click menu for each page, on the artwork and the button.
+    func macContextMenu(_ content: @escaping (PlexItem) -> AnyView) -> Self {
+        var copy = self
+        copy.macContextMenuContent = content
+        return copy
     }
     #endif
 
@@ -823,9 +917,14 @@ struct HomeCinematicHero: View {
     }
 
     @ViewBuilder
-    private func heroTitle(for item: PlexItem, contentWidth: CGFloat) -> some View {
+    private func heroTitle(for item: PlexItem, contentWidth: CGFloat, heroHeight: CGFloat) -> some View {
         let logoWidth = min(contentWidth, layout.titleLogoMaxWidth)
+        #if os(macOS)
+        // A short window gets a smaller logo, so the text block still fits.
+        let logoHeight = min(layout.titleLogoMaxHeight, (heroHeight * 0.2).rounded())
+        #else
         let logoHeight = layout.titleLogoMaxHeight
+        #endif
         if item.clearLogo != nil {
             heroTitleArtwork(for: item, width: logoWidth, height: logoHeight)
         } else {
@@ -986,6 +1085,9 @@ struct HomeCinematicHero: View {
                     .scaleEffect(window.scale(for: index))
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .modifier(MacHeroPagerPillHover(title: viewModel.displayTitle(for: items[index])))
+                #endif
                 .transition(.scale.combined(with: .opacity))
                 #endif
             }
@@ -2006,38 +2108,135 @@ private struct HeroButtonContextMenuInteraction: UIViewRepresentable {
 #endif
 
 #if os(macOS)
-/// The hero's hover chevrons on the Mac. Neutral glass circles, centred on
-/// the hero's edges, only while the pointer is over it.
+/// The hero's hover chevrons on the Mac: neutral glass circles pinned to the
+/// hero's leading and trailing edges, only while the pointer is over it, in
+/// the artwork between the toolbar and the title block so they never cover
+/// the logo. A hero too short for that gets them as a pair at its bottom
+/// trailing corner, level with the pager.
 private struct HomeHeroMacPageChevrons: View {
     let isVisible: Bool
     let topInset: CGFloat
-    let horizontalPadding: CGFloat
+    /// Top of the title block, in the hero's coordinates.
+    let contentBlockTop: CGFloat
+    let leadingPadding: CGFloat
+    let trailingPadding: CGFloat
+    let bottomPadding: CGFloat
     let onPrevious: () -> Void
     let onNext: () -> Void
 
+    private let chevronSize: CGFloat = 32
+
     var body: some View {
-        HStack {
-            chevron("chevron.left", label: "Previous", action: onPrevious)
-            Spacer(minLength: 0)
-            chevron("chevron.right", label: "Next", action: onNext)
+        let freeHeight = contentBlockTop - topInset
+
+        Group {
+            if freeHeight >= chevronSize + 24 {
+                HStack {
+                    previousButton
+                    Spacer(minLength: 0)
+                    nextButton
+                }
+                .padding(.leading, leadingPadding)
+                .padding(.trailing, trailingPadding)
+                .frame(maxHeight: .infinity, alignment: .top)
+                .padding(.top, topInset + (freeHeight - chevronSize) / 2)
+            } else {
+                HStack(spacing: 8) {
+                    previousButton
+                    nextButton
+                }
+                .padding(.trailing, trailingPadding)
+                .padding(.bottom, bottomPadding)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            }
         }
-        .padding(.horizontal, horizontalPadding)
-        .padding(.top, topInset)
+        .environment(\.colorScheme, .dark)
         .opacity(isVisible ? 1 : 0)
         .allowsHitTesting(isVisible)
         .animation(.easeOut(duration: 0.18), value: isVisible)
     }
 
+    private var previousButton: some View {
+        chevron("chevron.left", label: "Previous", action: onPrevious)
+    }
+
+    private var nextButton: some View {
+        chevron("chevron.right", label: "Next", action: onNext)
+    }
+
     private func chevron(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.title3.weight(.semibold))
-                .frame(width: 22, height: 22)
+                .font(.body.weight(.semibold))
+                .frame(width: 18, height: 18)
         }
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .controlSize(.large)
+        .help(label)
         .accessibilityLabel(label)
+    }
+}
+
+/// The Mac hero's scrim. Black, whatever the appearance, so the hero stays a
+/// dark context: a light top for the toolbar, the leading side and the bottom
+/// darkened under the text. Only the last `fadeHeight` points, below the text
+/// and the pager, fade into the window background.
+private struct MacHomeHeroScrim: View {
+    let fadeHeight: CGFloat
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.28), location: 0),
+                    .init(color: .black.opacity(0.0), location: 0.2),
+                    .init(color: .black.opacity(0.08), location: 0.42),
+                    .init(color: .black.opacity(0.5), location: 0.72),
+                    .init(color: .black.opacity(0.82), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            LinearGradient(
+                stops: [
+                    .init(color: .black.opacity(0.72), location: 0),
+                    .init(color: .black.opacity(0.42), location: 0.36),
+                    .init(color: .black.opacity(0.1), location: 0.66),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+
+            LinearGradient(
+                colors: [Color.duskBackground.opacity(0), Color.duskBackground],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: fadeHeight)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        }
+        .allowsHitTesting(false)
+    }
+}
+
+/// A pager pill under the pointer brightens and grows a little and names
+/// its page in a tooltip.
+private struct MacHeroPagerPillHover: ViewModifier {
+    let title: String
+    @State private var isHovered = false
+
+    func body(content: Content) -> some View {
+        content
+            .padding(.vertical, 6)
+            .contentShape(Rectangle())
+            .scaleEffect(isHovered ? 1.2 : 1)
+            .brightness(isHovered ? 0.15 : 0)
+            .animation(.easeOut(duration: 0.12), value: isHovered)
+            .onHover { isHovered = $0 }
+            .help(title)
     }
 }
 #endif

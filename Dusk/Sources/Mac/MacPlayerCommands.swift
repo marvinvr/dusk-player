@@ -115,6 +115,11 @@ final class MacPlayerCommandTarget {
     /// another surface owns the keyboard, so Space and the arrows reach it.
     var isKeyboardEnabled = true
     private(set) var isFullScreen = false
+    /// Where the window's traffic lights sit, in the player's coordinates
+    /// (top-left origin): their vertical centre and the right edge of the last
+    /// one. The HUD's title row lines up with them. Nil until a window is known.
+    private(set) var windowControlsCenterY: CGFloat?
+    private(set) var windowControlsMaxX: CGFloat?
     let volume = MacPlayerVolume.shared
 
     /// Closes the player. Set by `MacPlayerView`.
@@ -125,6 +130,11 @@ final class MacPlayerCommandTarget {
     /// The player put the window into full screen, so closing the player takes
     /// it back out. A window the viewer made full screen themselves stays.
     @ObservationIgnored private var didEnterFullScreenForPlayer = false
+    /// The traffic lights' own hidden state before the player took them over.
+    @ObservationIgnored private var originalWindowButtonHidden: [NSWindow.ButtonType: Bool] = [:]
+    @ObservationIgnored private var windowControlsVisible = true
+    @ObservationIgnored private var originalTitlebarAppearsTransparent: Bool?
+    @ObservationIgnored private var originalToolbarVisible = false
 
     // MARK: - State for the menu
 
@@ -218,6 +228,7 @@ final class MacPlayerCommandTarget {
 
     func attach(to window: NSWindow?) {
         guard window !== self.window else { return }
+        restoreWindowControls()
         detachWindow()
         self.window = window
         guard let window else { return }
@@ -232,9 +243,115 @@ final class MacPlayerCommandTarget {
                 MainActor.assumeIsolated {
                     self?.isFullScreen = false
                     self?.didEnterFullScreenForPlayer = false
+                    self?.applyWindowControls(animated: false)
                 }
             },
+            center.addObserver(forName: NSWindow.didResizeNotification, object: window, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.measureWindowControls() }
+            },
         ]
+        // The shell hides the window toolbar while the player is up; the
+        // traffic lights come back, fading with the HUD like QuickTime's.
+        for type in Self.windowButtonTypes {
+            originalWindowButtonHidden[type] = window.standardWindowButton(type)?.isHidden ?? false
+        }
+        applyWindowControls(animated: false)
+        DispatchQueue.main.async { [weak self] in
+            self?.applyWindowControls(animated: false)
+        }
+    }
+
+    // MARK: - Traffic lights
+
+    private static let windowButtonTypes: [NSWindow.ButtonType] = [.closeButton, .miniaturizeButton, .zoomButton]
+
+    /// Shows or hides the window's traffic lights with the HUD.
+    func setWindowControlsVisible(_ isVisible: Bool) {
+        let changed = isVisible != windowControlsVisible
+        windowControlsVisible = isVisible
+        applyWindowControls(animated: changed)
+    }
+
+    private func applyWindowControls(animated: Bool) {
+        guard let window else { return }
+        let buttons = Self.windowButtonTypes.compactMap { window.standardWindowButton($0) }
+        let alpha: CGFloat = windowControlsVisible ? 1 : 0
+        for button in buttons {
+            button.isHidden = false
+        }
+        revealTitlebar(of: window, around: buttons.first)
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                for button in buttons {
+                    button.animator().alphaValue = alpha
+                }
+            }
+        } else {
+            for button in buttons {
+                button.alphaValue = alpha
+            }
+        }
+        measureWindowControls()
+    }
+
+    /// The shell hides the window toolbar while the player is up, and SwiftUI
+    /// does that by hiding the whole title bar, traffic lights included. The
+    /// title bar comes back here, transparent and empty (the toolbar itself
+    /// stays hidden), so only the traffic lights draw over the video.
+    private func revealTitlebar(of window: NSWindow, around button: NSView?) {
+        if originalTitlebarAppearsTransparent == nil {
+            originalTitlebarAppearsTransparent = window.titlebarAppearsTransparent
+        }
+        window.titlebarAppearsTransparent = true
+        if let toolbar = window.toolbar, toolbar.isVisible {
+            originalToolbarVisible = true
+            toolbar.isVisible = false
+        }
+        var view = button?.superview
+        while let current = view, current !== window.contentView?.superview {
+            if current.isHidden { current.isHidden = false }
+            if current.alphaValue < 1 { current.alphaValue = 1 }
+            view = current.superview
+        }
+    }
+
+    private func measureWindowControls() {
+        guard let window,
+              let contentView = window.contentView,
+              let close = window.standardWindowButton(.closeButton),
+              let zoom = window.standardWindowButton(.zoomButton),
+              close.superview != nil else {
+            windowControlsCenterY = nil
+            windowControlsMaxX = nil
+            return
+        }
+        let closeFrame = close.convert(close.bounds, to: nil)
+        let zoomFrame = zoom.convert(zoom.bounds, to: nil)
+        let height = contentView.frame.height
+        let centerY = (height - closeFrame.midY).rounded()
+        let maxX = zoomFrame.maxX.rounded()
+        if windowControlsCenterY != centerY { windowControlsCenterY = centerY }
+        if windowControlsMaxX != maxX { windowControlsMaxX = maxX }
+    }
+
+    private func restoreWindowControls() {
+        guard let window else { return }
+        for type in Self.windowButtonTypes {
+            guard let button = window.standardWindowButton(type) else { continue }
+            button.alphaValue = 1
+            button.isHidden = originalWindowButtonHidden[type] ?? false
+        }
+        originalWindowButtonHidden = [:]
+        if let originalTitlebarAppearsTransparent {
+            window.titlebarAppearsTransparent = originalTitlebarAppearsTransparent
+        }
+        originalTitlebarAppearsTransparent = nil
+        if originalToolbarVisible {
+            window.toolbar?.isVisible = true
+            originalToolbarVisible = false
+        }
+        windowControlsVisible = true
     }
 
     func toggleFullScreen() {
@@ -251,6 +368,7 @@ final class MacPlayerCommandTarget {
             window.toggleFullScreen(nil)
         }
         didEnterFullScreenForPlayer = false
+        restoreWindowControls()
         detachWindow()
     }
 

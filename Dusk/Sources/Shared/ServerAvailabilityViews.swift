@@ -30,7 +30,7 @@ struct ServerAvailabilityStateView: View {
             case .allDisabled:
                 actionableState(
                     systemImage: "server.rack",
-                    title: "Every server is turned off",
+                    title: Self.allDisabledTitle,
                     message: "Turn a server back on in Server Priority to see your libraries.",
                     buttonTitle: "Server Priority"
                 )
@@ -43,6 +43,14 @@ struct ServerAvailabilityStateView: View {
         .serverPrioritySheet(isPresented: $showsServerPriority)
     }
 
+    private static var allDisabledTitle: String {
+        #if os(macOS)
+        "Every Server Is Turned Off"
+        #else
+        "Every server is turned off"
+        #endif
+    }
+
     static let unreachableMessage = "Dusk can't reach any of your Plex servers right now."
 
     /// Why a still-pending pool is actually stuck: the first connect pass has
@@ -53,28 +61,65 @@ struct ServerAvailabilityStateView: View {
         return connections.lastError ?? Self.unreachableMessage
     }
 
+    @ViewBuilder
     private func unreachableState(message: String) -> some View {
+        #if os(macOS)
+        ContentUnavailableView {
+            Label("Can’t Reach Your Servers", systemImage: "server.rack")
+        } description: {
+            Text(message)
+        } actions: {
+            HStack(spacing: 10) {
+                Button("Try Again") {
+                    Task { await connections.refresh() }
+                }
+                serverPriorityButton("Server Priority")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        }
+        #else
         VStack(spacing: 20) {
             FeatureErrorView(message: message) {
                 Task { await connections.refresh() }
             }
             serverPriorityButton("Server Priority")
         }
+        #endif
     }
 
+    @ViewBuilder
     private func actionableState(
         systemImage: String,
         title: String,
         message: String,
         buttonTitle: String
     ) -> some View {
+        #if os(macOS)
+        ContentUnavailableView {
+            Label(title, systemImage: systemImage)
+        } description: {
+            Text(message)
+        } actions: {
+            serverPriorityButton(buttonTitle)
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+        }
+        #else
         VStack(spacing: 20) {
             FeatureEmptyStateView(systemImage: systemImage, title: title, message: message)
             serverPriorityButton(buttonTitle)
         }
+        #endif
     }
 
+    @ViewBuilder
     private func serverPriorityButton(_ title: String) -> some View {
+        #if os(macOS)
+        Button(title) {
+            showsServerPriority = true
+        }
+        #else
         Button(title) {
             showsServerPriority = true
         }
@@ -85,6 +130,7 @@ struct ServerAvailabilityStateView: View {
         .background(Color.duskSurface, in: Capsule())
         .duskSuppressTVOSButtonChrome()
         .duskTVOSFocusEffectShape(Capsule())
+        #endif
     }
 }
 
@@ -124,7 +170,12 @@ struct ServerOutageNote: View {
                 // On tvOS Home this can be the first thing under the hero.
                 .carouselLeadingFocusTarget()
             }
+            #if os(macOS)
+            .font(.callout)
+            .controlSize(.small)
+            #else
             .font(.footnote)
+            #endif
             .foregroundStyle(Color.duskTextSecondary)
         }
     }
@@ -153,6 +204,11 @@ extension View {
                     }
                     #endif
             }
+            #if os(macOS)
+            // A sheet's stack keeps its own back button (see
+            // `macShellBackButtonHidden()`).
+            .environment(\.macShellManagesBackNavigation, false)
+            #endif
         }
     }
 }

@@ -12,7 +12,7 @@ struct IPTVSourcesSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("IPTV Sources")
         .task {
             iptvService.syncProfile()
@@ -42,7 +42,7 @@ struct IPTVSourcesSettingsView: View {
                     Text("Sources")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -56,9 +56,9 @@ struct IPTVSourcesSettingsView: View {
                 Text(Self.footerText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
         #if !os(macOS)
         // The Mac reorders by dragging a row, no edit mode.
         .toolbar {
@@ -145,7 +145,7 @@ struct IPTVSourceEditorView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle(source == nil ? "Add IPTV Source" : "Edit Source")
         .onAppear(perform: loadDraft)
         .confirmationDialog(
@@ -187,7 +187,7 @@ struct IPTVSourceEditorView: View {
             } footer: {
                 Text("Without an XMLTV URL, Dusk uses the guide the playlist names in its url-tvg header, if any.")
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             Section {
                 TextField("Header Name", text: $headerName, prompt: Text(IPTVSource.defaultHeaderName))
@@ -205,7 +205,7 @@ struct IPTVSourceEditorView: View {
             } footer: {
                 Text(Self.headerFooter)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let validationMessage {
                 Section {
@@ -213,20 +213,20 @@ struct IPTVSourceEditorView: View {
                         .font(.footnote)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             if source != nil {
                 Section {
                     Button("Delete Source", role: .destructive) { confirmsDelete = true }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
         #if os(macOS)
         .formStyle(.grouped)
         #endif
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save", action: save)

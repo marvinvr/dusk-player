@@ -13,7 +13,7 @@ struct PinnedPlaylistsSettingsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Pinned Playlists")
             .duskNavigationBarTitleDisplayModeInline()
             #if os(iOS)
@@ -106,9 +106,9 @@ struct PinnedPlaylistsSettingsView: View {
                 Text("Pinned playlists appear on Home in this order.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
         #endif
     }
 

@@ -4,10 +4,15 @@ import SwiftUI
 /// The Mac's main window once the Plex session is ready: the counterpart of
 /// `MainTabView`, as a sidebar shell instead of a tab bar.
 ///
-/// - A `NavigationSplitView` whose sidebar lists Home, Search, the content
+/// - A `NavigationSplitView` whose sidebar lists Home, the content
 ///   destinations `MainTabView` derives (library types, Live TV, Playlists, in
 ///   the user's library order and visibility from `UserPreferences`) and
-///   Downloads. Settings is the Settings scene (⌘,), not a destination.
+///   Downloads, under a sidebar search field (Music/TV style): typing shows
+///   the Search destination in the detail area. Settings is the Settings
+///   scene (⌘,), not a destination.
+/// - Back/forward live in the toolbar's navigation area (and Go › Back ⌘[ /
+///   Forward ⌘]); the stacks' own back button is hidden
+///   (`macShellBackButtonHidden()`), so there is one pair, like the TV app.
 /// - One `NavigationStack(path:)` per destination, the same shared root views
 ///   and `AppNavigationRoute` destinations iOS uses. Paths live in
 ///   `MacShellRouter`, which the menu bar drives (`MacCommands`).
@@ -26,6 +31,10 @@ struct MacRootView: View {
     @State private var liveTVViewModel: LiveTVViewModel?
     @State var addToPlaylist = AddToPlaylistPresenter()
     @State private var columnVisibility = NavigationSplitViewVisibility.all
+    @FocusState private var isSearchFieldFocused: Bool
+    #if DEBUG
+    @State private var isScreenshotUserPickerPresented = MacScreenshotUserPicker.isRequested
+    #endif
 
     var body: some View {
         @Bindable var bindableAddToPlaylist = addToPlaylist
@@ -63,6 +72,16 @@ struct MacRootView: View {
             )
             .frame(minWidth: 520, minHeight: 440)
         }
+        #if DEBUG
+        .sheet(isPresented: $isScreenshotUserPickerPresented) {
+            HomeUserPickerView(
+                users: MacScreenshotUserPicker.sampleUsers,
+                onComplete: { isScreenshotUserPickerPresented = false },
+                onCancel: { isScreenshotUserPickerPresented = false }
+            )
+            .frame(minWidth: 520, minHeight: 440)
+        }
+        #endif
         .alert("Sign out of Plex?", isPresented: $bindableRouter.isSignOutConfirmationPresented) {
             Button("Sign Out", role: .destructive) {
                 plexService.signOut()
@@ -146,8 +165,44 @@ struct MacRootView: View {
                     destination: router.selection,
                     reload: router.reloadRevision(for: router.selection)
                 ))
+                // One soft edge under the transparent toolbar on every page
+                // (no opaque band); hero pages switch it off over their art
+                // (`macHeroUnderToolbar()`).
+                .scrollEdgeEffectStyle(.soft, for: .top)
+                // Screens without a scroll view at their root (empty and
+                // error states, Live TV) would otherwise get an opaque
+                // toolbar band.
+                .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+                .toolbar {
+                    // A root screen offers Forward once Back left a screen;
+                    // pushed screens carry their own pair
+                    // (`macShellBackButtonHidden()`).
+                    if !router.canGoBack, router.canGoForward {
+                        ToolbarItemGroup(placement: .navigation) {
+                            MacShellBackForwardButtons()
+                        }
+                    }
+                }
         }
         .navigationSplitViewStyle(.balanced)
+        // On the split view, not the detail root: pushed screens take their
+        // environment from the column, not from their stack's position.
+        .environment(\.macShellManagesBackNavigation, true)
+        .searchable(text: searchQuery, placement: .sidebar, prompt: "Search")
+        .searchFocused($isSearchFieldFocused)
+        .onChange(of: router.isSearchFocusRequested, initial: true) { _, isRequested in
+            guard isRequested else { return }
+            router.isSearchFocusRequested = false
+            columnVisibility = .all
+            isSearchFieldFocused = true
+        }
+    }
+
+    private var searchQuery: Binding<String> {
+        Binding(
+            get: { router.searchQuery },
+            set: { router.searchQuery = $0 }
+        )
     }
 
     private var sidebarSelection: Binding<MainTabItem> {
@@ -199,7 +254,7 @@ struct MacRootView: View {
 
     /// Everything the sidebar lists, in order; the Go menu numbers these.
     private var destinations: [MainTabItem] {
-        var items: [MainTabItem] = [.home, .search] + contentDestinations
+        var items: [MainTabItem] = [.home] + contentDestinations
         if hasDownloads {
             items.append(.downloads)
         }

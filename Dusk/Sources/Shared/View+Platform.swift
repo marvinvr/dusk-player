@@ -442,6 +442,8 @@ enum DuskPosterMetrics {
     static var carouselHorizontalPadding: CGFloat {
         #if os(tvOS)
         52
+        #elseif os(macOS)
+        MacUILayout.contentInset
         #else
         16
         #endif
@@ -511,6 +513,8 @@ enum DuskPosterMetrics {
     static var gridHorizontalPadding: CGFloat {
         #if os(tvOS)
         48
+        #elseif os(macOS)
+        MacUILayout.contentInset
         #else
         12
         #endif
@@ -936,3 +940,64 @@ struct DuskHeroBackdropOverlay: View {
         .allowsHitTesting(false)
     }
 }
+
+// MARK: - Mac hero pages
+
+extension View {
+    /// Goes on every pushed screen: in the Mac main window the toolbar's
+    /// back/forward pair replaces the navigation stack's own back button.
+    /// `duskAppNavigationDestinations()` applies it already; screens pushed
+    /// through another `navigationDestination` add it themselves. No-op on
+    /// iOS and tvOS, and in the Mac Settings window.
+    @ViewBuilder
+    func macShellBackButtonHidden() -> some View {
+        #if os(macOS)
+        modifier(MacShellBackButtonHiding())
+        #else
+        self
+        #endif
+    }
+
+    /// A hero page (Home, movie/show/season/episode detail) on the Mac: the
+    /// page runs edge to edge under the transparent window toolbar, like the
+    /// TV app. Apply it to the page's root `ScrollView` (not to the hero
+    /// itself). It makes the scroll view ignore the top safe area so the hero
+    /// artwork starts at the window's top edge, hides the toolbar background
+    /// and the visible toolbar title (the window title stays, for the Window
+    /// menu and Mission Control), and keeps the soft scroll-edge effect off
+    /// while the hero is still under the toolbar, so the artwork isn't
+    /// blurred at rest. No-op on iOS and tvOS.
+    @ViewBuilder
+    func macHeroUnderToolbar() -> some View {
+        #if os(macOS)
+        modifier(MacHeroUnderToolbarModifier())
+        #else
+        self
+        #endif
+    }
+}
+
+#if os(macOS)
+private struct MacHeroUnderToolbarModifier: ViewModifier {
+    /// True once the page has scrolled far enough that the hero has left the
+    /// toolbar area and shelves pass under it.
+    @State private var isPastHero = false
+
+    func body(content: Content) -> some View {
+        content
+            .ignoresSafeArea(.container, edges: .top)
+            .onScrollGeometryChange(for: Bool.self) { geometry in
+                let offset = geometry.contentOffset.y + geometry.contentInsets.top
+                let heroHeight = geometry.containerSize.height * MacUILayout.heroMaxHeightFraction
+                // The toolbar is ~52pt tall; switch the edge effect on as the
+                // hero's bottom edge reaches it.
+                return offset > max(heroHeight - 80, 120)
+            } action: { _, isPast in
+                isPastHero = isPast
+            }
+            .scrollEdgeEffectHidden(!isPastHero, for: .top)
+            .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+            .toolbar(removing: .title)
+    }
+}
+#endif

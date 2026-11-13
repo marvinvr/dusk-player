@@ -18,10 +18,19 @@ iOS/tvOS (`com.dusk-player.app`) so Universal Purchase can be switched on later.
 - **Platform aliases.** `Shared/PlatformTypes.swift` maps `PlatformImage` /
   `PlatformColor` to UIKit or AppKit and adds `Image(platformImage:)`. That is the
   whole alias layer; anything richer gets an explicit `#if os(macOS)` branch.
-- **Shell.** `MacRootView` is a `NavigationSplitView`: a sidebar (Home, Search,
-  the library-type destinations, Live TV, Playlists, Downloads) and one
+- **Shell.** `MacRootView` is a `NavigationSplitView`: a sidebar (Home, the
+  library-type destinations, Live TV, Playlists, Downloads) under a sidebar
+  search field (`.searchable(placement: .sidebar)`, Music/TV style: typing
+  shows Search in the detail area, clearing returns), and one
   `NavigationStack` per destination using the shared `AppNavigationRoute`s, so
-  every detail page is the shared iOS view. Settings is the standard
+  every detail page is the shared iOS view. Back/forward is one toolbar pair
+  (`MacShellBackForwardButtons`, Go › Back ⌘[ / Forward ⌘], forward history
+  per destination in `MacShellRouter`); pushed screens hide the stack's own
+  back button through `macShellBackButtonHidden()` (applied by
+  `duskAppNavigationDestinations()`; other `navigationDestination`s add it).
+  The window toolbar is transparent everywhere with the soft scroll-edge
+  effect; hero pages put `macHeroUnderToolbar()` on their root `ScrollView` so
+  the artwork runs under the toolbar. Settings is the standard
   `Settings { }` scene (⌘,). Menu bar commands live in `Mac/MacCommands.swift`.
 - **Player.** `MacPlayerView` replaces the iOS touch HUD (`PlayerView`) on macOS.
   It is shown over the main window's content when
@@ -85,8 +94,9 @@ Universal (arm64 + x86_64), ~140 MB (VLCKit is most of it), ad-hoc signed.
 
 Behaviour notes:
 
-- Menu bar: app menu Switch User… / Sign Out…; Edit › Search ⌘F (replaces
-  Find); View › Refresh ⌘R; Go › Back ⌘[ and the sidebar destinations ⌘1–⌘9;
+- Menu bar: app menu Switch User… / Sign Out…; Edit › Search ⌘F (focuses the
+  sidebar search field); View › Refresh ⌘R; Go › Back ⌘[, Forward ⌘] and the
+  sidebar destinations ⌘1–⌘9;
   Playback › Play/Pause Space, Skip ←/→, Previous/Next Episode ⌘←/⌘→,
   Volume ↑/↓, Mute M, Full Screen F, Picture in Picture, Close Player. Player
   items are disabled with no player up, so the bare keys fall through.
@@ -100,6 +110,11 @@ Behaviour notes:
   wiring line for line. Change both together.
 - The shell forces `horizontalSizeClass = .regular`, so detail pages use the
   iPad layout. Home uses a `.mac` hero layout.
+- Captures: `-DuskScreenshotSignedOut YES` opens the sign-in screen; it and
+  screenshot mode use an in-memory store instead of the Keychain on the Mac
+  (`KeychainHelper`), so a rebuilt ad-hoc build never blocks on a Keychain
+  prompt. `-DuskScreenshotUserPicker YES` (screenshot mode) shows the Switch
+  User sheet with sample profiles.
 - Plex identity: X-Plex-Platform `macOS`, Device `Mac`, Device-Name = the Mac's
   name; X-Plex-Product stays `Dusk` (the plex.tv experience setting is keyed on
   it).

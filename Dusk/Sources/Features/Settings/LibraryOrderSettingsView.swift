@@ -19,7 +19,7 @@ struct LibraryOrderSettingsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Library Order")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
@@ -92,18 +92,18 @@ struct LibraryOrderSettingsView: View {
                 Text("Tap Edit, then drag to set the order of your libraries. The order is saved to your Plex account, so other Plex apps use it too. To hide a library, use Settings › Libraries › Hidden Libraries.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let saveError = viewModel.saveError {
                 Section {
                     Text(saveError)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
         #if !os(macOS)
         // The Mac reorders by dragging a row, no edit mode.
         .toolbar {

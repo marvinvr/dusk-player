@@ -254,3 +254,113 @@ private struct LibraryFilterValuesView: View {
         }
     }
 }
+
+#if os(macOS)
+/// The Mac's Filters popover, from the Filters toolbar button: a grouped form
+/// sized to its content. Unlike the iOS sheet it applies each change as it is
+/// made; Status is the one watch-state control (Unwatched included).
+struct LibraryFiltersPopover: View {
+    let viewModel: LibraryItemsViewModel
+
+    private var valueFields: [LibraryFilterField] {
+        viewModel.availableFilterFields.filter { $0.kind != .toggle }
+    }
+
+    private var toggleFields: [LibraryFilterField] {
+        viewModel.availableFilterFields.filter { $0.kind == .toggle }
+    }
+
+    var body: some View {
+        Form {
+            Section {
+                Picker("Status", selection: Binding(
+                    get: { viewModel.filterState.watchStatus },
+                    set: { status in update { $0.watchStatus = status } }
+                )) {
+                    ForEach(viewModel.watchStatusOptions) { status in
+                        Text(status.title).tag(status)
+                    }
+                }
+            }
+
+            if !valueFields.isEmpty {
+                Section {
+                    ForEach(valueFields) { field in
+                        LibraryFilterValuePicker(
+                            field: field,
+                            viewModel: viewModel,
+                            selection: Binding(
+                                get: { viewModel.filterState.choices[field.parameter] },
+                                set: { choice in update { $0.choices[field.parameter] = choice } }
+                            )
+                        )
+                    }
+                }
+            }
+
+            if !toggleFields.isEmpty {
+                Section {
+                    ForEach(toggleFields) { field in
+                        Toggle(field.title, isOn: Binding(
+                            get: { viewModel.filterState.toggles.contains(field.parameter) },
+                            set: { isOn in
+                                update {
+                                    if isOn { $0.toggles.insert(field.parameter) } else { $0.toggles.remove(field.parameter) }
+                                }
+                            }
+                        ))
+                    }
+                }
+            }
+
+            Section {
+                HStack {
+                    Spacer()
+                    Button("Reset Filters") {
+                        Task { await viewModel.resetFilters() }
+                    }
+                    .disabled(viewModel.filterState.isEmpty)
+                }
+            }
+        }
+        .formStyle(.grouped)
+        .scrollDisabled(true)
+        .frame(width: 320)
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func update(_ change: (inout LibraryFilterState) -> Void) {
+        var state = viewModel.filterState
+        change(&state)
+        Task { await viewModel.applyFilters(state) }
+    }
+}
+
+/// One value filter as a pop-up menu: "Any", then the values Plex lists.
+private struct LibraryFilterValuePicker: View {
+    let field: LibraryFilterField
+    let viewModel: LibraryItemsViewModel
+    @Binding var selection: LibraryFilterChoice?
+
+    @State private var values: [LibraryFilterChoice] = []
+
+    var body: some View {
+        Picker(field.title, selection: $selection) {
+            Text("Any").tag(LibraryFilterChoice?.none)
+            if !values.isEmpty {
+                Divider()
+            }
+            ForEach(values) { choice in
+                Text(choice.title).tag(LibraryFilterChoice?.some(choice))
+            }
+            // The picked value stays listed while the list loads.
+            if let selection, !values.contains(selection) {
+                Text(selection.title).tag(LibraryFilterChoice?.some(selection))
+            }
+        }
+        .task {
+            values = await viewModel.filterValues(for: field)
+        }
+    }
+}
+#endif

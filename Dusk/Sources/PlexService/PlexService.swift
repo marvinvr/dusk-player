@@ -216,7 +216,8 @@ final class PlexService {
             .string(forKey: Self.defaultsPrimaryProfileIDKey)?
             .nilIfEmpty
 
-        if shouldAutomaticallySignIn,
+        if readsStoredSignIn,
+           shouldAutomaticallySignIn,
            activeHomeUser != nil,
            let data = KeychainHelper.load(key: Self.keychainActiveHomeTokenKey),
            let token = String(data: data, encoding: .utf8)?.nilIfEmpty {
@@ -227,8 +228,12 @@ final class PlexService {
         }
 
         pool.configure(probeSession: probeSession, baseHeaders: plexRequestHeaders)
-        migrateLegacySingleServerState()
-        restorePersistedSessions()
+        // `-DuskScreenshotSignedOut` never touches the Keychain: the stored
+        // server tokens are real sign-ins too.
+        if readsStoredSignIn {
+            migrateLegacySingleServerState()
+            restorePersistedSessions()
+        }
     }
 
     /// Seeds the pool from the sessions persisted by the previous launch, so a

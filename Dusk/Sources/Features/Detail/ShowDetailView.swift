@@ -49,6 +49,7 @@ struct ShowDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(viewModel.details?.title)
         #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -101,7 +102,7 @@ struct ShowDetailView: View {
                     }
 
                     seasonsSection(width: geometry.size.width)
-                        .padding(.top, 40)
+                        .padding(.top, detailSectionSpacing)
 
                     DetailExtrasShelf(itemID: details.id, ownerTitle: details.title, model: extras)
 
@@ -118,15 +119,16 @@ struct ShowDetailView: View {
                             serverID: viewModel.serverID,
                             plexService: plexService
                         )
-                            .padding(.top, 40)
+                            .padding(.top, detailSectionSpacing)
                             .padding(.bottom, 56)
                     }
                 }
-                .padding(.top, -geometry.safeAreaInsets.top)
+                .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .macHeroUnderToolbar()
         }
     }
 
@@ -138,7 +140,7 @@ struct ShowDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -197,7 +199,7 @@ struct ShowDetailView: View {
     @ViewBuilder
     private func actionButtons() -> some View {
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             playButton()
 
             HStack(spacing: detailHeroActionSpacing) {

@@ -41,6 +41,7 @@ struct EpisodeDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(windowTitle)
         #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -114,13 +115,20 @@ struct EpisodeDetailView: View {
                         )
                             .padding(.top, 24)
                     }
+
+                    #if os(macOS)
+                    DetailMacMediaSection(media: details.media.first)
+                        .padding(.horizontal, MacUILayout.contentInset)
+                        .padding(.top, detailSectionSpacing)
+                    #endif
                 }
-                .padding(.top, -geometry.safeAreaInsets.top)
+                .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
                 .padding(.bottom, 40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .macHeroUnderToolbar()
         }
     }
 
@@ -132,7 +140,7 @@ struct EpisodeDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -241,10 +249,19 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+        #if os(macOS)
+        // One ·-joined line, durations formatted like the movie page.
+        let parts = [
+            MediaTextFormatter.localizedAirDate(details.originallyAvailableAt),
+            PlexContentRating.display(details.contentRating),
+            MediaTextFormatter.playbackDuration(milliseconds: details.duration),
+        ].compactMap { $0 }
+        #else
         let parts = [
             PlexContentRating.display(details.contentRating),
             viewModel.formattedDuration,
         ].compactMap { $0 }
+        #endif
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
@@ -255,11 +272,13 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+        #if !os(macOS)
         if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
             Text(originalDate)
                 .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
+        #endif
 
         DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
     }
@@ -267,7 +286,7 @@ struct EpisodeDetailView: View {
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {
@@ -340,6 +359,13 @@ struct EpisodeDetailView: View {
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
+    }
+
+    /// "Show – Season 1" / "Show – Pilot" for the Mac window title.
+    private var windowTitle: String? {
+        guard let title = viewModel.details?.title else { return nil }
+        guard let showTitle = viewModel.showTitle, !showTitle.isEmpty else { return title }
+        return "\(showTitle) – \(title)"
     }
 
     private var usesFullWidthActionButtons: Bool {

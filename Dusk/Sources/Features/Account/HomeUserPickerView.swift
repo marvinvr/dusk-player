@@ -35,6 +35,14 @@ struct HomeUserPickerView: View {
         _rememberSelection = State(initialValue: rememberSelection)
     }
 
+    private var isMac: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -56,7 +64,7 @@ struct HomeUserPickerView: View {
             }
             #else
             .overlay(alignment: .topLeading) {
-                if pendingUser != nil {
+                if !isMac, pendingUser != nil {
                     HomeUserBackButton(
                         isDisabled: switchingProfileID != nil,
                         action: leavePINEntry
@@ -82,12 +90,86 @@ struct HomeUserPickerView: View {
     private var profileSelection: some View {
         #if os(tvOS)
         tvProfileSelection
+        #elseif os(macOS)
+        macProfileSelection
         #else
         iosProfileSelection
         #endif
     }
 
-    #if !os(tvOS)
+    #if os(macOS)
+    /// The Mac picker: a centred group of compact profile cards, a plain
+    /// "Remember this user" checkbox and Sign Out as a bordered button.
+    private var macProfileSelection: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 6) {
+                        Text("Who’s Watching?")
+                            .font(.system(size: 28, weight: .bold))
+                            .foregroundStyle(Color.duskTextPrimary)
+
+                        Text("Choose a Plex Home user. Watch history and recommendations stay with each profile.")
+                            .font(.body)
+                            .foregroundStyle(Color.duskTextSecondary)
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .frame(maxWidth: 460)
+                    }
+
+                    LazyVGrid(columns: macProfileColumns, spacing: 16) {
+                        ForEach(users, id: \.stableProfileID) { user in
+                            MacHomeUserCard(
+                                user: user,
+                                isCurrent: user.stableProfileID == plexService.activeProfileID,
+                                isSwitching: switchingProfileID == user.stableProfileID,
+                                isDisabled: switchingProfileID != nil
+                            ) {
+                                select(user)
+                            }
+                        }
+                    }
+                    .fixedSize()
+
+                    VStack(spacing: 16) {
+                        Toggle("Remember this user", isOn: $rememberSelection)
+                            .toggleStyle(.checkbox)
+                            .help("Open Dusk with this profile next time. You can change this anytime in Settings.")
+
+                        if let switchError {
+                            Label(switchError, systemImage: "exclamationmark.triangle.fill")
+                                .font(.callout)
+                                .foregroundStyle(.red)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: 460)
+                        }
+
+                        if onCancel == nil, let onSignOut {
+                            Button("Sign Out", action: onSignOut)
+                                .buttonStyle(.bordered)
+                                .disabled(switchingProfileID != nil)
+                        }
+                    }
+                }
+                .padding(MacUILayout.contentInset * 2)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            }
+            .scrollBounceBehavior(.basedOnSize)
+        }
+        .navigationTitle("Who’s Watching?")
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+    }
+
+    private var macProfileColumns: [GridItem] {
+        Array(
+            repeating: GridItem(.fixed(MacHomeUserCard.size.width), spacing: 16),
+            count: min(max(users.count, 1), 5)
+        )
+    }
+    #endif
+
+    #if os(iOS)
     private var iosProfileSelection: some View {
         ScrollView {
             VStack(spacing: 30) {
@@ -264,7 +346,8 @@ struct HomeUserPickerView: View {
             pin: $pin,
             isSubmitting: switchingProfileID != nil,
             error: switchError,
-            onSubmit: { switchTo(user, pin: pin) }
+            onSubmit: { switchTo(user, pin: pin) },
+            onBack: leavePINEntry
         )
         #endif
     }
@@ -442,6 +525,75 @@ private struct HomeUserCard: View {
     }
 }
 
+#if os(macOS)
+/// A Mac profile card: avatar and name on a quiet rounded tile that lifts
+/// its fill on hover, about 140 × 170.
+private struct MacHomeUserCard: View {
+    static let size = CGSize(width: 140, height: 170)
+
+    let user: PlexHomeUser
+    let isCurrent: Bool
+    let isSwitching: Bool
+    let isDisabled: Bool
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            VStack(spacing: 12) {
+                ZStack(alignment: .bottomTrailing) {
+                    PlexHomeUserAvatar(user: user, size: 96)
+                        .overlay {
+                            if isSwitching {
+                                Circle().fill(.black.opacity(0.45))
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .environment(\.colorScheme, .dark)
+                            }
+                        }
+
+                    if user.isProtected {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2.weight(.bold))
+                            .foregroundStyle(.secondary)
+                            .padding(6)
+                            .background(.regularMaterial, in: Circle())
+                            .help("PIN required")
+                    }
+                }
+
+                HStack(spacing: 4) {
+                    Text(user.displayName)
+                        .font(.body.weight(.medium))
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .lineLimit(1)
+
+                    if isCurrent {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                            .help("Current profile")
+                    }
+                }
+                .padding(.horizontal, 8)
+            }
+            .frame(width: Self.size.width, height: Self.size.height)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(isHovered ? AnyShapeStyle(.fill.tertiary) : AnyShapeStyle(.fill.quaternary))
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+        .onHover { isHovered = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovered)
+        .accessibilityLabel(user.displayName)
+        .accessibilityHint(user.isProtected ? "PIN required" : "Switch to this user")
+    }
+}
+#endif
+
 #if !os(tvOS)
 private struct IOSHomeUserPINView: View {
     @Environment(\.openURL) private var openURL
@@ -451,10 +603,92 @@ private struct IOSHomeUserPINView: View {
     let isSubmitting: Bool
     let error: String?
     let onSubmit: () -> Void
+    /// Mac only: the Back button next to Continue (iOS has the overlay one).
+    var onBack: (() -> Void)? = nil
 
     @FocusState private var pinIsFocused: Bool
 
     var body: some View {
+        #if os(macOS)
+        macBody
+        #else
+        iosBody
+        #endif
+    }
+
+    #if os(macOS)
+    private var macBody: some View {
+        VStack(spacing: 18) {
+            PlexHomeUserAvatar(user: user, size: 80)
+
+            VStack(spacing: 4) {
+                Text("Enter PIN")
+                    .font(.title2.bold())
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Text("Enter the four-digit Plex Home PIN for \(user.displayName).")
+                    .foregroundStyle(Color.duskTextSecondary)
+            }
+
+            SecureField("PIN", text: $pin)
+                .textContentType(.oneTimeCode)
+                .font(.system(.title2, design: .monospaced, weight: .semibold))
+                .multilineTextAlignment(.center)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 140)
+                .focused($pinIsFocused)
+                .onChange(of: pin) { _, newValue in
+                    pin = String(newValue.filter(\.isNumber).prefix(4))
+                }
+                .onSubmit(onSubmit)
+                .disabled(isSubmitting)
+
+            if let error {
+                Text(error)
+                    .font(.callout)
+                    .foregroundStyle(.red)
+            }
+
+            HStack(spacing: 10) {
+                if let onBack {
+                    Button("Back", action: onBack)
+                        .keyboardShortcut(.cancelAction)
+                        .disabled(isSubmitting)
+                }
+
+                Button(action: onSubmit) {
+                    HStack(spacing: 6) {
+                        if isSubmitting {
+                            ProgressView()
+                                .controlSize(.small)
+                        }
+                        Text("Continue")
+                    }
+                    .frame(minWidth: 90)
+                }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+                .disabled(pin.count != 4 || isSubmitting)
+            }
+            .controlSize(.large)
+
+            Button("Forgot PIN?") {
+                openURL(SettingsSupport.plexAccountURL)
+            }
+            .buttonStyle(.link)
+            .font(.callout)
+            .disabled(isSubmitting)
+        }
+        .multilineTextAlignment(.center)
+        .padding(MacUILayout.contentInset * 2)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            pinIsFocused = true
+        }
+    }
+    #endif
+
+    private var iosBody: some View {
         ScrollView {
             VStack(spacing: 24) {
                 PlexHomeUserAvatar(user: user, size: 104)

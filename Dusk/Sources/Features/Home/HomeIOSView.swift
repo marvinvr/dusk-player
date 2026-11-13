@@ -71,7 +71,7 @@ struct HomeIOSView: View {
                                                 HomeHeroActionButtonLabel(
                                                     title: viewModel.heroPrimaryActionTitle(for: item),
                                                     systemImage: "play.fill",
-                                                    fillsWidth: true
+                                                    fillsWidth: heroPrimaryButtonFillsWidth
                                                 )
                                             }
                                             .homeHeroNativeButtonStyle()
@@ -111,6 +111,28 @@ struct HomeIOSView: View {
                                 .actions(playlistPresenter: addToPlaylistPresenter)
                             }
                         )
+                        #if os(macOS)
+                        .macContextMenu { item in
+                            AnyView(
+                                HomeItemContextMenu(
+                                    item: item,
+                                    detailsLabel: heroDetailsLabel(for: item),
+                                    onMarkWatched: {
+                                        Task { await viewModel.setWatched(true, for: item) }
+                                    },
+                                    onMarkUnwatched: {
+                                        Task { await viewModel.setWatched(false, for: item) }
+                                    },
+                                    onSelectRoute: { route in
+                                        path.append(route)
+                                    },
+                                    onRemoveFromContinueWatching: {
+                                        Task { await viewModel.removeFromContinueWatching(item) }
+                                    }
+                                )
+                            )
+                        }
+                        #endif
                         .frame(width: heroWidth)
                         .offset(x: -heroLeadingInset)
                     }
@@ -154,11 +176,15 @@ struct HomeIOSView: View {
                     }
                     .padding(.top, heroItems.isEmpty ? 0 : 24)
                 }
-                .padding(.top, heroItems.isEmpty ? 16 : -geometry.safeAreaInsets.top)
+                .padding(.top, contentTopPadding(showsHero: !heroItems.isEmpty, safeAreaTop: geometry.safeAreaInsets.top))
                 .padding(.bottom, 24)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .scrollIndicators(.hidden)
+            #if os(macOS)
+            // The hero runs edge to edge under the transparent toolbar.
+            .modifier(MacHomeHeroChrome(isEnabled: !heroItems.isEmpty))
+            #endif
         }
         #if !os(macOS)
         .safeAreaInset(edge: .bottom) {
@@ -187,6 +213,37 @@ struct HomeIOSView: View {
             maxRecentlyAddedItems: recentlyAddedInlineItemLimit
         )
 
+        #if os(macOS)
+        if !items.isEmpty, items.allSatisfy({ $0.type == .episode }) {
+            // Episodes as 16:9 stills, "S2 E3 · Title" over the show.
+            PlexItemPosterCarouselSection(
+                title: hub.title,
+                items: items,
+                posterWidth: DuskPosterMetrics.videoCarouselWidth,
+                imageAspectRatio: 16.0 / 9.0,
+                showAllRoute: viewModel.shouldShowAll(
+                    for: hub,
+                    maxRecentlyAddedItems: recentlyAddedInlineItemLimit
+                ) ? AppNavigationRoute.hub(hub) : nil,
+                subtitle: { $0.grandparentTitle?.nilIfEmpty },
+                posterURL: { item, width, height in
+                    viewModel.landscapeImageURL(for: item, width: width, height: height)
+                },
+                cardTitle: { $0.macEpisodeCardTitle },
+                isUnwatchedEpisodeImage: { $0.landscapeImageIsUnwatchedEpisodeStill }
+            ) { item in
+                hubContextMenu(item, in: hub)
+            }
+        } else {
+            posterHubSection(hub, items: items)
+        }
+        #else
+        posterHubSection(hub, items: items)
+        #endif
+    }
+
+    @ViewBuilder
+    private func posterHubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
         if !items.isEmpty {
             let isVideoHub = viewModel.isVideoHub(hub)
 
@@ -222,6 +279,9 @@ struct HomeIOSView: View {
         )
 
         if viewModel.canHideRow(hub) {
+            #if os(macOS)
+            Divider()
+            #endif
             Button("Hide Row", systemImage: "minus.circle") {
                 Task { await viewModel.hideRow(hub) }
             }
@@ -258,6 +318,12 @@ struct HomeIOSView: View {
 
     @ViewBuilder
     private func applyNavigationChrome<Content: View>(to content: Content, showsHero: Bool) -> some View {
+        #if os(macOS)
+        // The window title stays "Home"; over the hero the toolbar drops the
+        // visible title (`macHeroUnderToolbar`).
+        content
+            .duskNavigationTitle("Home")
+        #else
         if showsHero {
             content
                 .duskNavigationTitle("")
@@ -274,6 +340,27 @@ struct HomeIOSView: View {
                 .toolbarBackground(.visible, for: .navigationBar)
                 #endif
         }
+        #endif
+    }
+
+    /// iOS pulls the page up under the navigation bar so the hero starts at
+    /// the top of the screen. On the Mac the scroll view itself ignores the
+    /// top safe area (`macHeroUnderToolbar`), so the hero is already there.
+    private func contentTopPadding(showsHero: Bool, safeAreaTop: CGFloat) -> CGFloat {
+        #if os(macOS)
+        showsHero ? 0 : 16
+        #else
+        showsHero ? -safeAreaTop : 16
+        #endif
+    }
+
+    private var heroPrimaryButtonFillsWidth: Bool {
+        #if os(macOS)
+        // A Mac button hugs its label.
+        false
+        #else
+        true
+        #endif
     }
 
     /// Regular-width iPad gets the near-full-screen hero; iPhone and compact
@@ -324,4 +411,19 @@ struct HomeIOSView: View {
         }
     }
 }
+#if os(macOS)
+/// Home's window chrome: with a hero the page runs under the transparent
+/// toolbar; without one (Compact Continue Watching) it is an ordinary page.
+private struct MacHomeHeroChrome: ViewModifier {
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content.macHeroUnderToolbar()
+        } else {
+            content
+        }
+    }
+}
+#endif
 #endif

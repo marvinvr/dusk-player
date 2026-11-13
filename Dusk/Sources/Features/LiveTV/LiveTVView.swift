@@ -48,11 +48,11 @@ struct LiveTVRootContent: View {
             } else if !viewModel.isAvailable, viewModel.error == nil {
                 FeatureEmptyStateView(
                     systemImage: "dot.radiowaves.left.and.right",
-                    title: "Live TV isn’t available",
+                    title: Self.unavailableTitle,
                     message: "Set up a tuner and program guide on this Plex server, or add an IPTV source in Settings, to watch live channels."
                 )
             } else if let error = viewModel.guideError {
-                FeatureErrorView(message: error) {
+                FeatureErrorView(message: error, title: "Couldn’t Load Channels") {
                     Task { await viewModel.load(force: true) }
                 }
             }
@@ -99,6 +99,14 @@ struct LiveTVRootContent: View {
             .macUISheetSize(minHeight: 320, idealHeight: 460)
             #endif
         }
+    }
+
+    private static var unavailableTitle: String {
+        #if os(macOS)
+        "Live TV Isn’t Available"
+        #else
+        "Live TV isn’t available"
+        #endif
     }
 
     private func playPending() {

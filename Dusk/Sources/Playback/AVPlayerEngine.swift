@@ -2071,3 +2071,11 @@ private final class AVPlayerDisplayLinkTarget: NSObject {
         }
     }
 }
+
+#if os(macOS)
+extension AVPlayerEngine {
+    /// The session's `AVPlayer`, for the Mac play bar's AirPlay route picker
+    /// (`AVRoutePickerView.player`).
+    var routePickerPlayer: AVPlayer { player }
+}
+#endif

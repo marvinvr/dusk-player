@@ -37,18 +37,34 @@ private struct MacUIHoverSourceModifier: ViewModifier {
 private struct MacUIHoverLiftModifier: ViewModifier {
     let cornerRadius: CGFloat
     @Environment(\.macUIIsHovered) private var isHovered
+    @Environment(\.colorScheme) private var colorScheme
 
     func body(content: Content) -> some View {
         content
             .overlay {
-                // A faint white wash, like a system collection item under the pointer.
+                // A hairline rim, so the lift also reads on a dark page where
+                // the shadow disappears; the light page has the shadow.
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(isHovered ? 0.06 : 0))
+                    .strokeBorder(
+                        Color.white.opacity(isHovered && colorScheme == .dark ? 0.22 : 0),
+                        lineWidth: 1
+                    )
                     .allowsHitTesting(false)
             }
-            .shadow(color: .black.opacity(isHovered ? 0.28 : 0), radius: 10, y: 5)
-            .scaleEffect(isHovered ? 1.03 : 1)
+            .shadow(
+                color: .black.opacity(isHovered ? (colorScheme == .dark ? 0.55 : 0.28) : 0),
+                radius: 12,
+                y: 6
+            )
+            .scaleEffect(isHovered ? 1.04 : 1)
+            .offset(y: isHovered ? -2 : 0)
             .animation(.easeOut(duration: 0.16), value: isHovered)
     }
+}
+
+extension EnvironmentValues {
+    /// Lines a poster card's title takes on the Mac: shelves keep one line,
+    /// grids reserve two so every row lines up. See `PosterCardText`.
+    @Entry var macUIPosterTitleLines = 1
 }
 #endif

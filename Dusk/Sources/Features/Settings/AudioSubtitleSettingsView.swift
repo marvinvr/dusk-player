@@ -13,7 +13,7 @@ struct AudioSubtitleSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("Audio & Subtitles")
     }
 
@@ -36,7 +36,7 @@ struct AudioSubtitleSettingsView: View {
                 Text(SettingsSupport.audioLanguageFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             Section {
                 Picker("Show Subtitles", selection: $preferences.subtitleMode) {
@@ -73,7 +73,7 @@ struct AudioSubtitleSettingsView: View {
                 Text(SettingsSupport.subtitlesFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             Section {
                 Toggle("Forced Subtitles", isOn: $preferences.forcedSubtitlesEnabled)
@@ -85,10 +85,10 @@ struct AudioSubtitleSettingsView: View {
                 Text(SettingsSupport.subtitlesAdvancedFooterText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
     }
     #endif
 

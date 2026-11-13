@@ -59,3 +59,23 @@ extension MacRootView {
     }
 }
 #endif
+
+#if os(macOS) && DEBUG
+/// `-DuskScreenshotUserPicker YES` (screenshot mode): presents the Switch
+/// User sheet over the shell with sample Plex Home profiles, since the demo
+/// account has no Plex Home. Self-check captures only.
+enum MacScreenshotUserPicker {
+    static var isRequested: Bool {
+        ScreenshotMode.isActive && UserDefaults.standard.bool(forKey: "DuskScreenshotUserPicker")
+    }
+
+    static let sampleUsers: [PlexHomeUser] = {
+        let json = """
+        [{"id": 1, "title": "Marvin", "protected": true, "admin": true},
+         {"id": 2, "title": "Anna Rezanova"},
+         {"id": 3, "title": "Kids", "restricted": true}]
+        """
+        return (try? JSONDecoder().decode([PlexHomeUser].self, from: Data(json.utf8))) ?? []
+    }()
+}
+#endif

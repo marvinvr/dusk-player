@@ -120,7 +120,7 @@ struct DetailCollectionShelves: View {
                 #endif
             }
         }
-        .padding(.top, model.shelves.isEmpty ? 0 : 40)
+        .padding(.top, model.shelves.isEmpty ? 0 : detailSectionSpacing)
         .task(id: tags.map(\.tag).joined(separator: ",") + "|" + (sectionID ?? "")) {
             await model.load(itemID: itemID, sectionID: sectionID, tags: tags)
         }

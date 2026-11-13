@@ -9,19 +9,11 @@ enum MacWindow {
     static let settingsSize = CGSize(width: 640, height: 560)
 }
 
-/// The Settings scene (⌘,): the same settings root iOS shows as a tab, in its
-/// own navigation stack so its pages push inside the settings window.
+/// The Settings scene (⌘,): a native Mac Settings window with toolbar tabs.
+/// See `MacSettingsView`.
 struct MacSettingsWindow: View {
-    @State private var path = NavigationPath()
-
     var body: some View {
-        SettingsView(path: $path)
-            .frame(
-                minWidth: MacWindow.settingsSize.width,
-                idealWidth: MacWindow.settingsSize.width,
-                minHeight: MacWindow.settingsSize.height,
-                idealHeight: MacWindow.settingsSize.height
-            )
+        MacSettingsView()
     }
 }
 #endif

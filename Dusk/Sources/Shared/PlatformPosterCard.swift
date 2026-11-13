@@ -16,6 +16,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var isWatched = false
     /// See `PosterCardText.unwatchedCount`.
     var unwatchedCount: Int? = nil
+    /// The artwork is an unwatched episode's own still; see `spoilerBlur`.
+    var isUnwatchedEpisodeImage = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -72,6 +74,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 showsPlayOverlay: showsPlayOverlay,
                 availabilityBadge: availabilityBadge,
                 isDimmed: isDimmed,
+                isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
                 isWatched: isWatched,
                 unwatchedCount: unwatchedCount
             )

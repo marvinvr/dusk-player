@@ -237,3 +237,50 @@ struct SettingsList<Content: View>: View {
         #endif
     }
 }
+
+// MARK: - Settings page chrome
+
+/// The Dusk palette on iOS/tvOS settings pages. The Mac's settings are a
+/// grouped `Form` in the Settings window (or a sheet over it) and keep the
+/// system's grouped backgrounds and row fills, so each of these is a no-op
+/// there.
+extension View {
+    @ViewBuilder
+    func duskSettingsRowBackground() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.listRowBackground(Color.duskSurface)
+        #endif
+    }
+
+    @ViewBuilder
+    func duskSettingsPageBackground() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.background(Color.duskBackground.ignoresSafeArea())
+        #endif
+    }
+
+    /// `duskScrollContentBackgroundHidden()` on iOS/tvOS.
+    @ViewBuilder
+    func duskSettingsScrollBackgroundHidden() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.duskScrollContentBackgroundHidden()
+        #endif
+    }
+
+    /// `scrollContentBackground(.hidden)` on iOS/tvOS.
+    @ViewBuilder
+    func duskSettingsFormBackgroundHidden() -> some View {
+        #if os(macOS) || os(tvOS)
+        // tvOS: unavailable there; its callers are iOS/Mac-only code.
+        self
+        #else
+        self.scrollContentBackground(.hidden)
+        #endif
+    }
+}

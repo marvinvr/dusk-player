@@ -23,6 +23,10 @@ struct SearchRootContent: View {
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: SearchViewModel?
     @State private var isSearchPresented = false
+    #if os(macOS)
+    /// The query comes from the sidebar search field (`MacShellRouter`).
+    @Environment(MacShellRouter.self) private var macRouter: MacShellRouter?
+    #endif
     #if os(tvOS)
     @State private var resultsIdentity = 0
     @State private var isReturningToKeyboard = false
@@ -46,7 +50,11 @@ struct SearchRootContent: View {
                     plexService: plexService,
                     seerrService: seerrService
                 )
-                #if DEBUG
+                #if DEBUG && os(macOS)
+                if let query = ScreenshotMode.searchQuery, let macRouter, macRouter.searchQuery.isEmpty {
+                    macRouter.searchQuery = query
+                }
+                #elseif DEBUG
                 if let query = ScreenshotMode.searchQuery, let viewModel {
                     viewModel.query = query
                     viewModel.searchDebounced()
@@ -98,15 +106,12 @@ struct SearchRootContent: View {
             }
             .searchable(text: $vm.query, prompt: searchPrompt)
         #elseif os(macOS)
-        // The iPad layout: result shelves, the field in the window toolbar.
+        // The iPad layout: result shelves. The field is the sidebar's search
+        // field (`MacRootView`), as in Music and TV.
         carouselResults(vm)
-            .searchable(
-                text: $vm.query,
-                isPresented: $isSearchPresented,
-                placement: .toolbar,
-                prompt: searchPrompt
-            )
-            .macSearchFocusRequests(isPresented: $isSearchPresented)
+            .onChange(of: macRouter?.searchQuery ?? "", initial: true) { _, query in
+                vm.query = query
+            }
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
             carouselResults(vm)

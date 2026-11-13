@@ -5,22 +5,47 @@ import SwiftUI
 /// Every tunable of the Mac play bar in one place, like `PlayerTVHUDLayout`.
 enum MacPlayerHUDLayout {
     static let horizontalInset: CGFloat = 24
-    static let barBottomInset: CGFloat = 20
-    static let barMaxWidth: CGFloat = 860
+    static let barBottomInset: CGFloat = 24
+    static let fullScreenBarBottomInset: CGFloat = 40
+    /// The bar hugs its controls instead of spanning the window, like
+    /// QuickTime's and the TV app's.
+    static let barMaxWidth: CGFloat = 680
+    static let fullScreenBarMaxWidth: CGFloat = 760
     static let barCornerRadius: CGFloat = 22
+    static let barHorizontalPadding: CGFloat = 14
+    static let barTopPadding: CGFloat = 8
+    static let barBottomPadding: CGFloat = 10
+    static let transportRowHeight: CGFloat = 36
+    static let rowSpacing: CGFloat = 2
+    /// Top of the timeline row, measured from the top of the bar; hover
+    /// bubbles are lifted above the bar from there.
+    static let timelineRowTop: CGFloat = barTopPadding + transportRowHeight + rowSpacing
     /// Approximate height of the two-row bar, for overlays that sit above it.
-    static let barHeight: CGFloat = 92
+    static let barHeight: CGFloat = 80
     static let bottomTrailingRaisedInset: CGFloat = barBottomInset + barHeight + 14
     static let bottomTrailingRestingInset: CGFloat = 32
-    /// Keeps the top bar clear of the window's traffic lights. Full screen has
-    /// no title bar, so the bar moves up.
-    static let windowedTopInset: CGFloat = 40
-    static let fullScreenTopInset: CGFloat = 20
-    static let iconSize: CGFloat = 30
-    static let playButtonSize: CGFloat = 40
+    /// Every icon button's hit target, and the gap between neighbours.
+    static let iconSize: CGFloat = 28
+    static let iconGlyphSize: CGFloat = 15
+    static let iconSpacing: CGFloat = 8
+    static let transportSpacing: CGFloat = 18
+    static let skipGlyphSize: CGFloat = 20
+    static let playGlyphSize: CGFloat = 26
+    static let volumeSliderWidth: CGFloat = 76
+    /// Below this bar width the volume slider folds away (the mute button stays).
+    static let volumeSliderMinimumBarWidth: CGFloat = 560
+    /// Title row: right of the traffic lights in a window, clear of the menu
+    /// bar's reveal area in full screen.
+    static let windowControlsGap: CGFloat = 14
+    static let fallbackWindowControlsMaxX: CGFloat = 76
+    static let fallbackWindowControlsCenterY: CGFloat = 16
+    static let fullScreenInset: CGFloat = 40
+    static let topScrimHeight: CGFloat = 140
+    static let bottomScrimHeight: CGFloat = 200
 }
 
-/// The Mac HUD: a title bar along the top and a floating Liquid Glass play bar
+/// The Mac HUD: the window's own traffic lights with a Back button and the
+/// title next to them along the top, and a floating Liquid Glass play bar
 /// along the bottom, in the shape of QuickTime and the TV app. Mounted through
 /// `PlayerControlsOverlay` so it shares the iOS/tvOS context (titles, quality,
 /// track availability); `MacPlayerSessionView` fades it with the view model's
@@ -37,29 +62,34 @@ struct MacPlayerHUD: View {
 
     @State private var isHoveringBar = false
     @State private var isMenuTracking = false
+    @State private var barWidth: CGFloat = 0
 
     var body: some View {
         ZStack {
-            PlayerControlsGradientBackdrop()
+            MacPlayerScrims()
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                topBar
-                    .padding(.horizontal, MacPlayerHUDLayout.horizontalInset)
-                    .padding(.top, commandTarget.isFullScreen
-                        ? MacPlayerHUDLayout.fullScreenTopInset
-                        : MacPlayerHUDLayout.windowedTopInset)
+                MacPlayerTopBar(
+                    title: context.mediaHeader?.title,
+                    subtitle: headerSubtitle,
+                    onBack: onDismiss
+                )
 
                 Spacer(minLength: 0)
 
                 playBar
-                    .frame(maxWidth: MacPlayerHUDLayout.barMaxWidth)
+                    .frame(maxWidth: commandTarget.isFullScreen
+                        ? MacPlayerHUDLayout.fullScreenBarMaxWidth
+                        : MacPlayerHUDLayout.barMaxWidth)
                     .padding(.horizontal, MacPlayerHUDLayout.horizontalInset)
-                    .padding(.bottom, MacPlayerHUDLayout.barBottomInset)
+                    .padding(.bottom, commandTarget.isFullScreen
+                        ? MacPlayerHUDLayout.fullScreenBarBottomInset
+                        : MacPlayerHUDLayout.barBottomInset)
             }
         }
-        // An open menu (a track menu, or the menu bar) holds the HUD up: the
-        // pointer has left the bar for the menu, and the auto-hide would
+        // An open menu (a play-bar menu, or the menu bar) holds the HUD up:
+        // the pointer has left the bar for the menu, and the auto-hide would
         // otherwise fade the bar out from under it.
         .task {
             for await _ in NotificationCenter.default.notifications(named: NSMenu.didBeginTrackingNotification) {
@@ -85,47 +115,33 @@ struct MacPlayerHUD: View {
         }
     }
 
-    // MARK: - Top bar
-
-    private var topBar: some View {
-        HStack(alignment: .top, spacing: 14) {
-            Button(action: onDismiss) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(.white)
-                    .frame(width: 32, height: 32)
-            }
-            .buttonStyle(.plain)
-            .glassEffect(.regular.interactive(), in: Circle())
-            .help("Close Player")
-            .accessibilityLabel("Close Player")
-
-            if let header = context.mediaHeader {
-                PlayerMediaHeaderView(header: header)
-            }
-
-            Spacer(minLength: 0)
-        }
+    /// Episode title and season/episode (or year) on one quiet line.
+    private var headerSubtitle: String? {
+        guard let header = context.mediaHeader else { return nil }
+        let parts = [header.secondaryTitle, header.subtitle].compactMap { $0 }.filter { !$0.isEmpty }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     // MARK: - Play bar
 
     private var playBar: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: MacPlayerHUDLayout.rowSpacing) {
             transportRow
+                .frame(height: MacPlayerHUDLayout.transportRowHeight)
             timelineRow
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 8)
-        .background {
-            RoundedRectangle(cornerRadius: MacPlayerHUDLayout.barCornerRadius, style: .continuous)
-                .fill(.clear)
-                .glassEffect(
-                    .regular.tint(.black.opacity(0.22)),
-                    in: RoundedRectangle(cornerRadius: MacPlayerHUDLayout.barCornerRadius, style: .continuous)
-                )
-        }
+        .padding(.horizontal, MacPlayerHUDLayout.barHorizontalPadding)
+        .padding(.top, MacPlayerHUDLayout.barTopPadding)
+        .padding(.bottom, MacPlayerHUDLayout.barBottomPadding)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { barWidth = $0 }
+        .glassEffect(
+            .regular,
+            in: RoundedRectangle(cornerRadius: MacPlayerHUDLayout.barCornerRadius, style: .continuous)
+        )
+        // Swallow clicks between the buttons so they never reach the click
+        // layer underneath (which would pause).
+        .contentShape(RoundedRectangle(cornerRadius: MacPlayerHUDLayout.barCornerRadius, style: .continuous))
+        .onTapGesture {}
         // The pointer resting on the bar holds it up; leaving releases it.
         .onHover { isInside in
             guard isInside != isHoveringBar else { return }
@@ -140,8 +156,10 @@ struct MacPlayerHUD: View {
 
     private var transportRow: some View {
         HStack(spacing: 0) {
-            MacPlayerVolumeControl()
-                .frame(maxWidth: .infinity, alignment: .leading)
+            MacPlayerVolumeControl(
+                showsSlider: barWidth == 0 || barWidth >= MacPlayerHUDLayout.volumeSliderMinimumBarWidth
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             transportButtons
 
@@ -153,7 +171,7 @@ struct MacPlayerHUD: View {
     private var transportButtons: some View {
         let isPlaying = viewModel.state == .playing
 
-        return HStack(spacing: 10) {
+        return HStack(spacing: MacPlayerHUDLayout.transportSpacing) {
             if showsEpisodeButtons {
                 episodeButton(.previous)
             }
@@ -166,12 +184,13 @@ struct MacPlayerHUD: View {
             } label: {
                 MacPlayerHUDIcon(
                     systemName: isPlaying ? "pause.fill" : "play.fill",
-                    size: MacPlayerHUDLayout.playButtonSize,
-                    glyphSize: 22
+                    size: 36,
+                    glyphSize: MacPlayerHUDLayout.playGlyphSize
                 )
                 .contentTransition(.symbolEffect(.replace, options: .speed(2)))
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
             .disabled(viewModel.playbackError != nil)
             .help(isPlaying ? "Pause (Space)" : "Play (Space)")
             .accessibilityLabel(isPlaying ? "Pause" : "Play")
@@ -186,23 +205,26 @@ struct MacPlayerHUD: View {
     }
 
     private var trailingButtons: some View {
-        HStack(spacing: 4) {
-            MacPlayerSubtitlesMenu(viewModel: viewModel, context: context)
-            MacPlayerAudioMenu(viewModel: viewModel)
-            MacPlayerSettingsMenu(viewModel: viewModel, context: context)
+        HStack(spacing: MacPlayerHUDLayout.iconSpacing) {
+            airPlayButton
 
-            if viewModel.engine.isPictureInPicturePossible || viewModel.engine.isPictureInPictureActive {
-                Button {
-                    viewModel.togglePictureInPicture()
-                } label: {
-                    MacPlayerHUDIcon(
-                        systemName: viewModel.engine.isPictureInPictureActive ? "pip.exit" : "pip.enter"
-                    )
-                }
-                .buttonStyle(.plain)
-                .help("Picture in Picture")
-                .accessibilityLabel("Picture in Picture")
-            }
+            MacPlayerMenuButton(
+                systemName: "text.bubble",
+                help: "Audio & Subtitles",
+                accessibilityLabel: "Audio and Subtitles",
+                accessibilityValue: context.subtitleControlTitle,
+                items: mediaMenuItems
+            )
+            .disabled(viewModel.audioTracks.isEmpty && viewModel.subtitleTracks.isEmpty && !context.canDownloadSubtitles)
+
+            MacPlayerMenuButton(
+                systemName: "ellipsis.circle",
+                help: "More",
+                accessibilityLabel: "More",
+                items: moreMenuItems
+            )
+
+            pictureInPictureButton
 
             Button {
                 commandTarget.toggleFullScreen()
@@ -210,38 +232,81 @@ struct MacPlayerHUD: View {
                 MacPlayerHUDIcon(
                     systemName: commandTarget.isFullScreen
                         ? "arrow.down.right.and.arrow.up.left"
-                        : "arrow.up.left.and.arrow.down.right"
+                        : "arrow.up.left.and.arrow.down.right",
+                    alignment: .trailing
                 )
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
             .help(commandTarget.isFullScreen ? "Exit Full Screen (F)" : "Enter Full Screen (F)")
             .accessibilityLabel(commandTarget.isFullScreen ? "Exit Full Screen" : "Enter Full Screen")
         }
     }
 
+    /// AirPlay is an AVPlayer feature; a VLCKit session keeps the slot, dimmed,
+    /// so the icons never shift between engines.
+    @ViewBuilder
+    private var airPlayButton: some View {
+        if let engine = viewModel.engine as? AVPlayerEngine {
+            MacPlayerRoutePicker(player: engine.routePickerPlayer)
+                .frame(width: MacPlayerHUDLayout.iconSize, height: MacPlayerHUDLayout.iconSize)
+                .help("AirPlay")
+                .accessibilityLabel("AirPlay")
+        } else {
+            MacPlayerHUDIcon(systemName: "airplay.video", isEnabledOverride: false)
+                .help("AirPlay isn't available for this video")
+                .accessibilityLabel("AirPlay")
+                .accessibilityValue("Unavailable")
+        }
+    }
+
+    private var pictureInPictureButton: some View {
+        let isActive = viewModel.engine.isPictureInPictureActive
+        let isAvailable = viewModel.engine.isPictureInPicturePossible || isActive
+
+        return Button {
+            viewModel.togglePictureInPicture()
+        } label: {
+            MacPlayerHUDIcon(systemName: isActive ? "pip.exit" : "pip.enter")
+        }
+        .buttonStyle(.plain)
+        .focusEffectDisabled()
+        .disabled(!isAvailable)
+        .help(isAvailable
+            ? (isActive ? "Exit Picture in Picture" : "Picture in Picture")
+            : "Picture in Picture isn't available for this video")
+        .accessibilityLabel("Picture in Picture")
+    }
+
     private var timelineRow: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             if viewModel.isLiveTV {
                 PlayerTimeStatusView(viewModel: viewModel)
-                    .font(.callout)
+                    .font(.system(size: 12, weight: .medium).monospacedDigit())
+                    .foregroundStyle(.white.opacity(0.7))
                     .fixedSize()
             } else {
-                timeLabel(formatTime(viewModel.displayPosition))
+                timeLabel(MacPlayerTime.format(viewModel.displayPosition), alignment: .leading)
             }
 
-            MacPlayerTimeline(viewModel: viewModel, scrubPreviewSource: scrubPreviewSource)
+            MacPlayerScrubber(viewModel: viewModel, scrubPreviewSource: scrubPreviewSource)
 
             if !viewModel.isLiveTV {
-                timeLabel("-" + formatTime(max(viewModel.duration - viewModel.displayPosition, 0)))
+                timeLabel(
+                    "\u{2212}" + MacPlayerTime.format(max(viewModel.duration - viewModel.displayPosition, 0)),
+                    alignment: .trailing
+                )
             }
         }
     }
 
-    private func timeLabel(_ text: String) -> some View {
+    private func timeLabel(_ text: String, alignment: Alignment) -> some View {
         Text(text)
-            .font(.callout.weight(.medium).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.85))
-            .frame(minWidth: 52)
+            .font(.system(size: 12, weight: .medium).monospacedDigit())
+            .foregroundStyle(.white.opacity(0.7))
+            .lineLimit(1)
+            .frame(minWidth: 44, alignment: alignment)
+            .fixedSize()
     }
 
     // MARK: - Buttons
@@ -258,11 +323,15 @@ struct MacPlayerHUD: View {
         return Button {
             playback.playAdjacentEpisode(direction, isPastCredits: viewModel.isPastCreditsMarker)
         } label: {
-            MacPlayerHUDIcon(systemName: direction == .next ? "forward.end.fill" : "backward.end.fill")
+            MacPlayerHUDIcon(
+                systemName: direction == .next ? "forward.end.fill" : "backward.end.fill",
+                glyphSize: 17
+            )
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
         .disabled(!isEnabled)
-        .help(direction == .next ? "Next Episode" : "Previous Episode")
+        .help(direction == .next ? "Next Episode (⌘→)" : "Previous Episode (⌘←)")
         .accessibilityLabel(direction == .next ? "Next Episode" : "Previous Episode")
     }
 
@@ -277,15 +346,255 @@ struct MacPlayerHUD: View {
             viewModel.handleSeekJump(by: TimeInterval(direction) * interval.timeInterval)
             viewModel.noteControlsInteraction()
         } label: {
-            MacPlayerHUDIcon(systemName: direction < 0 ? "gobackward.\(seconds)" : "goforward.\(seconds)")
+            MacPlayerHUDIcon(
+                systemName: direction < 0 ? "gobackward.\(seconds)" : "goforward.\(seconds)",
+                size: 32,
+                glyphSize: MacPlayerHUDLayout.skipGlyphSize
+            )
         }
         .buttonStyle(.plain)
+        .focusEffectDisabled()
         .disabled(viewModel.playbackError != nil)
         .help(title + (direction < 0 ? " (←)" : " (→)"))
         .accessibilityLabel(title)
     }
 
-    private func formatTime(_ seconds: TimeInterval) -> String {
+    // MARK: - Menus
+
+    /// Audio and Subtitles in one menu with a section each, like AVKit's.
+    private func mediaMenuItems() -> [MacPlayerMenuItem] {
+        var items: [MacPlayerMenuItem] = []
+
+        if !viewModel.audioTracks.isEmpty {
+            items.append(.header("Audio"))
+            let selectedAudioID = viewModel.selectedAudioTrackID ?? viewModel.engine.selectedAudioTrackID
+            for track in viewModel.audioTracks {
+                let label = MacPlayerTrackLabel.label(for: track)
+                items.append(.action(label.title, subtitle: label.detail, isOn: track.id == selectedAudioID) {
+                    guard track.id != viewModel.selectedAudioTrackID else { return }
+                    viewModel.selectAudio(track)
+                })
+            }
+        }
+
+        if !viewModel.subtitleTracks.isEmpty || context.canDownloadSubtitles {
+            items.append(.separator)
+            items.append(.header("Subtitles"))
+            let selectedSubtitleID = viewModel.selectedSubtitleTrackID
+            items.append(.action("Off", isOn: selectedSubtitleID == nil) {
+                guard viewModel.selectedSubtitleTrackID != nil else { return }
+                viewModel.selectSubtitle(nil)
+            })
+            for track in viewModel.subtitleTracks {
+                let label = MacPlayerTrackLabel.label(for: track)
+                items.append(.action(label.title, subtitle: label.detail, isOn: track.id == selectedSubtitleID) {
+                    guard track.id != viewModel.selectedSubtitleTrackID else { return }
+                    viewModel.selectSubtitle(track)
+                })
+            }
+
+            items.append(.separator)
+            // Server-rendered (AirPlay/burned-in) subtitles have no local size.
+            if !viewModel.subtitleTracks.isEmpty, !viewModel.usesServerTrackSelection {
+                items.append(.submenu(
+                    "Subtitle Size",
+                    SubtitleFontSize.allCases.map { size in
+                        .action(size.displayName, isOn: size == viewModel.subtitleFontSize) {
+                            viewModel.selectSubtitleFontSize(size)
+                        }
+                    }
+                ))
+            }
+            if context.canDownloadSubtitles {
+                items.append(.action("Download Subtitles…") {
+                    viewModel.showSubtitleSearch = true
+                })
+            }
+        }
+        return items
+    }
+
+    /// Everything else: quality, speed, channel, sync, zoom, SharePlay, Get Info.
+    private func moreMenuItems() -> [MacPlayerMenuItem] {
+        var items: [MacPlayerMenuItem] = []
+
+        if let summary = playingQualitySummary {
+            items.append(.header(summary))
+        }
+
+        if let live = context.liveTVContext {
+            items.append(.submenu("Channel", subtitle: live.channel.displayTitle, live.lineup.channels.map { channel in
+                let title = [channel.displayNumber, channel.displayTitle].compactMap { $0 }.joined(separator: " · ")
+                return .action(title, isOn: channel.id == live.channel.id) {
+                    guard channel.id != live.channel.id else { return }
+                    let program = live.lineup.guide(for: channel)?.currentProgram()
+                    Task {
+                        await playback.playLiveTV(channel: channel, program: program, lineup: live.lineup)
+                    }
+                }
+            }))
+        }
+
+        if context.hasQualityControl {
+            let selected = context.selectedQualityPreset
+            items.append(.submenu(
+                "Quality",
+                subtitle: selected.displayName,
+                isEnabled: context.canSelectQuality && !context.isChangingQuality,
+                context.availableQualityPresets.map { preset in
+                    .action(preset.displayName, subtitle: preset.detailTitle, isOn: preset == selected) {
+                        guard preset != context.selectedQualityPreset else { return }
+                        Task { await playback.switchQuality(to: preset) }
+                    }
+                }
+            ))
+        }
+
+        if !viewModel.isLiveTV, !playback.isSharePlayActive {
+            items.append(.submenu(
+                "Playback Speed",
+                subtitle: PlayerViewModel.playbackSpeedTitle(viewModel.playbackRate),
+                PlayerViewModel.playbackSpeedOptions.map { rate in
+                    .action(PlayerViewModel.playbackSpeedTitle(rate), isOn: rate == viewModel.playbackRate) {
+                        viewModel.setPlaybackRate(rate)
+                    }
+                }
+            ))
+        }
+
+        items.append(.separator)
+
+        if !viewModel.audioTracks.isEmpty {
+            items.append(.action("Audio Offset…") {
+                viewModel.showAudioPicker = true
+            })
+        }
+
+        items.append(.action("Zoom to Fill", isOn: viewModel.aspectFillEnabled) {
+            viewModel.toggleAspectFill()
+        })
+
+        if context.hasSharePlayControl {
+            items.append(.action(
+                context.isStartingSharePlay
+                    ? "Starting SharePlay…"
+                    : (context.isSharePlayActive ? "Leave SharePlay" : "Start SharePlay"),
+                isEnabled: !context.isStartingSharePlay
+            ) {
+                Task { await playback.toggleSharePlay() }
+            })
+        }
+
+        if context.hasPlaybackInfo {
+            items.append(.separator)
+            items.append(.action("Get Info") {
+                viewModel.showPlaybackInfo = true
+            })
+        }
+        return items
+    }
+
+    /// What is playing right now, as the More menu's quiet section title.
+    private var playingQualitySummary: String? {
+        let live = viewModel.engine.currentVideoQuality
+        return (playback.debugInfo?.currentVideoQuality(live: live) ?? live)?.summary
+    }
+}
+
+// MARK: - Top bar
+
+/// Back button and title, lined up with the window's traffic lights (or clear
+/// of the menu bar in full screen). Shared by the HUD and the error state.
+struct MacPlayerTopBar: View {
+    @Environment(MacPlayerCommandTarget.self) private var commandTarget
+
+    let title: String?
+    let subtitle: String?
+    let onBack: () -> Void
+
+    private let backButtonSize: CGFloat = 28
+
+    var body: some View {
+        let isFullScreen = commandTarget.isFullScreen
+        let centerY = isFullScreen
+            ? MacPlayerHUDLayout.fullScreenInset
+            : (commandTarget.windowControlsCenterY ?? MacPlayerHUDLayout.fallbackWindowControlsCenterY)
+        let leading = isFullScreen
+            ? MacPlayerHUDLayout.fullScreenInset
+            : (commandTarget.windowControlsMaxX ?? MacPlayerHUDLayout.fallbackWindowControlsMaxX)
+                + MacPlayerHUDLayout.windowControlsGap
+        let titleSize: CGFloat = isFullScreen ? 17 : 14
+
+        HStack(alignment: .top, spacing: 10) {
+            Button(action: onBack) {
+                Image(systemName: "chevron.backward")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: backButtonSize, height: backButtonSize)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .focusEffectDisabled()
+            .glassEffect(.regular.interactive(), in: Circle())
+            .help("Back (Esc)")
+            .accessibilityLabel("Back")
+
+            if let title {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title)
+                        .font(.system(size: titleSize, weight: .semibold))
+                        .foregroundStyle(.white)
+                    if let subtitle {
+                        Text(subtitle)
+                            .font(.system(size: isFullScreen ? 13 : 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                }
+                .lineLimit(1)
+                // First line centred on the back button (and the lights).
+                .padding(.top, (backButtonSize - titleSize * 1.25) / 2)
+                .shadow(color: .black.opacity(0.3), radius: 6, y: 1)
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, leading)
+        .padding(.trailing, MacPlayerHUDLayout.horizontalInset)
+        .padding(.top, max(centerY - backButtonSize / 2, 0))
+    }
+}
+
+/// A soft dark gradient under the title row and the play bar, so white type
+/// reads over any picture. Fades with the HUD.
+private struct MacPlayerScrims: View {
+    var body: some View {
+        VStack(spacing: 0) {
+            LinearGradient(
+                colors: [.black.opacity(0.55), .black.opacity(0)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: MacPlayerHUDLayout.topScrimHeight)
+
+            Spacer(minLength: 0)
+
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.4)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: MacPlayerHUDLayout.bottomScrimHeight)
+        }
+        .ignoresSafeArea()
+    }
+}
+
+// MARK: - Timeline
+
+enum MacPlayerTime {
+    static func format(_ seconds: TimeInterval) -> String {
         guard seconds.isFinite, seconds >= 0 else { return "0:00" }
         let total = Int(seconds)
         let h = total / 3600
@@ -298,24 +607,59 @@ struct MacPlayerHUD: View {
     }
 }
 
-// MARK: - Timeline
-
-/// The shared seek bar plus a hover readout: pointing at the bar shows the
-/// preview frame (or the time) under the pointer without seeking, the way the
-/// TV app and QuickTime do. Dragging uses the seek bar's own scrub preview.
-private struct MacPlayerTimeline: View {
+/// The Mac timeline: a thin track that thickens under the pointer, a knob on
+/// hover or drag, and a bubble above the bar with the time (and the preview
+/// frame when the server has thumbnails) at the pointer, without seeking until
+/// the viewer clicks or drags. An accessible "Playback Position" slider.
+private struct MacPlayerScrubber: View {
     let viewModel: PlayerViewModel
     let scrubPreviewSource: PlexScrubPreviewSource?
 
     @State private var hoverX: CGFloat?
     @State private var width: CGFloat = 0
 
+    private let height: CGFloat = 16
+    private let idleTrackHeight: CGFloat = 4
+    private let activeTrackHeight: CGFloat = 7
+    private let knobSize: CGFloat = 12
+
     var body: some View {
-        PlayerSeekBar(
-            viewModel: viewModel,
-            isInteractive: true,
-            scrubPreviewSource: scrubPreviewSource
-        )
+        let isActive = hoverX != nil || viewModel.isScrubbing
+        let progress = max(0, min(viewModel.timelineProgress(for: viewModel.displayPosition), 1))
+        let trackHeight = isActive ? activeTrackHeight : idleTrackHeight
+
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(.white.opacity(0.22))
+                .frame(height: trackHeight)
+
+            if let reachable = viewModel.liveReachableTrackRange, width > 0 {
+                let start = width * reachable.lowerBound
+                let reachableWidth = width * (reachable.upperBound - reachable.lowerBound)
+                if reachableWidth >= trackHeight {
+                    Capsule()
+                        .fill(.white.opacity(0.22))
+                        .frame(width: reachableWidth, height: trackHeight)
+                        .offset(x: start)
+                }
+            }
+
+            Capsule()
+                .fill(.white.opacity(0.95))
+                .frame(width: max(width * progress, trackHeight), height: trackHeight)
+                .opacity(progress > 0 ? 1 : 0)
+
+            Circle()
+                .fill(.white)
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                .frame(width: knobSize, height: knobSize)
+                .offset(x: width * progress - knobSize / 2)
+                .opacity(isActive ? 1 : 0)
+                .scaleEffect(isActive ? 1 : 0.5)
+        }
+        .frame(height: height)
+        .contentShape(Rectangle())
+        .animation(.easeOut(duration: 0.15), value: isActive)
         .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
         .onContinuousHover(coordinateSpace: .local) { phase in
             switch phase {
@@ -325,349 +669,226 @@ private struct MacPlayerTimeline: View {
                 hoverX = nil
             }
         }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    guard width > 0 else { return }
+                    if !viewModel.isScrubbing {
+                        viewModel.beginScrub()
+                    }
+                    let fraction = max(0, min(1, value.location.x / width))
+                    viewModel.updateScrub(to: viewModel.timelinePosition(for: fraction))
+                }
+                .onEnded { _ in
+                    viewModel.endScrub()
+                }
+        )
         .overlay(alignment: .topLeading) {
-            if let hoverX, !viewModel.isScrubbing, width > 0 {
-                hoverReadout(at: hoverX)
+            if width > 0, let bubbleX {
+                bubble(at: bubbleX)
             }
+        }
+        .accessibilityRepresentation {
+            Slider(
+                value: Binding(
+                    get: { viewModel.displayPosition },
+                    set: { viewModel.seek(to: $0, revealControls: false) }
+                ),
+                in: positionRange
+            ) {
+                Text("Playback Position")
+            }
+            .accessibilityValue(MacPlayerTime.format(viewModel.displayPosition))
         }
     }
 
+    private var positionRange: ClosedRange<TimeInterval> {
+        let lower = viewModel.timelinePosition(for: 0)
+        let upper = viewModel.timelinePosition(for: 1)
+        return upper > lower ? lower...upper : 0...1
+    }
+
+    /// The pointer while hovering; the playhead while dragging.
+    private var bubbleX: CGFloat? {
+        if viewModel.isScrubbing {
+            return width * max(0, min(viewModel.timelineProgress(for: viewModel.displayPosition), 1))
+        }
+        guard let hoverX else { return nil }
+        return min(max(hoverX, 0), width)
+    }
+
     @ViewBuilder
-    private func hoverReadout(at x: CGFloat) -> some View {
-        let fraction = max(0, min(1, x / width))
-        let position = viewModel.timelinePosition(for: fraction)
-        let clampedX = min(max(x, 0), width)
+    private func bubble(at x: CGFloat) -> some View {
+        let position = viewModel.isScrubbing
+            ? viewModel.displayPosition
+            : viewModel.timelinePosition(for: width > 0 ? x / width : 0)
+        // From the top of this row to just above the glass bar.
+        let barTop = -MacPlayerHUDLayout.timelineRowTop - 10
 
         Group {
             if let scrubPreviewSource, scrubPreviewSource.isAvailable {
                 PlayerScrubPreviewPopup(source: scrubPreviewSource, position: position)
                     .position(
-                        x: popupX(clampedX, halfWidth: PlayerScrubPreviewPopup.width / 2),
-                        y: PlayerScrubPreviewPopup.verticalPosition
+                        x: clampedX(x, halfWidth: PlayerScrubPreviewPopup.width / 2),
+                        y: barTop - PlayerScrubPreviewPopup.height / 2
                     )
             } else if let clock = viewModel.liveClockLabel(for: position) {
-                PlayerLiveClockBubble(label: clock)
-                    .position(x: popupX(clampedX, halfWidth: 34), y: PlayerLiveClockBubble.verticalPosition)
+                timeBubble(clock)
+                    .position(x: clampedX(x, halfWidth: 36), y: barTop - 13)
             } else if !viewModel.isLiveTV, viewModel.duration > 0 {
-                PlayerLiveClockBubble(label: Self.formatTime(position))
-                    .position(x: popupX(clampedX, halfWidth: 34), y: PlayerLiveClockBubble.verticalPosition)
+                timeBubble(MacPlayerTime.format(position))
+                    .position(x: clampedX(x, halfWidth: 36), y: barTop - 13)
             }
         }
         .allowsHitTesting(false)
         .transition(.opacity)
     }
 
-    private func popupX(_ x: CGFloat, halfWidth: CGFloat) -> CGFloat {
-        guard width > halfWidth * 2 else { return width / 2 }
-        return min(max(x, halfWidth), width - halfWidth)
+    private func timeBubble(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 12, weight: .semibold).monospacedDigit())
+            .foregroundStyle(.white)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 4)
+            .glassEffect(.regular, in: Capsule())
+            .fixedSize()
     }
 
-    private static func formatTime(_ seconds: TimeInterval) -> String {
-        guard seconds.isFinite, seconds >= 0 else { return "0:00" }
-        let total = Int(seconds)
-        let h = total / 3600
-        let m = (total % 3600) / 60
-        let s = total % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        }
-        return String(format: "%d:%02d", m, s)
+    /// Keeps the bubble inside the bar's width (it may overhang the track by
+    /// the time labels' width).
+    private func clampedX(_ x: CGFloat, halfWidth: CGFloat) -> CGFloat {
+        let overhang: CGFloat = 54
+        let minX = halfWidth - overhang
+        let maxX = width - halfWidth + overhang
+        guard maxX > minX else { return width / 2 }
+        return min(max(x, minX), maxX)
     }
 }
 
 // MARK: - Volume
 
 private struct MacPlayerVolumeControl: View {
+    let showsSlider: Bool
+
     private let volume = MacPlayerVolume.shared
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 4) {
             Button {
                 volume.toggleMute()
             } label: {
-                MacPlayerHUDIcon(systemName: volume.symbolName, glyphSize: 13)
+                MacPlayerHUDIcon(systemName: volume.symbolName, alignment: .leading)
                     .contentTransition(.symbolEffect(.replace))
             }
             .buttonStyle(.plain)
+            .focusEffectDisabled()
             .help(volume.isMuted ? "Unmute (M)" : "Mute (M)")
-            .accessibilityLabel(volume.isMuted ? "Unmute" : "Mute")
+            .accessibilityLabel("Mute")
+            .accessibilityValue(volume.isMuted ? "On" : "Off")
+            .accessibilityAddTraits(volume.isMuted ? .isSelected : [])
 
-            Slider(
-                value: Binding(
-                    get: { Double(volume.isMuted ? 0 : volume.level) },
-                    set: { newValue in
-                        volume.level = Float(newValue)
-                        if volume.isMuted { volume.isMuted = false }
-                    }
-                ),
-                in: 0...1
-            )
-            .controlSize(.mini)
-            .frame(width: 88)
-            .accessibilityLabel("Volume")
+            if showsSlider {
+                MacPlayerThinSlider(
+                    value: Binding(
+                        get: { Double(volume.isMuted ? 0 : volume.level) },
+                        set: { newValue in
+                            volume.level = Float(newValue)
+                            if volume.isMuted { volume.isMuted = false }
+                        }
+                    ),
+                    accessibilityLabel: "Volume"
+                )
+                .frame(width: MacPlayerHUDLayout.volumeSliderWidth)
+                .help("Volume (↑/↓)")
+            }
         }
     }
 }
 
-// MARK: - Menus
+/// A thin white slider in the timeline's style: 3 pt track, a small knob on
+/// hover or drag. Accessible as a standard slider.
+private struct MacPlayerThinSlider: View {
+    @Binding var value: Double
+    let accessibilityLabel: String
 
-/// Subtitle tracks, size and Download Subtitles, as a native menu.
-private struct MacPlayerSubtitlesMenu: View {
-    let viewModel: PlayerViewModel
-    let context: PlayerControlsContext
+    @State private var isHovered = false
+    @State private var isDragging = false
+    @State private var width: CGFloat = 0
 
     var body: some View {
-        Menu {
-            Picker("Subtitles", selection: selection) {
-                Text("Off").tag(Int?.none)
-                ForEach(viewModel.subtitleTracks) { track in
-                    Text(menuTitle(track.displayTitle, detail: track.pickerDetailTitle))
-                        .tag(Optional(track.id))
-                }
-            }
-            .pickerStyle(.inline)
+        let isActive = isHovered || isDragging
+        let fraction = max(0, min(value, 1))
+        let trackHeight: CGFloat = isActive ? 5 : 3
 
-            Divider()
-
-            Picker("Subtitle Size", selection: sizeSelection) {
-                ForEach(SubtitleFontSize.allCases) { size in
-                    Text(size.displayName).tag(size)
-                }
-            }
-            .pickerStyle(.menu)
-            // Server-rendered (AirPlay/burned-in) subtitles have no local size.
-            .disabled(viewModel.subtitleTracks.isEmpty || viewModel.usesServerTrackSelection)
-
-            if context.canDownloadSubtitles {
-                Button("Download Subtitles…") {
-                    viewModel.showSubtitleSearch = true
-                }
-            }
-        } label: {
-            MacPlayerHUDIcon(
-                systemName: viewModel.selectedSubtitleTrack == nil ? "captions.bubble" : "captions.bubble.fill"
-            )
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(.white.opacity(0.22))
+                .frame(height: trackHeight)
+            Capsule()
+                .fill(.white.opacity(0.95))
+                .frame(width: max(width * fraction, trackHeight), height: trackHeight)
+                .opacity(fraction > 0 ? 1 : 0)
+            Circle()
+                .fill(.white)
+                .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
+                .frame(width: 10, height: 10)
+                .offset(x: width * fraction - 5)
+                .opacity(isActive ? 1 : 0)
         }
-        .macPlayerHUDMenuStyle()
-        .disabled(viewModel.subtitleTracks.isEmpty && !context.canDownloadSubtitles)
-        .help("Subtitles")
-        .accessibilityLabel("Subtitles")
-        .accessibilityValue(context.subtitleControlTitle)
-    }
-
-    private var selection: Binding<Int?> {
-        Binding(
-            get: { viewModel.selectedSubtitleTrackID },
-            set: { id in
-                let track = id.flatMap { id in viewModel.subtitleTracks.first { $0.id == id } }
-                viewModel.selectSubtitle(track)
-            }
+        .frame(height: 16)
+        .contentShape(Rectangle())
+        .animation(.easeOut(duration: 0.15), value: isActive)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.width }) { width = $0 }
+        .onHover { isHovered = $0 }
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { drag in
+                    guard width > 0 else { return }
+                    isDragging = true
+                    value = max(0, min(1, drag.location.x / width))
+                }
+                .onEnded { _ in isDragging = false }
         )
-    }
-
-    private var sizeSelection: Binding<SubtitleFontSize> {
-        Binding(
-            get: { viewModel.subtitleFontSize },
-            set: { viewModel.selectSubtitleFontSize($0) }
-        )
-    }
-}
-
-/// Audio tracks and the manual audio offset.
-private struct MacPlayerAudioMenu: View {
-    let viewModel: PlayerViewModel
-
-    var body: some View {
-        Menu {
-            Picker("Audio", selection: selection) {
-                ForEach(viewModel.audioTracks) { track in
-                    Text(menuTitle(track.compactDisplayTitle, detail: track.detailDisplayTitle))
-                        .tag(Optional(track.id))
-                }
-            }
-            .pickerStyle(.inline)
-
-            Divider()
-
-            Button("Audio Offset…") {
-                viewModel.showAudioPicker = true
-            }
-        } label: {
-            MacPlayerHUDIcon(systemName: "waveform")
-        }
-        .macPlayerHUDMenuStyle()
-        .disabled(viewModel.audioTracks.isEmpty)
-        .help("Audio")
-        .accessibilityLabel("Audio")
-    }
-
-    private var selection: Binding<Int?> {
-        Binding(
-            get: { viewModel.selectedAudioTrackID },
-            set: { id in
-                guard let id, let track = viewModel.audioTracks.first(where: { $0.id == id }) else { return }
-                viewModel.selectAudio(track)
-            }
-        )
-    }
-}
-
-/// Quality, speed, Live TV channels, zoom, SharePlay and Get Info: the iOS
-/// gear menu's contents, as a Mac menu.
-private struct MacPlayerSettingsMenu: View {
-    @Environment(PlaybackCoordinator.self) private var playback
-
-    let viewModel: PlayerViewModel
-    let context: PlayerControlsContext
-
-    var body: some View {
-        Menu {
-            if let playingQualitySummary {
-                Section(playingQualitySummary) {
-                    sessionItems
-                }
-            } else {
-                sessionItems
-            }
-
-            Divider()
-
-            Toggle("Zoom to Fill", isOn: Binding(
-                get: { viewModel.aspectFillEnabled },
-                set: { _ in viewModel.toggleAspectFill() }
-            ))
-
-            if context.hasSharePlayControl {
-                Button(
-                    context.isStartingSharePlay
-                        ? "Starting SharePlay…"
-                        : (context.isSharePlayActive ? "Leave SharePlay" : "Start SharePlay")
-                ) {
-                    Task { await playback.toggleSharePlay() }
-                }
-                .disabled(context.isStartingSharePlay)
-            }
-
-            if context.hasPlaybackInfo {
-                Divider()
-                Button("Get Info") {
-                    viewModel.showPlaybackInfo = true
-                }
-            }
-        } label: {
-            MacPlayerHUDIcon(systemName: "gearshape")
-        }
-        .macPlayerHUDMenuStyle()
-        .help("Playback Settings")
-        .accessibilityLabel("Playback Settings")
-    }
-
-    @ViewBuilder
-    private var sessionItems: some View {
-        if let live = context.liveTVContext {
-            Menu("Channel") {
-                ForEach(live.lineup.channels) { channel in
-                    Toggle(
-                        [channel.displayNumber, channel.displayTitle]
-                            .compactMap { $0 }
-                            .joined(separator: " · "),
-                        isOn: Binding(
-                            get: { channel.id == live.channel.id },
-                            set: { _ in
-                                guard channel.id != live.channel.id else { return }
-                                let program = live.lineup.guide(for: channel)?.currentProgram()
-                                Task {
-                                    await playback.playLiveTV(
-                                        channel: channel,
-                                        program: program,
-                                        lineup: live.lineup
-                                    )
-                                }
-                            }
-                        )
-                    )
-                }
+        .accessibilityRepresentation {
+            Slider(value: $value, in: 0...1) {
+                Text(accessibilityLabel)
             }
         }
-
-        if context.hasQualityControl {
-            Picker("Quality", selection: qualitySelection) {
-                ForEach(context.availableQualityPresets) { preset in
-                    Text(menuTitle(preset.displayName, detail: preset.detailTitle)).tag(preset)
-                }
-            }
-            .pickerStyle(.menu)
-            .disabled(!context.canSelectQuality || context.isChangingQuality)
-        }
-
-        if !viewModel.isLiveTV, !playback.isSharePlayActive {
-            Picker("Speed", selection: Binding(
-                get: { viewModel.playbackRate },
-                set: { viewModel.setPlaybackRate($0) }
-            )) {
-                ForEach(PlayerViewModel.playbackSpeedOptions, id: \.self) { rate in
-                    Text(PlayerViewModel.playbackSpeedTitle(rate)).tag(rate)
-                }
-            }
-            .pickerStyle(.menu)
-        }
     }
-
-    private var qualitySelection: Binding<PlaybackQualityPreset> {
-        Binding(
-            get: { context.selectedQualityPreset },
-            set: { preset in
-                guard preset != context.selectedQualityPreset else { return }
-                Task { await playback.switchQuality(to: preset) }
-            }
-        )
-    }
-
-    /// What is playing right now, as the menu's quiet section title.
-    private var playingQualitySummary: String? {
-        let live = viewModel.engine.currentVideoQuality
-        return (playback.debugInfo?.currentVideoQuality(live: live) ?? live)?.summary
-    }
-}
-
-private func menuTitle(_ title: String, detail: String?) -> String {
-    guard let detail, !detail.isEmpty else { return title }
-    return "\(title) · \(detail)"
 }
 
 // MARK: - Chrome
 
-/// An icon in the play bar: white glyph, a soft platter on hover. Used as the
-/// label of plain buttons and menus so both read as one row of controls.
+/// An icon in the play bar: a white glyph that brightens under the pointer.
+/// A soft platter appears only while the button's menu is open (`isActive`).
 struct MacPlayerHUDIcon: View {
     @Environment(\.isEnabled) private var isEnabled
     @State private var isHovered = false
 
     let systemName: String
     var size: CGFloat = MacPlayerHUDLayout.iconSize
-    var glyphSize: CGFloat = 15
+    var glyphSize: CGFloat = MacPlayerHUDLayout.iconGlyphSize
+    var alignment: Alignment = .center
+    var isActive = false
+    /// Draws the icon disabled without disabling a surrounding control.
+    var isEnabledOverride: Bool?
 
     var body: some View {
+        let enabled = isEnabledOverride ?? isEnabled
+
         Image(systemName: systemName)
-            .font(.system(size: glyphSize, weight: .semibold))
-            .foregroundStyle(.white.opacity(isEnabled ? 1 : 0.35))
-            .frame(width: size, height: size)
+            .font(.system(size: glyphSize, weight: .medium))
+            .imageScale(.medium)
+            .foregroundStyle(.white.opacity(enabled ? (isHovered || isActive ? 1 : 0.85) : 0.3))
+            .frame(width: size, height: size, alignment: alignment)
             .background {
                 Circle()
-                    .fill(.white.opacity(isHovered && isEnabled ? 0.14 : 0))
+                    .fill(.white.opacity(isActive ? 0.16 : 0))
             }
-            .contentShape(Circle())
+            .contentShape(Rectangle())
             .onHover { isHovered = $0 }
             .animation(.easeOut(duration: 0.12), value: isHovered)
-    }
-}
-
-private extension View {
-    func macPlayerHUDMenuStyle() -> some View {
-        menuStyle(.button)
-            .buttonStyle(.plain)
-            .menuIndicator(.hidden)
-            .fixedSize()
+            .animation(.easeOut(duration: 0.12), value: isActive)
     }
 }
 #endif

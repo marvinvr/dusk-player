@@ -378,6 +378,51 @@ struct LibraryRecommendationsView: View {
     private func hubSection(_ hub: PlexHub, items: [PlexItem]) -> some View {
         let showsShowAll = viewModel.shouldShowAll(for: hub)
 
+        #if os(macOS)
+        if items.allSatisfy({ $0.type == .episode }) {
+            episodeHubSection(hub, items: items, showsShowAll: showsShowAll)
+        } else {
+            posterHubSection(hub, items: items, showsShowAll: showsShowAll)
+        }
+        #else
+        posterHubSection(hub, items: items, showsShowAll: showsShowAll)
+        #endif
+    }
+
+    #if os(macOS)
+    /// A row of episodes ("New Episodes") as 16:9 stills titled "S2 E3 · Title"
+    /// over the show's name: the show's poster on every card read as
+    /// duplicates.
+    private func episodeHubSection(_ hub: PlexHub, items: [PlexItem], showsShowAll: Bool) -> some View {
+        PlexItemPosterCarouselSection(
+            title: viewModel.normalizedTitle(for: hub),
+            items: items,
+            posterWidth: DuskPosterMetrics.videoCarouselWidth,
+            imageAspectRatio: 16.0 / 9.0,
+            horizontalPadding: DuskPosterMetrics.libraryPageHorizontalPadding,
+            showAllRoute: showsShowAll ? AppNavigationRoute.hub(hub) : nil,
+            subtitle: { $0.grandparentTitle?.nilIfEmpty },
+            posterURL: { item, width, height in
+                viewModel.landscapeImageURL(for: item, width: width, height: height)
+            },
+            cardTitle: { $0.macEpisodeCardTitle },
+            isUnwatchedEpisodeImage: { $0.landscapeImageIsUnwatchedEpisodeStill }
+        ) { item in
+            PlexItemContextMenuContent(
+                item: item,
+                onMarkWatched: {
+                    Task { await viewModel.setWatched(true, for: item) }
+                },
+                onMarkUnwatched: {
+                    Task { await viewModel.setWatched(false, for: item) }
+                }
+            )
+        }
+    }
+    #endif
+
+    @ViewBuilder
+    private func posterHubSection(_ hub: PlexHub, items: [PlexItem], showsShowAll: Bool) -> some View {
         PlexItemPosterCarouselSection(
             title: viewModel.normalizedTitle(for: hub),
             items: items,

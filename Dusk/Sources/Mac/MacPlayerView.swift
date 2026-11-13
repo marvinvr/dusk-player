@@ -75,23 +75,36 @@ struct MacPlayerView: View {
                 commandTarget.attach(to: window)
             }
         }
-        .alert(
-            "Couldn't Play",
-            isPresented: loadErrorPresented,
-            presenting: playback.loadError
-        ) { message in
-            if AuthenticationFailure.requiresReauthentication(message: message) {
-                Button("Sign In") {
-                    AuthenticationFailure.beginReauthentication(
-                        plexService: plexService,
-                        playback: playback
+        .overlay {
+            // Pre-playback load failures (no engine yet; see `PlayerView`), as
+            // the same card the session shows, over the loading screen.
+            if let message = loadErrorMessage {
+                ZStack(alignment: .top) {
+                    Color.black.opacity(0.5)
+                        .ignoresSafeArea()
+                    MacPlayerErrorCard(
+                        title: playback.loadingPlaceholder?.title,
+                        reason: MacPlayerErrorCard.reason(forMessage: message),
+                        detail: MacPlayerErrorCard.detail(forMessage: message),
+                        primary: AuthenticationFailure.requiresReauthentication(message: message)
+                            ? MacPlayerErrorCard.Action(title: "Sign In") {
+                                AuthenticationFailure.beginReauthentication(
+                                    plexService: plexService,
+                                    playback: playback
+                                )
+                            }
+                            : nil,
+                        onClose: { playback.dismissFailedPlayback() }
+                    )
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    MacPlayerTopBar(
+                        title: playback.loadingPlaceholder?.title,
+                        subtitle: playback.loadingPlaceholder?.subtitle,
+                        onBack: { playback.dismissFailedPlayback() }
                     )
                 }
-            } else {
-                Button("OK", role: .cancel) { playback.dismissFailedPlayback() }
+                .environment(commandTarget)
             }
-        } message: { message in
-            Text(message)
         }
         .focusable()
         .focused($isFocused)
@@ -125,15 +138,9 @@ struct MacPlayerView: View {
     }
 
     /// Only pre-playback load failures (no engine yet); see `PlayerView`.
-    private var loadErrorPresented: Binding<Bool> {
-        Binding(
-            get: { playback.engine == nil && playback.loadError != nil },
-            set: { isPresented in
-                if !isPresented {
-                    playback.loadError = nil
-                }
-            }
-        )
+    private var loadErrorMessage: String? {
+        guard playback.engine == nil else { return nil }
+        return playback.loadError
     }
 
     private var loadingIndicatorVerticalOffset: CGFloat {
@@ -341,9 +348,13 @@ private struct MacPlayerSessionView: View {
         .onChange(of: viewModel.showControls) { _, isShowing in
             // Hide the pointer with the HUD; AppKit shows it again on the
             // next move, which also brings the HUD back.
-            if !isShowing, isPointerInside {
+            if !isShowing, isPointerInside, !hasVisiblePlaybackError {
                 NSCursor.setHiddenUntilMouseMoves(true)
             }
+        }
+        // The window's traffic lights fade with the HUD; an error keeps them.
+        .onChange(of: viewModel.showControls || hasVisiblePlaybackError, initial: true) { _, isVisible in
+            commandTarget.setWindowControlsVisible(isVisible)
         }
         .onChange(of: subtitleClearance, initial: true) { _, clearance in
             viewModel.engine.setSubtitleClearance(clearance)
@@ -513,46 +524,63 @@ private struct MacPlayerSessionView: View {
         .allowsHitTesting(false)
     }
 
+    /// A playback failure keeps the top row (Back, title, traffic lights) and
+    /// says what went wrong in a compact card: Try Again replays the item from
+    /// where it stopped, Close (Esc) leaves the player.
     private func errorOverlay(_ error: PlaybackError) -> some View {
-        VStack(spacing: 16) {
-            Image(systemName: "exclamationmark.triangle")
-                .font(.system(size: 40))
-                .foregroundStyle(Color.duskTextSecondary)
+        let placeholder = playback.activeItemDetails.map { PlaybackPlaceholder(details: $0) }
 
-            Text(error.localizedDescription)
-                .font(.headline)
-                .foregroundStyle(Color.duskTextPrimary)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: 420)
+        return ZStack(alignment: .top) {
+            Color.black.opacity(0.35)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
 
-            HStack(spacing: 12) {
-                if playback.isPlayingIPTV, !error.requiresReauthentication {
-                    Button("Close", action: dismissPlayer)
-                        .keyboardShortcut(.cancelAction)
-                    Button("Retry") {
-                        Task { await playback.retryActiveIPTVChannel() }
-                    }
-                    .keyboardShortcut(.defaultAction)
-                } else if error.requiresReauthentication {
-                    Button("Close", action: dismissPlayer)
-                        .keyboardShortcut(.cancelAction)
-                    Button("Sign In") {
-                        viewModel.cleanup()
-                        AuthenticationFailure.beginReauthentication(
-                            plexService: plexService,
-                            playback: playback
-                        )
-                    }
-                    .keyboardShortcut(.defaultAction)
-                } else {
-                    Button("Close", action: dismissPlayer)
-                        .keyboardShortcut(.defaultAction)
-                }
-            }
-            .controlSize(.large)
+            MacPlayerErrorCard(
+                // An episode by its own title ("Pilot"), not the show's.
+                title: playback.activeItemDetails?.title ?? placeholder?.title,
+                reason: MacPlayerErrorCard.reason(for: error),
+                detail: MacPlayerErrorCard.detail(for: error),
+                primary: errorPrimaryAction(error),
+                onClose: dismissPlayer
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            MacPlayerTopBar(
+                title: placeholder?.title,
+                subtitle: placeholder?.subtitle,
+                onBack: dismissPlayer
+            )
+            .environment(commandTarget)
         }
-        .padding(32)
-        .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+    }
+
+    private func errorPrimaryAction(_ error: PlaybackError) -> MacPlayerErrorCard.Action? {
+        if error.requiresReauthentication {
+            return MacPlayerErrorCard.Action(title: "Sign In") {
+                viewModel.cleanup()
+                AuthenticationFailure.beginReauthentication(
+                    plexService: plexService,
+                    playback: playback
+                )
+            }
+        }
+        if playback.isPlayingIPTV {
+            return MacPlayerErrorCard.Action(title: "Try Again") {
+                Task { await playback.retryActiveIPTVChannel() }
+            }
+        }
+        guard let id = playback.activeItemID, viewModel.liveTVContext == nil else { return nil }
+        let position = viewModel.displayPosition
+        let placeholder = playback.activeItemDetails.map { PlaybackPlaceholder(details: $0) }
+        return MacPlayerErrorCard.Action(title: "Try Again") {
+            Task {
+                await playback.play(
+                    id: id,
+                    resumeOffsetMilliseconds: position > 1 ? Int(position * 1000) : nil,
+                    placeholder: placeholder
+                )
+            }
+        }
     }
 
     // MARK: - State
@@ -664,6 +692,7 @@ private struct MacPlayerSessionView: View {
     }
 
     private func tearDownSession() {
+        commandTarget.setWindowControlsVisible(true)
         if commandTarget.viewModel === viewModel {
             commandTarget.viewModel = nil
         }

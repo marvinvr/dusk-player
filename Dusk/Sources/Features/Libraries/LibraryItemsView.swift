@@ -81,6 +81,16 @@ struct LibraryItemsView: View {
             LibraryFiltersSheet(viewModel: viewModel) { showsFilters = false }
                 .background(Color.duskBackground.ignoresSafeArea())
         }
+        #elseif os(macOS)
+        // Genre, Filters and Sort are standard toolbar menus on the Mac; the
+        // Filters popover replaces the sheet.
+        .toolbar {
+            if viewModel.showsBrowseControls {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    macBrowseToolbarItems
+                }
+            }
+        }
         #else
         .sheet(isPresented: $showsFilters) {
             LibraryFiltersSheet(viewModel: viewModel) { showsFilters = false }
@@ -102,7 +112,7 @@ struct LibraryItemsView: View {
             )
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if viewModel.showsBrowseControls {
+                    if viewModel.showsBrowseControls, showsInlineBrowseControls {
                         browseControls
                             #if os(tvOS)
                             // A focused chip's lift and glow draw over the
@@ -133,7 +143,7 @@ struct LibraryItemsView: View {
                         posterGrid(layout)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.trailing, letterIndexGutter)
-                        .padding(.top, 32)
+                        .padding(.top, gridTopPadding)
                         .padding(.bottom, 32)
                     }
 
@@ -170,11 +180,14 @@ struct LibraryItemsView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            #if !os(macOS)
+            // An iOS table-index idea; the Mac scrolls with the pointer.
             .overlay(alignment: .trailing) {
                 if let index = viewModel.letterIndex, !viewModel.items.isEmpty {
                     letterIndexBar(index)
                 }
             }
+            #endif
         }
     }
 
@@ -183,7 +196,7 @@ struct LibraryItemsView: View {
     /// iOS keeps the last column's titles clear of the index; the tvOS strip
     /// sits in the screen's trailing margin instead.
     private var letterIndexGutter: CGFloat {
-        #if os(tvOS)
+        #if os(tvOS) || os(macOS)
         0
         #else
         viewModel.letterIndex == nil ? 0 : 12
@@ -266,6 +279,99 @@ struct LibraryItemsView: View {
             guard !Task.isCancelled else { return }
             revealsLetterIndex = false
         }
+    }
+    #endif
+
+    /// The Mac shows the browse controls in the window toolbar instead.
+    private var showsInlineBrowseControls: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
+    private var gridTopPadding: CGFloat {
+        #if os(macOS)
+        12
+        #else
+        32
+        #endif
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private var macBrowseToolbarItems: some View {
+        if viewModel.isLoading && !viewModel.items.isEmpty {
+            ProgressView()
+                .controlSize(.small)
+        }
+
+        if viewModel.availableGenres.count > 1 {
+            Menu {
+                Picker("Genre", selection: Binding(
+                    get: { viewModel.selectedGenre },
+                    set: { genre in Task { await viewModel.selectGenre(genre) } }
+                )) {
+                    ForEach(viewModel.availableGenres) { genre in
+                        Text(genre.title).tag(genre)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                Text(viewModel.selectedGenre.title)
+            }
+            .help("Genre")
+        }
+
+        Button {
+            showsFilters.toggle()
+        } label: {
+            let count = viewModel.filterState.activeCount
+            Label(
+                count > 0 ? "Filters (\(count))" : "Filters",
+                systemImage: count > 0
+                    ? "line.3.horizontal.decrease.circle.fill"
+                    : "line.3.horizontal.decrease.circle"
+            )
+        }
+        .help(viewModel.filterState.activeCount > 0 ? "Filters (\(viewModel.filterState.activeCount) on)" : "Filters")
+        .popover(isPresented: $showsFilters, arrowEdge: .bottom) {
+            LibraryFiltersPopover(viewModel: viewModel)
+        }
+
+        Menu {
+            Picker("Sort By", selection: Binding(
+                get: { viewModel.selectedSort.field },
+                set: { field in
+                    guard field != viewModel.selectedSort.field else { return }
+                    Task { await viewModel.selectSort(LibrarySortOption(field)) }
+                }
+            )) {
+                ForEach(viewModel.availableSortFields) { field in
+                    Text(field.title).tag(field)
+                }
+            }
+            .pickerStyle(.inline)
+
+            if viewModel.selectedSort.field.hasDirection {
+                let field = viewModel.selectedSort.field
+                Picker("Order", selection: Binding(
+                    get: { viewModel.selectedSort.isDescending },
+                    set: { descending in
+                        Task { await viewModel.selectSort(LibrarySortOption(field, descending: descending)) }
+                    }
+                )) {
+                    Text(field.directionTitles.ascending).tag(false)
+                    Text(field.directionTitles.descending).tag(true)
+                }
+                .pickerStyle(.inline)
+            }
+        } label: {
+            Text(viewModel.selectedSort.title)
+        }
+        .help("Sort")
     }
     #endif
 

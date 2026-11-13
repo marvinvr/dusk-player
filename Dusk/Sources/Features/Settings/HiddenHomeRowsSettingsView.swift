@@ -17,7 +17,7 @@ struct HiddenHomeRowsSettingsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Hidden Rows")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
@@ -107,7 +107,7 @@ struct HiddenHomeRowsSettingsView: View {
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             if let saveError = viewModel.saveError {
@@ -115,11 +115,11 @@ struct HiddenHomeRowsSettingsView: View {
                     Text(saveError)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
         #endif
     }
 

@@ -206,6 +206,14 @@ final class ShowDetailViewModel {
             return MediaTextFormatter.episodeCount(season.leafCount)
         }
 
+        #if os(macOS)
+        // Online the card keeps one meaning ("9 Episodes"); the season's
+        // download state lives on the season page and in Downloads.
+        if !showsOfflineAvailability {
+            return MediaTextFormatter.episodeCount(season.leafCount)
+        }
+        #endif
+
         if let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if showsOfflineAvailability {
@@ -228,7 +236,13 @@ final class ShowDetailViewModel {
     }
 
     func seasonProgress(_ season: PlexSeason) -> Double? {
-        if DownloadsFeature.isVisible, let downloadManager {
+        #if os(macOS)
+        // Online the bar is watch progress only, like every other poster.
+        let showsDownloadProgress = showsOfflineAvailability
+        #else
+        let showsDownloadProgress = true
+        #endif
+        if showsDownloadProgress, DownloadsFeature.isVisible, let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if let total = season.leafCount, total > 0, downloadedCount > 0 {
                 return Double(downloadedCount) / Double(total)

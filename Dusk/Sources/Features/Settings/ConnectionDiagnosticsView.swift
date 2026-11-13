@@ -32,7 +32,7 @@ struct ConnectionDiagnosticsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Connection Diagnostics")
             .duskNavigationBarTitleDisplayModeInline()
     }
@@ -82,7 +82,7 @@ struct ConnectionDiagnosticsView: View {
                 Text(Self.footerText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             ForEach(serverIDs, id: \.self) { serverID in
                 Section {
@@ -101,10 +101,10 @@ struct ConnectionDiagnosticsView: View {
                     Text("\(pool.displayName(for: serverID)) · \(Self.stateText(pool.state(for: serverID), compact: true))")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
     }
     #endif
 

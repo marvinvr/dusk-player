@@ -15,7 +15,7 @@ struct TraktSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("Trakt")
         #if DEBUG
         .task {
@@ -61,7 +61,7 @@ struct TraktSettingsView: View {
                 Text(Self.footerText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let errorMessage {
                 Section {
@@ -69,7 +69,7 @@ struct TraktSettingsView: View {
                         .font(.footnote)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -95,9 +95,9 @@ struct TraktSettingsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
     }
     #endif
 

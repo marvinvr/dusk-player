@@ -37,8 +37,17 @@ struct DownloadActionButton: View {
             } label: {
                 Group {
                     if iconOnly {
+                        #if os(macOS)
+                        // The Mac hero's shared secondary circle (see
+                        // `DetailHeroSecondaryIconLabel`).
+                        icon
+                            .font(.system(size: 13, weight: .semibold))
+                            .frame(width: detailHeroMacSecondaryGlyphBox, height: detailHeroMacSecondaryGlyphBox)
+                            .help(title)
+                        #else
                         icon
                             .frame(minWidth: 24, minHeight: 32)
+                        #endif
                     } else {
                         HStack(spacing: 8) {
                             icon

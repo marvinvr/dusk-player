@@ -7,7 +7,8 @@ import SwiftUI
 /// - App menu: Switch User… (Plex Home accounts) and Sign Out… under Settings.
 /// - Edit: Search ⌘F in place of the text Find/Spelling group.
 /// - View: Refresh ⌘R, plus the standard sidebar toggle (`SidebarCommands`).
-/// - Go: Back ⌘[ and one item per sidebar destination, ⌘1 through ⌘9.
+/// - Go: Back ⌘[, Forward ⌘] and one item per sidebar destination, ⌘1
+///   through ⌘9.
 ///
 /// Every item acts on the main window through `MacShellRouter`, so the menus
 /// work whichever window is key, and stand down while the player is up or the
@@ -22,6 +23,13 @@ struct MacCommands: Commands {
 
     var body: some Commands {
         SidebarCommands()
+
+        // About Dusk: the standard panel, with the project links as credits.
+        CommandGroup(replacing: .appInfo) {
+            Button("About Dusk") {
+                MacAboutPanel.show()
+            }
+        }
 
         CommandGroup(after: .appSettings) {
             if plexService.hasPlexHome {
@@ -65,6 +73,12 @@ struct MacCommands: Commands {
             }
             .keyboardShortcut("[")
             .disabled(!canNavigate || !router.canGoBack)
+
+            Button("Forward") {
+                router.goForward()
+            }
+            .keyboardShortcut("]")
+            .disabled(!canNavigate || !router.canGoForward)
 
             Divider()
 
