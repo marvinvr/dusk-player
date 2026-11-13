@@ -190,3 +190,35 @@ first real run.
 - Trackpad swipe on the Home hero doesn't page (chevrons + pager do).
 - Universal Purchase, Mac App Store/TestFlight, Sparkle/notarization: not
   started (decisions for the owner).
+
+## Visual QA (2026-11-13)
+
+First real runs on the dev Mac, against a scratch copy of the dusk-screenshots
+mock Plex (demo account, three servers, MP4 + one MKV title for VLCKit) in
+DEBUG screenshot mode (`-DuskScreenshotScreen …`; the Mac shell routes it in
+`Mac/MacScreenshotRouting.swift`; `-DuskScreenshotSignedOut YES` shows
+sign-in; `-DuskScreenshotUserPicker YES` the profile sheet;
+`-DuskMacLibraryMode library|collections`; `-DuskScreenshotScrubHover <f>`).
+Screen mode/QA builds keep sign-ins in memory, never the Keychain. Driven with
+a small AX/CGEvent harness and `screencapture -l`, reviewed by fresh
+Mac-designer agents per round.
+
+- Round 1 (~120 findings) and round 2 (~75) fixed and committed: Mac chrome
+  (transparent toolbar + soft scroll edge, heroes under the toolbar), sidebar
+  search, back/forward, toolbar library controls + Recommended/Library/
+  Collections switch, filters popover, Downloads list, tabbed Settings window,
+  About panel, rebuilt player HUD (traffic lights, glass bar, upward NSMenus,
+  merged Audio & Subtitles, More, AirPlay, scrub hover), system accent on Mac.
+- Shared bug found (fixed on Mac only): AVFoundation's synthesized "forced"
+  subtitle copies consumed the next Plex stream in
+  `mergeSubtitleMetadata`, so AVPlayer subtitle labels were shifted
+  (forced English shown as "French"). **iOS still has it** — port the
+  `forcedTwinSource` fix from `PlayerViewModel+TrackSelection.swift`.
+- Round 3 review in progress. Remaining known items:
+  - Light-mode hero bottom fade still passes through a slightly darker tone.
+  - Library title truncates next to the three-segment switch at 900pt.
+  - Filters popover pop-ups have different widths.
+  - Corrupt local download fails with no streaming fallback (shared code).
+  - Not mouse-verified: shelf/hero hover chevrons, title menu, Downloads
+    context menu/Delete key, Open Live TV Settings…, AirPlay picker click.
+  - Episode page has no "other episodes" shelf.
