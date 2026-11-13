@@ -91,7 +91,7 @@ struct SupporterEntitlements: Equatable {
 
     /// Whether the app icon that is currently set must be switched back to
     /// the default. Subscription perks only last while the subscription does:
-    /// Velvet, Emerald and Gilded need it, a classic alternate needs it or a
+    /// Velvet, Emerald, Gilded and Sapphire need it, a classic alternate needs it or a
     /// tip from Generous up (one-time, kept). Only reverts once the App Store
     /// no longer shows a subscription *and* the last known period has run
     /// out, so a transient empty entitlement read mid-period never flips

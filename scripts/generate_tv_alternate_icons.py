@@ -34,7 +34,7 @@ RES = sys.argv[1]
 PREVIEW = sys.argv[2] if len(sys.argv) > 2 else None
 PRIMARY = f"{RES}/Assets.xcassets/AppIconTV.brandassets"
 CATALOG = f"{RES}/AppIconsTV.xcassets"
-VARIANTS = ["Dawn", "Midnight", "Neon", "Mono", "Aurora", "GoldenHour", "Velvet", "Emerald", "Gilded"]
+VARIANTS = ["Dawn", "Midnight", "Neon", "Mono", "Aurora", "GoldenHour", "Velvet", "Emerald", "Gilded", "Sapphire"]
 INFO = {"author": "xcode", "version": 1}
 
 # (scale, back size, primary front file) — mirrors AppIconTV's "App Icon".

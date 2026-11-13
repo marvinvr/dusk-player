@@ -47,7 +47,7 @@ enum SettingsSupport {
     static let privacyFooterText = "Dusk sends a small number of anonymous events, including error reports, to its own server. This helps keep quality consistent and makes the app better for everyone. Nothing about your library, your server, what you watch, or what you search for is ever included."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
-    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you — the subscription adds three exclusive ones."
+    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you — the subscription adds four exclusive ones."
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let redditURL = URL(string: "https://www.reddit.com/r/DuskPlayer/")!
     static let aboutMeURL = URL(string: "https://marvinvr.ch")!

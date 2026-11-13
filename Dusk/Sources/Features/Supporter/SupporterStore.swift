@@ -105,7 +105,7 @@ enum TestFlightInstall {
 ///
 /// Perks are *not* monotonic: subscription icons only stay unlocked while the
 /// subscription is active (`hasActiveSubscription`) — the classic alternates
-/// and Velvet/Emerald/Gilded alike. Tips from Generous up are
+/// and Velvet/Emerald/Gilded/Sapphire alike. Tips from Generous up are
 /// one-time purchases that unlock the classic alternates for good
 /// (`hasIconTip`); the Coffee tip unlocks nothing. A TestFlight install
 /// (`TestFlightInstall`) unlocks every icon for the process and does not

@@ -153,6 +153,7 @@
 		2E09A3C9E3E0731F3812AFD7 /* PlayerLandscapePreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E0033F33AFA7EBD434411F3 /* PlayerLandscapePreferenceTests.swift */; };
 		2E32384DFEBA1BFB653E6DE7 /* DuskTypography.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E6530866DC2A28714731AF8 /* DuskTypography.swift */; };
 		2E427621A1E0CFA4BA5D52FC /* HomeTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40A953137995A3B7C019749D /* HomeTVView.swift */; };
+		2E870EDB70F277DB345BFC02 /* DuskIconSapphire.icon in Resources */ = {isa = PBXBuildFile; fileRef = 7DAC7D13B98704B26DB8E7B5 /* DuskIconSapphire.icon */; };
 		2E987608CD030A9F126FE9EE /* SeerrLocalNetworkGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA6A70DDBBFFE63B7209F44 /* SeerrLocalNetworkGate.swift */; };
 		2E9D3607568553E857332DBA /* SystemCaptionStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 577AF30A0B108213C3ADFBBF /* SystemCaptionStyle.swift */; };
 		2F084BC094AECF8B77099B3E /* DetailSummaryText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 130E46AD1CE3109912B3C386 /* DetailSummaryText.swift */; };
@@ -1099,6 +1100,7 @@
 		7AF6018BD333E33114E37C9C /* PlexService+Networking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlexService+Networking.swift"; sourceTree = "<group>"; };
 		7AF76486ADE83626369E565A /* PlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerView.swift; sourceTree = "<group>"; };
 		7C5B00AA2242B63C087AEA9B /* SearchMediaResult.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchMediaResult.swift; sourceTree = "<group>"; };
+		7DAC7D13B98704B26DB8E7B5 /* DuskIconSapphire.icon */ = {isa = PBXFileReference; lastKnownFileType = wrapper.icon; path = DuskIconSapphire.icon; sourceTree = "<group>"; };
 		7E0033F33AFA7EBD434411F3 /* PlayerLandscapePreferenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLandscapePreferenceTests.swift; sourceTree = "<group>"; };
 		7EE725F98C7D4F04F09B3F7B /* PlayerTVHUDController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerTVHUDController.swift; sourceTree = "<group>"; };
 		7F35F34FAAABDC0F5B8B9D5C /* PlayerLandscapeOrientation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLandscapeOrientation.swift; sourceTree = "<group>"; };
@@ -2044,6 +2046,7 @@
 				28D03B8FC015FCE4E57F2315 /* DuskIconMidnight.icon */,
 				8084D4E2D4EC7BFEB8A5E6BB /* DuskIconMono.icon */,
 				AA527E6017E84822394686E1 /* DuskIconNeon.icon */,
+				7DAC7D13B98704B26DB8E7B5 /* DuskIconSapphire.icon */,
 				FBF4D895D70DE1E82BFE9AEB /* DuskIconVelvet.icon */,
 				402EAD79722CB348A2FDD535 /* LaunchScreen-tvOS.storyboard */,
 				3C89C8715BE06C6898AC032B /* LaunchScreen.storyboard */,
@@ -2282,6 +2285,7 @@
 				3F68D20E7AB0A945F1895301 /* DuskIconMidnight.icon in Resources */,
 				61DECC5071AC58E20A02B303 /* DuskIconMono.icon in Resources */,
 				8216E4D15ED07F47EB90F894 /* DuskIconNeon.icon in Resources */,
+				2E870EDB70F277DB345BFC02 /* DuskIconSapphire.icon in Resources */,
 				6973C14C9256BCE453381610 /* DuskIconVelvet.icon in Resources */,
 				B1C4629DD7A801EA83F3E2A2 /* LaunchScreen.storyboard in Resources */,
 				C6824887D5932D8C6D7EE23A /* ThirdPartyNotices.txt in Resources */,
@@ -3192,7 +3196,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 30BB0399F12540A4F40C4045 /* Keys.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded DuskIconSapphire";
 				ASSETCATALOG_COMPILER_APPICON_NAME = DuskIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";
@@ -3338,7 +3342,7 @@
 			isa = XCBuildConfiguration;
 			baseConfigurationReference = 30BB0399F12540A4F40C4045 /* Keys.xcconfig */;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded";
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded DuskIconSapphire";
 				ASSETCATALOG_COMPILER_APPICON_NAME = DuskIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME = "";

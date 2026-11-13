@@ -49,11 +49,11 @@ other services) owns all state:
   it, `refreshEntitlements()` only ever upgrades it, and the UserDefaults cache
   is never downgraded by an empty/transient history read. **Perks are not:**
   everything the subscription unlocks is only available while it is active —
-  the six classic icons and the three subscriber exclusives alike. **Tips:** Generous, Legendary and Patron
+  the six classic icons and the four subscriber exclusives alike. **Tips:** Generous, Legendary and Patron
   (`SupporterProduct.isIconTip`) are one-time purchases that unlock the six
   classic icons for good (`hasIconTip`, monotonic and cached like `tipCount`);
   the Coffee tip is a thank-you only and unlocks nothing. No tip ever unlocks
-  the subscriber exclusives (Velvet, Emerald, Gilded). "Yours to keep" is fine for those tips (iOS
+  the subscriber exclusives (Velvet, Emerald, Gilded, Sapphire). "Yours to keep" is fine for those tips (iOS
   tip rows show "Includes the six alternate icons, yours to keep"; tvOS says
   it in the tip section footer) — never write "forever", "for good" or "keep
   after cancelling" for subscription perks anywhere (sheet, picker, StoreKit /
@@ -93,7 +93,7 @@ credentials — only call it from an explicit user action.
   `TVSettingsSection`/`TVSettingsActionRow` so focus behavior matches Settings.
   Under a "Recurring" heading the subscription is one card (iOS
   `SupporterSubscriptionCard`, modelled on MealMate's): "Dusk Supporter", its
-  perks (all nine icons, the three subscriber exclusives shown as thumbnails),
+  perks (all ten icons, the four subscriber exclusives shown as thumbnails),
   then two price buttons ("$2.99 / month", "$24.99 / year", the StoreKit
   price, never hardcoded) with "Billed monthly" / "Saves N%" under each.
   While subscribed the card shows an Active badge, the plan status
@@ -185,10 +185,10 @@ exist to catch bugs this feature is prone to:
 
 ## Alternate App Icons (iOS/iPadOS and tvOS)
 
-- Icon Composer bundles `Dusk/Resources/DuskIcon{Dawn,Midnight,Neon,Mono,Aurora,GoldenHour,Velvet,Emerald,Gilded}.icon`,
+- Icon Composer bundles `Dusk/Resources/DuskIcon{Dawn,Midnight,Neon,Mono,Aurora,GoldenHour,Velvet,Emerald,Gilded,Sapphire}.icon`,
   registered via `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` in
   `project.yml` (iOS target) and excluded from the tvOS target.
-- **tvOS (#68):** the same nine names as layered image stacks in the tvOS-only
+- **tvOS (#68):** the same ten names as layered image stacks in the tvOS-only
   catalog `Dusk/Resources/AppIconsTV.xcassets` (excluded from the iOS target so
   the names never collide with the `.icon` bundles), registered with the same
   `ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES` on the tvOS target. actool
@@ -209,10 +209,11 @@ exist to catch bugs this feature is prone to:
 - Access (`SupporterStore.isUnlocked`, rules in `DuskAppIcon.isUnlocked`): the
   primary "Dusk" icon is free; the six classic alternates need an active
   subscription or a tip from Generous up (`SupporterStore.hasIconAccess`);
-  three jewel-tone icons with a gold accent only while the subscription is
-  active (`requiresSubscription`): **Velvet** (cinema red, gold tip),
-  **Emerald** (deep green, gold tip) and **Gilded** (polished gold on black
-  lacquer).
+  four jewel-tone icons only while the subscription is active
+  (`requiresSubscription`): **Velvet** (cinema red, gold tip),
+  **Emerald** (deep green, gold tip), **Gilded** (polished gold on black
+  lacquer) and **Sapphire** (polished violet-blue bands on deep indigo,
+  added 2026-11-13).
 - **TestFlight:** installs from TestFlight cannot see a real App Store
   subscription (StoreKit sandbox), so every alternate icon is unlocked there
   and the lapse reset below does not run. `TestFlightInstall` is resolved
@@ -236,11 +237,15 @@ exist to catch bugs this feature is prone to:
   overrides the cache so refunds revert immediately.
   `setAlternateIconName` fails while the app is inactive; the next activation
   retries.
-- Velvet/Emerald/Gilded were generated with `scripts/generate_directors_cut_icons.py`
+- Velvet/Emerald/Gilded/Sapphire were generated with `scripts/generate_directors_cut_icons.py`
   (Pillow + NumPy; `python3 scripts/generate_directors_cut_icons.py Dusk/Resources <out>`),
   which reuses the primary mark's alpha so they match the other alternates.
 - Adding a variant: new `.icon` bundle + preview imageset + `DuskAppIcon` case
-  + the two `project.yml` spots + `xcodegen generate`.
+  + the two `project.yml` spots + `xcodegen generate`, then add it to
+  `VARIANTS` in `generate_tv_alternate_icons.py` (tvOS stack) and
+  `generate_launch_logo_variants.py` (splash logo) and rerun both, append it
+  to `CFBundleAlternateIcons` in `Info-tvOS.plist` (a plain string array),
+  and update the icon counts in the supporter copy.
 
 ## Verification
 
@@ -290,9 +295,9 @@ One level only:
 | Price (USD) | $2.99 (was $1.99) | $24.99 (was $14.99) |
 | Reference name | Dusk Supporter Monthly | Dusk Supporter Yearly |
 | Display name EN | Dusk Supporter Monthly | Dusk Supporter Yearly |
-| Description EN | Supports Dusk + all 9 alternate app icons. | Supports Dusk + all 9 alternate app icons. |
+| Description EN | Supports Dusk + all 10 alternate app icons. | Supports Dusk + all 10 alternate app icons. |
 | Display name DE | Dusk Supporter monatlich | Dusk Supporter jährlich |
-| Description DE | Unterstützt Dusk + alle 9 alternativen Icons. | Unterstützt Dusk + alle 9 alternativen Icons. |
+| Description DE | Unterstützt Dusk + alle 10 alternativen Icons. | Unterstützt Dusk + alle 10 alternativen Icons. |
 | Family Sharing | Off (unchanged) | Off (unchanged) |
 | Introductory / promotional offers | None | None |
 
@@ -320,8 +325,8 @@ build); otherwise remove them from sale. Their IDs can't be reused either way.
 
 > Dusk is a free Plex client; all features stay free. The "Dusk Supporter"
 > subscription (monthly or yearly) is an optional way to support development.
-> While it is active it unlocks nine alternate app icons on iPhone, iPad and Apple TV,
-> including three subscriber exclusives (Velvet, Emerald and Gilded); when it
+> While it is active it unlocks ten alternate app icons on iPhone, iPad and Apple TV,
+> including four subscriber exclusives (Velvet, Emerald, Gilded and Sapphire); when it
 > ends, the app switches back to the default icon. To review: Settings →
 > "Support Dusk" (top row) opens the supporter sheet; Settings → Appearance →
 > App Icon shows the icons. No Plex account is needed to view the purchase

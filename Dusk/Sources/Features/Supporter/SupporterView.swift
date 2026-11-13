@@ -594,7 +594,7 @@ struct SupporterView: View {
             return product.description.isEmpty ? nil : product.description
         }
         if supporterProduct.isSubscription {
-            let perks = "All nine alternate app icons"
+            let perks = "All ten alternate app icons"
             guard supporterProduct.isYearly, let percent = store.yearlySavingsPercent else { return perks }
             return "\(perks) · saves \(percent)%"
         }
@@ -609,7 +609,7 @@ struct SupporterView: View {
     private var tvSubscriptionFooter: String {
         let lead = store.hasActiveSubscription
             ? "Thank you for subscribing. Switching between monthly and yearly takes effect at your next renewal."
-            : "The subscription unlocks every app icon, including the subscriber-exclusive Velvet, Emerald and Gilded."
+            : "The subscription unlocks every app icon, including the subscriber-exclusive Velvet, Emerald, Gilded and Sapphire."
         return "\(lead) \(Self.renewalDisclosure) \(Self.subscriptionPerksNote)"
     }
 
@@ -853,7 +853,7 @@ private struct SupporterSubscriptionCard: View {
             }
 
             VStack(alignment: .leading, spacing: 10) {
-                perkRow("All nine alternate app icons")
+                perkRow("All ten alternate app icons")
                 exclusiveIconsPerk
                 perkRow("Keeps Dusk free, ad-free and independent")
             }
@@ -896,7 +896,7 @@ private struct SupporterSubscriptionCard: View {
         HStack(alignment: .center, spacing: 10) {
             checkmark
 
-            Text("Three subscriber exclusives")
+            Text("Four subscriber exclusives")
                 .font(.footnote)
                 .foregroundStyle(Color.duskTextPrimary)
 
@@ -1183,21 +1183,21 @@ struct SupporterIconShowcase: View {
     }
 
     private var captionText: String {
-        let exclusives = "Velvet, Emerald and Gilded come with the subscription only"
+        let exclusives = "Velvet, Emerald, Gilded and Sapphire come with the subscription only"
         #if os(tvOS)
         if store.hasActiveSubscription || TestFlightInstall.isTestFlight {
             return "Select an icon to apply it."
         }
         return store.hasIconAccess
             ? "Select an icon to apply it. \(exclusives)."
-            : "The subscription unlocks all nine icons, a tip from Generous up the six classic ones."
+            : "The subscription unlocks all ten icons, a tip from Generous up the six classic ones."
         #else
         if store.hasActiveSubscription {
             return "Tap an icon to apply it."
         }
         return store.hasIconAccess
             ? "Tap an icon to apply it. \(exclusives)."
-            : "The subscription unlocks all nine icons, a tip from Generous up the six classic ones."
+            : "The subscription unlocks all ten icons, a tip from Generous up the six classic ones."
         #endif
     }
 

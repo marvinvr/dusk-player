@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Testing
 @testable import Dusk
 
@@ -207,7 +208,7 @@ struct SupporterEntitlementsTests {
             #expect(icon.isUnlocked(hasIconAccess: true, hasActiveSubscription: false) == !icon.requiresSubscription)
             #expect(icon.isUnlocked(hasIconAccess: true, hasActiveSubscription: true))
         }
-        #expect(DuskAppIcon.subscriptionIcons == [.velvet, .emerald, .gilded])
+        #expect(DuskAppIcon.subscriptionIcons == [.velvet, .emerald, .gilded, .sapphire])
         #expect(DuskAppIcon.supporterIcons.count == 7)
         #expect(DuskAppIcon.supporterIcons.first == .dusk)
     }
@@ -219,6 +220,18 @@ struct SupporterEntitlementsTests {
         #expect(DuskAppIcon.emerald.alternateIconName == "DuskIconEmerald")
         #expect(DuskAppIcon.gilded.alternateIconName == "DuskIconGilded")
         #expect(DuskAppIcon.velvet.alternateIconName == "DuskIconVelvet")
+        #expect(DuskAppIcon.sapphire.alternateIconName == "DuskIconSapphire")
+        #expect(DuskAppIcon.sapphire.previewImageName == "IconPreviewSapphire")
+        #expect(DuskAppIcon.sapphire.launchLogoImageName == "LaunchLogoSapphire")
+        #expect(DuskAppIcon.sapphire.requiresSubscription)
+    }
+
+    /// Every icon ships its picker preview and launch splash logo in the app.
+    @Test func iconArtworkIsBundled() {
+        for icon in DuskAppIcon.allCases {
+            #expect(UIImage(named: icon.previewImageName) != nil, "\(icon.previewImageName)")
+            #expect(UIImage(named: icon.launchLogoImageName) != nil, "\(icon.launchLogoImageName)")
+        }
     }
 }
 

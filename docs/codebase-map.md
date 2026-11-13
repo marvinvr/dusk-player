@@ -316,7 +316,7 @@ Supporter:
   `MainTabView`, while tvOS support remains available explicitly in Settings.
 - `DuskAppIcon` + `AppIconPickerView` (iOS) / `SupporterIconShowcase` (tvOS)
   own the alternate icons (tvOS stacks in `AppIconsTV.xcassets`);
-  Velvet/Emerald/Gilded are subscriber exclusives. TestFlight
+  Velvet/Emerald/Gilded/Sapphire are subscriber exclusives. TestFlight
   (`TestFlightInstall`) unlocks every icon and skips the lapse reset.
 - Details and traps: `docs/supporter.md`.
 

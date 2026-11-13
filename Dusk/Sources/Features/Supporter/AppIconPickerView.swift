@@ -41,7 +41,7 @@ struct AppIconPickerView: View {
                             icons: DuskAppIcon.subscriptionIcons,
                             footnote: store.hasActiveSubscription
                                 ? "Included with your subscription. If it ends, Dusk switches back to the default icon."
-                                : "Velvet, Emerald and Gilded unlock while a Dusk Supporter subscription is active. Tips don't include them."
+                                : "Velvet, Emerald, Gilded and Sapphire unlock while a Dusk Supporter subscription is active. Tips don't include them."
                         )
                     }
                     .padding(20)

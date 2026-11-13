@@ -1,12 +1,12 @@
-"""Generates the Director's Cut icons (Velvet, Emerald, Gilded) in the same layer
+"""Generates the subscriber icons (Velvet, Emerald, Gilded, Sapphire) in the same layer
 layout as the other alternates: background.png (opaque gradient) + mark.png
 (the Dusk mark's alpha, recolored), plus a 512px flattened preview.
 
 Usage (needs Pillow + NumPy):
     python3 scripts/generate_directors_cut_icons.py Dusk/Resources <out-dir>
 
-Writes <out-dir>/DuskIcon{Velvet,Emerald,Gilded}.icon/Assets/{background,mark}.png
-and <out-dir>/IconPreview{Velvet,Emerald,Gilded}.png. Copy them into the .icon
+Writes <out-dir>/DuskIcon{Velvet,Emerald,Gilded,Sapphire}.icon/Assets/{background,mark}.png
+and <out-dir>/IconPreview{Velvet,Emerald,Gilded,Sapphire}.png. Copy them into the .icon
 bundles (icon.json is shared with the other alternates) and the
 IconPreview* imagesets."""
 import sys, os
@@ -123,4 +123,24 @@ mark_v = ramp([
 ], t) * shade[..., None]
 save_rgba(mark_v, alpha, f"{save_dir}/mark.png")
 preview(bg_v, mark_v, alpha, f"{OUT}/IconPreviewVelvet.png")
+
+# ---------------------------------------------------------------- Sapphire
+# Polished violet-blue stone: Gilded's banded "polished" ramp in cornflower
+# and indigo, soft diagonal light shafts across a deep indigo field.
+shaft = blur(0.5 + 0.5 * np.sin((xx * 0.8 + yy * 0.6) / N * 2 * np.pi * 2.2), 30) ** 3
+bg_s = vertical(hexc("#1E1A63"), hexc("#100D3C"), hexc("#05041A"))
+bg_s = bg_s * (0.86 + 0.28 * shaft[..., None])
+vign = np.clip(1 - 0.35 * ((xx - 512) ** 2 + (yy - 420) ** 2) / (720 ** 2), 0.55, 1)
+bg_s = bg_s * vign[..., None]
+save_dir = f"{OUT}/DuskIconSapphire.icon/Assets"; os.makedirs(save_dir, exist_ok=True)
+save_rgb(bg_s, f"{save_dir}/background.png")
+mark_s = ramp([
+    (0.00, hexc("#D6E0FF")),
+    (0.22, hexc("#7F97FF")),
+    (0.45, hexc("#3340C4")),
+    (0.68, hexc("#8EA2FF")),
+    (1.00, hexc("#2A2D9E")),
+], t) * shade[..., None]
+save_rgba(mark_s, alpha, f"{save_dir}/mark.png")
+preview(bg_s, mark_s, alpha, f"{OUT}/IconPreviewSapphire.png")
 print("ok")

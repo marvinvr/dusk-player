@@ -21,7 +21,7 @@ from PIL import Image, ImageFilter
 
 RES = sys.argv[1]
 CATALOG = f"{RES}/Assets.xcassets"
-VARIANTS = ["Dawn", "Midnight", "Neon", "Mono", "Aurora", "GoldenHour", "Velvet", "Emerald", "Gilded"]
+VARIANTS = ["Dawn", "Midnight", "Neon", "Mono", "Aurora", "GoldenHour", "Velvet", "Emerald", "Gilded", "Sapphire"]
 
 launch = Image.open(f"{CATALOG}/LaunchLogo.imageset/dusk_icon_new_transparent.png").convert("RGBA")
 launch_alpha = np.array(launch)[..., 3]

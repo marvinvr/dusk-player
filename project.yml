@@ -42,7 +42,7 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-iOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: DuskIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: DuskIconDawn DuskIconMidnight DuskIconNeon DuskIconMono DuskIconAurora DuskIconGoldenHour DuskIconVelvet DuskIconEmerald DuskIconGilded DuskIconSapphire
         ASSETCATALOG_COMPILER_LAUNCHIMAGE_NAME: ""
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
@@ -87,6 +87,7 @@ targets:
           - DuskIconVelvet.icon
           - DuskIconEmerald.icon
           - DuskIconGilded.icon
+          - DuskIconSapphire.icon
           - LaunchScreen.storyboard
     settings:
       base:

@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// Access comes in three steps: the primary icon is free, the classic
 /// alternates come with an active subscription or a tip from Generous up, and
-/// Velvet/Emerald/Gilded only with an active subscription. `SupporterStore`
+/// Velvet/Emerald/Gilded/Sapphire only with an active subscription. `SupporterStore`
 /// switches back to the primary icon when a subscription lapses. TestFlight
 /// unlocks every icon and never reverts (`TestFlightInstall`).
 enum DuskAppIcon: String, CaseIterable, Identifiable {
@@ -22,6 +22,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
     case velvet
     case emerald
     case gilded
+    case sapphire
 
     var id: String { rawValue }
 
@@ -37,6 +38,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         case .velvet: "Velvet"
         case .emerald: "Emerald"
         case .gilded: "Gilded"
+        case .sapphire: "Sapphire"
         }
     }
 
@@ -53,6 +55,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         case .velvet: "DuskIconVelvet"
         case .emerald: "DuskIconEmerald"
         case .gilded: "DuskIconGilded"
+        case .sapphire: "DuskIconSapphire"
         }
     }
 
@@ -70,6 +73,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
         case .velvet: "IconPreviewVelvet"
         case .emerald: "IconPreviewEmerald"
         case .gilded: "IconPreviewGilded"
+        case .sapphire: "IconPreviewSapphire"
         }
     }
 
@@ -95,7 +99,7 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
     /// Exclusive to an active subscription; no tip unlocks these.
     var requiresSubscription: Bool {
         switch self {
-        case .velvet, .emerald, .gilded: true
+        case .velvet, .emerald, .gilded, .sapphire: true
         default: false
         }
     }

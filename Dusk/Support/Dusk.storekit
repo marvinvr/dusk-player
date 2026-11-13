@@ -90,7 +90,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Supports Dusk + all 9 alternate app icons.",
+              "description" : "Supports Dusk + all 10 alternate app icons.",
               "displayName" : "Dusk Supporter Monthly",
               "locale" : "en_US"
             },
@@ -120,7 +120,7 @@
           "introductoryOffer" : null,
           "localizations" : [
             {
-              "description" : "Supports Dusk + all 9 alternate app icons.",
+              "description" : "Supports Dusk + all 10 alternate app icons.",
               "displayName" : "Dusk Supporter Yearly",
               "locale" : "en_US"
             },
