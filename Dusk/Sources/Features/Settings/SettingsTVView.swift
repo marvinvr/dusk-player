@@ -83,68 +83,48 @@ struct SettingsTVView: View {
                 }
 
                 TVSettingsSection {
-                    TVSettingsNavigationRow(title: "Live TV") {
-                        TVSettingsPage { liveTVSection }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(title: "Libraries") {
-                        TVSettingsPage { librariesSection }
+                    TVSettingsNavigationRow(title: "Playback") {
+                        TVSettingsPage(title: "Playback") {
+                            playbackDefaultsSection
+                            playbackBehaviorSection
+                            playbackAdvancedSection
+                        }
                     }
 
                     tvRowDivider
 
                     TVSettingsNavigationRow(title: "Home") {
-                        TVSettingsPage { homeSection }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(title: "Home Advanced") {
-                        TVSettingsPage { homeAdvancedSection }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(title: "Playback Defaults") {
-                        TVSettingsPage { playbackDefaultsSection }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(title: "Playback Behavior") {
-                        TVSettingsPage { playbackBehaviorSection }
+                        TVSettingsPage(title: "Home") {
+                            homeSection
+                            homeAdvancedSection
+                        }
                     }
 
                     tvRowDivider
 
                     TVSettingsNavigationRow(title: "Appearance") {
-                        TVSettingsPage { appearanceSection }
+                        TVSettingsPage(title: "Appearance") {
+                            appearanceSection
+                            storageSection
+                        }
                     }
 
                     tvRowDivider
 
-                    TVSettingsNavigationRow(title: "Playback Advanced") {
-                        TVSettingsPage { playbackAdvancedSection }
+                    TVSettingsNavigationRow(title: "Libraries") {
+                        TVSettingsPage(title: "Libraries") { librariesSection }
                     }
 
                     tvRowDivider
 
-                    TVSettingsNavigationRow(title: "Storage") {
-                        TVSettingsPage { storageSection }
-                    }
-
-                    tvRowDivider
-
-                    TVSettingsNavigationRow(title: "Privacy") {
-                        TVSettingsPage { privacySection }
+                    TVSettingsNavigationRow(title: "Live TV") {
+                        TVSettingsPage(title: "Live TV") { liveTVSection }
                     }
 
                     tvRowDivider
 
                     TVSettingsNavigationRow(title: "Integrations") {
-                        TVSettingsPage { integrationsSection }
+                        TVSettingsPage(title: "Integrations") { integrationsSection }
                     }
                 }
 
@@ -191,6 +171,8 @@ struct SettingsTVView: View {
                     )
                 }
 
+                privacySection
+
                 TVSettingsSection(title: "Account", footer: SettingsSupport.accountFooterText) {
                     TVSettingsActionRow(
                         title: "Sign Out",
@@ -211,7 +193,6 @@ struct SettingsTVView: View {
     @ViewBuilder
     private var integrationsSection: some View {
         TVSettingsSection(
-            title: "Integrations",
             footer: SettingsSupport.integrationsFooterText(showsTrakt: traktService.isAvailable)
         ) {
             TVSettingsNavigationRow(
@@ -233,7 +214,7 @@ struct SettingsTVView: View {
 
     @ViewBuilder
     private var liveTVSection: some View {
-        TVSettingsSection(title: "Live TV", footer: SettingsSupport.liveTVFooterText) {
+        TVSettingsSection(footer: SettingsSupport.liveTVFooterText) {
             TVSettingsNavigationRow(
                 title: "IPTV Sources",
                 detail: SettingsSupport.iptvSourcesSummary(iptvService.sources.count)
@@ -246,7 +227,6 @@ struct SettingsTVView: View {
     @ViewBuilder
     private var librariesSection: some View {
         TVSettingsSection(
-            title: "Libraries",
             footer: SettingsSupport.librariesFooterText
         ) {
             TVSettingsNavigationRow(
@@ -280,7 +260,7 @@ struct SettingsTVView: View {
     private var homeSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Home", footer: SettingsSupport.homeTVFooterText) {
+        TVSettingsSection(footer: SettingsSupport.homeTVFooterText) {
             TVSettingsNavigationRow(title: "Hidden Rows") {
                 HiddenHomeRowsSettingsView()
             }
@@ -312,7 +292,7 @@ struct SettingsTVView: View {
     private var homeAdvancedSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Home Advanced", footer: SettingsSupport.homeAdvancedFooterText) {
+        TVSettingsSection(title: "Advanced", footer: SettingsSupport.homeAdvancedFooterText) {
             TVSettingsToggleRow(
                 title: "Compact Continue Watching",
                 isOn: $preferences.compactHomeContinueWatching
@@ -324,7 +304,7 @@ struct SettingsTVView: View {
     private var playbackDefaultsSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Playback Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
+        TVSettingsSection(title: "Defaults", footer: SettingsSupport.playbackDefaultsFooterText) {
             TVSettingsMenuRow(
                 title: "Max Resolution",
                 options: MaxResolution.allCases,
@@ -365,7 +345,7 @@ struct SettingsTVView: View {
     private var playbackBehaviorSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Playback Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
+        TVSettingsSection(title: "Behavior", footer: SettingsSupport.playbackBehaviorFooterText) {
             TVSettingsMenuRow(
                 title: "Auto-Skip Intros",
                 options: AutoSkipIntroMode.allCases,
@@ -429,7 +409,7 @@ struct SettingsTVView: View {
     private var appearanceSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Appearance", footer: SettingsSupport.appearanceFooterText) {
+        TVSettingsSection(footer: SettingsSupport.appearanceFooterText) {
             TVSettingsMenuRow(
                 title: "Appearance",
                 options: AppearanceMode.allCases,
@@ -450,7 +430,7 @@ struct SettingsTVView: View {
     private var playbackAdvancedSection: some View {
         @Bindable var preferences = preferences
 
-        TVSettingsSection(title: "Playback Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
+        TVSettingsSection(title: "Advanced", footer: SettingsSupport.playbackAdvancedFooterText) {
             TVSettingsToggleRow(
                 title: "Advanced Playback Controls",
                 isOn: $preferences.playerAdvancedControlsEnabled
@@ -515,14 +495,20 @@ struct SettingsTVView: View {
     }
 }
 
-/// One settings section on its own page, pushed from a root row. Laid out
-/// like the root page so the card lines up the same way.
+/// Settings sections on their own page, pushed from a root row. Laid out
+/// like the root page, title included, so the cards line up the same way.
 private struct TVSettingsPage<Content: View>: View {
+    let title: String
     @ViewBuilder let content: () -> Content
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                Text(title)
+                    .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .padding(.leading, TVSettingsMetrics.contentInset)
+
                 content()
             }
             .frame(maxWidth: 980, alignment: .leading)

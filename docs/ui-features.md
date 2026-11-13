@@ -1393,12 +1393,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   is enough for both platforms. Playback matching then canonicalizes Plex/VLCKit
   ISO 639-2 codes (`rum`/`ron` → `ro`) in `PlayerViewModel.normalizedLanguageCode`.
 - Both settings pages lead with a supporter row (thank-you state for supporters),
-  followed by Plex Home when applicable. Every other section is a sub-page row on
-  the root, in this order: Live TV, Libraries, Home, Home Advanced, Playback
-  Defaults, Playback Behavior, Downloads (iOS), Appearance, Playback Advanced,
-  Storage, Privacy, Integrations. Each page holds that section's rows unchanged
-  (`SettingsIOSPage` / `TVSettingsPage`; tvOS repeats the section header because
-  it has no navigation title). About and Account stay inline at the bottom. There
+  followed by Plex Home when applicable. Then sub-page rows, everyday first:
+  Playback (Defaults / Behavior / Advanced sections), Home (+ Advanced),
+  Appearance (tvOS also holds Storage there), Downloads (iOS, + Storage),
+  Libraries, Live TV, Integrations (`SettingsIOSPage` / `TVSettingsPage`, which
+  draws the page title on tvOS). About, Privacy and Account stay inline at the
+  bottom. There
   is no "Plex Server" section and no server picker: servers are managed in
   Libraries › Server Priority. AI Upscaling is a normal Playback Default;
   Playback Advanced is reserved for forced engine selection. The iOS Appearance

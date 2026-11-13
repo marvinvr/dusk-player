@@ -104,58 +104,22 @@ struct SettingsIOSView: View {
 
             Section {
                 NavigationLink {
-                    SettingsIOSPage(title: "Live TV") { liveTVSection }
+                    SettingsIOSPage(title: "Playback") {
+                        playbackDefaultsSection
+                        playbackBehaviorSection
+                        playbackAdvancedSection
+                    }
                 } label: {
-                    settingsPageLabel("Live TV")
+                    settingsPageLabel("Playback")
                 }
 
                 NavigationLink {
-                    SettingsIOSPage(title: "Libraries") { librariesSection }
-                } label: {
-                    settingsPageLabel("Libraries")
-                }
-
-                NavigationLink {
-                    SettingsIOSPage(title: "Home") { homeSection }
+                    SettingsIOSPage(title: "Home") {
+                        homeSection
+                        homeAdvancedSection
+                    }
                 } label: {
                     settingsPageLabel("Home")
-                }
-
-                NavigationLink {
-                    SettingsIOSPage(title: "Home Advanced") { homeAdvancedSection }
-                } label: {
-                    settingsPageLabel("Home Advanced")
-                }
-
-                NavigationLink {
-                    SettingsIOSPage(title: "Playback Defaults") { playbackDefaultsSection }
-                } label: {
-                    settingsPageLabel("Playback Defaults")
-                }
-
-                NavigationLink {
-                    SettingsIOSPage(title: "Playback Behavior") { playbackBehaviorSection }
-                } label: {
-                    settingsPageLabel("Playback Behavior")
-                }
-
-                NavigationLink {
-                    SettingsIOSPage(title: "Downloads") { downloadsSection }
-                        .confirmationDialog(
-                            "Delete all downloads?",
-                            isPresented: $confirmsDeletingDownloads,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Delete All Downloads", role: .destructive) {
-                                downloadManager.deleteAllDownloads()
-                                offlinePlaybackSyncManager.deleteAllLocalState()
-                            }
-                            Button("Cancel", role: .cancel) {}
-                        } message: {
-                            Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
-                        }
-                } label: {
-                    settingsPageLabel("Downloads")
                 }
 
                 NavigationLink {
@@ -168,21 +132,37 @@ struct SettingsIOSView: View {
                 }
 
                 NavigationLink {
-                    SettingsIOSPage(title: "Playback Advanced") { playbackAdvancedSection }
+                    SettingsIOSPage(title: "Downloads") {
+                        downloadsSection
+                        storageSection
+                    }
+                    .confirmationDialog(
+                        "Delete all downloads?",
+                        isPresented: $confirmsDeletingDownloads,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete All Downloads", role: .destructive) {
+                            downloadManager.deleteAllDownloads()
+                            offlinePlaybackSyncManager.deleteAllLocalState()
+                        }
+                        Button("Cancel", role: .cancel) {}
+                    } message: {
+                        Text("Downloaded videos, saved metadata, artwork, pause data, and queue entries will be removed from this device.")
+                    }
                 } label: {
-                    settingsPageLabel("Playback Advanced")
+                    settingsPageLabel("Downloads")
                 }
 
                 NavigationLink {
-                    SettingsIOSPage(title: "Storage") { storageSection }
+                    SettingsIOSPage(title: "Libraries") { librariesSection }
                 } label: {
-                    settingsPageLabel("Storage")
+                    settingsPageLabel("Libraries")
                 }
 
                 NavigationLink {
-                    SettingsIOSPage(title: "Privacy") { privacySection }
+                    SettingsIOSPage(title: "Live TV") { liveTVSection }
                 } label: {
-                    settingsPageLabel("Privacy")
+                    settingsPageLabel("Live TV")
                 }
 
                 NavigationLink {
@@ -251,6 +231,8 @@ struct SettingsIOSView: View {
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .listRowBackground(Color.duskSurface)
+
+            privacySection
 
             Section {
                 Button {
@@ -446,6 +428,9 @@ struct SettingsIOSView: View {
         Section {
             Toggle("Compact Continue Watching", isOn: $preferences.compactHomeContinueWatching)
                 .foregroundStyle(Color.duskTextPrimary)
+        } header: {
+            Text("Advanced")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(SettingsSupport.homeAdvancedFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -494,6 +479,9 @@ struct SettingsIOSView: View {
                 }
             }
             .foregroundStyle(Color.duskTextPrimary)
+        } header: {
+            Text("Defaults")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(SettingsSupport.playbackDefaultsFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -565,6 +553,9 @@ struct SettingsIOSView: View {
                 }
                 .foregroundStyle(Color.duskTextPrimary)
             }
+        } header: {
+            Text("Behavior")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(SettingsSupport.playbackBehaviorFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -718,6 +709,9 @@ struct SettingsIOSView: View {
 
             Toggle("Force VLCKit", isOn: $preferences.forceVLCKit)
                 .foregroundStyle(Color.duskTextPrimary)
+        } header: {
+            Text("Advanced")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(SettingsSupport.playbackAdvancedFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -740,6 +734,9 @@ struct SettingsIOSView: View {
             }
             .foregroundStyle(Color.duskTextPrimary)
             .duskSuppressTVOSButtonChrome()
+        } header: {
+            Text("Storage")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(viewModel.storageFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -764,6 +761,9 @@ struct SettingsIOSView: View {
                 )
             }
             .foregroundStyle(Color.duskTextPrimary)
+        } header: {
+            Text("Privacy")
+                .foregroundStyle(Color.duskTextSecondary)
         } footer: {
             Text(SettingsSupport.privacyFooterText)
                 .foregroundStyle(Color.duskTextSecondary)
@@ -793,7 +793,7 @@ struct SettingsIOSView: View {
     }
 }
 
-/// One settings section on its own page, pushed from a root row.
+/// Settings sections on their own page, pushed from a root row.
 private struct SettingsIOSPage<Content: View>: View {
     let title: String
     @ViewBuilder let content: () -> Content
