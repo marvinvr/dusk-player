@@ -421,7 +421,11 @@ struct LiveTVGuideRuler: View {
                     .padding(.vertical, pillPadding / 2.5)
                     .background(Color.duskTextPrimary, in: Capsule())
                     .fixedSize()
-                    .alignmentGuide(.leading) { $0.width / 2 }
+                    // Centred on the now line by a zero-width frame. A leading
+                    // alignment guide at half the pill's width pushed the
+                    // ZStack's leading edge out by that much, which shifted the
+                    // whole ruler (ticks and pill) right of the grid below.
+                    .frame(width: 0)
                     .offset(x: timeline.x(for: now))
             }
         }
