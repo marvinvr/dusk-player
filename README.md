@@ -8,6 +8,8 @@ A native Swift/SwiftUI Plex client for Apple platforms, with AI upscaling for lo
 
 [![Download on the App Store](https://developer.apple.com/assets/elements/badges/download-on-the-app-store.svg)](https://apps.apple.com/us/app/dusk-for-plex/id6760492635)
 
+On a Mac with Apple silicon, install the iPad app from the [same App Store page](https://apps.apple.com/us/app/dusk-for-plex/id6760492635) (in the Mac App Store search it is listed under "iPhone & iPad Apps").
+
 ## Features
 
 - [x] Direct Play
