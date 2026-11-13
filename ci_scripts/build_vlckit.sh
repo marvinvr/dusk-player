@@ -1,12 +1,14 @@
 #!/bin/bash
 set -euo pipefail
 
-# Builds Dusk's own MobileVLCKit/TVVLCKit 3.x from source: VideoLAN's VLCKit
-# 3.7.3 (libvlc 3.0.23) plus the Dusk patches in this directory, arm64 device
-# and arm64 simulator slices. MANUAL maintenance script — CI never runs it; CI
-# downloads the published archives through install_vlckit.sh.
+# Builds Dusk's own MobileVLCKit/TVVLCKit/VLCKit 3.x from source: VideoLAN's
+# VLCKit 3.7.3 (libvlc 3.0.23) plus the Dusk patches in this directory. iOS and
+# tvOS: arm64 device + arm64 simulator slices. macOS: one universal
+# arm64 + x86_64 slice (macos-arm64_x86_64, macOS 26.0 minimum). MANUAL
+# maintenance script — CI never runs it; CI downloads the published archives
+# through install_vlckit.sh.
 #
-#   ci_scripts/build_vlckit.sh [ios|tvos|all]     (default: all)
+#   ci_scripts/build_vlckit.sh [ios|tvos|macos|all]     (default: all = all three)
 #
 # Why a custom build: stock VLCKit disables ffmpeg's mlp/truehd decoders (Dolby
 # licensing), so TrueHD had to be transcoded by Plex to E-AC-3 5.1. The Dusk
@@ -19,19 +21,22 @@ set -euo pipefail
 #   vlc-patches/*.patch     copied into VLCKit's libvlc/patches/, which
 #                           buildMobileVLCKit.sh git-am's onto vlc 3.0.x after
 #                           VideoLAN's own series (numbered 0100+ to sort last)
+# Every platform gets the same patch series. On macOS 0101 (audiounit_ios.m,
+# not compiled for macOS) and 0103 (#if TARGET_OS_TV) are no-ops.
 #
 # Output (DUSK_VLCKIT_OUT_DIR, default .build/vlckit/out):
-#   MobileVLCKit-<version>.tar.xz / TVVLCKit-<version>.tar.xz, laid out like
-#   VideoLAN's CocoaPods archives (<Name>-binary/<Name>.xcframework +
-#   COPYING.txt), plus their SHA-256 sums. Publish them as release assets
+#   MobileVLCKit-<version>.tar.xz / TVVLCKit-<version>.tar.xz /
+#   VLCKit-<version>.tar.xz, laid out like VideoLAN's CocoaPods archives
+#   (<Name>-binary/<Name>.xcframework + COPYING.txt), plus their SHA-256 sums. Publish them as release assets
 #   (tag vlckit-<version>) in the PRIVATE repo marvinvr/dusk-vlckit and pin
 #   name + checksum in install_vlckit.sh. Never publish them publicly.
 #   To install a fresh build locally without publishing:
 #     DUSK_VLCKIT_CACHE_DIR=.build/vlckit/out ci_scripts/install_vlckit.sh
 #
-# The iOS and tvOS builds use separate source trees, so they can run in
-# parallel (`build_vlckit.sh ios & build_vlckit.sh tvos`). A full build takes
-# roughly an hour per platform on an M-series Mac and needs ~25 GB of disk.
+# Each platform uses its own source tree, so they can run in parallel
+# (`build_vlckit.sh ios & build_vlckit.sh tvos & build_vlckit.sh macos`). A
+# full build takes roughly an hour per platform on an M-series Mac and needs
+# ~25 GB of disk (macOS builds every contrib twice, once per architecture).
 # Trees are reused between runs; DUSK_VLCKIT_CLEAN=1 starts from scratch.
 # DUSK_VLCKIT_PACKAGE_ONLY=1 re-verifies and re-packages a finished build.
 #
@@ -91,13 +96,14 @@ prepare_source() {
 }
 
 # Fails unless ffmpeg's TrueHD/MLP decoders made it into the contrib build.
+# Takes the contrib install dirs (under libvlc/vlc/contrib) to check.
 verify_truehd_contrib() {
     local src="$1"
-    local osstyle="$2"
-    local platform libavcodec symbols decoder
+    shift
+    local contrib libavcodec symbols decoder
 
-    for platform in OS Simulator; do
-        libavcodec="${src}/libvlc/vlc/contrib/${osstyle}${platform}-aarch64-apple-darwin-aarch64/lib/libavcodec.a"
+    for contrib in "$@"; do
+        libavcodec="${src}/libvlc/vlc/contrib/${contrib}/lib/libavcodec.a"
         # Captured first: `nm | grep -q` fails under pipefail once grep exits
         # early and nm dies of SIGPIPE.
         symbols="$(nm -g "${libavcodec}" 2>/dev/null || true)"
@@ -108,7 +114,7 @@ verify_truehd_contrib() {
             fi
         done
     done
-    log "TrueHD/MLP decoders present in the ${osstyle} contribs."
+    log "TrueHD/MLP decoders present in the contribs ($*)."
 }
 
 # Fails when a slice weak-links a libSystem function that older OS versions do
@@ -116,7 +122,9 @@ verify_truehd_contrib() {
 # target (pipe2 is iOS/tvOS/macOS 27+); configure then picks them up, the
 # linker weak-imports them, and libvlc calls NULL on older OS versions (dusk1
 # crashed on every network open on tvOS 26 and macOS 26). The allowed names are
-# the ones VideoLAN's own stock builds carry, which are always resolvable.
+# the ones VideoLAN's own stock builds carry, which are always resolvable
+# (getentropy: libgcrypt declares it weak_import itself and NULL-checks it; it
+# exists since macOS 10.12 / iOS 10).
 verify_no_new_libsystem_imports() {
     local xcframework="$1"
     local name="$2"
@@ -125,7 +133,7 @@ verify_no_new_libsystem_imports() {
     for slice in "${xcframework}"/*/"${name}.framework"; do
         weak="$(nm -m "${slice}/${name}" 2>/dev/null |
             grep -E '\(undefined\) weak external .*\(from libSystem\)' |
-            grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
+            grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_getentropy|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
         if [ -n "${weak}" ]; then
             echo "error: ${slice} weak-links libSystem functions that older OS versions lack:" >&2
             echo "${weak}" >&2
@@ -146,6 +154,8 @@ stamp_framework() {
 
     for slice in "${xcframework}"/*/"${name}.framework"; do
         plist="${slice}/Info.plist"
+        # macOS frameworks are versioned bundles: Versions/A/Resources/Info.plist.
+        [ -f "${plist}" ] || plist="${slice}/Resources/Info.plist"
         /usr/libexec/PlistBuddy -c "Delete :DuskVLCKitBuild" "${plist}" >/dev/null 2>&1 || true
         /usr/libexec/PlistBuddy -c "Delete :DuskVLCKitTrueHD" "${plist}" >/dev/null 2>&1 || true
         /usr/libexec/PlistBuddy -c "Add :DuskVLCKitBuild string ${VERSION}" "${plist}"
@@ -154,16 +164,17 @@ stamp_framework() {
     done
 }
 
+# Takes the xcframework slices the build must contain.
 package_platform() {
     local src="$1"
     local name="$2"
-    local device_slice="$3"
-    local simulator_slice="$4"
+    shift 2
     local built="${src}/build/${name}.xcframework"
     local staging="${OUT_DIR}/${name}-binary"
     local archive="${OUT_DIR}/${name}-${VERSION}.tar.xz"
+    local slice
 
-    for slice in "${device_slice}" "${simulator_slice}"; do
+    for slice in "$@"; do
         if [ ! -d "${built}/${slice}/${name}.framework" ]; then
             echo "error: ${built} has no ${slice} slice." >&2
             exit 1
@@ -189,25 +200,37 @@ build_platform() {
     local platform="$1"
     local src="${WORK_DIR}/${platform}"
     local log_file="${WORK_DIR}/${platform}.log"
-    local flags=(-a aarch64)
-    local name="MobileVLCKit"
-    local osstyle="iPhone"
-    local device_slice="ios-arm64"
-    local simulator_slice="ios-arm64-simulator"
+    local flags name slices contribs
 
-    if [ "${platform}" = "tvos" ]; then
-        flags+=(-t)
-        name="TVVLCKit"
-        osstyle="AppleTV"
-        device_slice="tvos-arm64"
-        simulator_slice="tvos-arm64-simulator"
-    fi
+    case "${platform}" in
+        ios)
+            flags=(-a aarch64)
+            name="MobileVLCKit"
+            slices=(ios-arm64 ios-arm64-simulator)
+            contribs=(iPhoneOS-aarch64-apple-darwin-aarch64 iPhoneSimulator-aarch64-apple-darwin-aarch64)
+            ;;
+        tvos)
+            flags=(-a aarch64 -t)
+            name="TVVLCKit"
+            slices=(tvos-arm64 tvos-arm64-simulator)
+            contribs=(AppleTVOS-aarch64-apple-darwin-aarch64 AppleTVSimulator-aarch64-apple-darwin-aarch64)
+            ;;
+        macos)
+            # No -a: VLCKit's "all" builds x86_64 + aarch64 and lipo's them
+            # into one macos-arm64_x86_64 slice (macOS 26.0 minimum, see
+            # vlckit-patches/0002).
+            flags=(-x)
+            name="VLCKit"
+            slices=(macos-arm64_x86_64)
+            contribs=(MacOSXOS-x86_64-apple-darwin-x86_64 MacOSXOS-aarch64-apple-darwin-aarch64)
+            ;;
+    esac
 
     mkdir -p "${WORK_DIR}" "${OUT_DIR}"
     if [ "${DUSK_VLCKIT_PACKAGE_ONLY:-0}" = "1" ]; then
         log "Packaging the existing ${name} build in ${src}"
-        verify_truehd_contrib "${src}" "${osstyle}"
-        package_platform "${src}" "${name}" "${device_slice}" "${simulator_slice}"
+        verify_truehd_contrib "${src}" "${contribs[@]}"
+        package_platform "${src}" "${name}" "${slices[@]}"
         return
     fi
 
@@ -228,19 +251,21 @@ build_platform() {
         exit 1
     }
 
-    verify_truehd_contrib "${src}" "${osstyle}"
-    package_platform "${src}" "${name}" "${device_slice}" "${simulator_slice}"
+    verify_truehd_contrib "${src}" "${contribs[@]}"
+    package_platform "${src}" "${name}" "${slices[@]}"
 }
 
 case "${1:-all}" in
     ios) build_platform ios ;;
     tvos) build_platform tvos ;;
+    macos) build_platform macos ;;
     all)
         build_platform ios
         build_platform tvos
+        build_platform macos
         ;;
     *)
-        echo "usage: $0 [ios|tvos|all]" >&2
+        echo "usage: $0 [ios|tvos|macos|all]" >&2
         exit 2
         ;;
 esac

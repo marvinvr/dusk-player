@@ -134,32 +134,42 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 
 ## VLCKit Build
 
-- `ci_scripts/build_vlckit.sh [ios|tvos|all]` builds MobileVLCKit/TVVLCKit
-  from source: VLCKit tag 3.7.3 (pinned commit, libvlc 3.0.x at VLCKit's
-  tested hash), arm64 device + arm64 simulator slices. Manual only; nothing
-  in CI runs it. iOS and tvOS use separate trees under `.build/vlckit/`, so
-  `build_vlckit.sh ios & build_vlckit.sh tvos` runs both in parallel. A cold
+- `ci_scripts/build_vlckit.sh [ios|tvos|macos|all]` (`all` = all three)
+  builds MobileVLCKit/TVVLCKit/VLCKit from source: VLCKit tag 3.7.3 (pinned
+  commit, libvlc 3.0.x at VLCKit's tested hash). iOS/tvOS: arm64 device +
+  arm64 simulator slices. macOS: one universal `macos-arm64_x86_64` slice,
+  macOS 26.0 minimum (every contrib is built once per architecture). Manual
+  only; nothing in CI runs it. Each platform has its own tree under
+  `.build/vlckit/`, so `build_vlckit.sh ios & build_vlckit.sh tvos &
+  build_vlckit.sh macos` runs them in parallel. A cold
   build compiles VLC's own toolchain and every contrib; trees are reused, and
   `DUSK_VLCKIT_CLEAN=1` starts over. Logs: `.build/vlckit/<platform>.log`.
 - Patches: `ci_scripts/vlckit-patches/` apply to the VLCKit checkout (build
-  script: arm64-only packaging, iOS/tvOS 15 minimum, current Xcode);
+  script: arm64-only packaging, iOS/tvOS 15 minimum, current Xcode; 0002:
+  macOS 26 minimum, one macOS pass);
   `ci_scripts/vlc-patches/` (0100+) are appended to VLCKit's own libvlc
-  series, which `buildMobileVLCKit.sh` git-am's onto vlc. 0100 re-enables
+  series, which `buildMobileVLCKit.sh` git-am's onto vlc (the same series on
+  every platform; 0101/0103 compile to nothing on macOS). 0100 re-enables
   TrueHD/MLP (read "Dolby TrueHD decoding" in `playback.md` for the licensing
   decision), 0101 fixes tvOS multichannel output, 0102 keeps libvlc off
   `pipe2` (OS 27+ only, see VLCKit Bootstrap), 0103 uses MPEG layout tags
   plus matching PCM reordering for tvOS 5.1/7.1 (see `playback.md`).
+- Weak libSystem imports are rejected except the allowlist shared with
+  `scripts/verify_embedded_vlckit.sh` (`getentropy` is on it: libgcrypt
+  weak-imports and NULL-checks it itself, present since macOS 10.12/iOS 10).
 - The script fails unless `libavcodec.a` defines `ff_truehd_decoder` and
   `ff_mlp_decoder`, stamps each framework's Info.plist (`DuskVLCKitBuild`,
   `DuskVLCKitTrueHD`, read by `VLCKitBuildInfo`), and writes
   `<Name>-<version>.tar.xz` + `.sha256` to `.build/vlckit/out/`.
 - Releasing a new build: bump `DUSK_VLCKIT_BUILD` in `build_vlckit.sh`, build
-  both platforms, then
+  all three platforms, then
   `gh release create vlckit-<version> --repo marvinvr/dusk-vlckit
   .build/vlckit/out/*.tar.xz .build/vlckit/out/*.sha256` (upload the archives
   unchanged; repacking changes the checksums), and pin
-  `VLCKIT_VERSION` plus both SHA-256 values in `install_vlckit.sh` in the same
-  commit. Test locally before publishing with
+  `VLCKIT_VERSION` plus the three SHA-256 values in `install_vlckit.sh` in the
+  same commit. macOS is optional in the installer: without the
+  `VLCKit-<version>.tar.xz` asset (or in `DUSK_VLCKIT_CACHE_DIR`) the Mac gets
+  VideoLAN's stock build, and `DUSK_VLCKIT_REQUIRE_DUSK` ignores macOS. Test locally before publishing with
   `DUSK_VLCKIT_CACHE_DIR=.build/vlckit/out ci_scripts/install_vlckit.sh`.
 - The libvlc version string stays `3.0.x`; the stamp is what distinguishes
   Dusk's build from VideoLAN's.
