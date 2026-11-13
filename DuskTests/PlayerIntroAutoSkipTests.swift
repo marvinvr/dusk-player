@@ -129,6 +129,45 @@ struct PlayerIntroAutoSkipTests {
         #expect(viewModel.autoSkipCountdownClock == nil)
     }
 
+    @Test func haltingCountdownKeepsChipAndNeverSkips() async throws {
+        let harness = makeHarness(mode: .always, skipOnHandler: true, countdownDuration: 0.3)
+        defer { harness.restore() }
+        let viewModel = harness.viewModel
+
+        #expect(viewModel.autoSkipCountdownMarkerID == harness.marker.id)
+        #expect(viewModel.haltAutoSkipCountdown())
+
+        #expect(viewModel.autoSkipCountdownMarkerID == nil)
+        #expect(viewModel.autoSkipCountdownClock == nil)
+        #expect(viewModel.activeSkipMarker?.id == harness.marker.id)
+
+        // Past the original deadline: no skip, no re-armed countdown, chip up.
+        try await waitForCountdown()
+        viewModel.sync()
+        #expect(harness.handlerCalls() == 0)
+        #expect(harness.engine.seekTargets.isEmpty)
+        #expect(viewModel.autoSkipCountdownMarkerID == nil)
+        #expect(viewModel.countdownDismissedMarkerID == nil)
+        #expect(viewModel.activeSkipMarker?.id == harness.marker.id)
+
+        // Nothing left to halt: Back goes back to its usual job.
+        #expect(!viewModel.haltAutoSkipCountdown())
+
+        // The chip still skips by hand.
+        viewModel.skipActiveMarker()
+        #expect(harness.engine.seekTargets == [20.5])
+    }
+
+    @Test func haltWithoutCountdownDoesNothing() {
+        let engine = IntroAutoSkipPlaybackEngine(currentTime: 10)
+        let viewModel = PlayerViewModel(engine: engine, markers: [])
+        defer { viewModel.cleanup() }
+
+        viewModel.sync()
+        #expect(!viewModel.haltAutoSkipCountdown())
+        #expect(viewModel.spentAutoSkipMarkerIDs.isEmpty)
+    }
+
     @Test func lastCreditsMarkerDrivesUpNextAndEarlierOnesGetTheChip() {
         let early = PlexMarker(id: 1, type: "credits", startTimeOffset: 30_000, endTimeOffset: 40_000)
         let final = PlexMarker(id: 2, type: "credits", startTimeOffset: 100_000, endTimeOffset: 120_000)

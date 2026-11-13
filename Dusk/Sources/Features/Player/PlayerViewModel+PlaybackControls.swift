@@ -771,6 +771,21 @@ extension PlayerViewModel {
         autoSkipSpentHandler?(marker.id)
     }
 
+    /// Back on the tvOS remote while the chip counts down (#76): Plex can place
+    /// a marker early, so the viewer stops the countdown without leaving the
+    /// player. The chip stays up for a manual skip; the marker counts as spent,
+    /// so the countdown never re-arms for it this session. Returns false when no
+    /// countdown is running, leaving Back to its usual job.
+    @discardableResult
+    func haltAutoSkipCountdown() -> Bool {
+        guard let markerID = autoSkipCountdownMarkerID,
+              let marker = activeSkipMarker,
+              marker.id == markerID else { return false }
+        cancelAutoSkipCountdown()
+        noteAutoSkipSpent(for: marker)
+        return true
+    }
+
     func cancelAutoSkipCountdown() {
         autoSkipCountdownTask?.cancel()
         autoSkipCountdownTask = nil

@@ -2050,7 +2050,11 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   under the Up Next poster do not use this countdown — the poster only counts
   down when auto-skip credits is on, and that expiry plays the next episode. A
   Skip Credits chip (see "Marker skip buttons") uses it like Skip Intro, read
-  against the Auto-Skip Credits setting.
+  against the Auto-Skip Credits setting. On tvOS, Back while the chip counts
+  down (`PlayerViewModel.haltAutoSkipCountdown`, #76) stops the countdown and
+  keeps the chip, without its fill, for a manual skip; the marker counts as
+  spent. With no countdown running Back keeps its usual job. iOS has no
+  equivalent: the chip is a plain tap target with no back gesture on it.
 - **Subtitles clear the Up Next poster.** While the poster is up, `PlayerSessionView`
   passes its covered height to `PlaybackEngine.setSubtitleClearance(_:)`, and nil
   when it goes (also under AirPlay and Picture in Picture). `SubtitleClearance.lift`
@@ -2255,7 +2259,8 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     the HUD on the panel's Info tab); Left/Right → accumulate a seek
     (see below) with a centred badge, stays hidden; horizontal swipe → `scrubbing`;
     Play/Pause → toggles and reveals `transport`;
-    Menu → dismiss the player. While a Skip Intro chip or an Up Next poster is on
+    Menu → stop a running chip countdown, else dismiss the player (in
+    `transport`, the countdown also takes Menu before hiding). While a Skip Intro chip or an Up Next poster is on
     screen, Select activates it and Down dismisses it (the chip has nothing to
     dismiss, so Down falls through to revealing the transport).
   - `transport`: Menu or tap → `hidden`; Up → action row, Down from the row →

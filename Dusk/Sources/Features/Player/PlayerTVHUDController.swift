@@ -324,6 +324,13 @@ final class PlayerTVHUDController {
                 cancelAccumulatedSeek()
                 return
             }
+            // A running auto-skip countdown takes Back next (#76): it stops
+            // the countdown and leaves the chip up for a manual skip, instead
+            // of hiding the HUD or closing the player.
+            if mode == .hidden || mode == .transport,
+               viewModel?.haltAutoSkipCountdown() == true {
+                return
+            }
         }
         switch input {
         case .panBegan:
