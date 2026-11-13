@@ -20,7 +20,10 @@ and it should feel like an Apple app, not a themed one.
    brand colour.
 4. **No app-wide tint.** The global `AccentColor` asset is the label colour, and
    nothing sets a root `.tint`. Never add `.tint(Color.duskAccent)` or any other
-   colour tint to make something "pop".
+   colour tint to make something "pop". On **macOS** the app sets no global
+   accent at all, so switches, focus rings and selection keep the user's System
+   Settings accent (that is the system's own treatment there); the rest of this
+   rule still applies.
 5. **Coral is the brand, not the UI.** Sunset Coral (`Color.duskAccent`,
    `#FF6B4A`) appears only in the app logo/icon, the Supporter page and the
    App Icon picker. Anywhere else it is a bug.

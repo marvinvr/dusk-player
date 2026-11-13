@@ -174,7 +174,10 @@ targets:
         INFOPLIST_FILE: Dusk/Support/Info-macOS.plist
         DEVELOPMENT_TEAM: ""
         ASSETCATALOG_COMPILER_APPICON_NAME: DuskIcon
-        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        # No global accent on the Mac: switches, focus rings and selection follow
+        # the user's System Settings accent (the system's own treatment). The
+        # iOS/tvOS AccentColor (label colour) made Mac switches black/lavender.
+        # "No accent for UI state" still holds: no brand tint anywhere.
         COMBINE_HIDPI_IMAGES: true
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
         HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/macos-arm64_x86_64/VLCKit.framework/Headers"
