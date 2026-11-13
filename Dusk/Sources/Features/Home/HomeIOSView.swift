@@ -1,4 +1,4 @@
-#if os(iOS)
+#if !os(tvOS)
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -26,11 +26,14 @@ struct HomeIOSView: View {
 
     var body: some View {
         applyNavigationChrome(to: content, showsHero: showsCinematicHero)
+            #if !os(macOS)
+            // Search is a sidebar destination (and ⌘F) on the Mac.
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     SearchToolbarLink()
                 }
             }
+            #endif
     }
 
     private var content: some View {
@@ -75,7 +78,7 @@ struct HomeIOSView: View {
                                         )
                                     )
                                     .frame(
-                                        maxWidth: UIDevice.current.userInterfaceIdiom == .pad ? 300 : 240,
+                                        maxWidth: heroPrimaryButtonMaxWidth,
                                         alignment: .leading
                                     )
                                     .simultaneousGesture(
@@ -157,10 +160,12 @@ struct HomeIOSView: View {
             }
             .scrollIndicators(.hidden)
         }
+        #if !os(macOS)
         .safeAreaInset(edge: .bottom) {
             Color.clear
                 .frame(height: 88)
         }
+        #endif
         // Also keyed on the DVR: the first call often runs before any server
         // has connected, and the shelf has to load once discovery finds it.
         .task(id: LiveTVShelfLoadKey(isShown: showsLiveTV, providerID: liveTVViewModel.provider?.id)) {
@@ -257,19 +262,26 @@ struct HomeIOSView: View {
             content
                 .duskNavigationTitle("")
                 .duskNavigationBarTitleDisplayModeInline()
+                #if !os(macOS)
                 .toolbarColorScheme(.dark, for: .navigationBar)
                 .toolbarBackground(.hidden, for: .navigationBar)
+                #endif
         } else {
             content
                 .duskNavigationTitle("Home")
                 .duskNavigationBarTitleDisplayModeLarge()
+                #if !os(macOS)
                 .toolbarBackground(.visible, for: .navigationBar)
+                #endif
         }
     }
 
     /// Regular-width iPad gets the near-full-screen hero; iPhone and compact
     /// iPad multitasking keep the shorter banner.
     private var heroLayout: HomeCinematicHeroLayout {
+        #if os(macOS)
+        return .mac
+        #else
         if UIDevice.current.userInterfaceIdiom == .pad && horizontalSizeClass == .regular {
             return .iPad
         }
@@ -278,6 +290,15 @@ struct HomeIOSView: View {
         // banner's 520pt floor, which hid Play/Resume below the fold.
         layout.fitsContainerHeight = DuskDuoDisplay.isActive
         return layout
+        #endif
+    }
+
+    private var heroPrimaryButtonMaxWidth: CGFloat {
+        #if os(macOS)
+        300
+        #else
+        UIDevice.current.userInterfaceIdiom == .pad ? 300 : 240
+        #endif
     }
 
     private var cinematicHeroItems: [PlexItem] {

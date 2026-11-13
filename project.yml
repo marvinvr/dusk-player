@@ -166,7 +166,10 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Dusk/Support/Dusk-macOS.entitlements
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGN_STYLE: Manual
-        ENABLE_HARDENED_RUNTIME: true
+        # Off for ad-hoc local builds: with no Team ID, hardened runtime's
+        # library validation refuses the embedded VLCKit. Turn it on together
+        # with real (Developer ID / App Store) signing. See docs/macos.md.
+        ENABLE_HARDENED_RUNTIME: false
         GENERATE_INFOPLIST_FILE: false
         INFOPLIST_FILE: Dusk/Support/Info-macOS.plist
         DEVELOPMENT_TEAM: ""

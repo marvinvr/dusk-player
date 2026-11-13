@@ -78,11 +78,15 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macUIHoverSource()
+        #else
         .duskSuppressTVOSButtonChrome()
         .contentShape(
             .contextMenuPreview,
             PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
         )
+        #endif
         .contextMenu {
             contextMenuContent()
         }
@@ -191,11 +195,15 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             )
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macUIHoverSource()
+        #else
         .duskSuppressTVOSButtonChrome()
         .contentShape(
             .contextMenuPreview,
             PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
         )
+        #endif
         .contextMenu {
             contextMenuContent()
         }

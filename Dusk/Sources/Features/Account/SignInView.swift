@@ -18,7 +18,7 @@ struct SignInView: View {
 
             signInContent
         }
-        #if !os(tvOS)
+        #if os(iOS)
         .sheet(isPresented: authSheetPresented) {
             if let authURL {
                 DuskSafariView(url: authURL)
@@ -409,11 +409,16 @@ struct SignInView: View {
     /// directly there instead. Either path leaves polling running and the
     /// `plex.tv/link` code on screen as the fallback.
     private func openAuthURL(_ url: URL) {
+        #if os(macOS)
+        // A native Mac app approves in the default browser.
+        openURL(url)
+        #else
         if ProcessInfo.processInfo.isiOSAppOnMac || ProcessInfo.processInfo.isMacCatalystApp {
             openURL(url)
         } else {
             authURL = url
         }
+        #endif
     }
     #endif
 }

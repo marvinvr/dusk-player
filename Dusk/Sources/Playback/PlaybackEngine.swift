@@ -255,6 +255,11 @@ protocol PlaybackEngine: AnyObject {
     func startPictureInPicture()
     func stopPictureInPicture()
 
+    #if os(macOS)
+    /// The player's own volume (0...1) and mute. Mac video players keep an
+    /// in-app volume like QuickTime does; iOS and tvOS follow the system's.
+    func setVolume(_ volume: Float, muted: Bool)
+    #endif
 }
 
 extension PlaybackEngine {
@@ -464,12 +469,17 @@ final class SubtitleLiftAnimator {
 enum PlaybackSubtitleStyle {
     /// The Medium baseline, in percent of the renderer's default size.
     static var baseAVPlayerRelativeFontSize: Int {
+        #if os(macOS)
+        // A desktop window, like iPad's and Mac Catalyst's `.mac` idiom.
+        return 75
+        #else
         switch userInterfaceIdiom {
         case .pad, .mac:
             return 75
         default:
             return 100
         }
+        #endif
     }
 
     /// `systemScale` is the Accessibility caption text size
@@ -486,6 +496,7 @@ enum PlaybackSubtitleStyle {
         return max(1, Int((16 / scale).rounded()))
     }
 
+    #if !os(macOS)
     private static var userInterfaceIdiom: UIUserInterfaceIdiom {
         #if canImport(UIKit)
         UIDevice.current.userInterfaceIdiom
@@ -493,4 +504,5 @@ enum PlaybackSubtitleStyle {
         .unspecified
         #endif
     }
+    #endif
 }

@@ -93,7 +93,7 @@ struct HiddenLibrariesSettingsView: View {
             .padding(.bottom, 88)
         }
         #else
-        List {
+        SettingsList {
             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                 Section {
                     ForEach(group.libraries, id: \.id) { library in

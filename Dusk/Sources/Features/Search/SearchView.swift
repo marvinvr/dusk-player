@@ -97,6 +97,16 @@ struct SearchRootContent: View {
                 }
             }
             .searchable(text: $vm.query, prompt: searchPrompt)
+        #elseif os(macOS)
+        // The iPad layout: result shelves, the field in the window toolbar.
+        carouselResults(vm)
+            .searchable(
+                text: $vm.query,
+                isPresented: $isSearchPresented,
+                placement: .toolbar,
+                prompt: searchPrompt
+            )
+            .macSearchFocusRequests(isPresented: $isSearchPresented)
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
             carouselResults(vm)

@@ -26,6 +26,13 @@ struct PlayerControlsOverlay: View {
                 context: context,
                 scrubPreviewSource: scrubPreviewSource
             )
+            #elseif os(macOS)
+            MacPlayerHUD(
+                viewModel: viewModel,
+                context: context,
+                scrubPreviewSource: scrubPreviewSource,
+                onDismiss: onDismiss
+            )
             #else
             PlayerControlsIOSOverlay(
                 viewModel: viewModel,

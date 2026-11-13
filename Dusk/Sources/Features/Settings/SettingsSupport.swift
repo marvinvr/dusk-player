@@ -46,7 +46,11 @@ enum SettingsSupport {
     static let aboutFooterText = "Dusk is open source. Visit the repository, join the community on Reddit, learn more about Marvin, or send feedback by email."
     static let privacyFooterText = "Dusk sends a small number of anonymous events, including error reports, to its own server. This helps keep quality consistent and makes the app better for everyone. Nothing about your library, your server, what you watch, or what you search for is ever included."
     static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
+    #if os(macOS)
+    static let accountManagementFooterText = "Opens your Plex account settings in your browser. Plex account deletion is available there."
+    #else
     static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
+    #endif
     static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you — the subscription adds four exclusive ones."
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let redditURL = URL(string: "https://www.reddit.com/r/DuskPlayer/")!
@@ -213,5 +217,23 @@ enum CommonLanguage: String, CaseIterable, Identifiable {
         case .malay: "Malay"
         case .hebrew: "Hebrew"
         }
+    }
+}
+
+/// A settings page's list. iOS and tvOS keep their plain `List`; on the Mac
+/// it is a grouped `Form`, the System Settings look, which a `List` can't
+/// take on there. Pages that reorder rows (`onMove`) stay a `List`.
+struct SettingsList<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        #if os(macOS)
+        Form(content: content)
+            .formStyle(.grouped)
+            // Rows that are buttons read as rows, as on iOS, not push buttons.
+            .buttonStyle(.borderless)
+        #else
+        List(content: content)
+        #endif
     }
 }

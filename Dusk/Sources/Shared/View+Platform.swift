@@ -20,6 +20,8 @@ extension View {
     func duskNavigationBarTitleDisplayModeInline() -> some View {
         #if os(tvOS)
         self
+        #elseif os(macOS)
+        self
         #else
         self.navigationBarTitleDisplayMode(.inline)
         #endif
@@ -28,6 +30,8 @@ extension View {
     @ViewBuilder
     func duskNavigationBarTitleDisplayModeLarge() -> some View {
         #if os(tvOS)
+        self
+        #elseif os(macOS)
         self
         #else
         self.navigationBarTitleDisplayMode(.large)
@@ -55,6 +59,8 @@ extension View {
     @ViewBuilder
     func duskStatusBarHidden(_ hidden: Bool = true) -> some View {
         #if os(tvOS)
+        self
+        #elseif os(macOS)
         self
         #else
         self.statusBarHidden(hidden)
@@ -279,6 +285,14 @@ private struct DuskTVChromeSuppressedButtonStyle: ButtonStyle {
         configuration.label
             .opacity(configuration.isPressed ? 0.86 : 1.0)
     }
+}
+#endif
+
+#if os(macOS)
+/// The Mac is never an iPhone Duo; shared layout code asks anyway.
+enum DuskDuoDisplay {
+    static let isActive = false
+    static let isInner = false
 }
 #endif
 
@@ -513,6 +527,8 @@ enum DuskPosterMetrics {
     static var gridSpacing: CGFloat {
         #if os(tvOS)
         40
+        #elseif os(macOS)
+        18
         #else
         12
         #endif
@@ -521,6 +537,8 @@ enum DuskPosterMetrics {
     static var gridRowSpacing: CGFloat {
         #if os(tvOS)
         44
+        #elseif os(macOS)
+        24
         #else
         18
         #endif
@@ -529,6 +547,9 @@ enum DuskPosterMetrics {
     static var gridPreferredWidth: CGFloat {
         #if os(tvOS)
         196
+        #elseif os(macOS)
+        // A pointer and a big window: posters closer to the Mac TV app's.
+        150
         #else
         104
         #endif
@@ -553,6 +574,8 @@ enum DuskPosterMetrics {
     static var detailGridPreferredWidth: CGFloat {
         #if os(tvOS)
         204
+        #elseif os(macOS)
+        150
         #else
         120
         #endif
@@ -572,6 +595,8 @@ enum DuskPosterMetrics {
     static var videoGridPreferredWidth: CGFloat {
         #if os(tvOS)
         300
+        #elseif os(macOS)
+        240
         #else
         168
         #endif

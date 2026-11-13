@@ -23,6 +23,17 @@ enum PlayerOverlayLayout {
     }
     /// The overlays measure their insets from the screen edges, like the HUD.
     static let bottomTrailingIgnoredSafeAreaEdges: Edge.Set = .all
+    #elseif os(macOS)
+    // Clears `MacPlayerHUD`'s floating play bar when it is up, and shares its
+    // trailing edge (see `MacPlayerHUDLayout`).
+    static let skipMarkerRaisedBottomInset: CGFloat = MacPlayerHUDLayout.bottomTrailingRaisedInset
+    static let skipMarkerRestingBottomInset: CGFloat = MacPlayerHUDLayout.bottomTrailingRestingInset
+    static let bottomTrailingHorizontalPadding: CGFloat = MacPlayerHUDLayout.horizontalInset
+    static let skipMarkerRepositionAnimation: Animation = .snappy(duration: 0.3)
+    static var bottomTrailingTransition: AnyTransition {
+        .opacity.combined(with: .scale(scale: 0.96, anchor: .bottomTrailing))
+    }
+    static let bottomTrailingIgnoredSafeAreaEdges: Edge.Set = .all
     #else
     static let skipMarkerRaisedBottomInset: CGFloat = 108
     static let skipMarkerRestingBottomInset: CGFloat = 48
@@ -90,6 +101,8 @@ enum PlayerOverlayLayout {
     }
 }
 
+// macOS presents `MacPlayerView` (Mac/) instead of this touch/remote player.
+#if !os(macOS)
 private struct PlayerSeekFeedbackOverlayView: View {
     let presentation: PlayerSeekFeedbackPresentation
 
@@ -1823,4 +1836,5 @@ private final class PlayerKeyboardShortcutView: UIView {
         }
     }
 }
+#endif
 #endif

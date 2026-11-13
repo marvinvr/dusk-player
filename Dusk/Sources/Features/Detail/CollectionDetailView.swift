@@ -32,8 +32,10 @@ struct CollectionDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
         }

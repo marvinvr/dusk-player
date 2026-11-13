@@ -21,7 +21,7 @@ struct AudioSubtitleSettingsView: View {
     private var iosContent: some View {
         @Bindable var preferences = preferences
 
-        return List {
+        return SettingsList {
             Section {
                 Picker("Language", selection: $preferences.defaultAudioLanguage) {
                     ForEach(SettingsSupport.audioLanguageOptions(including: preferences.defaultAudioLanguage), id: \.self) { code in

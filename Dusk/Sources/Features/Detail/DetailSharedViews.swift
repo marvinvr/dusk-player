@@ -596,6 +596,11 @@ extension View {
         fullScreenCover(isPresented: isPresented) {
             SubtitleSearchView(viewModel: viewModel()) { isPresented.wrappedValue = false }
         }
+        #elseif os(macOS)
+        sheet(isPresented: isPresented) {
+            SubtitleSearchView(viewModel: viewModel()) { isPresented.wrappedValue = false }
+                .macUISheetSize(idealHeight: 620)
+        }
         #else
         sheet(isPresented: isPresented) {
             SubtitleSearchView(viewModel: viewModel()) { isPresented.wrappedValue = false }
@@ -770,6 +775,14 @@ extension View {
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }
+        #elseif os(macOS)
+        // The iOS look: prominent glass with the translucent-`primary` lean.
+        // `.large` is the Mac's equivalent of the iOS regular-height pill.
+        self
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.duskPrimaryButtonTint)
         #else
         self
         #endif
@@ -800,6 +813,12 @@ extension View {
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }
+        #elseif os(macOS)
+        self
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.primary)
         #else
         self
         #endif
@@ -822,6 +841,10 @@ extension View {
             self
                 .frame(maxWidth: detailHeroRegularPrimaryWidth, alignment: .leading)
         }
+        #elseif os(macOS)
+        // The iPad layout: a capped width, leading in the hero text column.
+        self
+            .frame(maxWidth: detailHeroRegularPrimaryWidth, alignment: .leading)
         #else
         self
         #endif

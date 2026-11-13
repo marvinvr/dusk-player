@@ -44,6 +44,7 @@ struct PlayerPrerollView: View {
                 .ignoresSafeArea()
             #endif
 
+
             if engine.state == .paused {
                 pausedGlyph
                     .allowsHitTesting(false)
@@ -119,6 +120,19 @@ struct PlayerPrerollView: View {
     private var closeButton: some View {
         VStack {
             HStack {
+                #if os(macOS)
+                // The Mac player is an overlay in the main window, not a
+                // presented cover, so there is nothing for `dismiss` to pop.
+                Button { playback.showPlayer = false } label: {
+                    Image(systemName: "xmark")
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Close Player")
+                #else
                 Button { dismiss() } label: {
                     Image(systemName: "xmark")
                         .font(.title3.weight(.semibold))
@@ -127,6 +141,7 @@ struct PlayerPrerollView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
                 .accessibilityLabel("Close Player")
+                #endif
                 Spacer()
             }
             Spacer()

@@ -22,6 +22,11 @@ struct SettingsContainer<Content: View>: View {
         .fullScreenCover(isPresented: homeUserPickerPresented) {
             homeUserPicker
         }
+        #elseif os(macOS)
+        .sheet(isPresented: homeUserPickerPresented) {
+            homeUserPicker
+                .macUISheetSize(minWidth: 560, idealWidth: 720, minHeight: 440, idealHeight: 560)
+        }
         #else
         .sheet(isPresented: homeUserPickerPresented) {
             homeUserPicker

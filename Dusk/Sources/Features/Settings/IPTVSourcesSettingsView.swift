@@ -59,11 +59,14 @@ struct IPTVSourcesSettingsView: View {
             .listRowBackground(Color.duskSurface)
         }
         .scrollContentBackground(.hidden)
+        #if !os(macOS)
+        // The Mac reorders by dragging a row, no edit mode.
         .toolbar {
             if iptvService.sources.count > 1 {
                 EditButton()
             }
         }
+        #endif
     }
 
     private func sourceLabel(_ source: IPTVSource) -> some View {
@@ -164,13 +167,21 @@ struct IPTVSourceEditorView: View {
             Section {
                 TextField("Name", text: $name, prompt: Text("My IPTV"))
                 TextField("M3U URL", text: $playlistURL, prompt: Text("https://example.com/playlist.m3u"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
                 TextField("XMLTV URL", text: $guideURL, prompt: Text("Optional"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
             } header: {
                 Text("Source")
             } footer: {
@@ -180,10 +191,14 @@ struct IPTVSourceEditorView: View {
 
             Section {
                 TextField("Header Name", text: $headerName, prompt: Text(IPTVSource.defaultHeaderName))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
                 SecureField("Value", text: $headerValue, prompt: Text("Bearer …"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
             } header: {
                 Text("Request Header")
@@ -208,6 +223,9 @@ struct IPTVSourceEditorView: View {
                 .listRowBackground(Color.duskSurface)
             }
         }
+        #if os(macOS)
+        .formStyle(.grouped)
+        #endif
         .scrollContentBackground(.hidden)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {

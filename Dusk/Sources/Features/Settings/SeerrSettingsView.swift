@@ -33,16 +33,20 @@ struct SeerrSettingsView: View {
 
     #if !os(tvOS)
     private var iosContent: some View {
-        List {
+        SettingsList {
             Section {
                 TextField(
                     "Server URL",
                     text: $viewModel.serverURL,
                     prompt: Text(SeerrServerURL.placeholder)
                 )
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
                     .disabled(seerrService.isConnected || viewModel.isWorking)
 
                 connectionRow

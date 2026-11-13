@@ -164,6 +164,9 @@ struct DownloadsRootContent: View {
             }
             .duskAppNavigationDestinations()
         }
+        #if os(macOS)
+        .macUISheetSize()
+        #endif
     }
 
     private var pendingSyncBanner: some View {

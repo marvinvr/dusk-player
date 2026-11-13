@@ -54,7 +54,7 @@ struct TraktSettingsView: View {
 
     #if !os(tvOS)
     private var iosContent: some View {
-        List {
+        SettingsList {
             Section {
                 statusRow
             } footer: {

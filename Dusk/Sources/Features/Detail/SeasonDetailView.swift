@@ -45,8 +45,10 @@ struct SeasonDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
         }
@@ -304,7 +306,12 @@ struct SeasonDetailView: View {
     }
 
     private var usesInlineEpisodeSummaryLayout: Bool {
+        #if os(macOS)
+        // The iPad layout.
+        true
+        #else
         UIDevice.current.userInterfaceIdiom == .pad
+        #endif
     }
 
     @ViewBuilder
@@ -449,6 +456,9 @@ private struct SeasonEpisodeRow: View {
                     )
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .macUIHoverSource()
+                #endif
                 .disabled(constrainsPlaybackToOfflineAvailability && !isPlayableOffline)
                 .accessibilityLabel("Play \(episode.title)")
                 .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)

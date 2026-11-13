@@ -11,7 +11,12 @@ struct ContentView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    /// The app owns it on the Mac, so Settings and the menu bar share it.
+    @Environment(ServerConnectionCoordinator.self) private var connections
+    #else
     @State private var connections = ServerConnectionCoordinator()
+    #endif
     @State private var homeBootstrapError: String?
     @State private var isBootstrappingHome = false
     /// Cold-launch only: lives as long as the window, so a profile switch or a
@@ -33,8 +38,13 @@ struct ContentView: View {
                     }
                 )
             } else {
+                #if os(macOS)
+                MacRootView()
+                    .id(plexService.activeProfileID)
+                #else
                 MainTabView()
                     .id(plexService.activeProfileID)
+                #endif
             }
         }
         .environment(connections)
@@ -73,12 +83,17 @@ struct ContentView: View {
     /// out of them unless `-DuskLaunchSplash YES` asks for it (DEBUG only, to
     /// record the splash against the mock server).
     private var showsLaunchSplash: Bool {
+        #if os(macOS)
+        // A Mac window opens straight onto its content.
+        return false
+        #else
         #if DEBUG
         if ScreenshotMode.isActive {
             return UserDefaults.standard.bool(forKey: "DuskLaunchSplash")
         }
         #endif
         return true
+        #endif
     }
 
     /// The screens that are complete the moment they mount, so the launch

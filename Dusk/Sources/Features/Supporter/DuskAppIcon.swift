@@ -118,15 +118,22 @@ enum DuskAppIcon: String, CaseIterable, Identifiable {
 
     @MainActor
     static var current: DuskAppIcon {
+        #if os(macOS)
+        // The Mac ships only the default icon; there is no alternate-icon API.
+        return .dusk
+        #else
         guard let activeName = UIApplication.shared.alternateIconName else { return .dusk }
         return allCases.first { $0.alternateIconName == activeName } ?? .dusk
+        #endif
     }
 
     @MainActor
     static func select(_ icon: DuskAppIcon) async throws {
+        #if !os(macOS)
         guard UIApplication.shared.supportsAlternateIcons else { return }
         guard UIApplication.shared.alternateIconName != icon.alternateIconName else { return }
         try await UIApplication.shared.setAlternateIconName(icon.alternateIconName)
+        #endif
     }
 }
 

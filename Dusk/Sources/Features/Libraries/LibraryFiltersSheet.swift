@@ -41,6 +41,9 @@ struct LibraryFiltersSheet: View {
                 }
             }
         }
+        #if os(macOS)
+        .macUISheetSize(idealHeight: 620)
+        #endif
     }
 
     #if os(tvOS)
@@ -158,6 +161,10 @@ private struct LibraryFilterCheckRow: View {
             }
             .contentShape(Rectangle())
         }
+        #if os(macOS)
+        // A row, as on iOS, not a push button.
+        .buttonStyle(.plain)
+        #endif
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }

@@ -285,6 +285,13 @@ extension View {
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }
+        #elseif os(macOS)
+        // The iOS look; `.large` is the Mac's short, wide pill.
+        self
+            .buttonStyle(.glassProminent)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.duskPrimaryButtonTint)
         #else
         self
         #endif

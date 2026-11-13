@@ -59,12 +59,17 @@ struct ConnectionDiagnosticsView: View {
 
     #if !os(tvOS)
     private var content: some View {
-        List {
+        SettingsList {
             Section {
                 Button("Test Every Connection", action: testAll)
                 Button("Re-select Now", action: reselect)
                 Button(didCopy ? "Copied" : "Copy Report") {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(reportText, forType: .string)
+                    #else
                     UIPasteboard.general.string = reportText
+                    #endif
                     didCopy = true
                 }
                 if isTesting {

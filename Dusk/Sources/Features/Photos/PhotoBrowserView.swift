@@ -56,11 +56,21 @@ struct PhotoBrowserView: View {
             }
         }
         #endif
+        #if os(macOS)
+        // No full-screen cover on the Mac: a large sheet over the window.
+        .sheet(item: $viewerRequest, onDismiss: playPendingClip) { request in
+            PhotoViewerView(viewModel: viewModel, request: request) { clip in
+                pendingClip = clip
+            }
+            .macUISheetSize(minWidth: 720, idealWidth: 1200, minHeight: 480, idealHeight: 800)
+        }
+        #else
         .fullScreenCover(item: $viewerRequest, onDismiss: playPendingClip) { request in
             PhotoViewerView(viewModel: viewModel, request: request) { clip in
                 pendingClip = clip
             }
         }
+        #endif
     }
 
     private var content: some View {

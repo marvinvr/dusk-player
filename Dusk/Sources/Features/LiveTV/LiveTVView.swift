@@ -95,6 +95,9 @@ struct LiveTVRootContent: View {
             // Half height: the guide it came from stays in view.
             .presentationDetents([.medium, .large])
             #endif
+            #if os(macOS)
+            .macUISheetSize(minHeight: 320, idealHeight: 460)
+            #endif
         }
     }
 
@@ -427,6 +430,9 @@ struct LiveTVProgramCard: View {
         .frame(width: cardWidth, height: cardHeight)
         .background(Color.duskSurface)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+        #if os(macOS)
+        .macUIHoverLift(cornerRadius: Self.cornerRadius)
+        #endif
     }
 
     private var placeholder: some View {

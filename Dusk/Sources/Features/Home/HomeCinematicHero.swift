@@ -81,6 +81,20 @@ struct HomeCinematicHeroLayout {
         metadataFont: .callout.weight(.medium),
         summaryLineLimit: 3
     )
+    #if os(macOS)
+    /// Mac window: the iPad hero, but never much taller than the backdrop's
+    /// own 16:9 (`maxHeightToWidthRatio`), so a wide window doesn't crop the
+    /// artwork to a strip, and a little short of the viewport so the first
+    /// shelf shows under it.
+    static let mac: HomeCinematicHeroLayout = {
+        var layout = iPad
+        layout.heroHeightFactor = 0.86
+        layout.heroHeightRange = 440 ... 1100
+        layout.maxHeightToWidthRatio = 0.62
+        return layout
+    }()
+    #endif
+
     /// Apple TV: the hero owns the **entire** screen. Heights come from the
     /// container (`fillsContainerHeight`), and the paddings below are measured
     /// from the real display edges, not from a banner box:
@@ -201,11 +215,13 @@ struct HomeCinematicHero: View {
     /// focus target bound to the same page.
     @State private var heroActionsHeight: CGFloat = 0
     #endif
-    #if canImport(UIKit)
-    @State private var preloadedHeroBackdropImages: [String: UIImage] = [:]
-    @State private var preloadedHeroTitleImages: [String: UIImage] = [:]
-    @State private var failedHeroTitleImageKeys: Set<String> = []
+    #if os(macOS)
+    /// The pointer is over the hero; shows `macPageChevrons`.
+    @State private var isPointerOverHero = false
     #endif
+    @State private var preloadedHeroBackdropImages: [String: PlatformImage] = [:]
+    @State private var preloadedHeroTitleImages: [String: PlatformImage] = [:]
+    @State private var failedHeroTitleImageKeys: Set<String> = []
 
     private let heroRotationInterval: UInt64 = 7_000_000_000
 
@@ -341,6 +357,10 @@ struct HomeCinematicHero: View {
                     #if os(iOS)
                     .gesture(heroIndirectScrollGesture(HeroTrackpadScroll.self, heroWidth: heroWidth))
                     .gesture(heroIndirectScrollGesture(HeroWheelScroll.self, heroWidth: heroWidth))
+                    #endif
+                    #if os(macOS)
+                    .overlay { macPageChevrons }
+                    .onHover { isPointerOverHero = $0 }
                     #endif
             )
         } else {
@@ -543,6 +563,17 @@ struct HomeCinematicHero: View {
                 )
             }
         }
+        #elseif os(macOS)
+        // A Mac menu has no lift preview, so SwiftUI's own menu is fine here.
+        if let contextMenuActions {
+            callbacks.withContextMenu = { button in
+                AnyView(
+                    button.contextMenu {
+                        HomeItemMenuButtons(actions: contextMenuActions(item))
+                    }
+                )
+            }
+        }
         #endif
         return callbacks
     }
@@ -658,6 +689,23 @@ struct HomeCinematicHero: View {
                     }
                     .accessibilityHidden(true)
             }
+            #elseif os(macOS)
+            if let detailsAction {
+                Rectangle()
+                    .fill(Color.white.opacity(0.001))
+                    .contentShape(Rectangle())
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .onTapGesture {
+                        restartHeroRotation()
+                        detailsAction(item)
+                    }
+                    .contextMenu {
+                        if let contextMenuActions {
+                            HomeItemMenuButtons(actions: contextMenuActions(item))
+                        }
+                    }
+                    .accessibilityHidden(true)
+            }
             #endif
 
             VStack(alignment: heroContentHorizontalAlignment, spacing: 16) {
@@ -719,6 +767,23 @@ struct HomeCinematicHero: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    #if os(macOS)
+    /// Previous/next chevrons that appear while the pointer is over the hero,
+    /// like the Mac TV app's carousels. Only with more than one page.
+    @ViewBuilder
+    private var macPageChevrons: some View {
+        if items.count > 1 {
+            HomeHeroMacPageChevrons(
+                isVisible: isPointerOverHero,
+                topInset: topInset,
+                horizontalPadding: contentLeadingInset + 12,
+                onPrevious: showPreviousHero,
+                onNext: showNextHero
+            )
+        }
+    }
+    #endif
+
     private func heroTitleBlockSpacing(for item: PlexItem) -> CGFloat {
         item.type == .movie ? layout.titleBlockSpacingMovie : layout.titleBlockSpacingOther
     }
@@ -770,9 +835,8 @@ struct HomeCinematicHero: View {
 
     @ViewBuilder
     private func heroTitleArtwork(for item: PlexItem, width: CGFloat, height: CGFloat) -> some View {
-        #if canImport(UIKit)
         if let image = preloadedHeroTitleImages[item.id.storageKey] {
-            Image(uiImage: image)
+            Image(platformImage: image)
                 .resizable()
                 .scaledToFit()
                 .shadow(color: .black.opacity(0.24), radius: 10, y: 4)
@@ -783,9 +847,6 @@ struct HomeCinematicHero: View {
             Color.clear
                 .frame(width: width, height: height, alignment: heroContentBlockAlignment)
         }
-        #else
-        heroTitleFallback(for: item)
-        #endif
     }
 
     private func heroTitleFallback(for item: PlexItem) -> some View {
@@ -1277,7 +1338,6 @@ struct HomeCinematicHero: View {
     }
 
     private func preloadHeroBackdropImages(width: Int, height: Int) async {
-        #if canImport(UIKit)
         let backdropRequests = items.compactMap { item -> (String, URL)? in
             guard let url = viewModel.heroBackgroundURL(for: item, width: width, height: height) else {
                 return nil
@@ -1321,11 +1381,9 @@ struct HomeCinematicHero: View {
                 }
             }
         }
-        #endif
     }
 
     private func preloadHeroTitleImages(width: Int, height: Int) async {
-        #if canImport(UIKit)
         let titleRequests = items.compactMap { item -> (String, URL)? in
             guard let url = viewModel.heroTitleLogoURL(for: item, width: width, height: height) else {
                 return nil
@@ -1369,7 +1427,6 @@ struct HomeCinematicHero: View {
                 }
             }
         }
-        #endif
     }
 
     @ViewBuilder
@@ -1381,13 +1438,12 @@ struct HomeCinematicHero: View {
     ) -> some View {
         let imageAlignment = heroBackdropImageAlignment
 
-        #if canImport(UIKit)
         if let image = preloadedHeroBackdropImages[item.id.storageKey] {
             GeometryReader { geometry in
                 ZStack {
                     Color.duskSurface
 
-                    Image(uiImage: image)
+                    Image(platformImage: image)
                         .resizable()
                         .scaledToFill()
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: imageAlignment)
@@ -1418,17 +1474,6 @@ struct HomeCinematicHero: View {
                 imageAlignment: imageAlignment
             )
         }
-        #else
-        DetailHeroBackdrop(
-            imageURL: viewModel.heroBackgroundURL(
-                for: item,
-                width: width,
-                height: height
-            ),
-            height: heroHeight,
-            imageAlignment: imageAlignment
-        )
-        #endif
     }
 
     private var heroBackdropImageAlignment: Alignment {
@@ -1648,14 +1693,12 @@ struct HomeCinematicHero: View {
     }
 }
 
-#if canImport(UIKit)
 /// One image's answer in the hero preload task groups; nil means it failed. A
 /// named type built in one place on purpose: see `Result.capturing`.
 private struct HeroImageLoad: Sendable {
     let ratingKey: String
-    let image: UIImage?
+    let image: PlatformImage?
 }
-#endif
 
 private enum HeroTransitionDirection {
     case forward
@@ -1958,6 +2001,43 @@ private struct HeroButtonContextMenuInteraction: UIViewRepresentable {
         private func capsulePath(in rect: CGRect) -> UIBezierPath {
             UIBezierPath(roundedRect: rect, cornerRadius: min(rect.width, rect.height) / 2)
         }
+    }
+}
+#endif
+
+#if os(macOS)
+/// The hero's hover chevrons on the Mac. Neutral glass circles, centred on
+/// the hero's edges, only while the pointer is over it.
+private struct HomeHeroMacPageChevrons: View {
+    let isVisible: Bool
+    let topInset: CGFloat
+    let horizontalPadding: CGFloat
+    let onPrevious: () -> Void
+    let onNext: () -> Void
+
+    var body: some View {
+        HStack {
+            chevron("chevron.left", label: "Previous", action: onPrevious)
+            Spacer(minLength: 0)
+            chevron("chevron.right", label: "Next", action: onNext)
+        }
+        .padding(.horizontal, horizontalPadding)
+        .padding(.top, topInset)
+        .opacity(isVisible ? 1 : 0)
+        .allowsHitTesting(isVisible)
+        .animation(.easeOut(duration: 0.18), value: isVisible)
+    }
+
+    private func chevron(_ systemImage: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemImage)
+                .font(.title3.weight(.semibold))
+                .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
+        .accessibilityLabel(label)
     }
 }
 #endif

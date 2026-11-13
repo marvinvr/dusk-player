@@ -39,9 +39,12 @@ struct LibraryTabSettingsView: View {
         }
         .contentMargins(.top, 12, for: .scrollContent)
         .duskScrollContentBackgroundHidden()
+        #if !os(macOS)
+        // The Mac reorders by dragging a row, no edit mode.
         .toolbar {
             EditButton()
         }
+        #endif
     }
     #endif
 

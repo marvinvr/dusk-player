@@ -91,7 +91,7 @@ struct HiddenHomeRowsSettingsView: View {
             .padding(.bottom, 88)
         }
         #else
-        List {
+        SettingsList {
             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                 Section {
                     ForEach(group.rows) { row in

@@ -4,6 +4,8 @@ import OSLog
 import AuthenticationServices
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 #endif
 
@@ -445,6 +447,14 @@ final class TraktService {
 /// Anchors the Trakt sign-in sheet on the foreground window.
 private final class TraktWebAuthPresentation: NSObject, ASWebAuthenticationPresentationContextProviding {
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
+        #if os(macOS)
+        MainActor.assumeIsolated {
+            NSApplication.shared.keyWindow
+                ?? NSApplication.shared.mainWindow
+                ?? NSApplication.shared.windows.first { $0.isVisible }
+                ?? ASPresentationAnchor()
+        }
+        #else
         MainActor.assumeIsolated {
             let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
             let scene = scenes.first { $0.activationState == .foregroundActive } ?? scenes.first
@@ -452,6 +462,7 @@ private final class TraktWebAuthPresentation: NSObject, ASWebAuthenticationPrese
             if let scene { return ASPresentationAnchor(windowScene: scene) }
             return ASPresentationAnchor()
         }
+        #endif
     }
 }
 #endif

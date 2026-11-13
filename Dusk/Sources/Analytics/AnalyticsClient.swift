@@ -194,12 +194,21 @@ final class AnalyticsClient {
     static let platform: String = {
         #if os(tvOS)
         return "tvos"
+        #elseif os(macOS)
+        return "macos"
         #else
         return UIDevice.current.userInterfaceIdiom == .pad ? "ipados" : "ios"
         #endif
     }()
 
+    #if os(macOS)
+    private static let osVersion: String = {
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+    }()
+    #else
     private static let osVersion: String = UIDevice.current.systemVersion
+    #endif
 
     /// The hardware identifier (`AppleTV14,1`, `iPhone17,3`), which names a
     /// model, not a device. The simulator reports its host's `arm64`, so it
@@ -219,8 +228,13 @@ final class AnalyticsClient {
     /// Sent explicitly so Rybbit is not left parsing URLSession's default
     /// CFNetwork string, which reads as neither a browser nor a known client.
     private static let userAgent: String = {
+        #if os(macOS)
+        let system = "macOS"
+        let version = osVersion
+        #else
         let system = UIDevice.current.systemName
         let version = UIDevice.current.systemVersion
+        #endif
         return "Dusk/\(appVersion) (\(system) \(version))"
     }()
 

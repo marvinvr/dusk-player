@@ -80,6 +80,9 @@ struct PosterArtwork: View {
             }
         }
         .clipShape(artworkShape)
+        #if os(macOS)
+        .macUIHoverLift(cornerRadius: cornerRadius)
+        #endif
     }
 
     private var isHorizontalArtwork: Bool {

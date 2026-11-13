@@ -3,6 +3,8 @@ import AVFoundation
 import MediaPlayer
 #if canImport(UIKit)
 import UIKit
+#elseif os(macOS)
+import AppKit
 #endif
 import os
 
@@ -808,12 +810,25 @@ private extension PlaybackNowPlayingController {
     #endif
 }
 
+#if os(macOS)
+private extension NSImage {
+    /// UIKit's `jpegData(compressionQuality:)`, for the Now Playing artwork.
+    func jpegData(compressionQuality: CGFloat) -> Data? {
+        guard let cgImage else { return nil }
+        return NSBitmapImageRep(cgImage: cgImage).representation(
+            using: .jpeg,
+            properties: [.compressionFactor: compressionQuality]
+        )
+    }
+}
+#endif
+
 private nonisolated func makeNowPlayingArtwork(
     imageData: Data,
     imageSize: CGSize
 ) -> MPMediaItemArtwork {
     MPMediaItemArtwork(boundsSize: imageSize) { _ in
-        UIImage(data: imageData) ?? UIImage()
+        PlatformImage(data: imageData) ?? PlatformImage()
     }
 }
 

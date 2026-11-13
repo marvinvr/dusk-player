@@ -9,6 +9,17 @@ enum KeychainHelper {
     static func save(key: String, data: Data) -> Bool {
         delete(key: key)
 
+        #if os(macOS)
+        // The Mac app keeps the default file-based login keychain (it works for
+        // an ad-hoc signed sandboxed build); accessibility classes only apply to
+        // the data-protection keychain, so none is set.
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+        ]
+        #else
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -16,6 +27,7 @@ enum KeychainHelper {
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock,
         ]
+        #endif
 
         return SecItemAdd(query as CFDictionary, nil) == errSecSuccess
     }

@@ -39,6 +39,9 @@ struct LiveTVHomeShelf: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                #if os(macOS)
+                                .macUIHoverSource()
+                                #endif
                                 .duskTVOSFocusEffectShape(
                                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                                 )

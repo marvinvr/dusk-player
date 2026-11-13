@@ -284,6 +284,9 @@ struct DownloadQualitySelectionSheet: View {
                     Text("Original downloads the file as it is. Other qualities ask your Plex server to convert a smaller copy first, which may leave out embedded subtitles. Keep Dusk open while Plex prepares it; the download then continues in the background.")
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            #endif
             .navigationTitle("Download Quality")
             .duskNavigationBarTitleDisplayModeInline()
             .toolbar {
@@ -299,6 +302,9 @@ struct DownloadQualitySelectionSheet: View {
                 }
             }
         }
+        #if os(macOS)
+        .macUISheetSize(minHeight: 320, idealHeight: 420)
+        #endif
     }
 }
 

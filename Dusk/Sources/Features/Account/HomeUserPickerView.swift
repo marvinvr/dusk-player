@@ -427,6 +427,10 @@ private struct HomeUserCard: View {
             }
             .contentShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         }
+        #if os(macOS)
+        // The card is the button; no push-button bezel around it.
+        .buttonStyle(.plain)
+        #endif
         .disabled(isDisabled)
         .duskSuppressTVOSButtonChrome()
         #if os(tvOS)
@@ -467,7 +471,9 @@ private struct IOSHomeUserPINView: View {
                 }
 
                 SecureField("PIN", text: $pin)
+                    #if !os(macOS)
                     .keyboardType(.numberPad)
+                    #endif
                     .textContentType(.oneTimeCode)
                     .font(.system(.title, design: .monospaced, weight: .bold))
                     .multilineTextAlignment(.center)
@@ -500,6 +506,9 @@ private struct IOSHomeUserPINView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                 }
+                #if os(macOS)
+                .buttonStyle(.plain)
+                #endif
                 .foregroundStyle(Color.duskPrimaryActionLabel)
                 .background(Color.primary.opacity(0.88), in: Capsule())
                 .disabled(pin.count != 4 || isSubmitting)

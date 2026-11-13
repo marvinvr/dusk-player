@@ -113,7 +113,9 @@ struct SupporterView: View {
                 .frame(maxWidth: .infinity)
             }
             .background(Color.duskBackground.ignoresSafeArea())
+            #if !os(macOS)
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     closeButton
@@ -124,7 +126,14 @@ struct SupporterView: View {
         #if os(iOS)
         .manageSubscriptionsSheet(isPresented: $showsManageSubscriptions)
         #endif
+        #if os(macOS)
+        .macUISheetSize(minWidth: 520, idealWidth: 600, minHeight: 600, idealHeight: 760)
+        #endif
     }
+
+    #if os(macOS)
+    private static let manageSubscriptionsURL = URL(string: "https://apps.apple.com/account/subscriptions")!
+    #endif
 
     /// The system close button, so scrolled content passes under the bar
     /// instead of under a floating circle.
@@ -224,7 +233,12 @@ struct SupporterView: View {
                             },
                             manage: {
                                 report(.supporterManageSubscriptionTapped)
+                                #if os(macOS)
+                                // No in-app manage sheet on the Mac: the App Store's page.
+                                openURL(Self.manageSubscriptionsURL)
+                                #else
                                 showsManageSubscriptions = true
+                                #endif
                             }
                         )
 
@@ -1141,6 +1155,12 @@ struct SupporterIconShowcase: View {
             tileName(for: icon)
                 .accessibilityHidden(true)
         }
+        #elseif os(macOS)
+        // The Mac app keeps its one icon, so the tiles only show the perk.
+        VStack(spacing: 6) {
+            iconArtwork(for: icon)
+            tileName(for: icon)
+        }
         #else
         VStack(spacing: 6) {
             iconArtwork(for: icon)
@@ -1191,6 +1211,11 @@ struct SupporterIconShowcase: View {
         return store.hasIconAccess
             ? "Select an icon to apply it. \(exclusives)."
             : "The subscription unlocks all ten icons, a tip from Generous up the six classic ones."
+        #elseif os(macOS)
+        if store.hasIconAccess {
+            return "Apply them in Dusk on iPhone, iPad and Apple TV."
+        }
+        return "The subscription unlocks all ten icons in Dusk on iPhone, iPad and Apple TV, a tip from Generous up the six classic ones."
         #else
         if store.hasActiveSubscription {
             return "Tap an icon to apply it."
@@ -1202,7 +1227,12 @@ struct SupporterIconShowcase: View {
     }
 
     private func isCurrent(_ icon: DuskAppIcon) -> Bool {
+        #if os(macOS)
+        // Nothing to mark: the Mac app has no alternate icons.
+        false
+        #else
         currentIcon == icon
+        #endif
     }
 
     private func apply(_ icon: DuskAppIcon) {
@@ -1288,6 +1318,12 @@ private extension View {
                 .buttonBorderShape(.capsule)
                 .tint(Color.primary)
         }
+        #elseif os(macOS)
+        self
+            .buttonStyle(.glass)
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .tint(Color.primary)
         #else
         self
         #endif

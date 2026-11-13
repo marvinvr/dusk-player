@@ -16,7 +16,7 @@ struct PinnedPlaylistsSettingsView: View {
             .background(Color.duskBackground.ignoresSafeArea())
             .duskNavigationTitle("Pinned Playlists")
             .duskNavigationBarTitleDisplayModeInline()
-            #if !os(tvOS)
+            #if os(iOS)
             .toolbar {
                 if !pins.isEmpty {
                     EditButton()
@@ -84,6 +84,13 @@ struct PinnedPlaylistsSettingsView: View {
                             unpin(pin)
                         }
                     }
+                    #if os(macOS)
+                    .contextMenu {
+                        Button("Unpin", role: .destructive) {
+                            unpin(pin)
+                        }
+                    }
+                    #endif
                 }
                 .onDelete { offsets in
                     offsets.map { pins[$0] }.forEach(unpin)

@@ -91,6 +91,14 @@ flat. On iPhone, content beyond the first three visible destinations and any
 trailing Downloads/Settings destinations are absorbed by `MoreView` to stay
 within five tabs.
 
+On macOS `ContentView` mounts `MacRootView` (`Mac/`) instead: a
+`NavigationSplitView` sidebar over the same content destinations (`MainTabItem`,
+same `UserPreferences` order/visibility) with one `NavigationStack` per
+destination, paths held by the app-wide `MacShellRouter` that the menu bar
+(`MacCommands`) drives. The app owns `ServerConnectionCoordinator` there so the
+`Settings` scene (⌘,) shares it, and `MacPlayerView` covers the window while
+`showPlayer` is true. See `docs/macos.md`.
+
 ## Shared Boundaries
 
 Use `Shared/` when code is reused by multiple features or establishes a product

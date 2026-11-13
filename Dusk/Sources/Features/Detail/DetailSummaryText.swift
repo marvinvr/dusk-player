@@ -302,15 +302,26 @@ struct SummaryFullTextView: View {
                     .padding(.vertical, 12)
             }
             .navigationTitle(title ?? "Synopsis")
+            #if os(macOS)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            #else
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     closeButton
                 }
             }
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        #if os(macOS)
+        .macUISheetSize(minHeight: 320, idealHeight: 480)
+        #endif
         #endif
     }
 

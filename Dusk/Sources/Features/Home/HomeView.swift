@@ -189,6 +189,8 @@ struct HomeView: View {
     private var recentlyAddedInlineItemLimit: Int {
         #if os(iOS)
         UIDevice.current.userInterfaceIdiom == .pad ? 22 : 15
+        #elseif os(macOS)
+        22
         #else
         15
         #endif
