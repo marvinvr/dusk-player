@@ -78,7 +78,8 @@ private struct MacSettingsPane<Content: View>: View {
             }
             .frame(
                 width: MacWindow.settingsSize.width,
-                height: min(max(contentHeight ?? height, 160), Self.maxHeight)
+                // Small floor only: a one-row pane (Integrations) hugs its row.
+                height: min(max(contentHeight ?? height, 72), Self.maxHeight)
             )
     }
 }
@@ -208,7 +209,7 @@ private struct MacPlaybackSettingsPane: View {
             Section {
                 Picker(selection: $preferences.maxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
-                        Text(resolution.displayName).tag(resolution)
+                        Text(resolution.macDisplayName).tag(resolution)
                     }
                 } label: {
                     Text("Max Resolution")
@@ -410,7 +411,7 @@ private struct MacDownloadsSettingsPane: View {
             Section {
                 Picker(selection: $preferences.downloadMaxResolution) {
                     ForEach(MaxResolution.allCases) { resolution in
-                        Text(resolution.displayName).tag(resolution)
+                        Text(resolution.macDisplayName).tag(resolution)
                     }
                 } label: {
                     Text("Preferred Version")
@@ -501,7 +502,7 @@ private struct MacIntegrationsSettingsPane: View {
     @Environment(TraktService.self) private var traktService
 
     var body: some View {
-        MacSettingsPane(height: 300) {
+        MacSettingsPane(height: 120) {
             Section {
                 MacSettingsSheetRow(
                     title: "Seerr",
@@ -723,7 +724,7 @@ private struct MacSupportSettingsPane: View {
             }
 
             Section {
-                perk("app.gift", "Alternate App Icons", "Tips from Generous up unlock six classic icons for Dusk on iPhone, iPad and Apple TV.")
+                perk("app.gift", "Alternate App Icons", "Tips of Generous or more unlock six classic app icons on iPhone, iPad and Apple TV (not available on Mac).")
                 perk("sparkles", "Subscriber Exclusives", "The subscription adds four more: Velvet, Emerald, Gilded and Sapphire.")
                 perk("hammer", "Keeps Dusk Going", "Everything in Dusk stays free either way. Supporting pays for its development.")
             } header: {
@@ -843,6 +844,13 @@ enum MacAboutPanel {
         guard let view else { return [] }
         if let textView = view as? NSTextView { return [textView] }
         return view.subviews.flatMap { textViews(in: $0) }
+    }
+}
+/// Mac wording: "Automatic", matching Preferred Version and macOS's own
+/// pickers (iOS/tvOS keep "Auto").
+private extension MaxResolution {
+    var macDisplayName: String {
+        self == .auto ? "Automatic" : displayName
     }
 }
 #endif

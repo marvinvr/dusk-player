@@ -265,6 +265,11 @@ private extension VerticalAlignment {
 
 struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
+    #if os(macOS)
+    /// The page's scheme (the hero itself is always dark): Light mode needs
+    /// a longer dark run-out below the actions before the fade.
+    @Environment(\.colorScheme) private var pageColorScheme
+    #endif
 
     let backdropURL: URL?
     /// The backdrop is an unwatched episode's own still; see `spoilerBlur`.
@@ -351,7 +356,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             #if os(tvOS)
             40
             #elseif os(macOS)
-            Self.macBottomPadding
+            macBottomPadding
             #else
             // Sit the title block lower so it reads over the background fade
             // rather than the busier middle of the artwork — easier to read,
@@ -403,9 +408,12 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         // a dark scrim and the hero only fades into the page below it.
         content
             .environment(\.colorScheme, .dark)
-            .frame(height: heroHeight)
+            .frame(height: macHeroHeight)
             .frame(maxWidth: .infinity)
             .background(alignment: .leading) { macBackdrop }
+            // The first section's top spacing overlaps the hero's last
+            // (near-page-colour) stretch, so hero → section stays tight.
+            .padding(.bottom, -Self.macSectionOverlap)
         #else
         // A background, not a ZStack sibling: running under the side insets
         // (iPhone landscape, iPhone Duo's vertical bar) makes the backdrop
@@ -571,9 +579,28 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     /// Gap between the bottom of the title block and the hero's bottom edge;
     /// most of it is the fade into the page, so the text block stays on the
     /// dark scrim.
-    static var macBottomPadding: CGFloat { 48 }
+    ///
+    /// Dark mode: the fade melts into an already-dark page, so it may start
+    /// above the actions. Light mode: the dark area runs on
+    /// `macLightDarkRunOut` below the last button row, then a short, steep
+    /// fade straight into the page colour (no long mid-grey band).
+    private var macBottomPadding: CGFloat {
+        macIsLightPage ? Self.macLightDarkRunOut + Self.macLightFadeHeight : 40
+    }
+    private static var macLightDarkRunOut: CGFloat { 40 }
+    private static var macLightFadeHeight: CGFloat { 64 }
+    private static var macSectionOverlap: CGFloat { 12 }
+
+    private var macIsLightPage: Bool { pageColorScheme == .light }
+
+    /// Light mode adds the run-out + fade below the regular hero height, so
+    /// the text block keeps its room.
+    private var macHeroHeight: CGFloat {
+        heroHeight + (macIsLightPage ? Self.macLightDarkRunOut + Self.macLightFadeHeight - 40 : 0)
+    }
+
     /// The last stretch of the hero, where the artwork fades into the page.
-    private static var macFadeHeight: CGFloat { 100 }
+    private var macFadeHeight: CGFloat { macIsLightPage ? Self.macLightFadeHeight : 100 }
 
     /// Very wide windows (2000pt displays) step the hero's type and controls
     /// up one size so the text block doesn't shrink against the backdrop.
@@ -616,25 +643,34 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     }
 
     private var macBackdrop: some View {
-        let fadeStart = max(0, 1 - Self.macFadeHeight / max(heroHeight, 1))
+        let height = macHeroHeight
+        let fadeStart = max(0, 1 - macFadeHeight / max(height, 1))
         let fadeSpan = 1 - fadeStart
         return ZStack {
             DetailHeroBackdrop(
                 imageURL: backdropURL,
-                height: heroHeight,
+                height: height,
                 keepsPreviousImageWhileLoading: keepsPreviousBackdropWhileLoading,
                 blursImage: blursBackdrop
             )
-            MacDetailHeroScrim(fadeStart: fadeStart)
+            MacDetailHeroScrim(fadeStart: fadeStart, holdsDarkThroughFade: macIsLightPage)
         }
         .environment(\.colorScheme, .dark)
-        .frame(width: containerWidth, height: heroHeight, alignment: .leading)
+        .frame(width: containerWidth, height: height, alignment: .leading)
         // Fade the dark hero into the page background with a mask (the page
-        // fill is the only colour at the seam). Eased, and only below the
-        // text block, so Light mode gets a soft ramp rather than a band.
+        // fill is the only colour at the seam), only below the text block.
+        // Light mode: short and steep, so dark meets the page without a long
+        // mid-grey band. Dark mode: the longer eased ramp.
         .mask {
             LinearGradient(
-                stops: [
+                stops: macIsLightPage ? [
+                    .init(color: .black, location: 0),
+                    .init(color: .black, location: fadeStart),
+                    .init(color: .black.opacity(0.72), location: fadeStart + fadeSpan * 0.25),
+                    .init(color: .black.opacity(0.32), location: fadeStart + fadeSpan * 0.55),
+                    .init(color: .black.opacity(0.08), location: fadeStart + fadeSpan * 0.82),
+                    .init(color: .clear, location: 1),
+                ] : [
                     .init(color: .black, location: 0),
                     .init(color: .black, location: fadeStart),
                     .init(color: .black.opacity(0.9), location: fadeStart + fadeSpan * 0.2),
@@ -724,29 +760,47 @@ struct DetailMacMediaSection: View {
                 Text("Information")
                     .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 190, maximum: 300), spacing: 32, alignment: .topLeading)],
-                    alignment: .leading,
-                    spacing: 20
-                ) {
-                    ForEach(cells) { cell in
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(cell.label)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(Color.primary)
-                            Text(cell.lines.joined(separator: "\n"))
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                                .lineSpacing(2)
-                                .fixedSize(horizontal: false, vertical: true)
+                // One row when every cell fits, otherwise a balanced two
+                // columns: never a lone cell on a second row (3 + 1).
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .top, spacing: 32) {
+                        ForEach(cells) { cell in
+                            cellView(cell)
+                                .frame(minWidth: 180, maxWidth: .infinity, alignment: .topLeading)
                         }
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
-                        .accessibilityElement(children: .combine)
+                    }
+                    Grid(alignment: .topLeading, horizontalSpacing: 32, verticalSpacing: 20) {
+                        ForEach(Array(stride(from: 0, to: cells.count, by: 2)), id: \.self) { index in
+                            GridRow {
+                                cellView(cells[index])
+                                    .frame(maxWidth: .infinity, alignment: .topLeading)
+                                if index + 1 < cells.count {
+                                    cellView(cells[index + 1])
+                                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                                } else {
+                                    Color.clear.gridCellUnsizedAxes([.horizontal, .vertical])
+                                }
+                            }
+                        }
                     }
                 }
                 .textSelection(.enabled)
             }
         }
+    }
+
+    private func cellView(_ cell: Cell) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(cell.label)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(Color.primary)
+            Text(cell.lines.joined(separator: "\n"))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineSpacing(2)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private static func cells(for media: PlexMedia) -> [Cell] {
@@ -886,6 +940,9 @@ struct DetailMacMediaSection: View {
 private struct MacDetailHeroScrim: View {
     /// Where the hero starts fading into the page (fraction of its height).
     var fadeStart: CGFloat = 1
+    /// Light pages: stay fully dark through the (short) fade, so the mask
+    /// takes dark straight to the page colour instead of lightening first.
+    var holdsDarkThroughFade = false
 
     var body: some View {
         ZStack {
@@ -924,7 +981,7 @@ private struct MacDetailHeroScrim: View {
                     .init(color: .black.opacity(0.8), location: fadeStart),
                     // Eases off inside the fade, so the hero's tail melts
                     // into the page instead of ending in a near-black band.
-                    .init(color: .black.opacity(0.45), location: 1),
+                    .init(color: .black.opacity(holdsDarkThroughFade ? 0.8 : 0.45), location: 1),
                 ],
                 startPoint: .top,
                 endPoint: .bottom

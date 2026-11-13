@@ -123,11 +123,23 @@ final class EpisodeDetailViewModel {
     /// Whether `backdropURL` is this episode's own still while it is
     /// unwatched; its `art` is the show's backdrop.
     var backdropIsUnwatchedEpisodeStill: Bool {
+        #if os(macOS)
+        // The Mac hero uses the show/season backdrop; the still is a fallback.
+        details?.art == nil && details?.thumb != nil && !isWatched
+        #else
         details?.thumb != nil && !isWatched
+        #endif
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
+        #if os(macOS)
+        // A full-window hero: the episode still is a small (often soft,
+        // sometimes title-carded) frame upscaled, so the Mac prefers the
+        // inherited show/season `art` and only falls back to the still.
+        let path = details?.art ?? details?.thumb
+        #else
         let path = details?.thumb ?? details?.art
+        #endif
         return downloadManager?.localArtworkURL(for: path)
             ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }

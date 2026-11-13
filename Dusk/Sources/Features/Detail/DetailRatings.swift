@@ -156,6 +156,10 @@ struct DetailRateHeroButton: View {
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel("Rate")
+        #if os(macOS)
+        // A Menu's label tooltip doesn't reach the pop-up control itself.
+        .help("Rate")
+        #endif
     }
 
     /// Whole stars for the checkmark; a half-star rating from another client

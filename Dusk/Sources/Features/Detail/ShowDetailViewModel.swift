@@ -214,7 +214,7 @@ final class ShowDetailViewModel {
             let episodes = MediaTextFormatter.episodeCount(season.leafCount)
             guard let unwatched = season.unwatchedEpisodeCount, unwatched > 0,
                   unwatched != season.leafCount else { return episodes }
-            return [episodes, "\(unwatched) Unwatched"].compactMap { $0 }.joined(separator: " · ")
+            return [episodes, "\(unwatched) unwatched"].compactMap { $0 }.joined(separator: " · ")
         }
         #endif
 
