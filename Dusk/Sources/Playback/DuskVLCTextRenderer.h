@@ -1,6 +1,8 @@
 #import <Foundation/Foundation.h>
 #import <TargetConditionals.h>
-#if TARGET_OS_TV
+#if TARGET_OS_OSX
+#import <VLCKit/VLCKit.h>
+#elif TARGET_OS_TV
 #import <TVVLCKit/TVVLCKit.h>
 #else
 #import <MobileVLCKit/MobileVLCKit.h>

@@ -3,7 +3,9 @@ import AudioToolbox
 import CoreMedia
 import OSLog
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 #if os(iOS)
 import AVKit
 #endif

@@ -2,7 +2,9 @@ import Foundation
 import OSLog
 #if !os(tvOS)
 import AuthenticationServices
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 private let traktLogger = Logger(

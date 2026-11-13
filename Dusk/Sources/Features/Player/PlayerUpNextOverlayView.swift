@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(iOS)
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 /// The full-screen Up Next screen shown when an episode ends without an

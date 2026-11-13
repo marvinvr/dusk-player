@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BUILD_DIR="${ROOT_DIR}/.build"
 IOS_FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/MobileVLCKit.xcframework"
 TVOS_FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/TVVLCKit.xcframework"
+MACOS_FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/VLCKit.xcframework"
 LICENSE_PATH="${ROOT_DIR}/Frameworks/VLCKit-LICENSE.txt"
 VERSION_PATH="${ROOT_DIR}/Frameworks/VLCKit-VERSION.txt"
 EXTRACT_DIR="${BUILD_DIR}/vlckit-prebuilt"
@@ -45,6 +46,14 @@ STOCK_IOS_ARCHIVE="MobileVLCKit-3.7.3-319ed2c0-79128878.tar.xz"
 STOCK_IOS_ARCHIVE_SHA256="0d04059906962ddc9a7bd1ebaa12e1f9ae85eb2466116a97a2f46886dd27a0a9"
 STOCK_TVOS_ARCHIVE="TVVLCKit-3.7.3-319ed2c0-79128878.tar.xz"
 STOCK_TVOS_ARCHIVE_SHA256="b5f90c226ed54d9dc1c03901c60dc7749b74a53caace2c3047e4c0b7a063e46c"
+
+# macOS: VideoLAN's official VLCKit 3.7.3 for macOS (same VLCKit commit as the
+# iOS/tvOS line, universal arm64 + x86_64). Dusk has no own macOS build yet, so
+# the Mac app runs on stock VLCKit and reads no DuskVLCKitBuild stamp: TrueHD
+# goes through Plex exactly like the stock iOS fallback. See docs/macos.md.
+MACOS_STOCK_VERSION="3.7.3-stock"
+MACOS_STOCK_ARCHIVE="VLCKit-3.7.3-319ed2c0-79128878.tar.xz"
+MACOS_STOCK_ARCHIVE_SHA256="019afdae4e2e2d0f3ac325fac8f7ba0af25dca70b9d157df7d60db88e0be8e5d"
 
 # Marker file inside each installed xcframework: what this script installed.
 INSTALLED_MARKER="vlckit-installed.txt"
@@ -286,6 +295,29 @@ install_stock_vlckit() {
     echo "Stock MobileVLCKit installed at ${IOS_FRAMEWORK_DIR}."
     echo "Stock TVVLCKit installed at ${TVOS_FRAMEWORK_DIR}."
 }
+
+has_macos_vlckit() {
+    [ -d "${MACOS_FRAMEWORK_DIR}/macos-arm64_x86_64/VLCKit.framework" ] &&
+    [ "$(cat "${MACOS_FRAMEWORK_DIR}/${INSTALLED_MARKER}" 2>/dev/null)" = "${MACOS_STOCK_VERSION}" ]
+}
+
+install_macos_vlckit() {
+    echo "Installing VideoLAN's VLCKit 3.7.3 for macOS..."
+    rm -rf "${EXTRACT_DIR}"
+    mkdir -p "${ROOT_DIR}/Frameworks" "${EXTRACT_DIR}"
+    fetch_stock_archive "${MACOS_STOCK_ARCHIVE}" "${MACOS_STOCK_ARCHIVE_SHA256}"
+    tar -xf "${EXTRACT_DIR}/${MACOS_STOCK_ARCHIVE}" -C "${EXTRACT_DIR}"
+    install_framework "${EXTRACT_DIR}/VLCKit - binary package/VLCKit.xcframework" "${MACOS_FRAMEWORK_DIR}"
+    printf '%s\n' "${MACOS_STOCK_VERSION}" > "${MACOS_FRAMEWORK_DIR}/${INSTALLED_MARKER}"
+    rm -rf "${EXTRACT_DIR}"
+    echo "VLCKit for macOS installed at ${MACOS_FRAMEWORK_DIR}."
+}
+
+if has_macos_vlckit; then
+    echo "VLCKit for macOS ${MACOS_STOCK_VERSION} already present."
+else
+    install_macos_vlckit
+fi
 
 if has_dusk_vlckit; then
     echo "Dusk MobileVLCKit/TVVLCKit ${VLCKIT_VERSION} frameworks already present."

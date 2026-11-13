@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct PlayerControlsGradientBackdrop: View {
     var body: some View {

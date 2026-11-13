@@ -1,6 +1,8 @@
 import Foundation
 import Network
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Triggers the iOS/tvOS Local Network prompt before a LAN Seerr connection.
 ///

@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(tvOS)
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 /// Trailing shelf affordance that opens the carousel's full list.

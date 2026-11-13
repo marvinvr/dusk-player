@@ -4,6 +4,7 @@ options:
   deploymentTarget:
     iOS: "18.0"
     tvOS: "26.0"
+    macOS: "26.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
   groupSortPosition: top
@@ -129,6 +130,64 @@ targets:
         name: Verify embedded VLCKit is not stale
         basedOnDependencyAnalysis: false
 
+  # Native macOS app (SwiftUI on AppKit, not Catalyst / Designed for iPad).
+  # Same bundle ID as iOS/tvOS for Universal Purchase. Shares Dusk/Sources;
+  # Mac-only code lives in Dusk/Sources/Mac (file-scope #if os(macOS)).
+  # See docs/macos.md.
+  Dusk-macOS:
+    type: application
+    platform: macOS
+    configFiles:
+      Debug: Dusk/Support/Keys.xcconfig
+      Release: Dusk/Support/Keys.xcconfig
+    sources:
+      - path: Dusk/Sources
+      - path: Dusk/Resources
+        buildPhase: resources
+        excludes:
+          - LaunchScreen-tvOS.storyboard
+          - LaunchScreen.storyboard
+          - AppIconsTV.xcassets
+          # Alternate icons are iOS/tvOS only; the Mac ships the default icon.
+          - DuskIconDawn.icon
+          - DuskIconMidnight.icon
+          - DuskIconNeon.icon
+          - DuskIconMono.icon
+          - DuskIconAurora.icon
+          - DuskIconGoldenHour.icon
+          - DuskIconVelvet.icon
+          - DuskIconEmerald.icon
+          - DuskIconGilded.icon
+          - DuskIconSapphire.icon
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dusk-player.app
+        PRODUCT_NAME: Dusk
+        CODE_SIGN_ENTITLEMENTS: Dusk/Support/Dusk-macOS.entitlements
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGN_STYLE: Manual
+        ENABLE_HARDENED_RUNTIME: true
+        GENERATE_INFOPLIST_FILE: false
+        INFOPLIST_FILE: Dusk/Support/Info-macOS.plist
+        DEVELOPMENT_TEAM: ""
+        ASSETCATALOG_COMPILER_APPICON_NAME: DuskIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        COMBINE_HIDPI_IMAGES: true
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Frameworks"
+        HEADER_SEARCH_PATHS: "$(inherited) $(PROJECT_DIR)/Dusk/Sources/Playback $(PROJECT_DIR)/Frameworks/VLCKit.xcframework/macos-arm64_x86_64/VLCKit.framework/Headers"
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        SWIFT_OBJC_BRIDGING_HEADER: Dusk/Support/Dusk-Bridging-Header.h
+        SWIFT_STRICT_CONCURRENCY: complete
+    dependencies:
+      - framework: Frameworks/VLCKit.xcframework
+        embed: true
+      - framework: Frameworks/DuskDovi.xcframework
+        embed: false
+    postBuildScripts:
+      - script: ./scripts/verify_embedded_vlckit.sh
+        name: Verify embedded VLCKit is not stale
+        basedOnDependencyAnalysis: false
+
   # tvOS Top Shelf: shows Continue Watching from the snapshot the app writes
   # into the shared App Group (Dusk/Sources/TopShelf). No Plex access of its own.
   DuskTopShelf:
@@ -220,6 +279,20 @@ schemes:
       config: Debug
       targets:
         - DuskTests-tvOS
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  Dusk-macOS:
+    build:
+      targets:
+        Dusk-macOS: all
+    run:
+      config: Debug
+      storeKitConfiguration: Dusk/Support/Dusk.storekit
     profile:
       config: Release
     analyze:

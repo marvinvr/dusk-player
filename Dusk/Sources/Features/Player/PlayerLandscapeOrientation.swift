@@ -2,7 +2,9 @@
 import CoreMotion
 import ObjectiveC
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// App-level mask while an iPhone player is on screen.
 ///

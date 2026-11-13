@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Full-screen photo viewer over a grid's loaded photos and clips.
 ///

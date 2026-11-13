@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 #if !os(tvOS)
 struct SettingsIOSView: View {

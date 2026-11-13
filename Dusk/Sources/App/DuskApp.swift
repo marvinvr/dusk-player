@@ -1,7 +1,9 @@
 import AppIntents
 import AVFoundation
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum AppImageCache {
     static let memoryCapacity = 0

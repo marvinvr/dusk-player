@@ -34,6 +34,10 @@ case "${PLATFORM_NAME}" in
         FRAMEWORK_NAME="TVVLCKit"
         REPO_SLICE="TVVLCKit.xcframework/tvos-arm64-simulator"
         ;;
+    macosx)
+        FRAMEWORK_NAME="VLCKit"
+        REPO_SLICE="VLCKit.xcframework/macos-arm64_x86_64"
+        ;;
     *)
         echo "warning: unknown platform ${PLATFORM_NAME}; skipping VLCKit staleness check."
         exit 0

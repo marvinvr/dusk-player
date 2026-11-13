@@ -3,7 +3,9 @@ import Foundation
 import Metal
 import QuartzCore
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import simd
 
 @MainActor

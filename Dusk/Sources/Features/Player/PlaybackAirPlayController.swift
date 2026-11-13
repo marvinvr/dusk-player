@@ -5,7 +5,9 @@ import Observation
 import AVFoundation
 import AVKit
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 /// Observes the system media route selected for Dusk's long-form video audio

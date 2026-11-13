@@ -1,6 +1,8 @@
 #if os(iOS)
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct HomeIOSView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass

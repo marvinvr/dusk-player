@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum PlayerOverlayLayout {
     static let controlsHorizontalPadding: CGFloat = 16

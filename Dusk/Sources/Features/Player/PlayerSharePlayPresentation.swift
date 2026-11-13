@@ -1,6 +1,8 @@
 import GroupActivities
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 #if os(iOS)
 struct SharePlayInvitation: Identifiable {

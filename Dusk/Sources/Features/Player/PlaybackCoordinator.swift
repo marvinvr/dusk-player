@@ -1,7 +1,9 @@
 import Foundation
 import SwiftUI
 #if os(tvOS)
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 enum PlayerLoadingState: Equatable {

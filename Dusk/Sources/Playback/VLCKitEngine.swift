@@ -2,16 +2,20 @@
 import MobileVLCKit
 #elseif canImport(TVVLCKit)
 import TVVLCKit
+#elseif canImport(VLCKit)
+import VLCKit
 #endif
-#if canImport(MobileVLCKit) || canImport(TVVLCKit)
+#if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
 import AVFoundation
 import CoreVideo
 import OSLog
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
 #endif
+#endif
 
-#if canImport(MobileVLCKit) || canImport(TVVLCKit)
+#if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
 private let vlcKitEngineLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "VLCKitEngine"

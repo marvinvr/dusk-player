@@ -1,5 +1,7 @@
 import Foundation
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Fire-and-forget event reporting to the self-hosted Rybbit instance at
 /// `stats.marvinvr.ch`, the same one the website already uses (a separate
