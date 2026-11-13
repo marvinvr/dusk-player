@@ -3,7 +3,16 @@ import Security
 
 /// Minimal Keychain wrapper using the Security framework directly.
 enum KeychainHelper {
+    #if os(macOS)
+    /// The Mac uses the shared login keychain, where every build would see one
+    /// item named after the App Store bundle ID: a local beta (other bundle ID)
+    /// or QA build would pick up, and overwrite, another build's sign-in. The
+    /// bundle ID keeps them apart; the App Store build still uses
+    /// "com.dusk-player.app".
+    private static let service = Bundle.main.bundleIdentifier ?? "com.dusk-player.app"
+    #else
     private static let service = "com.dusk-player.app"
+    #endif
 
     @discardableResult
     static func save(key: String, data: Data) -> Bool {

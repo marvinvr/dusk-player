@@ -46,6 +46,10 @@ enum ScreenshotMode {
 
     static let isActive = UserDefaults.standard.bool(forKey: Key.mode)
 
+    /// `-DuskScreenshotSignedOut YES` (without screenshot mode): start on the
+    /// sign-in screen without reading a stored sign-in, for UI captures.
+    static let startsSignedOut = UserDefaults.standard.bool(forKey: "DuskScreenshotSignedOut")
+
     /// Fake account token. The mock server accepts any token.
     static let accountToken = "dusk-screenshot-demo-token"
 

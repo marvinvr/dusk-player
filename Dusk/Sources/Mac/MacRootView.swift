@@ -15,16 +15,16 @@ import SwiftUI
 ///   included, while `PlaybackCoordinator.showPlayer` is true; it runs the iOS
 ///   cover's `onDismiss` teardown itself when it unmounts.
 struct MacRootView: View {
-    @Environment(PlexService.self) private var plexService
-    @Environment(PlaybackCoordinator.self) private var playback
-    @Environment(DownloadManager.self) private var downloadManager
+    @Environment(PlexService.self) var plexService
+    @Environment(PlaybackCoordinator.self) var playback
+    @Environment(DownloadManager.self) var downloadManager
     @Environment(UserPreferences.self) private var preferences
     @Environment(IPTVService.self) private var iptvService
-    @Environment(MacShellRouter.self) private var router
+    @Environment(MacShellRouter.self) var router
     @Environment(\.scenePhase) private var scenePhase
     @State private var librariesViewModel: LibrariesViewModel?
     @State private var liveTVViewModel: LiveTVViewModel?
-    @State private var addToPlaylist = AddToPlaylistPresenter()
+    @State var addToPlaylist = AddToPlaylistPresenter()
     @State private var columnVisibility = NavigationSplitViewVisibility.all
 
     var body: some View {
@@ -122,6 +122,11 @@ struct MacRootView: View {
             await SiriTitleCatalog.shared.refreshIfNeeded(plexService: plexService)
         }
         .supporterPromptPresenter()
+        #if DEBUG
+        .task {
+            await applyMacScreenshotDestination { librariesViewModel?.libraries ?? [] }
+        }
+        #endif
     }
 
     // MARK: - Split view

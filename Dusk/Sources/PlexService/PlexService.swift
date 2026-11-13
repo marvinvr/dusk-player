@@ -179,7 +179,13 @@ final class PlexService {
             clientIdentifier = id
         }
 
-        if let data = KeychainHelper.load(key: Self.keychainTokenKey),
+        #if DEBUG
+        let readsStoredSignIn = !ScreenshotMode.startsSignedOut
+        #else
+        let readsStoredSignIn = true
+        #endif
+        if readsStoredSignIn,
+           let data = KeychainHelper.load(key: Self.keychainTokenKey),
            let token = String(data: data, encoding: .utf8) {
             primaryAccountToken = token.nilIfEmpty
         }
