@@ -1,8 +1,10 @@
 import SwiftUI
 
-/// The main tab shell shown after authentication and server connection.
+/// The main tab shell shown once the Plex profile is ready, online or offline.
 struct MainTabView: View {
     @Environment(PlexService.self) private var plexService
+    @Environment(ServerConnectionCoordinator.self) private var connections
+    @Environment(LaunchSplashState.self) private var launchSplash
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(UserPreferences.self) private var preferences
@@ -38,6 +40,11 @@ struct MainTabView: View {
 
         shellView
             .environment(addToPlaylist)
+            .onChange(of: connections.showsOfflineDownloads, initial: true) { _, isOffline in
+                guard isOffline else { return }
+                selectedTab = .downloads
+                launchSplash.contentIsReady()
+            }
             .duskPopUp(item: $bindableAddToPlaylist.target) { target in
                 AddToPlaylistSheet(target: target, plexService: plexService)
             }
@@ -264,6 +271,9 @@ struct MainTabView: View {
     }
 
     private var desiredAvailableTabs: [MainTabItem] {
+        if connections.showsOfflineDownloads {
+            return [.home, .downloads, .settings]
+        }
         let availableLibraryTypes = librariesViewModel?.availableLibraryTypes ?? [.movie, .show]
         let contentTabs = preferences.visibleLibraryTabs(from: availableLibraryTypes + dataDrivenTabTypes).map { type in
             switch type {

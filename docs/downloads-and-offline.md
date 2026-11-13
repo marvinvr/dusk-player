@@ -228,6 +228,31 @@ lookups, playback-sync actions, and their global keys include `activeProfileID`
 in addition to server id and rating key. A profile must never see or mutate
 another profile's records merely because both can access the same server.
 
+## Offline Startup And Recovery
+
+On iOS, `ServerConnectionCoordinator.showsOfflineDownloads` applies the pure
+`OfflineFallback` decision: no network route or no reachable server opens the
+existing Downloads destination (even if empty). Partial outages keep online
+content. The offline shell uses Home, Downloads and Settings so Downloads cannot
+be buried in More; it stays mounted during retries and local playback.
+
+Plex Home bootstrap also has to work without plex.tv. Transport failures and
+5xx responses may restore the saved automatically signed-in profile, marked
+`isUsingOfflineHomeSession`; a remembered Home member requires its remembered
+token. This does not complete the Home migration or persist a successful online
+validation. Authentication failures, missing identity, mandatory profile/PIN
+selection and disabled automatic sign-in cannot use this escape hatch. tvOS
+keeps its online bootstrap and has no Downloads fallback.
+
+Network-path recovery and foreground entry re-run connection selection. While
+foregrounded with a network route, offline recovery also retries every 30 seconds
+so a server returning on the same network is discovered automatically. Recovery
+revalidates a cached Home session and reuses the existing stored-snapshot/LAN
+selection path if plex.tv is unavailable. Successful connections restore the
+normal tabs without interrupting Downloads navigation or local playback.
+`DuskTests/OfflineFallbackTests.swift` covers the decision, profile guards and
+bootstrap with a simulated `notConnectedToInternet` failure.
+
 ## Offline Playback Route
 
 `PlaybackCoordinator+Session.startPlaybackSession` owns the route. It prefers
@@ -280,7 +305,8 @@ queue-sheet-only idle timer hold while active downloads exist. Queue rows
 dismiss the sheet before appending the media destination to the Downloads tab
 navigation path, so detail screens are shown in the full tab stack rather than
 inside the sheet.
-`MainTabView` shows the Downloads tab only when visible and records exist.
+`MainTabView` shows the Downloads tab when records exist, and always in the
+iOS offline fallback (including its native empty state).
 `SettingsIOSView` owns source-version resolution, Wi-Fi Only, concurrency, storage reserve, usage,
 manual sync, and delete-all. `MediaDetailDestinationView` passes managers into
 detail view models and marks routes from Downloads with
@@ -310,8 +336,9 @@ primary server. A download whose server has since been disabled stays listed and
 plays offline; only new network work needs the server back. Do
 not casually delete shared metadata/artwork; show/season browsing and up-next may
 reuse it. Do not trust `downloadTaskIdentifier` across relaunch. Do not report
-Plex timeline directly for local downloads. Do not make Downloads always visible
-or add a generic provider abstraction unless product scope changes.
+Plex timeline directly for local downloads. Keep Downloads visibility tied to
+records or the offline fallback. Do not add
+a generic provider abstraction unless product scope changes.
 
 ## Safe-Change Checklist
 
