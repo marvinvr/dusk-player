@@ -233,6 +233,7 @@
 		4713FAE724DCD5EA9F4EF86B /* DuskApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E04ECF8E20F247BA70F3250 /* DuskApp.swift */; };
 		471B694988DE289D70C10D02 /* PlexHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9771A4F964C286E6DA9AB6A /* PlexHub.swift */; };
 		475D1E7FBE211E59E91DD4AA /* SiriTitleMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36D9204A97644783EA96756 /* SiriTitleMatchingTests.swift */; };
+		491E5DDC6055F14B7B220317 /* ForcedSubtitleTwinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0032E9B1078F728B277B66AB /* ForcedSubtitleTwinTests.swift */; };
 		49E96403CF1EB933BD4169F4 /* PlaybackCoordinator+SpatialAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABCEFDAC2C5DF0C8DB8C0AE /* PlaybackCoordinator+SpatialAudio.swift */; };
 		4A29FD0D91661288D837B6C2 /* PlayerSelectionSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B1ECE0840EFAA073B10970 /* PlayerSelectionSheet.swift */; };
 		4B1461E9BD74CAA05487BDC9 /* SiriTitleMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36D9204A97644783EA96756 /* SiriTitleMatchingTests.swift */; };
@@ -609,6 +610,7 @@
 		B7A084DCBB5C40CE291C5C1A /* SeerrSettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5880F6F4FD5D89C7F37C90A /* SeerrSettingsViewModel.swift */; };
 		B7DA8C6E5840EFD773A22EA5 /* SeasonDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59D3DFD09891C72BA03E6F9D /* SeasonDetailViewModel.swift */; };
 		B7FE0878FE702ED5AE35CADE /* LaunchScreen-tvOS.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 402EAD79722CB348A2FDD535 /* LaunchScreen-tvOS.storyboard */; };
+		B813A5969822353A645014C7 /* ForcedSubtitleTwinTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0032E9B1078F728B277B66AB /* ForcedSubtitleTwinTests.swift */; };
 		B855936088F0E48E14E0EA32 /* LiveTVView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E00CF5F74ED3461738CB1C7F /* LiveTVView.swift */; };
 		B95F66EE7DC662817C907893 /* PinnedPlaylistsSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C6987033060B92D69C29CCB /* PinnedPlaylistsSettingsView.swift */; };
 		B976ED89A90699FA4167D893 /* PlexService+Ratings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543F2AD39E8B4489BE4DD47E /* PlexService+Ratings.swift */; };
@@ -899,6 +901,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		0032E9B1078F728B277B66AB /* ForcedSubtitleTwinTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ForcedSubtitleTwinTests.swift; sourceTree = "<group>"; };
 		00E873624B104DE44EC8453F /* LiveTVHomeShelf.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTVHomeShelf.swift; sourceTree = "<group>"; };
 		017021DDFB64BF1FA7637881 /* SeerrSeasonDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SeerrSeasonDetailViewModel.swift; sourceTree = "<group>"; };
 		01D0F3059DC86F842ACB8779 /* HubMerge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HubMerge.swift; sourceTree = "<group>"; };
@@ -1698,6 +1701,7 @@
 				7A5A876CEA9ADB9C1BC46D45 /* DolbyVision7ProxyTests.swift */,
 				B6932B98D36C388D5380A265 /* DoviBridgeTests.swift */,
 				D462D109D3D8B97DEF6F548E /* FairPlayKeyExchangeTests.swift */,
+				0032E9B1078F728B277B66AB /* ForcedSubtitleTwinTests.swift */,
 				B2245C6E8DD626DA6C5902A5 /* HDRVideoRemuxTests.swift */,
 				944F4D7F85DB19B3855CD921 /* HomeHubArrangementTests.swift */,
 				35CB85934A354D4C525BD414 /* HomePreferencesTests.swift */,
@@ -3042,6 +3046,7 @@
 				3200C7579D3867681BAA3553 /* DolbyVision7ProxyTests.swift in Sources */,
 				C498AB3447E518076A5B3E70 /* DoviBridgeTests.swift in Sources */,
 				F60BCFE5096D9CD05F1EBD8F /* FairPlayKeyExchangeTests.swift in Sources */,
+				B813A5969822353A645014C7 /* ForcedSubtitleTwinTests.swift in Sources */,
 				7319B0B3C9C116170333AFEF /* HDRVideoRemuxTests.swift in Sources */,
 				1C497495EEA60E92DEA761FC /* HomeHubArrangementTests.swift in Sources */,
 				5E8A7C3898571B2369706E90 /* HomePreferencesTests.swift in Sources */,
@@ -3114,6 +3119,7 @@
 				51CB77F935FF89FBDDD004A5 /* DolbyVision7ProxyTests.swift in Sources */,
 				FABF6938D76AF471CB31C6C3 /* DoviBridgeTests.swift in Sources */,
 				92453593E4A8329F5C5ACE97 /* FairPlayKeyExchangeTests.swift in Sources */,
+				491E5DDC6055F14B7B220317 /* ForcedSubtitleTwinTests.swift in Sources */,
 				CE6D7F2BA7ADC282D12E4265 /* HDRVideoRemuxTests.swift in Sources */,
 				23E4CC2CB9FC15B880D303FB /* HomeHubArrangementTests.swift in Sources */,
 				88CF699A732552D52028627B /* HomePreferencesTests.swift in Sources */,
