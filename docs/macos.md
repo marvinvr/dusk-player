@@ -214,11 +214,25 @@ Mac-designer agents per round.
   `mergeSubtitleMetadata`, so AVPlayer subtitle labels were shifted
   (forced English shown as "French"). **iOS still has it** — port the
   `forcedTwinSource` fix from `PlayerViewModel+TrackSelection.swift`.
-- Round 3 review in progress. Remaining known items:
-  - Light-mode hero bottom fade still passes through a slightly darker tone.
-  - Library title truncates next to the three-segment switch at 900pt.
-  - Filters popover pop-ups have different widths.
-  - Corrupt local download fails with no streaming fallback (shared code).
+- Round 3 (~30 findings, no P1 visual bugs left) fixed and committed:
+  light-mode hero fades (Home + detail), episode heroes use show/season art,
+  balanced Information grid, Mac-only Settings copy, shelf paging metrics
+  (shelves beside the sidebar rest at a -210pt inset), toolbar menu sizing,
+  Live TV ruler/cell fills, VLC video view no longer makes clicks window
+  drags (`mouseDownCanMoveWindow`), scrub hover marker.
+- Shared bugs seen on Mac, **not fixed on iOS** (shared code left alone):
+  the forced-subtitle label shift above, and the Live TV guide now-pill /
+  ruler offset (`LiveTVGuideGridView`, leading alignment guide).
+- Still open / unverified (final verification pass blocked: the screen was
+  locked):
+  - Round-3 fixes A1/A7 (toolbar menu re-measure, library title), filters
+    pop-up widths, sign-in link hover, player top scrim + scrub marker: built,
+    not re-captured.
+  - Real-mouse click on VLC sessions' HUD menus (AX press works; the drag
+    region fix is the likely cause, unproven).
+  - Light detail pages: hero-to-first-section gap is ~120pt (40pt dark +
+    64pt fade below the buttons).
   - Not mouse-verified: shelf/hero hover chevrons, title menu, Downloads
     context menu/Delete key, Open Live TV Settings…, AirPlay picker click.
+  - Corrupt local download fails with no streaming fallback (shared code).
   - Episode page has no "other episodes" shelf.
