@@ -8,7 +8,9 @@ extension PlexService {
     /// Existing installations get one compatibility escape hatch: if their
     /// first Home lookup after upgrading fails transiently, a previously
     /// connected legacy session remains usable for that launch. Once a Home
-    /// lookup succeeds, known multi-user accounts always fail closed.
+    /// lookup succeeds, known multi-user accounts require an online selection
+    /// or their remembered automatic-sign-in credential. iOS may resume that
+    /// cached identity offline, leaving online validation pending.
     func bootstrapHomeSession() async throws {
         guard let primaryAccountToken else {
             throw PlexServiceError.notAuthenticated
@@ -56,6 +58,19 @@ extension PlexService {
             KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
             markHomeBootstrapCompleted()
         } catch {
+            guard !Task.isCancelled else { throw error }
+            // Connectivity is not an authentication failure. Keep the remembered
+            // profile available for its local downloads, without recording an
+            // online validation or completing the Home migration.
+            if OfflineFallback.permitsCachedSession(after: error),
+               restoreOfflineHomeSession() {
+                return
+            }
+            if isUsingOfflineHomeSession {
+                isUsingOfflineHomeSession = false
+                homeBootstrapCompleted = false
+                throw error
+            }
             let migrationCompleted = UserDefaults.standard.bool(
                 forKey: Self.defaultsHomeMigrationCompletedKey
             )
@@ -73,6 +88,23 @@ extension PlexService {
             }
             throw error
         }
+    }
+
+    /// Used immediately when NWPathMonitor reports no route, and after a
+    /// transport failure during bootstrap. No profile or token is synthesized.
+    @discardableResult
+    func restoreOfflineHomeSession() -> Bool {
+        guard DownloadsFeature.isVisible, isAuthenticated, !homeSelectionRequested,
+              OfflineFallback.canRestoreProfile(
+                automaticSignIn: automaticHomeSignIn,
+                primaryProfileID: primaryProfileID,
+                homeProfileID: activeHomeUser?.stableProfileID,
+                hasRememberedToken: hasRememberedHomeUserToken && activeAccountToken != nil
+              ) else { return false }
+        isUsingOfflineHomeSession = true
+        homeBootstrapCompleted = true
+        homeSelectionRequested = false
+        return true
     }
 
     /// Switches the active Plex identity. The PIN is sent only in this request
@@ -121,6 +153,7 @@ extension PlexService {
 
         // Commit only after the switch succeeds, so a wrong PIN leaves the
         // existing playback/session state intact.
+        isUsingOfflineHomeSession = false
         tearDownServerSessions()
         activeAccountToken = switchedToken
         activeHomeUser = user
@@ -253,6 +286,7 @@ extension PlexService {
     }
 
     private func markHomeBootstrapCompleted() {
+        isUsingOfflineHomeSession = false
         homeBootstrapCompleted = true
         UserDefaults.standard.set(true, forKey: Self.defaultsHomeMigrationCompletedKey)
     }

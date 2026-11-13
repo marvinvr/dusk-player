@@ -148,7 +148,10 @@ Flow:
    one usable member keeps the legacy flow; multiple members require a user
    selection unless a remembered active Home session is valid. Fast user
    switching uses the separate legacy `/api/home/users/<id>/switch` route.
-   Protected members send a transient PIN; Dusk never stores it.
+   Protected members send a transient PIN; Dusk never stores it. On iOS, a
+   transport/5xx bootstrap failure can resume only the saved automatically
+   signed-in identity for Downloads, without marking it online-validated. See
+   [Offline startup and recovery](downloads-and-offline.md#offline-startup-and-recovery).
 6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
    HTTPS/relay and keeps
    resources whose `provides` contains `server` **or** whose `product` is

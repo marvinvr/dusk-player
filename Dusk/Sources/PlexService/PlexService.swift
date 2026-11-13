@@ -22,6 +22,8 @@ final class PlexService {
     var homeUsers: [PlexHomeUser] = []
     var activeHomeUser: PlexHomeUser?
     var homeBootstrapCompleted = false
+    /// Cached identity is usable offline; Plex Home still needs online validation.
+    var isUsingOfflineHomeSession = false
     var homeSelectionRequested = false
     var primaryProfileID: String?
     var hasRememberedHomeUserToken = false

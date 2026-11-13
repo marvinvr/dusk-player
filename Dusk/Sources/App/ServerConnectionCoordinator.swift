@@ -27,8 +27,9 @@ final class ServerConnectionCoordinator {
     /// False until the first pass finishes, so screens can tell "still starting
     /// up" from "tried and found nothing".
     private(set) var hasCompletedFirstPass = false
+    private var lastPassHadNoConnection = false
 
-    @ObservationIgnored private var plexService: PlexService?
+    private var plexService: PlexService?
     @ObservationIgnored private var sessionID: String?
     @ObservationIgnored private var lastPassFinishedAt: Date?
     /// The running pass and the session it belongs to. A pass is only ever
@@ -43,7 +44,7 @@ final class ServerConnectionCoordinator {
 
     @ObservationIgnored private var networkMonitor: NWPathMonitor?
     @ObservationIgnored private var hasObservedNetworkPath = false
-    @ObservationIgnored private var isNetworkAvailable = true
+    private(set) var isNetworkAvailable = true
     @ObservationIgnored private var networkSignature: NetworkSignature?
     @ObservationIgnored private let networkMonitorQueue = DispatchQueue(
         label: "app.dusk.server-connection-coordinator.network"
@@ -51,6 +52,24 @@ final class ServerConnectionCoordinator {
 
     deinit {
         networkMonitor?.cancel()
+    }
+
+    var showsOfflineDownloads: Bool {
+        guard let plexService else { return false }
+        return OfflineFallback.showsDownloads(
+            downloadsSupported: DownloadsFeature.isVisible,
+            sessionReady: plexService.isSessionReady,
+            networkAvailable: isNetworkAvailable,
+            awaitingHomeValidation: plexService.isUsingOfflineHomeSession
+                && !plexService.pool.connections.contains(where: \.isVerified),
+            availability: plexService.pool.availability,
+            hasCompletedPass: hasCompletedFirstPass,
+            connectionFailed: lastError != nil || lastPassHadNoConnection
+        )
+    }
+
+    var needsRecovery: Bool {
+        plexService?.isUsingOfflineHomeSession == true || showsOfflineDownloads
     }
 
     // MARK: - Lifecycle
@@ -79,6 +98,7 @@ final class ServerConnectionCoordinator {
             sessionID = session
             lastPassFinishedAt = nil
             hasCompletedFirstPass = false
+            lastPassHadNoConnection = false
             lastError = nil
             // Whatever is still probing belongs to the profile we just left.
             cancelActivePass()
@@ -117,13 +137,17 @@ final class ServerConnectionCoordinator {
             guard needsAnotherPass else { return }
         }
 
-        guard let plexService, plexService.isSessionReady else { return }
+        guard isNetworkAvailable, let plexService, plexService.isSessionReady else { return }
 
         needsAnotherPass = false
         let session = sessionID
         isConnecting = true
         let pass = Task { () -> String? in
             do {
+                if plexService.isUsingOfflineHomeSession {
+                    try await plexService.bootstrapHomeSession()
+                }
+                guard !Task.isCancelled, plexService.isSessionReady else { return nil }
                 try await plexService.connectAllServers(trigger: trigger)
                 return nil
             } catch {
@@ -140,6 +164,7 @@ final class ServerConnectionCoordinator {
         activePass = nil
         activePassSession = nil
         lastError = failure
+        lastPassHadNoConnection = !plexService.pool.availability.isReady
         lastPassFinishedAt = .now
         hasCompletedFirstPass = true
         isConnecting = false
@@ -181,6 +206,12 @@ final class ServerConnectionCoordinator {
 
         isNetworkAvailable = isAvailable
         networkSignature = signature
+
+        // Airplane mode should expose the remembered profile's downloads
+        // immediately, even while a connectivity-waiting account request runs.
+        if !isAvailable, let plexService, !plexService.homeBootstrapCompleted {
+            plexService.restoreOfflineHomeSession()
+        }
 
         guard hasObservedNetworkPath else {
             hasObservedNetworkPath = true
