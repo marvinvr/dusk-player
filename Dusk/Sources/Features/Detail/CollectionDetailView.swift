@@ -148,7 +148,7 @@ struct CollectionDetailView: View {
             shuffleButton
         }
         #else
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: usesFullWidthDetailActionButtons(for: sizeClass) ? .center : .leading, spacing: detailHeroActionSpacing) {
             playButton
 
             HStack(spacing: detailHeroActionSpacing) {

@@ -195,8 +195,9 @@ struct SeasonDetailView: View {
 
     @ViewBuilder
     private func actionButtons() -> some View {
-        // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
+        // Primary fills the stack width; the secondary row sits centered beneath
+        // it on iPhone and at the text column's leading edge on iPad.
+        VStack(alignment: usesFullWidthDetailActionButtons(for: sizeClass) ? detailHeroActionStackAlignment : .leading, spacing: detailHeroActionSpacing) {
             seasonPlayActions(label: viewModel.playButtonShortLabel)
 
             HStack(spacing: detailHeroActionSpacing) {

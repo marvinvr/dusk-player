@@ -177,8 +177,9 @@ struct VideoDetailView: View {
             AddToPlaylistHeroButton(target: AddToPlaylistTarget(details: details))
         }
         #else
-        // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        // Primary fills the stack width; the secondary row sits centered beneath
+        // it on iPhone and at the text column's leading edge on iPad.
+        VStack(alignment: usesFullWidthActionButtons ? .center : .leading, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {
