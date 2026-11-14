@@ -585,7 +585,7 @@ struct SettingsIOSView: View {
         @Bindable var preferences = preferences
 
         Section {
-            Picker("Preferred Version", selection: $preferences.downloadMaxResolution) {
+            Picker("Download Quality", selection: $preferences.downloadMaxResolution) {
                 ForEach(MaxResolution.allCases) { resolution in
                     Text(resolution.displayName).tag(resolution)
                 }

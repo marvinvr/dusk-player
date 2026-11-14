@@ -29,7 +29,7 @@ enum SettingsSupport {
     #else
     static let playbackAdvancedFooterText = "Plex repackages Dolby and HDR titles for Apple’s player without re-encoding."
     #endif
-    static let downloadsFooterText = "Preferred Version picks between a title’s versions, quality is chosen per download."
+    static let downloadsFooterText = "Download Quality picks between a title’s versions; conversion quality is chosen per download."
     static func pinnedPlaylistsSummary(_ count: Int) -> String {
         count == 0 ? "None" : String(count)
     }

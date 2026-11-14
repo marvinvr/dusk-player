@@ -414,7 +414,7 @@ private struct MacDownloadsSettingsPane: View {
                         Text(resolution.macDisplayName).tag(resolution)
                     }
                 } label: {
-                    Text("Preferred Version")
+                    Text("Download Quality")
                     Text("Which version is downloaded when a title has several.")
                 }
                 Picker("Simultaneous Downloads", selection: $preferences.maximumActiveDownloads) {

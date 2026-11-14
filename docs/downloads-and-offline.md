@@ -64,7 +64,8 @@ DownloadActionButton
 
 Movies, episodes, seasons, and shows present a native quality picker. Original
 is the default and keeps the direct-file path; clips also keep Original. The
-Preferred Version preference still selects an existing source version.
+Download Quality setting (Auto / 4K / 1080p / 720p) selects an existing source
+version. Playback’s separate Preferred Version setting is unchanged.
 An explicit 320p–1080p bitrate preset asks Plex to prepare a smaller offline
 copy. This does not change playback quality or start streaming transcodes.
 
@@ -311,7 +312,7 @@ navigation path, so detail screens are shown in the full tab stack rather than
 inside the sheet.
 `MainTabView` shows the Downloads tab when records exist, and always in the
 iOS offline fallback (including its native empty state).
-`SettingsIOSView` owns source-version resolution, Wi-Fi Only, concurrency, storage reserve, usage,
+`SettingsIOSView` owns Download Quality (source-version resolution), Wi-Fi Only, concurrency, storage reserve, usage,
 manual sync, and delete-all. `MediaDetailDestinationView` passes managers into
 detail view models and marks routes from Downloads with
 `prefersOfflineAvailability`.
