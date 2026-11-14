@@ -267,7 +267,7 @@ final class ShowDetailViewModel {
         guard showsOfflineAvailability, let downloadManager else { return nil }
         let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
         guard downloadedCount > 0 else { return "Not Downloaded" }
-        guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Available Offline" }
+        guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Downloaded" }
         return "Partial"
     }
 
