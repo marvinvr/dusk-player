@@ -16,6 +16,9 @@ struct HomeUserPickerView: View {
     var onSignOut: (() -> Void)? = nil
 
     @State private var rememberSelection: Bool
+    #if os(tvOS)
+    @FocusState private var rememberRowIsFocused: Bool
+    #endif
     @State private var pendingUser: PlexHomeUser?
     @State private var pin = ""
     @State private var switchingProfileID: String?
@@ -311,9 +314,26 @@ struct HomeUserPickerView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+        #if os(tvOS)
+        .focused($rememberRowIsFocused)
+        #endif
         .padding(22)
         .frame(maxWidth: .infinity, alignment: .leading)
+        #if !os(tvOS)
         .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        #else
+        // The bare Toggle gets no visible tvOS focus inside this card; lay the
+        // Settings rows' band over the card fill so Select never flips it unseen.
+        .background {
+            ZStack {
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.duskSurface)
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .fill(Color.duskTextPrimary.opacity(rememberRowIsFocused ? 0.20 : 0))
+            }
+        }
+        .animation(.easeOut(duration: 0.18), value: rememberRowIsFocused)
+        #endif
     }
 
     @ViewBuilder
