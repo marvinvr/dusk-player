@@ -22,6 +22,7 @@ final class SeasonDetailViewModel {
     }
 
     private(set) var details: PlexMediaDetails?
+    private var showDetails: PlexMediaDetails?
     private(set) var episodes: [PlexEpisode] = []
     private(set) var nextEpisodeDetails: PlexMediaDetails?
     private(set) var focusedEpisodeDetails: PlexMediaDetails?
@@ -192,53 +193,12 @@ final class SeasonDetailViewModel {
         #endif
     }
 
-    #if os(tvOS)
     /// Episode focus only changes the banner's text; its artwork belongs to
     /// the season, falling back to the show's background and then its poster.
-    func seriesBackdropURL(width: Int, height: Int, show: PlexMediaDetails?) -> URL? {
-        let path = details?.art?.nilIfEmpty
-            ?? show?.art?.nilIfEmpty
-            ?? show?.thumb?.nilIfEmpty
-            ?? details?.parentThumb?.nilIfEmpty
-            ?? details?.thumb?.nilIfEmpty
+    func backdropURL(width: Int, height: Int, show: PlexMediaDetails? = nil) -> URL? {
+        let path = SeriesBackdropArtwork.path(season: details, show: show ?? showDetails)
         return downloadManager?.localArtworkURL(for: path)
             ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
-    }
-    #endif
-
-    func backdropURL(
-        width: Int,
-        height: Int,
-        focusedEpisode: PlexEpisode? = nil,
-        focusedEpisodeDetails: PlexMediaDetails? = nil
-    ) -> URL? {
-        let path = backdropPath(focusedEpisode: focusedEpisode, focusedEpisodeDetails: focusedEpisodeDetails)
-        return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
-    }
-
-    /// Whether `backdropURL` shows the focused episode's own still while that
-    /// episode is unwatched; its `art` is the show's backdrop and never is.
-    func backdropIsUnwatchedEpisodeStill(
-        focusedEpisode: PlexEpisode?,
-        focusedEpisodeDetails: PlexMediaDetails?
-    ) -> Bool {
-        guard let focusedEpisode, !isWatched(focusedEpisode),
-              let path = backdropPath(focusedEpisode: focusedEpisode, focusedEpisodeDetails: focusedEpisodeDetails) else {
-            return false
-        }
-        return path == focusedEpisodeDetails?.thumb || path == focusedEpisode.thumb
-    }
-
-    private func backdropPath(
-        focusedEpisode: PlexEpisode?,
-        focusedEpisodeDetails: PlexMediaDetails?
-    ) -> String? {
-        focusedEpisodeDetails?.thumb
-            ?? focusedEpisodeDetails?.art
-            ?? focusedEpisode?.thumb
-            ?? focusedEpisode?.art
-            ?? details?.art
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
@@ -434,6 +394,9 @@ final class SeasonDetailViewModel {
                 isUsingOfflineFallback = isUsingCachedData
             }
             await loadNextEpisodeDetails()
+            #if !os(tvOS)
+            await loadShowArtwork()
+            #endif
         } catch {
             self.error = error.localizedDescription
             nextEpisodeDetails = nil
@@ -441,6 +404,21 @@ final class SeasonDetailViewModel {
 
         isLoading = false
     }
+
+    #if !os(tvOS)
+    private func loadShowArtwork() async {
+        // tvOS supplies its already-loaded show to backdropURL. Separate
+        // season pages only need this request when the season has no art.
+        guard details?.art?.nilIfEmpty == nil, let showID else { return }
+        showDetails = downloadManager?.cachedMediaDetails(for: showID) ?? showDetails
+        guard !isUsingCachedData else { return }
+        if let show = try? await plexService.getMediaDetails(
+            ratingKey: showID.ratingKey, serverID: serverID
+        ) {
+            showDetails = show
+        }
+    }
+    #endif
 
     private func loadNextEpisodeDetails() async {
         guard let nextEpisodeToPlay else {

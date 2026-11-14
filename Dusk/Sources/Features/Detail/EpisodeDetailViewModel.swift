@@ -13,6 +13,8 @@ final class EpisodeDetailViewModel {
     var ratingKey: String { id.ratingKey }
 
     private(set) var details: PlexMediaDetails?
+    private var seasonDetails: PlexMediaDetails?
+    private var showDetails: PlexMediaDetails?
     private(set) var isLoading = false
     private(set) var error: String?
     private(set) var isUsingCachedData = false
@@ -120,26 +122,8 @@ final class EpisodeDetailViewModel {
             : "Showing saved episode metadata. This episode is not downloaded on this device."
     }
 
-    /// Whether `backdropURL` is this episode's own still while it is
-    /// unwatched; its `art` is the show's backdrop.
-    var backdropIsUnwatchedEpisodeStill: Bool {
-        #if os(macOS)
-        // The Mac hero uses the show/season backdrop; the still is a fallback.
-        details?.art == nil && details?.thumb != nil && !isWatched
-        #else
-        details?.thumb != nil && !isWatched
-        #endif
-    }
-
     func backdropURL(width: Int, height: Int) -> URL? {
-        #if os(macOS)
-        // A full-window hero: the episode still is a small (often soft,
-        // sometimes title-carded) frame upscaled, so the Mac prefers the
-        // inherited show/season `art` and only falls back to the still.
-        let path = details?.art ?? details?.thumb
-        #else
-        let path = details?.thumb ?? details?.art
-        #endif
+        let path = SeriesBackdropArtwork.path(season: seasonDetails, show: showDetails, episode: details)
         return downloadManager?.localArtworkURL(for: path)
             ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
     }
@@ -176,7 +160,29 @@ final class EpisodeDetailViewModel {
             }
         }
 
+        await loadParentArtwork()
         isLoading = false
+    }
+
+    private func loadParentArtwork() async {
+        guard details != nil else { return }
+        if let seasonID {
+            seasonDetails = downloadManager?.cachedMediaDetails(for: seasonID) ?? seasonDetails
+            if !isUsingCachedData, let season = try? await plexService.getMediaDetails(
+                ratingKey: seasonID.ratingKey, serverID: serverID
+            ) {
+                seasonDetails = season
+            }
+        }
+        // Season art wins. Parent lookups are optional and use this episode's
+        // server; a missing/inaccessible parent must never fail the page.
+        guard seasonDetails?.art?.nilIfEmpty == nil, let showID else { return }
+        showDetails = downloadManager?.cachedMediaDetails(for: showID) ?? showDetails
+        if !isUsingCachedData, let show = try? await plexService.getMediaDetails(
+            ratingKey: showID.ratingKey, serverID: serverID
+        ) {
+            showDetails = show
+        }
     }
 
     private func isWatched(_ details: PlexMediaDetails) -> Bool {

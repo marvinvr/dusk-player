@@ -108,7 +108,8 @@ primitive:
   action cards, grids, and carousels.
 - `MediaFormatting`: episode labels, durations, dates, progress, and version
   labels.
-- `PlexItemPresentation`: common poster URL/subtitle/progress/title helpers.
+- `PlexItemPresentation`: common poster URL/subtitle/progress/title helpers and
+  the shared season/show hero artwork fallback (`SeriesBackdropArtwork`).
 - `FeatureStateViews`: loading, empty, and error states.
 - `DuskAsyncImage`: image loading through `PlexService`.
 - `RecommendationCore`: scoring and deterministic randomization helpers shared
@@ -188,7 +189,7 @@ Detail:
 - `MediaDetailDestinationView` routes `PlexMediaType` to the right detail screen.
   On tvOS, show, season, and episode routes all land on `SeriesDetailView` (one
   page per show with season pills); the separate show/season/episode views are
-  iOS/iPadOS-only.
+  shared by iOS/iPadOS and macOS.
 - Shared detail UI belongs in `DetailSharedViews.swift` only when multiple
   detail screens use it.
 - Offline-aware detail behavior lives in the view models through

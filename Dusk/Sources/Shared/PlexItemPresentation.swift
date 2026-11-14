@@ -1,5 +1,22 @@
 import Foundation
 
+/// Large series heroes use parent artwork, never an episode's small still.
+enum SeriesBackdropArtwork {
+    static func path(
+        season: PlexMediaDetails?,
+        show: PlexMediaDetails?,
+        episode: PlexMediaDetails? = nil
+    ) -> String? {
+        season?.art?.nilIfEmpty
+            ?? show?.art?.nilIfEmpty
+            ?? show?.thumb?.nilIfEmpty
+            ?? season?.parentThumb?.nilIfEmpty
+            ?? episode?.grandparentThumb?.nilIfEmpty
+            ?? season?.thumb?.nilIfEmpty
+            ?? episode?.parentThumb?.nilIfEmpty
+    }
+}
+
 extension PlexItem {
     var posterProgress: Double? {
         MediaTextFormatter.progress(durationMs: duration, offsetMs: viewOffset)

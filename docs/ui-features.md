@@ -161,8 +161,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `thumb`: show posters/backdrops inherited onto the episode are never spoilers.
   Wired: `PosterArtwork`/`PosterActionCard` (`isUnwatchedEpisodeImage`), CW
   shelves (`landscapeImageIsUnwatchedEpisodeStill`), iOS season rows, tvOS
-  series episode cards, detail hero backdrops (`blursBackdrop`, no glyph; the
-  retained tvOS backdrop keeps the blur of the image it holds), Up Next card and
+  series episode cards, Up Next card and
   overlay, and the Top Shelf fallback (blur baked into the JPEG). The local
   blur is deliberate over Plex's transcoder: it also covers downloaded artwork
   and never depends on a server honouring a parameter. Not covered: posters
@@ -1079,7 +1078,6 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   show's `art`, then its poster (`thumb` / season `parentThumb`), then the season
   poster. Empty paths count as missing. Episode focus and watched state never
   change or blur that backdrop; each episode keeps its own still in the row.
-  This artwork policy is tvOS-only; iOS/iPadOS and macOS keep their existing heroes.
   Selecting a card, or the hero Play/Resume, plays the focused episode;
   the eye button toggles the season on screen. The row is only scrolled
   programmatically when the season changes — never on focus or next-up changes —
@@ -1089,10 +1087,21 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   season, banner, row position and, if playback began on a card, focus. This runs
   on `playerCoverDismissals` plus a 600 ms beat, because tvOS restores focus to
   the starting card after the cover's `onDismiss` and would undo an earlier move.
-- `SeasonDetailView` (iOS/iPadOS) keeps the vertical episode list with per-episode
+- Season and episode detail heroes on iPhone, iPad and macOS share the tvOS
+  artwork order through `SeriesBackdropArtwork`: season art → show art → show
+  poster → season poster. Empty paths count as missing; episode thumbs/art are
+  never a hero fallback, and no parent artwork means the neutral background.
+  Separate season pages load show metadata only when season art is absent;
+  episode pages load their season, then the show only if needed. These optional,
+  sequential lookups stay on the route's server, use cached parent metadata
+  offline, and never fail the page when a parent is unavailable. Artwork still
+  resolves through the local download cache before the Plex image URL. Episode
+  rows/cards retain their small stills and the Blur Unwatched Episodes setting;
+  season/show heroes never blur or change with episode focus/watch state.
+- `SeasonDetailView` (iOS/iPadOS/macOS) keeps the vertical episode list with per-episode
   detail navigation; after a continuous-play run it scrolls the list to the
   episode the player closed on (same `advancedEpisodeOnClose` signal).
-- `EpisodeDetailViewModel` (iOS/iPadOS) handles single-episode metadata, parent
+- `EpisodeDetailViewModel` (iOS/iPadOS/macOS) handles single-episode metadata, parent
   show/season links, watch toggles, and offline availability.
 - `ActorDetailViewModel` loads a person plus filmography by searching Plex for exact role
   matches. Keep this search behavior local to actor detail unless Plex gets a stronger

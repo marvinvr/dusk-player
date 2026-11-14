@@ -1,9 +1,8 @@
-#if os(tvOS)
 import Foundation
 import Testing
 @testable import Dusk
 
-@Suite("tvOS season backdrop")
+@Suite("Series hero artwork")
 @MainActor
 struct SeasonBackdropTests {
     @Test("Episode focus preserves the season/show art fallback", arguments: [
@@ -13,6 +12,7 @@ struct SeasonBackdropTests {
         ("parent", "/parent-poster"),
         ("last", "/season-poster"),
         ("none", ""),
+        ("orphan", ""),
     ])
     func backdropWhileBrowsing(scenario: String, expectedPath: String) async throws {
         let service = PlexService(urlProtocolClasses: [SeasonBackdropStub.self])
@@ -37,7 +37,7 @@ struct SeasonBackdropTests {
         #expect(model.error == nil)
         #expect(model.episodes.count == 2)
         let show = try await service.getMediaDetails(ratingKey: "show", serverID: serverID)
-        let original = model.seriesBackdropURL(width: 1920, height: 540, show: show)
+        let original = model.backdropURL(width: 1920, height: 540, show: show)
         if expectedPath.isEmpty {
             #expect(original == nil)
         } else {
@@ -51,16 +51,41 @@ struct SeasonBackdropTests {
         for episode in model.episodes {
             await model.focusEpisode(episode)
             #expect(model.focusedEpisodeDetails?.ratingKey == episode.ratingKey)
-            #expect(model.seriesBackdropURL(width: 1920, height: 540, show: show) == original)
+            #expect(model.backdropURL(width: 1920, height: 540, show: show) == original)
         }
+        #if !os(tvOS)
+        // Separate season pages load their own show fallback.
+        #expect(model.backdropURL(width: 1920, height: 540) == original)
+        for (index, episode) in model.episodes.enumerated() {
+            let detail = EpisodeDetailViewModel(id: episode.id, plexService: service)
+            await detail.load()
+            #expect(detail.error == nil)
+            let backdrop = detail.backdropURL(width: 1920, height: 540)
+            if scenario == "orphan" {
+                // Both parent requests fail: inherited show posters still win
+                // over season posters, and no episode still is enlarged.
+                let source = backdrop.flatMap { URLComponents(url: $0, resolvingAgainstBaseURL: false) }?
+                    .queryItems?.first { $0.name == "url" }?.value
+                #expect(source.flatMap(URL.init(string:))?.path == "/inherited-show-poster")
+            } else {
+                #expect(backdrop == original)
+            }
+            // The small episode image is still the episode's own thumbnail.
+            let small = try #require(model.episodeImageURL(episode, width: 320, height: 180))
+            let source = URLComponents(url: small, resolvingAgainstBaseURL: false)?
+                .queryItems?.first { $0.name == "url" }?.value
+            #expect(source.flatMap(URL.init(string:))?.path == "/episode\(index + 1)-still")
+        }
+        #else
         // A season route paints before the show loads: use its inherited
         // show poster until the show's background becomes available.
         if scenario == "show" {
-            let early = try #require(model.seriesBackdropURL(width: 1920, height: 540, show: nil))
+            let early = try #require(model.backdropURL(width: 1920, height: 540, show: nil))
             let source = URLComponents(url: early, resolvingAgainstBaseURL: false)?
                 .queryItems?.first { $0.name == "url" }?.value
             #expect(source.flatMap(URL.init(string:))?.path == "/parent-poster")
         }
+        #endif
     }
 }
 
@@ -78,19 +103,31 @@ private final class SeasonBackdropStub: URLProtocol, @unchecked Sendable {
         var season = metadata("season", type: "season")
         season["parentRatingKey"] = "show"
         season["art"] = scenario == "season" ? "/season-art" : ""
-        if scenario != "none" { season["thumb"] = "/season-poster" }
+        if !["none", "orphan"].contains(scenario) { season["thumb"] = "/season-poster" }
         if ["season", "show", "poster", "parent"].contains(scenario) {
             season["parentThumb"] = "/parent-poster"
         }
         var show = metadata("show", type: "show")
         if ["season", "show"].contains(scenario) { show["art"] = "/show-art" }
         if ["season", "show", "poster"].contains(scenario) { show["thumb"] = "/show-poster" }
+        if scenario == "none" {
+            season["thumb"] = ""
+            season["parentThumb"] = ""
+            show["art"] = ""
+            show["thumb"] = ""
+        }
         let episodes = (1...2).map { index -> [String: Any] in
             var value = metadata("episode\(index)", type: "episode")
             value.merge([
                 "index": index, "parentRatingKey": "season", "grandparentRatingKey": "show",
                 "thumb": "/episode\(index)-still", "art": "/episode\(index)-art", "viewCount": index - 1,
             ]) { _, new in new }
+            if scenario == "orphan" {
+                value["parentRatingKey"] = "missing-season"
+                value["grandparentRatingKey"] = "missing-show"
+                value["parentThumb"] = "/inherited-season-poster"
+                value["grandparentThumb"] = "/inherited-show-poster"
+            }
             return value
         }
         let values: [[String: Any]]
@@ -112,4 +149,3 @@ private final class SeasonBackdropStub: URLProtocol, @unchecked Sendable {
         }
     }
 }
-#endif

@@ -147,7 +147,6 @@ struct EpisodeDetailView: View {
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
-            blursBackdrop: viewModel.backdropIsUnwatchedEpisodeStill,
             title: details.title,
             descriptionText: details.summary,
             topInset: topInset,

@@ -236,7 +236,7 @@ struct SeriesDetailView: View {
         let focusedEpisode = focusedEpisode(in: season)
 
         DetailHeroSection(
-            backdropURL: season.seriesBackdropURL(
+            backdropURL: season.backdropURL(
                 width: Int(containerWidth.rounded(.up)),
                 height: Int(heroHeight.rounded(.up)),
                 show: viewModel.show?.details
