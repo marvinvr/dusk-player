@@ -283,7 +283,7 @@ struct SettingsTVView: View {
 
             tvRowDivider
 
-            TVSettingsToggleRow(title: "Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
+            TVSettingsToggleRow(title: "Personalized Shelves", isOn: $preferences.personalizedShelvesEnabled)
 
             tvRowDivider
 

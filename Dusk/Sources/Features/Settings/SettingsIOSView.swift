@@ -414,7 +414,7 @@ struct SettingsIOSView: View {
                 }
             }
 
-            Toggle("Personalized shelves", isOn: $preferences.personalizedShelvesEnabled)
+            Toggle("Personalized Shelves", isOn: $preferences.personalizedShelvesEnabled)
                 .foregroundStyle(Color.duskTextPrimary)
             Toggle("Show Live TV", isOn: $preferences.showsLiveTVOnHome)
                 .foregroundStyle(Color.duskTextPrimary)
