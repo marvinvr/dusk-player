@@ -499,8 +499,13 @@ struct SupporterView: View {
                         .padding(.leading, TVSettingsMetrics.contentInset)
                         .focusSection()
 
-                    tvPurchaseSections
-                        .focusSection()
+                    // An explicit stack: `.focusSection()` on the multi-view
+                    // builder laid the two plan sections out with default
+                    // spacing, packing One-Time against the Recurring footer.
+                    VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing + 8) {
+                        tvPurchaseSections
+                    }
+                    .focusSection()
 
                     TVSettingsSection(
                         title: "Manage",
