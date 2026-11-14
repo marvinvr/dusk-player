@@ -156,10 +156,19 @@ struct SeriesDetailView: View {
                         .focusSection()
 
                     if let summary = details.summary, !summary.isEmpty {
-                        ExpandableSummaryText(text: summary, title: details.title)
-                            .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 32)
-                            .focusSection()
+                        // Titled and spaced like the movie page's Synopsis: a
+                        // bare paragraph between the episodes and Episode Cast
+                        // didn't say whose summary it was.
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("About \(details.title)")
+                                .font(DuskFont.sectionHeader(ios: .headline))
+                                .foregroundStyle(Color.primary)
+                            ExpandableSummaryText(text: summary, title: details.title)
+                        }
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, 32)
+                        .padding(.bottom, 24)
+                        .focusSection()
                     }
 
                     DetailExtrasShelf(
