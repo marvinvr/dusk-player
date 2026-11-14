@@ -343,7 +343,7 @@ struct HomeCinematicHero: View {
         .overlay(alignment: heroContentBlockAlignment) {
             if items.count > 1 {
                 heroPager(currentIndex: resolvedIndex)
-                    #if os(macOS)
+                    #if os(macOS) || os(tvOS)
                     .environment(\.colorScheme, .dark)
                     #endif
                     .padding(.leading, contentLeadingInset + layout.pagerHorizontalPadding)
@@ -855,7 +855,7 @@ struct HomeCinematicHero: View {
                 .padding(.top, layout.actionsTopPadding)
                 .padding(.bottom, layout.actionsBottomPadding)
             }
-            #if os(macOS)
+            #if os(macOS) || os(tvOS)
             // The hero is a dark context in both appearances: white text on
             // the scrim, the dark-glass button.
             .environment(\.colorScheme, .dark)

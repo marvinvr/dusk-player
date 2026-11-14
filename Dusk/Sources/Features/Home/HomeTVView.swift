@@ -1063,6 +1063,8 @@ private struct HomeTVScrollHint: View {
         // hero, so the hint carries its own shadow instead of relying on the
         // backdrop scrim.
         .shadow(color: .black.opacity(0.65), radius: 8, y: 2)
+        // It only shows over the hero, which is a dark context in Light too.
+        .environment(\.colorScheme, .dark)
         .opacity(isVisible ? 1 : 0)
         .animation(.easeInOut(duration: 0.25), value: isVisible)
         .allowsHitTesting(false)
