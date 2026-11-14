@@ -205,6 +205,8 @@ struct SignInView: View {
                 }
 
                 signInButton
+                    // Phone width on iPad instead of a bar across the screen.
+                    .frame(maxWidth: 420)
                     .padding(.horizontal, 40)
 
                 if isSigningIn {
