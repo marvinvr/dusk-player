@@ -228,6 +228,12 @@ struct SubtitleSearchView: View {
                     }
                     .disabled(viewModel.isBusy)
                 }
+                // System glass capsules, like the Live TV day chip: plain
+                // labels showed no focus at all inside this cover.
+                .menuStyle(.button)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.capsule)
+                .font(DuskFont.TV.buttonLabel)
                 .focusSection()
 
                 tvOSResults
