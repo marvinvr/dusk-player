@@ -1038,7 +1038,8 @@ struct MovieCopyVersionMenu: View {
     let onSelect: (MoviePlaybackVersion) -> Void
 
     var body: some View {
-        if !versions.isEmpty {
+        // One copy leaves nothing to choose; Play already plays it.
+        if versions.count > 1 {
             Menu {
                 ForEach(versions) { version in
                     Button(version.label) { onSelect(version) }
