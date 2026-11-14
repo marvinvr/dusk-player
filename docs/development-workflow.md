@@ -134,32 +134,42 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 
 ## VLCKit Build
 
-- `ci_scripts/build_vlckit.sh [ios|tvos|all]` builds MobileVLCKit/TVVLCKit
-  from source: VLCKit tag 3.7.3 (pinned commit, libvlc 3.0.x at VLCKit's
-  tested hash), arm64 device + arm64 simulator slices. Manual only; nothing
-  in CI runs it. iOS and tvOS use separate trees under `.build/vlckit/`, so
-  `build_vlckit.sh ios & build_vlckit.sh tvos` runs both in parallel. A cold
+- `ci_scripts/build_vlckit.sh [ios|tvos|macos|all]` (`all` = all three)
+  builds MobileVLCKit/TVVLCKit/VLCKit from source: VLCKit tag 3.7.3 (pinned
+  commit, libvlc 3.0.x at VLCKit's tested hash). iOS/tvOS: arm64 device +
+  arm64 simulator slices. macOS: one universal `macos-arm64_x86_64` slice,
+  macOS 26.0 minimum (every contrib is built once per architecture). Manual
+  only; nothing in CI runs it. Each platform has its own tree under
+  `.build/vlckit/`, so `build_vlckit.sh ios & build_vlckit.sh tvos &
+  build_vlckit.sh macos` runs them in parallel. A cold
   build compiles VLC's own toolchain and every contrib; trees are reused, and
   `DUSK_VLCKIT_CLEAN=1` starts over. Logs: `.build/vlckit/<platform>.log`.
 - Patches: `ci_scripts/vlckit-patches/` apply to the VLCKit checkout (build
-  script: arm64-only packaging, iOS/tvOS 15 minimum, current Xcode);
+  script: arm64-only packaging, iOS/tvOS 15 minimum, current Xcode; 0002:
+  macOS 26 minimum, one macOS pass);
   `ci_scripts/vlc-patches/` (0100+) are appended to VLCKit's own libvlc
-  series, which `buildMobileVLCKit.sh` git-am's onto vlc. 0100 re-enables
+  series, which `buildMobileVLCKit.sh` git-am's onto vlc (the same series on
+  every platform; 0101/0103 compile to nothing on macOS). 0100 re-enables
   TrueHD/MLP (read "Dolby TrueHD decoding" in `playback.md` for the licensing
   decision), 0101 fixes tvOS multichannel output, 0102 keeps libvlc off
   `pipe2` (OS 27+ only, see VLCKit Bootstrap), 0103 uses MPEG layout tags
   plus matching PCM reordering for tvOS 5.1/7.1 (see `playback.md`).
+- Weak libSystem imports are rejected except the allowlist shared with
+  `scripts/verify_embedded_vlckit.sh` (`getentropy` is on it: libgcrypt
+  weak-imports and NULL-checks it itself, present since macOS 10.12/iOS 10).
 - The script fails unless `libavcodec.a` defines `ff_truehd_decoder` and
   `ff_mlp_decoder`, stamps each framework's Info.plist (`DuskVLCKitBuild`,
   `DuskVLCKitTrueHD`, read by `VLCKitBuildInfo`), and writes
   `<Name>-<version>.tar.xz` + `.sha256` to `.build/vlckit/out/`.
 - Releasing a new build: bump `DUSK_VLCKIT_BUILD` in `build_vlckit.sh`, build
-  both platforms, then
+  all three platforms, then
   `gh release create vlckit-<version> --repo marvinvr/dusk-vlckit
   .build/vlckit/out/*.tar.xz .build/vlckit/out/*.sha256` (upload the archives
   unchanged; repacking changes the checksums), and pin
-  `VLCKIT_VERSION` plus both SHA-256 values in `install_vlckit.sh` in the same
-  commit. Test locally before publishing with
+  `VLCKIT_VERSION` plus the three SHA-256 values in `install_vlckit.sh` in the
+  same commit. macOS is optional in the installer: without the
+  `VLCKit-<version>.tar.xz` asset (or in `DUSK_VLCKIT_CACHE_DIR`) the Mac gets
+  VideoLAN's stock build, and `DUSK_VLCKIT_REQUIRE_DUSK` ignores macOS. Test locally before publishing with
   `DUSK_VLCKIT_CACHE_DIR=.build/vlckit/out ci_scripts/install_vlckit.sh`.
 - The libvlc version string stays `3.0.x`; the stamp is what distinguishes
   Dusk's build from VideoLAN's.
@@ -209,17 +219,18 @@ Builds a commit, signs it for the App Store and uploads it to TestFlight, then w
 App Store Connect has processed it. Replaces Xcode Cloud. Also the mmux process **TestFlight** (`mmux start TestFlight`).
 
 ```bash
-scripts/testflight.sh [ref] [--platform ios|tvos|all] [--dry-run] [--no-wait]
+scripts/testflight.sh [ref] [--platform ios|tvos|macos|all] [--dry-run] [--no-wait]
 ```
 
 - `ref`: commit or ref, default `origin/main` (fetched first). The build comes from `git archive`
   of that commit, so local changes never end up in it.
-- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`) or `all` (default). With `all` both
+- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`), `macos` (scheme `Dusk-macOS`,
+  Mac App Store `.pkg`, see docs/macos.md) or `all` (default). With `all` the
   platforms run in parallel, each with its own DerivedData, so their uploads and App Store Connect
   processing waits overlap (~10 min → ~5 min; the archives themselves don't compete for the CPU).
-  Progress lines are prefixed `[testflight ios]` / `[testflight tvos]`, details in each platform's
+  Progress lines are prefixed `[testflight ios]` / `[testflight tvos]` / `[testflight macos]`, details in each platform's
   `archive.log` / `export.log` in the work dir. One failing platform doesn't stop the other.
-- `--dry-run`: archive, sign and export the `.ipa` locally, no upload. `--no-wait`: upload only.
+- `--dry-run`: archive, sign and export the `.ipa` (macOS: `.pkg`) locally, no upload. `--no-wait`: upload only.
 - Before building it copies the checkout's `Frameworks/*.xcframework` into the build copy and runs
   `ci_scripts/ci_post_clone.sh` (verifies VLCKit or downloads the pinned version, rebuilds
   DuskDovi only if its sources changed, installs the Metal toolchain).
@@ -233,12 +244,12 @@ One result line per platform at the end, OKs first; the last line (and so the ex
 | --- | --- |
 | 0 | OK (VALID, or EXPORTED with `--dry-run`) |
 | 2 | Usage |
-| 3 | Signing: no valid App Store profile for a bundle id (e.g. a new extension), profile expired or INVALID in App Store Connect (capabilities changed), entitlement or app group missing from the profile |
+| 3 | Signing: no valid App Store profile for a bundle id (e.g. a new extension), profile expired or INVALID in App Store Connect (capabilities changed), entitlement or app group missing from the profile, macOS signing or installer identity missing |
 | 4 | Archive (compile) failed, see `archive.log` |
 | 5 | Export / upload failed, see `export.log` |
 | 6 | Processing ended INVALID (App Store Connect mails the details) |
 | 7 | Processing not finished after 45 min (the build may still turn VALID) |
-| 8 | Source: unknown ref, `xcodegen`, build settings |
+| 8 | Source: unknown ref, `xcodegen`, build settings, stock (not Dusk) macOS VLCKit |
 | 9 | Another build of this repo is running |
 | 10 | Credentials missing |
 | 1 | Unexpected error |
@@ -259,6 +270,12 @@ with that distribution certificate. Both tvOS profiles must include the App Grou
 `group.com.dusk-player.app`. The script picks the newest matching one, checks it is
 ACTIVE in App Store Connect and covers the target's entitlements, and signs manually with it
 (the project itself keeps automatic signing).
+
+macOS needs a Mac App Store profile (`.provisionprofile`, type `MAC_APP_STORE`) for
+`com.dusk-player.app`, plus the **Apple Distribution** and **3rd Party Mac Developer Installer**
+identities in the signing keychain, and Dusk's own macOS VLCKit in the checkout. Details,
+including the hardened runtime and the code 3 / code 8 failures, in docs/macos.md → Mac App
+Store / TestFlight.
 
 ## Verification Commands
 

@@ -1,5 +1,18 @@
 import SwiftUI
 
+extension View {
+    /// Context-menu content: Mac menus drop item icons unless asked, and the
+    /// TV/Music apps show them. No-op on iOS and tvOS.
+    @ViewBuilder
+    func duskMenuItemIcons() -> some View {
+        #if os(macOS)
+        labelStyle(.titleAndIcon)
+        #else
+        self
+        #endif
+    }
+}
+
 struct PosterNavigationCard<ContextMenuContent: View>: View {
     let route: AppNavigationRoute
     let imageURL: URL?
@@ -16,6 +29,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var isWatched = false
     /// See `PosterCardText.unwatchedCount`.
     var unwatchedCount: Int? = nil
+    /// The artwork is an unwatched episode's own still; see `spoilerBlur`.
+    var isUnwatchedEpisodeImage = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -72,19 +87,25 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 showsPlayOverlay: showsPlayOverlay,
                 availabilityBadge: availabilityBadge,
                 isDimmed: isDimmed,
+                isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
                 isWatched: isWatched,
                 unwatchedCount: unwatchedCount
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macUIHoverSource()
+        #else
         .duskSuppressTVOSButtonChrome()
         .contentShape(
             .contextMenuPreview,
             PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
         )
+        #endif
         .contextMenu {
             contextMenuContent()
+                .duskMenuItemIcons()
         }
         #endif
     }
@@ -191,13 +212,18 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             )
         }
         .buttonStyle(.plain)
+        #if os(macOS)
+        .macUIHoverSource()
+        #else
         .duskSuppressTVOSButtonChrome()
         .contentShape(
             .contextMenuPreview,
             PosterArtworkPreviewShape(width: width, imageAspectRatio: imageAspectRatio)
         )
+        #endif
         .contextMenu {
             contextMenuContent()
+                .duskMenuItemIcons()
         }
         #endif
     }

@@ -2,16 +2,20 @@
 import MobileVLCKit
 #elseif canImport(TVVLCKit)
 import TVVLCKit
+#elseif canImport(VLCKit)
+import VLCKit
 #endif
-#if canImport(MobileVLCKit) || canImport(TVVLCKit)
+#if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
 import AVFoundation
 import CoreVideo
 import OSLog
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
 #endif
+#endif
 
-#if canImport(MobileVLCKit) || canImport(TVVLCKit)
+#if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
 private let vlcKitEngineLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
     category: "VLCKitEngine"
@@ -120,7 +124,11 @@ private final class VLCLibraryLogBridge: NSObject, VLCLogging, @unchecked Sendab
 
 /// Platform renderer contract for the shared VLCKit playback core.
 protocol VLCKitRenderingHost: AnyObject, Sendable {
+    #if os(macOS)
+    var playerView: NSView { get }
+    #else
     var playerView: UIView { get }
+    #endif
 
     func attach(to player: VLCMediaPlayer, engine: VLCKitEngine)
     func detach(from player: VLCMediaPlayer)
@@ -140,6 +148,8 @@ private func makeVLCKitRenderingHost() -> any VLCKitRenderingHost {
     IOSVLCKitRenderingHost()
     #elseif os(tvOS)
     TVOSVLCKitRenderingHost()
+    #elseif os(macOS)
+    MacOSVLCKitRenderingHost()
     #else
     fatalError("VLCKit is not supported on this platform")
     #endif
@@ -708,6 +718,18 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         steadyPlaybackTicks = 0
         syncRendererPlaybackState()
     }
+
+    #if os(macOS)
+    /// libvlc's volume is 0...200 with 100 as unity; the Mac player never
+    /// boosts past unity. Re-applied by the player on every state change,
+    /// because libvlc only keeps it once an audio output exists.
+    func setVolume(_ volume: Float, muted: Bool) {
+        guard let audio = mediaPlayer.audio else { return }
+        let target = Int32((max(0, min(volume, 1)) * 100).rounded())
+        if audio.volume != target { audio.volume = target }
+        if audio.isMuted != muted { audio.isMuted = muted }
+    }
+    #endif
 
     func setPlaybackRate(_ rate: Float) {
         let resolvedRate = max(rate, 0.1)
@@ -2871,6 +2893,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// "ended" arrives shortly and the engine is still nominally playing —
     /// meaning nothing paused us, so the user expects sound — run the revive.
     private func handleAudioSessionInterruption(typeValue: UInt?) {
+        #if os(iOS) || os(tvOS)
         guard let typeValue,
               let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
             return
@@ -2908,6 +2931,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         @unknown default:
             break
         }
+        #endif
     }
 
     private func registerAudioSessionObserversIfNeeded() {
@@ -3082,6 +3106,17 @@ extension VLCKitEngine: VLCMediaPlayerDelegate {
     }
 }
 
+#if os(macOS)
+private struct VLCPlayerRepresentable: NSViewRepresentable {
+    let playerView: NSView
+
+    func makeNSView(context: Context) -> NSView {
+        playerView
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+#else
 private struct VLCPlayerRepresentable: UIViewRepresentable {
     let playerView: UIView
 
@@ -3091,6 +3126,7 @@ private struct VLCPlayerRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: UIView, context: Context) {}
 }
+#endif
 
 #if os(iOS)
 /// Hosts the sample-buffer PiP display view (occluded behind the Metal view).

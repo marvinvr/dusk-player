@@ -41,8 +41,11 @@ struct EpisodeDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(windowTitle)
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
         }
@@ -112,13 +115,21 @@ struct EpisodeDetailView: View {
                         )
                             .padding(.top, 24)
                     }
+
+                    #if os(macOS)
+                    DetailMacMediaSection(media: details.media.first)
+                        .padding(.horizontal, MacUILayout.contentInset)
+                        .padding(.top, detailSectionSpacing)
+                    #endif
                 }
-                .padding(.top, -geometry.safeAreaInsets.top)
+                .detailMacPageBottomInset()
+                .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
                 .padding(.bottom, 40)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .macHeroUnderToolbar()
         }
     }
 
@@ -130,7 +141,7 @@ struct EpisodeDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -144,11 +155,19 @@ struct EpisodeDetailView: View {
             // The season·episode marker rides directly under the title (so on iPad
             // it heads the right column), while the rest of the metadata stays in
             // the left column with the show logo and the actions.
-            titleAccessory: AnyView(
+            titleAccessory: macMarkerLeadsTitle ? nil : AnyView(
                 episodeMarkerRow()
                     .multilineTextAlignment(detailHeroTextAlignment(for: sizeClass))
             ),
             supertitle: {
+                #if os(macOS)
+                // Mac: show logo, then "Season 1 · Episode 3" in the metadata
+                // style, then the episode title (TV app order).
+                VStack(alignment: .leading, spacing: 14) {
+                    macShowTitleLink(containerWidth: containerWidth)
+                    episodeMarkerRow()
+                }
+                #else
                 if let showTitle = viewModel.showTitle {
                     DetailHeroShowTitleLink(
                         title: showTitle,
@@ -161,6 +180,7 @@ struct EpisodeDetailView: View {
                         }
                     )
                 }
+                #endif
             },
             subtitle: {
                 VStack(alignment: detailHeroContentAlignment(for: sizeClass), spacing: 6) {
@@ -174,6 +194,33 @@ struct EpisodeDetailView: View {
             }
         )
     }
+
+    /// The Mac puts the season·episode marker above the title, not under it.
+    private var macMarkerLeadsTitle: Bool {
+        #if os(macOS)
+        true
+        #else
+        false
+        #endif
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private func macShowTitleLink(containerWidth: CGFloat) -> some View {
+        if let showTitle = viewModel.showTitle {
+            DetailHeroShowTitleLink(
+                title: showTitle,
+                logoURL: viewModel.showTitleLogoURL(
+                    width: Int((containerWidth * 0.5).rounded(.up)),
+                    height: 128
+                ),
+                showRoute: viewModel.showID.map {
+                    AppNavigationRoute.media(type: .show, id: $0)
+                }
+            )
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func episodeMarkerRow() -> some View {
@@ -224,7 +271,12 @@ struct EpisodeDetailView: View {
     // On iPad the season·episode marker sits under the episode title in the
     // right column as a quiet subtitle, so it reads smaller and greyer there.
     private var usesQuietMarker: Bool {
+        #if os(macOS)
+        // Matches the metadata line below the title on the Mac.
+        false
+        #else
         sizeClass == .regular
+        #endif
     }
 
     private var markerFont: Font {
@@ -239,10 +291,19 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
+        #if os(macOS)
+        // One ·-joined line, durations formatted like the movie page.
+        let parts = [
+            MediaTextFormatter.localizedAirDate(details.originallyAvailableAt),
+            PlexContentRating.display(details.contentRating),
+            MediaTextFormatter.playbackDuration(milliseconds: details.duration),
+        ].compactMap { $0 }
+        #else
         let parts = [
             PlexContentRating.display(details.contentRating),
             viewModel.formattedDuration,
         ].compactMap { $0 }
+        #endif
 
         if !parts.isEmpty {
             Text(parts.joined(separator: " · "))
@@ -253,11 +314,13 @@ struct EpisodeDetailView: View {
 
     @ViewBuilder
     private func heroMetadata(_ details: PlexMediaDetails) -> some View {
+        #if !os(macOS)
         if let originalDate = MediaTextFormatter.localizedAirDate(details.originallyAvailableAt) {
             Text(originalDate)
                 .font(DuskFont.caption(ios: .caption))
                 .foregroundStyle(Color.primary.opacity(0.72))
         }
+        #endif
 
         DetailRatingsLine(ratings: PlexRating.sources(for: details), userRating: userRating.value)
     }
@@ -265,7 +328,7 @@ struct EpisodeDetailView: View {
     @ViewBuilder
     private func actionButtons(_ details: PlexMediaDetails) -> some View {
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {
@@ -338,6 +401,13 @@ struct EpisodeDetailView: View {
         }
         .detailHeroNativeSecondaryButtonStyle()
         .accessibilityLabel(viewModel.isWatched ? "Mark Unwatched" : "Mark Watched")
+    }
+
+    /// "Show – Season 1" / "Show – Pilot" for the Mac window title.
+    private var windowTitle: String? {
+        guard let title = viewModel.details?.title else { return nil }
+        guard let showTitle = viewModel.showTitle, !showTitle.isEmpty else { return title }
+        return "\(showTitle) – \(title)"
     }
 
     private var usesFullWidthActionButtons: Bool {

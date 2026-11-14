@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum MainTabItem: Hashable, Identifiable {
     case home
@@ -56,6 +58,9 @@ enum MainTabItem: Hashable, Identifiable {
     }
 }
 
+// The tab shells are the iOS/tvOS main window; the Mac uses the sidebar shell
+// in `Mac/MacRootView.swift` and keeps only `MainTabItem` from this file.
+#if !os(macOS)
 struct MainTabIOSShell<Content: View>: View {
     let tabs: [MainTabItem]
     let selection: Binding<MainTabItem>
@@ -454,3 +459,4 @@ private final class DuskTVTabBarTintSentinel: UIView {
         onTintColorChange?()
     }
 }
+#endif

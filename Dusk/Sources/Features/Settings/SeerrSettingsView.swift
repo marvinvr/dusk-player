@@ -12,7 +12,7 @@ struct SeerrSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("Seerr")
         .task {
             viewModel.load(from: seerrService)
@@ -33,23 +33,27 @@ struct SeerrSettingsView: View {
 
     #if !os(tvOS)
     private var iosContent: some View {
-        List {
+        SettingsList {
             Section {
                 TextField(
                     "Server URL",
                     text: $viewModel.serverURL,
                     prompt: Text(SeerrServerURL.placeholder)
                 )
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
                     .disabled(seerrService.isConnected || viewModel.isWorking)
 
                 connectionRow
             } header: {
                 Text("Server")
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let errorMessage = viewModel.errorMessage ?? seerrService.lastConnectionError {
                 Section {
@@ -63,7 +67,7 @@ struct SeerrSettingsView: View {
                         .disabled(viewModel.isWorking)
                     }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -87,9 +91,9 @@ struct SeerrSettingsView: View {
                     .disabled(viewModel.isWorking || viewModel.serverURL.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
     }
     #endif
 

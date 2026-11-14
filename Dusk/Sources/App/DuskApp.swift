@@ -1,7 +1,11 @@
 import AppIntents
 import AVFoundation
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 enum AppImageCache {
     static let memoryCapacity = 0
@@ -135,6 +139,12 @@ struct DuskApp: App {
     #if os(tvOS)
     @State private var topShelfLinks = TopShelfLinkRouter()
     #endif
+    #if os(macOS)
+    /// Owned by the app on the Mac (by `ContentView` on iOS/tvOS) so the
+    /// Settings window and the menu bar's Refresh reach the same pass.
+    @State private var macConnections = ServerConnectionCoordinator()
+    @State private var macRouter = MacShellRouter()
+    #endif
 
     init() {
         AppImageCache.configureSharedCache()
@@ -167,7 +177,9 @@ struct DuskApp: App {
         let siri = SiriPlaybackService(plexService: service, playback: coordinator)
         AppDependencyManager.shared.add(dependency: siri)
         _userPreferences = State(initialValue: prefs)
+        #if !os(macOS)
         Self.configurePlaybackAudioSession()
+        #endif
         #if os(iOS)
         Self.configureTabBarAppearance()
         #elseif os(tvOS)
@@ -176,95 +188,134 @@ struct DuskApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                .environment(plexService)
-                .environment(seerrService)
-                .environment(traktService)
-                .environment(iptvService)
-                .environment(playbackCoordinator)
-                .environment(downloadManager)
-                .environment(offlinePlaybackSyncManager)
-                .environment(userPreferences)
-                .environment(\.blursUnwatchedEpisodes, userPreferences.blursUnwatchedEpisodes)
-                .environment(supporterStore)
-                .environment(analytics)
-                #if os(tvOS)
-                .environment(topShelfLinks)
-                .onOpenURL { url in
-                    topShelfLinks.open(url)
-                }
-                #else
-                .onOpenURL { _ in
-                    // Trakt callbacks belong exclusively to the live
-                    // ASWebAuthenticationSession completion. Ignore unclaimed
-                    // links (including a cold launch); never exchange a code
-                    // without that session's in-memory state and PKCE verifier.
-                }
-                .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
-                    // Universal Links can also arrive as a browsing activity.
-                    // Apply the same rule as onOpenURL, without logging the URL.
-                }
-                #endif
-                .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
-                .task {
-                    analytics.recordAppOpenedIfNeeded()
-                }
-                .task {
-                    await supporterStore.start()
-                }
-                .task {
-                    PlaybackEngineFactory.prewarmIfNeeded()
-                }
-                .task(
-                    id: seerrContextID
-                ) {
-                    await seerrService.contextDidChange()
-                }
-                .task(
-                    id: offlineContextID
-                ) {
-                    guard plexService.homeBootstrapCompleted else {
-                        offlinePlaybackSyncManager.stopAutomaticSync()
-                        return
-                    }
-
-                    downloadManager.activateProfile()
-                    offlinePlaybackSyncManager.activateProfile()
-
-                    guard plexService.isSessionReady else {
-                        offlinePlaybackSyncManager.stopAutomaticSync()
-                        return
-                    }
-
-                    offlinePlaybackSyncManager.startAutomaticSync()
-                    await offlinePlaybackSyncManager.syncPendingActions(force: true)
-                }
-                .onChange(of: scenePhase) { _, newPhase in
-                    if newPhase == .active {
-                        downloadManager.resumePendingWork()
-                        analytics.recordAppOpenedIfNeeded()
-                        Task { await traktService.flushPending() }
-                        Task { await supporterStore.sceneDidBecomeActive() }
-                    }
-
-                    if newPhase == .active,
-                       plexService.isSessionReady {
-                        offlinePlaybackSyncManager.startAutomaticSync()
-                        Task {
-                            await offlinePlaybackSyncManager.syncPendingActions(force: true)
-                        }
-                    } else {
-                        offlinePlaybackSyncManager.stopAutomaticSync()
-                    }
-                }
-                .onChange(of: userPreferences.downloadsWifiOnly) {
-                    downloadManager.evaluateNetworkConstraints()
-                }
-                .onChange(of: userPreferences.analyticsEnabled) {
-                    analytics.reportingPreferenceDidChange()
-                }
+        #if os(macOS)
+        // One main window: the player, the connection pass and the sidebar
+        // router are app-wide, so a second window would only fight over them.
+        Window("Dusk", id: MacWindow.mainID) {
+            appContent
+                .frame(minWidth: MacWindow.minimumSize.width, minHeight: MacWindow.minimumSize.height)
         }
+        .defaultSize(MacWindow.defaultSize)
+        .windowResizability(.contentMinSize)
+        .windowToolbarStyle(.unified)
+        .commands {
+            MacCommands(
+                router: macRouter,
+                connections: macConnections,
+                plexService: plexService,
+                playback: playbackCoordinator
+            )
+            MacPlayerCommands()
+        }
+
+        Settings {
+            sharedEnvironment(MacSettingsWindow())
+        }
+        #else
+        WindowGroup {
+            appContent
+        }
+        #endif
+    }
+
+    /// The services every window's content reads from the environment. The
+    /// Mac's Settings scene gets the same set as the main window.
+    private func sharedEnvironment<Content: View>(_ content: Content) -> some View {
+        content
+            .environment(plexService)
+            .environment(seerrService)
+            .environment(traktService)
+            .environment(iptvService)
+            .environment(playbackCoordinator)
+            .environment(downloadManager)
+            .environment(offlinePlaybackSyncManager)
+            .environment(userPreferences)
+            .environment(\.blursUnwatchedEpisodes, userPreferences.blursUnwatchedEpisodes)
+            .environment(supporterStore)
+            .environment(analytics)
+            #if os(macOS)
+            .environment(macConnections)
+            .environment(macRouter)
+            #endif
+            .preferredColorScheme(userPreferences.appearanceMode.preferredColorScheme)
+    }
+
+    private var appContent: some View {
+        sharedEnvironment(ContentView())
+            #if os(tvOS)
+            .environment(topShelfLinks)
+            .onOpenURL { url in
+                topShelfLinks.open(url)
+            }
+            #else
+            .onOpenURL { _ in
+                // Trakt callbacks belong exclusively to the live
+                // ASWebAuthenticationSession completion. Ignore unclaimed
+                // links (including a cold launch); never exchange a code
+                // without that session's in-memory state and PKCE verifier.
+            }
+            .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { _ in
+                // Universal Links can also arrive as a browsing activity.
+                // Apply the same rule as onOpenURL, without logging the URL.
+            }
+            #endif
+            .task {
+                analytics.recordAppOpenedIfNeeded()
+            }
+            .task {
+                await supporterStore.start()
+            }
+            .task {
+                PlaybackEngineFactory.prewarmIfNeeded()
+            }
+            .task(
+                id: seerrContextID
+            ) {
+                await seerrService.contextDidChange()
+            }
+            .task(
+                id: offlineContextID
+            ) {
+                guard plexService.homeBootstrapCompleted else {
+                    offlinePlaybackSyncManager.stopAutomaticSync()
+                    return
+                }
+
+                downloadManager.activateProfile()
+                offlinePlaybackSyncManager.activateProfile()
+
+                guard plexService.isSessionReady else {
+                    offlinePlaybackSyncManager.stopAutomaticSync()
+                    return
+                }
+
+                offlinePlaybackSyncManager.startAutomaticSync()
+                await offlinePlaybackSyncManager.syncPendingActions(force: true)
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    downloadManager.resumePendingWork()
+                    analytics.recordAppOpenedIfNeeded()
+                    Task { await traktService.flushPending() }
+                    Task { await supporterStore.sceneDidBecomeActive() }
+                }
+
+                if newPhase == .active,
+                   plexService.isSessionReady {
+                    offlinePlaybackSyncManager.startAutomaticSync()
+                    Task {
+                        await offlinePlaybackSyncManager.syncPendingActions(force: true)
+                    }
+                } else {
+                    offlinePlaybackSyncManager.stopAutomaticSync()
+                }
+            }
+            .onChange(of: userPreferences.downloadsWifiOnly) {
+                downloadManager.evaluateNetworkConstraints()
+            }
+            .onChange(of: userPreferences.analyticsEnabled) {
+                analytics.reportingPreferenceDidChange()
+            }
     }
 }
 
@@ -291,6 +342,7 @@ private extension DuskApp {
         ].joined(separator: ":")
     }
 
+    #if !os(macOS)
     static func configurePlaybackAudioSession() {
         let audioSession = AVAudioSession.sharedInstance()
 
@@ -307,6 +359,7 @@ private extension DuskApp {
             assertionFailure("Failed to configure playback audio session: \(error.localizedDescription)")
         }
     }
+    #endif
 }
 
 #if os(iOS)
@@ -337,6 +390,57 @@ private extension DuskApp {
 }
 #endif
 
+#if os(macOS)
+// The same tokens as the UIKit block below, resolved per drawing appearance.
+// See STYLE.md for the palette.
+extension Color {
+    static let duskBackground = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0xF5F7FA), dark: NSColor(duskHex: 0x090A0F))
+    )
+
+    static let duskSurface = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0xFFFFFF), dark: NSColor(duskHex: 0x161824))
+    )
+
+    /// Sunset Coral, the brand color. Reserved for brand moments (the Supporter
+    /// page and the app icon picker); never a UI tint, state or progress color.
+    /// See STYLE.md.
+    static let duskAccent = Color(nsColor: NSColor(duskHex: 0xFF6B4A))
+
+    static let duskTextPrimary = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0x1C1C1E), dark: NSColor(duskHex: 0xF2F2F7))
+    )
+
+    static let duskTextSecondary = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0x636366), dark: NSColor(duskHex: 0x8E95A8))
+    )
+
+    /// See the UIKit twin below: the inverse of `primary`.
+    static let duskPrimaryActionLabel = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0xFFFFFF), dark: NSColor(duskHex: 0x090A0F))
+    )
+
+    /// Only the tvOS tab shell uses it; kept so shared code resolves the name.
+    static let duskTVTabBarTint = Color(
+        nsColor: .duskDynamic(light: NSColor(duskHex: 0x000000), dark: NSColor(duskHex: 0xF2F2F7))
+    )
+
+    /// See the UIKit twin below.
+    static var duskPrimaryButtonTint: Color {
+        Color.primary.opacity(0.7)
+    }
+}
+
+private extension NSColor {
+    convenience init(duskHex: UInt32) {
+        let red = CGFloat((duskHex >> 16) & 0xFF) / 255
+        let green = CGFloat((duskHex >> 8) & 0xFF) / 255
+        let blue = CGFloat(duskHex & 0xFF) / 255
+
+        self.init(srgbRed: red, green: green, blue: blue, alpha: 1)
+    }
+}
+#else
 extension Color {
     static let duskBackground = Color(
         uiColor: UIColor { traits in
@@ -439,3 +543,4 @@ private extension UIColor {
         self.init(red: red, green: green, blue: blue, alpha: 1)
     }
 }
+#endif

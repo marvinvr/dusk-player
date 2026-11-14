@@ -1,0 +1,51 @@
+From 54f888388e385c2205bde9301ec9fef95b380bac Mon Sep 17 00:00:00 2001
+From: Dusk Player <dusk@localhost>
+Date: Fri, 13 Nov 2026 15:24:49 +0100
+Subject: [PATCH] buildMobileVLCKit: macOS 26 minimum, single macOS libvlc pass
+
+Dusk's Mac app targets macOS 26. Build libvlc, its contribs and
+VLCKit.framework for macOS 26.0 instead of 10.9 (a modern minimum keeps
+the linker from weak-importing libSystem functions that macOS 26 already
+has), and pass MACOSX_DEPLOYMENT_TARGET to xcodebuild.
+
+With -x the script ran buildMobileKit for the simulator too, which builds
+the same macOS slices a second time. Skip that pass on macOS.
+---
+ buildMobileVLCKit.sh | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/buildMobileVLCKit.sh b/buildMobileVLCKit.sh
+index f9724e3d..79db7aa5 100755
+--- a/buildMobileVLCKit.sh
++++ b/buildMobileVLCKit.sh
+@@ -111,7 +111,7 @@ do
+              IOS=no
+              BITCODE=no
+              SDK_VERSION=`xcrun --sdk macosx --show-sdk-version`
+-             SDK_MIN=10.9
++             SDK_MIN=26.0
+              OSVERSIONMINCFLAG=mmacosx
+              OSVERSIONMINLDFLAG=macos
+              BUILD_DEVICE=yes
+@@ -285,6 +285,7 @@ buildxcodeproj()
+                ARCHS="${architectures}" \
+                IPHONEOS_DEPLOYMENT_TARGET=${SDK_MIN} \
+                TVOS_DEPLOYMENT_TARGET=${SDK_MIN} \
++               MACOSX_DEPLOYMENT_TARGET=${SDK_MIN} \
+                ${bitcodeflag} \
+                SKIP_INSTALL=no \
+                > ${out}
+@@ -913,7 +914,9 @@ buildMobileKit() {
+ if [ "$BUILD_DEVICE" != "no" ]; then
+     buildMobileKit iphoneos
+ fi
+-if [ "$BUILD_SIMULATOR" != "no" ]; then
++# macOS has no simulator: buildMobileKit builds the same macOS slices for
++# either platform, so a second pass would only rebuild them.
++if [ "$BUILD_SIMULATOR" != "no" -a "$MACOS" != "yes" ]; then
+     buildMobileKit iphonesimulator
+ fi
+ 
+-- 
+2.54.0 (Apple Git-157)
+

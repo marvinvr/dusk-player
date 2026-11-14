@@ -49,8 +49,11 @@ struct ShowDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(viewModel.details?.title)
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
         }
@@ -99,7 +102,7 @@ struct ShowDetailView: View {
                     }
 
                     seasonsSection(width: geometry.size.width)
-                        .padding(.top, 40)
+                        .padding(.top, detailSectionSpacing)
 
                     DetailExtrasShelf(itemID: details.id, ownerTitle: details.title, model: extras)
 
@@ -116,15 +119,17 @@ struct ShowDetailView: View {
                             serverID: viewModel.serverID,
                             plexService: plexService
                         )
-                            .padding(.top, 40)
+                            .padding(.top, detailSectionSpacing)
                             .padding(.bottom, 56)
                     }
                 }
-                .padding(.top, -geometry.safeAreaInsets.top)
+                .detailMacPageBottomInset()
+                .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .macHeroUnderToolbar()
         }
     }
 
@@ -136,7 +141,7 @@ struct ShowDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -195,7 +200,7 @@ struct ShowDetailView: View {
     @ViewBuilder
     private func actionButtons() -> some View {
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             playButton()
 
             HStack(spacing: detailHeroActionSpacing) {
@@ -323,7 +328,7 @@ struct ShowDetailView: View {
                                 availabilityBadge: viewModel.seasonAvailabilityBadge(season),
                                 isDimmed: viewModel.isSeasonUnavailableOffline(season),
                                 isWatched: season.isFullyWatched,
-                                unwatchedCount: season.unwatchedEpisodeCount
+                                unwatchedCount: seasonCardUnwatchedBadge(season)
                             ) {
                                 seasonContextMenu(season)
                             }
@@ -350,6 +355,16 @@ struct ShowDetailView: View {
                 .padding(.horizontal, horizontalPadding)
             }
         }
+    }
+
+    /// The Mac spells the unwatched count out in the card subtitle
+    /// (`seasonSubtitle`) instead of the corner badge.
+    private func seasonCardUnwatchedBadge(_ season: PlexSeason) -> Int? {
+        #if os(macOS)
+        nil
+        #else
+        season.unwatchedEpisodeCount
+        #endif
     }
 
     @ViewBuilder

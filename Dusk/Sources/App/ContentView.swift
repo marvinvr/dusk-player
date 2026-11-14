@@ -11,7 +11,12 @@ struct ContentView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    /// The app owns it on the Mac, so Settings and the menu bar share it.
+    @Environment(ServerConnectionCoordinator.self) private var connections
+    #else
     @State private var connections = ServerConnectionCoordinator()
+    #endif
     @State private var homeBootstrapError: String?
     @State private var isBootstrappingHome = false
     /// Cold-launch only: lives as long as the window, so a profile switch or a
@@ -33,8 +38,13 @@ struct ContentView: View {
                     }
                 )
             } else {
+                #if os(macOS)
+                MacRootView()
+                    .id(plexService.activeProfileID)
+                #else
                 MainTabView()
                     .id(plexService.activeProfileID)
+                #endif
             }
         }
         .environment(connections)
@@ -84,12 +94,17 @@ struct ContentView: View {
     /// out of them unless `-DuskLaunchSplash YES` asks for it (DEBUG only, to
     /// record the splash against the mock server).
     private var showsLaunchSplash: Bool {
+        #if os(macOS)
+        // A Mac window opens straight onto its content.
+        return false
+        #else
         #if DEBUG
         if ScreenshotMode.isActive {
             return UserDefaults.standard.bool(forKey: "DuskLaunchSplash")
         }
         #endif
         return true
+        #endif
     }
 
     /// The screens that are complete the moment they mount, so the launch
@@ -130,6 +145,49 @@ struct ContentView: View {
     }
 
     private var homeBootstrapView: some View {
+        #if os(macOS)
+        macHomeBootstrapView
+        #else
+        iosHomeBootstrapView
+        #endif
+    }
+
+    #if os(macOS)
+    private var macHomeBootstrapView: some View {
+        ZStack {
+            Color.duskBackground.ignoresSafeArea()
+
+            if let homeBootstrapError {
+                ContentUnavailableView {
+                    Label("Couldn’t Load Plex", systemImage: "person.2.slash")
+                } description: {
+                    Text(homeBootstrapError)
+                } actions: {
+                    HStack(spacing: 10) {
+                        if AuthenticationFailure.requiresReauthentication(message: homeBootstrapError) {
+                            Button("Sign In") { signOut() }
+                        } else {
+                            Button("Sign Out") { signOut() }
+                            Button("Try Again") {
+                                Task { await bootstrapHomeIfNeeded(force: true) }
+                            }
+                            .disabled(isBootstrappingHome)
+                            .keyboardShortcut(.defaultAction)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.large)
+                }
+            } else {
+                ProgressView()
+            }
+        }
+        .toolbar(removing: .title)
+        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+    }
+    #endif
+
+    private var iosHomeBootstrapView: some View {
         ZStack {
             Color.duskBackground.ignoresSafeArea()
 

@@ -93,6 +93,7 @@ struct PlayerLoadingView: View {
         #if !os(tvOS)
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 12) {
+                #if os(iOS)
                 PlayerAirPlayControl(
                     isActive: playback.isAirPlayPlaybackActive,
                     symbolFont: .body.weight(.semibold)
@@ -103,6 +104,7 @@ struct PlayerLoadingView: View {
                     Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
                         .allowsHitTesting(false)
                 }
+                #endif
 
                 if let onCancel {
                     Button(action: onCancel) {
@@ -116,6 +118,10 @@ struct PlayerLoadingView: View {
                             }
                     }
                     .accessibilityLabel("Cancel")
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    .help("Cancel")
+                    #endif
                 }
             }
             .padding(.top, 12)

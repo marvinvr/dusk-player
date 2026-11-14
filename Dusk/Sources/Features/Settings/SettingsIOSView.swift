@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 #if !os(tvOS)
 struct SettingsIOSView: View {
@@ -22,11 +24,20 @@ struct SettingsIOSView: View {
         SettingsContainer(viewModel: viewModel) {
             settingsContent
         }
+        #if os(macOS)
+        // No in-app Safari on the Mac: the account pages open in the browser.
+        .onChange(of: presentedAccountURL) { _, url in
+            guard let url else { return }
+            openURL(url)
+            presentedAccountURL = nil
+        }
+        #else
         .sheet(isPresented: accountSheetPresented) {
             if let presentedAccountURL {
                 DuskSafariView(url: presentedAccountURL)
             }
         }
+        #endif
         .sheet(isPresented: $showsSupporterSheet) {
             SupporterView(context: .settings)
         }
@@ -34,7 +45,7 @@ struct SettingsIOSView: View {
 
     @ViewBuilder
     private var settingsContent: some View {
-        List {
+        SettingsList {
             Section {
                 Button {
                     showsSupporterSheet = true
@@ -124,9 +135,11 @@ struct SettingsIOSView: View {
 
                 NavigationLink {
                     SettingsIOSPage(title: "Appearance") { appearanceSection }
+                        #if !os(macOS)
                         .sheet(isPresented: $showsIconPicker) {
                             AppIconPickerView()
                         }
+                        #endif
                 } label: {
                     settingsPageLabel("Appearance")
                 }
@@ -485,10 +498,12 @@ struct SettingsIOSView: View {
         @Bindable var preferences = preferences
 
         Section {
+            #if !os(macOS)
             if UIDevice.current.userInterfaceIdiom == .phone {
                 Toggle("Always Play in Landscape", isOn: $preferences.alwaysPlayInLandscape)
                     .foregroundStyle(Color.duskTextPrimary)
             }
+            #endif
 
             Picker("Auto-Skip Intros", selection: $preferences.autoSkipIntroMode) {
                 ForEach(AutoSkipIntroMode.allCases) { mode in
@@ -652,6 +667,8 @@ struct SettingsIOSView: View {
             Toggle("Blur Unwatched Episodes", isOn: $preferences.blursUnwatchedEpisodes)
                 .foregroundStyle(Color.duskTextPrimary)
 
+            // The Mac app ships only the default icon (no alternate-icon API).
+            #if !os(macOS)
             Button {
                 showsIconPicker = true
             } label: {
@@ -670,6 +687,7 @@ struct SettingsIOSView: View {
                 }
             }
             .duskSuppressTVOSButtonChrome()
+            #endif
         }
         .listRowBackground(Color.duskSurface)
     }
@@ -787,7 +805,7 @@ private struct SettingsIOSPage<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
     var body: some View {
-        List {
+        SettingsList {
             content()
         }
         .contentMargins(.top, 12, for: .scrollContent)

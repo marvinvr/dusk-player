@@ -424,7 +424,12 @@ extension AddToPlaylistSheet {
             .scrollContentBackground(.hidden)
             .background(Color.duskBackground.ignoresSafeArea())
             .navigationTitle("Add to Playlist")
+            #if os(macOS)
+            // List rows are plain rows, as on iOS, not push buttons.
+            .buttonStyle(.borderless)
+            #else
             .navigationBarTitleDisplayMode(.inline)
+            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -432,6 +437,9 @@ extension AddToPlaylistSheet {
             }
         }
         .presentationDetents([.medium, .large])
+        #if os(macOS)
+        .macUISheetSize(minWidth: 380, idealWidth: 420, idealHeight: 480)
+        #endif
     }
     #endif
 }

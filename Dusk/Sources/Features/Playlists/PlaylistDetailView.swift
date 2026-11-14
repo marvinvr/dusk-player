@@ -17,7 +17,9 @@ struct PlaylistDetailView: View {
     @State private var isRenaming = false
     @State private var renameText = ""
     @State private var isConfirmingDelete = false
-    #if !os(tvOS)
+    // The Mac has no edit mode: rows drag to reorder, and Remove is in the
+    // context menu.
+    #if os(iOS)
     @State private var editMode: EditMode = .inactive
     #endif
 
@@ -40,8 +42,10 @@ struct PlaylistDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        #if !os(macOS)
         .toolbarBackground(.hidden, for: .navigationBar)
-        #if !os(tvOS)
+        #endif
+        #if os(iOS)
         .toolbar {
             if editMode.isEditing {
                 ToolbarItem(placement: .confirmationAction) {
@@ -235,6 +239,7 @@ struct PlaylistDetailView: View {
             } label: {
                 Label("Play from Beginning", systemImage: "arrow.counterclockwise")
             }
+            .duskMenuItemIcons()
         }
         #endif
     }
@@ -264,7 +269,7 @@ struct PlaylistDetailView: View {
             }
 
             if viewModel.canEdit {
-                #if !os(tvOS)
+                #if os(iOS)
                 Button {
                     withAnimation { editMode = .active }
                 } label: {
@@ -334,13 +339,16 @@ struct PlaylistDetailView: View {
                     )
                 }
                 .buttonStyle(.plain)
+                #if os(iOS)
                 // Not `.disabled`: that greys the rows out while reordering.
                 .allowsHitTesting(!editMode.isEditing)
+                #endif
                 .listRowInsets(EdgeInsets(top: 8, leading: 20, bottom: 8, trailing: 20))
                 .listRowBackground(Color.clear)
                 .listRowSeparatorTint(Color.duskTextSecondary.opacity(0.2))
                 .contextMenu {
                     entryContextMenu(entry)
+                        .duskMenuItemIcons()
                 }
                 .deleteDisabled(!viewModel.canEdit)
                 .moveDisabled(!viewModel.canEdit)

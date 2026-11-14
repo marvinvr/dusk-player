@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Whether the screen under the launch splash has something worth revealing.
 ///
@@ -19,6 +21,17 @@ final class LaunchSplashState {
     }
 }
 
+#if os(macOS)
+/// No launch splash on the Mac: a Mac window opens straight onto its content,
+/// and Home's own loading state covers a slow first paint.
+struct LaunchSplashOverlay: View {
+    let state: LaunchSplashState
+
+    var body: some View {
+        EmptyView()
+    }
+}
+#else
 /// The cold-launch brand moment: the launch storyboard's logo, carried over
 /// pixel for pixel and recoloured to the applied app icon, that leaves as soon
 /// as the app underneath is ready.
@@ -399,3 +412,4 @@ private enum LaunchSplashExitStyle: Equatable {
         return t * t * (3 - 2 * t)
     }
 }
+#endif

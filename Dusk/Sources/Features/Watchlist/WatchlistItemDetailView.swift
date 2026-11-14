@@ -184,8 +184,10 @@ private struct WatchlistInfoPage: View {
             .duskTVOSPageBackground()
         }
         .duskNavigationBarTitleDisplayModeInline()
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .alert(
             "Couldn’t Update Watchlist",
             isPresented: Binding(

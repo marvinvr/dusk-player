@@ -4,7 +4,9 @@ import Foundation
 import GroupActivities
 import Observation
 import OSLog
+#if canImport(UIKit)
 import UIKit
+#endif
 
 private let sharePlayLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",

@@ -46,6 +46,7 @@ struct LibrariesRootContent: View {
             }
             .navigationDestination(for: LibraryTypeListDestination.self) { destination in
                 LibraryTypeListView(libraryType: destination.libraryType, viewModel: viewModel)
+                    .macShellBackButtonHidden()
             }
     }
 
@@ -77,6 +78,16 @@ struct LibrariesRootContent: View {
                 LibraryTypeListView(libraryType: libraryType, viewModel: viewModel)
             }
         } else {
+            #if os(macOS)
+            // One place per type with a Recommended | Library | Collections
+            // switch in the toolbar.
+            MacLibraryBrowser(
+                libraryType: libraryType,
+                libraries: libraries,
+                viewModel: viewModel,
+                path: $path
+            )
+            #else
             // The tab always lands on recommendations, merged across every
             // library of this type on every server. With one library this is
             // exactly the screen it always was; with several, "Libraries" in
@@ -94,6 +105,7 @@ struct LibrariesRootContent: View {
                 push: { path.append($0) }
             )
             .id(libraries.map(\.id).joined(separator: "|"))
+            #endif
         }
     }
 

@@ -13,7 +13,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 FRAMEWORK_DIR="${ROOT_DIR}/Frameworks/DuskDovi.xcframework"
 STAMP_PATH="${FRAMEWORK_DIR}/dusk-dovi-source.sha256"
 BUILD_SCRIPT="${ROOT_DIR}/scripts/build_dusk_dovi_xcframework.sh"
-SLICES=(ios-arm64 ios-arm64-simulator tvos-arm64 tvos-arm64-simulator)
+SLICES=(ios-arm64 ios-arm64-simulator tvos-arm64 tvos-arm64-simulator macos-arm64_x86_64)
 
 source_hash() {
     (
@@ -23,7 +23,7 @@ source_hash() {
                 Native/DuskDovi/rust-toolchain.toml Native/DuskDovi/src \
                 Native/DuskDovi/include scripts/build_dusk_dovi_xcframework.sh \
                 -type f ! -name .DS_Store -print0 | LC_ALL=C sort -z | xargs -0 shasum -a 256
-            grep -E '^    (iOS|tvOS): ' project.yml
+            grep -E '^    (iOS|tvOS|macOS): ' project.yml
         } | shasum -a 256 | cut -d ' ' -f 1
     )
 }

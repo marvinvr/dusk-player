@@ -2,6 +2,8 @@
 import MobileVLCKit
 #elseif canImport(TVVLCKit)
 import TVVLCKit
+#elseif canImport(VLCKit)
+import VLCKit
 #endif
 import Foundation
 import Darwin
@@ -25,7 +27,7 @@ enum VLCKitBuildInfo {
     /// Query the loaded binary, including older Dusk builds without an AV1
     /// capability stamp. Stock/stale builds must not promise a missing decoder.
     static let decodesAV1: Bool = {
-        #if canImport(MobileVLCKit) || canImport(TVVLCKit)
+        #if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
         guard let executable = Bundle(for: VLCMediaPlayer.self).executablePath,
               let handle = dlopen(executable, RTLD_LAZY | RTLD_NOLOAD) else { return false }
         defer { dlclose(handle) }
@@ -36,7 +38,7 @@ enum VLCKitBuildInfo {
     }()
 
     private static var frameworkInfo: [String: Any] {
-        #if canImport(MobileVLCKit) || canImport(TVVLCKit)
+        #if canImport(MobileVLCKit) || canImport(TVVLCKit) || canImport(VLCKit)
         Bundle(for: VLCMediaPlayer.self).infoDictionary ?? [:]
         #else
         [:]

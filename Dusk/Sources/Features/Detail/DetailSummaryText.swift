@@ -59,6 +59,72 @@ struct ExpandableSummaryText: View {
             SummaryFullTextView(title: title, text: text)
         }
         #else
+        #if os(macOS)
+        if !allowsExpansion {
+            macClampedBody
+        } else {
+            expandingBody
+        }
+        #else
+        expandingBody
+        #endif
+        #endif
+    }
+
+    #if os(macOS)
+    /// The Mac hero's clamped synopsis: a small secondary "more" sits on the
+    /// last line's baseline at the trailing edge, like the TV app; it (or a
+    /// click on the text) opens the full text in a popover.
+    private var macClampedBody: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 6) {
+            Text(text)
+                .font(font)
+                .foregroundStyle(foregroundStyle)
+                .lineSpacing(lineSpacing)
+                .lineLimit(collapsedLineLimit)
+                .truncationMode(.tail)
+                .summaryTruncation(
+                    text: text,
+                    font: font,
+                    lineSpacing: lineSpacing,
+                    lineLimit: collapsedLineLimit,
+                    isTruncated: $isTruncated
+                )
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    guard isTruncated else { return }
+                    showsFullText = true
+                }
+                .accessibilityAddTraits(isTruncated ? .isButton : [])
+
+            if isTruncated {
+                Button("more") {
+                    showsFullText = true
+                }
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .buttonStyle(.plain)
+                .fixedSize()
+                .help("Show the full description")
+            }
+        }
+        .popover(isPresented: $showsFullText, arrowEdge: .bottom) {
+            ScrollView {
+                Text(text)
+                    .font(.body)
+                    .lineSpacing(3)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(width: 420, alignment: .leading)
+                    .padding(16)
+            }
+            .frame(maxHeight: 420)
+        }
+    }
+    #endif
+
+    #if !os(tvOS)
+    private var expandingBody: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(text)
                 .font(font)
@@ -93,11 +159,13 @@ struct ExpandableSummaryText: View {
                 .buttonStyle(.plain)
             }
         }
+        #if !os(macOS)
         .sheet(isPresented: $showsFullText) {
             SummaryFullTextView(title: title, text: text)
         }
         #endif
     }
+    #endif
 }
 
 // MARK: - Truncation
@@ -302,15 +370,26 @@ struct SummaryFullTextView: View {
                     .padding(.vertical, 12)
             }
             .navigationTitle(title ?? "Synopsis")
+            #if os(macOS)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+            #else
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     closeButton
                 }
             }
+            #endif
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        #if os(macOS)
+        .macUISheetSize(minHeight: 320, idealHeight: 480)
+        #endif
         #endif
     }
 

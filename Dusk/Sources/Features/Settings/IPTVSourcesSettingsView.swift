@@ -12,7 +12,7 @@ struct IPTVSourcesSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle("IPTV Sources")
         .task {
             iptvService.syncProfile()
@@ -42,7 +42,7 @@ struct IPTVSourcesSettingsView: View {
                     Text("Sources")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             Section {
@@ -56,14 +56,17 @@ struct IPTVSourcesSettingsView: View {
                 Text(Self.footerText)
                     .foregroundStyle(Color.duskTextSecondary)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
-        .scrollContentBackground(.hidden)
+        .duskSettingsFormBackgroundHidden()
+        #if !os(macOS)
+        // The Mac reorders by dragging a row, no edit mode.
         .toolbar {
             if iptvService.sources.count > 1 {
                 EditButton()
             }
         }
+        #endif
     }
 
     private func sourceLabel(_ source: IPTVSource) -> some View {
@@ -142,7 +145,7 @@ struct IPTVSourceEditorView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
+        .duskSettingsPageBackground()
         .duskNavigationTitle(source == nil ? "Add IPTV Source" : "Edit Source")
         .onAppear(perform: loadDraft)
         .confirmationDialog(
@@ -164,33 +167,45 @@ struct IPTVSourceEditorView: View {
             Section {
                 TextField("Name", text: $name, prompt: Text("My IPTV"))
                 TextField("M3U URL", text: $playlistURL, prompt: Text("https://example.com/playlist.m3u"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
                 TextField("XMLTV URL", text: $guideURL, prompt: Text("Optional"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
+                    #if !os(macOS)
                     .keyboardType(.URL)
+                    #endif
             } header: {
                 Text("Source")
             } footer: {
                 Text("Leave XMLTV empty to use the guide named in the playlist’s url-tvg header.")
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             Section {
                 TextField("Header Name", text: $headerName, prompt: Text(IPTVSource.defaultHeaderName))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
                 SecureField("Value", text: $headerValue, prompt: Text("Bearer …"))
+                    #if !os(macOS)
                     .textInputAutocapitalization(.never)
+                    #endif
                     .autocorrectionDisabled()
             } header: {
                 Text("Request Header")
             } footer: {
                 Text(Self.headerFooter)
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             if let validationMessage {
                 Section {
@@ -198,17 +213,20 @@ struct IPTVSourceEditorView: View {
                         .font(.footnote)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             if source != nil {
                 Section {
                     Button("Delete Source", role: .destructive) { confirmsDelete = true }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
-        .scrollContentBackground(.hidden)
+        #if os(macOS)
+        .formStyle(.grouped)
+        #endif
+        .duskSettingsFormBackgroundHidden()
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save", action: save)

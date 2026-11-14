@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(tvOS)
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 /// Trailing shelf affordance that opens the carousel's full list.
@@ -114,6 +116,16 @@ struct ShowAllCarouselTile: View {
     }
 }
 
+/// The Mac opens a shelf's full list from its title ("Title ›"), so the
+/// dashed trailing tile is iOS/tvOS only.
+private var showsShowAllTile: Bool {
+    #if os(macOS)
+    false
+    #else
+    true
+    #endif
+}
+
 struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     @Environment(PlexService.self) private var plexService
 
@@ -129,6 +141,10 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
     /// Set where the row is a list of videos to play through (a video
     /// library's rows): its movies and videos open knowing the row.
     var playThroughTitle: String? = nil
+    /// A card's title line; nil keeps `posterCardTitle`.
+    var cardTitle: ((PlexItem) -> String)? = nil
+    /// Whether `posterURL` hands back an unwatched episode's own still.
+    var isUnwatchedEpisodeImage: (PlexItem) -> Bool = { _ in false }
     @ViewBuilder let contextMenuContent: (PlexItem) -> ContextMenuContent
 
     var body: some View {
@@ -138,7 +154,9 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding
+            horizontalPadding: horizontalPadding,
+            titleRoute: showAllRoute,
+            artworkHeight: posterWidth / imageAspectRatio
         ) {
             ForEach(items) { item in
                 PosterNavigationCard(
@@ -149,19 +167,20 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                         width: imageWidth,
                         height: imageHeight
                     ),
-                    title: item.posterCardTitle,
+                    title: cardTitle?(item) ?? item.posterCardTitle,
                     subtitle: subtitle(item),
                     progress: progress(item),
                     width: posterWidth,
                     imageAspectRatio: imageAspectRatio,
-                    isWatched: item.posterIsWatched
+                    isWatched: item.posterIsWatched,
+                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage(item)
                 ) {
                     contextMenuContent(item)
                 }
                 .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
-            if let showAllRoute {
+            if let showAllRoute, showsShowAllTile {
                 ShowAllCarouselTile(
                     route: showAllRoute,
                     width: posterWidth,
@@ -219,7 +238,9 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
 
         MediaCarousel(
             title: title,
-            horizontalPadding: horizontalPadding
+            horizontalPadding: horizontalPadding,
+            titleRoute: showAllRoute,
+            artworkHeight: posterWidth / imageAspectRatio
         ) {
             ForEach(items) { item in
                 PosterActionCard(
@@ -239,7 +260,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                 .carouselItemFocusLock(isLeadingItem: item.id == items.first?.id)
             }
 
-            if let showAllRoute {
+            if let showAllRoute, showsShowAllTile {
                 ShowAllCarouselTile(
                     route: showAllRoute,
                     width: posterWidth,

@@ -78,7 +78,7 @@ struct DetailExtrasShelf: View {
     /// What the extras belong to; the player's loading screen shows it under
     /// the extra's own title.
     var ownerTitle: String?
-    var topPadding: CGFloat = 40
+    var topPadding: CGFloat = detailSectionSpacing
     var bottomPadding: CGFloat = 0
     var loadDelay: Duration = .zero
 
@@ -90,7 +90,7 @@ struct DetailExtrasShelf: View {
         itemID: PlexItemID?,
         title: String = "Extras",
         ownerTitle: String? = nil,
-        topPadding: CGFloat = 40,
+        topPadding: CGFloat = detailSectionSpacing,
         bottomPadding: CGFloat = 0,
         loadDelay: Duration = .zero,
         model: DetailExtrasModel? = nil

@@ -502,6 +502,97 @@ struct PlayerUpNextPosterView: View {
 /// the whole remaining time, so it runs on the render server: a busy main thread
 /// or a player re-render cannot make it stutter, and it moves by fractions of a
 /// pixel where a laid-out width could only step by whole ones.
+#if os(macOS)
+struct UpNextCountdownSweep: NSViewRepresentable {
+    let clock: UpNextCountdownClock
+    let color: Color
+    /// Rounds the fill and clips it to a capsule track. Otherwise it is a plain
+    /// rectangle for a parent that does its own clipping.
+    let isCapsule: Bool
+
+    func makeNSView(context: Context) -> UpNextCountdownSweepView {
+        UpNextCountdownSweepView(isCapsule: isCapsule)
+    }
+
+    func updateNSView(_ nsView: UpNextCountdownSweepView, context: Context) {
+        nsView.update(clock: clock, color: NSColor(color))
+    }
+}
+
+/// The AppKit twin of the iOS/tvOS sweep view: the same single linear Core
+/// Animation move on a layer-backed view.
+final class UpNextCountdownSweepView: NSView {
+    private let fill = CALayer()
+    private let isCapsule: Bool
+    private var clock: UpNextCountdownClock?
+
+    init(isCapsule: Bool) {
+        self.isCapsule = isCapsule
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.masksToBounds = true
+        fill.anchorPoint = CGPoint(x: 0, y: 0.5)
+        fill.allowsEdgeAntialiasing = true
+        fill.edgeAntialiasingMask = [.layerLeftEdge, .layerRightEdge]
+        layer?.addSublayer(fill)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    func update(clock: UpNextCountdownClock, color: NSColor) {
+        if fill.backgroundColor != color.cgColor {
+            fill.backgroundColor = color.cgColor
+        }
+        guard clock != self.clock else { return }
+        self.clock = clock
+        applyClock()
+    }
+
+    override func layout() {
+        super.layout()
+        guard fill.bounds.size != bounds.size else { return }
+        applyClock()
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window != nil { applyClock() }
+    }
+
+    private func applyClock() {
+        guard let clock else { return }
+
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        defer { CATransaction.commit() }
+
+        let width = bounds.width
+        fill.removeAnimation(forKey: "sweep")
+        fill.bounds = CGRect(origin: .zero, size: bounds.size)
+        fill.cornerRadius = isCapsule ? bounds.height / 2 : 0
+        layer?.cornerRadius = fill.cornerRadius
+
+        let now = Date()
+        let progress = clock.progress(at: now)
+        let currentX = (CGFloat(progress) - 1) * width
+        let isRunning = clock.runningSince != nil && progress < 1
+        fill.position = CGPoint(x: isRunning ? 0 : currentX, y: bounds.midY)
+
+        guard isRunning, width > 0 else { return }
+        let sweep = CABasicAnimation(keyPath: "position.x")
+        sweep.fromValue = currentX
+        sweep.toValue = 0
+        sweep.duration = clock.duration - clock.elapsed(at: now)
+        sweep.timingFunction = CAMediaTimingFunction(name: .linear)
+        fill.add(sweep, forKey: "sweep")
+    }
+}
+#else
 struct UpNextCountdownSweep: UIViewRepresentable {
     let clock: UpNextCountdownClock
     let color: Color
@@ -601,6 +692,7 @@ final class UpNextCountdownSweepView: UIView {
         fill.add(sweep, forKey: "sweep")
     }
 }
+#endif
 
 /// The compact chip's platter. tvOS matches `PlayerTVSkipChip` (light glass
 /// with a dark label while it owns Select, dark glass while the HUD is up);

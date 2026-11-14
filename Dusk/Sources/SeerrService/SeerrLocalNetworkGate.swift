@@ -1,6 +1,10 @@
 import Foundation
 import Network
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// Triggers the iOS/tvOS Local Network prompt before a LAN Seerr connection.
 ///
@@ -77,7 +81,7 @@ private final class SeerrLocalNetworkWaiter: @unchecked Sendable {
         sawDenial = true
         lock.unlock()
         Task { @MainActor in
-            let inactive = UIApplication.shared.applicationState != .active
+            let inactive = Self.applicationIsInactive
             self.queue.async {
                 self.lock.lock()
                 if inactive { self.promptVisible = true }
@@ -122,7 +126,7 @@ private final class SeerrLocalNetworkWaiter: @unchecked Sendable {
         lock.unlock()
         guard blocked else { return }
         Task { @MainActor in
-            let inactive = UIApplication.shared.applicationState != .active
+            let inactive = Self.applicationIsInactive
             self.queue.async {
                 if inactive {
                     self.lock.lock()
@@ -162,3 +166,16 @@ private final class SeerrLocalNetworkWaiter: @unchecked Sendable {
 }
 
 private typealias Waiter = SeerrLocalNetworkWaiter
+
+private extension SeerrLocalNetworkWaiter {
+    /// The system's Local Network prompt takes the app out of the active state
+    /// while it is on screen (iOS/tvOS), or out of the key app (macOS).
+    @MainActor
+    static var applicationIsInactive: Bool {
+        #if os(macOS)
+        !NSApplication.shared.isActive
+        #else
+        UIApplication.shared.applicationState != .active
+        #endif
+    }
+}

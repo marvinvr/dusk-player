@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// Full-screen photo viewer over a grid's loaded photos and clips.
 ///
@@ -21,6 +23,11 @@ struct PhotoViewerView: View {
     #if os(iOS)
     @State private var zoomedID: PlexItemID?
     @FocusState private var isFocused: Bool
+    #endif
+    #if os(macOS)
+    @FocusState private var isFocused: Bool
+    /// Keeps the display awake while the slideshow runs.
+    @State private var slideshowActivity: NSObjectProtocol?
     #endif
 
     /// Seconds each photo stays up in the slideshow.
@@ -165,6 +172,20 @@ struct PhotoViewerView: View {
                 break
             }
         }
+        #if os(macOS)
+        // The keyboard stands in for the remote: arrows (onMoveCommand above)
+        // step, Space plays a clip or runs the slideshow, Esc closes.
+        .focused($isFocused)
+        .onAppear { isFocused = true }
+        .onKeyPress(.space) {
+            if currentItem?.isClip == true {
+                play(currentItem)
+            } else {
+                isSlideshowRunning.toggle()
+            }
+            return .handled
+        }
+        #else
         .onPlayPauseCommand {
             if currentItem?.isClip == true {
                 play(currentItem)
@@ -172,6 +193,7 @@ struct PhotoViewerView: View {
                 isSlideshowRunning.toggle()
             }
         }
+        #endif
         .onTapGesture {
             if currentItem?.isClip == true {
                 play(currentItem)
@@ -222,7 +244,7 @@ struct PhotoViewerView: View {
                 .allowsHitTesting(false)
 
             VStack(alignment: .leading, spacing: 0) {
-                #if os(iOS)
+                #if os(iOS) || os(macOS)
                 HStack {
                     Button {
                         dismiss()
@@ -233,6 +255,10 @@ struct PhotoViewerView: View {
                             .frame(width: 44, height: 44)
                             .background(.ultraThinMaterial, in: Circle())
                     }
+                    #if os(macOS)
+                    .buttonStyle(.plain)
+                    .keyboardShortcut(.cancelAction)
+                    #endif
                     .accessibilityLabel("Close")
 
                     Spacer()
@@ -383,7 +409,19 @@ struct PhotoViewerView: View {
     }
 
     private func setIdleTimerDisabled(_ disabled: Bool) {
+        #if os(macOS)
+        if disabled, slideshowActivity == nil {
+            slideshowActivity = ProcessInfo.processInfo.beginActivity(
+                options: [.idleDisplaySleepDisabled, .userInitiated],
+                reason: "Photo slideshow"
+            )
+        } else if !disabled, let slideshowActivity {
+            ProcessInfo.processInfo.endActivity(slideshowActivity)
+            self.slideshowActivity = nil
+        }
+        #else
         UIApplication.shared.isIdleTimerDisabled = disabled
+        #endif
     }
 
     // MARK: - Images
@@ -395,7 +433,11 @@ struct PhotoViewerView: View {
     /// Sized to the screen's long edge on both axes, so a photo in either
     /// orientation fits without another request after a rotation.
     private func displayURL(for item: PlexPhotoItem) -> URL? {
+        #if os(macOS)
+        let bounds = NSScreen.main?.frame ?? CGRect(x: 0, y: 0, width: 1920, height: 1080)
+        #else
         let bounds = UIScreen.main.bounds
+        #endif
         let side = Int(max(bounds.width, bounds.height).rounded(.up))
         #if os(tvOS)
         return plexService.photoDisplayURL(for: item, width: side, height: Int(bounds.height.rounded(.up)))
@@ -413,12 +455,12 @@ private struct PhotoFitImage: View {
     let thumbnailURL: URL?
     let displayURL: URL?
 
-    @State private var image: UIImage?
+    @State private var image: PlatformImage?
 
     var body: some View {
         ZStack {
             if let image {
-                Image(uiImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
             } else {
@@ -443,7 +485,7 @@ private enum PhotoImageLoading {
         thumbnailURL: URL?,
         displayURL: URL?,
         plexService: PlexService,
-        update: (UIImage) -> Void
+        update: (PlatformImage) -> Void
     ) async {
         if let thumbnailURL,
            let thumbnail = try? await DuskImageLoader.shared.image(for: thumbnailURL, using: plexService),

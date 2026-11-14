@@ -16,6 +16,10 @@ struct PosterArtwork: View {
     var isUnwatchedEpisodeImage: Bool = false
 
     @Environment(\.blursUnwatchedEpisodes) private var blursUnwatchedEpisodes
+    #if os(macOS)
+    /// The Mac shows the play glyph only under the pointer, like the TV app.
+    @Environment(\.macUIIsHovered) private var isHovered
+    #endif
 
     private var artworkShape: RoundedRectangle {
         RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
@@ -41,9 +45,17 @@ struct PosterArtwork: View {
                 Color.black.opacity(0.42)
             }
         }
+        #if os(macOS)
+        .overlay {
+            if showsPlayOverlay {
+                Color.black.opacity(isHovered ? 0.18 : 0)
+                    .animation(.easeOut(duration: 0.16), value: isHovered)
+            }
+        }
+        #endif
         .overlay {
             // A blurred still carries the spoiler glyph in the same spot.
-            if showsPlayOverlay, !(blursUnwatchedEpisodes && isUnwatchedEpisodeImage) {
+            if showsPlayOverlay, showsPlayGlyph, !(blursUnwatchedEpisodes && isUnwatchedEpisodeImage) {
                 Image(systemName: "play.fill")
                     .font(.system(size: playOverlaySymbolSize, weight: .semibold))
                     .foregroundStyle(Color.white.opacity(0.92))
@@ -80,10 +92,21 @@ struct PosterArtwork: View {
             }
         }
         .clipShape(artworkShape)
+        #if os(macOS)
+        .macUIHoverLift(cornerRadius: cornerRadius)
+        #endif
     }
 
     private var isHorizontalArtwork: Bool {
         imageAspectRatio > 1
+    }
+
+    private var showsPlayGlyph: Bool {
+        #if os(macOS)
+        isHovered
+        #else
+        true
+        #endif
     }
 
     /// The badge text shrinks to `DuskFont.badge` on tvOS, so the pill needs
@@ -100,6 +123,8 @@ struct PosterArtwork: View {
     private var playOverlaySymbolSize: CGFloat {
         #if os(tvOS)
         isHorizontalArtwork ? 34 : 28
+        #elseif os(macOS)
+        18
         #else
         25
         #endif
@@ -108,6 +133,8 @@ struct PosterArtwork: View {
     private var playOverlayPadding: CGFloat {
         #if os(tvOS)
         isHorizontalArtwork ? 16 : 14
+        #elseif os(macOS)
+        12
         #else
         14
         #endif
@@ -233,8 +260,38 @@ struct PosterCardText: View {
     /// Episodes left in a partially watched season, drawn in the checkmark's
     /// slot and at its size (`UnwatchedCountBadge`). Nil shows nothing.
     var unwatchedCount: Int? = nil
+    #if os(macOS)
+    @Environment(\.macUIPosterTitleLines) private var macTitleLines
+    #endif
 
     var body: some View {
+        #if os(macOS)
+        // A grid reserves two title lines for every card, so each row's
+        // titles start and its next row begins at the same height; the
+        // subtitle stays right under a one-line title.
+        if macTitleLines > 1 {
+            ZStack(alignment: .topLeading) {
+                VStack(alignment: .leading, spacing: DuskPosterMetrics.cardTextSpacing) {
+                    Text(verbatim: "X\nX")
+                        .font(DuskPosterMetrics.titleFont)
+                        .lineLimit(macTitleLines)
+                    Text(verbatim: "X")
+                        .font(DuskPosterMetrics.subtitleFont)
+                }
+                .hidden()
+                .accessibilityHidden(true)
+
+                textStack
+            }
+        } else {
+            textStack
+        }
+        #else
+        textStack
+        #endif
+    }
+
+    private var textStack: some View {
         VStack(alignment: .leading, spacing: DuskPosterMetrics.cardTextSpacing) {
             titleRow
 
@@ -242,13 +299,24 @@ struct PosterCardText: View {
         }
     }
 
+
     @ViewBuilder
     private var titleRow: some View {
+        #if os(macOS)
+        // Shelves one line; grids two, reserved, so a row's subtitles line up.
+        Text(title)
+            .font(DuskPosterMetrics.titleFont)
+            .foregroundStyle(Color.primary)
+            .lineLimit(macTitleLines)
+            .help(title)
+            .frame(width: width, alignment: .leading)
+        #else
         Text(title)
             .font(DuskPosterMetrics.titleFont)
             .foregroundStyle(Color.primary)
             .lineLimit(2)
             .frame(width: width, alignment: .leading)
+        #endif
     }
 
     @ViewBuilder
@@ -360,6 +428,22 @@ struct PlexItemContextMenuContent: View {
     var showsAddToPlaylist = true
 
     var body: some View {
+        #if os(macOS)
+        MacItemContextMenu(
+            item: item,
+            onMarkWatched: onMarkWatched,
+            onMarkUnwatched: onMarkUnwatched,
+            detailsRoute: detailsRoute,
+            detailsLabel: detailsLabel,
+            showsAddToPlaylist: showsAddToPlaylist
+        )
+        #else
+        iOSBody
+        #endif
+    }
+
+    @ViewBuilder
+    private var iOSBody: some View {
         if item.canMarkWatchedFromContextMenu, let onMarkWatched {
             Button(action: onMarkWatched) {
                 Label("Mark Watched", systemImage: "eye")

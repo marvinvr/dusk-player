@@ -11,8 +11,17 @@ struct LibraryTabSettingsView: View {
             iosContent
             #endif
         }
-        .background(Color.duskBackground.ignoresSafeArea())
-        .duskNavigationTitle("Navigation Tabs")
+        .duskSettingsPageBackground()
+        .duskNavigationTitle(Self.pageTitle)
+    }
+
+    /// The Mac calls the destinations sidebar items; iOS and tvOS tabs.
+    private static var pageTitle: String {
+        #if os(macOS)
+        "Sidebar Items"
+        #else
+        "Navigation Tabs"
+        #endif
     }
 
     #if !os(tvOS)
@@ -29,19 +38,27 @@ struct LibraryTabSettingsView: View {
                 }
                 .onMove(perform: preferences.moveLibraryTabs)
             } header: {
-                Text("Navigation Tabs")
+                Text(Self.pageTitle)
                     .foregroundStyle(Color.duskTextSecondary)
             } footer: {
+                #if os(macOS)
+                Text("Drag to reorder.")
+                    .foregroundStyle(Color.duskTextSecondary)
+                #else
                 Text("Tap Edit, then drag to reorder.")
                     .foregroundStyle(Color.duskTextSecondary)
+                #endif
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
+        #if !os(macOS)
+        // The Mac reorders by dragging a row, no edit mode.
         .toolbar {
             EditButton()
         }
+        #endif
     }
     #endif
 

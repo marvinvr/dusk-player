@@ -5,7 +5,9 @@ import OSLog
 import AVFoundation
 import AVKit
 import CoreMedia
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 private let displayModeLogger = Logger(

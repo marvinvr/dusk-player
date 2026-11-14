@@ -5,7 +5,9 @@ import AVKit
 import CoreMedia
 import CoreVideo
 import OSLog
+#if canImport(UIKit)
 import UIKit
+#endif
 
 private let enhancedPiPLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "Dusk",

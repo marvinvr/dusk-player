@@ -34,6 +34,10 @@ case "${PLATFORM_NAME}" in
         FRAMEWORK_NAME="TVVLCKit"
         REPO_SLICE="TVVLCKit.xcframework/tvos-arm64-simulator"
         ;;
+    macosx)
+        FRAMEWORK_NAME="VLCKit"
+        REPO_SLICE="VLCKit.xcframework/macos-arm64_x86_64"
+        ;;
     *)
         echo "warning: unknown platform ${PLATFORM_NAME}; skipping VLCKit staleness check."
         exit 0
@@ -52,10 +56,19 @@ fi
 # libSystem functions older OS versions lack: Dusk's 3.7.3-dusk1 build (Xcode
 # 27 SDK) weak-linked pipe2, which only exists on iOS/tvOS/macOS 27, and
 # crashed on the first network open on tvOS 26 and Mac (Designed for iPad) on
-# macOS 26 (#27). The allowed names are the ones VideoLAN's stock builds carry.
+# macOS 26 (#27). The allowed names are the ones VideoLAN's stock builds carry
+# (getentropy: libgcrypt declares it weak_import itself and NULL-checks it; it
+# exists since macOS 10.12 / iOS 10).
 new_weak_imports="$(xcrun nm -m "${EMBEDDED_BINARY}" 2>/dev/null |
     grep -E '\(undefined\) weak external .*\(from libSystem\)' |
-    grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
+    grep -Ev ' (___darwin_check_fd_set_overflow|__availability_version_check|_getentropy|_os_unfair_lock_lock|_os_unfair_lock_unlock) ' || true)"
+# VideoLAN's stock macOS VLCKit (the fallback without access to Dusk's build)
+# targets macOS 10.x and so weak-links two libdispatch functions from 10.10.
+# Both exist on every macOS Dusk supports.
+if [ "${PLATFORM_NAME}" = "macosx" ]; then
+    new_weak_imports="$(printf '%s\n' "${new_weak_imports}" |
+        grep -Ev ' (_dispatch_once_f|_dispatch_queue_attr_make_with_qos_class) ' || true)"
+fi
 if [ -n "${new_weak_imports}" ]; then
     echo "error: The embedded ${FRAMEWORK_NAME} weak-links libSystem functions that older OS versions do not have, so it crashes there:"
     echo "${new_weak_imports}"

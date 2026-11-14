@@ -1,3 +1,5 @@
+// iOS/tvOS only: the Mac's main window is `MacRootView` (see docs/macos.md).
+#if !os(macOS)
 import SwiftUI
 
 /// The main tab shell shown once the Plex profile is ready, online or offline.
@@ -608,3 +610,4 @@ private struct SiriCatalogRefreshTrigger: Equatable {
     let isActive: Bool
     let hiddenLibraryIDs: Set<String>
 }
+#endif

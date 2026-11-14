@@ -1,6 +1,8 @@
 #if os(tvOS)
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 enum PlayerTVArrow: Equatable {
     case left

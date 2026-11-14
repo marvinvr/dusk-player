@@ -49,8 +49,11 @@ struct MovieDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(viewModel.details?.title)
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.loadDetails()
         }
@@ -100,7 +103,7 @@ struct MovieDetailView: View {
                     if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         summarySection(summary)
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 40)
+                            .padding(.top, detailSectionSpacing)
                     }
                     if let offlineBannerText = viewModel.offlineBannerText {
                         OfflineMetadataBanner(message: offlineBannerText)
@@ -114,7 +117,7 @@ struct MovieDetailView: View {
                             serverID: viewModel.serverID,
                             plexService: plexService
                         )
-                            .padding(.top, 40)
+                            .padding(.top, detailSectionSpacing)
                     }
                     DetailCollectionShelves(
                         itemID: details.id,
@@ -122,16 +125,24 @@ struct MovieDetailView: View {
                         tags: details.collections,
                         plexService: plexService
                     )
+                    #if os(macOS)
+                    DetailMacMediaSection(media: details.media.first)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.top, detailSectionSpacing)
+                        .padding(.bottom, 48)
+                    #else
                     mediaInfoSection()
                         .padding(.horizontal, horizontalPadding)
-                        .padding(.top, 40)
+                        .padding(.top, detailSectionSpacing)
                         .padding(.bottom, 56)
+                    #endif
                 }
-                .padding(.top, -geometry.safeAreaInsets.top)
+                .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scrollIndicators(.hidden)
+            .macHeroUnderToolbar()
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
@@ -149,7 +160,7 @@ struct MovieDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat = 0
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -227,7 +238,7 @@ struct MovieDetailView: View {
         }
         #else
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             playButton(details)
 
             HStack(spacing: detailHeroActionSpacing) {

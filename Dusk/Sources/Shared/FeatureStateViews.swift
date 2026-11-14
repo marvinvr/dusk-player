@@ -3,6 +3,7 @@ import SwiftUI
 struct FeatureLoadingView: View {
     var body: some View {
         ProgressView()
+            .macStatePageToolbar()
     }
 }
 
@@ -12,6 +13,16 @@ struct FeatureEmptyStateView: View {
     var message: String?
 
     var body: some View {
+        #if os(macOS)
+        ContentUnavailableView {
+            MacFeatureStateLabel(title: title, systemImage: systemImage)
+        } description: {
+            if let message, !message.isEmpty {
+                Text(message)
+            }
+        }
+        .macStatePageToolbar()
+        #else
         VStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(DuskFont.glyphLarge(ios: .largeTitle))
@@ -28,6 +39,7 @@ struct FeatureEmptyStateView: View {
                     .multilineTextAlignment(.center)
             }
         }
+        #endif
     }
 }
 
@@ -36,15 +48,25 @@ struct FeatureErrorView: View {
 
     let message: String
     let retryTitle: String
+    /// Mac only: the headline above the message ("Couldn't Load Channels").
+    /// iOS and tvOS show the message alone.
+    let title: String?
+    /// Mac only: a second button next to Try Again, such as "Open Live TV
+    /// Settings…". iOS and tvOS ignore it.
+    let secondaryAction: FeatureStateAction?
     let retryAction: () -> Void
 
     init(
         message: String,
         retryTitle: String = "Retry",
+        title: String? = nil,
+        secondaryAction: FeatureStateAction? = nil,
         retryAction: @escaping () -> Void
     ) {
         self.message = message
         self.retryTitle = retryTitle
+        self.title = title
+        self.secondaryAction = secondaryAction
         self.retryAction = retryAction
     }
 
@@ -53,6 +75,35 @@ struct FeatureErrorView: View {
     }
 
     var body: some View {
+        #if os(macOS)
+        ContentUnavailableView {
+            MacFeatureStateLabel(
+                title: requiresSignIn ? "Signed Out of Plex" : (title ?? "Couldn’t Load"),
+                systemImage: requiresSignIn ? "person.crop.circle.badge.exclamationmark" : "exclamationmark.triangle"
+            )
+        } description: {
+            Text(message)
+        } actions: {
+            HStack(spacing: 10) {
+                if !requiresSignIn, let secondaryAction {
+                    Button(secondaryAction.title, action: secondaryAction.action)
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                }
+                FeaturePrimaryButton(title: requiresSignIn ? "Sign In" : macRetryTitle) {
+                    if requiresSignIn {
+                        AuthenticationFailure.beginReauthentication(plexService: plexService)
+                    } else {
+                        retryAction()
+                    }
+                }
+                // The default button (Return), drawn as one, ahead of the
+                // secondary "Open … Settings…".
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .macStatePageToolbar()
+        #else
         VStack(spacing: 16) {
             Image(systemName: "exclamationmark.triangle")
                 .font(DuskFont.glyphLarge(ios: .largeTitle))
@@ -72,8 +123,71 @@ struct FeatureErrorView: View {
                 }
             }
         }
+        #endif
+    }
+
+    #if os(macOS)
+    /// The Mac says "Try Again", like the system's own error states.
+    private var macRetryTitle: String {
+        retryTitle == "Retry" ? "Try Again" : retryTitle
+    }
+    #endif
+}
+
+/// A secondary button of a Mac error state (`FeatureErrorView`).
+struct FeatureStateAction {
+    let title: String
+    let action: () -> Void
+}
+
+extension View {
+    /// Mac main window: a loading/empty/error state replaces a page's scroll
+    /// view, and without a scroll view macOS 26 draws the (automatic) window
+    /// toolbar background as an opaque band. A state keeps the toolbar
+    /// transparent instead; a page's scroll view gets the soft scroll edge
+    /// back as soon as the state goes away. No-op elsewhere (Settings
+    /// window, sheets, iOS, tvOS).
+    @ViewBuilder
+    func macStatePageToolbar() -> some View {
+        #if os(macOS)
+        modifier(MacStatePageToolbar())
+        #else
+        self
+        #endif
     }
 }
+
+#if os(macOS)
+private struct MacStatePageToolbar: ViewModifier {
+    @Environment(\.macShellManagesBackNavigation) private var isMainWindow
+
+    func body(content: Content) -> some View {
+        if isMainWindow {
+            content.toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
+        } else {
+            content
+        }
+    }
+}
+
+/// The headline of a Mac empty/error state: `ContentUnavailableView` draws
+/// its label in a secondary style on the Mac, which reads as disabled; the
+/// title stays primary, the glyph and description secondary.
+private struct MacFeatureStateLabel: View {
+    let title: String
+    let systemImage: String
+
+    var body: some View {
+        Label {
+            Text(title)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: systemImage)
+                .foregroundStyle(.secondary)
+        }
+    }
+}
+#endif
 
 /// The single action of an error or empty state, such as Retry or Sign In.
 /// Same neutral glass as the detail pages' Play button.
@@ -82,6 +196,12 @@ struct FeaturePrimaryButton: View {
     let action: () -> Void
 
     var body: some View {
+        #if os(macOS)
+        // A plain bordered push button, as in the system's empty states.
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .controlSize(.large)
+        #else
         Button(action: action) {
             Text(title)
                 .font(DuskFont.buttonLabel(ios: .headline))
@@ -91,6 +211,7 @@ struct FeaturePrimaryButton: View {
                 #endif
         }
         .detailHeroNativePrimaryButtonStyle()
+        #endif
     }
 }
 

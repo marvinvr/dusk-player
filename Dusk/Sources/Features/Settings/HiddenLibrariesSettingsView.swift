@@ -15,7 +15,7 @@ struct HiddenLibrariesSettingsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Hidden Libraries")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
@@ -93,7 +93,7 @@ struct HiddenLibrariesSettingsView: View {
             .padding(.bottom, 88)
         }
         #else
-        List {
+        SettingsList {
             ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                 Section {
                     ForEach(group.libraries, id: \.id) { library in
@@ -113,7 +113,7 @@ struct HiddenLibrariesSettingsView: View {
                             .foregroundStyle(Color.duskTextSecondary)
                     }
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
 
             if let saveError = viewModel.saveError {
@@ -121,11 +121,11 @@ struct HiddenLibrariesSettingsView: View {
                     Text(saveError)
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
         .contentMargins(.top, 12, for: .scrollContent)
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
         #endif
     }
 

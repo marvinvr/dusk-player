@@ -32,7 +32,7 @@ struct ConnectionDiagnosticsView: View {
 
     var body: some View {
         content
-            .background(Color.duskBackground.ignoresSafeArea())
+            .duskSettingsPageBackground()
             .duskNavigationTitle("Connection Diagnostics")
             .duskNavigationBarTitleDisplayModeInline()
     }
@@ -59,12 +59,17 @@ struct ConnectionDiagnosticsView: View {
 
     #if !os(tvOS)
     private var content: some View {
-        List {
+        SettingsList {
             Section {
                 Button("Test Every Connection", action: testAll)
                 Button("Re-select Now", action: reselect)
                 Button(didCopy ? "Copied" : "Copy Report") {
+                    #if os(macOS)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(reportText, forType: .string)
+                    #else
                     UIPasteboard.general.string = reportText
+                    #endif
                     didCopy = true
                 }
                 if isTesting {
@@ -74,7 +79,7 @@ struct ConnectionDiagnosticsView: View {
                     }
                 }
             }
-            .listRowBackground(Color.duskSurface)
+            .duskSettingsRowBackground()
 
             ForEach(serverIDs, id: \.self) { serverID in
                 Section {
@@ -93,10 +98,10 @@ struct ConnectionDiagnosticsView: View {
                     Text("\(pool.displayName(for: serverID)) · \(Self.stateText(pool.state(for: serverID), compact: true))")
                         .foregroundStyle(Color.duskTextSecondary)
                 }
-                .listRowBackground(Color.duskSurface)
+                .duskSettingsRowBackground()
             }
         }
-        .duskScrollContentBackgroundHidden()
+        .duskSettingsScrollBackgroundHidden()
     }
     #endif
 

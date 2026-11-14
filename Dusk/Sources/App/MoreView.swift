@@ -1,5 +1,8 @@
 import SwiftUI
 
+// iPhone only in practice; the Mac sidebar lists every destination.
+#if !os(macOS)
+
 /// The trailing "More" tab shown on iPhone when the tab bar would otherwise
 /// exceed five tabs. Hosts Downloads and Settings as pushed destinations.
 struct MoreView: View {
@@ -96,3 +99,4 @@ private struct MoreRow: View {
         .contentShape(Rectangle())
     }
 }
+#endif

@@ -227,6 +227,7 @@ extension View {
     func duskAppNavigationDestinations() -> some View {
         navigationDestination(for: AppNavigationRoute.self) { route in
             AppNavigationDestinationView(route: route)
+                .macShellBackButtonHidden()
         }
     }
 }

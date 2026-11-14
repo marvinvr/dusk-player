@@ -45,8 +45,11 @@ struct SeasonDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
+        .detailMacWindowTitle(windowTitle)
+        #if !os(macOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
         .task {
             await viewModel.load()
         }
@@ -105,7 +108,7 @@ struct SeasonDetailView: View {
 
                         episodesSection(width: geometry.size.width)
                             .padding(.horizontal, horizontalPadding)
-                            .padding(.top, 40)
+                            .padding(.top, detailSectionSpacing)
                             .padding(.bottom, 56)
 
                         DetailExtrasShelf(
@@ -115,11 +118,12 @@ struct SeasonDetailView: View {
                             bottomPadding: 56
                         )
                     }
-                    .padding(.top, -geometry.safeAreaInsets.top)
+                    .detailHeroPullsUnderTopInset(geometry.safeAreaInsets.top)
                     .frame(width: geometry.size.width, alignment: .topLeading)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .scrollIndicators(.hidden)
+                .macHeroUnderToolbar()
                 .onChange(of: playedEpisodeScrollTarget) { _, ratingKey in
                     guard let ratingKey else { return }
                     withAnimation(.easeInOut(duration: 0.3)) {
@@ -139,7 +143,7 @@ struct SeasonDetailView: View {
         containerHeight: CGFloat,
         backgroundLeadingInset: CGFloat
     ) -> some View {
-        let heroBase = min(max(containerHeight * 0.72, 520), 760)
+        let heroBase = detailHeroBaseHeight(containerHeight: containerHeight, topInset: topInset)
         let heroHeight = heroBase + topInset
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
@@ -192,7 +196,7 @@ struct SeasonDetailView: View {
     @ViewBuilder
     private func actionButtons() -> some View {
         // Primary fills the stack width; secondary row is centered beneath it.
-        VStack(alignment: .center, spacing: detailHeroActionSpacing) {
+        VStack(alignment: detailHeroActionStackAlignment, spacing: detailHeroActionSpacing) {
             seasonPlayActions(label: viewModel.playButtonShortLabel)
 
             HStack(spacing: detailHeroActionSpacing) {
@@ -253,7 +257,12 @@ struct SeasonDetailView: View {
     private func episodesSection(width: CGFloat) -> some View {
         if !viewModel.displayEpisodes.isEmpty {
             let contentWidth = max(width - (horizontalPadding * 2), 280)
+            #if os(macOS)
+            // Mac-sized rows: a modest still, the text column takes the rest.
+            let artworkWidth = min(max(contentWidth * 0.24, 160), 220)
+            #else
             let artworkWidth = min(max(contentWidth * 0.48, 170), 320)
+            #endif
             let imageWidth = Int(artworkWidth.rounded(.up))
             let imageHeight = Int((artworkWidth / (16.0 / 9.0)).rounded(.up))
             let showsInlineSummary = usesInlineEpisodeSummaryLayout && contentWidth >= 700
@@ -263,7 +272,7 @@ struct SeasonDetailView: View {
                     .font(DuskFont.sectionHeader(ios: .headline))
                     .foregroundStyle(Color.primary)
 
-                LazyVStack(alignment: .leading, spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: episodeRowSpacing) {
                     ForEach(viewModel.displayEpisodes) { episode in
                         SeasonEpisodeRow(
                             episode: episode,
@@ -303,8 +312,28 @@ struct SeasonDetailView: View {
         }
     }
 
+    /// "Show – Season 1" / "Show – Pilot" for the Mac window title.
+    private var windowTitle: String? {
+        guard let title = viewModel.details?.title else { return nil }
+        guard let showTitle = viewModel.showTitle, !showTitle.isEmpty else { return title }
+        return "\(showTitle) – \(title)"
+    }
+
+    private var episodeRowSpacing: CGFloat {
+        #if os(macOS)
+        16
+        #else
+        20
+        #endif
+    }
+
     private var usesInlineEpisodeSummaryLayout: Bool {
+        #if os(macOS)
+        // The iPad layout.
+        true
+        #else
         UIDevice.current.userInterfaceIdiom == .pad
+        #endif
     }
 
     @ViewBuilder
@@ -449,6 +478,9 @@ private struct SeasonEpisodeRow: View {
                     )
                 }
                 .buttonStyle(.plain)
+                #if os(macOS)
+                .macUIHoverSource()
+                #endif
                 .disabled(constrainsPlaybackToOfflineAvailability && !isPlayableOffline)
                 .accessibilityLabel("Play \(episode.title)")
                 .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
@@ -481,7 +513,10 @@ private struct SeasonEpisodeRow: View {
                 .buttonStyle(.plain)
             }
 
+            // The Mac separates rows with spacing alone.
+            #if !os(macOS)
             SeasonEpisodeDivider()
+            #endif
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -553,6 +588,10 @@ private struct SeasonEpisodeTextContent: View {
 
             if showsInlineSummary {
                 SeasonEpisodeSummaryText(episode: episode, lineLimit: 3)
+                    #if os(macOS)
+                    // A readable column on wide windows.
+                    .frame(maxWidth: 680, alignment: .leading)
+                    #endif
             }
         }
     }
@@ -565,7 +604,12 @@ private struct SeasonEpisodeTextContent: View {
             Label("Downloaded", systemImage: "arrow.down.circle.fill")
                 .labelStyle(.iconOnly)
                 .font(DuskFont.glyphSmall(ios: .caption))
+                #if os(macOS)
+                .foregroundStyle(.secondary)
+                .help("Downloaded")
+                #else
                 .foregroundStyle(Color.primary.opacity(0.6))
+                #endif
         } else if showsOfflineAvailability {
             Text(isUsingCachedData ? "Unavailable Offline" : "Not Downloaded")
                 .font(DuskFont.badge(ios: .caption2.weight(.semibold)))

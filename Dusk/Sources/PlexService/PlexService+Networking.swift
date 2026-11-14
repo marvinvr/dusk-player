@@ -3,6 +3,9 @@ import OSLog
 #if canImport(UIKit)
 import UIKit
 #endif
+#if os(macOS)
+import SystemConfiguration
+#endif
 
 extension PlexService {
     var basePlexHeaders: [String: String] {
@@ -22,6 +25,10 @@ extension PlexService {
         #if os(tvOS)
         headers["X-Plex-Platform"] = "tvOS"
         headers["X-Plex-Device-Name"] = "Apple TV"
+        #elseif os(macOS)
+        headers["X-Plex-Platform"] = "macOS"
+        headers["X-Plex-Device"] = "Mac"
+        headers["X-Plex-Device-Name"] = Self.macDeviceName
         #elseif canImport(UIKit)
         headers["X-Plex-Platform"] = "iOS"
         headers["X-Plex-Device-Name"] = UIDevice.current.name
@@ -486,3 +493,17 @@ struct HubItemsResponse: Decodable {
         let Directory: [PlexItem]?
     }
 }
+
+#if os(macOS)
+extension PlexService {
+    /// The Mac's user-facing name (System Settings › General › Sharing), the
+    /// counterpart of `UIDevice.current.name`. Read once: the configuration
+    /// store is cheap, but the headers are built for every request.
+    static let macDeviceName: String = {
+        if let name = SCDynamicStoreCopyComputerName(nil, nil) as String?, !name.isEmpty {
+            return name
+        }
+        return "Mac"
+    }()
+}
+#endif

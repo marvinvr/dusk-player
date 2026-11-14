@@ -3,7 +3,9 @@ import Foundation
 import Metal
 import QuartzCore
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 import simd
 
 @MainActor
@@ -560,6 +562,76 @@ final class VideoEnhancementRenderer {
     }
 }
 
+#if os(macOS)
+@MainActor
+final class VideoEnhancementMetalView: NSView {
+    private weak var renderer: VideoEnhancementRenderer?
+    let metalLayer = CAMetalLayer()
+
+    init(renderer: VideoEnhancementRenderer, device: MTLDevice, colorSpace: CGColorSpace?) {
+        self.renderer = renderer
+        super.init(frame: .zero)
+        metalLayer.device = device
+        metalLayer.pixelFormat = .bgra8Unorm
+        metalLayer.framebufferOnly = true
+        metalLayer.colorspace = colorSpace
+        metalLayer.backgroundColor = NSColor.black.cgColor
+        metalLayer.isOpaque = true
+        // Layer-hosting view: the view owns the Metal layer outright.
+        layer = metalLayer
+        wantsLayer = true
+        metalLayer.contentsScale = currentDisplayScale
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isOpaque: Bool { true }
+
+    /// Clicks belong to the SwiftUI player HUD above the picture.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        updateDrawableSize()
+    }
+
+    override func viewDidChangeBackingProperties() {
+        super.viewDidChangeBackingProperties()
+        updateDrawableSize()
+        renderer?.renderCurrentFrame()
+    }
+
+    override func layout() {
+        super.layout()
+        updateDrawableSize()
+        renderer?.renderCurrentFrame()
+    }
+
+    private func updateDrawableSize() {
+        let scale = currentDisplayScale
+        metalLayer.contentsScale = scale
+        metalLayer.drawableSize = CGSize(width: bounds.width * scale, height: bounds.height * scale)
+    }
+
+    private var currentDisplayScale: CGFloat {
+        let scale = window?.backingScaleFactor ?? NSScreen.main?.backingScaleFactor ?? 2
+        return scale > 0 ? scale : 1
+    }
+}
+
+struct VideoEnhancementRepresentable: NSViewRepresentable {
+    let renderer: VideoEnhancementRenderer
+
+    func makeNSView(context: Context) -> VideoEnhancementMetalView {
+        renderer.makeView()
+    }
+
+    func updateNSView(_ nsView: VideoEnhancementMetalView, context: Context) {}
+}
+#else
 @MainActor
 final class VideoEnhancementMetalView: UIView {
     private weak var renderer: VideoEnhancementRenderer?
@@ -632,3 +704,4 @@ struct VideoEnhancementRepresentable: UIViewRepresentable {
 
     func updateUIView(_ uiView: VideoEnhancementMetalView, context: Context) {}
 }
+#endif

@@ -178,7 +178,18 @@ final class SeasonDetailViewModel {
         let viewedCount = isUsingCachedData || offlinePlaybackSyncManager != nil
             ? episodes.filter { isWatched($0) }.count
             : (details?.viewedLeafCount ?? episodes.filter(\.isWatched).count)
+        #if os(macOS)
+        // Same rule as the show page's season cards: the unwatched count,
+        // only while the season is partly watched.
+        let total = isUsingCachedData
+            ? displayEpisodes.count
+            : (details?.leafCount ?? details?.childCount ?? episodes.count)
+        let unwatched = total - viewedCount
+        guard viewedCount > 0, unwatched > 0 else { return nil }
+        return "\(unwatched) unwatched"
+        #else
         return MediaTextFormatter.watchedCount(viewedCount)
+        #endif
     }
 
     func backdropURL(

@@ -13,6 +13,11 @@ struct LibraryItemsView: View {
     @State private var jumpTask: Task<Void, Never>?
     @State private var isJumping = false
     @State private var showsFilters = false
+    #if os(macOS)
+    /// A narrow window: Genre and Sort go icon-only in the toolbar, so they
+    /// don't collapse into the overflow menu.
+    @State private var macUsesCompactToolbar = false
+    #endif
     @State private var scrollPosition = ScrollPosition()
     @State private var prependAnchor = PrependAnchor()
 
@@ -73,13 +78,32 @@ struct LibraryItemsView: View {
                 libraryContent
             }
         }
+        #if os(macOS)
+        .macUILibraryPageTitle(viewModel.navigationTitle)
+        #else
         .duskNavigationTitle(viewModel.navigationTitle)
+        #endif
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(tvOS)
         // A tvOS sheet is a small centred card; the filter lists need the room.
         .fullScreenCover(isPresented: $showsFilters) {
             LibraryFiltersSheet(viewModel: viewModel) { showsFilters = false }
                 .background(Color.duskBackground.ignoresSafeArea())
+        }
+        #elseif os(macOS)
+        // Genre, Filters and Sort are standard toolbar menus on the Mac; the
+        // Filters popover replaces the sheet.
+        .toolbar {
+            if viewModel.showsBrowseControls {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    macBrowseToolbarItems
+                }
+            }
+        }
+        .onGeometryChange(for: Bool.self) { proxy in
+            proxy.size.width < 900
+        } action: { isCompact in
+            macUsesCompactToolbar = isCompact
         }
         #else
         .sheet(isPresented: $showsFilters) {
@@ -102,7 +126,7 @@ struct LibraryItemsView: View {
             )
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    if viewModel.showsBrowseControls {
+                    if viewModel.showsBrowseControls, showsInlineBrowseControls {
                         browseControls
                             #if os(tvOS)
                             // A focused chip's lift and glow draw over the
@@ -133,7 +157,7 @@ struct LibraryItemsView: View {
                         posterGrid(layout)
                         .padding(.horizontal, horizontalPadding)
                         .padding(.trailing, letterIndexGutter)
-                        .padding(.top, 32)
+                        .padding(.top, gridTopPadding)
                         .padding(.bottom, 32)
                     }
 
@@ -170,11 +194,14 @@ struct LibraryItemsView: View {
             #if os(tvOS)
             .scrollClipDisabled()
             #endif
+            #if !os(macOS)
+            // An iOS table-index idea; the Mac scrolls with the pointer.
             .overlay(alignment: .trailing) {
                 if let index = viewModel.letterIndex, !viewModel.items.isEmpty {
                     letterIndexBar(index)
                 }
             }
+            #endif
         }
     }
 
@@ -183,7 +210,7 @@ struct LibraryItemsView: View {
     /// iOS keeps the last column's titles clear of the index; the tvOS strip
     /// sits in the screen's trailing margin instead.
     private var letterIndexGutter: CGFloat {
-        #if os(tvOS)
+        #if os(tvOS) || os(macOS)
         0
         #else
         viewModel.letterIndex == nil ? 0 : 12
@@ -266,6 +293,113 @@ struct LibraryItemsView: View {
             guard !Task.isCancelled else { return }
             revealsLetterIndex = false
         }
+    }
+    #endif
+
+    /// The Mac shows the browse controls in the window toolbar instead.
+    private var showsInlineBrowseControls: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
+    private var gridTopPadding: CGFloat {
+        #if os(macOS)
+        12
+        #else
+        32
+        #endif
+    }
+
+    #if os(macOS)
+    @ViewBuilder
+    private var macBrowseToolbarItems: some View {
+        if viewModel.isLoading && !viewModel.items.isEmpty {
+            ProgressView()
+                .controlSize(.small)
+        }
+
+        if viewModel.availableGenres.count > 1 {
+            Menu {
+                Picker("Genre", selection: Binding(
+                    get: { viewModel.selectedGenre },
+                    set: { genre in Task { await viewModel.selectGenre(genre) } }
+                )) {
+                    ForEach(viewModel.availableGenres) { genre in
+                        Text(genre.title).tag(genre)
+                    }
+                }
+                .pickerStyle(.inline)
+                .labelsHidden()
+            } label: {
+                macToolbarMenuLabel(viewModel.selectedGenre.title, systemImage: "theatermasks")
+            }
+            .help("Genre: \(viewModel.selectedGenre.title)")
+            .id("genre|\(viewModel.selectedGenre.title)|\(macUsesCompactToolbar)")
+        }
+
+        Button {
+            showsFilters.toggle()
+        } label: {
+            // A plain glyph in the glass button (no circle in a circle);
+            // with filters on it takes the system accent, like Mail's.
+            let count = viewModel.filterState.activeCount
+            Label(count > 0 ? "Filters (\(count))" : "Filters", systemImage: "line.3.horizontal.decrease")
+                .foregroundStyle(count > 0 ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
+        }
+        .help(viewModel.filterState.activeCount > 0 ? "Filters (\(viewModel.filterState.activeCount) on)" : "Filters")
+        .popover(isPresented: $showsFilters, arrowEdge: .bottom) {
+            LibraryFiltersPopover(viewModel: viewModel)
+        }
+
+        Menu {
+            Picker("Sort By", selection: Binding(
+                get: { viewModel.selectedSort.field },
+                set: { field in
+                    guard field != viewModel.selectedSort.field else { return }
+                    Task { await viewModel.selectSort(LibrarySortOption(field)) }
+                }
+            )) {
+                ForEach(viewModel.availableSortFields) { field in
+                    Text(field.title).tag(field)
+                }
+            }
+            .pickerStyle(.inline)
+
+            if viewModel.selectedSort.field.hasDirection {
+                let field = viewModel.selectedSort.field
+                Picker("Order", selection: Binding(
+                    get: { viewModel.selectedSort.isDescending },
+                    set: { descending in
+                        Task { await viewModel.selectSort(LibrarySortOption(field, descending: descending)) }
+                    }
+                )) {
+                    Text(field.directionTitles.ascending).tag(false)
+                    Text(field.directionTitles.descending).tag(true)
+                }
+                .pickerStyle(.inline)
+            }
+        } label: {
+            macToolbarMenuLabel(viewModel.selectedSort.title, systemImage: "arrow.up.arrow.down")
+        }
+        .help("Sort: \(viewModel.selectedSort.title)")
+        .id("sort|\(viewModel.selectedSort.title)|\(macUsesCompactToolbar)")
+    }
+
+    /// The current value as the menu's title, or only an icon in a narrow
+    /// window. One `Label` in both modes (only its style changes), sized to
+    /// its whole title, and identified by what it shows: the toolbar measures
+    /// a hosted item once, so without a new identity a wider title (a long
+    /// genre, or the window growing out of the compact mode) stayed squeezed
+    /// into the old width ("All…", "Ti…").
+    private func macToolbarMenuLabel(_ title: String, systemImage: String) -> some View {
+        Label(title, systemImage: systemImage)
+            .labelStyle(MacToolbarMenuLabelStyle(iconOnly: macUsesCompactToolbar))
+            .accessibilityLabel(title)
+            .fixedSize()
+            .id("\(title)|\(macUsesCompactToolbar)")
     }
     #endif
 
@@ -619,3 +753,19 @@ struct LibraryItemsView: View {
         )
     }
 }
+
+#if os(macOS)
+/// A toolbar menu's label: the current value's title, or its icon alone in a
+/// narrow window.
+private struct MacToolbarMenuLabelStyle: LabelStyle {
+    let iconOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            configuration.icon
+        } else {
+            configuration.title
+        }
+    }
+}
+#endif

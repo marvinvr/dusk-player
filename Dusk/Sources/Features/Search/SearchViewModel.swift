@@ -105,6 +105,15 @@ final class SearchViewModel {
         isSearching = false
     }
 
+    /// The Mac's sidebar says "TV Shows"; its search shelves use the same
+    /// name. Plex's hub title elsewhere.
+    private static func displayTitle(forHubTitle title: String, type: String?) -> String {
+        #if os(macOS)
+        if type == "show" { return "TV Shows" }
+        #endif
+        return title
+    }
+
     private static func makeGroups(
         plexGroups: [PlexSearchResult],
         seerrItems: [SeerrSearchMedia]
@@ -112,7 +121,7 @@ final class SearchViewModel {
         var groups = plexGroups.map {
             SearchMediaResultGroup(
                 id: $0.type ?? $0.title,
-                title: $0.title,
+                title: displayTitle(forHubTitle: $0.title, type: $0.type),
                 type: $0.type,
                 items: $0.items.map(SearchMediaResult.plex)
             )
@@ -140,7 +149,7 @@ final class SearchViewModel {
                 groups.append(
                     SearchMediaResultGroup(
                         id: targetType,
-                        title: type == .tv ? "Shows" : "Movies",
+                        title: displayTitle(forHubTitle: type == .tv ? "Shows" : "Movies", type: targetType),
                         type: targetType,
                         items: [.seerr(item)]
                     )

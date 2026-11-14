@@ -41,6 +41,9 @@ struct LibraryFiltersSheet: View {
                 }
             }
         }
+        #if os(macOS)
+        .macUISheetSize(idealHeight: 620)
+        #endif
     }
 
     #if os(tvOS)
@@ -158,6 +161,10 @@ private struct LibraryFilterCheckRow: View {
             }
             .contentShape(Rectangle())
         }
+        #if os(macOS)
+        // A row, as on iOS, not a push button.
+        .buttonStyle(.plain)
+        #endif
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
@@ -247,3 +254,117 @@ private struct LibraryFilterValuesView: View {
         }
     }
 }
+
+#if os(macOS)
+/// The Mac's Filters popover, from the Filters toolbar button: a compact
+/// two-column form sized to its content. Unlike the iOS sheet it applies each change as it is
+/// made; Status is the one watch-state control (Unwatched included).
+struct LibraryFiltersPopover: View {
+    let viewModel: LibraryItemsViewModel
+
+    private var valueFields: [LibraryFilterField] {
+        viewModel.availableFilterFields.filter { $0.kind != .toggle }
+    }
+
+    private var toggleFields: [LibraryFilterField] {
+        viewModel.availableFilterFields.filter { $0.kind == .toggle }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            // A Mac settings-style two-column form: right-aligned labels,
+            // standard pop-ups and checkboxes, no cell backgrounds.
+            Form {
+                Picker("Status:", selection: Binding(
+                    get: { viewModel.filterState.watchStatus },
+                    set: { status in update { $0.watchStatus = status } }
+                )) {
+                    ForEach(viewModel.watchStatusOptions) { status in
+                        Text(status.title).tag(status)
+                    }
+                }
+                .frame(width: Self.popUpWidth)
+
+                ForEach(valueFields) { field in
+                    LibraryFilterValuePicker(
+                        field: field,
+                        viewModel: viewModel,
+                        selection: Binding(
+                            get: { viewModel.filterState.choices[field.parameter] },
+                            set: { choice in update { $0.choices[field.parameter] = choice } }
+                        )
+                    )
+                    .frame(width: Self.popUpWidth)
+                }
+
+                if !toggleFields.isEmpty {
+                    LabeledContent("Show Only:") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(toggleFields) { field in
+                                Toggle(field.title, isOn: Binding(
+                                    get: { viewModel.filterState.toggles.contains(field.parameter) },
+                                    set: { isOn in
+                                        update {
+                                            if isOn { $0.toggles.insert(field.parameter) } else { $0.toggles.remove(field.parameter) }
+                                        }
+                                    }
+                                ))
+                                .toggleStyle(.checkbox)
+                            }
+                        }
+                    }
+                }
+            }
+            .formStyle(.columns)
+
+            Button("Reset Filters") {
+                Task { await viewModel.resetFilters() }
+            }
+            .buttonStyle(.link)
+            .foregroundStyle(.secondary)
+            .disabled(viewModel.filterState.isEmpty)
+        }
+        .padding(20)
+        .frame(minWidth: 300, alignment: .leading)
+        .fixedSize()
+    }
+
+    /// One width for every pop-up, so the column reads as one edge
+    /// whatever the current values are ("Any" or "Science Fiction").
+    private static let popUpWidth: CGFloat = 190
+
+    private func update(_ change: (inout LibraryFilterState) -> Void) {
+        var state = viewModel.filterState
+        change(&state)
+        Task { await viewModel.applyFilters(state) }
+    }
+}
+
+/// One value filter as a pop-up menu: "Any", then the values Plex lists.
+private struct LibraryFilterValuePicker: View {
+    let field: LibraryFilterField
+    let viewModel: LibraryItemsViewModel
+    @Binding var selection: LibraryFilterChoice?
+
+    @State private var values: [LibraryFilterChoice] = []
+
+    var body: some View {
+        Picker("\(field.title):", selection: $selection) {
+            Text("Any").tag(LibraryFilterChoice?.none)
+            if !values.isEmpty {
+                Divider()
+            }
+            ForEach(values) { choice in
+                Text(choice.title).tag(LibraryFilterChoice?.some(choice))
+            }
+            // The picked value stays listed while the list loads.
+            if let selection, !values.contains(selection) {
+                Text(selection.title).tag(LibraryFilterChoice?.some(selection))
+            }
+        }
+        .task {
+            values = await viewModel.filterValues(for: field)
+        }
+    }
+}
+#endif

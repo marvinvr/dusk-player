@@ -29,6 +29,10 @@ struct DownloadActionButton: View {
     /// already conveys download status, so the text label is dropped).
     var iconOnly = false
 
+    #if os(macOS)
+    @Environment(\.detailHeroMacControlSize) private var macControlSize
+    #endif
+
     @ViewBuilder
     var body: some View {
         if DownloadsFeature.isVisible {
@@ -37,8 +41,21 @@ struct DownloadActionButton: View {
             } label: {
                 Group {
                     if iconOnly {
+                        #if os(macOS)
+                        // The Mac hero's shared secondary circle (see
+                        // `DetailHeroSecondaryIconLabel`).
+                        let glyphGrowth: CGFloat = macControlSize == .extraLarge ? 4 : 0
+                        icon
+                            .font(.system(size: 13 + glyphGrowth / 2, weight: .semibold))
+                            .frame(
+                                width: detailHeroMacSecondaryGlyphBox + glyphGrowth,
+                                height: detailHeroMacSecondaryGlyphBox + glyphGrowth
+                            )
+                            .help(title)
+                        #else
                         icon
                             .frame(minWidth: 24, minHeight: 32)
+                        #endif
                     } else {
                         HStack(spacing: 8) {
                             icon
@@ -284,6 +301,9 @@ struct DownloadQualitySelectionSheet: View {
                     Text("Original downloads the file as it is. Other qualities ask your Plex server to convert a smaller copy first, which may leave out embedded subtitles. Keep Dusk open while Plex prepares it; the download then continues in the background.")
                 }
             }
+            #if os(macOS)
+            .formStyle(.grouped)
+            #endif
             .navigationTitle("Download Quality")
             .duskNavigationBarTitleDisplayModeInline()
             .toolbar {
@@ -299,6 +319,9 @@ struct DownloadQualitySelectionSheet: View {
                 }
             }
         }
+        #if os(macOS)
+        .macUISheetSize(minHeight: 320, idealHeight: 420)
+        #endif
     }
 }
 

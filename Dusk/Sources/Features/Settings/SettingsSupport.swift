@@ -205,3 +205,68 @@ enum CommonLanguage: String, CaseIterable, Identifiable {
         }
     }
 }
+
+/// A settings page's list. iOS and tvOS keep their plain `List`; on the Mac
+/// it is a grouped `Form`, the System Settings look, which a `List` can't
+/// take on there. Pages that reorder rows (`onMove`) stay a `List`.
+struct SettingsList<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        #if os(macOS)
+        Form(content: content)
+            .formStyle(.grouped)
+            // Rows that are buttons read as rows, as on iOS, not push buttons.
+            .buttonStyle(.borderless)
+        #else
+        List(content: content)
+        #endif
+    }
+}
+
+// MARK: - Settings page chrome
+
+/// The Dusk palette on iOS/tvOS settings pages. The Mac's settings are a
+/// grouped `Form` in the Settings window (or a sheet over it) and keep the
+/// system's grouped backgrounds and row fills, so each of these is a no-op
+/// there.
+extension View {
+    @ViewBuilder
+    func duskSettingsRowBackground() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.listRowBackground(Color.duskSurface)
+        #endif
+    }
+
+    @ViewBuilder
+    func duskSettingsPageBackground() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.background(Color.duskBackground.ignoresSafeArea())
+        #endif
+    }
+
+    /// `duskScrollContentBackgroundHidden()` on iOS/tvOS.
+    @ViewBuilder
+    func duskSettingsScrollBackgroundHidden() -> some View {
+        #if os(macOS)
+        self
+        #else
+        self.duskScrollContentBackgroundHidden()
+        #endif
+    }
+
+    /// `scrollContentBackground(.hidden)` on iOS/tvOS.
+    @ViewBuilder
+    func duskSettingsFormBackgroundHidden() -> some View {
+        #if os(macOS) || os(tvOS)
+        // tvOS: unavailable there; its callers are iOS/Mac-only code.
+        self
+        #else
+        self.scrollContentBackground(.hidden)
+        #endif
+    }
+}

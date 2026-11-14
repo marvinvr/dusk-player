@@ -1,6 +1,8 @@
 #if os(iOS)
 import MobileVLCKit
+#if canImport(UIKit)
 import UIKit
+#endif
 
 /// iOS/iPadOS rendering host for the shared VLCKit playback core.
 ///

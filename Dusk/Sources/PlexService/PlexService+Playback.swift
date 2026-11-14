@@ -861,6 +861,8 @@ private extension PlexService {
     static var transcodeClientPlatform: String {
         #if os(tvOS)
         "tvOS"
+        #elseif os(macOS)
+        "macOS"
         #else
         "iOS"
         #endif
@@ -871,7 +873,8 @@ private extension PlexService {
         #if canImport(UIKit)
         UIDevice.current.systemVersion
         #else
-        ProcessInfo.processInfo.operatingSystemVersionString
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
         #endif
     }
 

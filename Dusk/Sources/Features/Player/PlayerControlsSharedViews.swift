@@ -1,5 +1,7 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#endif
 
 struct PlayerControlsGradientBackdrop: View {
     var body: some View {
@@ -359,9 +361,9 @@ struct PlayerScrubPreviewPopup: View {
 
     var body: some View {
         if let frame,
-           let image = UIImage(data: frame.imageData) {
+           let image = PlatformImage(data: frame.imageData) {
             ZStack(alignment: .bottom) {
-                Image(uiImage: image)
+                Image(platformImage: image)
                     .resizable()
                     .scaledToFill()
                     .frame(width: Self.width, height: Self.height)

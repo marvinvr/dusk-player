@@ -15,6 +15,9 @@ struct LiveTVView: View {
 struct LiveTVRootContent: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.scenePhase) private var scenePhase
+    #if os(macOS)
+    @Environment(\.openSettings) private var openSettings
+    #endif
     let viewModel: LiveTVViewModel
     @State private var selectedProgram: PlexLiveProgram?
     /// Set by the program sheet's Watch Live and started once the sheet is
@@ -48,11 +51,15 @@ struct LiveTVRootContent: View {
             } else if !viewModel.isAvailable, viewModel.error == nil {
                 FeatureEmptyStateView(
                     systemImage: "dot.radiowaves.left.and.right",
-                    title: "Live TV isn’t available",
+                    title: Self.unavailableTitle,
                     message: "Set up a tuner and program guide on this Plex server, or add an IPTV source in Settings, to watch live channels."
                 )
             } else if let error = viewModel.guideError {
-                FeatureErrorView(message: error) {
+                FeatureErrorView(
+                    message: error,
+                    title: "Couldn’t Load Channels",
+                    secondaryAction: liveTVSettingsAction
+                ) {
                     Task { await viewModel.load(force: true) }
                 }
             }
@@ -95,7 +102,31 @@ struct LiveTVRootContent: View {
             // Half height: the guide it came from stays in view.
             .presentationDetents([.medium, .large])
             #endif
+            #if os(macOS)
+            .macUISheetSize(minHeight: 320, idealHeight: 460)
+            #endif
         }
+    }
+
+    /// Mac: "Open Live TV Settings…" next to Try Again when an IPTV source
+    /// is involved, opening Settings on its Libraries tab (IPTV Sources).
+    private var liveTVSettingsAction: FeatureStateAction? {
+        #if os(macOS)
+        guard viewModel.hasIPTVSources else { return nil }
+        return FeatureStateAction(title: "Open Live TV Settings…") {
+            MacSettingsView.open(.libraries, using: openSettings)
+        }
+        #else
+        nil
+        #endif
+    }
+
+    private static var unavailableTitle: String {
+        #if os(macOS)
+        "Live TV Isn’t Available"
+        #else
+        "Live TV isn’t available"
+        #endif
     }
 
     private func playPending() {
@@ -427,6 +458,9 @@ struct LiveTVProgramCard: View {
         .frame(width: cardWidth, height: cardHeight)
         .background(Color.duskSurface)
         .clipShape(RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous))
+        #if os(macOS)
+        .macUIHoverLift(cornerRadius: Self.cornerRadius)
+        #endif
     }
 
     private var placeholder: some View {

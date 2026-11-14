@@ -1,6 +1,8 @@
 import SwiftUI
 #if os(iOS)
+#if canImport(UIKit)
 import UIKit
+#endif
 #endif
 
 struct SearchView: View {
@@ -21,6 +23,10 @@ struct SearchRootContent: View {
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: SearchViewModel?
     @State private var isSearchPresented = false
+    #if os(macOS)
+    /// The query comes from the sidebar search field (`MacShellRouter`).
+    @Environment(MacShellRouter.self) private var macRouter: MacShellRouter?
+    #endif
     #if os(tvOS)
     @State private var resultsIdentity = 0
     @State private var isReturningToKeyboard = false
@@ -44,7 +50,11 @@ struct SearchRootContent: View {
                     plexService: plexService,
                     seerrService: seerrService
                 )
-                #if DEBUG
+                #if DEBUG && os(macOS)
+                if let query = ScreenshotMode.searchQuery, let macRouter, macRouter.searchQuery.isEmpty {
+                    macRouter.searchQuery = query
+                }
+                #elseif DEBUG
                 if let query = ScreenshotMode.searchQuery, let viewModel {
                     viewModel.query = query
                     viewModel.searchDebounced()
@@ -95,6 +105,14 @@ struct SearchRootContent: View {
                 }
             }
             .searchable(text: $vm.query, prompt: searchPrompt)
+        #elseif os(macOS)
+        // A wrapping poster grid per result section, as in Music and TV on
+        // the Mac (shelves clipped cards mid-poster). The field is the
+        // sidebar's search field (`MacRootView`).
+        gridResults(vm)
+            .onChange(of: macRouter?.searchQuery ?? "", initial: true) { _, query in
+                vm.query = query
+            }
         #else
         if UIDevice.current.userInterfaceIdiom == .pad {
             carouselResults(vm)
@@ -222,13 +240,13 @@ private extension SearchRootContent {
     }
 }
 
-// MARK: - iPhone Grid Results
+// MARK: - iPhone and Mac Grid Results
 
-#if os(iOS)
+#if os(iOS) || os(macOS)
 private extension SearchRootContent {
     /// Poster grid, one titled section per search hub. Used on iPhone, where a
     /// grid reads more naturally than carousels on a narrow screen and matches
-    /// the library grid.
+    /// the library grid, and on the Mac (the library grid's metrics).
     @ViewBuilder
     func gridResults(_ vm: SearchViewModel) -> some View {
         searchResults(vm) {

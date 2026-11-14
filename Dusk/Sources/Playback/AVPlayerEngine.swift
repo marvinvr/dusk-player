@@ -3,8 +3,10 @@ import AudioToolbox
 import CoreMedia
 import OSLog
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
-#if os(iOS)
+#endif
+#if os(iOS) || os(macOS)
 import AVKit
 #endif
 
@@ -74,7 +76,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored private var videoQualityTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private let playerLayer = AVPlayerLayer()
     @ObservationIgnored nonisolated(unsafe) private var coordinatedItemIdentifier: String?
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     private(set) var isPictureInPicturePossible = false
     private(set) var isPictureInPictureActive = false
     @ObservationIgnored private var pipController: AVPictureInPictureController?
@@ -191,7 +193,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 player.currentItem?.textStyleRules = subtitleTextStyleRules
             }
         }
-        #if os(iOS)
+        #if os(iOS) || os(macOS)
         refreshPictureInPictureController()
         #endif
     }
@@ -202,6 +204,9 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         #if os(iOS)
         externalPlaybackObserver?.invalidate()
         externalPlaybackObserver = nil
+        pipPossibleObserver?.invalidate()
+        pipPossibleObserver = nil
+        #elseif os(macOS)
         pipPossibleObserver?.invalidate()
         pipPossibleObserver = nil
         #endif
@@ -336,7 +341,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     func configureVideoEnhancement(_ request: VideoEnhancementRequest) {
         videoEnhancementRequest = request
         videoEnhancementRenderer = VideoEnhancementRenderer(request: request)
-        #if os(iOS)
+        #if os(iOS) || os(macOS)
         // PiP renders from the `AVPlayerLayer`. Even with Video Enhancement active
         // the layer stays in the hierarchy (behind the Metal view — see
         // `makePlayerView()`), so native PiP keeps working; the floating window
@@ -361,6 +366,13 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         player.pause()
         state = .paused
     }
+
+    #if os(macOS)
+    func setVolume(_ volume: Float, muted: Bool) {
+        player.volume = max(0, min(volume, 1))
+        player.isMuted = muted
+    }
+    #endif
 
     func setPlaybackRate(_ rate: Float) {
         let resolvedRate = max(rate, 0.1)
@@ -489,7 +501,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         videoEnhancementRenderer?.setVideoFillEnabled(enabled)
     }
 
-    #if os(iOS)
+    #if os(iOS) || os(macOS)
     // MARK: - Picture in Picture
 
     func setPictureInPictureDelegate(_ delegate: (any PlaybackPictureInPictureDelegate)?) {
@@ -524,9 +536,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         let source = AVPictureInPictureController.ContentSource(playerLayer: playerLayer)
         let controller = AVPictureInPictureController(contentSource: source)
         controller.delegate = self
+        #if os(iOS)
         // Hand playback off to the floating window automatically when the app
         // is backgrounded mid-playback, matching standard video-app behavior.
         controller.canStartPictureInPictureAutomaticallyFromInline = true
+        #endif
         pipController = controller
         pipPossibleObserver = controller.observe(
             \.isPictureInPicturePossible,
@@ -552,7 +566,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     #endif
 
     func handleReturnToForeground() {
-        #if os(iOS)
+        #if os(iOS) || os(macOS)
         // The floating window renders from this very layer: detaching the
         // player now (the app becomes active while PiP keeps running) would
         // blank or kill the window. The layer's pipeline was never torn down
@@ -1255,7 +1269,16 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private func startEnhancedVideoDisplayLink() {
         enhancedVideoDisplayLink?.invalidate()
         let target = AVPlayerDisplayLinkTarget(engine: self)
+        #if os(macOS)
+        // macOS vends display links from a screen (or view) so they follow
+        // that display's refresh rate.
+        guard let displayLink = (NSScreen.main ?? NSScreen.screens.first)?.displayLink(
+            target: target,
+            selector: #selector(AVPlayerDisplayLinkTarget.tick(_:))
+        ) else { return }
+        #else
         let displayLink = CADisplayLink(target: target, selector: #selector(AVPlayerDisplayLinkTarget.tick(_:)))
+        #endif
         displayLink.add(to: .main, forMode: .common)
         enhancedVideoDisplayLinkTarget = target
         enhancedVideoDisplayLink = displayLink
@@ -1803,7 +1826,7 @@ extension AVPlayerEngine {
     }
 }
 
-#if os(iOS)
+#if os(iOS) || os(macOS)
 /// Carries a non-`Sendable` value (an AVKit completion handler) across into a
 /// main-actor closure. Safe here because the handler is created and invoked on
 /// the main thread only.
@@ -1955,6 +1978,48 @@ private extension Color {
     }
 }
 
+#if os(macOS)
+private struct AVPlayerLayerRepresentable: NSViewRepresentable {
+    let playerLayer: AVPlayerLayer
+
+    func makeNSView(context: Context) -> AVPlayerNSView {
+        AVPlayerNSView(playerLayer: playerLayer)
+    }
+
+    func updateNSView(_ nsView: AVPlayerNSView, context: Context) {}
+}
+
+/// NSView that hosts an `AVPlayerLayer` and keeps it sized to bounds.
+final class AVPlayerNSView: NSView {
+    private let playerLayer: AVPlayerLayer
+
+    init(playerLayer: AVPlayerLayer) {
+        self.playerLayer = playerLayer
+        super.init(frame: .zero)
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.black.cgColor
+        layer?.addSublayer(playerLayer)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    override var isOpaque: Bool { true }
+
+    /// Clicks belong to the SwiftUI player HUD above the picture.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func layout() {
+        super.layout()
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        playerLayer.frame = bounds
+        CATransaction.commit()
+    }
+}
+#else
 private struct AVPlayerLayerRepresentable: UIViewRepresentable {
     let playerLayer: AVPlayerLayer
 
@@ -1990,6 +2055,7 @@ final class AVPlayerUIView: UIView {
         CATransaction.commit()
     }
 }
+#endif
 
 private final class AVPlayerDisplayLinkTarget: NSObject {
     weak var engine: AVPlayerEngine?
@@ -2005,3 +2071,11 @@ private final class AVPlayerDisplayLinkTarget: NSObject {
         }
     }
 }
+
+#if os(macOS)
+extension AVPlayerEngine {
+    /// The session's `AVPlayer`, for the Mac play bar's AirPlay route picker
+    /// (`AVRoutePickerView.player`).
+    var routePickerPlayer: AVPlayer { player }
+}
+#endif

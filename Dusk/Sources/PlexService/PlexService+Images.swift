@@ -1,6 +1,8 @@
 import Foundation
 #if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
 #endif
 
 extension PlexService {
@@ -277,6 +279,9 @@ extension PlexService {
     var displayScale: CGFloat {
         #if canImport(UIKit)
         UIScreen.main.scale
+        #elseif os(macOS)
+        // Retina Macs draw at 2x; artwork is requested for the sharpest screen.
+        NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
         #else
         1
         #endif
