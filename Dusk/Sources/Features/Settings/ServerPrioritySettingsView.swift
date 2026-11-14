@@ -113,7 +113,6 @@ struct ServerPrioritySettingsView: View {
                     ConnectionDiagnosticsView()
                 } label: {
                     Text("Connection Diagnostics")
-                        .foregroundStyle(Color.duskTextSecondary)
                 }
             } footer: {
                 if let accountError = viewModel.accountError {
