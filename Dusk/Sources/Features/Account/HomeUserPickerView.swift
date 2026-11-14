@@ -25,6 +25,7 @@ struct HomeUserPickerView: View {
     @State private var pin = ""
     @State private var switchingProfileID: String?
     @State private var switchError: String?
+    @State private var confirmsSigningOut = false
 
     init(
         users: [PlexHomeUser],
@@ -96,6 +97,14 @@ struct HomeUserPickerView: View {
             }
             #endif
         }
+        .confirmationDialog(
+            "Sign out of Plex?",
+            isPresented: $confirmsSigningOut,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out", role: .destructive) { onSignOut?() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
     @ViewBuilder
@@ -156,8 +165,8 @@ struct HomeUserPickerView: View {
                                 .frame(maxWidth: 460)
                         }
 
-                        if onCancel == nil, let onSignOut {
-                            Button("Sign Out", action: onSignOut)
+                        if onCancel == nil, onSignOut != nil {
+                            Button("Sign Out") { confirmsSigningOut = true }
                                 .buttonStyle(.bordered)
                                 .disabled(switchingProfileID != nil)
                         }
@@ -356,13 +365,13 @@ struct HomeUserPickerView: View {
         }
 
         #if os(tvOS)
-        if onCancel == nil, let onSignOut {
-            HomeUserTextButton(title: "Sign Out", tint: .red, role: .destructive, action: onSignOut)
+        if onCancel == nil, onSignOut != nil {
+            HomeUserTextButton(title: "Sign Out", tint: .red, role: .destructive) { confirmsSigningOut = true }
                 .disabled(switchingProfileID != nil)
         }
         #else
-        if onCancel == nil, let onSignOut {
-            Button("Sign Out", role: .destructive, action: onSignOut)
+        if onCancel == nil, onSignOut != nil {
+            Button("Sign Out", role: .destructive) { confirmsSigningOut = true }
                 .font(.headline)
                 .disabled(switchingProfileID != nil)
         }

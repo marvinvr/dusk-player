@@ -47,6 +47,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - A connect pass runs on first mount, on a profile switch, on return to the
   foreground, and on a network-path change. Passes are deduplicated and a fresh
   one is skipped for a minute unless the pool has nothing usable.
+- The profile picker’s Sign Out uses the same “Sign out of Plex?” confirmation
+  as Settings, with destructive Sign Out and Cancel; cancellation keeps the
+  current account and profile-selection state.
 - The tvOS profile picker restores focus to the originating profile when Back
   leaves its PIN pad. Malformed Plex responses show a short retry message;
   decoder details remain in the error value rather than user-facing copy.
