@@ -201,6 +201,10 @@ struct LibraryTypeListView: View {
 }
 
 private struct LibraryRowContent: View {
+    #if os(tvOS)
+    @Environment(\.isFocused) private var isFocused
+    #endif
+
     let library: PlexLibrary
     let vm: LibrariesViewModel
 
@@ -244,9 +248,22 @@ private struct LibraryRowContent: View {
                 .foregroundStyle(Color.duskTextSecondary)
         }
         .padding(12)
+        #if os(tvOS)
+        // A full-width row: the card lift scaled it past the screen edge and
+        // clipped its own artwork. Use the Settings rows' focus band instead.
+        .background {
+            ZStack {
+                Color.duskSurface
+                Color.duskTextPrimary.opacity(isFocused ? 0.20 : 0)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .animation(.easeOut(duration: 0.18), value: isFocused)
+        #else
         .background(Color.duskSurface)
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        #endif
     }
 
     private var libraryTypeLabel: String {
