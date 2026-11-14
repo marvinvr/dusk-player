@@ -116,15 +116,11 @@ struct LibraryTabSettingsView: View {
         )
     }
 
+    /// "1st", "2nd", … like Server Priority; never capped (six tab types).
     private func positionName(for index: Int) -> String {
-        switch index {
-        case 0:
-            "First"
-        case 1:
-            "Second"
-        default:
-            index == 2 ? "Third" : "Fourth"
-        }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: index + 1)) ?? "\(index + 1)"
     }
     #endif
 
