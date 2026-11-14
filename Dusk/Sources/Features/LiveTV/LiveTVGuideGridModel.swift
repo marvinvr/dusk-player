@@ -472,9 +472,13 @@ struct LiveTVGuideCursor: Equatable {
     /// Puts the cell of `row` at `date` near the leading edge.
     mutating func place(at date: Date, in row: LiveTVGuideRow, timeline: LiveTVGuideTimeline, viewport: CGFloat) {
         guard let cell = row.cell(at: date) else { return }
-        let x = timeline.x(for: max(cell.start, min(date, cell.end)))
+        let target = max(cell.start, min(date, cell.end))
+        let x = timeline.x(for: target)
         offset = min(max(0, x - viewport * Self.marginShare), max(0, timeline.width - viewport))
-        time = max(cell.start, timeline.date(forX: offset))
+        // The cursor keeps the requested time; only the scroll offset leaves a
+        // margin. Deriving it from the offset put a jump to midnight ~10 min
+        // into the day before, so the day chip still said "Today".
+        time = target
     }
 
     /// The time a step past the first or last cell of `row` lands on: just
