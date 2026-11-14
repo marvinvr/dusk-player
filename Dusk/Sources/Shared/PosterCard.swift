@@ -74,6 +74,7 @@ struct PosterArtwork: View {
                     .font(DuskFont.badge(ios: .caption2.weight(.bold)))
                     .foregroundStyle(Color.primary)
                     .lineLimit(1)
+                    .minimumScaleFactor(0.8)
                     .padding(.horizontal, availabilityBadgeHorizontalPadding)
                     .padding(.vertical, 5)
                     .background(.ultraThinMaterial, in: Capsule())
