@@ -202,7 +202,8 @@ struct TVSettingsToggleRow: View {
 
             Spacer(minLength: 24)
 
-            Toggle("", isOn: $isOn)
+            // Titled so VoiceOver names the switch; the row draws the title.
+            Toggle(title, isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(SwitchToggleStyle())
                 .focused($isFocused)
