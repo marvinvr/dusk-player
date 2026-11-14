@@ -119,7 +119,7 @@ struct IPTVSourcesSettingsView: View {
     }
     #endif
 
-    static let footerText = "Add a standard M3U playlist, with an optional XMLTV program guide. Its channels appear in Live TV after your Plex channels and always play with Apple’s player. Sources are kept separately for each Plex Home user."
+    static let footerText = "IPTV channels always play in Apple’s player."
 }
 
 /// Add or edit one source. A new source is only created on Save.
@@ -185,7 +185,7 @@ struct IPTVSourceEditorView: View {
             } header: {
                 Text("Source")
             } footer: {
-                Text("Without an XMLTV URL, Dusk uses the guide the playlist names in its url-tvg header, if any.")
+                Text("Leave XMLTV empty to use the guide named in the playlist’s url-tvg header.")
             }
             .duskSettingsRowBackground()
 
@@ -242,7 +242,7 @@ struct IPTVSourceEditorView: View {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 TVSettingsSection(
                     title: "Source",
-                    footer: "Without an XMLTV URL, Dusk uses the guide the playlist names in its url-tvg header, if any."
+                    footer: "Leave XMLTV empty to use the guide named in the playlist’s url-tvg header."
                 ) {
                     TVSettingsURLFieldRow(
                         prompt: "Name",
@@ -321,7 +321,7 @@ struct IPTVSourceEditorView: View {
     }
     #endif
 
-    private static let headerFooter = "Optional. Sent with every request for this source: playlist, guide, stream and license. The value is stored in the Keychain."
+    private static let headerFooter = "Optional, sent with every request for this source."
 
     // MARK: - Draft
 

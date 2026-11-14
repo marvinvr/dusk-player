@@ -26,6 +26,8 @@ struct MacRootView: View {
     @Environment(UserPreferences.self) private var preferences
     @Environment(IPTVService.self) private var iptvService
     @Environment(MacShellRouter.self) var router
+    @Environment(ServerConnectionCoordinator.self) private var connections
+    @Environment(LaunchSplashState.self) private var launchSplash
     @Environment(\.scenePhase) private var scenePhase
     @State private var librariesViewModel: LibrariesViewModel?
     @State private var liveTVViewModel: LiveTVViewModel?
@@ -97,6 +99,13 @@ struct MacRootView: View {
             // too, whose own `onDisappear` runs the iOS cover's `onDismiss`
             // teardown (`onPlayerDismissed`); it must not run twice.
             router.shellDidDisappear()
+        }
+        // No server reachable: open Downloads, as `MainTabView` does on iOS,
+        // and let the splash go without waiting for Home.
+        .onChange(of: connections.showsOfflineDownloads, initial: true) { _, isOffline in
+            guard isOffline else { return }
+            if router.selection != .downloads { router.activate(.downloads) }
+            launchSplash.contentIsReady()
         }
         .onChange(of: destinations) { _, newDestinations in
             router.updateDestinations(newDestinations)

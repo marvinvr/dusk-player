@@ -89,7 +89,7 @@ struct LibraryOrderSettingsView: View {
                     }
                 }
             } footer: {
-                Text("Tap Edit, then drag to set the order of your libraries. The order is saved to your Plex account, so other Plex apps use it too. To hide a library, use Settings › Libraries › Hidden Libraries.")
+                Text("Other Plex apps use this order too.")
                     .foregroundStyle(Color.duskTextSecondary)
             }
             .duskSettingsRowBackground()
@@ -123,7 +123,7 @@ struct LibraryOrderSettingsView: View {
                 if !visibleLibraries.isEmpty {
                     TVSettingsSection(
                         title: "Order",
-                        footer: "Choose the position of each library. The order is saved to your Plex account, so other Plex apps use it too. To hide a library, use Settings › Libraries › Hidden Libraries."
+                        footer: "Other Plex apps use this order too."
                     ) {
                         ForEach(Array(visibleLibraries.enumerated()), id: \.element.id) { index, library in
                             if index > 0 {

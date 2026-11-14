@@ -52,8 +52,6 @@ struct SeerrSettingsView: View {
                 connectionRow
             } header: {
                 Text("Server")
-            } footer: {
-                Text("Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder).")
             }
             .duskSettingsRowBackground()
 
@@ -103,10 +101,7 @@ struct SeerrSettingsView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                TVSettingsSection(
-                    title: "Server",
-                    footer: "Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder)."
-                ) {
+                TVSettingsSection(title: "Server") {
                     TVSettingsURLFieldRow(
                         prompt: "Server URL",
                         placeholder: SeerrServerURL.placeholder,
@@ -143,7 +138,7 @@ struct SeerrSettingsView: View {
 
                 TVSettingsSection(
                     title: "Account",
-                    footer: "This connection is kept separate for each Plex Home user and Plex server."
+                    footer: "Each Plex Home user and server has its own connection."
                 ) {
                     if seerrService.isConnected {
                         TVSettingsActionRow(

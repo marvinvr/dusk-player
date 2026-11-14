@@ -6,7 +6,7 @@ import SwiftUI
 /// There is no server step: once the session is ready the shell mounts and
 /// `ServerConnectionCoordinator` connects every enabled server underneath it.
 /// The user never waits for the slowest server, and a server that never answers
-/// is a per-screen note rather than a wall.
+/// is a per-screen note or the iOS Downloads fallback rather than a wall.
 struct ContentView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
@@ -69,6 +69,17 @@ struct ContentView: View {
             connections.start(plexService: plexService)
             await connections.connectIfNeeded(session: plexService.activeProfileID)
         }
+        .task(id: offlineRecoveryTaskID) {
+            // A server may return without the system network path changing.
+            // Retry only while foregrounded, keeping the Downloads stack and
+            // any local playback mounted throughout recovery.
+            guard offlineRecoveryTaskID else { return }
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(30)) }
+                catch { return }
+                await connections.refresh(trigger: "Offline recovery")
+            }
+        }
         .task(id: sharePlayReadinessTaskID) {
             await playback.retryPendingSharePlayActivityIfPossible()
         }
@@ -100,7 +111,9 @@ struct ContentView: View {
     /// splash can leave without waiting for Home (which reports itself).
     private var revealsWithoutHome: Bool {
         if !plexService.isAuthenticated { return true }
-        if !plexService.homeBootstrapCompleted { return homeBootstrapError != nil }
+        if !plexService.homeBootstrapCompleted {
+            return homeBootstrapError != nil || connections.lastError != nil
+        }
         return plexService.needsHomeUserSelection
     }
 
@@ -113,6 +126,10 @@ struct ContentView: View {
             needsHomeUserSelection: plexService.needsHomeUserSelection,
             profileID: plexService.activeProfileID
         )
+    }
+
+    private var offlineRecoveryTaskID: Bool {
+        scenePhase == .active && connections.isNetworkAvailable && connections.needsRecovery
     }
 
     /// A pending SharePlay activity may be for an item on any server, so the
@@ -175,7 +192,7 @@ struct ContentView: View {
             Color.duskBackground.ignoresSafeArea()
 
             VStack(spacing: 18) {
-                if let homeBootstrapError {
+                if let homeBootstrapError = homeBootstrapError ?? connections.lastError {
                     Image(systemName: "person.2.slash")
                         .font(DuskFont.glyphLarge(ios: .largeTitle))
                         .foregroundStyle(Color.duskTextSecondary)

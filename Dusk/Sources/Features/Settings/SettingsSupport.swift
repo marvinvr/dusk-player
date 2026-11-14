@@ -1,13 +1,9 @@
 import SwiftUI
 
 enum SettingsSupport {
-    static func integrationsFooterText(showsTrakt: Bool) -> String {
-        showsTrakt
-            ? "Optionally add requestable movies and shows to search, or keep your Trakt history up to date."
-            : "Optionally add requestable movies and shows to search."
-    }
+    static let integrationsFooterText = "Seerr adds requestable movies and shows to search."
 
-    static let liveTVFooterText = "Watch channels from standard M3U playlists beside Plex Live TV."
+    static let liveTVFooterText = "Channels from M3U playlists appear next to Plex Live TV."
 
     static func iptvSourcesSummary(_ count: Int) -> String {
         switch count {
@@ -17,41 +13,31 @@ enum SettingsSupport {
         }
     }
 
-    static let playbackDefaultsFooterText = "Choose preferred stream quality. Preferred Version picks which version plays when a title has more than one. Audio & Subtitles sets the languages Dusk plays and when subtitles turn on. AI Upscaling sharpens lower-resolution video when the source benefits from it, but can increase power usage."
-    static let audioLanguageFooterText = "Dusk plays audio in this language when a title has it. Original keeps each title’s own audio."
-    static let subtitlesFooterText = "Auto turns subtitles on when the audio isn’t in your subtitle language, and otherwise shows only forced subtitles, which translate foreign dialogue and signs. Off shows only forced subtitles. Style System follows Accessibility › Subtitles & Captioning in the system Settings; Dusk always uses white text on a dark box. Size can also be changed from the player."
-    static let subtitlesAdvancedFooterText = "Turn off Forced Subtitles to see subtitles only when Auto or Always calls for them, or when you pick a track. Until you change them here, these settings follow the language settings of your Plex account. A track you pick in the player is remembered for that show and wins over them."
+    static let playbackDefaultsFooterText = "AI Upscaling can use more power."
+    static let audioLanguageFooterText = "Until you change them here, languages follow your Plex account."
+    static let subtitlesFooterText = "Auto turns subtitles on when the audio isn’t in your subtitle language."
+    static let subtitlesAdvancedFooterText = "Forced subtitles translate foreign dialogue and signs."
 
     #if os(tvOS)
-    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Intro skipping can skip every intro or skip every intro except episode 1 of each season. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Back Jump and Forward Jump set how many seconds skip back and skip forward move."
+    static let playbackBehaviorFooterText = "Pause After includes the episode that’s playing."
     #else
-    static let playbackBehaviorFooterText = "Auto-Skip automatically skips intros and credits after a brief countdown. Intro skipping can skip every intro or skip every intro except episode 1 of each season. Continuous Play shows an Up Next screen after TV episodes finish and can auto-start the next one after the configured delay. Pause After counts the current episode too, then pauses autoplay until you confirm. Episode Buttons adds Previous and Next Episode buttons beside Play while you watch a TV episode. Double-Tap to Seek adds left and right double-tap seek zones in the player. Always Play in Landscape keeps iPhone video in landscape, including while Portrait Orientation Lock is on."
+    static let playbackBehaviorFooterText = "Episode Buttons add Previous and Next Episode to the player."
     #endif
 
     #if os(tvOS)
-    static let playbackAdvancedFooterText = "Advanced Playback Controls adds skip back, skip forward and playback speed to the player. Speed is not available while Dolby Atmos is sent to your receiver or TV. Dolby Atmos plays Atmos tracks in MKV and similar files through Apple's player, which sends Atmos to your receiver or TV. HDR & Dolby Vision does the same for HDR10, HDR10+, HLG and Dolby Vision video. Dolby Vision 7 → 8.1 converts Dolby Vision profile 7 (UHD Blu-ray) video so a Dolby Vision TV shows Dolby Vision instead of HDR10; turn it off if those titles misbehave. Your Plex server repackages the file on the fly without re-encoding it, so video quality stays the original's. Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
+    static let playbackAdvancedFooterText = "Plex repackages Dolby and HDR titles without re-encoding, and Speed is off while Atmos goes to your receiver."
     #else
-    static let playbackAdvancedFooterText = "Advanced Playback Controls adds skip back, skip forward and playback speed to the player. Dolby Atmos & Spatial Audio plays Atmos and surround Dolby tracks in MKV and similar files through Apple's player, which enables spatial audio on AirPods. HDR & Dolby Vision does the same for HDR10, HDR10+, HLG and Dolby Vision video on HDR screens. Dolby Vision 7 → 8.1 converts Dolby Vision profile 7 (UHD Blu-ray) video so they play as Dolby Vision instead of HDR10; turn it off if those titles misbehave. Your Plex server repackages the file on the fly without re-encoding it, so video quality stays the original's. Force AVPlayer and Force VLCKit bypass automatic engine selection. Enabling one disables the other. Force AVPlayer may fail on formats it cannot handle."
+    static let playbackAdvancedFooterText = "Plex repackages Dolby and HDR titles for Apple’s player without re-encoding."
     #endif
-    static let downloadsFooterText = "Preferred Version picks which Plex version is downloaded when a title has several. Download quality is chosen each time you start a download. Wi-Fi Only lets the system wait for a non-cellular network before starting new transfer tasks."
-    static let librariesFooterText = "Choose which library and Live TV destinations appear in the navigation bar and the order they use. Hidden Libraries removes a library from Dusk completely, including Home and search. Server Priority decides which of your servers Dusk uses, and which one plays a title that is on more than one."
+    static let downloadsFooterText = "Preferred Version picks between a title’s versions, quality is chosen per download."
     static func pinnedPlaylistsSummary(_ count: Int) -> String {
         count == 0 ? "None" : String(count)
     }
 
-    static let homeFooterText = "Hidden Rows chooses which of Plex’s rows appear on Home. Pinned Playlists appear near the top. Personalized shelves add recommendations from Dusk to Home. Show Live TV adds currently airing channels without changing the Live TV tab."
-    static let homeTVFooterText = homeFooterText + " Show Clock puts the current time at the top right of Home."
-    static let homeAdvancedFooterText = "Compact Continue Watching replaces the large artwork at the top of Home with a smaller Continue Watching row, like the one on library pages."
-    static let appearanceFooterText = "System follows your device appearance. Light and Dark override it for the whole app. Blur Unwatched Episodes hides the images of episodes you haven’t finished, so they can’t spoil anything."
-    static let aboutFooterText = "Dusk is open source. Visit the repository, join the community on Reddit, learn more about Marvin, or send feedback by email."
-    static let privacyFooterText = "Dusk sends a small number of anonymous events, including error reports, to its own server. This helps keep quality consistent and makes the app better for everyone. Nothing about your library, your server, what you watch, or what you search for is ever included."
-    static let accountFooterText = "Clears the saved Plex session and returns to the sign-in flow."
-    #if os(macOS)
-    static let accountManagementFooterText = "Opens your Plex account settings in your browser. Plex account deletion is available there."
-    #else
-    static let accountManagementFooterText = "Opens your Plex account settings inside Dusk. Plex account deletion is available there."
-    #endif
-    static let supporterFooterText = "Dusk is free and open source. Supporting is entirely optional and unlocks alternate app icons as a thank-you — the subscription adds four exclusive ones."
+    static let homeFooterText = "Personalized shelves are recommendations from Dusk, not Plex."
+    static let homeAdvancedFooterText = "Swaps the large artwork at the top of Home for a Continue Watching row."
+    static let privacyFooterText = "Sends anonymous events and error reports, never anything about your library, server, viewing or searches."
+    static let supporterFooterText = "Supporting unlocks alternate app icons, and subscribing adds four exclusive ones."
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let redditURL = URL(string: "https://www.reddit.com/r/DuskPlayer/")!
     static let aboutMeURL = URL(string: "https://marvinvr.ch")!

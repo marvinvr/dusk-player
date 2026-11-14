@@ -12,7 +12,7 @@ struct HiddenHomeRowsSettingsView: View {
     @Environment(PlexService.self) private var plexService
     @State private var viewModel: HiddenHomeRowsSettingsViewModel?
 
-    static let footerText = "Turn off a row to hide it from Home. This is saved to your Plex server, so other Plex apps hide it too."
+    static let footerText = "Other Plex apps hide these rows too."
     static let emptyText = "Rows can only be changed on servers you own."
 
     var body: some View {

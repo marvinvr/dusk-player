@@ -123,6 +123,7 @@ extension PlexService {
         activeHomeUser = nil
         primaryProfileID = nil
         homeBootstrapCompleted = false
+        isUsingOfflineHomeSession = false
         homeSelectionRequested = false
         hasRememberedHomeUserToken = false
         KeychainHelper.delete(key: Self.keychainActiveHomeTokenKey)
