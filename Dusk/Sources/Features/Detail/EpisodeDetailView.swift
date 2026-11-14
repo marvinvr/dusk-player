@@ -87,7 +87,9 @@ struct EpisodeDetailView: View {
                         ExpandableSummaryText(
                             text: summary,
                             title: details.title,
-                            collapsedLineLimit: 2,
+                            // Movie and season pages show their synopsis in
+                            // full; two lines left the episode page mostly empty.
+                            collapsedLineLimit: 6,
                             foregroundStyle: Color.primary.opacity(0.78),
                             allowsExpansion: false
                         )
