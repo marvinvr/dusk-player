@@ -108,7 +108,10 @@ A season's state comes from its own per-season record or request. The show's
 season is in Plex, so a season with no status of its own is requestable (#62:
 a missing season read "Partial" with no Request button). The tvOS season page
 makes its episode rows focus stops, so a season that cannot be requested still
-has content to focus.
+has content to focus. TMDB often lists a renewed season before any episode: the
+season page then says no episodes have been announced (never "0 episodes"), and
+on tvOS its status pill is a no-op focus stop so focus never strands on the tab
+bar (1.8.1: an approved season with no episodes looked like an empty page).
 Search suppresses media Seerr marks fully available or blocklisted; partial,
 pending, processing, and otherwise requestable records remain visible.
 
