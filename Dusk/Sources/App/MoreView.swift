@@ -38,7 +38,7 @@ struct MoreView: View {
 
                 if showsDownloads {
                     NavigationLink(value: MoreRoute.downloads) {
-                        MoreRow(title: "Downloads", systemImage: "arrow.down.circle.fill")
+                        MoreRow(title: "Downloads", systemImage: "arrow.down.circle")
                     }
                 }
 
