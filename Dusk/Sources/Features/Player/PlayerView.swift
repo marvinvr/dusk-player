@@ -1365,16 +1365,17 @@ private struct PlayerSessionView: View {
 
     /// Whether a bottom-trailing control (Skip Intro chip or Up Next poster) is
     /// on screen. On tvOS the HUD controller gives it Select and Down while the
-    /// HUD is hidden — without taking the remote away from the input bridge.
+    /// HUD is hidden and makes it the stop above the action row while the HUD
+    /// is up — without taking the remote away from the input bridge.
     private var hasBottomTrailingFocusControl: Bool {
         viewModel.activeSkipMarker != nil || playback.upNextPoster != nil
     }
 
-    /// Drawn as "selected" only while the HUD is hidden: that is exactly when
-    /// the chip / poster owns Select on the remote.
+    /// Drawn as "selected" while it owns Select on the remote: with the HUD
+    /// hidden, or with the HUD up once the selection moved onto it.
     private var isTVBottomTrailingControlSelected: Bool {
         #if os(tvOS)
-        hudController.mode == .hidden && hasBottomTrailingFocusControl
+        hasBottomTrailingFocusControl && hudController.isBottomTrailingControlSelected
         #else
         false
         #endif

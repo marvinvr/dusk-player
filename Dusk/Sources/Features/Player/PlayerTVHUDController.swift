@@ -25,6 +25,10 @@ enum PlayerTVHUDMode: Equatable {
 enum PlayerTVTransportFocus: Equatable {
     case bar
     case action(Int)
+    /// The Skip Intro chip or the Up Next poster, which ride just above the
+    /// action row while the HUD is up. Up from the row reaches it, Down goes
+    /// back, as the focus engine would move between them.
+    case bottomTrailing
 }
 
 enum PlayerTVPanelTab: String, CaseIterable, Identifiable, Hashable {
@@ -149,8 +153,25 @@ final class PlayerTVHUDController {
     var backwardSeekInterval: TimeInterval = PlayerSeekInterval.fifteenSeconds.timeInterval
     var forwardSeekInterval: TimeInterval = PlayerSeekInterval.fifteenSeconds.timeInterval
     /// A Skip Intro chip or an Up Next poster is on screen. While the HUD is
-    /// hidden it owns Select and Down.
-    var isBottomTrailingControlVisible = false
+    /// hidden it owns Select and Down; while it is up it is one Up away from
+    /// the action row.
+    var isBottomTrailingControlVisible = false {
+        didSet {
+            guard !isBottomTrailingControlVisible, transportFocus == .bottomTrailing else { return }
+            transportFocus = rowFallbackFocus
+        }
+    }
+
+    /// Whether the chip / poster is drawn selected: always while the HUD is
+    /// hidden (it owns Select then), and while the transport has moved onto it.
+    var isBottomTrailingControlSelected: Bool {
+        guard isBottomTrailingControlVisible else { return false }
+        switch mode {
+        case .hidden: return true
+        case .transport: return transportFocus == .bottomTrailing
+        case .scrubbing, .panel: return false
+        }
+    }
 
     @ObservationIgnored weak var viewModel: PlayerViewModel?
     @ObservationIgnored var onDismissPlayer: (() -> Void)?
@@ -167,12 +188,19 @@ final class PlayerTVHUDController {
     /// The live pan began on the action row, so it moves the selection along
     /// the row and never scrubs. Decided once per touch at `panBegan`.
     @ObservationIgnored private var isActionRowSwipeActive = false
-    /// Pan translation the row selection has already stepped past.
-    @ObservationIgnored private var actionRowSwipeAnchorX: CGFloat = 0
+    /// The row selection already moved during this touch, from the pan or
+    /// from the system's own arrow press. One touch moves it at most once;
+    /// further buttons come from further arrows, as on any focus-engine row.
     @ObservationIgnored private var didStepActionRowThisSwipe = false
     /// The last row step and where it came from. A flick can report as both a
     /// pan and an arrow press, in either order; the second report is dropped.
     @ObservationIgnored private var lastActionRowStep: (forward: Bool, fromSwipe: Bool, at: Date)?
+    /// The action the selection left when it moved up onto the chip / poster,
+    /// so Down returns to it.
+    @ObservationIgnored private var actionIndexBelowBottomTrailing: Int?
+    /// When the last scrub swipe lifted. The arrow press tvOS reports for the
+    /// same flick must not step the cursor a whole interval on top of it.
+    @ObservationIgnored private var lastScrubPanEndedAt = Date.distantPast
     /// Cumulative pan translation already folded into `scrubTarget`.
     @ObservationIgnored private var scrubLastTranslationX: CGFloat = 0
     /// Signed same-direction travel this scrub has built up; see `updateScrub`.
@@ -219,6 +247,8 @@ final class PlayerTVHUDController {
         isPanActive = false
         isActionRowSwipeActive = false
         lastActionRowStep = nil
+        actionIndexBelowBottomTrailing = nil
+        lastScrubPanEndedAt = .distantPast
         viewModel = nil
         onDismissPlayer = nil
         onActivateBottomTrailingControl = nil
@@ -340,7 +370,9 @@ final class PlayerTVHUDController {
         }
         switch input {
         case .panBegan:
-            if mode == .transport, case .action = normalizedTransportFocus {
+            // Only the bar scrubs. A swipe that starts on the row or on the
+            // chip / poster above it is navigation, never a seek.
+            if mode == .transport, normalizedTransportFocus != .bar {
                 beginActionRowSwipe()
             } else {
                 beginScrub()
@@ -354,6 +386,9 @@ final class PlayerTVHUDController {
             }
             return
         case .panEnded:
+            if isPanActive, !isActionRowSwipeActive {
+                lastScrubPanEndedAt = Date()
+            }
             isPanActive = false
             isActionRowSwipeActive = false
             return
@@ -362,10 +397,14 @@ final class PlayerTVHUDController {
         }
 
         // While a finger is down on the touch surface tvOS also synthesizes
-        // arrow presses. The pan owns the gesture; the arrows would otherwise
-        // fire a ±interval seek on top of the scrub.
+        // arrow presses. During a scrub the pan owns the gesture; the arrows
+        // would otherwise fire a ±interval seek on top of it. On the action
+        // row the system's left/right arrows are the native navigation and
+        // stay live; the pan only fills in when no arrow comes.
         if isPanActive {
             switch input {
+            case .arrowDown(.left), .arrowDown(.right), .arrowUp(.left), .arrowUp(.right):
+                guard isActionRowSwipeActive else { return }
             case .arrowDown(_), .arrowUp(_):
                 return
             default:
@@ -447,12 +486,27 @@ final class PlayerTVHUDController {
                 togglePlayPause()
             case let .action(index):
                 activateAction(at: index)
+            case .bottomTrailing:
+                activateBottomTrailingControl()
             }
         case .playPause:
             togglePlayPause()
         case .arrowDown(.up):
-            if focus == .bar, !actions.isEmpty {
-                withTransportAnimation { transportFocus = .action(0) }
+            switch focus {
+            case .bar:
+                if !actions.isEmpty {
+                    withTransportAnimation { transportFocus = .action(0) }
+                } else if isBottomTrailingControlVisible {
+                    actionIndexBelowBottomTrailing = nil
+                    withTransportAnimation { transportFocus = .bottomTrailing }
+                }
+            case let .action(index):
+                if isBottomTrailingControlVisible {
+                    actionIndexBelowBottomTrailing = index
+                    withTransportAnimation { transportFocus = .bottomTrailing }
+                }
+            case .bottomTrailing:
+                break
             }
             noteInteraction()
         case .arrowDown(.down):
@@ -462,22 +516,28 @@ final class PlayerTVHUDController {
             case .action:
                 withTransportAnimation { transportFocus = .bar }
                 noteInteraction()
+            case .bottomTrailing:
+                withTransportAnimation { transportFocus = rowFallbackFocus }
+                noteInteraction()
             }
-        case .arrowDown(.left):
-            if case .action = focus {
-                if claimActionRowStep(forward: false, fromSwipe: false) {
-                    stepActionRow(forward: false)
+        case .arrowDown(.left), .arrowDown(.right):
+            let forward = input == .arrowDown(.right)
+            switch focus {
+            case .bar:
+                beginSeekHold(direction: forward ? 1 : -1)
+            case .action:
+                if isActionRowSwipeActive {
+                    // The system's arrow for this touch: it moves the row, the
+                    // pan does not add a second step.
+                    didStepActionRowThisSwipe = true
                 }
-            } else {
-                beginSeekHold(direction: -1)
-            }
-        case .arrowDown(.right):
-            if case .action = focus {
-                if claimActionRowStep(forward: true, fromSwipe: false) {
-                    stepActionRow(forward: true)
+                if claimActionRowStep(forward: forward, fromSwipe: false) {
+                    stepActionRow(forward: forward)
                 }
-            } else {
-                beginSeekHold(direction: 1)
+            case .bottomTrailing:
+                // Nothing beside the chip / poster, and it is not the bar:
+                // left/right must not seek from here.
+                noteInteraction()
             }
         case .arrowUp(.left), .arrowUp(.right):
             // Unconditional: a hold that started on the bar must be able to end
@@ -492,8 +552,22 @@ final class PlayerTVHUDController {
     /// `transportFocus` clamped to what the action row currently holds. An
     /// `.action` selection with an empty row collapses back to the bar.
     private var normalizedTransportFocus: PlayerTVTransportFocus {
-        guard case let .action(index) = transportFocus else { return .bar }
+        switch transportFocus {
+        case .bar:
+            return .bar
+        case .bottomTrailing:
+            return isBottomTrailingControlVisible ? .bottomTrailing : rowFallbackFocus
+        case let .action(index):
+            guard !actions.isEmpty else { return .bar }
+            return .action(min(max(index, 0), actions.count - 1))
+        }
+    }
+
+    /// Where the selection lands when it leaves the chip / poster: the action
+    /// it came up from (the trailing one if it came from the bar), else the bar.
+    private var rowFallbackFocus: PlayerTVTransportFocus {
         guard !actions.isEmpty else { return .bar }
+        let index = actionIndexBelowBottomTrailing ?? actions.count - 1
         return .action(min(max(index, 0), actions.count - 1))
     }
 
@@ -504,12 +578,20 @@ final class PlayerTVHUDController {
         case .menu, .arrowDown(.up):
             cancelScrub()
         case .arrowDown(.left):
+            guard !isEchoOfScrubSwipe else { return }
             stepScrub(by: -backwardSeekInterval)
         case .arrowDown(.right):
+            guard !isEchoOfScrubSwipe else { return }
             stepScrub(by: forwardSeekInterval)
         default:
             break
         }
+    }
+
+    /// tvOS can report the flick that just scrubbed as an arrow press too,
+    /// right after the pan ends. That press is the same gesture, not a click.
+    private var isEchoOfScrubSwipe: Bool {
+        Date().timeIntervalSince(lastScrubPanEndedAt) < PlayerTVHUDLayout.flickEchoWindow
     }
 
     /// A click on the touch surface arrives as a Select press and, a beat
@@ -532,35 +614,26 @@ final class PlayerTVHUDController {
     private func beginActionRowSwipe() {
         isPanActive = true
         isActionRowSwipeActive = true
-        actionRowSwipeAnchorX = 0
         didStepActionRowThisSwipe = false
         noteInteraction()
     }
 
-    /// One step per `actionRowSwipeStep` of travel, measured from the last
-    /// step, so travel past a row end is not owed back before a reversal moves.
+    /// The fallback for touches the system reports without an arrow press
+    /// (the 1st-gen remote, an unhurried drag): one step once the touch has
+    /// travelled `actionRowSwipeFirstStep`, at most one per touch. Moving
+    /// further is the system's arrows' job; a pan-driven multi-step on top of
+    /// them made one flick move two buttons or none.
     /// A swipe stays a row swipe to the end: if the HUD hid or the row emptied
     /// under the finger, the rest of the touch does nothing rather than scrub.
     private func updateActionRowSwipe(translationX: CGFloat) {
-        guard mode == .transport, case .action = normalizedTransportFocus else { return }
+        guard mode == .transport, case .action = normalizedTransportFocus,
+              !didStepActionRowThisSwipe,
+              abs(translationX) >= PlayerTVHUDLayout.actionRowSwipeFirstStep else { return }
 
-        while true {
-            let travel = translationX - actionRowSwipeAnchorX
-            let threshold = didStepActionRowThisSwipe
-                ? PlayerTVHUDLayout.actionRowSwipeStep
-                : PlayerTVHUDLayout.actionRowSwipeFirstStep
-            guard abs(travel) >= threshold else { return }
-
-            let forward = travel > 0
-            actionRowSwipeAnchorX += forward ? threshold : -threshold
-            let isFirstStep = !didStepActionRowThisSwipe
-            didStepActionRowThisSwipe = true
-
-            // Only the first step of a touch can be the echo of an arrow.
-            if !isFirstStep || claimActionRowStep(forward: forward, fromSwipe: true) {
-                stepActionRow(forward: forward)
-                lastActionRowStep = (forward, true, Date())
-            }
+        didStepActionRowThisSwipe = true
+        let forward = translationX > 0
+        if claimActionRowStep(forward: forward, fromSwipe: true) {
+            stepActionRow(forward: forward)
         }
     }
 
@@ -580,7 +653,7 @@ final class PlayerTVHUDController {
         if let last = lastActionRowStep,
            last.forward == forward,
            last.fromSwipe != fromSwipe,
-           now.timeIntervalSince(last.at) < PlayerTVHUDLayout.actionRowEchoWindow {
+           now.timeIntervalSince(last.at) < PlayerTVHUDLayout.flickEchoWindow {
             lastActionRowStep = nil
             return false
         }
