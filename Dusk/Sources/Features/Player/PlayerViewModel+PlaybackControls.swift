@@ -677,7 +677,13 @@ extension PlayerViewModel {
                 if Task.isCancelled { return }
 
                 let now = Date()
-                if self.state == .paused {
+                // Only count down while the picture is moving: resuming inside
+                // an intro arms the chip during loading, and it used to run out
+                // behind the spinner before the first frame. `isBuffering` alone
+                // is not trusted (libvlc reports buffering all through network
+                // playback); the spinner's progress guard decides.
+                if self.state != .playing
+                    || (self.isBuffering && !self.isPlaybackMakingProgress(now: now)) {
                     clock.freeze(at: now)
                 } else {
                     clock.resume(at: now)
