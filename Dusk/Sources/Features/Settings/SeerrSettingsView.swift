@@ -104,9 +104,9 @@ struct SeerrSettingsView: View {
                 TVSettingsSection(title: "Server") {
                     TVSettingsURLFieldRow(
                         prompt: "Server URL",
-                        placeholder: SeerrServerURL.placeholder,
                         text: $viewModel.serverURL,
-                        isDisabled: seerrService.isConnected || viewModel.isWorking
+                        isDisabled: seerrService.isConnected || viewModel.isWorking,
+                        alertMessage: "Enter the address you use for Seerr, for example \(SeerrServerURL.placeholder)."
                     )
 
                     tvRowDivider

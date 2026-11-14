@@ -380,7 +380,6 @@ struct TVSettingsExternalLinkRow: View {
 
 struct TVSettingsURLFieldRow: View {
     let prompt: String
-    var placeholder: String?
     @Binding var text: String
     let isDisabled: Bool
     var alertTitle = "Seerr Server URL"
@@ -419,10 +418,12 @@ struct TVSettingsURLFieldRow: View {
         .tvSettingsRowFocusHighlight(isFocused)
         .disabled(isDisabled)
         .alert(alertTitle, isPresented: $showsEditor) {
+            // The field's prompt heads the full-screen tvOS keyboard, so it
+            // names the field ("Name", "M3U URL"), never an example value.
             if isSecure {
-                SecureField(placeholder ?? prompt, text: $draft)
+                SecureField(prompt, text: $draft, prompt: Text(prompt))
             } else {
-                TextField(placeholder ?? prompt, text: $draft)
+                TextField(prompt, text: $draft, prompt: Text(prompt))
                     .textContentType(isURL ? .URL : nil)
                     .autocorrectionDisabled()
             }

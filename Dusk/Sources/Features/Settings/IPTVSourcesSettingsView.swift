@@ -246,7 +246,6 @@ struct IPTVSourceEditorView: View {
                 ) {
                     TVSettingsURLFieldRow(
                         prompt: "Name",
-                        placeholder: "My IPTV",
                         text: $name,
                         isDisabled: false,
                         alertTitle: "Name",
@@ -256,16 +255,14 @@ struct IPTVSourceEditorView: View {
                     tvRowDivider
                     TVSettingsURLFieldRow(
                         prompt: "M3U URL",
-                        placeholder: "https://example.com/playlist.m3u",
                         text: $playlistURL,
                         isDisabled: false,
                         alertTitle: "M3U URL",
-                        alertMessage: "The address of the channel playlist."
+                        alertMessage: "The address of the channel playlist, for example https://example.com/playlist.m3u."
                     )
                     tvRowDivider
                     TVSettingsURLFieldRow(
                         prompt: "XMLTV URL",
-                        placeholder: "Optional",
                         text: $guideURL,
                         isDisabled: false,
                         alertTitle: "XMLTV URL",
@@ -276,7 +273,6 @@ struct IPTVSourceEditorView: View {
                 TVSettingsSection(title: "Request Header", footer: Self.headerFooter) {
                     TVSettingsURLFieldRow(
                         prompt: "Header Name",
-                        placeholder: IPTVSource.defaultHeaderName,
                         text: $headerName,
                         isDisabled: false,
                         alertTitle: "Header Name",
@@ -286,7 +282,6 @@ struct IPTVSourceEditorView: View {
                     tvRowDivider
                     TVSettingsURLFieldRow(
                         prompt: "Value",
-                        placeholder: "Bearer …",
                         text: $headerValue,
                         isDisabled: false,
                         alertTitle: "Header Value",
