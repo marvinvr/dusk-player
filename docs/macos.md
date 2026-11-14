@@ -1,8 +1,10 @@
 # macOS App
 
 Native Mac version of Dusk: SwiftUI on AppKit (target `Dusk-macOS`), **not**
-Catalyst and not "Designed for iPad". Branch `macos-app`. Same bundle ID as
-iOS/tvOS (`com.dusk-player.app`) so Universal Purchase can be switched on later.
+Catalyst and not "Designed for iPad". On `main` since 1.9 (merged from
+`macos-app`). Same bundle ID as iOS/tvOS (`com.dusk-player.app`): one app in
+App Store Connect, Universal Purchase. Never commit another bundle ID; local
+test installs override it on the command line only (see Local test install).
 
 ## Architecture
 
@@ -54,11 +56,15 @@ iOS/tvOS (`com.dusk-player.app`) so Universal Purchase can be switched on later.
 - **DuskDovi.** `scripts/build_dusk_dovi_xcframework.sh` adds a universal
   `macos-arm64_x86_64` slice (`aarch64-apple-darwin` + `x86_64-apple-darwin`,
   lipo'd).
-- **Signing.** Ad-hoc (`CODE_SIGN_IDENTITY = -`), App Sandbox with network
-  client + server (DV7 loopback proxy) and user-selected read-only files. No
-  team, no upload. Hardened runtime is **off** on purpose: with no Team ID its
-  library validation refuses the embedded VLCKit. Switch it on together with
-  Developer ID / App Store signing.
+- **Signing.** The project builds ad-hoc (`CODE_SIGN_IDENTITY = -`, no team)
+  with App Sandbox, network client + server (DV7 loopback proxy) and
+  user-selected read-only files (`Dusk/Support/Dusk-macOS.entitlements`).
+  Hardened runtime is off in the project on purpose: with no Team ID its
+  library validation refuses the embedded VLCKit. `scripts/testflight.sh`
+  turns it on for the Mac App Store archive (`ENABLE_HARDENED_RUNTIME = YES`
+  in its signing xcconfig), where Apple Distribution signs the app and VLCKit
+  with the same Team ID; no hardened-runtime exception entitlements are
+  needed. See Mac App Store / TestFlight below.
 
 ## Build
 
@@ -80,6 +86,51 @@ ditto /tmp/dusk-mac-rel/Build/Products/Release/Dusk.app build/macOS/Dusk.app
 
 Universal (arm64 + x86_64), ~140 MB (VLCKit is most of it), ad-hoc signed.
 `build/` is git-ignored.
+
+### Local test install
+
+A side-by-side test copy that doesn't share the App Store app's container or
+Keychain item (the Mac Keychain service is the bundle ID): override the ID and
+name on the command line only, never in `project.yml`.
+
+```bash
+xcodebuild -project Dusk.xcodeproj -scheme Dusk-macOS -configuration Release \
+  -destination 'generic/platform=macOS' -derivedDataPath /tmp/dusk-mac-dev \
+  PRODUCT_BUNDLE_IDENTIFIER=com.dusk-player.app.macdev build
+ditto /tmp/dusk-mac-dev/Build/Products/Release/Dusk.app "/tmp/Dusk Mac Beta.app"
+/usr/libexec/PlistBuddy -c 'Set :CFBundleDisplayName Dusk Mac Beta' "/tmp/Dusk Mac Beta.app/Contents/Info.plist"
+codesign --force --sign - --entitlements Dusk/Support/Dusk-macOS.entitlements "/tmp/Dusk Mac Beta.app"
+```
+
+## Mac App Store / TestFlight
+
+`scripts/testflight.sh` has a `macos` platform (scheme `Dusk-macOS`), part of
+the default `all`; `--platform macos` runs it alone. Same flow, result lines
+and exit codes as iOS/tvOS (docs/development-workflow.md → TestFlight); a
+`--dry-run` ends in `pkg=<path>` instead of `ipa=`. It needs, on the build Mac:
+
+- Mac App Store provisioning profile for `com.dusk-player.app`, platform OSX,
+  App Store Connect type `MAC_APP_STORE` (currently **Dusk Mac App Store
+  (Molty)**), installed as a `.provisionprofile` in
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles`. Mac App Store
+  profiles carry no `beta-reports-active`; a Developer ID profile is told apart
+  by its type. Sandbox keys (`com.apple.security.*`) aren't provisioned and
+  aren't checked against the profile.
+- **Apple Distribution** identity (signs the app and frameworks) and
+  **3rd Party Mac Developer Installer** (= Mac Installer Distribution, signs
+  the `.pkg`), both for the team, in `SIGNING_KEYCHAIN` (or the default search
+  list). A missing profile or identity fails the platform with code 3 naming it.
+- Dusk's own macOS VLCKit in the checkout's `Frameworks/VLCKit.xcframework`
+  (stamp `3.7.3-dusk3`). Stock VideoLAN VLCKit fails the platform with code 8
+  (no TrueHD), unless `DUSK_MACOS_ALLOW_STOCK_VLCKIT=1`. Until the archive is
+  on the private release, install it from a local copy:
+  `DUSK_VLCKIT_CACHE_DIR=<dir with VLCKit-3.7.3-dusk3.tar.xz> ci_scripts/install_vlckit.sh`
+  (the dev Mac keeps a copy in `~/Library/Caches/dusk-vlckit`).
+
+Checked 2026-11-14 with a dry run: archive signed Apple Distribution with the
+hardened runtime, sandbox entitlements as above, `.pkg` signed by the
+installer identity, and `altool --validate-app -t macos` passed. No build was
+uploaded.
 
 ## Where things are
 
@@ -152,19 +203,17 @@ Player
 Release
 - [x] iOS + tvOS still build
 - [x] Release `.app` bundle
+- [x] `scripts/testflight.sh` `macos` platform (Mac App Store signing, hardened runtime); dry run + App Store validation passed
 - [x] Docs: what's done / missing / known issues (this file)
 
 ## Status
 
-Everything above is **code-complete and compile-verified only**. Nothing has
-been run yet (no GUI launches on the dev Mac), so every item still needs a
-first real run.
+Code-complete. Three visual QA rounds ran the app against a mock Plex (see
+Visual QA below); real-server use, real playback quality and the first
+TestFlight build are still ahead.
 
 ## Known gaps / issues
 
-- **Never launched.** Window sizing, sidebar look, toolbar hiding under the
-  player, Settings window size, bare-key menu shortcuts vs. text fields, the
-  hero layout and the hover effects are all unverified.
 - **Playback unverified on a real file**: AVPlayer `NSView` host, the VLCKit
   `NSView` drawable, PiP on macOS (AVPlayer only; VLC PiP needs the iOS
   sample-buffer path), HDR/DV output on an EDR display, DV7 loopback proxy
@@ -184,12 +233,13 @@ first real run.
   orientation, Always Play in Landscape, VLC PiP, AVAudioSession handling,
   the launch splash, the tab shells/More, Top Shelf.
 - **No macOS unit-test target** yet (DuskTests is iOS/tvOS-hosted).
-- **Hardened runtime off** for ad-hoc builds (see Signing).
+- **Hardened runtime off** for ad-hoc builds (see Signing); on only in the
+  testflight.sh archive, which has not been launched yet.
 - Ad-hoc signing changes the code identity on every build, so the login
   keychain may ask again for the Plex token item after a rebuild.
 - Trackpad swipe on the Home hero doesn't page (chevrons + pager do).
-- Universal Purchase, Mac App Store/TestFlight, Sparkle/notarization: not
-  started (decisions for the owner).
+- Offline: with no reachable server the shell opens Downloads (as iOS since
+  #77) but the sidebar keeps its library destinations.
 
 ## Visual QA (2026-11-13)
 
@@ -209,20 +259,18 @@ Mac-designer agents per round.
   Collections switch, filters popover, Downloads list, tabbed Settings window,
   About panel, rebuilt player HUD (traffic lights, glass bar, upward NSMenus,
   merged Audio & Subtitles, More, AirPlay, scrub hover), system accent on Mac.
-- Shared bug found (fixed on Mac only): AVFoundation's synthesized "forced"
-  subtitle copies consumed the next Plex stream in
-  `mergeSubtitleMetadata`, so AVPlayer subtitle labels were shifted
-  (forced English shown as "French"). **iOS still has it** — port the
-  `forcedTwinSource` fix from `PlayerViewModel+TrackSelection.swift`.
+- Shared bug found: AVFoundation's synthesized "forced" subtitle copies
+  consumed the next Plex stream in `mergeSubtitleMetadata`, so AVPlayer
+  subtitle labels were shifted (forced English shown as "French"). Fixed for
+  all platforms on main (bbc3685, `forcedTwinSource`).
 - Round 3 (~30 findings, no P1 visual bugs left) fixed and committed:
   light-mode hero fades (Home + detail), episode heroes use show/season art,
   balanced Information grid, Mac-only Settings copy, shelf paging metrics
   (shelves beside the sidebar rest at a -210pt inset), toolbar menu sizing,
   Live TV ruler/cell fills, VLC video view no longer makes clicks window
   drags (`mouseDownCanMoveWindow`), scrub hover marker.
-- Shared bugs seen on Mac, **not fixed on iOS** (shared code left alone):
-  the forced-subtitle label shift above, and the Live TV guide now-pill /
-  ruler offset (`LiveTVGuideGridView`, leading alignment guide).
+- Shared Live TV guide bug: the now pill's leading alignment guide shifted the
+  whole ruler right of the grid. Fixed for all platforms on main (f0e5e3e).
 - Still open / unverified (final verification pass blocked: the screen was
   locked):
   - Round-3 fixes A1/A7 (toolbar menu re-measure, library title), filters

@@ -56,8 +56,8 @@ that owns the behavior you are changing.
   offline playback, and delayed watch-state sync.
 - `development-workflow.md`: setup, project generation, verification, git, and doc
   maintenance workflow.
-- `macos.md`: the native Mac app (branch `macos-app` only) — target, shell,
-  player, VLCKit/DuskDovi slices, signing, status and known gaps.
+- `macos.md`: the native Mac app — target, shell,
+  player, VLCKit/DuskDovi slices, signing + Mac App Store upload, status and known gaps.
 
 ## Depth And Style
 

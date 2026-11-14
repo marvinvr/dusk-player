@@ -219,17 +219,18 @@ Builds a commit, signs it for the App Store and uploads it to TestFlight, then w
 App Store Connect has processed it. Replaces Xcode Cloud. Also the mmux process **TestFlight** (`mmux start TestFlight`).
 
 ```bash
-scripts/testflight.sh [ref] [--platform ios|tvos|all] [--dry-run] [--no-wait]
+scripts/testflight.sh [ref] [--platform ios|tvos|macos|all] [--dry-run] [--no-wait]
 ```
 
 - `ref`: commit or ref, default `origin/main` (fetched first). The build comes from `git archive`
   of that commit, so local changes never end up in it.
-- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`) or `all` (default). With `all` both
+- `--platform`: `ios` (scheme `Dusk`), `tvos` (scheme `Dusk-tvOS`), `macos` (scheme `Dusk-macOS`,
+  Mac App Store `.pkg`, see docs/macos.md) or `all` (default). With `all` the
   platforms run in parallel, each with its own DerivedData, so their uploads and App Store Connect
   processing waits overlap (~10 min → ~5 min; the archives themselves don't compete for the CPU).
-  Progress lines are prefixed `[testflight ios]` / `[testflight tvos]`, details in each platform's
+  Progress lines are prefixed `[testflight ios]` / `[testflight tvos]` / `[testflight macos]`, details in each platform's
   `archive.log` / `export.log` in the work dir. One failing platform doesn't stop the other.
-- `--dry-run`: archive, sign and export the `.ipa` locally, no upload. `--no-wait`: upload only.
+- `--dry-run`: archive, sign and export the `.ipa` (macOS: `.pkg`) locally, no upload. `--no-wait`: upload only.
 - Before building it copies the checkout's `Frameworks/*.xcframework` into the build copy and runs
   `ci_scripts/ci_post_clone.sh` (verifies VLCKit or downloads the pinned version, rebuilds
   DuskDovi only if its sources changed, installs the Metal toolchain).
@@ -243,12 +244,12 @@ One result line per platform at the end, OKs first; the last line (and so the ex
 | --- | --- |
 | 0 | OK (VALID, or EXPORTED with `--dry-run`) |
 | 2 | Usage |
-| 3 | Signing: no valid App Store profile for a bundle id (e.g. a new extension), profile expired or INVALID in App Store Connect (capabilities changed), entitlement or app group missing from the profile |
+| 3 | Signing: no valid App Store profile for a bundle id (e.g. a new extension), profile expired or INVALID in App Store Connect (capabilities changed), entitlement or app group missing from the profile, macOS signing or installer identity missing |
 | 4 | Archive (compile) failed, see `archive.log` |
 | 5 | Export / upload failed, see `export.log` |
 | 6 | Processing ended INVALID (App Store Connect mails the details) |
 | 7 | Processing not finished after 45 min (the build may still turn VALID) |
-| 8 | Source: unknown ref, `xcodegen`, build settings |
+| 8 | Source: unknown ref, `xcodegen`, build settings, stock (not Dusk) macOS VLCKit |
 | 9 | Another build of this repo is running |
 | 10 | Credentials missing |
 | 1 | Unexpected error |
@@ -269,6 +270,12 @@ with that distribution certificate. Both tvOS profiles must include the App Grou
 `group.com.dusk-player.app`. The script picks the newest matching one, checks it is
 ACTIVE in App Store Connect and covers the target's entitlements, and signs manually with it
 (the project itself keeps automatic signing).
+
+macOS needs a Mac App Store profile (`.provisionprofile`, type `MAC_APP_STORE`) for
+`com.dusk-player.app`, plus the **Apple Distribution** and **3rd Party Mac Developer Installer**
+identities in the signing keychain, and Dusk's own macOS VLCKit in the checkout. Details,
+including the hardened runtime and the code 3 / code 8 failures, in docs/macos.md → Mac App
+Store / TestFlight.
 
 ## Verification Commands
 

@@ -6,17 +6,18 @@
 #   ref         commit or ref to build (default: origin/main, fetched first). Built from
 #               `git archive`, so uncommitted changes never end up in a build.
 #   --platform  one of the platforms in SCHEMES below, or `all` (default: all, built in parallel)
-#   --dry-run   archive, sign and export the .ipa locally, no upload
+#   --dry-run   archive, sign and export the .ipa (macOS: .pkg) locally, no upload
 #   --no-wait   upload, but don't wait for App Store Connect processing
 #
 # Platforms run in parallel, each in its own DerivedData, so their App Store Connect processing
 # waits overlap. Progress lines are prefixed `[testflight <platform>]`; the result lines come at
 # the end, one per platform, OKs first, so the last line of output is always one of:
 #   TESTFLIGHT OK platform=<p> build=<n> state=VALID id=<build id> commit=<sha> [external=<beta review state|error>]
+#   TESTFLIGHT OK platform=<p> build=dry-run state=EXPORTED ipa=<path> commit=<sha>   (macos: pkg=<path>)
 #   TESTFLIGHT FAIL platform=<p> code=<n> reason=<text> log=<dir>
 # Exit codes: 0 ok · 1 unexpected · 2 usage · 3 signing (profile missing / expired / invalid,
 # capability mismatch) · 4 archive (compile) · 5 export/upload · 6 processing INVALID ·
-# 7 processing timeout · 8 source (ref, xcodegen, prepare) · 9 already running · 10 credentials.
+# 7 processing timeout · 8 source (ref, xcodegen, prepare, stock macOS VLCKit) · 9 already running · 10 credentials.
 # A failing platform does not stop the others; the exit code is the one of the last line.
 #
 # Nothing secret or machine specific lives here. Credentials come from the environment or
@@ -29,11 +30,15 @@
 # (the newest matching one in ~/Library/Developer/Xcode/UserData/Provisioning Profiles or
 # ~/Library/MobileDevice/Provisioning Profiles). Apple assigns the build number; versions in
 # the repo are never touched.
+# macOS additionally needs a Mac App Store profile (.provisionprofile, App Store Connect type
+# MAC_APP_STORE), the "Apple Distribution" identity and a "3rd Party Mac Developer Installer"
+# (Mac Installer Distribution) identity for the .pkg; it is archived with the hardened runtime
+# on. A missing one fails that platform with code 3 naming the asset.
 set -uo pipefail
 
 # --- per-repo config ---------------------------------------------------------------------
 PROJECT_SUBDIR=""          # directory with project.yml / the .xcodeproj, relative to the repo root
-SCHEMES="ios:Dusk tvos:Dusk-tvOS"  # space separated <platform>:<scheme>, platform ios or tvos
+SCHEMES="ios:Dusk tvos:Dusk-tvOS macos:Dusk-macOS"  # space separated <platform>:<scheme>, platform ios, tvos or macos
 EXTERNAL_GROUPS="External" # optional comma separated external TestFlight groups: a VALID build is added to them and
                            # submitted for Beta App Review (internal groups with "all builds" get it automatically)
                            # (external=PENDING_OTHER_BUILD_IN_REVIEW: an older build of the same version is still in
@@ -55,7 +60,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;; --no-wait) WAIT=0 ;;
     --platform) WANT="${2:-}"; shift ;; --platform=*) WANT="${1#*=}" ;;
-    -h|--help) sed -n '2,31p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
     -*) echo "TESTFLIGHT FAIL platform=- code=2 reason=unknown option $1 log=-"; exit 2 ;;
     *) REF="$1" ;;
   esac
@@ -122,7 +127,9 @@ xcodebuild -project "$XCPROJ" -alltargets -configuration Release \
 cat >"$WORK/tf.py" <<'PY'
 import base64, fnmatch, glob, json, os, plistlib, re, subprocess, sys, time, urllib.parse, urllib.request
 
-PLATFORMS = {"ios": ("iOS", "IOS", "iphoneos"), "tvos": ("tvOS", "TV_OS", "appletvos")}  # profile Platform, ASC platform, SDK
+PLATFORMS = {"ios": ("iOS", "IOS", "iphoneos"), "tvos": ("tvOS", "TV_OS", "appletvos"),
+             "macos": ("OSX", "MAC_OS", "macosx")}  # profile Platform, ASC platform, SDK
+MAC_INSTALLER = ("3rd Party Mac Developer Installer", "Mac Installer Distribution")  # same certificate, old and new name
 
 def b64(b): return base64.urlsafe_b64encode(b).rstrip(b"=").decode()
 
@@ -192,7 +199,8 @@ def expand(s, env):
 def profiles():
     found = []
     for d in ("~/Library/Developer/Xcode/UserData/Provisioning Profiles", "~/Library/MobileDevice/Provisioning Profiles"):
-        for f in glob.glob(os.path.join(os.path.expanduser(d), "*.mobileprovision")):
+        for f in glob.glob(os.path.join(os.path.expanduser(d), "*.mobileprovision")) + \
+                 glob.glob(os.path.join(os.path.expanduser(d), "*.provisionprofile")):  # macOS profiles
             p = subprocess.run(["security", "cms", "-D", "-i", f], capture_output=True)
             try: found.append(plistlib.loads(p.stdout))
             except Exception: pass
@@ -206,24 +214,36 @@ def plan(settings_json, out_dir, platform):
     if not targets: out(8, "no app targets in scheme")
     team = targets[0][1].get("DEVELOPMENT_TEAM") or os.environ.get("ASC_TEAM_ID", "")
     if not team: out(3, "no team: set DEVELOPMENT_TEAM in the project or ASC_TEAM_ID")
-    profs = [p for p in profiles() if p.get("Entitlements", {}).get("beta-reports-active") and not p.get("ProvisionedDevices")
+    mac = platform == "macos"
+    if mac: check_mac_identities(team)
+    # Mac App Store profiles carry no beta-reports-active; a Developer ID profile (also device-less)
+    # is told apart by its App Store Connect profile type below.
+    profs = [p for p in profiles() if (mac or p.get("Entitlements", {}).get("beta-reports-active")) and not p.get("ProvisionedDevices")
              and not p.get("ProvisionsAllDevices") and team in p.get("TeamIdentifier", []) and pplat in p.get("Platform", [])]
     lines, mapping, app_bundle = [], {}, None
     for name, s in targets:
         bundle = s["PRODUCT_BUNDLE_IDENTIFIER"]
         if s.get("WRAPPER_EXTENSION") == "app": app_bundle = bundle
-        cand = [p for p in profs if p["Entitlements"].get("application-identifier") == f"{team}.{bundle}"
+        cand = [p for p in profs if (p["Entitlements"].get("application-identifier")
+                                     or p["Entitlements"].get("com.apple.application-identifier")) == f"{team}.{bundle}"
                 and p["ExpirationDate"].timestamp() > time.time() + 3600]
-        if not cand: out(3, f"profile missing for {bundle} ({pplat}): no valid App Store provisioning profile installed")
-        p = max(cand, key=lambda x: x["CreationDate"])
-        d = api("/v1/profiles?filter[name]=" + urllib.parse.quote(p["Name"]) + "&fields[profiles]=profileState,uuid")["data"]
-        st = next((x["attributes"]["profileState"] for x in d if x["attributes"]["uuid"] == p["UUID"]), None)
+        kind = "Mac App Store" if mac else "App Store"
+        if not cand: out(3, f"profile missing for {bundle} ({pplat}): no valid {kind} provisioning profile installed")
+        p, st = None, None
+        for c in sorted(cand, key=lambda x: x["CreationDate"], reverse=True):
+            d = api("/v1/profiles?filter[name]=" + urllib.parse.quote(c["Name"]) + "&fields[profiles]=profileState,profileType,uuid")["data"]
+            hit = next((x["attributes"] for x in d if x["attributes"]["uuid"] == c["UUID"]), None)
+            if mac and hit and hit.get("profileType") != "MAC_APP_STORE": continue  # Developer ID / development
+            p, st = c, hit and hit["profileState"]
+            break
+        if not p: out(3, f"profile missing for {bundle} ({pplat}): no Mac App Store provisioning profile installed (only other types)")
         if st != "ACTIVE": out(3, f"profile '{p['Name']}' for {bundle} is {st or 'unknown to App Store Connect'} (capabilities changed? regenerate it)")
         ent_path = expand(s.get("CODE_SIGN_ENTITLEMENTS", ""), s)
         if ent_path:
             full = ent_path if os.path.isabs(ent_path) else os.path.join(s.get("PROJECT_DIR", "."), ent_path)
             want, have = plistlib.load(open(full, "rb")), p["Entitlements"]
-            miss = [k for k in want if k not in have]
+            # App Sandbox and hardened-runtime keys are not provisioned (never in a profile); app groups are checked below.
+            miss = [k for k in want if k not in have and not (mac and k.startswith("com.apple.security."))]
             if miss: out(3, f"capability mismatch for {bundle}: profile '{p['Name']}' lacks {', '.join(miss)}")
             for key in ("com.apple.security.application-groups", "com.apple.developer.associated-domains"):
                 vals = [expand(v, s) for v in want.get(key, []) if isinstance(v, str)]
@@ -233,15 +253,30 @@ def plan(settings_json, out_dir, platform):
         mapping[bundle] = p["Name"]
     lines += ["CODE_SIGN_STYLE = Manual", "CODE_SIGN_IDENTITY = Apple Distribution", f"DEVELOPMENT_TEAM = {team}",
               "PROVISIONING_PROFILE_SPECIFIER = $(TF_PROFILE_$(PRODUCT_BUNDLE_IDENTIFIER:c99extidentifier))"]
+    if mac: lines.append("ENABLE_HARDENED_RUNTIME = YES")  # local ad-hoc builds keep it off (no Team ID for library validation)
     open(os.path.join(out_dir, "signing.xcconfig"), "w").write("\n".join(lines) + "\n")
-    plistlib.dump({"method": "app-store-connect", "destination": "upload", "teamID": team, "signingStyle": "manual",
-                   "signingCertificate": "Apple Distribution", "provisioningProfiles": mapping, "uploadSymbols": True,
-                   "manageAppVersionAndBuildNumber": True}, open(os.path.join(out_dir, "ExportOptions.plist"), "wb"))
+    export = {"method": "app-store-connect", "destination": "upload", "teamID": team, "signingStyle": "manual",
+              "signingCertificate": "Apple Distribution", "provisioningProfiles": mapping, "uploadSymbols": True,
+              "manageAppVersionAndBuildNumber": True}
+    if mac: export["installerSigningCertificate"] = MAC_INSTALLER[0]
+    plistlib.dump(export, open(os.path.join(out_dir, "ExportOptions.plist"), "wb"))
     apps = api("/v1/apps?filter[bundleId]=" + urllib.parse.quote(app_bundle) + "&fields[apps]=bundleId")["data"]
     app_id = next((a["id"] for a in apps if a["attributes"]["bundleId"] == app_bundle), None)
     if not app_id: out(3, f"no App Store Connect app for {app_bundle}")
     open(os.path.join(out_dir, "app_id"), "w").write(app_id)
     print(f"{pplat}: {len(mapping)} bundle(s) with active App Store profiles: " + ", ".join(f"{b} ({n})" for b, n in mapping.items()))
+
+def identities(policy):
+    cmd = ["security", "find-identity", "-v", "-p", policy]
+    kc = os.environ.get("SIGNING_KEYCHAIN", "")
+    if kc: cmd.append(os.path.expanduser(kc))
+    return subprocess.run(cmd, capture_output=True, text=True).stdout
+
+def check_mac_identities(team):
+    if not re.search(rf'"Apple Distribution: [^"]*\({team}\)"', identities("codesigning")):
+        out(3, f"signing identity missing: Apple Distribution certificate for team {team} not in the keychain")
+    if not re.search(rf'"(?:{"|".join(MAC_INSTALLER)}): [^"]*\({team}\)"', identities("basic")):
+        out(3, f"installer identity missing: 3rd Party Mac Developer Installer (Mac Installer Distribution) certificate for team {team} not in the keychain")
 
 def latest(app_id, platform):
     d = api(f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]={PLATFORMS[platform][1]}"
@@ -269,8 +304,21 @@ fi
 
 build_one() {  # <platform> <scheme>, run as a background job with RESULT set
   PLAT=$1; local scheme=$2 dir="$WORK/$1" dest
-  case "$PLAT" in ios) dest='generic/platform=iOS' ;; tvos) dest='generic/platform=tvOS' ;; *) fail 2 "unknown platform $PLAT" ;; esac
+  case "$PLAT" in
+    ios) dest='generic/platform=iOS' ;; tvos) dest='generic/platform=tvOS' ;; macos) dest='generic/platform=macOS' ;;
+    *) fail 2 "unknown platform $PLAT" ;;
+  esac
   mkdir -p "$dir"
+
+  if [ "$PLAT" = macos ]; then
+    # Like iOS/tvOS (DUSK_VLCKIT_REQUIRE_DUSK in PREPARE), the Mac ships Dusk's own VLCKit (TrueHD). It
+    # is checked here, not in PREPARE, so a stock fallback fails only this platform. Install it in the
+    # checkout first: DUSK_VLCKIT_CACHE_DIR=<dir with VLCKit-<version>.tar.xz> ci_scripts/install_vlckit.sh
+    local vlc; vlc=$(/usr/libexec/PlistBuddy -c "Print :DuskVLCKitBuild" \
+      Frameworks/VLCKit.xcframework/macos-arm64_x86_64/VLCKit.framework/Resources/Info.plist 2>/dev/null)
+    [ -n "$vlc" ] || [ "${DUSK_MACOS_ALLOW_STOCK_VLCKIT:-0}" = 1 ] ||
+      fail 8 "macOS VLCKit is VideoLAN's stock build, not Dusk's (no TrueHD); install Dusk's (see docs/macos.md) or set DUSK_MACOS_ALLOW_STOCK_VLCKIT=1"
+  fi
 
   say "checking signing ..."
   local msg rc
@@ -294,7 +342,9 @@ build_one() {  # <platform> <scheme>, run as a background job with RESULT set
     local e; e=$(errors "$dir/export.log"); is_signing "$e" && fail 3 "export signing failed: $e"; fail 5 "export/upload failed: $e"; }
 
   if [ $DRY -eq 1 ]; then
-    ok "build=dry-run state=EXPORTED ipa=$(ls "$dir"/export/*.ipa 2>/dev/null | head -1) commit=${SHA:0:7}"; return
+    if [ "$PLAT" = macos ]; then ok "build=dry-run state=EXPORTED pkg=$(ls "$dir"/export/*.pkg 2>/dev/null | head -1) commit=${SHA:0:7}"
+    else ok "build=dry-run state=EXPORTED ipa=$(ls "$dir"/export/*.ipa 2>/dev/null | head -1) commit=${SHA:0:7}"; fi
+    return
   fi
   if [ $WAIT -eq 0 ]; then ok "build=? state=UPLOADED id=? commit=${SHA:0:7}"; return; fi
 
