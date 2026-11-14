@@ -90,22 +90,9 @@ struct PlayerLoadingView: View {
             }
             .padding(40)
         }
-        #if !os(tvOS)
+        #if os(macOS)
         .overlay(alignment: .topTrailing) {
             HStack(spacing: 12) {
-                #if os(iOS)
-                PlayerAirPlayControl(
-                    isActive: playback.isAirPlayPlaybackActive,
-                    symbolFont: .body.weight(.semibold)
-                )
-                .frame(width: 36, height: 36)
-                .background(.ultraThinMaterial, in: Circle())
-                .overlay {
-                    Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
-                        .allowsHitTesting(false)
-                }
-                #endif
-
                 if let onCancel {
                     Button(action: onCancel) {
                         Image(systemName: "xmark")
@@ -118,14 +105,46 @@ struct PlayerLoadingView: View {
                             }
                     }
                     .accessibilityLabel("Cancel")
-                    #if os(macOS)
                     .buttonStyle(.plain)
                     .help("Cancel")
-                    #endif
                 }
             }
             .padding(.top, 12)
             .padding(.trailing, 16)
+        }
+        #elseif os(iOS)
+        .overlay(alignment: .topTrailing) {
+            PlayerAirPlayControl(
+                isActive: playback.isAirPlayPlaybackActive,
+                symbolFont: .body.weight(.semibold)
+            )
+            .frame(width: 36, height: 36)
+            .background(.ultraThinMaterial, in: Circle())
+            .overlay {
+                Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                    .allowsHitTesting(false)
+            }
+            .padding(.top, 12)
+            .padding(.trailing, 16)
+        }
+        // Close sits top-leading like the playing HUD's, so it doesn't jump
+        // corners when playback starts.
+        .overlay(alignment: .topLeading) {
+            if let onCancel {
+                Button(action: onCancel) {
+                    Image(systemName: "xmark")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 36, height: 36)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .overlay {
+                            Circle().strokeBorder(.white.opacity(0.14), lineWidth: 1)
+                        }
+                }
+                .accessibilityLabel("Cancel")
+                .padding(.top, 12)
+                .padding(.leading, 16)
+            }
         }
         #endif
     }
