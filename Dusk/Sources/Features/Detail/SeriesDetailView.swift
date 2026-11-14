@@ -4,7 +4,8 @@ import SwiftUI
 /// The tvOS show page. tvOS has no separate show, season, or episode screens:
 /// every one of those routes opens this page, which browses one season at a time
 /// (picked with the season pills above the episode row) under a banner that
-/// follows the focused episode. Selecting an episode card plays it.
+/// keeps the season's artwork while its text follows the focused episode.
+/// Selecting an episode card plays it.
 struct SeriesDetailView: View {
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
@@ -235,15 +236,10 @@ struct SeriesDetailView: View {
         let focusedEpisode = focusedEpisode(in: season)
 
         DetailHeroSection(
-            backdropURL: season.backdropURL(
+            backdropURL: season.seriesBackdropURL(
                 width: Int(containerWidth.rounded(.up)),
                 height: Int(heroHeight.rounded(.up)),
-                focusedEpisode: focusedEpisode,
-                focusedEpisodeDetails: focusedEpisodeDetails(in: season)
-            ),
-            blursBackdrop: season.backdropIsUnwatchedEpisodeStill(
-                focusedEpisode: focusedEpisode,
-                focusedEpisodeDetails: focusedEpisodeDetails(in: season)
+                show: viewModel.show?.details
             ),
             // The show's clear-logo is the hero title; the show name is only the
             // text fallback when Plex has no logo, kept to one line so the banner

@@ -192,6 +192,20 @@ final class SeasonDetailViewModel {
         #endif
     }
 
+    #if os(tvOS)
+    /// Episode focus only changes the banner's text; its artwork belongs to
+    /// the season, falling back to the show's background and then its poster.
+    func seriesBackdropURL(width: Int, height: Int, show: PlexMediaDetails?) -> URL? {
+        let path = details?.art?.nilIfEmpty
+            ?? show?.art?.nilIfEmpty
+            ?? show?.thumb?.nilIfEmpty
+            ?? details?.parentThumb?.nilIfEmpty
+            ?? details?.thumb?.nilIfEmpty
+        return downloadManager?.localArtworkURL(for: path)
+            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+    }
+    #endif
+
     func backdropURL(
         width: Int,
         height: Int,

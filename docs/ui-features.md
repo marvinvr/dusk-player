@@ -1072,10 +1072,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   progress bars are neutral. Each episode card shows the title with a
   "Season X · Episode N" subtitle plus a quiet watched checkmark
   (`PosterCardText`); the
-  hero's clear-logo title, focused-episode name/metadata/summary, backdrop, and the
+  hero's clear-logo title, focused-episode name/metadata/summary, and the
   "Episode Cast" row follow the focused card inside stable-height regions, with the
   focus commit debounced so rapid remote navigation does not shift the scroll
-  position. Selecting a card, or the hero Play/Resume, plays the focused episode;
+  position. The top backdrop stays on the season's `art`, falling back to the
+  show's `art`, then its poster (`thumb` / season `parentThumb`), then the season
+  poster. Empty paths count as missing. Episode focus and watched state never
+  change or blur that backdrop; each episode keeps its own still in the row.
+  This artwork policy is tvOS-only; iOS/iPadOS and macOS keep their existing heroes.
+  Selecting a card, or the hero Play/Resume, plays the focused episode;
   the eye button toggles the season on screen. The row is only scrolled
   programmatically when the season changes — never on focus or next-up changes —
   with one exception: when the player cover closes on a later episode than it
