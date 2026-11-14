@@ -16,6 +16,7 @@ struct SettingsIOSView: View {
     @Environment(\.openURL) private var openURL
     @State private var presentedAccountURL: URL?
     @State private var confirmsDeletingDownloads = false
+    @State private var confirmsSigningOut = false
     @State private var showsSupporterSheet = false
     @State private var showsIconPicker = false
     let viewModel: SettingsViewModel
@@ -272,9 +273,19 @@ struct SettingsIOSView: View {
                 .duskSuppressTVOSButtonChrome()
 
                 Button("Sign Out", role: .destructive) {
-                    plexService.signOut()
+                    confirmsSigningOut = true
                 }
                 .duskSuppressTVOSButtonChrome()
+                .confirmationDialog(
+                    "Sign out of Plex?",
+                    isPresented: $confirmsSigningOut,
+                    titleVisibility: .visible
+                ) {
+                    Button("Sign Out", role: .destructive) {
+                        plexService.signOut()
+                    }
+                    Button("Cancel", role: .cancel) {}
+                }
             }
             .listRowBackground(Color.duskSurface)
         }
