@@ -19,18 +19,21 @@ extension PlaybackCoordinator {
     }
 
     func playUpNextNow() {
+        noteUserInteraction()
         Task { @MainActor in
             await startUpNextPlayback(trigger: .manual)
         }
     }
 
     func playUpNextPosterNow() {
+        noteUserInteraction()
         Task { @MainActor in
             await startUpNextPosterPlayback(trigger: .manual)
         }
     }
 
     func cancelUpNextAutoplay() {
+        noteUserInteraction()
         guard var upNextPresentation else { return }
         cancelUpNextCountdown()
         upNextPresentation.shouldAutoplay = false
@@ -213,6 +216,7 @@ extension PlaybackCoordinator {
     /// still offer the poster, but only as a manual one — Dusk does not restart
     /// a countdown the viewer already cancelled.
     func dismissUpNextPoster(userInitiated: Bool = false) {
+        if userInitiated { noteUserInteraction() }
         if userInitiated, let creditsMarkerID = upNextPoster?.creditsMarkerID {
             noteAutoSkipSpent(markerID: creditsMarkerID)
         }
@@ -498,6 +502,7 @@ extension PlaybackCoordinator {
     /// on the target's artwork, resume offset, server fallback), which also
     /// restarts the Pause After count from this episode.
     func playAdjacentEpisode(_ direction: AdjacentEpisodeDirection, isPastCredits: Bool) {
+        noteUserInteraction()
         guard canStepEpisodes,
               let neighbour = adjacentEpisodes?.neighbour(direction) else { return }
 

@@ -152,6 +152,28 @@ struct PlaybackNowPlayingTests {
         #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo != nil)
     }
 
+    @Test func systemCommandsReportActivityButEngineSnapshotsDoNot() throws {
+        let playback = PlaybackCoordinator(plexService: PlexService())
+        let controller = playback.nowPlayingController
+        let engine = NowPlayingEngine()
+        defer { controller.endSession() }
+        try begin(controller, engine: engine)
+        for action: PlaybackNowPlayingController.RemoteAction in [
+            .pause, .play, .togglePlayPause, .seek(40), .skip(15), .skip(-15),
+            .beginSeeking(forward: true), .endSeeking
+        ] {
+            playback.continuousPlayEpisodeRunCount = 3
+            #expect(controller.handleRemoteAction(action) == .success)
+            #expect(playback.continuousPlayEpisodeRunCount == 0)
+        }
+        playback.continuousPlayEpisodeRunCount = 3
+        engine.pause()
+        sync(controller, engine: engine)
+        #expect(playback.continuousPlayEpisodeRunCount == 3)
+        #expect(controller.handleRemoteAction(.seek(.nan)) == .commandFailed)
+        #expect(playback.continuousPlayEpisodeRunCount == 3)
+    }
+
     private func begin(
         _ controller: PlaybackNowPlayingController,
         engine: NowPlayingEngine,

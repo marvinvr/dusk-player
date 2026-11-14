@@ -275,6 +275,7 @@ final class PlayerTVHUDController {
     }
 
     func openPanel(_ tab: PlayerTVPanelTab? = nil) {
+        viewModel?.userInteractionHandler?()
         guard !availablePanelTabs.isEmpty else { return }
 
         if let tab, availablePanelTabs.contains(tab) {
@@ -315,7 +316,7 @@ final class PlayerTVHUDController {
             }
             setControlsVisible(true)
             releaseControlsInteractionHold()
-            viewModel?.noteControlsInteraction()
+            viewModel?.scheduleHide()
         case .scrubbing, .panel:
             setControlsVisible(true)
             // Reuses the view model's existing interaction hold so the shared
@@ -347,6 +348,7 @@ final class PlayerTVHUDController {
     // MARK: - Input
 
     func handle(_ input: PlayerTVRemoteInput) {
+        viewModel?.userInteractionHandler?()
         // Pending previews take precedence over the resting mode's Back
         // action. Cancellation never seeks, pauses, or dismisses the player.
         if case .menu = input {

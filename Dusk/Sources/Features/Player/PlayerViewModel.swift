@@ -71,6 +71,9 @@ final class PlayerViewModel {
     @ObservationIgnored var suppressControlsReveal = false
     #endif
 
+    /// Explicit viewer input only; engine callbacks and automatic policy never report activity.
+    var userInteractionHandler: (@MainActor () -> Void)?
+
     let engine: any PlaybackEngine
     /// The engine's rendering view. Refreshed from `sync()` when the engine
     /// reports a new `playerViewGeneration` (VLCKit swaps its rendering

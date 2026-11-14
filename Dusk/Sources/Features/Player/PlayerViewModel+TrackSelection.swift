@@ -8,6 +8,7 @@ private let trackSelectionLogger = Logger(
 
 extension PlayerViewModel {
     func selectSubtitle(_ track: SubtitleTrack?) {
+        userInteractionHandler?()
         if track == nil || track?.plexStreamID != nil {
             userTrackSelectionHandler?(.subtitle, track?.plexStreamID)
         }
@@ -41,6 +42,7 @@ extension PlayerViewModel {
     /// (there is no per-session override), then asks the engine to apply it to
     /// the running session.
     func selectSubtitleFontSize(_ size: SubtitleFontSize) {
+        userInteractionHandler?()
         showSubtitleSizePicker = false
         guard subtitleFontSize != size else { return }
         subtitleFontSize = size
@@ -49,6 +51,7 @@ extension PlayerViewModel {
     }
 
     func selectAudio(_ track: AudioTrack) {
+        userInteractionHandler?()
         userSelectedAudioTrack = track
         if let streamID = track.plexStreamID {
             userTrackSelectionHandler?(.audio, streamID)

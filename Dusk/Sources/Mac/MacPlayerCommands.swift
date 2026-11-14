@@ -218,6 +218,7 @@ final class MacPlayerCommandTarget {
 
     func showInfo() {
         guard canShowInfo else { return }
+        viewModel?.userInteractionHandler?()
         viewModel?.showPlaybackInfo = true
     }
 
@@ -413,6 +414,7 @@ final class MacPlayerCommandTarget {
 
     func toggleFullScreen() {
         guard let window = window ?? NSApp.keyWindow else { return }
+        viewModel?.userInteractionHandler?()
         if !window.styleMask.contains(.fullScreen) {
             didEnterFullScreenForPlayer = true
         }

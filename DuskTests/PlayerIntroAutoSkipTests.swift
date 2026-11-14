@@ -117,11 +117,15 @@ struct PlayerIntroAutoSkipTests {
     @Test func countdownExpiryWithAutoSkipOnStillSkips() async throws {
         let harness = makeHarness(mode: .always, skipOnHandler: true)
         defer { harness.restore() }
+        let playback = PlaybackCoordinator(plexService: PlexService())
+        playback.continuousPlayEpisodeRunCount = 3
+        harness.viewModel.userInteractionHandler = { playback.noteUserInteraction() }
 
         try await waitForCountdown()
         harness.viewModel.sync()
 
         #expect(harness.handlerCalls() == 1)
+        #expect(playback.continuousPlayEpisodeRunCount == 3)
         #expect(harness.engine.seekTargets == [20.5])
         #expect(harness.viewModel.countdownDismissedMarkerID == nil)
         #expect(harness.viewModel.activeSkipMarker == nil)
@@ -283,7 +287,7 @@ struct PlayerIntroAutoSkipTests {
         viewModel.autoSkipHandler = { [weak viewModel] _ in
             handlerCalls += 1
             if skipOnHandler {
-                viewModel?.skipActiveMarker()
+                viewModel?.skipActiveMarker(userInitiated: false)
             }
         }
         // `activeSkipMarker` reads the view model's clock, which sync copies

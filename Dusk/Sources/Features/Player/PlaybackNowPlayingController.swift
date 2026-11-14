@@ -23,6 +23,8 @@ final class PlaybackNowPlayingController {
         case endSeeking
     }
 
+    var userInteractionHandler: (@MainActor () -> Void)?
+
     private weak var engine: (any PlaybackEngine)?
     private var nowPlayingInfo: [String: Any] = [:]
     private var commandTargets: [(command: MPRemoteCommand, target: Any)] = []
@@ -249,6 +251,7 @@ final class PlaybackNowPlayingController {
             remoteSeekTask = nil
             publishEngineSnapshot(force: true)
         }
+        userInteractionHandler?()
         return .success
     }
 }

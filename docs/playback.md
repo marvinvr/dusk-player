@@ -2542,7 +2542,15 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   `upNextPoster` at commit. A failed start restores the overlay with an error
   message instead of the generic "Couldn’t Play" alert.
 - Continuous play uses `continuousPlayEnabled`, `continuousPlayCountdown`, and
-  optional passout protection. The episode run count includes the current item.
+  optional passout protection. A fresh session counts the current item; any
+  explicit playback interaction resets the inactivity run count to **0** (#78):
+  transport, seeks/scrubs, marker/chapter/episode skips, HUD/panel/menu input,
+  and manual track changes. `PlayerViewModel.userInteractionHandler` forwards
+  iOS/tvOS/macOS input to `PlaybackCoordinator.noteUserInteraction`; system
+  Now Playing commands report through the same coordinator hook for both engines.
+  Automatic skips, track selection, engine/lifecycle callbacks and HUD
+  reconciliation never report activity. Volume is ignored. Thresholds and
+  running countdowns keep their existing behavior.
 - Previous / Next Episode (issue #8, for credits Plex detects late): iOS shows
   `backward.end` / `forward.end` circles beside Play, opt-in via
   `playerEpisodeButtonsEnabled` ("Episode Buttons", default off); tvOS always

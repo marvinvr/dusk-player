@@ -66,7 +66,7 @@ extension PlayerViewModel {
         // System transport, AirPlay and SharePlay can pause the engine without
         // going through the on-screen toggle. Reveal the HUD for those too.
         if state == .paused, previousState != .paused {
-            touchControls()
+            touchControls(userInitiated: false)
         }
 
         if !isScrubbing {
@@ -111,6 +111,7 @@ extension PlayerViewModel {
     }
 
     func togglePlayPause() {
+        userInteractionHandler?()
         if isSpeedBoostActive {
             endSpeedBoost()
         }
@@ -143,6 +144,7 @@ extension PlayerViewModel {
             return false
         }
 
+        userInteractionHandler?()
         engine.setPlaybackRate(2)
         withAnimation(.easeInOut(duration: 0.15)) {
             isSpeedBoostActive = true
@@ -176,6 +178,7 @@ extension PlayerViewModel {
         guard liveTVContext == nil else { return }
         guard playbackRate != rate else { return }
 
+        userInteractionHandler?()
         playbackRate = rate
         guard !isSpeedBoostActive else { return }
         engine.setPlaybackRate(rate)
@@ -238,7 +241,8 @@ extension PlayerViewModel {
         handleSeekJump(by: offset)
     }
 
-    func skipActiveMarker() {
+    func skipActiveMarker(userInitiated: Bool = true) {
+        if userInitiated { userInteractionHandler?() }
         guard let marker = activeSkipMarker else { return }
         cancelAutoSkipCountdown()
         // Skipped once, by Dusk or by the viewer: this marker's auto-skip is
@@ -251,23 +255,25 @@ extension PlayerViewModel {
             skipToEndHandler()
             return
         }
-        seek(to: targetTime, revealControls: true)
+        seek(to: targetTime, revealControls: true, userInitiated: userInitiated)
     }
 
     /// Handles a tap on a skip chip (Skip Intro, or Skip Credits where the Up
     /// Next poster does not cover them; see `activeSkipMarker`).
-    func handleSkipMarker(_ marker: PlexMarker) {
+    func handleSkipMarker(_ marker: PlexMarker, userInitiated: Bool = true) {
         cancelAutoSkipCountdown()
-        skipActiveMarker()
+        skipActiveMarker(userInitiated: userInitiated)
     }
 
     func beginScrub() {
+        userInteractionHandler?()
         isScrubbing = true
         scrubPosition = currentTime
         cancelScheduledHide()
     }
 
     func updateScrub(to position: TimeInterval) {
+        userInteractionHandler?()
         scrubPosition = clampedSeekPosition(position)
     }
 
@@ -276,6 +282,7 @@ extension PlayerViewModel {
     }
 
     func commitScrub(shouldPlay: Bool) {
+        userInteractionHandler?()
         let targetPosition = scrubPosition
         // Final position the user deliberately chose — seek frame-accurately.
         engine.seek(to: targetPosition, precise: true)
@@ -294,6 +301,7 @@ extension PlayerViewModel {
     }
 
     func toggleControls() {
+        userInteractionHandler?()
         let shouldShowControls = !showControls
         if shouldShowControls {
             resetControlsInteractionHold()
@@ -311,7 +319,8 @@ extension PlayerViewModel {
         }
     }
 
-    func touchControls() {
+    func touchControls(userInitiated: Bool = true) {
+        if userInitiated { userInteractionHandler?() }
         #if os(tvOS)
         // Skip Intro can run without revealing the tvOS HUD.
         if suppressControlsReveal {
@@ -335,6 +344,7 @@ extension PlayerViewModel {
     }
 
     func noteControlsInteraction() {
+        userInteractionHandler?()
         guard showControls else { return }
         scheduleHide()
     }
@@ -346,11 +356,13 @@ extension PlayerViewModel {
     /// `noteControlsInteraction()` and never reveals the HUD on its own, so a
     /// spurious menu lifecycle callback can't strand the controls on screen.
     func noteSettingsMenuInteraction() {
+        userInteractionHandler?()
         guard showControls else { return }
         scheduleControlsAutoHide(resetDeadline: true, delay: Self.settingsControlsAutoHideDelay)
     }
 
     func beginControlsInteractionHold() {
+        userInteractionHandler?()
         guard showControls else { return }
         controlsInteractionHoldCount += 1
         isControlsInteractionHeld = true
@@ -373,13 +385,14 @@ extension PlayerViewModel {
     /// `precise` defaults to frame-accurate for deliberate targets (marker
     /// skips, tvOS preview commits); `seek(by:)` opts transient double-tap and
     /// remote skip jumps into the engine's fast keyframe-tolerant path.
-    func seek(to position: TimeInterval, revealControls: Bool, precise: Bool = true) {
+    func seek(to position: TimeInterval, revealControls: Bool, precise: Bool = true, userInitiated: Bool = true) {
+        if userInitiated { userInteractionHandler?() }
         let clampedPosition = clampedSeekPosition(position)
 
         engine.seek(to: clampedPosition, precise: precise)
 
         if revealControls {
-            touchControls()
+            touchControls(userInitiated: userInitiated)
         } else if showControls {
             scheduleHide()
         }
@@ -748,7 +761,7 @@ extension PlayerViewModel {
         if let handler = autoSkipHandler {
             handler(currentMarker)
         } else {
-            skipActiveMarker()
+            skipActiveMarker(userInitiated: false)
         }
     }
 

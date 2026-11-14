@@ -631,6 +631,10 @@ private struct MacPlayerSessionView: View {
         viewModel.updateVideoOrientation(isLandscape: true)
 
         playback.notePlayerUIDidAppear()
+        viewModel.userInteractionHandler = {
+            guard playback.playerPresentationID == presentationID else { return }
+            playback.noteUserInteraction()
+        }
         viewModel.externalSubtitleURLProvider = { stream in
             playback.externalSubtitleURL(for: stream)
         }
@@ -654,7 +658,7 @@ private struct MacPlayerSessionView: View {
             spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs
         )
         viewModel.autoSkipHandler = { marker in
-            viewModel.handleSkipMarker(marker)
+            viewModel.handleSkipMarker(marker, userInitiated: false)
         }
         viewModel.autoSkipSpentHandler = { markerID in
             playback.noteAutoSkipSpent(markerID: markerID)
@@ -696,6 +700,7 @@ private struct MacPlayerSessionView: View {
         if commandTarget.viewModel === viewModel {
             commandTarget.viewModel = nil
         }
+        viewModel.userInteractionHandler = nil
         viewModel.playbackSnapshotHandler = nil
         viewModel.upNextPosterHandler = nil
         viewModel.skipToEndHandler = nil

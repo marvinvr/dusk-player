@@ -765,6 +765,10 @@ private struct PlayerSessionView: View {
             // If we are re-presenting after the user tapped restore on the PiP
             // window, let the system finish animating the video back into place.
             playback.notePlayerUIDidAppear()
+            viewModel.userInteractionHandler = {
+                guard playback.playerPresentationID == presentationID else { return }
+                playback.noteUserInteraction()
+            }
             // Set before configuring: the first track sync already needs to be
             // able to resolve and mount the part's Plex sidecar subtitles.
             viewModel.externalSubtitleURLProvider = { stream in
@@ -790,7 +794,7 @@ private struct PlayerSessionView: View {
                 spentAutoSkipMarkerIDs: playback.spentAutoSkipMarkerIDs
             )
             viewModel.autoSkipHandler = { marker in
-                handleSkipMarker(marker)
+                viewModel.handleSkipMarker(marker, userInitiated: false)
             }
             viewModel.autoSkipSpentHandler = { markerID in
                 playback.noteAutoSkipSpent(markerID: markerID)
@@ -838,6 +842,7 @@ private struct PlayerSessionView: View {
             #endif
         }
         .onDisappear {
+            viewModel.userInteractionHandler = nil
             viewModel.playbackSnapshotHandler = nil
             viewModel.upNextPosterHandler = nil
             viewModel.skipToEndHandler = nil

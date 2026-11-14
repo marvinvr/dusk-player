@@ -256,6 +256,9 @@ final class PlaybackCoordinator {
         airPlayController.routeSelectionDidChange = { [weak self] selected in
             self?.airPlayRouteSelectionDidChange(selected)
         }
+        nowPlayingController.userInteractionHandler = { [weak self] in
+            self?.noteUserInteraction()
+        }
         sharePlayController.playbackCoordinator = self
         sharePlayController.startListening()
         queueItemLookup = { [plexService] item in
@@ -1024,6 +1027,12 @@ final class PlaybackCoordinator {
     /// Dismiss any loading error so the UI can return to normal.
     func clearError() {
         loadError = nil
+    }
+
+    /// Restart the inactivity streak at zero, independent of engine or platform.
+    /// Keep the configured threshold and all active countdowns unchanged.
+    func noteUserInteraction() {
+        continuousPlayEpisodeRunCount = 0
     }
 
     /// Every item of a queue session counts toward passout protection, not
