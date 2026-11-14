@@ -224,6 +224,7 @@ struct TVSettingsActionRow: View {
     let detail: String?
     let action: () -> Void
     @FocusState private var isFocused: Bool
+    @Environment(\.isEnabled) private var isEnabled
 
     init(
         title: String,
@@ -264,7 +265,8 @@ struct TVSettingsActionRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(DuskFont.rowTitle(ios: .headline))
-                    .foregroundStyle(tint)
+                    // A disabled row must not read like an active one.
+                    .foregroundStyle(isEnabled ? tint : Color.duskTextSecondary)
 
                 if let subtitle {
                     Text(subtitle)
