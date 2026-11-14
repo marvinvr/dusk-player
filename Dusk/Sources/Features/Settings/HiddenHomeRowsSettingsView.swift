@@ -13,7 +13,7 @@ struct HiddenHomeRowsSettingsView: View {
     @State private var viewModel: HiddenHomeRowsSettingsViewModel?
 
     static let footerText = "Other Plex apps hide these rows too."
-    static let emptyText = "Rows can only be changed on servers you own."
+    static let emptyText = "Only rows from servers you own can be hidden here."
 
     var body: some View {
         content
