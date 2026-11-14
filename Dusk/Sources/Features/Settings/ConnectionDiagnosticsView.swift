@@ -113,6 +113,9 @@ struct ConnectionDiagnosticsView: View {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
                 TVSettingsSection(title: "Connections") {
                     TVSettingsActionRow(title: "Test Every Connection", isLoading: isTesting, action: testAll)
+                    Rectangle()
+                        .fill(Color.duskTextSecondary.opacity(0.16))
+                        .frame(height: 1)
                     TVSettingsActionRow(title: "Re-select Now", action: reselect)
                 }
 
@@ -122,27 +125,26 @@ struct ConnectionDiagnosticsView: View {
                     ) {
                         if let report = pool.reports[serverID] {
                             Text("\(report.trigger) · \(report.startedAt.formatted(date: .omitted, time: .standard)) · \(Self.milliseconds(report.duration))")
-                                .font(.caption)
+                                .font(DuskFont.TV.caption)
                                 .foregroundStyle(Color.duskTextSecondary)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(.vertical, 8)
                             ForEach(report.entries) { entry in
-                                DiagnosticsEntryRow(entry: entry)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.vertical, 8)
-                                    .focusable()
+                                TVFocusableDiagnosticsRow {
+                                    DiagnosticsEntryRow(entry: entry)
+                                }
                             }
                         } else {
-                            Text("No selection recorded yet this launch.")
-                                .foregroundStyle(Color.duskTextSecondary)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 16)
-                                .focusable()
+                            TVFocusableDiagnosticsRow {
+                                Text("No selection recorded yet this launch.")
+                                    .font(DuskFont.TV.rowValue)
+                                    .foregroundStyle(Color.duskTextSecondary)
+                            }
                         }
                     }
                 }
             }
-            .frame(maxWidth: 1200, alignment: .leading)
+            .frame(maxWidth: 980, alignment: .leading)
             .padding(.horizontal, 60)
             .padding(.top, 48)
             .padding(.bottom, 88)
@@ -169,6 +171,31 @@ struct ConnectionDiagnosticsView: View {
     }
 }
 
+#if os(tvOS)
+/// A read-only row that takes focus only so the page can scroll to it; it
+/// shows the Settings rows' focus band so focus never goes invisible.
+private struct TVFocusableDiagnosticsRow<Content: View>: View {
+    @ViewBuilder let content: Content
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
+            .focusable()
+            .focused($isFocused)
+            // The Settings rows' focus band.
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.duskTextPrimary.opacity(isFocused ? 0.20 : 0))
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, -TVSettingsMetrics.rowBandOutset)
+            }
+            .animation(.easeOut(duration: 0.18), value: isFocused)
+    }
+}
+#endif
+
 private struct DiagnosticsEntryRow: View {
     let entry: ConnectionReport.Entry
 
@@ -180,12 +207,12 @@ private struct DiagnosticsEntryRow: View {
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 3) {
                 Text(entry.url.absoluteString)
-                    .font(.footnote.monospaced())
+                    .font(DuskFont.metadata(ios: .footnote).monospaced())
                     .foregroundStyle(Color.duskTextPrimary)
                     .lineLimit(2)
                     .truncationMode(.middle)
                 Text("\(entry.locality.label) · \(entry.isSecure ? "https" : "http") · \(entry.source.label) · \(entry.outcome.summary)")
-                    .font(.caption)
+                    .font(DuskFont.caption(ios: .caption))
                     .foregroundStyle(Color.duskTextSecondary)
             }
         }
