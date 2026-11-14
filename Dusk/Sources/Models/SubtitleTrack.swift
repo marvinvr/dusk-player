@@ -26,11 +26,19 @@ struct SubtitleTrack: Sendable, Identifiable, Hashable {
 
 extension SubtitleTrack {
     /// Secondary line in the player's subtitle pickers.
+    /// Forced / SDH are named here: AVPlayer adds a forced-only copy of each
+    /// track with the same title, and the two rows looked identical.
     var pickerDetailTitle: String? {
-        guard isExternal else { return language }
-        let marker = requiresEngineSwitch ? "External · switches to VLC engine" : "External"
-        guard let language, !language.isEmpty else { return marker }
-        return "\(language) · \(marker)"
+        var parts: [String] = []
+        if let language, !language.isEmpty { parts.append(language) }
+        // Plex titles often say it already ("English Forced (SRT)").
+        let title = displayTitle.lowercased()
+        if isForced, !title.contains("forced") { parts.append("Forced") }
+        if isHearingImpaired, !title.contains("sdh"), !title.contains("hearing") { parts.append("SDH") }
+        if isExternal {
+            parts.append(requiresEngineSwitch ? "External · switches to VLC engine" : "External")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 }
 
