@@ -290,7 +290,8 @@ struct LiveTVGuideChannelCell: View {
             } else {
                 VStack(spacing: 3) {
                     logoTile
-                    if let number = channel.displayNumber {
+                    // Without a logo the tile already shows the number.
+                    if logoURL != nil, let number = channel.displayNumber {
                         Text(number)
                             .font(DuskFont.cardSubtitle(ios: .caption2.weight(.medium)).monospacedDigit())
                             .foregroundStyle(Color.duskTextSecondary)
