@@ -236,7 +236,7 @@ struct PlayerView: View {
         // `PlayerOverlayLayout.reservesStatusBarTopInset`.
         .ignoresSafeArea(.container, edges: PlayerOverlayLayout.ignoredStatusBarSafeAreaEdges)
         .alert(
-            "Couldn't Play",
+            "Couldn’t Play",
             isPresented: loadErrorPresented,
             presenting: playback.loadError
         ) { message in

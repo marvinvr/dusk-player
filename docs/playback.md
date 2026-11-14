@@ -55,7 +55,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    `currentPlaybackAttemptID` guard, so a dismissal or a newer Play supersedes a
    slow load instead of committing over it — a transcode session started for the
    superseded attempt is stopped. A pre-engine failure sets `loadError`, which
-   `PlayerView` surfaces as a "Couldn't Play" alert (only while no engine is
+   `PlayerView` surfaces as a "Couldn’t Play" alert (only while no engine is
    live) whose dismissal tears down the cover. A `.unauthorized` load error or
    in-session `PlaybackError.unauthorized` offers Sign In instead of OK/Close;
    that signs out and returns to `SignInView` instead of retrying with a dead
@@ -2537,7 +2537,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   while `isStarting`); the old, already-finalized engine stays until the new one
   commits, and `startPlaybackSession` clears both `upNextPresentation` and
   `upNextPoster` at commit. A failed start restores the overlay with an error
-  message instead of the generic "Couldn't Play" alert.
+  message instead of the generic "Couldn’t Play" alert.
 - Continuous play uses `continuousPlayEnabled`, `continuousPlayCountdown`, and
   optional passout protection. The episode run count includes the current item.
 - Previous / Next Episode (issue #8, for credits Plex detects late): iOS shows
