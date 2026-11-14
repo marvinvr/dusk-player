@@ -1210,19 +1210,19 @@ struct SupporterIconShowcase: View {
         }
         return store.hasIconAccess
             ? "Select an icon to apply it. \(exclusives)."
-            : "The subscription unlocks all ten icons, a tip from Generous up the six classic ones."
+            : "The subscription unlocks all ten icons. A Generous tip or bigger unlocks the six classic ones."
         #elseif os(macOS)
         if store.hasIconAccess {
             return "Apply them in Dusk on iPhone, iPad and Apple TV."
         }
-        return "The subscription unlocks all ten icons in Dusk on iPhone, iPad and Apple TV, a tip from Generous up the six classic ones."
+        return "The subscription unlocks all ten icons in Dusk on iPhone, iPad and Apple TV. A Generous tip or bigger unlocks the six classic ones."
         #else
         if store.hasActiveSubscription {
             return "Tap an icon to apply it."
         }
         return store.hasIconAccess
             ? "Tap an icon to apply it. \(exclusives)."
-            : "The subscription unlocks all ten icons, a tip from Generous up the six classic ones."
+            : "The subscription unlocks all ten icons. A Generous tip or bigger unlocks the six classic ones."
         #endif
     }
 
