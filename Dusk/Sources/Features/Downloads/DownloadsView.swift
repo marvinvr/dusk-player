@@ -322,34 +322,15 @@ struct DownloadsRootContent: View {
         return "Your device will stay awake while this queue is open and downloads are active."
     }
 
+    /// Same empty state as the Downloads page, centred.
     private var emptyQueueState: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "tray")
-                .font(.system(size: 38, weight: .semibold))
-                .foregroundStyle(Color.duskTextSecondary)
-                .frame(width: 72, height: 72)
-                .background(Color.duskSurface, in: Circle())
-                .overlay(
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.05), lineWidth: 1)
-                )
-
-            VStack(spacing: 6) {
-                Text("No Downloads Queued")
-                    .font(.headline.weight(.semibold))
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Text("Start downloading a movie, episode, or video and it will show up here with progress, pause, and retry controls.")
-                    .font(.subheadline)
-                    .foregroundStyle(Color.duskTextSecondary)
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-            }
-        }
-        .padding(.horizontal, 36)
-        .frame(maxWidth: 380)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .padding(.top, 96)
+        FeatureEmptyStateView(
+            systemImage: "tray",
+            title: "No Downloads Queued",
+            message: "Downloads you start appear here with progress, pause and retry."
+        )
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var queueSummaryText: String {
