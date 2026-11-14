@@ -208,6 +208,28 @@ struct ContentView: View {
                         .padding(.horizontal, 40)
                         .frame(maxWidth: 680)
 
+                    #if os(tvOS)
+                    // System buttons, so only the focused one lifts: the
+                    // hand-drawn white Retry capsule looked focused even while
+                    // focus sat on Sign Out.
+                    VStack(spacing: 12) {
+                        if AuthenticationFailure.requiresReauthentication(message: homeBootstrapError) {
+                            FeaturePrimaryButton(title: "Sign In") { signOut() }
+                        } else {
+                            FeaturePrimaryButton(title: "Retry") {
+                                Task { await bootstrapHomeIfNeeded(force: true) }
+                            }
+                            .disabled(isBootstrappingHome)
+
+                            Button("Sign Out", role: .destructive) {
+                                signOut()
+                            }
+                            .font(DuskFont.buttonLabel(ios: .headline))
+                            .buttonStyle(.glass)
+                            .buttonBorderShape(.capsule)
+                        }
+                    }
+                    #else
                     VStack(spacing: 12) {
                         if AuthenticationFailure.requiresReauthentication(message: homeBootstrapError) {
                             Button("Sign In") {
@@ -245,6 +267,7 @@ struct ContentView: View {
                             .duskTVOSFocusEffectShape(Capsule())
                         }
                     }
+                    #endif
                 } else {
                     ProgressView()
 
