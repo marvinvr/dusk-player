@@ -492,17 +492,21 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         let columnWidth = detailHeroRegularPrimaryWidth
 
         if leadsWithTextTitle, titleArtworkURL == nil {
-            HStack(alignment: .bottom, spacing: 36) {
+            // The synopsis starts level with the Play button, like the
+            // season/episode branch, so a short one stays near the title.
+            HStack(alignment: .heroDescriptionTop, spacing: 36) {
                 VStack(alignment: .leading, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
                         titleView(height: titleArtworkHeight, alignment: .leading)
                         subtitle
                     }
                     actions
+                        .alignmentGuide(.heroDescriptionTop) { $0[.top] }
                 }
                 .frame(width: columnWidth, alignment: .leading)
 
                 descriptionColumn
+                    .alignmentGuide(.heroDescriptionTop) { $0[.top] }
             }
         } else if titleArtworkURL != nil {
             // Show / Movie: the clear-logo is the title and leads the left column;
