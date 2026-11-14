@@ -112,11 +112,13 @@ struct AppIconPickerView: View {
                     }
                     .overlay(alignment: .bottomTrailing) {
                         if isLocked {
+                            // Same badge as the Supporter page: white on a
+                            // dark disc reads on light and dark artwork.
                             Image(systemName: "lock.fill")
                                 .font(.caption2.weight(.semibold))
-                                .foregroundStyle(Color.duskTextPrimary)
+                                .foregroundStyle(.white)
                                 .padding(7)
-                                .background(.ultraThinMaterial, in: Circle())
+                                .background(Color.black.opacity(0.55), in: Circle())
                                 .padding(4)
                         } else if isSelected {
                             Image(systemName: "checkmark.circle.fill")
