@@ -9,6 +9,7 @@ struct SettingsTVView: View {
     @Environment(SupporterStore.self) private var supporterStore
     let viewModel: SettingsViewModel
     @State private var showsSupporterSheet = false
+    @State private var confirmsSigningOut = false
 
     var body: some View {
         SettingsContainer(viewModel: viewModel) {
@@ -179,7 +180,17 @@ struct SettingsTVView: View {
                         tint: .red,
                         role: .destructive
                     ) {
-                        plexService.signOut()
+                        confirmsSigningOut = true
+                    }
+                    .confirmationDialog(
+                        "Sign out of Plex?",
+                        isPresented: $confirmsSigningOut,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Sign Out", role: .destructive) {
+                            plexService.signOut()
+                        }
+                        Button("Cancel", role: .cancel) {}
                     }
                 }
             }
