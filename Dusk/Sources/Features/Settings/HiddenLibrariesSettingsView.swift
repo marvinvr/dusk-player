@@ -11,7 +11,7 @@ struct HiddenLibrariesSettingsView: View {
     @Environment(PlexService.self) private var plexService
     @State private var viewModel: LibraryOrderSettingsViewModel?
 
-    static let footerText = "Hidden libraries are also hidden in other Plex apps."
+    static let footerText = "Switched-off libraries are hidden here and in other Plex apps."
 
     var body: some View {
         content
