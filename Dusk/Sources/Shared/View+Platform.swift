@@ -375,6 +375,7 @@ private final class DuskStatusBarAppearanceCaptureController: UIViewController {
 #if os(tvOS)
 private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
     @Environment(\.isFocused) private var isFocused
+    @Environment(\.colorScheme) private var colorScheme
 
     let shape: S
     let scales: Bool
@@ -386,30 +387,36 @@ private struct DuskTVFocusEffectModifier<S: Shape>: ViewModifier {
             .focusEffectDisabled()
             .hoverEffect(.highlight)
             .scaleEffect(scales && isFocused ? 1.05 : 1.0)
-            .shadow(
-                color: scales && isFocused ? Color.white.opacity(0.34) : .clear,
-                radius: scales && isFocused ? 16 : 0,
-                y: scales && isFocused ? 6 : 0
-            )
+            .duskTVFocusLiftShadow(scales && isFocused, colorScheme: colorScheme)
             .animation(.easeOut(duration: 0.18), value: isFocused)
     }
 }
 
 private struct DuskTVFocusedScaleModifier: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
     let isFocused: Bool
     var glow: Bool = true
 
     func body(content: Content) -> some View {
-        let glows = glow && isFocused
-
         content
             .scaleEffect(isFocused ? 1.05 : 1.0)
-            .shadow(
-                color: glows ? Color.white.opacity(0.34) : .clear,
-                radius: glows ? 16 : 0,
-                y: glows ? 6 : 0
-            )
+            .duskTVFocusLiftShadow(glow && isFocused, colorScheme: colorScheme)
             .animation(.easeOut(duration: 0.18), value: isFocused)
+    }
+}
+
+private extension View {
+    /// The focused lift: a white glow on dark pages, and in Light the dark
+    /// drop shadow tvOS gives lifted cards (a white glow can't show on a
+    /// light page, so focus was nearly invisible there).
+    func duskTVFocusLiftShadow(_ lifted: Bool, colorScheme: ColorScheme) -> some View {
+        let isLight = colorScheme == .light
+        return shadow(
+            color: lifted ? (isLight ? Color.black.opacity(0.24) : Color.white.opacity(0.34)) : .clear,
+            radius: lifted ? (isLight ? 20 : 16) : 0,
+            y: lifted ? (isLight ? 12 : 6) : 0
+        )
     }
 }
 #endif
