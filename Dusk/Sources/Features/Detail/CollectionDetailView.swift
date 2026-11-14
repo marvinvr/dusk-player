@@ -124,7 +124,8 @@ struct CollectionDetailView: View {
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
-            heroBaseHeight: heroBase
+            heroBaseHeight: heroBase,
+            leadsWithTextTitle: true
         ) {
             if let metadata = viewModel.metadataLine {
                 Text(metadata)
