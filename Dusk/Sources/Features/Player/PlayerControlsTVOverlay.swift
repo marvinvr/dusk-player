@@ -53,6 +53,9 @@ struct PlayerControlsTVOverlay: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         }
         .ignoresSafeArea()
+        // The HUD always sits on video under a dark scrim, so its text and
+        // platters must not follow a Light app appearance.
+        .environment(\.colorScheme, .dark)
         .animation(
             PlayerTVHUDLayout.animation(PlayerTVHUDLayout.panelTransition, reduceMotion: reduceMotion),
             value: controller.mode
