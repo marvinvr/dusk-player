@@ -199,7 +199,8 @@ struct PlayerTVInfoPanel: View {
                 subtitle: "Full playback diagnostics",
                 systemImage: "info.circle"
             ) {
-                onClose()
+                // The panel stays open under the cover, so Back from Playback
+                // Info returns to the Info tab instead of bare video.
                 viewModel.showPlaybackInfo = true
             }
         }
