@@ -387,6 +387,34 @@ struct MovieDetailView: View {
                     .font(DuskFont.metadata(ios: .subheadline).monospaced())
                     .foregroundStyle(Color.primary.opacity(0.76))
             }
+            #if os(tvOS)
+            .modifier(TVQuietFocusStop())
+            #endif
         }
     }
 }
+
+#if os(tvOS)
+/// The page's last block takes focus (Settings rows' band, no action) so Down
+/// can always scroll to it: without cast, extras or collection shelves the
+/// action row was the last focusable view and Media stayed off screen.
+private struct TVQuietFocusStop: ViewModifier {
+    @FocusState private var isFocused: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, 12)
+            .focusable()
+            .focused($isFocused)
+            // The Settings rows' focus band.
+            .background {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color.duskTextPrimary.opacity(isFocused ? 0.20 : 0))
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, -TVSettingsMetrics.rowBandOutset)
+            }
+            .animation(.easeOut(duration: 0.18), value: isFocused)
+    }
+}
+#endif
