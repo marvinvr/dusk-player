@@ -210,7 +210,9 @@ struct HomeUserPickerView: View {
                         }
                     }
                 }
-                .frame(maxWidth: 680)
+                // No wider than the cards need, so a short row stays centred
+                // instead of leaving empty grid columns on the right.
+                .frame(maxWidth: min(680, CGFloat(users.count) * 198 - 18))
 
                 selectionOptions
                     .frame(maxWidth: 680)
