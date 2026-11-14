@@ -59,6 +59,15 @@ struct SearchRootContent: View {
                     viewModel.query = query
                     viewModel.searchDebounced()
                     ScreenshotMode.presentSearchField($isSearchPresented)
+                    return
+                }
+                #endif
+                #if os(iOS)
+                // Opened from a magnifier button to type: start with the
+                // field active, once the push has settled.
+                Task { @MainActor in
+                    try? await Task.sleep(for: .milliseconds(450))
+                    isSearchPresented = true
                 }
                 #endif
             }
