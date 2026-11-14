@@ -59,9 +59,17 @@ struct PlayerTVInfoPanel: View {
                 focusedRow = Self.tabRowID(controller.panelTab)
             }
         }
-        .onChange(of: focusedRow) { _, newValue in
+        .onChange(of: focusedRow) { oldValue, newValue in
             guard let newValue, let tab = Self.tab(forRowID: newValue) else { return }
             guard controller.panelTab != tab else { return }
+            // Up from a full-width row lands on whichever tab is geometrically
+            // nearest (usually one in the middle). Coming up out of the rows
+            // must return to the tab whose rows they are; only Left/Right
+            // inside the strip switches tabs.
+            if let oldValue, Self.tab(forRowID: oldValue) == nil {
+                focusedRow = Self.tabRowID(controller.panelTab)
+                return
+            }
             controller.panelTab = tab
         }
     }
