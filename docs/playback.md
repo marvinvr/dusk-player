@@ -2271,9 +2271,18 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     the bar, Down from the bar → `panel`; Left/Right on the bar → seek, on the
     row → move the selection; Select on the bar → play/pause, on the row → run
     the action. Auto-hide is armed here only.
+    A Skip Intro chip or Up Next poster on screen is the stop above the row
+    (`PlayerTVTransportFocus.bottomTrailing`), as the focus engine would treat
+    a button sitting there: Up from the row (or from the bar when the row is
+    empty) selects it and draws it selected, Select runs it, Down returns to
+    the button it came from, Left/Right and swipes do nothing there (never a
+    seek). If it disappears while selected, the selection drops back onto the
+    row. Revealing the HUD still starts on the bar.
     The row is Skip Back / Skip Forward (advanced playback controls), Go Live
     (live, behind the edge), Subtitles, Audio, Info, Speed (advanced playback
-    controls), then Next Episode when there is one; a selected action may float a tooltip
+    controls), then Next Episode when there is one (left out while the Up Next
+    poster is up: same action, right above the row, and its tooltip would run
+    into the poster); a selected action may float a tooltip
     (`PlayerTVActionItem.tooltip`) above its button.
   - `scrubbing`: the swipe moves a preview target, Left/Right steps it; Select
     or Play/Pause commits a precise seek (resuming if the session was paused);
@@ -2297,18 +2306,23 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   drag therefore stays fine, one flick can't jump far, and repeated flicks still
   cross a film. A second swipe that starts before the first is committed
   continues from the cursor and keeps the ramp (`translation` restarts at zero
-  for every new gesture). The pan's
+  for every new gesture). An arrow press arriving within `flickEchoWindow`
+  after a scrub swipe lifts is that flick's echo and does not step the cursor
+  another interval. The pan's
   `ended/cancelled/failed` branch is deliberately outside the capture guard: the
   controller drops arrow presses until the pan it believes is live has ended, so
   a swipe interrupted by capture going away (an Up Next overlay, a surfaced
   error) would otherwise leave the remote dead.
 - A horizontal swipe scrubs only from the hidden state or with the bar selected.
-  One that begins with the action row selected moves the selection along the
-  row (`actionRowSwipeFirstStep`, then `actionRowSwipeStep` per button) and stays
-  a row swipe for the whole touch, even if the HUD hides under the finger. The
-  row is not in the focus engine, so this is the controller's job. One flick can
-  report as both pan and arrow, in either order; `actionRowEchoWindow` drops the
-  second report.
+  One that begins on the action row (or on the chip / poster above it) is
+  navigation and stays so for the whole touch, even if the HUD hides under the
+  finger. On the row the system's own left/right arrow presses are the
+  navigation and stay live during the touch; the pan is only a fallback for a
+  touch that brings no arrow (1st-gen remote, an unhurried drag) and moves at
+  most one button per touch after `actionRowSwipeFirstStep`. One flick can
+  report as both pan and arrow, in either order; `flickEchoWindow` drops the
+  second report. (A pan-driven multi-step per touch used to run on top of the
+  system arrows, so one flick could move two buttons or none.)
 - The action row and the title block fade out while scrubbing: the scrub
   thumbnail (`PlayerScrubPreviewPopup`, 240x135 on tvOS) is positioned above the
   bar row and would otherwise land on top of the title. Fading rather than

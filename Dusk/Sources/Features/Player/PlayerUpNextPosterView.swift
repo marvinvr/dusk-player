@@ -21,8 +21,8 @@ struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
     let plexService: PlexService
     let controlsVisible: Bool
-    /// tvOS only: the card is "selected" while the HUD is hidden, which is when
-    /// `PlayerTVHUDController` routes Select and Down to it. It is deliberately
+    /// tvOS only: the card is "selected" while `PlayerTVHUDController` routes
+    /// Select to it (HUD hidden, or moved onto with Up from the action row). It is deliberately
     /// not focusable — a focusable card here would take the remote away from
     /// the player's single input bridge. Ignored on iOS.
     var isSelected: Bool = false

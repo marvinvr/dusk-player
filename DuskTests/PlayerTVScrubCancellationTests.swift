@@ -136,7 +136,7 @@ struct PlayerTVScrubCancellationTests {
         #expect(engine.seeks == [165, 90])
     }
 
-    @Test func swipeOnActionRowMovesSelectionAndNeverScrubs() {
+    @Test func swipeOnActionRowMovesSelectionOncePerTouchAndNeverScrubs() {
         let engine = ScrubPlaybackEngine()
         let viewModel = PlayerViewModel(engine: engine)
         viewModel.sync()
@@ -152,15 +152,12 @@ struct PlayerTVScrubCancellationTests {
         hud.handle(.panBegan)
         hud.handle(.panChanged(translationX: PlayerTVHUDLayout.actionRowSwipeFirstStep, velocityX: 300))
         #expect(hud.transportFocus == .action(1))
-        // Two more steps of travel: one reaches the last button, one clamps.
-        let clamped = PlayerTVHUDLayout.actionRowSwipeFirstStep + 2 * PlayerTVHUDLayout.actionRowSwipeStep
-        hud.handle(.panChanged(translationX: clamped, velocityX: 300))
-        #expect(hud.transportFocus == .action(2))
+        // A long drag is still one step: further buttons are the system's
+        // arrow presses, not extra pan travel.
+        hud.handle(.panChanged(translationX: 2000, velocityX: 300))
+        #expect(hud.transportFocus == .action(1))
         #expect(hud.mode == .transport)
         #expect(hud.previewPosition == nil)
-        // Travel past the end is not owed back: one step in reverse moves.
-        hud.handle(.panChanged(translationX: clamped - PlayerTVHUDLayout.actionRowSwipeStep, velocityX: -300))
-        #expect(hud.transportFocus == .action(1))
         hud.handle(.panEnded)
         #expect(engine.seeks.isEmpty)
 
@@ -202,6 +199,98 @@ struct PlayerTVScrubCancellationTests {
         hud.handle(.panChanged(translationX: PlayerTVHUDLayout.actionRowSwipeFirstStep, velocityX: 3000))
         hud.handle(.panEnded)
         #expect(hud.transportFocus == .action(2))
+    }
+
+    @Test func systemArrowDuringARowSwipeIsTheStepAndThePanAddsNone() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.actions = [.panel(.subtitles), .panel(.audio), .panel(.info), .panel(.quality)]
+        hud.syncControlsVisibility(true)
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.arrowDown(.up))
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: 20, velocityX: 3000))
+        // The arrow tvOS reports mid-touch is not swallowed by the pan.
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        #expect(hud.transportFocus == .action(1))
+        hud.handle(.panChanged(translationX: 600, velocityX: 3000))
+        hud.handle(.panEnded)
+        #expect(hud.transportFocus == .action(1))
+        #expect(engine.seeks.isEmpty)
+    }
+
+    @Test func arrowEchoOfAScrubFlickDoesNotStepTheCursor() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: 100, velocityX: 300))
+        let target = hud.scrubTarget
+        hud.handle(.panEnded)
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        #expect(hud.mode == .scrubbing)
+        #expect(hud.scrubTarget == target)
+    }
+
+    @Test func upNextPosterIsTheStopAboveTheActionRow() {
+        let engine = ScrubPlaybackEngine()
+        let viewModel = PlayerViewModel(engine: engine)
+        viewModel.sync()
+        let hud = PlayerTVHUDController()
+        hud.viewModel = viewModel
+        hud.actions = [.panel(.subtitles), .panel(.audio), .panel(.info)]
+        hud.isBottomTrailingControlVisible = true
+        var activations = 0
+        hud.onActivateBottomTrailingControl = { activations += 1 }
+        defer { hud.cleanup(); viewModel.cleanup() }
+
+        // Hidden: the poster owns Select.
+        #expect(hud.isBottomTrailingControlSelected)
+        hud.syncControlsVisibility(true)
+        #expect(hud.transportFocus == .bar)
+        #expect(!hud.isBottomTrailingControlSelected)
+
+        hud.handle(.arrowDown(.up))
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        #expect(hud.transportFocus == .action(1))
+        hud.handle(.arrowDown(.up))
+        #expect(hud.transportFocus == .bottomTrailing)
+        #expect(hud.isBottomTrailingControlSelected)
+
+        // Left/right there neither seek nor move off it; a swipe never scrubs.
+        hud.handle(.arrowDown(.right))
+        hud.handle(.arrowUp(.right))
+        hud.handle(.panBegan)
+        hud.handle(.panChanged(translationX: 600, velocityX: 3000))
+        hud.handle(.panEnded)
+        #expect(hud.transportFocus == .bottomTrailing)
+        #expect(hud.previewPosition == nil)
+        #expect(hud.mode == .transport)
+
+        // Down returns to the button it came from.
+        hud.handle(.arrowDown(.down))
+        #expect(hud.transportFocus == .action(1))
+
+        hud.handle(.arrowDown(.up))
+        hud.handle(.select)
+        #expect(activations == 1)
+
+        // The poster going away moves the selection back onto the row.
+        hud.isBottomTrailingControlVisible = false
+        #expect(hud.transportFocus == .action(1))
+        #expect(!hud.isBottomTrailingControlSelected)
+        #expect(engine.seeks.isEmpty)
     }
 
     @Test func actionRowSwipeDoesNotTurnIntoAScrubWhenTheHUDHidesUnderIt() {
