@@ -122,6 +122,9 @@ struct SearchRootContent: View {
                     placement: .navigationBarDrawer(displayMode: .always),
                     prompt: searchPrompt
                 )
+                // iPad shows no Cancel for an active drawer search: keep Back
+                // and the tab bar on screen so the search is never a dead end.
+                .searchPresentationToolbarBehavior(.avoidHidingContent)
         } else {
             gridResults(vm)
                 .searchable(text: $vm.query, isPresented: $isSearchPresented, prompt: searchPrompt)
