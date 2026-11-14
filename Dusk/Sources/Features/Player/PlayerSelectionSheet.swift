@@ -43,9 +43,19 @@ struct PlayerSelectionSheet<Item: Identifiable, Footer: View>: View {
                 }
             }
         }
-        .presentationDetents([.medium])
+        // iPad form sheets at .medium are too short for the Audio sheet's
+        // offset row; start them full height there.
+        .presentationDetents(Self.detents)
         .presentationBackground(Color.duskBackground)
         .playerSheetHorizontalSystemBars()
+    }
+
+    private static var detents: Set<PresentationDetent> {
+        #if os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad ? [.large] : [.medium, .large]
+        #else
+        [.medium]
+        #endif
     }
 
     @ViewBuilder
