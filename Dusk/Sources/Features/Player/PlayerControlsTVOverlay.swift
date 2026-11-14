@@ -166,8 +166,11 @@ struct PlayerControlsTVOverlay: View {
         // Last, so it sits at the trailing end of the row. Only present while
         // there is a next episode to play (and no SharePlay group to leave
         // behind): a dimmed button would still be a stop on the row, and a
-        // disabled control should not take selection on tvOS.
-        if let nextEpisode = playback.adjacentEpisodes?.episode(.next),
+        // disabled control should not take selection on tvOS. Left out while
+        // the Up Next poster is up: the poster is the same action, one Up away
+        // right above the row, and the button's tooltip would run into it.
+        if playback.upNextPoster == nil,
+           let nextEpisode = playback.adjacentEpisodes?.episode(.next),
            playback.canStepEpisodes {
             items.append(.nextEpisode(
                 label: MediaTextFormatter.compactSeasonEpisodeLabel(
