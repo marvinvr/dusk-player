@@ -20,7 +20,7 @@ struct AppIconPickerView: View {
         if store.hasActiveSubscription {
             return "Included with your subscription. If it ends, Dusk switches back to the default icon."
         }
-        return "Alternate icons come with an active subscription or a tip from Generous up. Everything else in Dusk stays free."
+        return "Alternate icons come with an active subscription or a Generous tip or bigger. Everything else in Dusk stays free."
     }
 
     var body: some View {
