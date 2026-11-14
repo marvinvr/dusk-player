@@ -37,6 +37,34 @@ final class SeerrSeasonDetailViewModel {
             : "Request Season \(seasonNumber)"
     }
 
+    /// Episode count and air date, whatever TMDB knows. A season that is
+    /// announced but not yet listed has neither, and must not read
+    /// "0 episodes"; the request state is the hero's status pill.
+    var heroMetadata: String? {
+        var parts: [String] = []
+        if let count = season?.episodes?.count, count > 0 {
+            parts.append(count == 1 ? "1 episode" : "\(count) episodes")
+        }
+        if let airDate = Self.airDateText(season?.airDate) {
+            parts.append(airDate)
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    /// "Premieres 10 Feb 2027" for a date ahead, the plain date otherwise.
+    static func airDateText(_ value: String?) -> String? {
+        guard let value = value?.nilIfEmpty,
+              let text = MediaTextFormatter.localizedAirDate(value) else { return nil }
+        return value > Self.todayKey ? "Premieres \(text)" : text
+    }
+
+    private static var todayKey: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: Date())
+    }
+
     func backdropURL(width: Int) -> URL? {
         service.backdropURL(path: show?.backdropPath, width: width)
     }

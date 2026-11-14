@@ -23,6 +23,7 @@ enum ScreenshotMode {
         static let downloads = "DuskScreenshotDownloads"
         static let seedDownloads = "DuskScreenshotSeedDownloads"
         static let seerr = "DuskScreenshotSeerr"
+        static let seerrSeason = "DuskScreenshotSeerrSeason"
         static let upNext = "DuskScreenshotUpNext"
         static let playerSheet = "DuskScreenshotPlayerSheet"
         static let heroIndex = "DuskScreenshotHeroIndex"
@@ -180,6 +181,9 @@ enum ScreenshotMode {
         /// `-DuskScreenshotPlaylistStart <n>`; `addToPlaylist` opens the
         /// item's detail page with the Add to Playlist sheet over it.
         case playlists, playlist, playlistPlay, addToPlaylist
+        /// `-DuskScreenshotSeerrSeason <tmdbID>:<season>`: that Seerr season
+        /// page, pushed over the Plex show `-DuskScreenshotItem` when given.
+        case seerrSeason
     }
 
     static var screen: Screen? {
@@ -301,6 +305,14 @@ enum ScreenshotMode {
             destination.tab = .library(type)
             if let library = libraries.first(where: { $0.libraryType == type }) {
                 destination.routes = [.libraryCollections(library)]
+            }
+        case .seerrSeason:
+            if let item {
+                destination.routes = [.media(type: .show, id: item)]
+            }
+            let parts = (defaults.string(forKey: Key.seerrSeason) ?? "").split(separator: ":").compactMap { Int($0) }
+            if parts.count == 2 {
+                destination.routes.append(.seerrSeason(tvID: parts[0], seasonNumber: parts[1]))
             }
         case .detail:
             if let item {

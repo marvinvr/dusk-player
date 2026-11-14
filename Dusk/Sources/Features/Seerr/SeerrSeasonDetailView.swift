@@ -65,9 +65,11 @@ struct SeerrSeasonDetailView: View {
                                     .font(DuskFont.metadata(ios: .subheadline.weight(.medium)))
                                     .foregroundStyle(Color.primary.opacity(0.84))
                             }
-                            Text("\(season.episodes?.count ?? 0) episodes · \(viewModel.requestState.detailTitle)")
-                                .font(DuskFont.caption(ios: .caption))
-                                .foregroundStyle(Color.primary.opacity(0.76))
+                            if let metadata = viewModel.heroMetadata {
+                                Text(metadata)
+                                    .font(DuskFont.caption(ios: .caption))
+                                    .foregroundStyle(Color.primary.opacity(0.76))
+                            }
                         }
                     } actions: {
                         if viewModel.canRequest {
@@ -95,11 +97,7 @@ struct SeerrSeasonDetailView: View {
                                 Text(viewModel.requestTitle)
                             }
                         } else {
-                            DetailHeroStatusActionLabel(
-                                title: viewModel.requestTitle,
-                                systemImage: viewModel.requestState.systemImage,
-                                fillsWidth: usesFullWidthDetailActionButtons(for: sizeClass)
-                            )
+                            statusLabel
                         }
                     }
                     #if os(tvOS)
@@ -115,14 +113,10 @@ struct SeerrSeasonDetailView: View {
                             .padding(.top, 28)
                     }
 
-                    LazyVStack(spacing: 12) {
-                        ForEach(season.episodes ?? []) { episode in
-                            episodeRow(episode)
-                        }
-                    }
-                    .padding(.horizontal, DuskPosterMetrics.detailHorizontalPadding)
-                    .padding(.top, 36)
-                    .padding(.bottom, 56)
+                    episodesSection(season.episodes ?? [])
+                        .padding(.horizontal, DuskPosterMetrics.detailHorizontalPadding)
+                        .padding(.top, 36)
+                        .padding(.bottom, 56)
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
                 .frame(width: geometry.size.width, alignment: .topLeading)
@@ -133,6 +127,50 @@ struct SeerrSeasonDetailView: View {
             }
             .duskTVOSPageBackground()
         }
+    }
+
+    /// The request state when it can't be acted on. On tvOS it is a focus
+    /// stop that does nothing when selected: a season with no episodes yet
+    /// had nothing focusable at all, so focus sat on the tab bar over an
+    /// empty-looking page.
+    @ViewBuilder
+    private var statusLabel: some View {
+        #if os(tvOS)
+        Button(action: {}) {
+            DetailHeroPrimaryActionButtonLabel(
+                title: viewModel.requestTitle,
+                systemImage: viewModel.requestState.systemImage
+            )
+        }
+        .detailHeroNativePrimaryButtonStyle()
+        #else
+        DetailHeroStatusActionLabel(
+            title: viewModel.requestTitle,
+            systemImage: viewModel.requestState.systemImage,
+            fillsWidth: usesFullWidthDetailActionButtons(for: sizeClass)
+        )
+        #endif
+    }
+
+    /// TMDB often lists a renewed season before any of its episodes; say so
+    /// instead of leaving the page blank under the hero.
+    private func episodesSection(_ episodes: [SeerrEpisode]) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Episodes")
+                .font(DuskFont.sectionHeader(ios: .title3.bold()))
+            if episodes.isEmpty {
+                Text("No episodes have been announced yet.")
+                    .duskFont(tvOnly: DuskFont.TV.body)
+                    .foregroundStyle(Color.duskTextSecondary)
+            } else {
+                LazyVStack(spacing: 12) {
+                    ForEach(episodes) { episode in
+                        episodeRow(episode)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// On tvOS each row is a focus stop: a season that cannot be requested
@@ -172,10 +210,21 @@ struct SeerrSeasonDetailView: View {
                 Text(episode.name?.nilIfEmpty ?? "Episode \(episode.episodeNumber ?? 0)")
                     .font(DuskFont.rowTitle(ios: .headline))
                     .foregroundStyle(Color.duskTextPrimary)
-                if let episodeNumber = episode.episodeNumber {
-                    Text("Episode \(episodeNumber)")
+                // An unnamed episode is already titled "Episode N".
+                let caption = [
+                    episode.name?.nilIfEmpty == nil ? nil : episode.episodeNumber.map { "Episode \($0)" },
+                    SeerrSeasonDetailViewModel.airDateText(episode.airDate),
+                ].compactMap { $0 }
+                if !caption.isEmpty {
+                    Text(caption.joined(separator: " · "))
                         .font(DuskFont.caption(ios: .caption))
                         .foregroundStyle(Color.duskTextSecondary)
+                }
+                if let overview = episode.overview?.nilIfEmpty {
+                    Text(overview)
+                        .font(DuskFont.caption(ios: .caption))
+                        .foregroundStyle(Color.duskTextSecondary)
+                        .lineLimit(2)
                 }
             }
             Spacer()
