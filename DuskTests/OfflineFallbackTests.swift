@@ -58,6 +58,12 @@ struct OfflineFallbackTests {
         #expect(!canRestore(primary: "owner", home: nil, automatic: false))
     }
 
+    @Test func malformedAccountResponsesHaveAHumanError() {
+        let error = PlexServiceError.decodingError("keyNotFound(Swift.CodingKeys.authToken, DecodingError.Context(...))")
+        #expect(error.localizedDescription == "Plex sent an invalid response. Please try again.")
+        #expect(!error.localizedDescription.contains("DecodingError"))
+    }
+
     @Test func authenticationAndInvalidResponsesCannotRestoreACachedSession() {
         #expect(OfflineFallback.permitsCachedSession(after: PlexServiceError.networkError("Offline")))
         #expect(OfflineFallback.permitsCachedSession(after: PlexServiceError.httpError(statusCode: 503)))

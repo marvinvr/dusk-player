@@ -18,6 +18,8 @@ struct HomeUserPickerView: View {
     @State private var rememberSelection: Bool
     #if os(tvOS)
     @FocusState private var rememberRowIsFocused: Bool
+    @FocusState private var focusedProfileID: String?
+    @State private var returningProfileID: String?
     #endif
     @State private var pendingUser: PlexHomeUser?
     @State private var pin = ""
@@ -247,13 +249,20 @@ struct HomeUserPickerView: View {
                             avatarSize: 142,
                             isCurrent: user.stableProfileID == plexService.activeProfileID,
                             isSwitching: switchingProfileID == user.stableProfileID,
-                            isDisabled: switchingProfileID != nil
+                            isDisabled: switchingProfileID != nil,
+                            profileFocus: $focusedProfileID
                         ) {
                             select(user)
                         }
                     }
                 }
                 .frame(width: tvProfileGridWidth)
+                .defaultFocus($focusedProfileID, returningProfileID ?? users.first?.stableProfileID)
+                .task {
+                    if let returningProfileID {
+                        focusedProfileID = returningProfileID
+                    }
+                }
 
                 selectionOptions
                     .frame(maxWidth: 1120)
@@ -397,6 +406,9 @@ struct HomeUserPickerView: View {
         guard switchingProfileID == nil else { return }
         pin = ""
         switchError = nil
+        #if os(tvOS)
+        returningProfileID = pendingUser?.stableProfileID
+        #endif
         pendingUser = nil
     }
 
@@ -500,10 +512,16 @@ private struct HomeUserCard: View {
     let isCurrent: Bool
     let isSwitching: Bool
     let isDisabled: Bool
+    #if os(tvOS)
+    var profileFocus: FocusState<String?>.Binding? = nil
+    #endif
     let action: () -> Void
 
     #if os(tvOS)
-    @FocusState private var isFocused: Bool
+    @FocusState private var fallbackFocusedProfileID: String?
+    private var isFocused: Bool {
+        (profileFocus ?? $fallbackFocusedProfileID).wrappedValue == user.stableProfileID
+    }
     #endif
 
     var body: some View {
@@ -558,7 +576,7 @@ private struct HomeUserCard: View {
         .disabled(isDisabled)
         .duskSuppressTVOSButtonChrome()
         #if os(tvOS)
-        .focused($isFocused)
+        .focused(profileFocus ?? $fallbackFocusedProfileID, equals: user.stableProfileID)
         .duskTVOSFocusedScale(isFocused)
         #endif
         .accessibilityLabel(user.displayName)

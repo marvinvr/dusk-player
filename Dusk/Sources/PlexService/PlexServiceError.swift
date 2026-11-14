@@ -38,8 +38,8 @@ enum PlexServiceError: Error, Sendable, Equatable, LocalizedError {
             "That Plex Home PIN is incorrect."
         case .httpError(let code):
             "Server returned HTTP \(code)."
-        case .decodingError(let detail):
-            "Failed to parse server response: \(detail)"
+        case .decodingError:
+            "Plex sent an invalid response. Please try again."
         case .networkError(let detail):
             "Network error: \(detail)"
         case .serverMessage(let message):
