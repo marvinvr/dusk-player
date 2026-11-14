@@ -221,14 +221,10 @@ final class ShowDetailViewModel {
         if let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if showsOfflineAvailability {
-                let episodeCount = MediaTextFormatter.episodeCount(season.leafCount)
-                guard downloadedCount > 0 else {
-                    return ["Not downloaded", episodeCount].compactMap { $0 }.joined(separator: " · ")
-                }
-
+                // The poster badge already says Downloaded / Not Downloaded.
                 let total = season.leafCount ?? downloadedCount
-                if downloadedCount >= total {
-                    return ["Downloaded", episodeCount].compactMap { $0 }.joined(separator: " · ")
+                guard downloadedCount > 0, downloadedCount < total else {
+                    return MediaTextFormatter.episodeCount(season.leafCount)
                 }
                 return "\(downloadedCount) of \(total) downloaded"
             } else if downloadedCount > 0 {
