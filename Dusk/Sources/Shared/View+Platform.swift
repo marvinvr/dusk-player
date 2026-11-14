@@ -903,7 +903,20 @@ struct DuskHeroBackdropOverlay: View {
 
     #if !os(tvOS)
     private let bottomBackgroundHeight: CGFloat = 24
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Light pages put dark text over the lower hero. Full-strength black
+    /// darkening there met the light page fade as a mid-grey band (~2:1 for
+    /// the title block), so light mode keeps only a hint of it.
+    private var darkeningScale: Double { colorScheme == .light ? 0.4 : 1 }
+    #else
+    private let darkeningScale: Double = 1
     #endif
+
+    private func scaled(_ stops: [Gradient.Stop]) -> [Gradient.Stop] {
+        guard darkeningScale != 1 else { return stops }
+        return stops.map { .init(color: $0.color.opacity(darkeningScale), location: $0.location) }
+    }
 
     var body: some View {
         ZStack {
@@ -915,19 +928,19 @@ struct DuskHeroBackdropOverlay: View {
             )
             #else
             LinearGradient(
-                stops: style.verticalDarkeningStops,
+                stops: scaled(style.verticalDarkeningStops),
                 startPoint: .top,
                 endPoint: .bottom
             )
             #endif
 
             LinearGradient(
-                stops: [
+                stops: scaled([
                     .init(color: Color.black.opacity(0.86), location: 0),
                     .init(color: Color.black.opacity(0.50), location: 0.34),
                     .init(color: Color.black.opacity(0.12), location: 0.68),
                     .init(color: Color.black.opacity(0), location: 1),
-                ],
+                ]),
                 startPoint: .leading,
                 endPoint: .trailing
             )
