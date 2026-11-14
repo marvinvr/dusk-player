@@ -577,12 +577,7 @@ final class LibraryRecommendationsViewModel {
         )
         .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        #if os(macOS)
-        // Title Case, like every other shelf header on the Mac.
         return suffix.isEmpty ? "Recently Added" : "Recently Added \(suffix)"
-        #else
-        return suffix.isEmpty ? "Recently added" : "Recently added \(suffix)"
-        #endif
     }
 
     private func normalizedContinueWatchingTitle(for hub: PlexHub) -> String {

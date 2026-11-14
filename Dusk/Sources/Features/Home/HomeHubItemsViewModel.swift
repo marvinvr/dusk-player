@@ -72,6 +72,6 @@ final class HomeHubItemsViewModel {
         )
         .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        return suffix.isEmpty ? "Recently added" : "Recently added \(suffix)"
+        return suffix.isEmpty ? "Recently Added" : "Recently Added \(suffix)"
     }
 }
