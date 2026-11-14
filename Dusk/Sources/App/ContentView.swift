@@ -197,7 +197,7 @@ struct ContentView: View {
                         .font(DuskFont.glyphLarge(ios: .largeTitle))
                         .foregroundStyle(Color.duskTextSecondary)
 
-                    Text("Couldn’t load Plex")
+                    Text("Couldn’t Load Plex")
                         .font(DuskFont.sectionHeader(ios: .headline))
                         .foregroundStyle(Color.duskTextPrimary)
 
