@@ -108,6 +108,9 @@ final class PlexService {
     /// Connection selection only: never waits for connectivity, so a dead
     /// candidate fails inside its own timeout instead of hanging the race.
     let probeSession: URLSession
+    /// Launch/account discovery must never wait for a route or a long resource timeout.
+    let bootstrapSession: URLSession
+    var bootstrapNetworkAvailable = true
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
@@ -146,6 +149,7 @@ final class PlexService {
     static let authenticationPropagationRetryWindow: TimeInterval = 20
     static let authenticationPropagationRetryAttempts = 20
     /// The shared session's whole-request budget.
+    static let bootstrapTimeout: TimeInterval = 3
     static let requestResourceTimeout: TimeInterval = 30
 
     /// - Parameter urlProtocolClasses: Tests only: serves both sessions' requests.
@@ -162,14 +166,21 @@ final class PlexService {
         probeConfig.waitsForConnectivity = false
         probeConfig.timeoutIntervalForResource = 15
         probeConfig.urlCache = nil
+        let bootstrapConfig = URLSessionConfiguration.ephemeral
+        bootstrapConfig.waitsForConnectivity = false
+        bootstrapConfig.timeoutIntervalForRequest = Self.bootstrapTimeout
+        bootstrapConfig.timeoutIntervalForResource = Self.bootstrapTimeout
+        bootstrapConfig.urlCache = nil
         if let urlProtocolClasses {
             config.protocolClasses = urlProtocolClasses
             slowQueryConfig.protocolClasses = urlProtocolClasses
             probeConfig.protocolClasses = urlProtocolClasses
+            bootstrapConfig.protocolClasses = urlProtocolClasses
         }
         self.session = URLSession(configuration: config, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.slowQuerySession = URLSession(configuration: slowQueryConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.probeSession = URLSession(configuration: probeConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+        self.bootstrapSession = URLSession(configuration: bootstrapConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
 

@@ -157,7 +157,7 @@ final class ServerPool {
 
     /// Connects every enabled server in parallel. Never throws: a server that
     /// cannot be reached simply ends up `.offline` while the others come up.
-    func connectAll(_ discovered: [PlexServer], priority: ServerPriorityStore, trigger: String = "Connect") async {
+    func connectAll(_ discovered: [PlexServer], priority: ServerPriorityStore, trigger: String = "Connect", using session: URLSession? = nil) async {
         let generation = self.generation
         register(discovered, priority: priority)
         // Only discovery sees the whole account, so this is the one place that
@@ -209,7 +209,7 @@ final class ServerPool {
         }
         guard !works.isEmpty else { return }
 
-        for await (work, selection) in Self.probeAll(works: works, session: probeSession) {
+        for await (work, selection) in Self.probeAll(works: works, session: session ?? probeSession) {
             commit(selection, work: work, generation: generation)
         }
     }
@@ -259,7 +259,8 @@ final class ServerPool {
     func connect(
         to server: PlexServer,
         priority: ServerPriorityStore? = nil,
-        trigger: String = "Reconnect"
+        trigger: String = "Reconnect",
+        using session: URLSession? = nil
     ) async -> PlexServerConnection? {
         register([server], priority: priority)
 
@@ -280,7 +281,7 @@ final class ServerPool {
             if states[serverID]?.isConnected != true {
                 states[serverID] = .connecting
             }
-            let selection = await Self.resolve(work, session: probeSession)
+            let selection = await Self.resolve(work, session: session ?? probeSession)
             commit(selection, work: work, generation: generation)
             return states[serverID]?.connection
         }

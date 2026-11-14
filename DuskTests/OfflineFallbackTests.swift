@@ -67,6 +67,27 @@ struct OfflineFallbackTests {
         #expect(!OfflineFallback.permitsCachedSession(after: CancellationError()))
     }
 
+    @Test @MainActor func bootstrapFailsFastWithoutARoute() async {
+        let service = PlexService(urlProtocolClasses: [OfflineBootstrapStub.self])
+        defer {
+            service.session.invalidateAndCancel()
+            service.slowQuerySession.invalidateAndCancel()
+            service.probeSession.invalidateAndCancel()
+            service.bootstrapSession.invalidateAndCancel()
+        }
+        #expect(!service.bootstrapSession.configuration.waitsForConnectivity)
+        #expect(service.bootstrapSession.configuration.timeoutIntervalForResource == 3)
+        service.bootstrapNetworkAvailable = false
+        let start = ContinuousClock.now
+        do {
+            _ = try await service.rawPlexTVRequest(path: "/api/v2/home/users", bootstrap: true)
+            Issue.record("An offline bootstrap request must fail")
+        } catch {
+            #expect(OfflineFallback.permitsCachedSession(after: error))
+        }
+        #expect(ContinuousClock.now - start < .seconds(1))
+    }
+
     #if os(iOS)
     @Test @MainActor func offlineBootstrapRestoresTheProfileWithoutCompletingMigration() async throws {
         let service = PlexService(urlProtocolClasses: [OfflineBootstrapStub.self])
@@ -74,6 +95,7 @@ struct OfflineFallbackTests {
             service.session.invalidateAndCancel()
             service.slowQuerySession.invalidateAndCancel()
             service.probeSession.invalidateAndCancel()
+            service.bootstrapSession.invalidateAndCancel()
         }
         service.primaryAccountToken = "offline-test"
         service.activeAccountToken = "offline-test"

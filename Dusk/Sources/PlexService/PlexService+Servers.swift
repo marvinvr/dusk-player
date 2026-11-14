@@ -53,7 +53,10 @@ extension PlexService {
             var request = URLRequest(url: url)
             request.httpMethod = "GET"
             applyHeaders(to: &request, token: activeAccountToken)
-            let data = try await executeRequest(request)
+            guard bootstrapNetworkAvailable else {
+                throw PlexServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
+            }
+            let data = try await executeRequest(request, using: bootstrapSession)
 
             guard let jsonArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
                 throw PlexServiceError.decodingError("Expected JSON array from resources endpoint")
@@ -104,12 +107,16 @@ extension PlexService {
             // themselves (a LAN-only network). Validate and select from the
             // stored snapshots instead of leaving restored sessions unchecked;
             // only a pass that finds nothing at all reports the error.
-            let snapshots = ServerPool.storedSnapshots().filter { serverPriority.isEnabled($0.clientIdentifier) }
-            guard session == serverSessionToken, !snapshots.isEmpty else { throw error }
+            let snapshots = ServerPool.storedSnapshots()
+            guard session == serverSessionToken,
+                  snapshots.contains(where: { serverPriority.isEnabled($0.clientIdentifier) }) else { throw error }
             plexConnectionLogger.notice("plex.tv unreachable (\(error.localizedDescription, privacy: .public)); selecting from stored snapshots")
-            for server in snapshots {
-                await pool.connect(to: server, priority: serverPriority, trigger: "\(trigger) (plex.tv unreachable)")
-            }
+            // Keep disabled snapshots too: connectAll persists the full known
+            // list, skips disabled servers and probes the rest in parallel.
+            await pool.connectAll(
+                snapshots, priority: serverPriority,
+                trigger: "\(trigger) (plex.tv unreachable)", using: bootstrapSession
+            )
             guard !pool.connections.isEmpty else { throw error }
             return pool.connections
         }
@@ -124,7 +131,7 @@ extension PlexService {
 
         serverPriority.reconcile(discovered: discovered)
 
-        await pool.connectAll(discovered, priority: serverPriority, trigger: trigger)
+        await pool.connectAll(discovered, priority: serverPriority, trigger: trigger, using: bootstrapSession)
 
         // The library-order cache is keyed on the connected servers in priority
         // order, so it invalidates itself when that set or its order changes;

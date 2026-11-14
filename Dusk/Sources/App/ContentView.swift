@@ -83,6 +83,13 @@ struct ContentView: View {
         .task(id: sharePlayReadinessTaskID) {
             await playback.retryPendingSharePlayActivityIfPossible()
         }
+        .onChange(of: connections.isNetworkAvailable) { _, available in
+            if !available, !plexService.homeBootstrapCompleted {
+                homeBootstrapError = URLError(.notConnectedToInternet).localizedDescription
+            } else if available, homeBootstrapError != nil {
+                Task { await bootstrapHomeIfNeeded(force: true) }
+            }
+        }
         .onChange(of: scenePhase) { _, newPhase in
             guard newPhase == .active else { return }
             connections.applicationDidBecomeActive()

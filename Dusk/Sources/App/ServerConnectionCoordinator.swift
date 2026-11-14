@@ -137,7 +137,13 @@ final class ServerConnectionCoordinator {
             guard needsAnotherPass else { return }
         }
 
-        guard isNetworkAvailable, let plexService, plexService.isSessionReady else { return }
+        guard let plexService, plexService.isSessionReady else { return }
+        guard isNetworkAvailable else {
+            lastError = URLError(.notConnectedToInternet).localizedDescription
+            hasCompletedFirstPass = true
+            lastPassHadNoConnection = true
+            return
+        }
 
         needsAnotherPass = false
         let session = sessionID
@@ -206,9 +212,10 @@ final class ServerConnectionCoordinator {
 
         isNetworkAvailable = isAvailable
         networkSignature = signature
+        plexService?.bootstrapNetworkAvailable = isAvailable
 
         // Airplane mode should expose the remembered profile's downloads
-        // immediately, even while a connectivity-waiting account request runs.
+        // immediately, even while a short account request is finishing.
         if !isAvailable, let plexService, !plexService.homeBootstrapCompleted {
             plexService.restoreOfflineHomeSession()
         }

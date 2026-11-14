@@ -215,7 +215,8 @@ extension PlexService {
     private func fetchHomeUsers(primaryToken: String) async throws -> [PlexHomeUser] {
         let data = try await rawPlexTVRequest(
             path: "/api/v2/home/users",
-            accountToken: primaryToken
+            accountToken: primaryToken,
+            bootstrap: true
         )
         return try decodeHomeUsers(from: data)
     }
@@ -223,7 +224,8 @@ extension PlexService {
     private func fetchPrimaryAccountIdentity(primaryToken: String) async throws -> PlexUser {
         try await plexTVRequest(
             path: "/api/v2/user",
-            accountToken: primaryToken
+            accountToken: primaryToken,
+            bootstrap: true
         )
     }
 
@@ -387,7 +389,8 @@ extension PlexService {
             let account: PlexUser = try await plexTVRequest(
                 path: "/api/v2/user",
                 accountToken: token,
-                retriesFreshAuthentication: false
+                retriesFreshAuthentication: false,
+                bootstrap: true
             )
 
             if let expectedUUID = user.uuid?.nilIfEmpty,

@@ -45,7 +45,8 @@ extension PlexService {
         jsonBody: Data? = nil,
         accountToken: String? = nil,
         timeoutInterval: TimeInterval? = nil,
-        retriesFreshAuthentication: Bool = true
+        retriesFreshAuthentication: Bool = true,
+        bootstrap: Bool = false
     ) async throws -> T {
         let data = try await rawPlexTVRequest(
             method: method,
@@ -55,7 +56,8 @@ extension PlexService {
             jsonBody: jsonBody,
             accountToken: accountToken,
             timeoutInterval: timeoutInterval,
-            retriesFreshAuthentication: retriesFreshAuthentication
+            retriesFreshAuthentication: retriesFreshAuthentication,
+            bootstrap: bootstrap
         )
         return try decodeJSON(T.self, from: data)
     }
@@ -72,8 +74,12 @@ extension PlexService {
         jsonBody: Data? = nil,
         accountToken: String? = nil,
         timeoutInterval: TimeInterval? = nil,
-        retriesFreshAuthentication: Bool = true
+        retriesFreshAuthentication: Bool = true,
+        bootstrap: Bool = false
     ) async throws -> Data {
+        if bootstrap, !bootstrapNetworkAvailable {
+            throw PlexServiceError.networkError(URLError(.notConnectedToInternet).localizedDescription)
+        }
         guard let url = buildURL(base: Self.plexTVBase, path: path, queryItems: queryItems) else {
             throw PlexServiceError.invalidURL
         }
@@ -99,7 +105,8 @@ extension PlexService {
 
         return try await executeRequest(
             request,
-            retriesFreshAuthentication: retriesFreshAuthentication
+            retriesFreshAuthentication: retriesFreshAuthentication,
+            using: bootstrap ? bootstrapSession : nil
         )
     }
 

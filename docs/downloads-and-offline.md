@@ -236,6 +236,10 @@ existing Downloads destination (even if empty). Partial outages keep online
 content. The offline shell uses Home, Downloads and Settings so Downloads cannot
 be buried in More; it stays mounted during retries and local playback.
 
+Plex Home bootstrap and discovery fail within a 3 s request/resource budget
+without waiting for connectivity. No-route startup exposes the existing error
+screen on tvOS; iOS retains its guarded Downloads fallback.
+
 Plex Home bootstrap also has to work without plex.tv. Transport failures and
 5xx responses may restore the saved automatically signed-in profile, marked
 `isUsingOfflineHomeSession`; a remembered Home member requires its remembered

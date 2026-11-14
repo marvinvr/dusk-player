@@ -144,7 +144,13 @@ Flow:
 3. `checkPin(_:)` polls until `authToken` appears.
 4. `setAuthToken(_:)` stores the primary token and clears stale account/server
    state on account change.
-5. Account bootstrap fetches Plex Home users from `/api/v2/home/users`. Zero or
+5. Account bootstrap and resource discovery use a dedicated ephemeral session
+   with no connectivity waiting and a 3 s request/resource budget. The network
+   monitor also rejects new bootstrap requests without a route. Account-wide
+   connection passes use this short session for candidate probes, including
+   parallel stored-snapshot fallback (disabled snapshots are preserved).
+   Diagnostics and individual endpoint recovery retain their longer budgets.
+   Account bootstrap fetches Plex Home users from `/api/v2/home/users`. Zero or
    one usable member keeps the legacy flow; multiple members require a user
    selection unless a remembered active Home session is valid. Fast user
    switching uses the separate legacy `/api/home/users/<id>/switch` route.
