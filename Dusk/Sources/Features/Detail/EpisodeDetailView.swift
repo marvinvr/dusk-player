@@ -355,7 +355,11 @@ struct EpisodeDetailView: View {
             }
         } label: {
             DetailHeroPrimaryActionButtonLabel(
-                title: "Play Episode",
+                // The button resumes from viewOffset, so say so like movie
+                // detail and the Home hero do.
+                title: details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
+                    .flatMap { MediaTextFormatter.playbackDuration(milliseconds: $0) }
+                    .map { "Resume from \($0)" } ?? "Play Episode",
                 systemImage: "play.fill",
                 fillsWidth: true
             )
