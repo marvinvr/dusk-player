@@ -449,9 +449,13 @@ enum DuskPosterMetrics {
         #endif
     }
 
+    /// Matches the large title's margin: 16 pt on iPhone (like Home's
+    /// shelves), 20 pt on iPad.
     static var libraryPageHorizontalPadding: CGFloat {
         #if os(tvOS)
         carouselHorizontalPadding
+        #elseif os(iOS)
+        UIDevice.current.userInterfaceIdiom == .pad ? 20 : carouselHorizontalPadding
         #else
         20
         #endif
