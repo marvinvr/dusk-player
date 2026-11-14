@@ -42,6 +42,9 @@ struct HiddenHomeRowsSettingsView: View {
                     title: "No Rows",
                     message: Self.emptyText
                 )
+                // Fill the page so the background covers it, not just the text.
+                .padding(.horizontal, 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             } else {
                 editor(viewModel)
             }
