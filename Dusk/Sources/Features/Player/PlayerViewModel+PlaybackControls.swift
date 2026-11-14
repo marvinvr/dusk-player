@@ -752,6 +752,19 @@ extension PlayerViewModel {
         }
     }
 
+    /// Revealing either platform's HUD offers an expired intro chip manually.
+    /// Spend its countdown before clearing dismissal so the next sync cannot
+    /// start another countdown (or auto-skip after a preference change).
+    func restoreDismissedIntroForHUD() {
+        guard let dismissedID = countdownDismissedMarkerID,
+              let marker = markers.first(where: {
+                  $0.id == dismissedID && $0.isIntro
+                      && $0.contains(positionMs: Int(displayPosition * 1000))
+              }) else { return }
+        noteAutoSkipSpent(for: marker)
+        countdownDismissedMarkerID = nil
+    }
+
     /// A dismissed chip stays gone only while playback is still inside that
     /// marker. Leaving it (or seeking back in later) offers Skip Intro again.
     private func clearCountdownDismissalIfPlayheadLeftMarker() {

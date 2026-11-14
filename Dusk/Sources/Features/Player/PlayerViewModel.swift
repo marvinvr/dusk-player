@@ -40,7 +40,11 @@ final class PlayerViewModel {
     /// Mirrors `UserPreferences.subtitleFontSize` so the in-player picker can
     /// observe it. Changing it there writes straight back to preferences.
     var subtitleFontSize: SubtitleFontSize = .default
-    var showControls = true
+    var showControls = true {
+        didSet {
+            if showControls, !oldValue { restoreDismissedIntroForHUD() }
+        }
+    }
     var aspectFillEnabled = false
     var showSubtitlePicker = false
     var showSubtitleSizePicker = false

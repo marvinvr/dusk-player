@@ -2435,6 +2435,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   (`upNextPoster`, `PlayerUpNextPosterView`) shown during the credits, and the
   full-screen **overlay** (`upNextPresentation`, `PlayerUpNextOverlayView`).
   They are mutually exclusive; the poster yields to the overlay.
+- When an intro chip expires with auto-skip off, revealing the HUD while still
+  inside that marker restores the chip for manual skipping on iOS and tvOS.
+  It spends the marker’s one-shot countdown, so HUD reveals never re-arm it.
 - The poster and the Skip Intro button share
   `PlayerOverlayLayout.skipMarkerBottomInset(controlsVisible:)`: they rest near
   the bottom edge while the HUD is hidden and animate up above the play bar when

@@ -73,6 +73,34 @@ struct PlayerIntroAutoSkipTests {
         #expect(harness.viewModel.autoSkipCountdownMarkerID == harness.marker.id)
     }
 
+    @Test func revealingHUDRestoresExpiredIntroWithoutAnotherCountdown() async throws {
+        let harness = makeHarness(mode: .off)
+        defer { harness.restore() }
+        let viewModel = harness.viewModel
+        viewModel.showControls = false
+        try await waitForCountdown()
+        viewModel.sync()
+        #expect(viewModel.activeSkipMarker == nil)
+
+        viewModel.touchControls()
+        viewModel.sync()
+        #expect(viewModel.activeSkipMarker?.id == harness.marker.id)
+        #expect(viewModel.autoSkipCountdownMarkerID == nil)
+        #expect(viewModel.autoSkipCountdownClock == nil)
+        try await waitForCountdown()
+        viewModel.sync()
+        #expect(viewModel.activeSkipMarker?.id == harness.marker.id)
+        #expect(harness.handlerCalls() == 0)
+        #expect(harness.engine.seekTargets.isEmpty)
+
+        viewModel.showControls = false
+        viewModel.showControls = true // tvOS HUD controller's reveal path
+        viewModel.sync()
+        #expect(viewModel.autoSkipCountdownMarkerID == nil)
+        viewModel.skipActiveMarker()
+        #expect(harness.engine.seekTargets == [20.5])
+    }
+
     @Test func countdownExpiryOnFirstEpisodeDoesNotSkipWhenModeExcludesIt() async throws {
         let harness = makeHarness(mode: .alwaysExceptFirstEpisode, isFirstEpisodeInSeason: true)
         defer { harness.restore() }
