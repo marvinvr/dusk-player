@@ -1,10 +1,11 @@
 import Foundation
+import Network
 import Testing
 @testable import Dusk
 
 /// Connection selection: ranking, the identity gate, redirects, persistence,
-/// failover and the "away from home" case. No real network: every host is
-/// scripted by `SelectionStub`.
+/// failover and the "away from home" case. Hosts are scripted by `SelectionStub`
+/// except the ephemeral loopback redirect fixture; no external network is used.
 @Suite("Plex connection selection", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 struct ConnectionSelectionTests {
@@ -136,16 +137,40 @@ struct ConnectionSelectionTests {
 
     // MARK: Redirects and the token
 
-    @Test func aCrossHostRedirectNeverGetsTheTokenAndNeverWins() async {
-        let stub = SelectionStub.Scope()
-        let elsewhere = stub.host("elsewhere", .ok(serverID))
-        let bouncer = stub.host("bouncer", .redirect("https://\(elsewhere)/identity"))
-        let selection = await select([candidate("https://\(bouncer)", address: bouncer)], session: stub.session)
+    @Test func aCrossHostRedirectNeverGetsTheTokenAndNeverWins() async throws {
+        // A real HTTP redirect exercises URLSession's delegate. URLProtocol's
+        // redirect callback followed by didFinishLoading completes without a
+        // response and traps in Foundation's async data(for:) bridge.
+        let server = try await RedirectLoopbackServer.start(serverID: serverID)
+        defer { server.stop() }
+        let session = URLSession(configuration: .ephemeral, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+        defer { session.invalidateAndCancel() }
+        let selection = await select([
+            candidate("http://127.0.0.1:\(server.port)", address: "127.0.0.1", local: true)
+        ], session: session)
         guard case .failed = selection.resolution else {
             Issue.record("A redirect to another host must not connect")
             return
         }
-        #expect(SelectionStub.requests(host: elsewhere).isEmpty)
+        let requests = server.requests
+        #expect(requests.count == 1)
+        #expect(requests.first?.contains("X-Plex-Token: test-token") == true)
+        #expect(!requests.contains { $0.contains("Host: localhost:") })
+        #expect(selection.report.entries.first?.outcome.isReachable == false)
+    }
+
+    @Test func redirectFixtureReachesTheDestinationWithoutTheGuard() async throws {
+        let server = try await RedirectLoopbackServer.start(serverID: serverID)
+        defer { server.stop() }
+        let session = URLSession(configuration: .ephemeral)
+        defer { session.invalidateAndCancel() }
+        var request = URLRequest(url: URL(string: "http://127.0.0.1:\(server.port)/identity")!)
+        request.timeoutInterval = 3
+        request.setValue("test-token", forHTTPHeaderField: "X-Plex-Token")
+        let (_, response) = try await session.data(for: request)
+        #expect(response.url?.host == "localhost")
+        #expect(server.requests.count == 2)
+        #expect(server.requests.last?.contains("X-Plex-Token: test-token") == true)
     }
 
     @Test func httpRedirectingToHTTPSLosesToTheHTTPSCandidate() async {
@@ -487,7 +512,6 @@ final class SelectionStub: URLProtocol, @unchecked Sendable {
         case html
         case refuse
         case hang
-        case redirect(String)
     }
 
     struct Seen: Sendable { let url: URL; let token: String? }
@@ -560,13 +584,6 @@ final class SelectionStub: URLProtocol, @unchecked Sendable {
             client?.urlProtocol(self, didFailWithError: URLError(.cannotConnectToHost))
         case .hang:
             return
-        case let .redirect(target):
-            let response = HTTPURLResponse(url: url, statusCode: 302, httpVersion: "HTTP/1.1",
-                                           headerFields: ["Location": target])!
-            var next = URLRequest(url: URL(string: target)!)
-            next.allHTTPHeaderFields = request.allHTTPHeaderFields
-            client?.urlProtocol(self, wasRedirectedTo: next, redirectResponse: response)
-            client?.urlProtocolDidFinishLoading(self)
         case .html:
             respond(url, 200, "<html>captive portal</html>")
         case let .unauthorized(id):
@@ -595,5 +612,67 @@ final class SelectionStub: URLProtocol, @unchecked Sendable {
 
     override func stopLoading() {
         pending?.cancel()
+    }
+}
+
+/// Two hostnames reach the same ephemeral loopback listener. If URLSession ever
+/// follows the redirect, the destination sees the request and answers with the
+/// expected identity, making both leakage and a false connection observable.
+private final class RedirectLoopbackServer: @unchecked Sendable {
+    private let listener: NWListener
+    private let queue = DispatchQueue(label: "dusk.tests.redirect")
+    private let lock = NSLock()
+    private var received: [String] = []
+    private let serverID: String
+    var port: UInt16 { listener.port!.rawValue }
+    var requests: [String] { lock.withLock { received } }
+
+    private init(serverID: String) throws {
+        self.serverID = serverID
+        listener = try NWListener(using: .tcp, on: .any)
+    }
+
+    static func start(serverID: String) async throws -> RedirectLoopbackServer {
+        let server = try RedirectLoopbackServer(serverID: serverID)
+        server.listener.newConnectionHandler = { [weak server] connection in
+            guard let server else { connection.cancel(); return }
+            connection.start(queue: server.queue)
+            server.read(connection, buffer: Data())
+        }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            server.listener.stateUpdateHandler = { state in
+                switch state {
+                case .ready: continuation.resume()
+                case .failed(let error): continuation.resume(throwing: error)
+                default: return
+                }
+                server.listener.stateUpdateHandler = nil
+            }
+            server.listener.start(queue: server.queue)
+        }
+        return server
+    }
+
+    func stop() { listener.cancel() }
+
+    private func read(_ connection: NWConnection, buffer: Data) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { [self] data, _, complete, error in
+            var buffer = buffer
+            if let data { buffer.append(data) }
+            guard buffer.count < 65_536, error == nil else { connection.cancel(); return }
+            guard let text = String(data: buffer, encoding: .utf8), text.contains("\r\n\r\n") else {
+                if complete { connection.cancel() } else { read(connection, buffer: buffer) }
+                return
+            }
+            lock.withLock { received.append(text) }
+            let response: String
+            if text.lowercased().contains("host: localhost:") {
+                let body = #"{"MediaContainer":{"machineIdentifier":"\#(serverID)"}}"#
+                response = "HTTP/1.1 200 OK\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\r\n\(body)"
+            } else {
+                response = "HTTP/1.1 302 Found\r\nLocation: http://localhost:\(port)/identity\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+            }
+            connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in connection.cancel() })
+        }
     }
 }

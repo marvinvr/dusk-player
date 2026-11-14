@@ -359,3 +359,44 @@ builds against each other, not against absolute numbers.
 - Assuming docs platform versions are newer than `project.yml`.
 - Editing vendored VLCKit binaries or unrelated worktree changes.
 - Building `Native/DuskDovi` with Homebrew's `cargo` (see DuskDovi Bootstrap).
+
+### 1.9 logic QA test investigation (2026-11-14)
+
+The `e3ddb15` → `611acb2` QA range cannot supply a good bisect endpoint:
+`ConnectionSelectionTests/aCrossHostRedirectNeverGetsTheTokenAndNeverWins()`
+crashes at both, and `SupporterStoreKitTests/subscriptionUnlocksEveryIconAndSwitchesPlanAtRenewal()`
+times out at both on an erased iOS simulator (30 s per-test limit).
+Both test files and their connection-security / entitlement implementations are
+identical at the endpoints. The redirect fixture dates to `534b24c`; the
+subscription test predates the range (`1696ee2`). These are pre-existing fixtures,
+not regressions introduced by the 50 QA commits.
+
+The redirect fixture used `URLProtocol.wasRedirectedTo` then finished without
+supplying a response, trapping in Foundation's async `URLSession.data(for:)`
+bridge. Its replacement uses a real ephemeral loopback HTTP listener and two
+hostnames: the production delegate must stop the redirect before the destination
+receives anything. A control without that delegate must reach the destination,
+so the token-leak assertion cannot pass because the fixture never redirected.
+The production token guard remains intact. StoreKit cold-start isolation and
+purchase coverage are described in [supporter.md](supporter.md#verification).
+The full run also exposed `IPTVCatchUpTests.emptyStretchesCollapseAroundNow`:
+its three-hour width bound omitted the timeline’s documented rounding back to
+half-hour ticks. The corrected fixture allows that leading partial tick; the
+collapse math and this fixture are unchanged across the QA range (the guide QA
+commit only changed cursor placement).
+
+When explicitly asked to run unit tests, run iOS and tvOS sequentially with
+`-parallel-testing-enabled NO -test-timeouts-enabled YES
+-maximum-test-execution-time-allowance 30` and an outer process timeout. Swift
+Testing case filters include `()`; omitting it can silently execute zero tests.
+The supported headless runner is `python3 scripts/test_units.py` (optionally
+`--platform ios|tvos` and `--output-dir <path>`). It creates clean compatible
+simulators, builds for testing, prepares StoreKit with the catalog-only test,
+then runs the full suite in a new host. Configuration created inside a cold
+process does not replace the Sandbox environment that StoreKit already selected;
+the separate setup launch is required. The purchase fixture checks the `.xcode`
+receipt before calling the real app purchase path. Each subprocess has an outer
+timeout (build/suite 10 min, setup 2 min, boot 3 min); failures stop the run and
+retain logs and result bundles. Platforms run sequentially. Finally it shuts down
+and deletes only its own devices, including on failure. It never launches
+Simulator.app or the Mac app.

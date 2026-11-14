@@ -216,7 +216,10 @@ struct LiveTVGuideCatchUpTests {
         let (timeline, guide) = try sparse(now: now)
         #expect(timeline.collapses.count == 2)
         #expect(timeline.contains(now))
-        let compact: CGFloat = 100 * 2 + 5 * 60 * 3 + 1
+        // Three one-hour stretches (past programme, now zone, next programme)
+        // plus up to half an hour before the first programme: the axis starts
+        // on the preceding ruler tick, not at the programme's exact start.
+        let compact: CGFloat = 100 * 2 + 5 * (60 * 3 + 30) + 1
         #expect(timeline.width < compact)
 
         let cells = LiveTVGuideSection.cells(for: guide, rowID: "r", timeline: timeline, now: now)

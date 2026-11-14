@@ -7,7 +7,7 @@ import Testing
 /// End-to-end purchase flows against the local `Dusk.storekit` configuration:
 /// buy, switch plans, lapse, restore, refund. Serialized because the StoreKit
 /// test environment is shared process state.
-@Suite("Supporter StoreKit flows", .serialized)
+@Suite("Supporter StoreKit flows", .serialized, .timeLimit(.minutes(1)))
 @MainActor
 final class SupporterStoreKitTests {
     private let session: SKTestSession
@@ -32,6 +32,19 @@ final class SupporterStoreKitTests {
 
     private func product(_ id: SupporterProduct, in store: SupporterStore) throws -> Product {
         try #require((store.subscriptionProducts + store.tipProducts).first { $0.id == id.rawValue })
+    }
+
+    /// The CLI prepares the local session in a separate catalog-only launch.
+    /// StoreKit chooses its environment at process startup on a fresh simulator;
+    /// installing SKTestSession afterward cannot change that process's receipt.
+    private func purchase(_ id: SupporterProduct, in store: SupporterStore) async throws {
+        let receipt: VerificationResult<AppTransaction>
+        do { receipt = try await AppTransaction.shared }
+        catch { throw StoreKitFixtureError.needsPreparation }
+        guard case .verified(let app) = receipt, app.environment == .xcode else {
+            throw StoreKitFixtureError.needsPreparation
+        }
+        await store.purchase(try product(id, in: store))
     }
 
     /// StoreKit applies expirations and renewals asynchronously; poll briefly.
@@ -80,14 +93,14 @@ final class SupporterStoreKitTests {
         #expect(!store.isSupporter)
         #expect(!store.isUnlocked(.neon))
 
-        await store.purchase(try product(.monthly, in: store))
+        try await purchase(.monthly, in: store)
         #expect(store.hasActiveSubscription)
         #expect(store.isSupporter)
         #expect(store.isUnlocked(.neon))
         #expect(store.isUnlocked(.gilded))
 
         // Switching to yearly is scheduled for the next renewal.
-        await store.purchase(try product(.yearly, in: store))
+        try await purchase(.yearly, in: store)
         #expect(await refresh(store) { $0.renewalPlan?.nextProductID == "supporter.yearly" })
         #expect(store.activeProductID == "supporter.monthly")
         #expect(!store.shouldRevertIcon(.gilded))
@@ -99,7 +112,7 @@ final class SupporterStoreKitTests {
 
     @Test func lapseLocksIconsAndOnlyAGenerousTipBringsTheClassicsBack() async throws {
         let store = await makeStore()
-        await store.purchase(try product(.yearly, in: store))
+        try await purchase(.yearly, in: store)
         #expect(!store.shouldRevertIcon(.gilded))
 
         try lapse("supporter.yearly")
@@ -111,13 +124,13 @@ final class SupporterStoreKitTests {
         #expect(store.shouldRevertIcon(.neon))
 
         // The Coffee tip is a thank-you only.
-        await store.purchase(try product(.tipCoffee, in: store))
+        try await purchase(.tipCoffee, in: store)
         #expect(store.tipCount == 1)
         #expect(!store.isUnlocked(.neon))
 
         // Generous and up are one-time purchases that keep the classic icons,
         // never the subscriber exclusives.
-        await store.purchase(try product(.tipGenerous, in: store))
+        try await purchase(.tipGenerous, in: store)
         #expect(store.hasIconTip)
         #expect(store.isUnlocked(.neon))
         #expect(!store.shouldRevertIcon(.neon))
@@ -127,8 +140,8 @@ final class SupporterStoreKitTests {
 
     @Test func restoreRecoversStatusOnAFreshInstall() async throws {
         let buyer = await makeStore()
-        await buyer.purchase(try product(.monthly, in: buyer))
-        await buyer.purchase(try product(.tipCoffee, in: buyer))
+        try await purchase(.monthly, in: buyer)
+        try await purchase(.tipCoffee, in: buyer)
         #expect(buyer.tipCount == 1)
 
         // A fresh install: empty cache, same App Store account.
@@ -148,12 +161,19 @@ final class SupporterStoreKitTests {
 
     @Test func refundRemovesTheSubscription() async throws {
         let store = await makeStore()
-        await store.purchase(try product(.monthly, in: store))
+        try await purchase(.monthly, in: store)
         let transaction = try #require(session.allTransactions().first { $0.productIdentifier == "supporter.monthly" })
 
         try session.refundTransaction(identifier: UInt(transaction.identifier))
         #expect(await refresh(store) { !$0.hasActiveSubscription })
         #expect(store.shouldRevertIcon(.gilded))
         #expect(store.shouldRevertIcon(.neon))
+    }
+}
+
+private enum StoreKitFixtureError: LocalizedError {
+    case needsPreparation
+    var errorDescription: String? {
+        "StoreKit is not using the local Xcode environment. Run scripts/test_units.py to prepare it before the purchase suite."
     }
 }

@@ -262,9 +262,15 @@ exist to catch bugs this feature is prone to:
     (auto-renew off + expire; expiring alone leaves an auto-renewing test
     subscription in force) then a Coffee tip (still locked) and a Generous tip
     (classics back, exclusives locked), restore on a fresh install, refund. Serialized: the StoreKit test
-    environment is shared state. Trap: the first run right after the app
-    is (re)installed on a simulator can still hit the real sandbox (App Store
-    Connect products, Apple Account sign-in on purchase) — run it again.
+    environment is shared state. On a fresh simulator, StoreKit chooses its
+    environment before a test can install `SKTestSession`; that process can
+    retain Sandbox and wait for account UI on `Product.purchase()`. Use
+    `python3 scripts/test_units.py`: it runs the catalog test once to install
+    the local configuration, then launches the full suite in a new host. This
+    is explicit setup, not retrying a failed purchase. Purchases still exercise
+    `SupporterStore.purchase`; the fixture verifies an `.xcode` app receipt
+    first and fails with a preparation error instead of waiting for sandbox UI.
+    The suite also has a one-minute limit.
 - Runtime purchase flows in the app use the `Dusk.storekit` config attached to
   both schemes' Run action (`project.yml` `schemes:`); Xcode's transaction
   manager can grant/refund/expire test purchases, including testing that a
