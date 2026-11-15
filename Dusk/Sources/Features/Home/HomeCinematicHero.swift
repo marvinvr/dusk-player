@@ -343,9 +343,7 @@ struct HomeCinematicHero: View {
         .overlay(alignment: heroContentBlockAlignment) {
             if items.count > 1 {
                 heroPager(currentIndex: resolvedIndex)
-                    #if os(macOS) || os(tvOS)
                     .environment(\.colorScheme, .dark)
-                    #endif
                     .padding(.leading, contentLeadingInset + layout.pagerHorizontalPadding)
                     .padding(.trailing, contentTrailingInset + layout.pagerHorizontalPadding)
                     .padding(.bottom, layout.pagerBottomPadding)
@@ -758,6 +756,9 @@ struct HomeCinematicHero: View {
                 DuskHeroBackdropOverlay(style: layout.backdropOverlayStyle)
                 #endif
             }
+            #if os(iOS)
+            .modifier(HomeHeroLightPageBackdrop())
+            #endif
             #if os(macOS)
             // The art itself fades out at the bottom, onto the page
             // background behind it, in either appearance (a dark scrim fading
@@ -855,11 +856,9 @@ struct HomeCinematicHero: View {
                 .padding(.top, layout.actionsTopPadding)
                 .padding(.bottom, layout.actionsBottomPadding)
             }
-            #if os(macOS) || os(tvOS)
             // The hero is a dark context in both appearances: white text on
             // the scrim, the dark-glass button.
             .environment(\.colorScheme, .dark)
-            #endif
             .padding(.leading, contentLeadingInset + layout.contentHorizontalPadding)
             .padding(.trailing, contentTrailingInset + layout.contentHorizontalPadding)
             .padding(.bottom, reservesPagerSpace ? layout.contentBottomPaddingWithPager : layout.contentBottomPaddingWithoutPager)
@@ -2224,6 +2223,54 @@ private struct HeroButtonContextMenuInteraction: UIViewRepresentable {
 }
 #endif
 
+#if os(iOS) || os(macOS)
+/// Opaque down to the last `fadeHeight` points, which ease out to clear, so
+/// the hero dissolves into whatever page background is behind it.
+private struct MacHomeHeroFadeMask: View {
+    let fadeHeight: CGFloat
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+            LinearGradient(
+                stops: [
+                    .init(color: .black, location: 0),
+                    .init(color: .black.opacity(0.9), location: 0.18),
+                    .init(color: .black.opacity(0.55), location: 0.45),
+                    .init(color: .black.opacity(0.18), location: 0.75),
+                    .init(color: .black.opacity(0), location: 1),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: fadeHeight)
+        }
+    }
+}
+#endif
+
+#if os(iOS)
+/// Light mode: the backdrop and its scrim in their dark scheme, so the white
+/// title block sits on dark art instead of a light wash, then a short fade
+/// below the pager into the light page. Dark mode: unchanged.
+private struct HomeHeroLightPageBackdrop: ViewModifier {
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Under the pager (28 pt up on iPhone, 32 pt on iPad).
+    private static let fadeHeight: CGFloat = 24
+
+    func body(content: Content) -> some View {
+        if colorScheme == .light {
+            content
+                .environment(\.colorScheme, .dark)
+                .mask { MacHomeHeroFadeMask(fadeHeight: Self.fadeHeight) }
+        } else {
+            content
+        }
+    }
+}
+#endif
+
 #if os(macOS)
 /// The hero's hover chevrons on the Mac: a pair of neutral glass circles at
 /// the hero's bottom trailing corner, level with the page dots, only while
@@ -2310,29 +2357,7 @@ private struct MacHomeHeroScrim: View {
     }
 }
 
-/// Opaque down to the last `fadeHeight` points, which ease out to clear, so
-/// the hero dissolves into whatever page background is behind it.
-private struct MacHomeHeroFadeMask: View {
-    let fadeHeight: CGFloat
 
-    var body: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-            LinearGradient(
-                stops: [
-                    .init(color: .black, location: 0),
-                    .init(color: .black.opacity(0.9), location: 0.18),
-                    .init(color: .black.opacity(0.55), location: 0.45),
-                    .init(color: .black.opacity(0.18), location: 0.75),
-                    .init(color: .black.opacity(0), location: 1),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .frame(height: fadeHeight)
-        }
-    }
-}
 
 /// A pager pill under the pointer brightens and grows a little and names
 /// its page in a tooltip.

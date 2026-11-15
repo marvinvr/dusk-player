@@ -914,7 +914,12 @@ enum DuskHeroOverlayStyle {
 /// `duskHeroBackdropBottomFade()`: on iOS the overlay paints the bottom fade
 /// itself, on tvOS the modifier masks the hero out instead. Never paint
 /// `Color.duskBackground` inside the hero on tvOS — see
-/// `duskHeroBackdropBottomFade()` for why.
+/// `duskHeroBackdropBottomFade()` for why. (In Light mode the detail hero
+/// renders this stack dark on a dark base and masks base and all out at its
+/// bottom, so it still ends at zero alpha.)
+///
+/// Both heroes render it in the dark scheme in either appearance: the hero
+/// is a dark context with white text.
 ///
 /// On tvOS only `.cinematic` changes anything; `.standard` and `.soft` render
 /// the same full-strength scrim they always have.
@@ -923,20 +928,7 @@ struct DuskHeroBackdropOverlay: View {
 
     #if !os(tvOS)
     private let bottomBackgroundHeight: CGFloat = 24
-    @Environment(\.colorScheme) private var colorScheme
-
-    /// Light pages put dark text over the lower hero. Full-strength black
-    /// darkening there met the light page fade as a mid-grey band (~2:1 for
-    /// the title block), so light mode keeps only a hint of it.
-    private var darkeningScale: Double { colorScheme == .light ? 0.4 : 1 }
-    #else
-    private let darkeningScale: Double = 1
     #endif
-
-    private func scaled(_ stops: [Gradient.Stop]) -> [Gradient.Stop] {
-        guard darkeningScale != 1 else { return stops }
-        return stops.map { .init(color: $0.color.opacity(darkeningScale), location: $0.location) }
-    }
 
     var body: some View {
         ZStack {
@@ -948,19 +940,19 @@ struct DuskHeroBackdropOverlay: View {
             )
             #else
             LinearGradient(
-                stops: scaled(style.verticalDarkeningStops),
+                stops: style.verticalDarkeningStops,
                 startPoint: .top,
                 endPoint: .bottom
             )
             #endif
 
             LinearGradient(
-                stops: scaled([
+                stops: [
                     .init(color: Color.black.opacity(0.86), location: 0),
                     .init(color: Color.black.opacity(0.50), location: 0.34),
                     .init(color: Color.black.opacity(0.12), location: 0.68),
                     .init(color: Color.black.opacity(0), location: 1),
-                ]),
+                ],
                 startPoint: .leading,
                 endPoint: .trailing
             )

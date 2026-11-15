@@ -257,6 +257,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   only seam-proof topology.
   When a detail hero swaps artwork from focus changes, opt into retaining the previous
   backdrop while the next one loads instead of clearing the image.
+- Heroes are a dark context in both appearances (white text and clear-logos):
+  the Home cinematic hero and `DetailHeroSection` set `.colorScheme(.dark)` on
+  their content and render the backdrop + scrim dark. In Light mode the iOS Home
+  hero fades its last 24 pt (under the pager) into the page; the detail hero runs
+  its dark area on below the title block (`lightDarkRunOut`, 40 pt iOS / 64 pt
+  tvOS) and then fades over 56 / 80 pt, like the Mac hero.
 - When the iOS Home cinematic hero is visible, keep the tab bar color scheme dark.
   The floating iPad tab bar can sit over hero artwork, so its selected label must
   resolve against the tab bar material instead of the page's light appearance.

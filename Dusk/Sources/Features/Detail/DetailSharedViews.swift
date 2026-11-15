@@ -293,11 +293,9 @@ struct DetailHeroToolbarScheme: ViewModifier {
 
 struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
-    #if os(macOS)
     /// The page's scheme (the hero itself is always dark): Light mode needs
     /// a longer dark run-out below the actions before the fade.
     @Environment(\.colorScheme) private var pageColorScheme
-    #endif
 
     let backdropURL: URL?
     /// The backdrop is an unwatched episode's own still; see `spoilerBlur`.
@@ -415,8 +413,6 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         }
         .frame(width: containerWidth, height: heroHeight, alignment: .leading)
         .duskHeroBackdropBottomFade()
-        .offset(x: -backgroundLeadingInset)
-        .allowsHitTesting(false)
 
         let content = heroContent(titleArtworkHeight: titleArtworkHeight)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
@@ -426,10 +422,14 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
 
         #if os(tvOS)
         ZStack(alignment: .bottomLeading) {
-            backdrop
+            lightPageBackdrop(backdrop)
+                .offset(x: -backgroundLeadingInset)
+                .allowsHitTesting(false)
             content
+                .padding(.bottom, lightRunOut)
+                .environment(\.colorScheme, .dark)
         }
-        .frame(height: heroHeight)
+        .frame(height: heroHeight + lightRunOut)
         .frame(maxWidth: .infinity)
         .toolbarColorScheme(.dark, for: .navigationBar)
         #elseif os(macOS)
@@ -449,15 +449,82 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         // wider than the page, and as a sibling it widened the hero and pushed
         // the centered iPhone column off the safe area's center.
         content
-            .frame(height: heroHeight)
+            .padding(.bottom, lightRunOut)
+            .environment(\.colorScheme, .dark)
+            .frame(height: heroHeight + lightRunOut)
             .frame(maxWidth: .infinity)
-            .background(alignment: .leading) { backdrop }
+            .background(alignment: .leading) {
+                lightPageBackdrop(backdrop)
+                    .offset(x: -backgroundLeadingInset)
+                    .allowsHitTesting(false)
+            }
             .modifier(DetailHeroToolbarScheme(
-                artworkHeight: heroHeight * DetailHeroToolbarScheme.artworkFraction,
+                artworkHeight: isLightPage
+                    ? heroHeight + lightRunOut - Self.lightFadeHeight
+                    : heroHeight * DetailHeroToolbarScheme.artworkFraction,
                 topInset: topInset
             ))
         #endif
     }
+
+    #if !os(macOS)
+    // The hero is a dark context in both appearances (white text, white
+    // clear-logos). In Light mode its dark area runs on `lightRunOut` below the
+    // title block, then a short, steep fade melts it into the light page, so
+    // the text never sits on the light wash.
+    private var isLightPage: Bool { pageColorScheme == .light }
+
+    private var lightRunOut: CGFloat { isLightPage ? Self.lightDarkRunOut : 0 }
+
+    private static var lightDarkRunOut: CGFloat {
+        #if os(tvOS)
+        64
+        #else
+        40
+        #endif
+    }
+
+    private static var lightFadeHeight: CGFloat {
+        #if os(tvOS)
+        80
+        #else
+        56
+        #endif
+    }
+
+    /// Dark mode: the backdrop as it is. Light mode: the backdrop in its dark
+    /// scheme on the dark page colour, faded out over its last stretch.
+    @ViewBuilder
+    private func lightPageBackdrop(_ backdrop: some View) -> some View {
+        if isLightPage {
+            let height = heroHeight + lightRunOut
+            let fadeStart = max(0, 1 - Self.lightFadeHeight / max(height, 1))
+            let fadeSpan = 1 - fadeStart
+            ZStack(alignment: .top) {
+                Color.duskBackground
+                backdrop
+            }
+            .environment(\.colorScheme, .dark)
+            .frame(width: containerWidth, height: height, alignment: .top)
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .black, location: 0),
+                        .init(color: .black, location: fadeStart),
+                        .init(color: .black.opacity(0.72), location: fadeStart + fadeSpan * 0.25),
+                        .init(color: .black.opacity(0.32), location: fadeStart + fadeSpan * 0.55),
+                        .init(color: .black.opacity(0.08), location: fadeStart + fadeSpan * 0.82),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            }
+        } else {
+            backdrop
+        }
+    }
+    #endif
 
     @ViewBuilder
     private func heroContent(titleArtworkHeight: CGFloat) -> some View {
