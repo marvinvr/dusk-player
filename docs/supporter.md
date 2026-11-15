@@ -123,8 +123,10 @@ credentials — only call it from an explicit user action.
   the sheet — the classic set, a hairline, then the subscriber exclusives
   (locked unless the subscription is active); unlocked tiles apply directly
   (tap on iOS, select on tvOS). tvOS shows the exclusives as a second labeled
-  row. Each row is a `.focusSection()` of `.card` buttons; a locked one does
-  nothing. Being buttons, Up from the purchase rows always has a focusable target and the
+  row. Each row is a `.focusSection()` of `.card` buttons; a locked one moves
+  focus to the first subscription plan (`onSelectLocked`), and the focused
+  tile's name turns `TextPrimary` so it reads through the card's lift shadow in
+  Light. Being buttons, Up from the purchase rows always has a focusable target and the
   scroll view can bring the icons back on screen. The purchase block and the
   Manage section are focus sections too; the header is not. `AppIconPickerView`
   groups the same way ("Supporter Icons" / "Subscriber Exclusives"); locked

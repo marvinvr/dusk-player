@@ -32,6 +32,11 @@ struct SupporterView: View {
     #if os(iOS)
     @State private var showsManageSubscriptions = false
     #endif
+    #if os(tvOS)
+    /// The purchase row that holds focus; a locked icon moves it to the
+    /// first subscription plan.
+    @FocusState private var focusedProductID: String?
+    #endif
 
     var body: some View {
         platformBody
@@ -495,9 +500,13 @@ struct SupporterView: View {
                     }
                     .padding(.leading, TVSettingsMetrics.contentInset)
 
-                    SupporterIconShowcase()
-                        .padding(.leading, TVSettingsMetrics.contentInset)
-                        .focusSection()
+                    SupporterIconShowcase {
+                        // A locked icon opens the offer: the subscription
+                        // unlocks every icon.
+                        focusedProductID = store.subscriptionProducts.first?.id
+                    }
+                    .padding(.leading, TVSettingsMetrics.contentInset)
+                    .focusSection()
 
                     // An explicit stack: `.focusSection()` on the multi-view
                     // builder laid the two plan sections out with default
@@ -596,6 +605,7 @@ struct SupporterView: View {
                 Task { await store.purchase(product) }
             }
             .disabled(store.purchasingProductID != nil || store.activeProductID == product.id)
+            .focused($focusedProductID, equals: product.id)
         }
     }
 
@@ -1009,6 +1019,15 @@ private struct SupporterSubscriptionCard: View {
 struct SupporterIconShowcase: View {
     @Environment(SupporterStore.self) private var store
     @State private var currentIcon: DuskAppIcon = .dusk
+    #if os(tvOS)
+    /// Selecting a locked icon; the Supporter page points it at the offer.
+    private let onSelectLocked: () -> Void
+    @FocusState private var focusedIcon: DuskAppIcon?
+
+    init(onSelectLocked: @escaping () -> Void = {}) {
+        self.onSelectLocked = onSelectLocked
+    }
+    #endif
 
     #if os(tvOS)
     /// The card focus grows a tile by about 20pt per side at this size, so the
@@ -1064,7 +1083,7 @@ struct SupporterIconShowcase: View {
             // Two labeled rows, each a focus section. The tiles are buttons
             // so Up from the purchase rows always has a focusable target and
             // the scroll view can bring the icons back on screen. Selecting
-            // an unlocked one applies it; a locked one does nothing.
+            // an unlocked one applies it; a locked one opens the offer.
             HStack(alignment: .top, spacing: Self.tileSpacing) {
                 ForEach(DuskAppIcon.supporterIcons) { icon in
                     tile(for: icon)
@@ -1136,8 +1155,18 @@ struct SupporterIconShowcase: View {
     private func tileName(for icon: DuskAppIcon) -> some View {
         Text(icon.displayName)
             .font(DuskFont.cardSubtitle(ios: .caption2))
-            .foregroundStyle(icon.requiresSubscription ? Color.duskTextPrimary : Color.duskTextSecondary)
+            .foregroundStyle(tileNameIsPrimary(icon) ? Color.duskTextPrimary : Color.duskTextSecondary)
             .lineLimit(1)
+    }
+
+    /// tvOS: the focused tile's name too, so it reads through the card's
+    /// lift shadow (a grey wash over a secondary name in Light).
+    private func tileNameIsPrimary(_ icon: DuskAppIcon) -> Bool {
+        #if os(tvOS)
+        icon.requiresSubscription || focusedIcon == icon
+        #else
+        icon.requiresSubscription
+        #endif
     }
 
     @ViewBuilder
@@ -1147,12 +1176,16 @@ struct SupporterIconShowcase: View {
         // button, far enough below for the lift not to reach it.
         VStack(spacing: Self.tileNameSpacing) {
             Button {
-                guard store.isUnlocked(icon) else { return }
+                guard store.isUnlocked(icon) else {
+                    onSelectLocked()
+                    return
+                }
                 apply(icon)
             } label: {
                 iconArtwork(for: icon)
             }
             .buttonStyle(.card)
+            .focused($focusedIcon, equals: icon)
             .buttonBorderShape(.roundedRectangle(radius: tileSize * 0.22))
             .accessibilityLabel("\(icon.displayName) app icon")
             .accessibilityAddTraits(isCurrent(icon) ? .isSelected : [])
