@@ -1171,7 +1171,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   with its ruler and rows. The channel column and the ruler corner pin with
   `visualEffect` against the horizontal scroll, the ruler against the outer vertical
   one (render time, no scroll lag; it sits outside the `LazyVStack`, which would
-  drop it), titles stick to the visible edge. Cells and ruler marks are windowed to
+  drop it), titles stick to the visible edge with a render-time offset; so they
+  end in an ellipsis, a block crossing the edge also gives up that width at its
+  trailing end, rounded up to 16 pt steps (`onGeometryChange`), so only those
+  blocks re-lay out, once per step. Cells and ruler marks are windowed to
   a few screenfuls around the scroll position. `LiveTVGuideShortMomentum` shortens
   flicks; `TargetContext.velocity` is in points per **millisecond**. Toolbar: Now +
   day menu (scrolls every section). Tap live = play, later = details sheet, marker =

@@ -63,6 +63,19 @@ struct LiveTVGuideBlock: View {
     /// while the block scrolls underneath (applied at render time).
     var pinnedColumnWidth: CGFloat = 0
 
+    #if !os(tvOS)
+    /// The sticky shift rounded up to `truncationStep`: how much width the
+    /// title gives up at its end.
+    @State private var truncationInset: CGFloat = 0
+    private static let truncationStep: CGFloat = 16
+
+    /// How far the title slides right to stay clear of the pinned column.
+    nonisolated private static func stickyShift(pinnedColumnWidth: CGFloat, proxy: GeometryProxy) -> CGFloat {
+        let hidden = pinnedColumnWidth - proxy.frame(in: .scrollView(axis: .horizontal)).minX
+        return min(max(hidden, 0), max(proxy.size.width - 96, 0))
+    }
+    #endif
+
     private var isLive: Bool { cell.isAiring(at: now) }
     /// Over and not highlighted: drawn receded, the way the past reads in a
     /// cable guide. A replayable one keeps more of its contrast.
@@ -75,13 +88,24 @@ struct LiveTVGuideBlock: View {
             // ellipsis inside what is left of the block.
             .padding(.leading, stickyInset)
             #else
+            // The offset alone pushed the title past the block's end, so it
+            // was clipped mid-letter. The title also gives up that much width
+            // at its end so it truncates with an ellipsis; rounded up to whole
+            // steps, it re-lays out only the blocks crossing the edge, once
+            // per step, never every scroll frame.
+            .padding(.trailing, truncationInset)
             .visualEffect { [pinnedColumnWidth] content, proxy in
-                let minX = proxy.frame(in: .scrollView(axis: .horizontal)).minX
-                let hidden = pinnedColumnWidth - minX
-                let shift = min(max(hidden, 0), max(proxy.size.width - 96, 0))
+                let shift = Self.stickyShift(pinnedColumnWidth: pinnedColumnWidth, proxy: proxy)
+                let hidden = pinnedColumnWidth - proxy.frame(in: .scrollView(axis: .horizontal)).minX
                 // A sliver too narrow to carry its title stays blank rather
                 // than showing the middle of a word.
                 return content.offset(x: shift).opacity(hidden > proxy.size.width - 96 && hidden > 0 ? 0 : 1)
+            }
+            .onGeometryChange(for: CGFloat.self) { [pinnedColumnWidth] proxy in
+                let shift = Self.stickyShift(pinnedColumnWidth: pinnedColumnWidth, proxy: proxy)
+                return (shift / Self.truncationStep).rounded(.up) * Self.truncationStep
+            } action: { inset in
+                truncationInset = inset
             }
             #endif
             .clipShape(shape)
