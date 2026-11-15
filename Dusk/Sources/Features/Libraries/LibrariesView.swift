@@ -152,6 +152,14 @@ struct LibraryTypeListView: View {
 
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 12) {
+                #if os(tvOS)
+                // A photo type's list is its tab root: the tab bar names it.
+                if libraryType != .photo {
+                    TVSettingsPageTitle(libraryType.tabTitle, leadingInset: 0)
+                        .tvLibraryPageTitleSpacing()
+                }
+                #endif
+
                 ServerOutageNote(offlineServerNames: viewModel.availability.offlineServerNames)
                     .padding(.horizontal, 4)
 
@@ -180,7 +188,7 @@ struct LibraryTypeListView: View {
         }
         .scrollIndicators(.hidden)
         .background(Color.duskBackground.ignoresSafeArea())
-        .duskNavigationTitle(libraryType.tabTitle, showsOnTV: libraryType != .photo)
+        .duskNavigationTitle(libraryType.tabTitle)
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(iOS)
         .toolbar {

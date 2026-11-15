@@ -43,7 +43,7 @@ struct HomeHubItemsView: View {
                 itemsGrid
             }
         }
-        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
+        .duskNavigationTitle(viewModel.navigationTitle)
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
             await viewModel.loadItems()
@@ -60,6 +60,10 @@ struct HomeHubItemsView: View {
                 minimumColumnCount: minimumColumnCount
             )
             ScrollView {
+                #if os(tvOS)
+                TVSettingsPageTitle(viewModel.navigationTitle, leadingInset: horizontalPadding)
+                    .tvLibraryPageTitleSpacing()
+                #endif
                 PlexItemPosterGrid(
                     items: viewModel.items,
                     layout: layout,

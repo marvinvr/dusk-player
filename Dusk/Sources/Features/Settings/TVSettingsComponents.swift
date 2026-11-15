@@ -30,20 +30,34 @@ enum TVSettingsMetrics {
     static let sectionSpacing: CGFloat = 40
 }
 
-/// The bold title at the top of a Settings page, inside its scroll view so
-/// it lines up with the cards and scrolls away with them.
+/// The bold title at the top of a pushed tvOS page (Settings, library grids
+/// and lists), inside its scroll view so it lines up with the content and
+/// scrolls away with it.
 struct TVSettingsPageTitle: View {
     let title: String
+    /// Settings rows lay out at `contentInset`; poster pages pass their own
+    /// horizontal padding so the title sits over the first poster.
+    var leadingInset: CGFloat = TVSettingsMetrics.contentInset
 
-    init(_ title: String) {
+    init(_ title: String, leadingInset: CGFloat = TVSettingsMetrics.contentInset) {
         self.title = title
+        self.leadingInset = leadingInset
     }
 
     var body: some View {
         Text(title)
             .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
             .foregroundStyle(Color.duskTextPrimary)
-            .padding(.leading, TVSettingsMetrics.contentInset)
+            .padding(.leading, leadingInset)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+extension TVSettingsPageTitle {
+    /// Library pages have no 48pt page inset like Settings: the same space
+    /// above the title, a little below it before the chips or rows.
+    func tvLibraryPageTitleSpacing() -> some View {
+        padding(.top, 48).padding(.bottom, 24)
     }
 }
 

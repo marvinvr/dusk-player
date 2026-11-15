@@ -22,18 +22,18 @@ struct LibraryCollectionsView: View {
             Color.duskBackground.ignoresSafeArea()
 
             if !viewModel.pager.hasLoadedOnce && viewModel.items.isEmpty {
-                FeatureLoadingView()
+                titled(FeatureLoadingView())
             } else if let error = viewModel.pager.error, viewModel.items.isEmpty {
-                FeatureErrorView(message: error) {
+                titled(FeatureErrorView(message: error) {
                     Task { await viewModel.reload() }
-                }
+                })
             } else if viewModel.items.isEmpty {
-                FeatureEmptyStateView(
+                titled(FeatureEmptyStateView(
                     systemImage: "square.stack",
                     title: "No collections",
                     message: "Collections made in Plex for \(viewModel.library.title) show up here."
                 )
-                .padding(.horizontal, 24)
+                .padding(.horizontal, 24))
             } else {
                 grid
             }
@@ -41,12 +41,26 @@ struct LibraryCollectionsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(viewModel.navigationTitle)
         #else
-        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
+        .duskNavigationTitle(viewModel.navigationTitle)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
             await viewModel.load()
         }
+    }
+
+    /// tvOS: the page title stays above the loading, error and empty states.
+    @ViewBuilder
+    private func titled(_ content: some View) -> some View {
+        #if os(tvOS)
+        VStack(spacing: 0) {
+            TVSettingsPageTitle(viewModel.navigationTitle, leadingInset: horizontalPadding)
+                .tvLibraryPageTitleSpacing()
+            content.frame(maxHeight: .infinity)
+        }
+        #else
+        content
+        #endif
     }
 
     private var grid: some View {
@@ -61,6 +75,11 @@ struct LibraryCollectionsView: View {
 
             ScrollView {
                 VStack(spacing: 0) {
+                    #if os(tvOS)
+                    TVSettingsPageTitle(viewModel.navigationTitle, leadingInset: horizontalPadding)
+                        .tvLibraryPageTitleSpacing()
+                    #endif
+
                     PlexItemPosterGrid(
                         items: viewModel.items,
                         layout: layout,

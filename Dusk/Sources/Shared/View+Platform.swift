@@ -7,16 +7,12 @@ import SafariServices
 #endif
 
 extension View {
-    /// tvOS draws the title only with `showsOnTV`, for pushed pages: on a
-    /// tab root it would repeat the tab bar.
+    /// No navigation title on tvOS: pushed pages draw `TVSettingsPageTitle`
+    /// in their content, and on a tab root it would repeat the tab bar.
     @ViewBuilder
-    func duskNavigationTitle(_ title: String, showsOnTV: Bool = false) -> some View {
+    func duskNavigationTitle(_ title: String) -> some View {
         #if os(tvOS)
-        if showsOnTV {
-            self.navigationTitle(title)
-        } else {
-            self
-        }
+        self
         #else
         self.navigationTitle(title)
         #endif

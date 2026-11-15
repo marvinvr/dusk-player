@@ -105,7 +105,7 @@ struct LibraryRecommendationsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(navigationTitle)
         #else
-        .duskNavigationTitle(navigationTitle, showsOnTV: push == nil)
+        .duskNavigationTitle(navigationTitle)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
     }
@@ -114,6 +114,12 @@ struct LibraryRecommendationsView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 #if os(tvOS)
+                // Pushed from the library list; the tab root has the tab bar.
+                if push == nil {
+                    TVSettingsPageTitle(navigationTitle, leadingInset: DuskPosterMetrics.carouselHorizontalPadding)
+                        .tvLibraryPageTitleSpacing()
+                }
+
                 // Leading and first in the page, so it is where focus lands
                 // when moving down from the tab bar.
                 HStack(spacing: 20) {

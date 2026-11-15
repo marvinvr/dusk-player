@@ -81,7 +81,7 @@ struct LibraryItemsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(viewModel.navigationTitle)
         #else
-        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
+        .duskNavigationTitle(viewModel.navigationTitle)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(tvOS)
@@ -126,6 +126,11 @@ struct LibraryItemsView: View {
             )
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
+                    #if os(tvOS)
+                    TVSettingsPageTitle(viewModel.navigationTitle, leadingInset: horizontalPadding)
+                        .tvLibraryPageTitleSpacing()
+                    #endif
+
                     if viewModel.showsBrowseControls, showsInlineBrowseControls {
                         browseControls
                             #if os(tvOS)

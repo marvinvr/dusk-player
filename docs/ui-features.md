@@ -302,9 +302,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   labels below the artwork, keep the artwork as the actual control and apply
   `duskTVOSFocusedScale` to the outer card so it grows with a tight neutral white glow.
 - Use platform helpers in `View+Platform.swift` instead of scattering `#if os(tvOS)`:
-  `duskNavigationTitle` (tvOS draws it only with `showsOnTV: true`, for pushed
-  pages: a tab root's title would repeat the tab bar; tvOS Settings pages use
-  the in-content `TVSettingsPageTitle` instead), title display modes, list background/separator suppression,
+  `duskNavigationTitle` (no title on tvOS: every pushed tvOS page, Settings and
+  library pages alike, draws the white bold in-content `TVSettingsPageTitle` on
+  the left; a tab root's title would repeat the tab bar), title display modes, list background/separator suppression,
   status-bar helpers, tvOS button chrome suppression, the system poster button, and
   tvOS focus effect shape.
 
