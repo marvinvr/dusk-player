@@ -209,7 +209,11 @@ private struct TVSettingsOptionList<Option: Hashable>: View {
 struct TVSettingsToggleRow: View {
     let title: String
     @Binding var isOn: Bool
+    /// Focus this row's switch when the page opens. `prefersDefaultFocus`
+    /// is ignored on a navigation push, so it is set once on appear.
+    var takesInitialFocus = false
     @FocusState private var isFocused: Bool
+    @State private var didTakeInitialFocus = false
 
     var body: some View {
         HStack(spacing: 20) {
@@ -227,6 +231,11 @@ struct TVSettingsToggleRow: View {
         }
         .frame(minHeight: TVSettingsMetrics.rowMinHeight)
         .tvSettingsRowFocusHighlight(isFocused)
+        .task {
+            guard takesInitialFocus, !didTakeInitialFocus else { return }
+            didTakeInitialFocus = true
+            isFocused = true
+        }
     }
 }
 

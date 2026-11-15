@@ -73,9 +73,13 @@ struct LibraryTabSettingsView: View {
                             tvRowDivider
                         }
 
+                        // Open at the top. The switches are small targets,
+                        // so the focus engine picked the first full-width
+                        // Order row mid-page.
                         TVSettingsToggleRow(
                             title: libraryType.tabTitle,
-                            isOn: visibilityBinding(for: libraryType)
+                            isOn: visibilityBinding(for: libraryType),
+                            takesInitialFocus: index == 0
                         )
                     }
                 }

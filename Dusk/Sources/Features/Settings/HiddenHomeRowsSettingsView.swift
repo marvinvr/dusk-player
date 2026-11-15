@@ -45,6 +45,11 @@ struct HiddenHomeRowsSettingsView: View {
                 // Fill the page so the background covers it, not just the text.
                 .padding(.horizontal, 32)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                #if os(tvOS)
+                // Something on the page has to hold focus, or it falls to the tab
+                // bar and Back leaves the tab instead of the page.
+                .focusable()
+                #endif
             } else {
                 editor(viewModel)
             }

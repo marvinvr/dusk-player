@@ -36,6 +36,11 @@ struct PinnedPlaylistsSettingsView: View {
             // Fill the page so the background covers it, not just the text.
             .padding(.horizontal, 32)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            #if os(tvOS)
+            // Something on the page has to hold focus, or it falls to the tab
+            // bar and Back leaves the tab instead of the page.
+            .focusable()
+            #endif
         } else {
             list
         }
@@ -128,8 +133,8 @@ struct PinnedPlaylistsSettingsView: View {
             plexService.setPlaylistPinned(false, id: pin.id, title: pin.title)
         }
         #if os(tvOS)
-        // The empty state has nothing to focus; without this, focus falls
-        // to the tab bar.
+        // Unpinning the last one returns to Settings rather than leaving
+        // the empty page.
         if pins.isEmpty { dismiss() }
         #endif
     }

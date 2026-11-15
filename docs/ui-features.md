@@ -1465,6 +1465,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   they sit inside a shared card). Any new tvOS settings row must carry that band, or
   it will be invisible when focused (`.duskSuppressTVOSButtonChrome()` strips the
   system focus effect, leaving no indicator on its own).
+- Every pushed tvOS settings page needs something focusable, or focus falls to the
+  tab bar and Back leaves the tab: empty states there (Hidden Rows, Pinned
+  Playlists) are `.focusable()`. `prefersDefaultFocus` is ignored on a push, so a
+  page that must open on a small target uses `TVSettingsToggleRow(takesInitialFocus:)`
+  (Navigation Tabs, whose full-width Order rows otherwise won focus mid-page).
 - `TVSettingsMenuRow` pushes its own option list (`TVSettingsOptionList`) through a
   plain `NavigationLink`. Do not switch it back to `Picker` with
   `.pickerStyle(.navigationLink)`: on tvOS 27 that style pushes an empty list with
