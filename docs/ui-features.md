@@ -879,10 +879,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   letters dim and land on the next one). iOS: `LibraryLetterIndexBar` is a
   `UITableView`-style index (drag-to-scrub, selection haptic, 12 pt grid gutter).
   tvOS: a strip in the trailing margin that shows while it has focus or while focus
-  races through the grid (5 moves/s), and stays focusable while hidden at 0.02
-  opacity (the focus engine skips fully transparent views), so Right off the last
-  column reaches it, starting on the browsed letter; selecting moves focus to the
-  letter's first title.
+  races through the grid (5 moves/s), and stays focusable while hidden (its letters
+  turn clear; never opacity, which the focus engine skips and which left ghost
+  letters at any non-zero value), so Right off the last column reaches it, starting
+  on the browsed letter; dimmed letters are disabled, so focus skips them; selecting
+  moves focus to the letter's first title.
 - A jump outside the loaded titles replaces the grid with a **window** (`windowStart`
   = server offset of `items[0]`) that starts one row-aligned page above the letter;
   `gridColumnCount` keeps windows and prepends whole rows, so the letter starts a row
@@ -904,7 +905,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   when the library has any and has not disabled them; it opens `LibraryCollectionsView`
   (`.libraryCollections(library)`), a paged poster grid with "12 movies" subtitles.
   The Recommended page adds a Collections row per library (first 20, "Show All" to that
-  grid) right after the Plex hubs and before the personalized shelves; it loads after
+  grid; titled "Collections", or "Collections · <library>" with the `ServerLabeling`
+  server suffix on a type tab covering several libraries) right after the Plex hubs and before the personalized shelves; it loads after
   first paint and is part of the snapshot. A collection opens `CollectionDetailView`
   (`.media(type: .collection, id:)`): backdrop hero (the collection's art, else its
   first title's), "Collection · 12 movies · 1977–2019" (year span only once every

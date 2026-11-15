@@ -3,7 +3,8 @@ import SwiftUI
 #if os(tvOS)
 /// The tvOS A–Z strip at the grid's trailing edge. It stays focusable while
 /// hidden, so a swipe right off the last column lands on it; it shows while
-/// it holds focus or while `isRevealed` (the grid scrolling fast).
+/// it holds focus or while `isRevealed` (the grid scrolling fast). Letters
+/// with no titles are drawn dimmed and can't take focus.
 struct LibraryLetterIndexBar: View {
     let index: LibraryLetterIndex
     /// The letter of the focused title; entering the strip starts there.
@@ -23,10 +24,12 @@ struct LibraryLetterIndexBar: View {
                 } label: {
                     LetterLabel(
                         entry: entry,
-                        isCurrent: entry == currentEntry
+                        isCurrent: entry == currentEntry,
+                        isVisible: isVisible
                     )
                 }
                 .buttonStyle(LetterButtonStyle())
+                .disabled(!entry.isAvailable)
                 .focused($focusedLabel, equals: entry.label)
                 .accessibilityLabel(entry.label == "#" ? "Numbers and symbols" : entry.label)
             }
@@ -38,9 +41,10 @@ struct LibraryLetterIndexBar: View {
                 .fill(.ultraThinMaterial)
                 .opacity(focusedLabel != nil ? 1 : 0)
         }
-        // Not 0: the focus engine skips fully transparent views, and a swipe
-        // right off the grid has to land here while it is hidden.
-        .opacity(isVisible ? 1 : 0.02)
+        // Hidden by clearing the letters, never with opacity: the focus
+        // engine skips fully transparent views, and a swipe right off the
+        // grid has to land here while it is hidden (a near-zero opacity left
+        // faint ghost letters at the screen edge).
         .animation(.easeOut(duration: 0.2), value: isVisible)
         .focusSection()
         .onChange(of: focusedLabel) { previous, label in
@@ -56,6 +60,7 @@ struct LibraryLetterIndexBar: View {
         @Environment(\.isFocused) private var isFocused
         let entry: LibraryLetterIndex.Entry
         let isCurrent: Bool
+        let isVisible: Bool
 
         var body: some View {
             Text(entry.label)
@@ -72,6 +77,7 @@ struct LibraryLetterIndexBar: View {
 
         private var foreground: Color {
             if isFocused { return Color.duskBackground }
+            if !isVisible { return .clear }
             if !entry.isAvailable { return Color.duskTextSecondary.opacity(0.45) }
             return isCurrent ? Color.duskTextPrimary : Color.duskTextSecondary
         }

@@ -312,9 +312,12 @@ final class LibraryRecommendationsViewModel {
     }
 
     /// "Collections" alone with one library; a type tab covering several
-    /// names each row after its library.
+    /// adds the library, with its server when two share a name
+    /// ("Collections · Movies · Cabin", not "Movies Collections" twice).
     func title(for shelf: LibraryCollectionShelf) -> String {
-        isMultiLibrary ? "\(shelf.library.title) Collections" : "Collections"
+        guard isMultiLibrary else { return "Collections" }
+        let labels = ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
+        return "Collections · \(ServerLabeling.displayTitle(for: shelf.library, labels: labels))"
     }
 
     /// Video libraries skip the genre recommendation engine entirely (its

@@ -157,6 +157,13 @@ struct SearchToolbarLink: View {
 // MARK: - Shared Results
 
 private extension SearchRootContent {
+    /// Seerr results join the search (signed in for this profile).
+    var searchesSeerr: Bool { seerrService.isAvailableForCurrentContext }
+
+    func trimmedQuery(_ vm: SearchViewModel) -> String {
+        vm.query.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Wraps the populated results with the shared loading / error / empty states
     /// so every platform reports state the same way.
     @ViewBuilder
@@ -178,14 +185,18 @@ private extension SearchRootContent {
         } else if vm.hasSearched && vm.results.isEmpty {
             FeatureEmptyStateView(
                 systemImage: "film.stack",
-                title: "No results found",
-                message: "Try a different title, show, or actor."
+                title: "No Results",
+                message: searchesSeerr
+                    ? "Nothing in Plex or Seerr matches “\(trimmedQuery(vm))”."
+                    : "Nothing in Plex matches “\(trimmedQuery(vm))”."
             )
         } else if vm.results.isEmpty {
             FeatureEmptyStateView(
                 systemImage: "magnifyingglass",
-                title: "Search your Plex library",
-                message: "Find movies, shows, episodes, and people."
+                title: searchesSeerr ? "Search Plex and Seerr" : "Search Plex",
+                message: searchesSeerr
+                    ? "Find movies, shows, episodes, and people, or request new ones."
+                    : "Find movies, shows, episodes, and people."
             )
         } else {
             content()

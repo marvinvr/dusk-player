@@ -55,7 +55,7 @@ struct SeerrSettingsView: View {
             }
             .duskSettingsRowBackground()
 
-            if let errorMessage = viewModel.errorMessage ?? seerrService.lastConnectionError {
+            if let errorMessage = connectionError {
                 Section {
                     Text(errorMessage)
                         .font(.footnote)
@@ -114,7 +114,7 @@ struct SeerrSettingsView: View {
                     connectionRow
                 }
 
-                if let errorMessage = viewModel.errorMessage ?? seerrService.lastConnectionError {
+                if let errorMessage = connectionError {
                     TVSettingsSection(title: "Connection") {
                         Text(errorMessage)
                             .font(DuskFont.TV.rowValue)
@@ -174,7 +174,7 @@ struct SeerrSettingsView: View {
                 Text("Status")
                     .duskFont(tvOnly: DuskFont.TV.rowTitle)
                     .foregroundStyle(Color.duskTextPrimary)
-                Text(seerrService.connectionSubtitle)
+                Text(connectionError != nil ? "Couldn't connect" : seerrService.connectionSubtitle)
                     .font(DuskFont.caption(ios: .caption))
                     .foregroundStyle(Color.duskTextSecondary)
             }
@@ -184,8 +184,14 @@ struct SeerrSettingsView: View {
         .frame(minHeight: 52)
     }
 
+    /// The error under Connection; the status line follows it rather than
+    /// still saying "Not configured" beside it.
+    private var connectionError: String? {
+        viewModel.errorMessage ?? seerrService.lastConnectionError
+    }
+
     private var seerrStatusTone: ConnectionStatusTone {
-        if seerrService.lastConnectionError != nil { return .bad }
+        if connectionError != nil { return .bad }
         return seerrService.isConnected ? .good : .neutral
     }
 
