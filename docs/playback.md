@@ -2235,7 +2235,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     `PlayerTVScrubOverlay` — the presentation.
   - `PlayerTVInfoPanel` — the settings sheet that replaced the three-level gear
     menu (tabs: Info, Chapters, Audio, Subtitles, Quality, Channel, Speed;
-    a tab is omitted when it has nothing to show).
+    a tab is omitted when it has nothing to show). Focus is the tvOS white
+    platter with dark labels on rows, tabs and the offset buttons (a faint
+    fill + outline was invisible over bright video).
 - **Invariant: only one thing owns the remote at a time.** The transport is not
   focusable — the action row draws its own selection from
   `transportFocus`, never from `@FocusState`. `PlayerTVInfoPanel` is the sole

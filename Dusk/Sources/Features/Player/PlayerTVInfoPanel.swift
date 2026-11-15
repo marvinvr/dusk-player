@@ -87,21 +87,10 @@ struct PlayerTVInfoPanel: View {
                         .labelStyle(.titleAndIcon)
                         .padding(.horizontal, 20)
                         .padding(.vertical, 12)
-                        .foregroundStyle(
-                            controller.panelTab == tab ? Color.duskTextPrimary : Color.duskTextSecondary
-                        )
+                        .foregroundStyle(tabForeground(for: tab))
                         .background {
                             Capsule()
                                 .fill(tabBackground(for: tab))
-                        }
-                        .overlay {
-                            Capsule()
-                                .strokeBorder(
-                                    focusedRow == Self.tabRowID(tab)
-                                        ? .white.opacity(0.35)
-                                        : .white.opacity(0.06),
-                                    lineWidth: 1
-                                )
                         }
                 }
                 .duskSuppressTVOSButtonChrome()
@@ -116,12 +105,22 @@ struct PlayerTVInfoPanel: View {
         .focusSection()
     }
 
-    private func tabBackground(for tab: PlayerTVPanelTab) -> Color {
-        if focusedRow == Self.tabRowID(tab) {
-            return Color.duskSurface.opacity(0.96)
-        }
-        return controller.panelTab == tab ? Color.duskSurface.opacity(0.7) : .white.opacity(0.04)
+    /// Focus is the tvOS white platter with dark text, readable over any
+    /// frame; the selected tab keeps a dark fill, the others plain labels
+    /// bright enough to read over bright video.
+    private func tabForeground(for tab: PlayerTVPanelTab) -> Color {
+        if focusedRow == Self.tabRowID(tab) { return Self.focusedForeground }
+        return controller.panelTab == tab ? .white : .white.opacity(0.78)
     }
+
+    private func tabBackground(for tab: PlayerTVPanelTab) -> Color {
+        if focusedRow == Self.tabRowID(tab) { return Self.focusedFill }
+        return controller.panelTab == tab ? Color.duskSurface.opacity(0.7) : .white.opacity(0.06)
+    }
+
+    private static let focusedFill = Color.white
+    private static let focusedForeground = Color.black
+    private static let focusedSecondaryForeground = Color.black.opacity(0.6)
 
     private static func tabRowID(_ tab: PlayerTVPanelTab) -> String {
         "tab.\(tab.rawValue)"
@@ -519,20 +518,13 @@ struct PlayerTVInfoPanel: View {
 
         return Button(action: action) {
             compactPanelButtonLabel(title: title, systemImage: systemImage)
-                .foregroundStyle(Color.duskTextPrimary)
+                .foregroundStyle(isFocused ? Self.focusedForeground : Color.duskTextPrimary)
                 .padding(.horizontal, 26)
                 .padding(.vertical, 16)
                 .background(
-                    isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.55),
+                    isFocused ? Self.focusedFill : Color.duskSurface.opacity(0.55),
                     in: RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
                 )
-                .overlay {
-                    RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
-                        .strokeBorder(
-                            isFocused ? .white.opacity(0.35) : .white.opacity(0.04),
-                            lineWidth: 1
-                        )
-                }
                 .opacity(isDisabled ? 0.5 : 1)
         }
         .duskSuppressTVOSButtonChrome()
@@ -558,20 +550,20 @@ struct PlayerTVInfoPanel: View {
                 if let systemImage {
                     Image(systemName: systemImage)
                         .font(DuskFont.TV.glyphSmall)
-                        .foregroundStyle(Color.duskTextSecondary)
+                        .foregroundStyle(isFocused ? Self.focusedSecondaryForeground : Color.duskTextSecondary)
                         .frame(width: 34)
                 }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(DuskFont.TV.rowTitle)
-                        .foregroundStyle(Color.duskTextPrimary)
+                        .foregroundStyle(isFocused ? Self.focusedForeground : Color.duskTextPrimary)
                         .lineLimit(1)
 
                     if let subtitle, !subtitle.isEmpty {
                         Text(subtitle)
                             .font(DuskFont.TV.caption)
-                            .foregroundStyle(Color.duskTextSecondary)
+                            .foregroundStyle(isFocused ? Self.focusedSecondaryForeground : Color.duskTextSecondary)
                             .lineLimit(1)
                     }
                 }
@@ -581,23 +573,16 @@ struct PlayerTVInfoPanel: View {
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(DuskFont.TV.glyphSmall.weight(.bold))
-                        .foregroundStyle(Color.duskTextPrimary)
+                        .foregroundStyle(isFocused ? Self.focusedForeground : Color.duskTextPrimary)
                 }
             }
             .padding(.horizontal, 22)
             .padding(.vertical, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                isFocused ? Color.duskSurface.opacity(0.96) : Color.duskSurface.opacity(0.55),
+                isFocused ? Self.focusedFill : Color.duskSurface.opacity(0.55),
                 in: RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: PlayerTVHUDLayout.panelRowCornerRadius, style: .continuous)
-                    .strokeBorder(
-                        isFocused ? .white.opacity(0.35) : .white.opacity(0.04),
-                        lineWidth: 1
-                    )
-            }
             .opacity(isDisabled ? 0.5 : 1)
         }
         .duskSuppressTVOSButtonChrome()
