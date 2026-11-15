@@ -1171,7 +1171,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   block comfortably visible (`reveal`: 35% of the viewport at most, the title sticks
   to the edge). The one ruler follows the focused section. Up/Down keeps the time. Select: live plays, later
   opens details; long-press: Watch Live / Details / Jump to Now; Play/Pause jumps
-  to now; the corner is the day menu. An info panel above the grid describes the
+  to now; the corner is the day menu, its header row a focus section of its own
+  so Up from any first-row position reaches it (the grid's `defaultFocus` is
+  `.userInitiated`, so Down from the tab bar still lands on a row). An info panel above the grid describes the
   focused programme (the only tvOS layout). Do not let the
   focus engine pick programmes itself: it picks the nearest block centre and
   drifts. Sizes the viewport from the caller's safe-area width (its own geometry

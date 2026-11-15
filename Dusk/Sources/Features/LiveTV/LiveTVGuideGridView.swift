@@ -947,6 +947,9 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
                 ruler
             }
             .frame(height: metrics.rulerHeight + 16)
+            // Its own section, full width: Up from any first-row position
+            // lands on the day chip instead of skipping to the tab bar.
+            .focusSection()
 
             ScrollView(.vertical) {
                 LazyVStack(alignment: .leading, spacing: metrics.rowSpacing) {
@@ -973,7 +976,9 @@ struct LiveTVGuideTVGrid<Corner: View>: View {
             }
         }
         .focusSection()
-        .defaultFocus($focusedRowID, lastFocusedRowID ?? firstRowID)
+        // User-initiated too: coming down from the tab bar must still land on a
+        // row, not on the header section in between.
+        .defaultFocus($focusedRowID, lastFocusedRowID ?? firstRowID, priority: .userInitiated)
         .onChange(of: focusedRowID) { _, id in
             if let id { lastFocusedRowID = id }
         }
