@@ -79,8 +79,14 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Navigation Tabs hides any destination, Videos included.
 - iOS/iPadOS use the modern native `Tab` API with SF Symbols and open Search
   from a circular trailing toolbar action on Home and immediately before Browse
-  on each library root, leaving Search out of the tab bar. iPadOS keeps every
-  remaining destination flat. On iPhone, Home plus the first three visible
+  on each library root, leaving Search out of the tab bar. iPadOS uses
+  `.sidebarAdaptable`: Home, Downloads and Settings are tabs, the library
+  destinations (content types, Live TV, Playlists) form a "Library"
+  `TabSection`, which the floating bar shows as one item (the last library
+  used) and the sidebar lists in full. The sidebar's selected platter is the
+  tint under a white label, so `DuskSidebarSelectionStyler` gives only the
+  sidebar view (built lazily; a proxy in front of SwiftUI's sidebar delegate
+  re-tints it when it shows) a grey Dark-mode tint. On iPhone, Home plus the first three visible
   content destinations stay flat and overflow content, Downloads, and Settings
   move into `MoreView` so the tab bar stays at five items. tvOS remains flat
   with a Search tab and no Downloads tab.
