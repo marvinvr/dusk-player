@@ -41,7 +41,7 @@ struct LibraryCollectionsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(viewModel.navigationTitle)
         #else
-        .duskNavigationTitle(viewModel.navigationTitle)
+        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
         .task {

@@ -23,10 +23,7 @@ struct SettingsTVView: View {
     private var settingsContent: some View {
         return ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                Text("Settings")
-                    .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .padding(.leading, TVSettingsMetrics.contentInset)
+                TVSettingsPageTitle("Settings")
 
                 TVSettingsSection(title: "Support", footer: SettingsSupport.supporterFooterText) {
                     TVSettingsActionRow(
@@ -511,10 +508,7 @@ private struct TVSettingsPage<Content: View>: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
-                Text(title)
-                    .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .padding(.leading, TVSettingsMetrics.contentInset)
+                TVSettingsPageTitle(title)
 
                 content()
             }

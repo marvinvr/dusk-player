@@ -43,7 +43,7 @@ struct HomeHubItemsView: View {
                 itemsGrid
             }
         }
-        .duskNavigationTitle(viewModel.navigationTitle)
+        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
             await viewModel.loadItems()

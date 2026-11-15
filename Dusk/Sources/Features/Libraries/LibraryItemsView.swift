@@ -81,7 +81,7 @@ struct LibraryItemsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(viewModel.navigationTitle)
         #else
-        .duskNavigationTitle(viewModel.navigationTitle)
+        .duskNavigationTitle(viewModel.navigationTitle, showsOnTV: true)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(tvOS)

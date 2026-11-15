@@ -98,6 +98,7 @@ struct AudioSubtitleSettingsView: View {
 
         return ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Audio & Subtitles")
                 TVSettingsSection(title: "Audio", footer: SettingsSupport.audioLanguageFooterText) {
                     TVSettingsMenuRow(
                         title: "Language",

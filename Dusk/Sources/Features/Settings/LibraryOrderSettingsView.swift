@@ -119,6 +119,7 @@ struct LibraryOrderSettingsView: View {
     private func tvEditor(_ viewModel: LibraryOrderSettingsViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Library Order")
                 let visibleLibraries = viewModel.visibleLibraries
                 if !visibleLibraries.isEmpty {
                     TVSettingsSection(

@@ -117,6 +117,7 @@ struct TraktSettingsView: View {
     private var tvSettingsContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Trakt")
                 TVSettingsSection(title: "Account", footer: Self.footerText) {
                     statusRow
                     tvRowDivider

@@ -111,6 +111,7 @@ struct ConnectionDiagnosticsView: View {
     private var content: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Connection Diagnostics")
                 TVSettingsSection(title: "Connections") {
                     TVSettingsActionRow(title: "Test Every Connection", isLoading: isTesting, action: testAll)
                     Rectangle()

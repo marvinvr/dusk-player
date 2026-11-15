@@ -85,6 +85,7 @@ struct IPTVSourcesSettingsView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("IPTV Sources")
                 if !iptvService.sources.isEmpty {
                     TVSettingsSection(title: "Sources") {
                         ForEach(Array(iptvService.sources.enumerated()), id: \.element.id) { index, source in
@@ -240,6 +241,7 @@ struct IPTVSourceEditorView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle(source == nil ? "Add IPTV Source" : "Edit Source")
                 TVSettingsSection(
                     title: "Source",
                     footer: "Leave XMLTV empty to use the guide named in the playlist’s url-tvg header."

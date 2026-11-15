@@ -56,6 +56,7 @@ struct HiddenLibrariesSettingsView: View {
         #if os(tvOS)
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Hidden Libraries")
                 ForEach(Array(groups.enumerated()), id: \.element.id) { index, group in
                     TVSettingsSection(
                         title: showsServers ? group.serverName : "Libraries",

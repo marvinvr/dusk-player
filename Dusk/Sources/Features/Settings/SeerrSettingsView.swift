@@ -101,6 +101,7 @@ struct SeerrSettingsView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Seerr")
                 TVSettingsSection(title: "Server") {
                     TVSettingsURLFieldRow(
                         prompt: "Server URL",

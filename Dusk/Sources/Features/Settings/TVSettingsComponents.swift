@@ -30,6 +30,23 @@ enum TVSettingsMetrics {
     static let sectionSpacing: CGFloat = 40
 }
 
+/// The bold title at the top of a Settings page, inside its scroll view so
+/// it lines up with the cards and scrolls away with them.
+struct TVSettingsPageTitle: View {
+    let title: String
+
+    init(_ title: String) {
+        self.title = title
+    }
+
+    var body: some View {
+        Text(title)
+            .font(DuskFont.pageTitle(ios: .title.weight(.bold)))
+            .foregroundStyle(Color.duskTextPrimary)
+            .padding(.leading, TVSettingsMetrics.contentInset)
+    }
+}
+
 struct TVSettingsSection<Content: View>: View {
     /// Nil for a card without a header (Add to Playlist's New Playlist row).
     let title: String?

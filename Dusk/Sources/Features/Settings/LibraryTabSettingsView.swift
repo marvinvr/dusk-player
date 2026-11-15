@@ -66,6 +66,7 @@ struct LibraryTabSettingsView: View {
     private var tvContent: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle(Self.pageTitle)
                 TVSettingsSection(title: "Visibility") {
                     ForEach(Array(preferences.libraryTabOrder.enumerated()), id: \.element) { index, libraryType in
                         if index > 0 {

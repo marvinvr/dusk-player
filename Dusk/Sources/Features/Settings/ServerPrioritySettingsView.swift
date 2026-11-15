@@ -141,6 +141,7 @@ struct ServerPrioritySettingsView: View {
     private func tvEditor(_ viewModel: ServerPrioritySettingsViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Server Priority")
                 if !viewModel.hasEnabledServer {
                     Text(Self.nothingEnabledMessage)
                         .font(.footnote)

@@ -105,7 +105,7 @@ struct LibraryRecommendationsView: View {
         #if os(macOS)
         .macUILibraryPageTitle(navigationTitle)
         #else
-        .duskNavigationTitle(navigationTitle)
+        .duskNavigationTitle(navigationTitle, showsOnTV: push == nil)
         #endif
         .duskNavigationBarTitleDisplayModeLarge()
     }

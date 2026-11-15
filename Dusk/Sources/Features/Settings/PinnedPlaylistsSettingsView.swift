@@ -46,6 +46,7 @@ struct PinnedPlaylistsSettingsView: View {
         #if os(tvOS)
         ScrollView {
             VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                TVSettingsPageTitle("Pinned Playlists")
                 TVSettingsSection(title: nil, footer: "Select a playlist to unpin it.") {
                     ForEach(Array(pins.enumerated()), id: \.element.id) { index, pin in
                         if index > 0 {

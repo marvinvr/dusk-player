@@ -180,7 +180,7 @@ struct LibraryTypeListView: View {
         }
         .scrollIndicators(.hidden)
         .background(Color.duskBackground.ignoresSafeArea())
-        .duskNavigationTitle(libraryType.tabTitle)
+        .duskNavigationTitle(libraryType.tabTitle, showsOnTV: libraryType != .photo)
         .duskNavigationBarTitleDisplayModeLarge()
         #if os(iOS)
         .toolbar {
