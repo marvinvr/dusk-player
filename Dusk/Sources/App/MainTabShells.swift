@@ -67,165 +67,24 @@ struct MainTabIOSShell<Content: View>: View {
     let content: (MainTabItem) -> Content
 
     var body: some View {
-        #if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            sectionedTabView
-        } else {
-            flatTabView
-                .background(DuskDuoTabBarLabelRefresher())
-        }
-        #else
-        flatTabView
-        #endif
-    }
-
-    private var flatTabView: some View {
         TabView(selection: selection) {
             ForEach(tabs) { tab in
-                tabContent(tab)
-            }
-        }
-    }
-
-    #if os(iOS)
-    /// iPad: six or seven tabs overflowed the floating tab bar, so the
-    /// libraries form a section and the bar can open into a sidebar.
-    private var sectionedTabView: some View {
-        let libraryTabs = tabs.filter(\.isLibrarySectionTab)
-        return TabView(selection: selection) {
-            ForEach(tabs.filter { $0 == .home }) { tab in
-                tabContent(tab)
-            }
-            if !libraryTabs.isEmpty {
-                TabSection("Library") {
-                    ForEach(libraryTabs) { tab in
-                        tabContent(tab)
-                    }
+                Tab(
+                    tab.title,
+                    systemImage: tab.systemImage,
+                    value: tab
+                ) {
+                    content(tab)
                 }
             }
-            ForEach(tabs.filter { $0 != .home && !$0.isLibrarySectionTab }) { tab in
-                tabContent(tab)
-            }
         }
-        .tabViewStyle(.sidebarAdaptable)
-        .background(DuskSidebarSelectionStyler())
-    }
-    #endif
-
-    private func tabContent(_ tab: MainTabItem) -> some TabContent<MainTabItem> {
-        Tab(
-            tab.title,
-            systemImage: tab.systemImage,
-            value: tab
-        ) {
-            content(tab)
-        }
+        #if os(iOS)
+        .background(DuskDuoTabBarLabelRefresher())
+        #endif
     }
 }
 
 #if os(iOS)
-private extension MainTabItem {
-    /// Library destinations: grouped under "Library" in the iPad sidebar.
-    var isLibrarySectionTab: Bool {
-        switch self {
-        case .library, .liveTV, .playlists: true
-        default: false
-        }
-    }
-}
-
-/// iPad sidebar: the selected row's platter is the tint (the window's label
-/// colour) under a white label, so in Dark mode it was white on white. The
-/// sidebar gets a Dark-mode tint that carries a white label instead: a neutral
-/// grey platter. Light mode keeps the label colour, and the floating tab bar
-/// keeps the window tint.
-///
-/// UIKit builds the sidebar view lazily, the first time it is shown. SwiftUI
-/// is the sidebar's delegate, so a proxy in front of it forwards everything
-/// and re-tints whenever the sidebar is about to show.
-private struct DuskSidebarSelectionStyler: UIViewControllerRepresentable {
-    func makeUIViewController(context: Context) -> DuskSidebarSelectionStylerController {
-        DuskSidebarSelectionStylerController()
-    }
-
-    func updateUIViewController(_ uiViewController: DuskSidebarSelectionStylerController, context: Context) {
-        uiViewController.installIfNeeded()
-    }
-}
-
-private final class DuskSidebarSelectionStylerController: UIViewController {
-    private let proxy = DuskSidebarDelegateProxy()
-
-    override func viewDidAppear(_ animated: Bool) {
-        super.viewDidAppear(animated)
-        installIfNeeded()
-    }
-
-    func installIfNeeded() {
-        guard let root = view.window?.rootViewController,
-              let tabBarController = Self.firstTabBarController(in: root) else { return }
-        let sidebar = tabBarController.sidebar
-        if let current = sidebar.delegate, current !== proxy {
-            proxy.original = current
-            sidebar.delegate = proxy
-        }
-        DuskSidebarDelegateProxy.tintSidebar(of: tabBarController)
-    }
-
-    private static func firstTabBarController(in controller: UIViewController) -> UITabBarController? {
-        if let tabBarController = controller as? UITabBarController {
-            return tabBarController
-        }
-        for child in controller.children {
-            if let tabBarController = firstTabBarController(in: child) {
-                return tabBarController
-            }
-        }
-        return nil
-    }
-}
-
-private final class DuskSidebarDelegateProxy: NSObject, UITabBarController.Sidebar.Delegate {
-    /// SwiftUI's own delegate; SwiftUI keeps it alive.
-    weak var original: (any UITabBarController.Sidebar.Delegate)?
-
-    override func responds(to aSelector: Selector!) -> Bool {
-        super.responds(to: aSelector) || (original?.responds(to: aSelector) ?? false)
-    }
-
-    override func forwardingTarget(for aSelector: Selector!) -> Any? {
-        original
-    }
-
-    func tabBarController(
-        _ tabBarController: UITabBarController,
-        sidebarVisibilityWillChange sidebar: UITabBarController.Sidebar,
-        animator: any UITabBarController.Sidebar.Animating
-    ) {
-        original?.tabBarController?(tabBarController, sidebarVisibilityWillChange: sidebar, animator: animator)
-        Self.tintSidebar(of: tabBarController)
-        animator.addAnimations { Self.tintSidebar(of: tabBarController) }
-    }
-
-    private static let sidebarTint = UIColor { traits in
-        traits.userInterfaceStyle == .dark ? .systemGray2 : .label
-    }
-
-    /// The sidebar is the tab chrome view that runs the container's full
-    /// height; the floating bar is a short strip.
-    static func tintSidebar(of tabBarController: UITabBarController) {
-        let contentViews = tabBarController.children.compactMap(\.viewIfLoaded)
-        for chrome in tabBarController.view.subviews
-        where !contentViews.contains(where: { $0.isDescendant(of: chrome) }) {
-            for candidate in chrome.subviews
-            where candidate.bounds.height > chrome.bounds.height / 2 && candidate.bounds.width < chrome.bounds.width {
-                if candidate.tintColor != sidebarTint {
-                    candidate.tintColor = sidebarTint
-                }
-            }
-        }
-    }
-}
 
 /// iPhone Duo: after a live unfold the tab bar could keep the labels it had
 /// truncated for the narrow cover display ("Ho…", "M…") until a relaunch.
