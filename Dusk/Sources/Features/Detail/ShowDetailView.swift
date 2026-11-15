@@ -51,7 +51,6 @@ struct ShowDetailView: View {
         .duskNavigationBarTitleDisplayModeInline()
         .detailMacWindowTitle(viewModel.details?.title)
         #if !os(macOS)
-        .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .task {

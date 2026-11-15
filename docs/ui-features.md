@@ -1056,9 +1056,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   show; its fixed-height hero box puts the focused episode's sources (from
   `focusedEpisodeDetails`, so they appear once that loads) on the episode meta line,
   without user stars, which would read as the show's rating.
-- Detail screens use hidden inline navigation bars over hero artwork. Keep
-  `.toolbarColorScheme(.dark, for: .navigationBar)` and hidden toolbar backgrounds unless
-  the screen is no longer hero-led.
+- Detail screens use hidden inline navigation bars over hero artwork. On iOS
+  `DetailHeroSection` sets the bar's scheme itself (`DetailHeroToolbarScheme`): dark
+  while the hero's artwork (its top 70%) is under the bar, the page's own once the
+  page scrolls past it, so Back stays legible over a light page. Pages keep only the
+  hidden toolbar background; tvOS keeps the bar dark.
 - Detail screens refresh after player dismissal and scene activation to pick up watch
   progress.
 - `MovieDetailViewModel` handles movie metadata, media info, resume position, watched

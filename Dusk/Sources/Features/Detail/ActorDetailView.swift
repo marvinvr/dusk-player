@@ -43,8 +43,10 @@ struct ActorDetailView: View {
             }
         }
         .duskNavigationBarTitleDisplayModeInline()
-        #if !os(macOS)
+        #if os(tvOS)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        #endif
+        #if !os(macOS)
         .toolbarBackground(.hidden, for: .navigationBar)
         #endif
         .task {

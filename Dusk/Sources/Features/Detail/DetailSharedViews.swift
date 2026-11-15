@@ -263,6 +263,34 @@ private extension VerticalAlignment {
     static let heroDescriptionTop = VerticalAlignment(HeroDescriptionTop.self)
 }
 
+#if os(iOS)
+/// The navigation bar over a detail hero: its Back button is dark glass while
+/// the hero's artwork is under it, and follows the page once the page scrolls
+/// past the artwork. Forced dark all the way, it was a grey disc with a white
+/// chevron over a light page.
+struct DetailHeroToolbarScheme: ViewModifier {
+    /// The top part of the hero that stays dark artwork; below it the hero
+    /// fades into the page.
+    static let artworkFraction: CGFloat = 0.7
+    /// A navigation bar's height under the top safe area.
+    private static let barHeight: CGFloat = 44
+
+    let artworkHeight: CGFloat
+    let topInset: CGFloat
+    @State private var isUnderBar = true
+
+    func body(content: Content) -> some View {
+        content
+            .onGeometryChange(for: Bool.self) { [artworkHeight, topInset] proxy in
+                proxy.frame(in: .global).minY + artworkHeight > topInset + Self.barHeight
+            } action: { isUnderBar in
+                self.isUnderBar = isUnderBar
+            }
+            .toolbarColorScheme(isUnderBar ? .dark : nil, for: .navigationBar)
+    }
+}
+#endif
+
 struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     #if os(macOS)
@@ -403,6 +431,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         }
         .frame(height: heroHeight)
         .frame(maxWidth: .infinity)
+        .toolbarColorScheme(.dark, for: .navigationBar)
         #elseif os(macOS)
         // Always a dark context, in Light mode too: the title block reads over
         // a dark scrim and the hero only fades into the page below it.
@@ -423,6 +452,10 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
             .frame(height: heroHeight)
             .frame(maxWidth: .infinity)
             .background(alignment: .leading) { backdrop }
+            .modifier(DetailHeroToolbarScheme(
+                artworkHeight: heroHeight * DetailHeroToolbarScheme.artworkFraction,
+                topInset: topInset
+            ))
         #endif
     }
 
