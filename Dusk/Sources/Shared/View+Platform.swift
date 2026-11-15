@@ -534,7 +534,8 @@ enum DuskPosterMetrics {
         #elseif os(macOS)
         MacUILayout.contentInset
         #else
-        12
+        // iPad: level with the large title's 20 pt margin.
+        UIDevice.current.userInterfaceIdiom == .pad ? 20 : 12
         #endif
     }
 
@@ -599,7 +600,8 @@ enum DuskPosterMetrics {
         #elseif os(macOS)
         150
         #else
-        120
+        // Three columns on iPhone, like the library grids (120 gave two).
+        104
         #endif
     }
 

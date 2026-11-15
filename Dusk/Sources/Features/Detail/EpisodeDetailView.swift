@@ -121,6 +121,21 @@ struct EpisodeDetailView: View {
                     DetailMacMediaSection(media: details.media.first)
                         .padding(.horizontal, MacUILayout.contentInset)
                         .padding(.top, detailSectionSpacing)
+                    #else
+                    // The movie page's Media section.
+                    if let info = MediaTextFormatter.mediaInfoLine(details.media.first) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Media")
+                                .font(DuskFont.sectionHeader(ios: .headline))
+                                .foregroundStyle(Color.primary)
+
+                            Text(info)
+                                .font(DuskFont.metadata(ios: .subheadline).monospaced())
+                                .foregroundStyle(Color.primary.opacity(0.76))
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, detailSectionSpacing)
+                    }
                     #endif
                 }
                 .detailMacPageBottomInset()

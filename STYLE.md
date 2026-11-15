@@ -165,8 +165,9 @@ poster** on every platform. Action buttons use the **native Liquid Glass** style
 * **Width:** iPhone → ~60% of the screen, **centered**; iPad → fills the hero's
   left column (`detailHeroRegularActionMaxWidth` cap, ≈460pt); tvOS → a contained
   `minWidth` (~260pt) so it does not hug the short label, leaving space to its right.
-* **Label:** keep it simple. Show and Season say just **"Play"** / **"Resume"** on
-  every platform — never the specific episode (that is too much information).
+* **Label:** keep it simple. Show and Season say **"Play"**; **Resume** names the
+  episode it picks up on iOS ("Resume S1 · E3" on a show, "Resume Episode 3" on a
+  season). The tvOS series page keeps a plain "Resume".
 
 **Secondary actions (Download / Mark Watched / Go to Show|Season).**
 

@@ -145,21 +145,7 @@ final class MovieDetailViewModel {
     }
 
     var mediaInfo: String? {
-        guard let media = details?.media.first else { return nil }
-        var parts: [String] = []
-        if let res = media.videoResolution?.uppercased() {
-            parts.append(res)
-        }
-        if let codec = media.videoCodec?.uppercased() {
-            parts.append(StreamResolver.isAV1Codec(codec) ? "AV1" : codec)
-        }
-        if let audioCodec = media.audioCodec?.uppercased() {
-            parts.append(audioCodec)
-        }
-        if let channels = media.audioChannels {
-            parts.append("\(channels)ch")
-        }
-        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+        MediaTextFormatter.mediaInfoLine(details?.media.first)
     }
 
     var genreText: String? {

@@ -229,17 +229,12 @@ private struct LibraryRowContent: View {
             .frame(width: 64, height: 64)
             .clipShape(RoundedRectangle(cornerRadius: 16))
 
-            VStack(alignment: .leading, spacing: 4) {
-                // Carries the server name only when another library of the same
-                // type has the same title. See `ServerLabeling`.
-                Text(vm.displayTitle(for: library))
-                    .font(DuskFont.rowTitle(ios: .headline))
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Text(libraryTypeLabel)
-                    .font(DuskFont.caption(ios: .subheadline))
-                    .foregroundStyle(Color.duskTextSecondary)
-            }
+            // Carries the server name only when another library of the same
+            // type has the same title. See `ServerLabeling`. No type line: the
+            // list is one type already.
+            Text(vm.displayTitle(for: library))
+                .font(DuskFont.rowTitle(ios: .headline))
+                .foregroundStyle(Color.duskTextPrimary)
 
             Spacer()
 
@@ -264,10 +259,6 @@ private struct LibraryRowContent: View {
         .clipShape(RoundedRectangle(cornerRadius: 28))
         .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         #endif
-    }
-
-    private var libraryTypeLabel: String {
-        library.libraryType?.tabTitle ?? library.type.capitalized
     }
 
     private func libraryIconPlaceholder(_ iconName: String) -> some View {

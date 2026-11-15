@@ -332,12 +332,13 @@ final class SeasonDetailViewModel {
         return "Play · \(label)"
     }
 
-    /// Short play-button label for the season hero: intentionally omits which
-    /// episode will resume/play so the primary button stays simple.
+    /// Short play-button label for the season hero: "Play", or "Resume
+    /// Episode 3" so it says which episode picks up.
     var playButtonShortLabel: String {
         _ = offlineStateVersion
         guard let ep = nextEpisodeToPlay else { return "Play" }
-        return isPartiallyWatched(ep) ? "Resume" : "Play"
+        guard isPartiallyWatched(ep) else { return "Play" }
+        return ep.index.map { "Resume Episode \($0)" } ?? "Resume"
     }
 
     var nextEpisodeRoute: AppNavigationRoute? {

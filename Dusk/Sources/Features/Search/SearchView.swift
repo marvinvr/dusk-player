@@ -32,7 +32,10 @@ struct SearchRootContent: View {
     @State private var isReturningToKeyboard = false
     #endif
 
-    private let searchPrompt = "Movies, Shows, Actors..."
+    /// Same words as the empty state's title.
+    private var searchPrompt: String {
+        seerrService.isAvailableForCurrentContext ? "Search Plex and Seerr" : "Search Plex"
+    }
 
     var body: some View {
         ZStack {

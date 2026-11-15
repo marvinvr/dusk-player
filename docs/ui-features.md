@@ -1010,7 +1010,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `STYLE.md` §3.3). The primary uses `detailHeroNativePrimaryButtonStyle()` —
   prominent, `Color.primary`-tinted Liquid Glass for contrast (dark-on-light /
   light-on-dark) with a `Color.duskPrimaryActionLabel` label; on Show/Season it
-  reads just "Play" / "Resume" (`playButtonShortLabel`), never the target episode.
+  reads "Play" or names the episode it resumes ("Resume S1 · E3" / "Resume Episode 3",
+  `playButtonShortLabel`); the tvOS series page keeps a plain "Resume".
   Secondary actions (download, watched, go-to-show/season) are **icon-only**
   everywhere via `DetailHeroSecondaryIconLabel` + `detailHeroNativeSecondaryButtonStyle()`
   with an `.accessibilityLabel` (capsule pills on iOS, circles on tvOS). Pass the

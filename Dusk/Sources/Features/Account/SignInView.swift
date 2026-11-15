@@ -62,7 +62,7 @@ struct SignInView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .padding(.top, 18)
 
-            Text("The Plex App we Deserve.")
+            Text("The Plex App We Deserve.")
                 .font(.title3)
                 .foregroundStyle(Color.duskTextSecondary)
                 .padding(.top, 4)
@@ -384,7 +384,7 @@ struct SignInView: View {
                 Text("Dusk")
                     .font(titleFont)
                     .foregroundStyle(Color.duskTextPrimary)
-                Text("The Plex App we Deserve.")
+                Text("The Plex App We Deserve.")
                     .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
             }
