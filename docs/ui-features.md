@@ -854,7 +854,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   that library's genre and collection grids too. `LibraryUnwatchedFilter` sends
   `unwatched=1` for movie/video sections (in-progress titles stay) and
   `unwatchedLeaves=1` for shows (listed while any episode is unwatched). Active = inverted
-  `TextPrimary` fill with a filled checkmark (STYLE.md selected treatment).
+  `TextPrimary` fill with a filled checkmark (STYLE.md selected treatment) on iOS. tvOS
+  chips are system glass capsules (like the hub's Browse chips); the solid fill there
+  means focus, so an active chip (Unwatched, Filters, a genre, a non-default sort) sits
+  on a lighter `TextPrimary`-tinted glass platter instead (`browseChipButtonStyle`).
 - **Filters** chip (after Unwatched; inverted with a count when on, plus an `xmark`
   chip that resets) opens `LibraryFiltersSheet` (iOS sheet; tvOS full-screen cover
   built from the `TVSettings*` rows, because a plain `List` there shows no focus).

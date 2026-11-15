@@ -489,26 +489,16 @@ struct LibraryItemsView: View {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(DuskFont.glyphMedium(ios: .headline))
-                    .foregroundStyle(Color.duskTextSecondary)
+                    .browseChipForeground(Color.duskTextSecondary, tv: .secondary)
 
                 Text(title)
                     .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
-                    .foregroundStyle(Color.duskTextPrimary)
+                    .browseChipForeground(Color.duskTextPrimary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .fill(Color.duskSurface)
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .stroke(Color.duskTextSecondary.opacity(0.18), lineWidth: 1)
-            }
-            .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous))
+            .browseChipPill(cornerRadius: controlCornerRadius)
         }
-        .duskSuppressTVOSButtonChrome()
+        .browseChipButtonStyle(isOn: false)
     }
 
     private var genreMenu: some View {
@@ -533,7 +523,7 @@ struct LibraryItemsView: View {
                 isActive: viewModel.selectedGenre != .all
             )
         }
-        .duskSuppressTVOSButtonChrome()
+        .browseChipButtonStyle(isOn: viewModel.selectedGenre != .all)
     }
 
     private var sortMenu: some View {
@@ -566,7 +556,7 @@ struct LibraryItemsView: View {
                 isActive: selected != viewModel.defaultSortOption
             )
         }
-        .duskSuppressTVOSButtonChrome()
+        .browseChipButtonStyle(isOn: selected != viewModel.defaultSortOption)
     }
 
     private func sortDirectionButton(descending: Bool) -> some View {
@@ -583,8 +573,8 @@ struct LibraryItemsView: View {
         }
     }
 
-    /// Opens the Filters sheet. With filters on it inverts like the
-    /// Unwatched chip and counts them.
+    /// Opens the Filters sheet. With filters on it shows the "on" look of
+    /// the Unwatched chip and counts them.
     private var filtersChip: some View {
         let count = viewModel.filterState.activeCount
         let isOn = count > 0
@@ -594,29 +584,23 @@ struct LibraryItemsView: View {
             HStack(spacing: 10) {
                 Image(systemName: "slider.horizontal.3")
                     .font(DuskFont.glyphMedium(ios: .headline))
-                    .foregroundStyle(isOn ? Color.duskBackground : Color.duskTextSecondary)
+                    .browseChipForeground(isOn ? Color.duskBackground : Color.duskTextSecondary, tv: isOn ? .primary : .secondary)
 
                 Text(isOn ? "Filters · \(count)" : "Filters")
                     .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)).monospacedDigit())
-                    .foregroundStyle(isOn ? Color.duskBackground : Color.duskTextPrimary)
+                    .browseChipForeground(isOn ? Color.duskBackground : Color.duskTextPrimary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .fill(isOn ? Color.duskTextPrimary : Color.duskSurface)
+            .browseChipPill(
+                cornerRadius: controlCornerRadius,
+                fill: isOn ? Color.duskTextPrimary : Color.duskSurface,
+                stroke: isOn ? Color.clear : Color.duskTextSecondary.opacity(0.18)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .stroke(isOn ? Color.clear : Color.duskTextSecondary.opacity(0.18), lineWidth: 1)
-            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Filters")
             .accessibilityValue(isOn ? "\(count) on" : "")
-            .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous))
         }
-        .duskSuppressTVOSButtonChrome()
+        .browseChipButtonStyle(isOn: isOn)
     }
 
     /// One tap back to the whole library (genre aside, which has its own menu).
@@ -624,6 +608,11 @@ struct LibraryItemsView: View {
         Button {
             Task { await viewModel.resetFilters() }
         } label: {
+            #if os(tvOS)
+            Image(systemName: "xmark")
+                .font(DuskFont.glyphSmall(ios: .subheadline.weight(.semibold)))
+                .foregroundStyle(.secondary)
+            #else
             Image(systemName: "xmark")
                 .font(DuskFont.glyphSmall(ios: .subheadline.weight(.semibold)))
                 .foregroundStyle(Color.duskTextSecondary)
@@ -631,15 +620,22 @@ struct LibraryItemsView: View {
                 .padding(10)
                 .background(Circle().fill(Color.duskSurface))
                 .overlay { Circle().stroke(Color.duskTextSecondary.opacity(0.18), lineWidth: 1) }
-                .duskTVOSFocusEffectShape(Circle())
+            #endif
         }
-        .duskSuppressTVOSButtonChrome()
+        #if os(tvOS)
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.small)
+        .tint(nil)
+        #endif
         .accessibilityLabel("Clear Filters")
     }
 
     /// A filter chip rather than a menu: one tap (one click on tvOS) flips it.
-    /// On, it inverts to a `TextPrimary` fill with a filled checkmark, the
-    /// STYLE.md selected treatment, so the active filter reads at a glance.
+    /// On iOS it inverts to a `TextPrimary` fill with a filled checkmark, the
+    /// STYLE.md selected treatment. tvOS keeps that solid fill for focus, so
+    /// there an active chip sits on a lighter glass platter instead (see
+    /// `browseChipButtonStyle`).
     private var unwatchedToggle: some View {
         let isOn = viewModel.showsUnwatchedOnly
 
@@ -649,29 +645,23 @@ struct LibraryItemsView: View {
             HStack(spacing: 10) {
                 Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
                     .font(DuskFont.glyphMedium(ios: .headline))
-                    .foregroundStyle(isOn ? Color.duskBackground : Color.duskTextSecondary)
+                    .browseChipForeground(isOn ? Color.duskBackground : Color.duskTextSecondary, tv: isOn ? .primary : .secondary)
 
                 Text("Unwatched")
                     .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
-                    .foregroundStyle(isOn ? Color.duskBackground : Color.duskTextPrimary)
+                    .browseChipForeground(isOn ? Color.duskBackground : Color.duskTextPrimary)
                     .lineLimit(1)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .fill(isOn ? Color.duskTextPrimary : Color.duskSurface)
+            .browseChipPill(
+                cornerRadius: controlCornerRadius,
+                fill: isOn ? Color.duskTextPrimary : Color.duskSurface,
+                stroke: isOn ? Color.clear : Color.duskTextSecondary.opacity(0.18)
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                    .stroke(isOn ? Color.clear : Color.duskTextSecondary.opacity(0.18), lineWidth: 1)
-            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Unwatched only")
             .accessibilityAddTraits(isOn ? .isSelected : [])
-            .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous))
         }
-        .duskSuppressTVOSButtonChrome()
+        .browseChipButtonStyle(isOn: isOn)
         .animation(.snappy(duration: 0.2), value: isOn)
     }
 
@@ -683,34 +673,24 @@ struct LibraryItemsView: View {
         HStack(spacing: 10) {
             Image(systemName: systemImage)
                 .font(DuskFont.glyphMedium(ios: .headline))
-                .foregroundStyle(isActive ? Color.duskTextPrimary : Color.duskTextSecondary)
+                .browseChipForeground(isActive ? Color.duskTextPrimary : Color.duskTextSecondary, tv: isActive ? .primary : .secondary)
 
             Text(value)
                 .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
-                .foregroundStyle(Color.duskTextPrimary)
+                .browseChipForeground(Color.duskTextPrimary)
                 .lineLimit(1)
 
             Image(systemName: "chevron.down")
                 .font(DuskFont.glyphSmall(ios: .caption.weight(.semibold)))
-                .foregroundStyle(Color.duskTextSecondary)
+                .browseChipForeground(Color.duskTextSecondary, tv: .secondary)
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                .fill(Color.duskSurface)
+        .browseChipPill(
+            cornerRadius: controlCornerRadius,
+            stroke: isActive ? Color.duskTextPrimary.opacity(0.35) : Color.duskTextSecondary.opacity(0.18)
         )
-        .overlay {
-            RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous)
-                .stroke(
-                    isActive ? Color.duskTextPrimary.opacity(0.35) : Color.duskTextSecondary.opacity(0.18),
-                    lineWidth: 1
-                )
-        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(systemImage == "line.3.horizontal.decrease.circle" ? "Genre" : "Sort")
         .accessibilityValue(value)
-        .duskTVOSFocusEffectShape(RoundedRectangle(cornerRadius: controlCornerRadius, style: .continuous))
     }
 
     private func posterGrid(_ layout: AdaptivePosterGridLayout) -> some View {
@@ -751,6 +731,56 @@ struct LibraryItemsView: View {
             title: viewModel.emptyStateTitle,
             message: viewModel.emptyStateMessage
         )
+    }
+}
+
+/// The browse row's chips. iOS and the Mac draw a custom pill; tvOS uses
+/// system glass capsules, like the hub's Browse chips, so the label carries
+/// no chrome or fixed colours there (a fixed label colour went white on the
+/// focused white glass).
+private extension View {
+    func browseChipForeground(_ color: Color, tv: HierarchicalShapeStyle = .primary) -> some View {
+        #if os(tvOS)
+        foregroundStyle(tv)
+        #else
+        foregroundStyle(color)
+        #endif
+    }
+
+    @ViewBuilder
+    func browseChipPill(
+        cornerRadius: CGFloat,
+        fill: Color = Color.duskSurface,
+        stroke: Color = Color.duskTextSecondary.opacity(0.18)
+    ) -> some View {
+        #if os(tvOS)
+        self
+        #else
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        self
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(shape.fill(fill))
+            .overlay { shape.stroke(stroke, lineWidth: 1) }
+        #endif
+    }
+
+    /// tvOS: focus is the system's solid white glass, so an active chip
+    /// can't use a solid fill too. It sits on a lighter, `TextPrimary`-tinted
+    /// glass platter instead, like the tab bar's selected tab.
+    @ViewBuilder
+    func browseChipButtonStyle(isOn: Bool) -> some View {
+        #if os(tvOS)
+        self
+            .menuStyle(.button)
+            .buttonStyle(.glass(isOn ? .regular.tint(Color.duskTextPrimary.opacity(0.3)) : .regular))
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            // nil, never a colour: an explicit tint recolours the label too.
+            .tint(nil)
+        #else
+        self
+        #endif
     }
 }
 
