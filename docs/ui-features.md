@@ -1173,7 +1173,9 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   opens details; long-press: Watch Live / Details / Jump to Now; Play/Pause jumps
   to now; the corner is the day menu, its header row a focus section of its own
   so Up from any first-row position reaches it (the grid's `defaultFocus` is
-  `.userInitiated`, so Down from the tab bar still lands on a row). An info panel above the grid describes the
+  `.userInitiated`, so Down from the tab bar still lands on a row). Details are
+  a `duskPopUp`; Watch Live / Play starts from its `onDismiss` (presenting the
+  player while it was still dismissing was dropped, #17). An info panel above the grid describes the
   focused programme (the only tvOS layout). Do not let the
   focus engine pick programmes itself: it picks the nearest block centre and
   drifts. Sizes the viewport from the caller's safe-area width (its own geometry

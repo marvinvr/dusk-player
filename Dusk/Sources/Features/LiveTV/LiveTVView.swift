@@ -20,9 +20,10 @@ struct LiveTVRootContent: View {
     #endif
     let viewModel: LiveTVViewModel
     @State private var selectedProgram: PlexLiveProgram?
-    /// Set by the program sheet's Watch Live and started once the sheet is
-    /// gone. Presenting the player while the sheet was still dismissing
-    /// dropped the presentation on tvOS, so nothing ever played (issue #17).
+    /// Set by the program details' Watch Live and started once the details
+    /// are gone (`onDismiss`). Presenting the player while they were still
+    /// dismissing dropped the presentation on tvOS, so nothing ever played
+    /// (issue #17).
     @State private var pendingPlay: PendingLivePlay?
     #if os(tvOS)
     /// One per guide section, so each source scrolls on its own.
@@ -81,7 +82,7 @@ struct LiveTVRootContent: View {
         .refreshable {
             await viewModel.load(force: true)
         }
-        .sheet(item: $selectedProgram, onDismiss: playPending) { program in
+        .duskPopUp(item: $selectedProgram, onDismiss: playPending) { program in
             let match = channelAndLineup(for: program)
             let isReplay = match.map { viewModel.canReplay(program, on: $0.channel) } ?? false
             LiveTVProgramDetails(
@@ -520,11 +521,6 @@ struct LiveTVProgramCard: View {
 
 struct LiveTVProgramDetails: View {
     @Environment(\.dismiss) private var dismiss
-    #if os(tvOS)
-    /// Watch Live is where Select should go first; the sheet otherwise opens
-    /// on Done.
-    @FocusState private var watchFocused: Bool
-    #endif
     let program: PlexLiveProgram
     let channel: PlexLiveChannel?
     let canPlay: Bool
@@ -532,7 +528,107 @@ struct LiveTVProgramDetails: View {
     var isReplay = false
     let play: () -> Void
 
+    private var channelText: String? {
+        channel.map { [$0.displayNumber, $0.displayTitle].compactMap { $0 }.joined(separator: " · ") }
+    }
+
+    private var statusText: String {
+        program.endsAt.map { $0 < .now } == true
+            ? "This program is no longer live."
+            : "This program hasn’t started yet."
+    }
+
     var body: some View {
+        #if os(tvOS)
+        tvBody
+        #else
+        sheetBody
+        #endif
+    }
+
+    #if os(tvOS)
+    /// Episode, then day (unless today) and airtime, the guide's way.
+    private var tvTimeText: String? {
+        var parts: [String] = []
+        if let episode = program.episodeDisplayTitle { parts.append(episode) }
+        if let beginsAt = program.beginsAt, let endsAt = program.endsAt {
+            let day = Calendar.current.isDateInToday(beginsAt) ? "" : LiveTVGuideDayName.short(beginsAt, now: .now) + " "
+            parts.append("\(day)\(beginsAt.formatted(date: .omitted, time: .shortened)) – \(endsAt.formatted(date: .omitted, time: .shortened))")
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: "  ·  ")
+    }
+
+    /// A `duskPopUp` like the other tvOS details: the text on the blurred
+    /// guide, the one action under it, Menu to close.
+    private var tvBody: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
+                // Same lines as the guide's info panel above the grid.
+                HStack(spacing: 14) {
+                    if isReplay {
+                        Image(systemName: "play.fill")
+                            .font(DuskFont.TV.badge)
+                            .foregroundStyle(Color.duskTextSecondary)
+                    } else if program.isAiring() {
+                        Text("LIVE")
+                            .font(DuskFont.TV.badge)
+                            .foregroundStyle(Color.duskBackground)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.duskTextPrimary, in: Capsule())
+                    }
+                    if let channelText {
+                        Text(channelText)
+                            .font(DuskFont.TV.metadata)
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
+                }
+                .padding(.bottom, 12)
+                Text(program.primaryDisplayTitle)
+                    .font(DuskFont.TV.pageTitle)
+                    .foregroundStyle(Color.duskTextPrimary)
+                    .lineLimit(2)
+                if let timeText = tvTimeText {
+                    Text(timeText)
+                        .font(DuskFont.TV.metadata)
+                        .foregroundStyle(Color.duskTextPrimary.opacity(0.85))
+                        .lineLimit(1)
+                        .padding(.top, 14)
+                }
+                if let summary = program.summary?.nilIfEmpty {
+                    Text(summary)
+                        .font(DuskFont.TV.body)
+                        .foregroundStyle(Color.primary.opacity(0.86))
+                        .lineSpacing(4)
+                        .lineLimit(8)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 28)
+                }
+            }
+            // Something has to hold focus when there is nothing to play.
+            .focusable(!canPlay)
+            .focusEffectDisabled()
+
+            if canPlay {
+                Button(action: play) {
+                    Label(isReplay ? "Play" : "Watch Live", systemImage: "play.fill")
+                        .padding(.horizontal, 12)
+                }
+                .detailHeroNativePrimaryButtonStyle()
+                .padding(.top, 44)
+            } else {
+                Text(statusText)
+                    .font(DuskFont.TV.metadata)
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .padding(.top, 44)
+            }
+        }
+        .frame(maxWidth: 1180, alignment: .leading)
+        .padding(.horizontal, 80)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    #else
+    private var sheetBody: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
@@ -544,13 +640,8 @@ struct LiveTVProgramDetails: View {
                             .duskFont(tvOnly: DuskFont.TV.pageSubtitle)
                             .foregroundStyle(Color.duskTextSecondary)
                     }
-                    if let channel {
-                        Label(
-                            [channel.displayNumber, channel.displayTitle]
-                                .compactMap { $0 }
-                                .joined(separator: " · "),
-                            systemImage: "dot.radiowaves.left.and.right"
-                        )
+                    if let channelText {
+                        Label(channelText, systemImage: "dot.radiowaves.left.and.right")
                         .duskFont(tvOnly: DuskFont.TV.metadata)
                         .foregroundStyle(Color.duskTextSecondary)
                     }
@@ -568,18 +659,11 @@ struct LiveTVProgramDetails: View {
                         Button(action: play) {
                             Label(isReplay ? "Play" : "Watch Live", systemImage: "play.fill")
                                 .frame(maxWidth: .infinity)
-                                #if !os(tvOS)
                                 .foregroundStyle(Color.duskPrimaryActionLabel)
-                                #endif
                         }
                         .detailHeroNativePrimaryButtonStyle()
-                        #if os(tvOS)
-                        .focused($watchFocused)
-                        #endif
                     } else {
-                        Text(program.endsAt.map { $0 < .now } == true
-                            ? "This program is no longer live."
-                            : "This program hasn’t started yet.")
+                        Text(statusText)
                             .font(DuskFont.caption(ios: .subheadline))
                             .foregroundStyle(Color.duskTextSecondary)
                     }
@@ -588,9 +672,6 @@ struct LiveTVProgramDetails: View {
                 .frame(maxWidth: 680, alignment: .leading)
             }
             .background(Color.duskBackground.ignoresSafeArea())
-            #if os(tvOS)
-            .defaultFocus($watchFocused, true)
-            #endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }
@@ -598,4 +679,5 @@ struct LiveTVProgramDetails: View {
             }
         }
     }
+    #endif
 }

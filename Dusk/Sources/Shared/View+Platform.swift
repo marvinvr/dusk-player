@@ -179,14 +179,15 @@ extension View {
     @ViewBuilder
     func duskPopUp<Item: Identifiable, Content: View>(
         item: Binding<Item?>,
+        onDismiss: (() -> Void)? = nil,
         @ViewBuilder content: @escaping (Item) -> Content
     ) -> some View {
         #if os(tvOS)
-        fullScreenCover(item: item) { value in
+        fullScreenCover(item: item, onDismiss: onDismiss) { value in
             content(value).duskTVOSPopUpBackground()
         }
         #else
-        sheet(item: item, content: content)
+        sheet(item: item, onDismiss: onDismiss, content: content)
         #endif
     }
 
