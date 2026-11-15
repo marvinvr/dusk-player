@@ -125,10 +125,11 @@ struct PlayerUpNextPosterView: View {
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { cardHeight = $0 }
     }
 
-    // MARK: - Compact (Blur Unwatched Episodes)
+    // MARK: - Compact (iPhone, Blur Unwatched Episodes)
 
-    /// With Blur Unwatched Episodes on, an unwatched next episode gets a
-    /// two-line glass pill in the Skip Credits chip's family instead of the
+    /// On iPhone, and with Blur Unwatched Episodes on for an unwatched next
+    /// episode, the poster is a two-line glass pill in the Skip Credits chip's
+    /// family instead of the
     /// card: no still, just the episode title over a quiet "Season 2 · Episode
     /// 5" line, the countdown sweeping across the platter and, on iOS, a
     /// dismiss button. Play now / dismiss work exactly as on the card (tap or
@@ -202,10 +203,14 @@ struct PlayerUpNextPosterView: View {
         .modifier(CompactChipGlass(isSelected: isSelected))
     }
 
-    /// Same rule as the blurred stills: only an episode still ahead of the
-    /// viewer is hidden, so a rewatch keeps the full card.
+    /// iPhone always: in landscape the card covered the pause button. Else the
+    /// blurred stills' rule: only an episode still ahead of the viewer is
+    /// hidden, so a rewatch keeps the full card.
     private var isCompact: Bool {
-        blursUnwatchedEpisodes && presentation.item.isEpisode && !presentation.item.isWatched
+        #if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone { return true }
+        #endif
+        return blursUnwatchedEpisodes && presentation.item.isEpisode && !presentation.item.isWatched
     }
 
     private var compactWidestStatusText: String? {

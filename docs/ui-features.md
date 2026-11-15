@@ -176,7 +176,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   (`PlayerUpNextPosterView`) for an unwatched next episode becomes a two-line
   Skip-Credits-style glass pill instead: episode title over "Season 2 · Episode 5 ·
   12s", countdown sweep (+ ✕ on iOS), no still. Play now / dismiss
-  work as on the card.
+  work as on the card. iPhone always shows the pill, setting on or off (in
+  landscape the card covered the pause button); iPad and tvOS keep the card.
   The full-screen Up Next screen keeps its title and synopsis (still blurred).
 - Use `PlexItemPosterCarouselSection` for horizontal shelves and
   `PlexItemPosterGrid` for grids. They already handle image sizing, context menus,
