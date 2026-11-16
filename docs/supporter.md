@@ -216,16 +216,12 @@ exist to catch bugs this feature is prone to:
   **Emerald** (deep green, gold tip), **Gilded** (polished gold on black
   lacquer) and **Sapphire** (polished violet-blue bands on deep indigo,
   added 2026-11-13).
-- **TestFlight:** installs from TestFlight cannot see a real App Store
-  subscription (StoreKit sandbox), so every alternate icon is unlocked there
-  and the lapse reset below does not run. `TestFlightInstall` is resolved
-  once at launch, before the first entitlement read: a verified
-  `AppTransaction.shared` with `environment == .sandbox`, or — only if that
-  read fails — an on-disk receipt whose last path component is
-  `sandboxReceipt`. Production (`.production`) and Xcode StoreKit testing
-  (`.xcode`, the Debug/simulator schemes) keep the rules above. The
-  supporter purchase sheet is unchanged. App Review also runs in the
-  sandbox, so the same signal unlocks icons there.
+- **No environment special cases:** TestFlight and App Review run in the
+  StoreKit sandbox and get exactly the App Store rules above (icons only via
+  the sandbox subscription or tip, normal lapse reset, normal prompt). An
+  earlier sandbox unlock (`TestFlightInstall`, e1b3535 #51) got 1.8.1 rejected
+  under Guideline 5.6 (features hidden during review) and was removed;
+  don't reintroduce any sandbox/receipt/review-time branch.
 - **Lapse:** when the subscription is no longer active and the current icon
   isn't otherwise covered (the exclusives never are; the classic alternates are
   by a tip from Generous up), `SupporterStore.enforceIconAccess()` switches

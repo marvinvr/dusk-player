@@ -1243,7 +1243,7 @@ struct SupporterIconShowcase: View {
     private var captionText: String {
         let exclusives = "Velvet, Emerald, Gilded and Sapphire come with the subscription only"
         #if os(tvOS)
-        if store.hasActiveSubscription || TestFlightInstall.isTestFlight {
+        if store.hasActiveSubscription {
             return "Select an icon to apply it."
         }
         return store.hasIconAccess
