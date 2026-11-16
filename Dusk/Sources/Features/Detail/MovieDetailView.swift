@@ -184,8 +184,7 @@ struct MovieDetailView: View {
     @ViewBuilder
     private func metadataTagline(_ details: PlexMediaDetails) -> some View {
         let parts = [
-            MediaTextFormatter.localizedAirDate(details.originallyAvailableAt)
-                ?? details.year.map(String.init),
+            details.year.map(String.init),
             details.editionTitle,
             PlexContentRating.display(details.contentRating),
             viewModel.formattedDuration,
