@@ -79,6 +79,8 @@ enum AnalyticsErrorReason: String, Sendable {
     case dolbyVision7ConversionRetry = "dv7_conversion_retry"
     case hdrRemuxRecovery = "hdr_remux_recovery"
     case remuxToDirectPlay = "remux_to_direct_play"
+    /// The display refused an HLS master (-11868); reloaded from its media playlist.
+    case mediaPlaylist = "media_playlist"
     case directPlayToServerStream = "direct_play_to_server_stream"
     case liveTVTranscode = "live_tv_transcode"
     case remoteRefusalToLocal = "remote_refusal_to_local"

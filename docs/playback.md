@@ -470,6 +470,19 @@ so the whole live HUD is derived from one instant.
   HDR to VLC mid-film (#59): `recoverLiveHDRRemux` requests fresh sessions up
   to 3 times per item, then leaves the error overlay up. This includes DV5 and
   the server fallback rungs. A file that never plays can still reach VLC (#75).
+- Display refusal (-11868, `AVErrorNoCompatibleAlternatesForExternalDisplay`,
+  underlying CoreMedia -17223): tvOS measures an HLS master's variants against
+  the display before loading anything, and refuses Plex's `VIDEO-RANGE=PQ`
+  remux or server-stream master when the panel stays SDR (Match Dynamic Range
+  off) or is still mid mode switch. `AVPlayerEngine.fallBackToMediaPlaylist`
+  then reloads the same session in place from the first variant's media
+  playlist (`HLSMediaPlaylistFallback`), which has no range/codec gate; the
+  loader or Dolby Vision 7 proxy still fronts it. Once per attempt, before the
+  item was ready, and not when the master has `EXT-X-MEDIA` renditions with a
+  `URI` (a WebVTT subtitle would vanish): those fail into the ladder above.
+  Reported as `engine_fallback` / `media_playlist`. Sim-verified: tvOS 26.4 and
+  27.2 sims refuse a PQ master (as NSURLErrorDomain -1002, not -11868) and play
+  the same fMP4 via its media playlist; device behaviour unverified.
   `PlaybackFallbackTests` exercises the coordinator's real ladder using silent
   fake engines and Plex decisions, including rejected decisions and exhaustion.
 - AirPlay: selecting a route rebuilds a remux session as AirPlay HLS, like

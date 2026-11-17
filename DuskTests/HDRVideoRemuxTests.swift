@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import Dusk
@@ -300,4 +301,47 @@ private func makeMedia(
     }
     """
     return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
+}
+
+@Suite("HLS media playlist fallback after a display refusal")
+struct HLSMediaPlaylistFallbackTests {
+    private let masterURL = URL(string: "https://plex.example:32400/video/:/transcode/universal/start.m3u8?X-Plex-Token=tok")!
+
+    @Test func resolvesTheFirstVariantAgainstTheMaster() {
+        let master = """
+        #EXTM3U
+        #EXT-X-VERSION:7
+        #EXT-X-STREAM-INF:BANDWIDTH=40000000,CODECS="hvc1.2.4.L153.b0,ec-3",RESOLUTION=3840x2160,SUPPLEMENTAL-CODECS="dvh1.08.06/db1p",VIDEO-RANGE=PQ
+        session/abc/base/index.m3u8
+        #EXT-X-I-FRAME-STREAM-INF:BANDWIDTH=1,URI="iframes.m3u8"
+
+        """
+        let url = HLSMediaPlaylistFallback.mediaPlaylistURL(inMaster: master, baseURL: masterURL)
+        #expect(url?.absoluteString == "https://plex.example:32400/video/:/transcode/universal/session/abc/base/index.m3u8")
+        let crlf = master.replacingOccurrences(of: "\n", with: "\r\n")
+        #expect(HLSMediaPlaylistFallback.mediaPlaylistURL(inMaster: crlf, baseURL: masterURL) == url)
+    }
+
+    @Test func keepsTheLadderWhenARenditionWouldBeLost() {
+        let master = """
+        #EXTM3U
+        #EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID="subs",NAME="English",URI="session/abc/subs/index.m3u8"
+        #EXT-X-STREAM-INF:BANDWIDTH=1,CODECS="hvc1.2.4.L153.b0,ec-3",SUBTITLES="subs",VIDEO-RANGE=PQ
+        session/abc/base/index.m3u8
+        """
+        #expect(HLSMediaPlaylistFallback.mediaPlaylistURL(inMaster: master, baseURL: masterURL) == nil)
+    }
+
+    @Test func rejectsMediaPlaylistsAndGarbage() {
+        let media = "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4,\nseg0.m4s\n"
+        #expect(HLSMediaPlaylistFallback.mediaPlaylistURL(inMaster: media, baseURL: masterURL) == nil)
+        #expect(HLSMediaPlaylistFallback.mediaPlaylistURL(inMaster: "<html>", baseURL: masterURL) == nil)
+    }
+
+    @Test func onlyTheDisplayRefusalQualifies() {
+        #expect(HLSMediaPlaylistFallback.isDisplayRefusal(NSError(domain: AVFoundationErrorDomain, code: -11868)))
+        #expect(!HLSMediaPlaylistFallback.isDisplayRefusal(NSError(domain: AVFoundationErrorDomain, code: -11800)))
+        #expect(!HLSMediaPlaylistFallback.isDisplayRefusal(NSError(domain: "CoreMediaErrorDomain", code: -11868)))
+        #expect(!HLSMediaPlaylistFallback.isDisplayRefusal(nil))
+    }
 }

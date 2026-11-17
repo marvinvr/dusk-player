@@ -111,6 +111,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// and the master playlist URL it serves.
     @ObservationIgnored nonisolated(unsafe) private var dolbyVision7Proxy: DolbyVision7HLSProxy?
     @ObservationIgnored private var dolbyVision7ProxyURL: URL?
+    /// The attempt that already reloaded from its media playlist after the
+    /// display refused the master (`HLSMediaPlaylistFallback`): once only.
+    @ObservationIgnored private var mediaPlaylistFallbackAttemptID: UUID?
+    /// The current item reached `.readyToPlay`; a later failure is not a
+    /// master refusal at startup.
+    @ObservationIgnored private var didCurrentItemBecomeReady = false
     @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLink: CADisplayLink?
     @ObservationIgnored nonisolated(unsafe) private var enhancedVideoDisplayLinkTarget: AVPlayerDisplayLinkTarget?
 
@@ -708,6 +714,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private func handleItemStatus(_ status: AVPlayerItem.Status?, itemError: Error?) {
         switch status {
         case .readyToPlay:
+            didCurrentItemBecomeReady = true
             if let currentAttemptContext {
                 avPlayerEngineLogger.notice(
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer item ready"
@@ -741,44 +748,100 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 failIPTVCatchUp(stream, itemError: itemError, attemptID: attemptID)
                 return
             }
-            let playbackError: PlaybackError
-            if let keyError = contentKeyController?.lastError {
-                playbackError = .unknown(keyError.localizedDescription)
-            } else if currentSource?.iptvStream != nil {
-                // Not a Plex file: the Plex direct-play wording would mislead.
-                playbackError = .unknown(IPTVAsset.failureMessage(for: itemError))
-            } else {
-                playbackError = PlaybackError.fromPlaybackFailure(
-                    error: itemError,
-                    fallback: "Playback failed while opening the direct-play stream."
-                )
+            if fallBackToMediaPlaylist(afterRefusal: itemError) {
+                return
             }
-            if let currentAttemptContext {
-                avPlayerEngineLogger.error(
-                    "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
-                )
-            }
-            flushStreamErrorReports(.fatal)
-            var report = AnalyticsErrorReport(
-                .playbackEngineFailed,
-                reason: .itemFailed,
-                playbackError: playbackError,
-                cause: (contentKeyController?.lastError ?? itemError).map {
-                    AnalyticsErrorCause(error: $0, kind: contentKeyController?.lastError != nil ? .drm : nil)
-                }
-            )
-            report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
-            ErrorReporter.report(report)
-            error = playbackError
-            state = .error
-            isBuffering = false
+            failCurrentItem(itemError: itemError)
         default:
             break
         }
     }
 
-    private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID) {
+    private func failCurrentItem(itemError: Error?) {
+        let playbackError: PlaybackError
+        if let keyError = contentKeyController?.lastError {
+            playbackError = .unknown(keyError.localizedDescription)
+        } else if currentSource?.iptvStream != nil {
+            // Not a Plex file: the Plex direct-play wording would mislead.
+            playbackError = .unknown(IPTVAsset.failureMessage(for: itemError))
+        } else {
+            playbackError = PlaybackError.fromPlaybackFailure(
+                error: itemError,
+                fallback: "Playback failed while opening the direct-play stream."
+            )
+        }
+        if let currentAttemptContext {
+            avPlayerEngineLogger.error(
+                "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
+            )
+        }
+        flushStreamErrorReports(.fatal)
+        var report = AnalyticsErrorReport(
+            .playbackEngineFailed,
+            reason: .itemFailed,
+            playbackError: playbackError,
+            cause: (contentKeyController?.lastError ?? itemError).map {
+                AnalyticsErrorCause(error: $0, kind: contentKeyController?.lastError != nil ? .drm : nil)
+            }
+        )
+        report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
+        ErrorReporter.report(report)
+        error = playbackError
+        state = .error
+        isBuffering = false
+    }
+
+    /// tvOS refuses an HLS master whose every variant it judges unfit for
+    /// the display (-11868, `AVErrorNoCompatibleAlternatesForExternalDisplay`):
+    /// Plex's remux and server stream declare `VIDEO-RANGE=PQ`, which a panel
+    /// left in SDR (Match Dynamic Range off) or still mid mode switch turns
+    /// down before a single segment loads. The variant's own media playlist
+    /// carries no such gate and AVPlayer plays it, HDR or tone-mapped, on the
+    /// same Plex session. Once per attempt, before the item was ever ready,
+    /// and only when the master has no separate renditions to lose
+    /// (`HLSMediaPlaylistFallback.mediaPlaylistURL`); otherwise the item
+    /// fails into the coordinator's ladder as before.
+    private func fallBackToMediaPlaylist(afterRefusal itemError: Error?) -> Bool {
+        guard HLSMediaPlaylistFallback.isDisplayRefusal(itemError),
+              !didCurrentItemBecomeReady,
+              let source = currentSource, source.iptvStream == nil, source.liveTVContext == nil,
+              let attemptID = currentAttemptContext?.attemptID,
+              mediaPlaylistFallbackAttemptID != attemptID,
+              let masterURL = source.dolbyVision7Conversion != nil ? dolbyVision7ProxyURL : source.url else {
+            return false
+        }
+        mediaPlaylistFallbackAttemptID = attemptID
+        avPlayerEngineLogger.notice(
+            "Playback attempt \(attemptID.uuidString, privacy: .public) display refused the HLS master [\(Self.errorChainDescription(itemError), privacy: .public)]; reloading from the media playlist"
+        )
+        loadValidationTask?.cancel()
+        loadValidationTask = Task { [weak self] in
+            let mediaURL = await HLSMediaPlaylistFallback.mediaPlaylistURL(forMaster: masterURL)
+            guard let self, !Task.isCancelled, self.currentAttemptContext?.attemptID == attemptID else { return }
+            guard let mediaURL else {
+                avPlayerEngineLogger.error(
+                    "Playback attempt \(attemptID.uuidString, privacy: .public) has no usable media playlist (separate renditions or unreadable master)"
+                )
+                self.loadValidationTask = nil
+                self.failCurrentItem(itemError: itemError)
+                return
+            }
+            ErrorReporter.report(.engineFallback, reason: .mediaPlaylist, error: itemError, engine: .avPlayer)
+            self.removeEnhancedVideoOutput()
+            self.removeTimeObserver()
+            self.removePlaybackEndedObserver()
+            self.removePlaybackStalledObserver()
+            self.removeSubtitleSelectionObserver()
+            self.finishValidatedLoad(source: source, attemptID: attemptID, playlistURL: mediaURL)
+        }
+        return true
+    }
+
+    /// `playlistURL` replaces the source's master (the media playlist
+    /// fallback above); the session's loader or proxy still fronts it.
+    private func finishValidatedLoad(source: PlaybackSource, attemptID: UUID, playlistURL: URL? = nil) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
+        didCurrentItemBecomeReady = false
 
         let item: AVPlayerItem
         if source.dolbyVision7Conversion != nil {
@@ -794,18 +857,19 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 return
             }
             remuxHLSLoader = nil
-            item = AVPlayerItem(url: dolbyVision7ProxyURL)
+            item = AVPlayerItem(url: playlistURL ?? dolbyVision7ProxyURL)
         } else if source.usesRemuxHLSLoader {
             let loader = RemuxHLSLoader(
                 restoresDolbyAtmos: source.restoresDolbyAtmos,
                 dolbyVision: source.dolbyVisionRemux
             )
-            if let asset = RemuxHLSLoader.makeAsset(url: source.url, loader: loader) {
+            let url = playlistURL ?? source.url
+            if let asset = RemuxHLSLoader.makeAsset(url: url, loader: loader) {
                 remuxHLSLoader = loader
                 item = AVPlayerItem(asset: asset)
             } else {
                 remuxHLSLoader = nil
-                item = AVPlayerItem(url: source.url)
+                item = AVPlayerItem(url: url)
             }
         } else if let stream = source.iptvStream {
             remuxHLSLoader = nil
@@ -830,7 +894,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             item = AVPlayerItem(asset: asset)
         } else {
             remuxHLSLoader = nil
-            item = AVPlayerItem(url: source.url)
+            item = AVPlayerItem(url: playlistURL ?? source.url)
         }
         item.preferredForwardBufferDuration = PlaybackBufferPolicy.avPlayerForwardBufferDuration
         item.textStyleRules = subtitleTextStyleRules

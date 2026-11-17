@@ -748,3 +748,49 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         loadingRequest.finishLoading()
     }
 }
+
+/// The way around tvOS refusing an HLS master for the display (see
+/// `AVPlayerEngine.fallBackToMediaPlaylist(afterRefusal:)`): load the first
+/// variant's media playlist directly. A media playlist has no `VIDEO-RANGE`,
+/// `CODECS` or `SUPPLEMENTAL-CODECS` for AVFoundation to measure the display
+/// against; the init segment (with any `dvvC`/`dec3` patch) is unchanged.
+enum HLSMediaPlaylistFallback {
+    /// `AVErrorNoCompatibleAlternatesForExternalDisplay`. Its underlying
+    /// CoreMedia error is -17223, which Apple does not document.
+    static let displayRefusalCode = -11868
+
+    static func isDisplayRefusal(_ error: Error?) -> Bool {
+        guard let error = error as NSError? else { return false }
+        return error.domain == AVFoundationErrorDomain && error.code == displayRefusalCode
+    }
+
+    /// The first variant's media playlist, or nil when the master has
+    /// separate renditions (`EXT-X-MEDIA` with a `URI`: a WebVTT subtitle,
+    /// an audio group), which the media playlist alone would silently drop.
+    static func mediaPlaylistURL(inMaster master: String, baseURL: URL) -> URL? {
+        let lines = master.components(separatedBy: .newlines)
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+        guard lines.first?.hasPrefix("#EXTM3U") == true else { return nil }
+        if lines.contains(where: { $0.hasPrefix("#EXT-X-MEDIA:") && $0.contains("URI=") }) {
+            return nil
+        }
+        guard let streamInf = lines.firstIndex(where: { $0.hasPrefix("#EXT-X-STREAM-INF:") }),
+              let uri = lines[(streamInf + 1)...].first(where: { !$0.isEmpty && !$0.hasPrefix("#") }) else {
+            return nil
+        }
+        return URL(string: uri, relativeTo: baseURL)?.absoluteURL
+    }
+
+    /// Fetches the master again (Plex, or the Dolby Vision 7 proxy) and
+    /// resolves its media playlist; nil on any failure.
+    static func mediaPlaylistURL(forMaster masterURL: URL) async -> URL? {
+        var request = URLRequest(url: masterURL, timeoutInterval: 10)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        guard let (data, response) = try? await URLSession.shared.data(for: request),
+              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+              data.count <= 1 << 20 else {
+            return nil
+        }
+        return mediaPlaylistURL(inMaster: String(decoding: data, as: UTF8.self), baseURL: http.url ?? masterURL)
+    }
+}

@@ -148,7 +148,7 @@ name is an `AnalyticsErrorCategory`; the path is `/player`, `/downloads`,
 | `playback_stall_recovery` | `PlayerViewModel` 12 s no-progress reload | — (`count` = attempt) |
 | `decoder_failed` | VLCKit TrueHD decoder; AVPlayer DV7 → 8.1 conversion | `truehd`, `dv7_conversion` |
 | `dropped_frames` | AVPlayer access log; VLCKit `lostPictures` | — (`count` = dropped) |
-| `engine_fallback` | `performDirectPlayServerStreamFallback` rungs, remote-refusal retry | `av1_server_stream`, `dv7_conversion_retry`, `hdr_remux_recovery`, `remux_to_direct_play`, `direct_play_to_server_stream`, `remote_refusal_to_local` |
+| `engine_fallback` | `performDirectPlayServerStreamFallback` rungs, remote-refusal retry | `av1_server_stream`, `dv7_conversion_retry`, `hdr_remux_recovery`, `remux_to_direct_play`, `media_playlist`, `direct_play_to_server_stream`, `remote_refusal_to_local` |
 | `engine_fallback_failed` | the ladder's last rung failed | `server_stream_unavailable`, `server_stream_request_failed` |
 | `transcode_failed` | quality switch, AirPlay HLS, start-time server stream | `quality_switch`, `airplay`, `server_stream_request_failed` |
 | `download_failed` | `DownloadManager` failure states | `prepare`, `transfer`, `finalize`, `validate` |
