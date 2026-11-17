@@ -131,7 +131,7 @@ struct ConnectionSelectionTests {
             return
         }
         #expect(selection.report.chosenURL == nil)
-        #expect(selection.report.entries.allSatisfy { $0.outcome == .failed("Connection refused") })
+        #expect(selection.report.entries.allSatisfy { $0.outcome.summary == "Connection refused" })
         #expect(!selection.report.text.contains("test-token"))
     }
 

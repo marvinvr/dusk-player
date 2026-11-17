@@ -590,10 +590,11 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask = Task { [weak self] in
             guard let self else { return }
 
-            if let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
+            if let validation = await PlaybackError.validateDirectPlay(source.url) {
                 guard !Task.isCancelled else { return }
                 self.failLoad(
-                    validationError,
+                    validation.error,
+                    cause: validation.cause,
                     attemptID: attemptID,
                     message: "VLCKit direct-play validation failed"
                 )
@@ -2198,7 +2199,12 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         loadValidationTask = nil
     }
 
-    private func failLoad(_ error: PlaybackError, attemptID: UUID, message: String) {
+    private func failLoad(
+        _ error: PlaybackError,
+        cause: AnalyticsErrorCause? = nil,
+        attemptID: UUID,
+        message: String
+    ) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
         if let currentAttemptContext {
@@ -2206,7 +2212,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
                 "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) \(message, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
         }
-        ErrorReporter.report(.playbackEngineFailed, reason: .loadFailed, error: error, engine: .vlcKit)
+        var report = AnalyticsErrorReport(.playbackEngineFailed, reason: .loadFailed, playbackError: error, cause: cause)
+        report.media.engine = AnalyticsErrorSanitizer.engine(.vlcKit)
+        ErrorReporter.report(report)
 
         self.error = error
         state = .error

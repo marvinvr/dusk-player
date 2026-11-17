@@ -2376,4 +2376,11 @@ extension PlaybackCoordinator {
             part: debugInfo.part
         )
     }
+
+    /// The raw Plex version of the server playing now (plex.tv resources'
+    /// `productVersion`); `ErrorReporter` keeps only `major.minor.patch`.
+    var errorReportingServerVersion: String? {
+        guard let serverID = activePlaybackServerID?.nilIfEmpty else { return nil }
+        return plexService.pool.server(for: serverID)?.productVersion
+    }
 }

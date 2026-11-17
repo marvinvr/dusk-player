@@ -22,10 +22,12 @@ privacy policy makes:
   identifiers, search terms, playback positions, or download state. This is the
   rule most likely to be broken by accident when adding an event. The single
   carve-out is the technical profile on error reports (container, codecs, HDR
-  format, resolution bucket), and it only passes through allowlists — see
+  format, resolution bucket, Plex server `major.minor.patch`, connection
+  candidate classes such as `lan_https`), and it only passes through
+  allowlists — see
   [Error reports](#error-reports).
 - **Errors carry codes, never messages.** An error is reduced to its domain and
-  code (plus its underlying error's). `localizedDescription`, `userInfo`,
+  code (plus its underlying error's), or an HTTP status. `localizedDescription`, `userInfo`,
   libvlc messages, AVPlayer error-log comments and URIs are never read for
   reporting: they carry URLs, hostnames, tokens and file names.
 - **Errors are rate limited.** In memory only (no disk): the same error at most
@@ -141,7 +143,7 @@ name is an `AnalyticsErrorCategory`; the path is `/player`, `/downloads`,
 |---|---|---|
 | `playback_start_failed` | `runPlaybackAttempt`, once when every server failed | `remote_refused`, `all_candidates_failed` |
 | `playback_engine_failed` | AVPlayer item `.failed` / `failLoad`; VLCKit `.error` / `failLoad` | `item_failed`, `load_failed`, `engine_error` |
-| `playback_stream_error` | AVPlayer error-log entry (`observeItemLogs`, ef49e42) | — |
+| `playback_stream_error` | AVPlayer error-log entry (`observeItemLogs`, ef49e42), sent once its `outcome` is known (`enqueueStreamErrorReport`) | — |
 | `playback_stalled` | AVPlayer `playbackStalled` while playing | — |
 | `playback_stall_recovery` | `PlayerViewModel` 12 s no-progress reload | — (`count` = attempt) |
 | `decoder_failed` | VLCKit TrueHD decoder; AVPlayer DV7 → 8.1 conversion | `truehd`, `dv7_conversion` |
@@ -151,7 +153,7 @@ name is an `AnalyticsErrorCategory`; the path is `/player`, `/downloads`,
 | `transcode_failed` | quality switch, AirPlay HLS, start-time server stream | `quality_switch`, `airplay`, `server_stream_request_failed` |
 | `download_failed` | `DownloadManager` failure states | `prepare`, `transfer`, `finalize`, `validate` |
 | `sign_in_failed` | `SignInView` | `pin_request`, `timeout` |
-| `connection_failed` | `ServerPool.commit` | `unreachable`, `unauthorized` (`count` = candidates) |
+| `connection_failed` | `ServerPool.commit` via `ConnectionReport.errorReport` | `unreachable`, `unauthorized` (`count` = candidates) |
 
 Properties — the complete list:
 
@@ -159,8 +161,12 @@ Properties — the complete list:
 |---|---|
 | `message` | Required by Rybbit. Built only from the fields below, e.g. `item_failed · AVFoundationErrorDomain -11800 · ← NSOSStatusErrorDomain -12938` |
 | `reason` | From the table above |
-| `kind` | `PlaybackError` case: `unsupported_format`, `source_unavailable`, `network`, `server_unreachable`, `unauthorized`, `unknown` |
-| `domain`, `code`, `underlying_domain`, `underlying_code` | `NSError` domain and code. A domain passes only if it is a known framework domain or an identifier ending in `Error`/`ErrorDomain`; anything else (a host name, a path) becomes `other` |
+| `kind` | `AnalyticsErrorKind`: the `PlaybackError` case (`unsupported_format`, `source_unavailable`, `network`, `server_unreachable`, `unauthorized`, `unknown`); an `unknown` case is refined from the cause when it says more — the failing path's own kind (`drm`, `dv7_conversion`, `channel_unresponsive`, `catch_up`, `resume_failed`), the HTTP status (`http_4xx`, `http_5xx`, `http_other`), or a well-known URL/AVFoundation code (`timeout`, `tls`, `transport_policy`, `invalid_response`, `decode`, `unsupported_media`, `media_services_reset`); connection probes add `redirect`, `wrong_server` |
+| `domain`, `code`, `underlying_domain`, `underlying_code` | `NSError` domain and code. A domain passes only if it is a known framework domain or an identifier ending in `Error`/`ErrorDomain`; anything else (a host name, a path) becomes `other`. Failing paths hand these over as an `AnalyticsErrorCause` next to the `PlaybackError` (whose own text is never read): `failLoad(_:cause:)` in both engines, `PlaybackError.validateDirectPlay` |
+| `http_status` | The HTTP status of a direct-play validation or connection probe that answered non-2xx |
+| `outcome` | `playback_stream_error` only, `AnalyticsStreamOutcome`: 10 s after the entry `recovered` (time moved ≥ 1 s), `stalled` (wants to play, time stuck), `paused`; sooner `fatal` (item/load failed) or `ended` (item replaced or stopped first: a fallback rung, the next item, the viewer left). Entries within one window share the check; part of the signature |
+| `server_version` | `major.minor.patch` of the Plex server (plex.tv `productVersion`; build number and hash dropped, anything else `other`): the playing server on playback categories, the probed server on `connection_failed` |
+| `tried`, `failed` | `connection_failed` only: sorted distinct candidate classes, `<lan\|tailscale\|remote\|relay>[_plex_direct]_<http\|https>`, e.g. `lan_plex_direct_https,relay_https`. Domain/code or `http_status` (or `kind`) on this category describe the best-ranked failed candidate |
 | `count` | Bucketed (exact to 10, then tens, hundreds, thousands) |
 | `engine` | `avplayer`, `vlckit` |
 | `delivery` | `direct_play`, `download`, `transcode`, `server_stream`, `remux`, `airplay`, `live_tv` |
@@ -170,8 +176,9 @@ Properties — the complete list:
 | `resolution` | `sd`, `720p`, `1080p`, `1440p`, `4k`, `8k` from the height |
 | `app_version`, `platform`, `os_version`, `device_model` | e.g. `1.8.0`, `tvos`, `27.0`, `AppleTV14,1` (hardware model identifier, not a device identifier) |
 
-Media fields are attached to playback categories only. Rate-limit signatures
-leave media out, so a loop on one file collapses to one report, and the hourly
+Media fields and the server version are attached to playback categories only
+(captured when the error happens, so a stream outcome sent later keeps them).
+Rate-limit signatures leave media, server version and connection classes out, so a loop on one file collapses to one report, and the hourly
 cap stops a loop that varies its code.
 
 Dropped frames count when at least 120 frames were lost **and** at least 5 %

@@ -105,6 +105,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored private var isRetunePending = false
     /// Why the stream last dropped, for the error once retuning gives up.
     @ObservationIgnored private var lastRetuneReason: String?
+    @ObservationIgnored private var lastRetuneCause: AnalyticsErrorCause?
     /// Loopback front for a Dolby Vision 7 → 8.1 session (see
     /// `DolbyVision7HLSProxy`), alive for as long as the source is loaded,
     /// and the master playlist URL it serves.
@@ -123,6 +124,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     @ObservationIgnored nonisolated(unsafe) private var itemLogObservers: [NSObjectProtocol] = []
     /// One `dropped_frames` report per item.
     @ObservationIgnored private var didReportDroppedFrames = false
+    /// `playback_stream_error` reports waiting for their outcome, and the
+    /// check that settles them (see `enqueueStreamErrorReport`).
+    @ObservationIgnored private var pendingStreamErrorReports: [AnalyticsErrorReport] = []
+    @ObservationIgnored private var streamErrorFollowUpTask: Task<Void, Never>?
     @ObservationIgnored nonisolated(unsafe) private var subtitleSelectionObserver: NSObjectProtocol?
     @ObservationIgnored nonisolated(unsafe) private var captionStyleObserver: NSObjectProtocol?
     #if os(iOS)
@@ -302,10 +307,11 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             // IPTV streams need their source's headers to answer at all, and
             // are not Plex direct-play files: AVPlayer reports their errors.
             if source.iptvStream == nil,
-               let validationError = await PlaybackError.validateDirectPlayURL(source.url) {
+               let validation = await PlaybackError.validateDirectPlay(source.url) {
                 guard !Task.isCancelled else { return }
                 self.failLoad(
-                    validationError,
+                    validation.error,
+                    cause: validation.cause,
                     attemptID: attemptID,
                     message: "direct-play validation failed"
                 )
@@ -725,7 +731,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                             "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) IPTV stream dropped, retuning [\(Self.errorChainDescription(itemError), privacy: .public)]"
                         )
                     }
-                    scheduleIPTVRetune(reason: reason)
+                    scheduleIPTVRetune(reason: reason, cause: cause)
                     return
                 }
             }
@@ -752,8 +758,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                     "Playback attempt \(currentAttemptContext.attemptLabel, privacy: .public) AVPlayer failed: \(playbackError.localizedDescription, privacy: .public) [\(Self.errorChainDescription(itemError), privacy: .public)]\(Self.lastErrorLogDescription(self.player.currentItem), privacy: .public)"
                 )
             }
-            var report = AnalyticsErrorReport(.playbackEngineFailed, reason: .itemFailed, error: itemError)
-            report.kind = AnalyticsErrorSanitizer.kind(of: playbackError)
+            flushStreamErrorReports(.fatal)
+            var report = AnalyticsErrorReport(
+                .playbackEngineFailed,
+                reason: .itemFailed,
+                playbackError: playbackError,
+                cause: (contentKeyController?.lastError ?? itemError).map {
+                    AnalyticsErrorCause(error: $0, kind: contentKeyController?.lastError != nil ? .drm : nil)
+                }
+            )
             report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
             ErrorReporter.report(report)
             error = playbackError
@@ -774,6 +787,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             guard let dolbyVision7ProxyURL else {
                 failLoad(
                     .unknown("Dolby Vision 7 conversion is unavailable for this stream."),
+                    cause: AnalyticsErrorCause(kind: .dolbyVision7Conversion),
                     attemptID: attemptID,
                     message: "Dolby Vision 7 proxy is not running"
                 )
@@ -807,6 +821,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             } else if stream.drm?.keySystem == .fairPlay {
                 failLoad(
                     .unknown(FairPlayError.unavailableOnSimulator.localizedDescription),
+                    cause: AnalyticsErrorCause(kind: .drm),
                     attemptID: attemptID,
                     message: "FairPlay unavailable"
                 )
@@ -899,6 +914,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             guard isCurrentProxy, !Task.isCancelled else { return }
             failLoad(
                 .unknown("Dolby Vision 7 conversion is unavailable for this stream."),
+                cause: AnalyticsErrorCause(error: error, kind: .dolbyVision7Conversion),
                 attemptID: attemptID,
                 message: "Dolby Vision 7 proxy preflight failed (\(String(describing: error)))"
             )
@@ -911,6 +927,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         avPlayerEngineLogger.error(
             "Playback attempt \(self.currentAttemptContext?.attemptLabel ?? "unknown", privacy: .public) Dolby Vision 7 conversion failed: \(String(describing: conversionError), privacy: .public)"
         )
+        flushStreamErrorReports(.fatal)
         ErrorReporter.report(.decoderFailed, reason: .dolbyVision7Conversion, error: conversionError, engine: .avPlayer)
         player.pause()
         error = .unknown("Dolby Vision 7 conversion failed.")
@@ -933,10 +950,12 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     /// after the policy's backoff, with a fresh item and a fresh FairPlay key
     /// session. Gives up — the normal error, with Retry — only when the
     /// channel has kept failing for `IPTVRetunePolicy.giveUpAfter`.
-    private func scheduleIPTVRetune(reason: String) {
+    private func scheduleIPTVRetune(reason: String, cause: Error?) {
         guard let source = currentSource, let stream = source.iptvStream, !stream.isCatchUp,
               !isRetunePending else { return }
         lastRetuneReason = reason
+        lastRetuneCause = cause.map { AnalyticsErrorCause(error: $0, kind: .channelUnresponsive) }
+            ?? AnalyticsErrorCause(kind: .channelUnresponsive)
         let attemptID = source.context.attemptID
 
         switch retunePolicy.interrupted(at: .now) {
@@ -945,6 +964,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             failLoad(
                 .unknown("This channel stopped responding. \(lastRetuneReason ?? "")"
                     .trimmingCharacters(in: .whitespaces)),
+                cause: lastRetuneCause,
                 attemptID: attemptID,
                 message: "IPTV retune gave up"
             )
@@ -1009,10 +1029,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     private func failIPTVKeyRequest(_ keyError: Error, attemptID: UUID) {
         guard currentAttemptContext?.attemptID == attemptID, state != .error else { return }
         if currentSource?.iptvStream?.isCatchUp != true, IPTVRetunePolicy.isRetryable(keyError) {
-            scheduleIPTVRetune(reason: keyError.localizedDescription)
+            scheduleIPTVRetune(reason: keyError.localizedDescription, cause: keyError)
             return
         }
-        failLoad(.unknown(keyError.localizedDescription), attemptID: attemptID, message: "FairPlay key request failed")
+        failLoad(
+            .unknown(keyError.localizedDescription),
+            cause: AnalyticsErrorCause(error: keyError, kind: .drm),
+            attemptID: attemptID,
+            message: "FairPlay key request failed"
+        )
     }
 
     /// A catch-up item that failed stays on the spinner for the moment it
@@ -1023,6 +1048,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             let refusal = await IPTVAsset.catchUpRefusal(for: stream)
             self?.failLoad(
                 .unknown(refusal ?? IPTVAsset.failureMessage(for: itemError, isCatchUp: true)),
+                cause: itemError.map { AnalyticsErrorCause(error: $0, kind: .catchUp) }
+                    ?? AnalyticsErrorCause(kind: .catchUp),
                 attemptID: attemptID,
                 message: "IPTV catch-up failed [\(Self.errorChainDescription(itemError))]"
             )
@@ -1035,7 +1062,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         dolbyVision7ProxyURL = nil
     }
 
-    private func failLoad(_ error: PlaybackError, attemptID: UUID, message: String) {
+    /// `cause` carries what the failing path knew besides the
+    /// `PlaybackError` (domain/code, HTTP status, its own kind): without it
+    /// the report only has the case, mostly `unknown`.
+    private func failLoad(
+        _ error: PlaybackError,
+        cause: AnalyticsErrorCause? = nil,
+        attemptID: UUID,
+        message: String
+    ) {
         guard currentAttemptContext?.attemptID == attemptID else { return }
 
         if let currentAttemptContext {
@@ -1044,7 +1079,10 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             )
         }
         // `message` is log-only: it can hold a server's own error text.
-        ErrorReporter.report(.playbackEngineFailed, reason: .loadFailed, error: error, engine: .avPlayer)
+        flushStreamErrorReports(.fatal)
+        var report = AnalyticsErrorReport(.playbackEngineFailed, reason: .loadFailed, playbackError: error, cause: cause)
+        report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
+        ErrorReporter.report(report)
 
         self.error = error
         state = .error
@@ -1106,7 +1144,14 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 avPlayerEngineLogger.error(
                     "Playback attempt \(self.currentAttemptContext?.attemptLabel ?? "unknown", privacy: .public) AVPlayer resume seek was interrupted at \(start, privacy: .public)s"
                 )
-                error = .unknown("Couldn’t resume playback at the saved position.")
+                let resumeError = PlaybackError.unknown("Couldn’t resume playback at the saved position.")
+                error = resumeError
+                var report = AnalyticsErrorReport(
+                    .playbackEngineFailed, reason: .loadFailed,
+                    playbackError: resumeError, cause: AnalyticsErrorCause(kind: .resumeFailed)
+                )
+                report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
+                ErrorReporter.report(report)
                 state = .error
                 isBuffering = false
                 return
@@ -1223,15 +1268,15 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             object: item,
             queue: .main
         ) { [weak self, weak item] _ in
-            guard let event = item?.errorLog()?.events.last else { return }
+            guard let item, let event = item.errorLog()?.events.last else { return }
             let line = "\(event.errorDomain) \(event.errorStatusCode) \(event.errorComment ?? "-"), uri \(Self.logSafeURI(event.uri))"
             // Domain and status only: the comment and URI stay in the log.
             var report = AnalyticsErrorReport(.playbackStreamError)
             report.domain = AnalyticsErrorSanitizer.domain(event.errorDomain)
             report.code = event.errorStatusCode
             report.media.engine = AnalyticsErrorSanitizer.engine(.avPlayer)
-            Task { @MainActor [weak self] in
-                ErrorReporter.report(report)
+            Task { @MainActor [weak self, weak item] in
+                if let item { self?.enqueueStreamErrorReport(report, item: item) }
                 guard let label = self?.currentAttemptContext?.attemptLabel else { return }
                 avPlayerEngineLogger.error(
                     "Playback attempt \(label, privacy: .public) AVPlayer error log: \(line, privacy: .public)"
@@ -1264,6 +1309,53 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         }
         itemLogObservers.forEach { NotificationCenter.default.removeObserver($0) }
         itemLogObservers = []
+        flushStreamErrorReports(.ended)
+    }
+
+    // MARK: - Stream error outcome
+
+    /// An error-log entry is held until it is clear whether playback carried
+    /// on: `AnalyticsStreamOutcome.followUpDelay` later the item is checked
+    /// (time moved → recovered, failed → fatal), or sooner when the item
+    /// fails (`.fatal`) or is torn down (`.ended`). The context (profile,
+    /// server version) is taken now, the limiter applies when it is sent.
+    /// Entries inside one window share the check; repeats of the same
+    /// signature collapse to one.
+    private func enqueueStreamErrorReport(_ report: AnalyticsErrorReport, item: AVPlayerItem) {
+        guard player.currentItem === item else { return }
+        let report = ErrorReporter.withPlaybackContext(report)
+        guard pendingStreamErrorReports.count < 5,
+              !pendingStreamErrorReports.contains(where: { $0.signature == report.signature }) else { return }
+        pendingStreamErrorReports.append(report)
+        guard streamErrorFollowUpTask == nil else { return }
+
+        let baseline = player.currentTime().seconds
+        streamErrorFollowUpTask = Task { @MainActor [weak self, weak item] in
+            try? await Task.sleep(for: AnalyticsStreamOutcome.followUpDelay)
+            guard !Task.isCancelled, let self else { return }
+            guard let item, self.player.currentItem === item else {
+                self.flushStreamErrorReports(.ended)
+                return
+            }
+            let now = self.player.currentTime().seconds
+            let advanced = now.isFinite && baseline.isFinite ? now - baseline : 0
+            self.flushStreamErrorReports(AnalyticsStreamOutcome.evaluate(
+                failed: item.status == .failed || self.state == .error,
+                advanced: advanced,
+                wantsToPlay: self.player.timeControlStatus != .paused
+            ))
+        }
+    }
+
+    private func flushStreamErrorReports(_ outcome: AnalyticsStreamOutcome) {
+        streamErrorFollowUpTask?.cancel()
+        streamErrorFollowUpTask = nil
+        let reports = pendingStreamErrorReports
+        pendingStreamErrorReports = []
+        for var report in reports {
+            report.outcome = outcome
+            ErrorReporter.report(report)
+        }
     }
 
     private func startEnhancedVideoDisplayLink() {
@@ -1350,7 +1442,7 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         // finishing its off-air slate (or the live session), so ask for the
         // channel again and stay in the player.
         if let stream = currentSource?.iptvStream, !stream.isCatchUp {
-            scheduleIPTVRetune(reason: "The channel’s stream ended.")
+            scheduleIPTVRetune(reason: "The channel’s stream ended.", cause: nil)
             return
         }
         guard !hasReportedPlaybackEnded else { return }

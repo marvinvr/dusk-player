@@ -168,6 +168,7 @@ struct DuskApp: App {
         )
         ErrorReporter.client = analyticsClient
         ErrorReporter.playbackProfile = { [weak coordinator] in coordinator?.errorReportingProfile }
+        ErrorReporter.playbackServerVersion = { [weak coordinator] in coordinator?.errorReportingServerVersion }
         let trakt = TraktService(plexService: service)
         coordinator.traktService = trakt
         _traktService = State(initialValue: trakt)

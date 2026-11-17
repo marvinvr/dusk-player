@@ -36,7 +36,7 @@ enum SettingsSupport {
 
     static let homeFooterText = "Personalized shelves are recommendations from Dusk, not Plex."
     static let homeAdvancedFooterText = "Swaps the large artwork at the top of Home for a Continue Watching row."
-    static let privacyFooterText = "Sends anonymous events and error reports, never anything about your library, server, viewing or searches."
+    static let privacyFooterText = "Sends anonymous events and error reports, never anything about your library, viewing or searches, or that identifies your server."
     static let supporterFooterText = "Supporting unlocks alternate app icons, and subscribing adds four exclusive ones."
     static let githubURL = URL(string: "https://github.com/marvinvr/dusk-player")!
     static let redditURL = URL(string: "https://www.reddit.com/r/DuskPlayer/")!

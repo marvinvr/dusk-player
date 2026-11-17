@@ -80,9 +80,18 @@ extension PlaybackError {
         .dataNotAllowed,
     ]
 
-    static func validateDirectPlayURL(_ url: URL) async -> PlaybackError? {
+    /// A failed direct-play validation: what the viewer sees, plus the
+    /// anonymous cause (domain/code or HTTP status) for error reports.
+    struct DirectPlayValidationFailure: Sendable {
+        let error: PlaybackError
+        let cause: AnalyticsErrorCause?
+    }
+
+    static func validateDirectPlay(_ url: URL) async -> DirectPlayValidationFailure? {
         if url.isFileURL {
-            return FileManager.default.fileExists(atPath: url.path) ? nil : .sourceUnavailable
+            return FileManager.default.fileExists(atPath: url.path)
+                ? nil
+                : DirectPlayValidationFailure(error: .sourceUnavailable, cause: nil)
         }
 
         var request = URLRequest(url: url)
@@ -95,15 +104,21 @@ extension PlaybackError {
             let (bytes, response) = try await PlexTransportSecurity.session.bytes(for: request)
 
             guard let http = response as? HTTPURLResponse else {
-                return .networkError("Invalid response")
+                return DirectPlayValidationFailure(
+                    error: .networkError("Invalid response"),
+                    cause: AnalyticsErrorCause(kind: .invalidResponse)
+                )
             }
 
             guard (200...299).contains(http.statusCode) else {
                 let responseText = try await readPrefix(from: bytes, limit: 4096)
-                return mapDirectPlayFailure(
-                    statusCode: http.statusCode,
-                    responseText: responseText,
-                    fallback: directPlayFallbackMessage
+                return DirectPlayValidationFailure(
+                    error: mapDirectPlayFailure(
+                        statusCode: http.statusCode,
+                        responseText: responseText,
+                        fallback: directPlayFallbackMessage
+                    ),
+                    cause: .http(http.statusCode)
                 )
             }
 
@@ -111,7 +126,10 @@ extension PlaybackError {
         } catch is CancellationError {
             return nil
         } catch {
-            return fromPlaybackFailure(error: error, fallback: directPlayFallbackMessage)
+            return DirectPlayValidationFailure(
+                error: fromPlaybackFailure(error: error, fallback: directPlayFallbackMessage),
+                cause: AnalyticsErrorCause(error: error)
+            )
         }
     }
 

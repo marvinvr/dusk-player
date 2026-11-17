@@ -134,7 +134,9 @@ enum ConnectionProbeOutcome: Sendable, Equatable {
     /// Answered, but as a different (or no) Plex server.
     case wrongServer(String?)
     case unauthorized
-    case failed(String)
+    /// `cause` is the anonymous part (URL error domain/code, HTTP status)
+    /// for error reports; the text is for the diagnostics screen only.
+    case failed(String, cause: AnalyticsErrorCause? = nil)
     /// Still running when a better candidate was committed.
     case skipped
 
@@ -148,7 +150,7 @@ enum ConnectionProbeOutcome: Sendable, Equatable {
         case let .reachable(latency): "OK · \(Int((latency * 1000).rounded())) ms"
         case let .wrongServer(found): found.map { "Different server (\($0.prefix(8))…)" } ?? "Not a Plex server"
         case .unauthorized: "Token rejected (401)"
-        case let .failed(reason): reason
+        case let .failed(reason, _): reason
         case .skipped: "No answer yet when another was chosen"
         }
     }
@@ -189,6 +191,44 @@ struct ConnectionReport: Sendable, Identifiable {
             )
         }
         return lines.joined(separator: "\n")
+    }
+}
+
+extension ConnectionReport {
+    /// The anonymous `connection_failed` report for this selection: which
+    /// candidate classes were tried and failed, how many, and the failure of
+    /// the best-ranked failed candidate (the one that would have been
+    /// chosen), as domain/code or HTTP status. URLs never leave the device:
+    /// the host is only read for its `.plex.direct` suffix.
+    func errorReport(reason: AnalyticsErrorReason, serverVersion: String?) -> AnalyticsErrorReport {
+        var report = AnalyticsErrorReport(.connectionFailed, reason: reason, count: entries.count)
+        report.serverVersion = AnalyticsErrorSanitizer.serverVersion(serverVersion)
+
+        func connectionClass(_ entry: Entry) -> String {
+            AnalyticsErrorSanitizer.connectionClass(locality: entry.locality, isSecure: entry.isSecure, host: entry.url.host)
+        }
+        let failed = entries.filter {
+            switch $0.outcome {
+            case .failed, .wrongServer, .unauthorized: true
+            case .reachable, .skipped: false
+            }
+        }
+        report.triedConnections = AnalyticsErrorSanitizer.connectionClasses(entries.map(connectionClass))
+        report.failedConnections = AnalyticsErrorSanitizer.connectionClasses(failed.map(connectionClass))
+
+        // Same order as `ConnectionCandidate.rank`: direct, https, locality.
+        let best = failed.min { lhs, rhs in
+            func key(_ entry: Entry) -> (Int, Int, Int, Int) {
+                (entry.locality == .relay ? 1 : 0, entry.isSecure ? 0 : 1, entry.locality.rawValue, entry.id)
+            }
+            return key(lhs) < key(rhs)
+        }
+        switch best?.outcome {
+        case let .failed(_, cause?): report.capture(cause)
+        case .wrongServer: report.kind = AnalyticsErrorKind.wrongServer.rawValue
+        default: break
+        }
+        return report
     }
 }
 
@@ -325,7 +365,7 @@ enum ConnectionSelector {
                 return finish(.unauthorized, chosen: nil)
             }
             let reason = entries.lazy.compactMap { entry -> String? in
-                if case let .failed(reason) = entry.outcome { return reason }
+                if case let .failed(reason, _) = entry.outcome { return reason }
                 return nil
             }.first ?? "Could not connect to \(serverName)"
             return finish(.failed(reason), chosen: nil)
@@ -355,36 +395,44 @@ enum ConnectionSelector {
             let started = clock.now
             let (data, response) = try await session.data(for: request(identityURL, candidate, headers, timeout))
             let elapsed = clock.now - started
-            guard let http = response as? HTTPURLResponse else { return .failed("Invalid response") }
-            if let moved = redirectedElsewhere(http, from: identityURL) { return .failed(moved) }
+            guard let http = response as? HTTPURLResponse else { return invalidResponse }
+            if let moved = redirectedElsewhere(http, from: identityURL) { return redirected(moved) }
             switch http.statusCode {
             case 200...299: break
             case 401: return .unauthorized
-            default: return .failed("HTTP \(http.statusCode)")
+            default: return .failed("HTTP \(http.statusCode)", cause: .http(http.statusCode))
             }
             let found = identityMachineIdentifier(in: data)
             guard found == serverID else { return .wrongServer(found) }
 
             let (_, sectionsResponse) = try await session.data(for: request(sectionsURL, candidate, headers, timeout))
-            guard let sectionsHTTP = sectionsResponse as? HTTPURLResponse else { return .failed("Invalid response") }
-            if let moved = redirectedElsewhere(sectionsHTTP, from: sectionsURL) { return .failed(moved) }
+            guard let sectionsHTTP = sectionsResponse as? HTTPURLResponse else { return invalidResponse }
+            if let moved = redirectedElsewhere(sectionsHTTP, from: sectionsURL) { return redirected(moved) }
             switch sectionsHTTP.statusCode {
             case 200...299:
                 return .reachable(
                     latency: Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
                 )
             case 401: return .unauthorized
-            default: return .failed("HTTP \(sectionsHTTP.statusCode)")
+            default: return .failed("HTTP \(sectionsHTTP.statusCode)", cause: .http(sectionsHTTP.statusCode))
             }
         } catch is CancellationError {
             return .skipped
         } catch let error as URLError where error.code == .cancelled {
             return .skipped
         } catch let error as URLError {
-            return .failed(describe(error))
+            return .failed(describe(error), cause: AnalyticsErrorCause(error: error))
         } catch {
-            return .failed(error.localizedDescription)
+            return .failed(error.localizedDescription, cause: AnalyticsErrorCause(error: error))
         }
+    }
+
+    private static let invalidResponse = ConnectionProbeOutcome.failed(
+        "Invalid response", cause: AnalyticsErrorCause(kind: .invalidResponse)
+    )
+
+    private static func redirected(_ description: String) -> ConnectionProbeOutcome {
+        .failed(description, cause: AnalyticsErrorCause(kind: .redirect))
     }
 
     /// A candidate that only answers by redirecting (http → https on a reverse

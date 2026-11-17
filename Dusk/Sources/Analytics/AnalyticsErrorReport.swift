@@ -11,7 +11,9 @@ enum AnalyticsErrorCategory: String, CaseIterable, Sendable {
     /// error, a load that never validated). The ladder may still recover.
     case playbackEngineFailed = "playback_engine_failed"
     /// An AVPlayer error-log entry: a segment or playlist fetch AVPlayer
-    /// rejected, usually an HTTP status or CoreMedia code.
+    /// rejected, usually an HTTP status or CoreMedia code. Sent once its
+    /// `outcome` is known (`AnalyticsStreamOutcome`), at most
+    /// `AnalyticsStreamOutcome.followUpDelay` after the entry.
     case playbackStreamError = "playback_stream_error"
     /// AVPlayer ran out of buffer while playing.
     case playbackStalled = "playback_stalled"
@@ -36,7 +38,9 @@ enum AnalyticsErrorCategory: String, CaseIterable, Sendable {
     /// Sign-in could not complete. `reason`: `pin_request` or `timeout`.
     case signInFailed = "sign_in_failed"
     /// A server had no usable connection. `reason`: `unreachable` or
-    /// `unauthorized`; `count`: connection candidates tried.
+    /// `unauthorized`; `count`: connection candidates tried; `tried` /
+    /// `failed`: candidate classes (`AnalyticsErrorSanitizer.connectionClass`);
+    /// domain/code or `http_status`: the best-ranked candidate's failure.
     case connectionFailed = "connection_failed"
 
     /// Synthetic path, like the usage events: groups errors by area in Rybbit.
@@ -96,6 +100,106 @@ enum AnalyticsErrorReason: String, Sendable {
     case unauthorized
 }
 
+/// A finer classification than `PlaybackError`'s case, from the error's
+/// domain, code or HTTP status, or from the failing code path itself. Fixed
+/// spellings only, like `AnalyticsErrorReason`.
+enum AnalyticsErrorKind: String, Sendable {
+    // `PlaybackError` cases
+    case unsupportedFormat = "unsupported_format"
+    case sourceUnavailable = "source_unavailable"
+    case network
+    case serverUnreachable = "server_unreachable"
+    case unauthorized
+    case unknown
+    // From the cause
+    case http4xx = "http_4xx"
+    case http5xx = "http_5xx"
+    case httpOther = "http_other"
+    case timeout
+    case tls
+    case transportPolicy = "transport_policy"
+    case invalidResponse = "invalid_response"
+    case redirect
+    case wrongServer = "wrong_server"
+    case decode
+    case unsupportedMedia = "unsupported_media"
+    case mediaServicesReset = "media_services_reset"
+    // From the failing path
+    case drm
+    case dolbyVision7Conversion = "dv7_conversion"
+    case channelUnresponsive = "channel_unresponsive"
+    case catchUp = "catch_up"
+    case resumeFailed = "resume_failed"
+}
+
+/// What became of playback after an AVPlayer error-log entry, checked
+/// `followUpDelay` after it (or as soon as the item fails or goes away).
+enum AnalyticsStreamOutcome: String, Sendable {
+    /// Playback time moved on: AVPlayer retried and carried on.
+    case recovered
+    /// The item or the engine failed.
+    case fatal
+    /// Still on the same item, wanting to play, but time did not move.
+    case stalled
+    /// Paused by the viewer: says nothing either way.
+    case paused
+    /// The item was replaced or stopped first (fallback rung, next item,
+    /// viewer left) without failing.
+    case ended
+
+    static let followUpDelay: Duration = .seconds(10)
+    /// Time must move at least this far to count as recovered.
+    static let minimumAdvance: Double = 1
+
+    static func evaluate(failed: Bool, advanced: Double, wantsToPlay: Bool) -> Self {
+        if failed { return .fatal }
+        if advanced >= minimumAdvance { return .recovered }
+        return wantsToPlay ? .stalled : .paused
+    }
+}
+
+/// The reportable part of an error: domain + code (and the underlying
+/// error's), an HTTP status, a kind. Built from an error the same way
+/// `AnalyticsErrorReport.capture` is, so it can travel where the error
+/// itself cannot (a probe outcome, a validation result).
+struct AnalyticsErrorCause: Sendable, Equatable {
+    var domain: String?
+    var code: Int?
+    var underlyingDomain: String?
+    var underlyingCode: Int?
+    var httpStatus: Int?
+    var kind: AnalyticsErrorKind?
+
+    init(
+        domain: String? = nil, code: Int? = nil,
+        underlyingDomain: String? = nil, underlyingCode: Int? = nil,
+        httpStatus: Int? = nil, kind: AnalyticsErrorKind? = nil
+    ) {
+        self.domain = domain.map(AnalyticsErrorSanitizer.domain)
+        self.code = code
+        self.underlyingDomain = underlyingDomain.map(AnalyticsErrorSanitizer.domain)
+        self.underlyingCode = underlyingCode
+        self.httpStatus = httpStatus
+        self.kind = kind
+    }
+
+    /// Domain and code only, never `localizedDescription` or `userInfo`
+    /// beyond `NSUnderlyingErrorKey`. A `PlaybackError` has neither.
+    init(error: any Error, kind: AnalyticsErrorKind? = nil) {
+        self.init(kind: kind)
+        guard !(error is PlaybackError) else { return }
+        let nsError = error as NSError
+        domain = AnalyticsErrorSanitizer.domain(nsError.domain)
+        code = nsError.code
+        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
+            underlyingDomain = AnalyticsErrorSanitizer.domain(underlying.domain)
+            underlyingCode = underlying.code
+        }
+    }
+
+    static func http(_ status: Int) -> Self { Self(httpStatus: status) }
+}
+
 /// The anonymous technical profile of what was playing. Every field is a
 /// bucket or an allowlisted token, never a value read verbatim from Plex.
 struct AnalyticsMediaProfile: Sendable, Equatable {
@@ -121,8 +225,21 @@ struct AnalyticsErrorReport: Sendable, Equatable {
     var code: Int?
     var underlyingDomain: String?
     var underlyingCode: Int?
+    var httpStatus: Int?
     var count: Int?
+    /// `playback_stream_error` only.
+    var outcome: AnalyticsStreamOutcome?
+    /// `major.minor.patch` of the Plex Media Server involved, when known.
+    var serverVersion: String?
+    /// `connection_failed` only: candidate classes tried / failed, sorted,
+    /// comma-separated (`AnalyticsErrorSanitizer.connectionClasses`).
+    var triedConnections: String?
+    var failedConnections: String?
     var media = AnalyticsMediaProfile()
+    /// Set once `ErrorReporter` filled in the playback profile and server
+    /// version, so a report sent later (stream outcome) keeps the context of
+    /// when it happened.
+    var hasPlaybackContext = false
 
     init(
         _ category: AnalyticsErrorCategory,
@@ -144,13 +261,31 @@ struct AnalyticsErrorReport: Sendable, Equatable {
             kind = AnalyticsErrorSanitizer.kind(of: playbackError)
             return
         }
-        let nsError = error as NSError
-        domain = AnalyticsErrorSanitizer.domain(nsError.domain)
-        code = nsError.code
-        if let underlying = nsError.userInfo[NSUnderlyingErrorKey] as? NSError {
-            underlyingDomain = AnalyticsErrorSanitizer.domain(underlying.domain)
-            underlyingCode = underlying.code
+        capture(AnalyticsErrorCause(error: error))
+    }
+
+    /// Takes the cause's fields and refines `kind` from them: a
+    /// `PlaybackError` that came out `unknown` (or a report with no kind)
+    /// gets the cause's classification when it has one.
+    mutating func capture(_ cause: AnalyticsErrorCause) {
+        if let value = cause.domain { domain = value; code = cause.code }
+        if let value = cause.underlyingDomain { underlyingDomain = value; underlyingCode = cause.underlyingCode }
+        if let value = cause.httpStatus { httpStatus = value }
+        if kind == nil || kind == AnalyticsErrorKind.unknown.rawValue,
+           let refined = AnalyticsErrorSanitizer.kind(of: cause) {
+            kind = refined.rawValue
         }
+    }
+
+    /// A `PlaybackError` plus whatever the failing path knew about its cause.
+    init(
+        _ category: AnalyticsErrorCategory,
+        reason: AnalyticsErrorReason? = nil,
+        playbackError: PlaybackError,
+        cause: AnalyticsErrorCause?
+    ) {
+        self.init(category, reason: reason, error: playbackError)
+        if let cause { capture(cause) }
     }
 
     /// What makes two reports "the same error" for rate limiting. Media is
@@ -159,6 +294,7 @@ struct AnalyticsErrorReport: Sendable, Equatable {
         [
             category.rawValue, reason?.rawValue, kind, media.engine,
             domain, code.map(String.init), underlyingDomain, underlyingCode.map(String.init),
+            httpStatus.map(String.init), outcome?.rawValue,
         ]
         .map { $0 ?? "-" }
         .joined(separator: "|")
@@ -173,6 +309,8 @@ struct AnalyticsErrorReport: Sendable, Equatable {
         if let underlyingDomain {
             parts.append("← \(underlyingDomain) \(underlyingCode.map(String.init) ?? "?")")
         }
+        if let httpStatus { parts.append("HTTP \(httpStatus)") }
+        if let outcome { parts.append(outcome.rawValue) }
         return parts.joined(separator: " · ")
     }
 
@@ -187,7 +325,12 @@ struct AnalyticsErrorReport: Sendable, Equatable {
         if let code { result["code"] = .int(code) }
         put("underlying_domain", underlyingDomain)
         if let underlyingCode { result["underlying_code"] = .int(underlyingCode) }
+        if let httpStatus { result["http_status"] = .int(httpStatus) }
         if let count { result["count"] = .int(AnalyticsErrorSanitizer.bucket(count)) }
+        put("outcome", outcome?.rawValue)
+        put("server_version", serverVersion)
+        put("tried", triedConnections)
+        put("failed", failedConnections)
         put("engine", media.engine)
         put("delivery", media.delivery)
         put("network", media.network)
@@ -313,14 +456,87 @@ enum AnalyticsErrorSanitizer {
 
     /// `PlaybackError`'s case, never its associated text.
     static func kind(of error: PlaybackError) -> String {
-        switch error {
-        case .unsupportedFormat: "unsupported_format"
-        case .sourceUnavailable: "source_unavailable"
-        case .networkError: "network"
-        case .serverUnreachable: "server_unreachable"
-        case .unauthorized: "unauthorized"
-        case .unknown: "unknown"
+        let kind: AnalyticsErrorKind = switch error {
+        case .unsupportedFormat: .unsupportedFormat
+        case .sourceUnavailable: .sourceUnavailable
+        case .networkError: .network
+        case .serverUnreachable: .serverUnreachable
+        case .unauthorized: .unauthorized
+        case .unknown: .unknown
         }
+        return kind.rawValue
+    }
+
+    /// What a cause says about the failure, when it says anything: the
+    /// failing path's own kind first, then the HTTP status, then well-known
+    /// URL / AVFoundation codes (the error's own, then the underlying one's).
+    static func kind(of cause: AnalyticsErrorCause) -> AnalyticsErrorKind? {
+        if let kind = cause.kind { return kind }
+        if let status = cause.httpStatus {
+            switch status {
+            case 400...499: return .http4xx
+            case 500...599: return .http5xx
+            default: return .httpOther
+            }
+        }
+        return kind(domain: cause.domain, code: cause.code)
+            ?? kind(domain: cause.underlyingDomain, code: cause.underlyingCode)
+    }
+
+    private static func kind(domain: String?, code: Int?) -> AnalyticsErrorKind? {
+        guard let domain, let code else { return nil }
+        switch domain {
+        case NSURLErrorDomain:
+            switch code {
+            case NSURLErrorTimedOut: return .timeout
+            case NSURLErrorAppTransportSecurityRequiresSecureConnection: return .transportPolicy
+            case NSURLErrorSecureConnectionFailed, NSURLErrorServerCertificateHasBadDate,
+                 NSURLErrorServerCertificateUntrusted, NSURLErrorServerCertificateHasUnknownRoot,
+                 NSURLErrorServerCertificateNotYetValid, NSURLErrorClientCertificateRejected,
+                 NSURLErrorClientCertificateRequired:
+                return .tls
+            case NSURLErrorBadServerResponse, NSURLErrorCannotParseResponse: return .invalidResponse
+            case NSURLErrorBadURL: return .transportPolicy
+            default: return .network
+            }
+        case "AVFoundationErrorDomain":
+            switch code {
+            case -11819: return .mediaServicesReset // mediaServicesWereReset
+            case -11821, -11833: return .decode // decodeFailed, decoderNotFound
+            case -11828, -11829, -11838: return .unsupportedMedia // formatNotRecognized, failedToParse, operationNotSupported
+            default: return nil // incl. -11800 AVErrorUnknown: the underlying error says more
+            }
+        default:
+            return nil
+        }
+    }
+
+    /// `major.minor.patch` from a Plex version such as `1.43.0.10162-abc1234`:
+    /// the build number and hash are dropped. Anything else is `other`.
+    static func serverVersion(_ raw: String?) -> String? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else { return nil }
+        guard let match = raw.firstMatch(of: /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})(?:[.\-]|$)/) else { return other }
+        return "\(Int(match.1) ?? 0).\(Int(match.2) ?? 0).\(Int(match.3) ?? 0)"
+    }
+
+    /// The class of one connection candidate: `<lan|tailscale|remote|relay>`,
+    /// `_plex_direct` for a `*.plex.direct` name, `_http` / `_https`. Built
+    /// from fixed spellings only; the host is read for its suffix, never sent.
+    static func connectionClass(locality: ConnectionLocality, isSecure: Bool, host: String?) -> String {
+        let place = switch locality {
+        case .local: "lan"
+        case .tailnet: "tailscale"
+        case .remote: "remote"
+        case .relay: "relay"
+        }
+        let plexDirect = host?.lowercased().hasSuffix(".plex.direct") == true ? "_plex_direct" : ""
+        return "\(place)\(plexDirect)_\(isSecure ? "https" : "http")"
+    }
+
+    /// Distinct classes, sorted, comma-separated; nil when there are none.
+    static func connectionClasses(_ classes: [String]) -> String? {
+        let unique = Set(classes).sorted()
+        return unique.isEmpty ? nil : unique.joined(separator: ",")
     }
 
     /// Counts are bucketed so they describe magnitude, not a fingerprint.
@@ -417,17 +633,30 @@ enum ErrorReporter {
     /// The technical profile of whatever is playing right now, read when a
     /// playback report is made. Supplied by the coordinator.
     static var playbackProfile: (@MainActor () -> AnalyticsMediaProfile?)?
+    /// The raw Plex version of the server the current playback comes from.
+    static var playbackServerVersion: (@MainActor () -> String?)?
 
     static func report(_ report: AnalyticsErrorReport) {
         guard let client else { return }
+        client.recordError(withPlaybackContext(report))
+    }
+
+    /// The report with the current playback's profile and server version,
+    /// for a report that is sent later but belongs to now.
+    static func withPlaybackContext(_ report: AnalyticsErrorReport) -> AnalyticsErrorReport {
+        guard report.category.isPlayback, !report.hasPlaybackContext else { return report }
         var report = report
-        if report.category.isPlayback, let profile = playbackProfile?() {
+        report.hasPlaybackContext = true
+        if let profile = playbackProfile?() {
             let engine = report.media.engine
             report.media = profile
             // An engine reporting about itself knows best which one it is.
             if let engine { report.media.engine = engine }
         }
-        client.recordError(report)
+        if report.serverVersion == nil {
+            report.serverVersion = AnalyticsErrorSanitizer.serverVersion(playbackServerVersion?())
+        }
+        return report
     }
 
     static func report(
