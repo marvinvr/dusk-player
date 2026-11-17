@@ -44,6 +44,28 @@ enum PlaybackBufferPolicy {
         case .remoteNetwork: 1_500
         }
     }
+
+    /// libvlc's audio output counts the route's output latency as part of its
+    /// delay (capped at 1 s), and a block only reaches it ~caching ahead of
+    /// its due time. When the route latency exceeds the caching, every block
+    /// is late: libvlc flushes the output (> 180 ms) or resamples (> 60 ms)
+    /// over and over, which is heard as garbled, distorted sound. That is a
+    /// HomePod/AirPlay or Bluetooth route on a LAN or downloaded source (the
+    /// 1.5 s remote tier happens to cover libvlc's 1 s cap). So the caching
+    /// never drops below the route latency plus the 300 ms headroom a
+    /// latency-free route plays fine with, and wireless
+    /// routes — whose reported latency can still grow after the output
+    /// opens — get the full remote tier.
+    static func vlcCachingMilliseconds(
+        for locality: PlaybackSourceLocality,
+        outputLatency: TimeInterval,
+        isWirelessRoute: Bool
+    ) -> Int {
+        let tier = vlcCachingMilliseconds(for: locality)
+        if isWirelessRoute { return max(tier, 1_500) }
+        let latencyMilliseconds = Int((min(max(outputLatency, 0), 1) * 1_000).rounded())
+        return latencyMilliseconds > 0 ? max(tier, latencyMilliseconds + 300) : tier
+    }
 }
 
 struct PlaybackEngineDiagnostic: Sendable, Identifiable {

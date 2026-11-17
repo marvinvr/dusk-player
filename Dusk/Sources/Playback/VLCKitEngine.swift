@@ -364,6 +364,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
     /// afterwards keeps the reopen free of the fragile post-start ES switch.
     private var reopenAudioTrackPosition: Int?
     private var lastAppliedAudioConfigSignature: String?
+    /// The caching the open media was started with (locality tier raised to
+    /// the audio route's latency), shown in Playback Info.
+    private var appliedCachingMilliseconds: Int?
     // VLCKit 3 identifies player tracks by libvlc elementary-stream indexes,
     // which are only unique per track kind. Key them as "audio/<index>" /
     // "spu/<index>" and map each key to a stable unique Int for the
@@ -1913,12 +1916,28 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         // matching the access module (file:// → file-caching, http(s) →
         // network-caching). The caching IS the audio start deferral after
         // open/seek — see PlaybackBufferPolicy.
-        let cachingMilliseconds = PlaybackBufferPolicy.vlcCachingMilliseconds(for: locality)
+        // The caching also has to cover the audio route's output latency, or
+        // a HomePod/AirPlay route garbles LAN playback (see the policy).
+        #if os(iOS) || os(tvOS)
+        let session = AVAudioSession.sharedInstance()
+        let outputLatency = session.outputLatency
+        let wirelessPorts: Set<AVAudioSession.Port> = [.airPlay, .bluetoothA2DP, .bluetoothLE, .bluetoothHFP]
+        let isWirelessRoute = session.currentRoute.outputs.contains { wirelessPorts.contains($0.portType) }
+        #else
+        let outputLatency: TimeInterval = 0
+        let isWirelessRoute = false
+        #endif
+        let cachingMilliseconds = PlaybackBufferPolicy.vlcCachingMilliseconds(
+            for: locality,
+            outputLatency: outputLatency,
+            isWirelessRoute: isWirelessRoute
+        )
+        appliedCachingMilliseconds = cachingMilliseconds
         media.addOption(":network-caching=\(cachingMilliseconds)")
         media.addOption(":file-caching=\(cachingMilliseconds)")
         media.addOption(":http-reconnect")
         vlcKitEngineLogger.notice(
-            "VLC caching \(cachingMilliseconds, privacy: .public) ms (locality \(String(describing: locality), privacy: .public))"
+            "VLC caching \(cachingMilliseconds, privacy: .public) ms (locality \(String(describing: locality), privacy: .public), output latency \(Int(outputLatency * 1_000), privacy: .public) ms, wireless \(isWirelessRoute, privacy: .public))"
         )
     }
 
@@ -2610,7 +2629,7 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
             PlaybackEngineDiagnostic(
                 label: "VLC Caching",
                 value: currentSource.map {
-                    "\(PlaybackBufferPolicy.vlcCachingMilliseconds(for: $0.locality)) ms (\(String(describing: $0.locality)))"
+                    "\(appliedCachingMilliseconds ?? PlaybackBufferPolicy.vlcCachingMilliseconds(for: $0.locality)) ms (\(String(describing: $0.locality)))"
                 } ?? "Unknown"
             ),
             PlaybackEngineDiagnostic(

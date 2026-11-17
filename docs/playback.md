@@ -1407,6 +1407,14 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   coordinator: downloaded file 300 ms / LAN server 600 ms / remote 1500 ms)
   instead of a flat value — a flat 1500 ms opened every session with ~1.5 s
   of silent video. Playback Info shows the applied value ("VLC Caching").
+  The tier is a floor under the audio route's latency: libvlc counts the
+  route's `outputLatency` (capped at 1 s) in its output delay, and a block
+  reaches the output only ~caching ahead of its due time, so a route slower
+  than the caching makes every block late and libvlc flushes/resamples in a
+  loop — garbled sound on a HomePod/AirPlay route over LAN while remote
+  (1500 ms) played fine. `vlcCachingMilliseconds(for:outputLatency:isWirelessRoute:)`
+  raises the tier to latency + 300 ms, and AirPlay/Bluetooth routes to 1500 ms.
+  A route change mid-session keeps the caching the input opened with.
   Lowering a tier trades rebuffer risk for start latency; raise the LAN tier
   before suspecting playback code if LAN sessions start rebuffering.
 - Pause/resume has a separate stock-VLC latency source: stable 3.x's Apple
@@ -1636,8 +1644,8 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 - Both engines perform preflight direct-play validation via
   `PlaybackError.validateDirectPlayURL`.
 - Buffering defaults are centralized in `PlaybackBufferPolicy`: AVPlayer targets
-  20 seconds of forward buffer, while VLCKit uses 1,500 ms for network and file
-  caching. Do NOT raise the VLC caching values casually: libvlc caching becomes
+  20 seconds of forward buffer, while VLCKit uses the locality-tiered network
+  and file caching described above. Do NOT raise the VLC caching values casually: libvlc caching becomes
   the input's pts_delay, which scales every clock window in the pipeline — the
   initial dejitter, the audio output's start deferral after open/seek/flush,
   and the late/early drift thresholds. At the previous 8,000 ms those windows
