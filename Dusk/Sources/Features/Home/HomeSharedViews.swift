@@ -324,8 +324,11 @@ extension View {
 
 /// The small Continue Watching row Home opens with in place of the cinematic
 /// hero when Settings › Home Advanced › Compact Continue Watching is on. The
-/// same row the library pages use; the menu matches the hero's.
+/// same row the library pages use; the menu matches the hero's. Cards show
+/// the movie or show poster unless Settings › Home Advanced › Continue
+/// Watching Artwork asks for the episode still.
 struct HomeContinueWatchingShelf: View {
+    @Environment(UserPreferences.self) private var preferences
     let viewModel: HomeViewModel
     let detailsLabel: (PlexItem) -> String
     let onSelectRoute: (AppNavigationRoute) -> Void
@@ -333,18 +336,21 @@ struct HomeContinueWatchingShelf: View {
 
     var body: some View {
         if !viewModel.continueWatching.isEmpty {
+            let showsStill = preferences.continueWatchingArtwork == .episodeStill
             PlexItemActionCarouselSection(
                 title: "Continue Watching",
                 items: viewModel.continueWatching,
                 action: play,
-                posterWidth: DuskPosterMetrics.continueWatchingWidth,
-                imageAspectRatio: 16.0 / 9.0,
+                posterWidth: showsStill ? DuskPosterMetrics.continueWatchingWidth : DuskPosterMetrics.carouselPosterWidth,
+                imageAspectRatio: showsStill ? 16.0 / 9.0 : 2.0 / 3.0,
                 subtitle: { viewModel.displaySubtitle(for: $0) },
                 posterURL: { item, width, height in
-                    viewModel.landscapeImageURL(for: item, width: width, height: height)
+                    showsStill
+                        ? viewModel.landscapeImageURL(for: item, width: width, height: height)
+                        : viewModel.posterURL(for: item, width: width, height: height)
                 },
                 progress: { viewModel.progress(for: $0) },
-                isUnwatchedEpisodeImage: { $0.landscapeImageIsUnwatchedEpisodeStill }
+                isUnwatchedEpisodeImage: { showsStill && $0.landscapeImageIsUnwatchedEpisodeStill }
             ) { item in
                 HomeItemContextMenu(
                     item: item,

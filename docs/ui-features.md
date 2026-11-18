@@ -349,7 +349,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   default) swaps the hero for `HomeContinueWatchingShelf`, the library pages'
   `PlexItemActionCarouselSection` row, as the first shelf. Both shells then take
   their no-hero path (iOS large "Home" title; tvOS "Home" header, no fold snapping
-  or hero focus), so nothing is shown twice.
+  or hero focus), so nothing is shown twice. Its cards show 2:3 posters (the show
+  poster for episodes) unless Continue Watching Artwork
+  (`UserPreferences.continueWatchingArtwork`, shown only while Compact is on) is set
+  to Episode Still, the old 16:9 still/backdrop look.
 - Home filters playlist/music/unknown content and hides Plex "continue watching/on deck"
   hubs so the custom continue-watching flow is not duplicated. That rule lives in
   `HomeHubFilter` (`HomeHubFilter.swift`).

@@ -50,6 +50,7 @@ final class UserPreferences {
         static let showsLiveTVOnHome = "showsLiveTVOnHome"
         static let personalizedShelvesEnabled = "personalizedShelvesEnabled"
         static let compactHomeContinueWatching = "compactHomeContinueWatching"
+        static let continueWatchingArtwork = "continueWatchingArtwork"
         static let blursUnwatchedEpisodes = "blursUnwatchedEpisodes"
         static let showsClock = "showsClock"
         static let downloadMaxResolution = "downloadMaxResolution"
@@ -331,6 +332,12 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(compactHomeContinueWatching, forKey: Keys.compactHomeContinueWatching) }
     }
 
+    /// What the compact Home Continue Watching row's cards show: the movie or
+    /// show poster (default) or the landscape still Plex picks for the item.
+    var continueWatchingArtwork: ContinueWatchingArtwork {
+        didSet { UserDefaults.standard.set(continueWatchingArtwork.rawValue, forKey: Keys.continueWatchingArtwork) }
+    }
+
     /// Whether the own images of TV episodes the user hasn't finished are
     /// blurred, so a frame grab never spoils them. Off by default.
     var blursUnwatchedEpisodes: Bool {
@@ -576,6 +583,8 @@ final class UserPreferences {
         self.showsLiveTVOnHome = defaults.bool(forKey: Keys.showsLiveTVOnHome)
         self.personalizedShelvesEnabled = defaults.object(forKey: Keys.personalizedShelvesEnabled) as? Bool ?? true
         self.compactHomeContinueWatching = defaults.bool(forKey: Keys.compactHomeContinueWatching)
+        self.continueWatchingArtwork = defaults.string(forKey: Keys.continueWatchingArtwork)
+            .flatMap(ContinueWatchingArtwork.init(rawValue:)) ?? .poster
         self.blursUnwatchedEpisodes = defaults.bool(forKey: Keys.blursUnwatchedEpisodes)
         self.showsClock = defaults.object(forKey: Keys.showsClock) as? Bool ?? true
         self.downloadMaxResolution = downloadMaxResolution
@@ -807,6 +816,20 @@ final class UserPreferences {
         }
 
         return nil
+    }
+}
+
+enum ContinueWatchingArtwork: String, CaseIterable, Identifiable {
+    case poster
+    case episodeStill
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .poster: "Poster"
+        case .episodeStill: "Episode Still"
+        }
     }
 }
 

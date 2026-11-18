@@ -161,6 +161,13 @@ private struct MacGeneralSettingsPane: View {
                     Text("Compact Continue Watching")
                     Text("Replaces the large artwork at the top of Home with a Continue Watching row.")
                 }
+                if preferences.compactHomeContinueWatching {
+                    Picker("Continue Watching Artwork", selection: $preferences.continueWatchingArtwork) {
+                        ForEach(ContinueWatchingArtwork.allCases) { artwork in
+                            Text(artwork.displayName).tag(artwork)
+                        }
+                    }
+                }
                 MacSettingsSheetRow(
                     title: "Hidden Rows",
                     summary: "Choose which of Plex’s rows appear on Home."

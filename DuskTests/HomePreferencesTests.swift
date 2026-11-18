@@ -41,4 +41,23 @@ struct HomePreferencesTests {
         preferences.compactHomeContinueWatching = false
         #expect(!UserPreferences().compactHomeContinueWatching)
     }
+
+    @Test("Continue Watching Artwork defaults to Poster and persists both choices")
+    @MainActor func continueWatchingArtworkPersistence() {
+        let defaults = UserDefaults.standard
+        let key = "continueWatchingArtwork"
+        let previous = defaults.object(forKey: key)
+        defer {
+            if let previous { defaults.set(previous, forKey: key) }
+            else { defaults.removeObject(forKey: key) }
+        }
+
+        defaults.removeObject(forKey: key)
+        let preferences = UserPreferences()
+        #expect(preferences.continueWatchingArtwork == .poster)
+        preferences.continueWatchingArtwork = .episodeStill
+        #expect(UserPreferences().continueWatchingArtwork == .episodeStill)
+        preferences.continueWatchingArtwork = .poster
+        #expect(UserPreferences().continueWatchingArtwork == .poster)
+    }
 }

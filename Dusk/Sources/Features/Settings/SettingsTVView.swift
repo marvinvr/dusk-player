@@ -301,6 +301,17 @@ struct SettingsTVView: View {
                 title: "Compact Continue Watching",
                 isOn: $preferences.compactHomeContinueWatching
             )
+
+            if preferences.compactHomeContinueWatching {
+                tvRowDivider
+
+                TVSettingsMenuRow(
+                    title: "Continue Watching Artwork",
+                    options: ContinueWatchingArtwork.allCases,
+                    selection: $preferences.continueWatchingArtwork,
+                    selectedTitle: preferences.continueWatchingArtwork.displayName
+                ) { $0.displayName }
+            }
         }
     }
 

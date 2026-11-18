@@ -443,6 +443,14 @@ struct SettingsIOSView: View {
         Section {
             Toggle("Compact Continue Watching", isOn: $preferences.compactHomeContinueWatching)
                 .foregroundStyle(Color.duskTextPrimary)
+            if preferences.compactHomeContinueWatching {
+                Picker("Continue Watching Artwork", selection: $preferences.continueWatchingArtwork) {
+                    ForEach(ContinueWatchingArtwork.allCases) { artwork in
+                        Text(artwork.displayName).tag(artwork)
+                    }
+                }
+                .foregroundStyle(Color.duskTextPrimary)
+            }
         } header: {
             Text("Advanced")
                 .foregroundStyle(Color.duskTextSecondary)
