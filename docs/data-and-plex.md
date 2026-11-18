@@ -870,9 +870,13 @@ function of them. That is what makes progressive rendering safe: a screen can
 merge what it has, render, and merge again when the next server answers without
 deriving a different list. Strong movie identities also merge across libraries
 on one server, even when only one server answers. Movie keys include Plex and
-external-ID aliases (TMDB/IMDb), with edition boundaries preserved. Weak
-same-server matches and TV copies stay separate; title/year alone cannot merge
-two libraries' movies. Individual library grids and playlist membership/order
+external-ID aliases (TMDB/IMDb), with edition boundaries preserved. Strong TV
+identities (show/season/episode GUID or external id) merge across libraries on
+one server too — the same show in "Kids TV" and "TV" is one Home entry, and the
+same-server copy that wins is the most recently watched, then furthest along
+(`isMoreRecentlyWatched`); across servers the priority server's TV copy keeps
+the slot. Weak same-server matches stay separate; title/year alone cannot merge
+two libraries' items. Individual library grids and playlist membership/order
 remain per source; search, Home, merged hubs, recommendations and person titles
 use the merged entries. Movie representatives carry watched state first, then
 the greatest progress fraction (offset/duration); equal progress keeps source
@@ -883,9 +887,9 @@ order. This also governs movie Continue Watching representatives.
   the same content, `instances(of:)` returns every known copy. It accumulates for
   the whole session and is cleared by `tearDownServerSessions()` (sign-out, Plex Home switch),
   because rating keys only mean something for the account that fetched them.
-  Only strong keys are recorded. Movies retain every server-scoped rating key,
-  including multiple libraries on the same server; TV keeps at most one copy
-  per server. A later registration bridging two keys joins their known copies.
+  Only strong keys are recorded, and every server-scoped rating key is kept,
+  including multiple libraries on the same server (so dismissing from Continue
+  Watching and watched fan-out reach the hidden library copy too). A later registration bridging two keys joins their known copies.
   `PlexItemMerge.alternates(in:)`/`combine(_:_:)` retain the same identities.
 - `PlexService.movieCopies(for:)` discovers movies with per-title
   `/library/all?guid=…&includeGuids=1` lookups, filtered against strong aliases,
@@ -896,7 +900,8 @@ order. This also governs movie Continue Watching representatives.
   Explicit watched/unwatched actions discover same-server movie copies before
   using `setWatchedAcrossServers` to reach every known copy. Timelines still
   belong only to the played copy. `MovieLibraryMergeTests` covers the pure merge,
-  aliases, progress, alternate registration and version choices.
+  aliases, progress, alternate registration and version choices;
+  `TVLibraryMergeTests` covers same-server TV copies.
 - Continue Watching (TV): representative = newest `lastViewedAt`, then larger
   `viewOffset`, then lowest server rank; the row is then sorted newest-first. The
   other copies are registered as alternates (in rank order) for playback fallback.

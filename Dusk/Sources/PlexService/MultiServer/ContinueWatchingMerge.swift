@@ -26,7 +26,7 @@ enum ContinueWatchingMerge {
             for item in PlexItemMerge.interleave([list]).items {
                 var key = keys[item.id] ?? item.contentKey
                 if let existing = representatives[key], existing.item.serverID == item.serverID,
-                   existing.item.id != item.id, item.movieContentKeys.isEmpty {
+                   existing.item.id != item.id, !key.isStrong, item.movieContentKeys.isEmpty {
                     key = .instance(item.id)
                 }
                 let candidate = Candidate(item: item, rank: rank)

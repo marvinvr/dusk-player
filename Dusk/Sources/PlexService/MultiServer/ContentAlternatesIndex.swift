@@ -32,8 +32,8 @@ final class ContentAlternatesIndex {
     /// - only **strong** keys are recorded (a Plex or external id). A title/year
     ///   guess is good enough to collapse a row on screen, not to decide which
     ///   file to play.
-    /// - same-server copies are accepted only for strong movie keys. TV keeps
-    ///   its existing one-copy-per-server behavior until episode mapping exists.
+    /// - same-server copies (the same title in two libraries) are accepted, which
+    ///   is only safe because the key is strong.
     func register(_ ids: [PlexItemID], for key: PlexContentKey) {
         guard key.isStrong, !ids.isEmpty else { return }
 
@@ -54,7 +54,6 @@ final class ContentAlternatesIndex {
             }
         }
         for id in ids where !known.contains(id) {
-            guard key.isMovie || !known.contains(where: { $0.serverID == id.serverID }) else { continue }
             known.append(id)
         }
         if identifiersByKey[key] != known { identifiersByKey[key] = known }
@@ -64,7 +63,7 @@ final class ContentAlternatesIndex {
     /// Every known instance, with the requested copy first.
     func instances(of id: PlexItemID) -> [PlexItemID] {
         guard let key = keysByIdentifier[id], let known = identifiersByKey[key] else { return [id] }
-        return [id] + known.filter { $0 != id && (key.isMovie || $0.serverID != id.serverID) }
+        return [id] + known.filter { $0 != id }
     }
 
     /// The content key an id was registered under, if the index has seen it.

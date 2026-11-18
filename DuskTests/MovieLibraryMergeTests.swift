@@ -96,8 +96,9 @@ struct MovieLibraryMergeTests {
         let movie = try item(fields("1", guid: nil, guids: ["tmdb://11"]))
         let show = try item(fields("2", guid: nil, guids: ["tmdb://11"], type: "show"))
         #expect(PlexItemMerge.interleave([[movie, show]]).items.count == 2)
+        // The same show in two libraries of one server is one entry.
         let otherShow = try item(fields("3", section: 2, guid: nil, guids: ["tmdb://11"], type: "show"))
-        #expect(PlexItemMerge.interleave([[show, otherShow]]).items.count == 2)
+        #expect(PlexItemMerge.interleave([[show, otherShow]]).items.count == 1)
     }
 
     @Test func progressUsesFurthestFractionThenWatchedState() throws {

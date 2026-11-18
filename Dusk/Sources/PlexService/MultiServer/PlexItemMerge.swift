@@ -20,8 +20,10 @@ struct MergedPlexItems: Sendable {
 /// what keeps a progressively rendered screen from reshuffling itself as more
 /// servers answer.
 ///
-/// Strong movie identities also collapse copies from libraries on one server.
-/// Weak identities and same-server TV items retain their own rows.
+/// Strong identities (a Plex GUID or external id) also collapse copies from
+/// libraries on one server — the same show filed under "Kids TV" and "TV" is
+/// one entry on Home. Weak (title/numbering) identities on one server keep
+/// their own rows: a guess is not enough to hide a library's item.
 enum PlexItemMerge {
     /// Movie additions form one timeline across libraries/servers. Interleaving
     /// puts an old library's newest movie ahead of another library's newer ones.
@@ -70,11 +72,18 @@ enum PlexItemMerge {
                 let key = keys[item.id] ?? item.contentKey
                 let existing = placed[key, default: []].first { offset in
                     let other = merged[offset]
-                    return other.id == item.id || other.serverID != item.serverID
+                    return other.id == item.id || other.serverID != item.serverID || key.isStrong
                         || (!item.movieContentKeys.isEmpty && !other.movieContentKeys.isEmpty)
                 }
                 if let existing {
-                    if !item.movieContentKeys.isEmpty, isMoreAdvanced(item, than: merged[existing]) {
+                    let other = merged[existing]
+                    if !item.movieContentKeys.isEmpty {
+                        if isMoreAdvanced(item, than: other) { merged[existing] = item }
+                    } else if other.id != item.id, other.serverID == item.serverID,
+                              isMoreRecentlyWatched(item, than: other) {
+                        // Same episode/show in two libraries of one server: keep
+                        // the copy the user actually watched last. Across servers
+                        // the priority server's copy keeps the slot, as before.
                         merged[existing] = item
                     }
                 } else {
@@ -87,8 +96,8 @@ enum PlexItemMerge {
         return MergedPlexItems(items: merged, alternates: alternates)
     }
 
-    /// Strong movie copies include every rating key, including the same server.
-    /// TV keeps the existing one-copy-per-server behavior.
+    /// Every rating key of a strong identity, including copies in other
+    /// libraries of the same server.
     static func alternates(in lists: [[PlexItem]]) -> [PlexContentKey: [PlexItemID]] {
         var alternates: [PlexContentKey: [PlexItemID]] = [:]
         let keys = contentKeys(in: lists)
@@ -98,8 +107,7 @@ enum PlexItemMerge {
                 let key = keys[item.id] ?? item.contentKey
                 guard key.isStrong else { continue }
                 var known = alternates[key] ?? []
-                guard !known.contains(item.id),
-                      (key.isMovie || !known.contains(where: { $0.serverID == item.id.serverID })) else { continue }
+                guard !known.contains(item.id) else { continue }
                 known.append(item.id)
                 alternates[key] = known
             }
@@ -117,7 +125,7 @@ enum PlexItemMerge {
         for (key, ids) in rhs {
             var known = combined[key] ?? []
             for id in ids where !known.contains(id)
-                && (key.isMovie || !known.contains(where: { $0.serverID == id.serverID })) {
+                && (key.isStrong || !known.contains(where: { $0.serverID == id.serverID })) {
                 known.append(id)
             }
             combined[key] = known
@@ -152,5 +160,13 @@ enum PlexItemMerge {
         let progress = Double(item.viewOffset ?? 0) / Double(max(item.duration ?? 1, 1))
         let otherProgress = Double(other.viewOffset ?? 0) / Double(max(other.duration ?? 1, 1))
         return progress > otherProgress
+    }
+
+    /// Most recently played first, then furthest along.
+    static func isMoreRecentlyWatched(_ item: PlexItem, than other: PlexItem) -> Bool {
+        let lastViewedAt = item.lastViewedAt ?? 0
+        let otherLastViewedAt = other.lastViewedAt ?? 0
+        if lastViewedAt != otherLastViewedAt { return lastViewedAt > otherLastViewedAt }
+        return (item.viewOffset ?? 0) > (other.viewOffset ?? 0)
     }
 }
