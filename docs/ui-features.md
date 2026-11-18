@@ -740,6 +740,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   section id is kept.
 - Home's first paint waits (up to `HomeFirstPaintGate.patience`) for the library order,
   so a hidden library's rows never flash; a later hide/show reloads Home.
+- The server's own per-library **Visibility** (library › Advanced on the PMS, `hidden`
+  on `/library/sections` → `PlexLibrary.visibility`: 0 include, 1 exclude from home,
+  2 exclude from home and global search) is honoured too, but never hides the library
+  itself — it stays in tabs/library lists and browses normally, like Plex Web. ≥ 1
+  keeps its titles out of Home (rows, global rows, Continue Watching, hero, Top Shelf,
+  personalized shelves, Recently Added expansion, a global row's "Show All"); 2 also
+  out of `PlexService.search` (Search, Siri search, a person's search-based page) and
+  the Siri title catalog. `HiddenLibraryFilter.Scope` (`.everywhere` / `.home` /
+  `.search`) picks which; `libraryOrder.hiddenLibraryFilter(for:)` builds it.
 - Not filtered: downloads already on the device, and Seerr results.
 - Clips never enter the cinematic hero rotation (`HomeViewModel.heroItems()` filters
   `isClip` — frame grabs read poorly full-bleed). They stay visible in hub rows, where

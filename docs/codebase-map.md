@@ -273,7 +273,9 @@ Settings:
   plex.tv read/write. `PlexService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
   or `loadedHiddenLibraryFilter()` to wait for the load) drops hidden libraries' items
   wherever libraries mix: Home merge, `search`, `getHubItems`, `getPersonMedia`,
-  `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`.
+  `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`. Its `.home` /
+  `.search` scopes (`hiddenLibraryFilter(for:)`) add the server-side per-library
+  Visibility (`PlexLibrary.visibility`) for Home and search/Siri only.
 
 Playlists:
 

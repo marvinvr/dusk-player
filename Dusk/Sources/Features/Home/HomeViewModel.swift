@@ -172,7 +172,8 @@ final class HomeViewModel {
     /// load filters with whatever the account says once it settles.
     func hiddenLibrariesDidChange() {
         guard hasLoadedContent,
-              plexService.libraryOrder.hiddenSectionIdentities != publishedHiddenLibraryIDs else { return }
+              plexService.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs
+                != publishedHiddenLibraryIDs else { return }
         Task { await load() }
     }
 
@@ -488,10 +489,11 @@ final class HomeViewModel {
         hubsByServer.reserveCapacity(payloads.count)
         continueWatchingByServer.reserveCapacity(payloads.count)
 
-        // Libraries hidden on the account leave Home completely: their rows,
+        // Libraries hidden on the account, or excluded from the home screen by
+        // the server's Visibility setting, leave Home completely: their rows,
         // and their titles in global rows and Continue Watching (and so the
         // hero and the Top Shelf).
-        let hiddenLibraries = plexService.libraryOrder.hiddenLibraryFilter
+        let hiddenLibraries = plexService.libraryOrder.hiddenLibraryFilter(for: .home)
         publishedHiddenLibraryIDs = hiddenLibraries.hiddenLibraryIDs
         for payload in payloads {
             hubsByServer.append(
@@ -984,13 +986,15 @@ final class HomeViewModel {
                 for: hub,
                 size: maxRecentlyAddedItems
             )
-            guard !merged.items.isEmpty else {
+            // The paged items have not been through `mergedScreen`'s filter.
+            let items = plexService.libraryOrder.hiddenLibraryFilter(for: .home).filtering(merged.items)
+            guard !items.isEmpty else {
                 expandedHubs.append(hub)
                 continue
             }
 
             plexService.registerAlternates(merged.alternates)
-            expandedHubs.append(hub.replacingItems(merged.items))
+            expandedHubs.append(hub.replacingItems(items))
         }
 
         return expandedHubs

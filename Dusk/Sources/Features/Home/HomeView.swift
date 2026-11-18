@@ -75,8 +75,9 @@ struct HomeView: View {
                 await newViewModel.load(maxRecentlyAddedItems: recentlyAddedInlineItemLimit)
             }
             // Hiding or showing a library (Settings › Libraries › Hidden
-            // Libraries) changes what Home may show.
-            .onChange(of: plexService.libraryOrder.hiddenSectionIdentities) { _, _ in
+            // Libraries, or the server's Visibility setting) changes what Home
+            // may show.
+            .onChange(of: plexService.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs) { _, _ in
                 viewModel?.hiddenLibrariesDidChange()
             }
             // Pinning or unpinning a playlist (its page, Home, Settings › Home).

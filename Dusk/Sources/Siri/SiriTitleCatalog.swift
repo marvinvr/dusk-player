@@ -77,7 +77,7 @@ final class SiriTitleCatalog {
               let profileID = plexService.activeProfileID,
               !plexService.pool.connections.isEmpty else { return }
 
-        let hiddenLibraries = await plexService.loadedHiddenLibraryFilter()
+        let hiddenLibraries = await plexService.loadedHiddenLibraryFilter(for: .search)
         let hiddenLibrariesChanged = (stored?.hiddenLibraryIDs ?? []) != hiddenLibraries.hiddenLibraryIDs
 
         if let stored,

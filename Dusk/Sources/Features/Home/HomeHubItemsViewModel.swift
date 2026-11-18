@@ -36,7 +36,14 @@ final class HomeHubItemsViewModel {
         // one unreachable server must not hide the other's half of the row.
         let merged = await plexService.mergedHubItems(for: hub)
         plexService.registerAlternates(merged.alternates)
-        items = merged.items
+        // A global row (Home's Recently Added, Continue Watching) keeps out the
+        // libraries the server excludes from Home, as on Home itself. A
+        // library's own row (also opened here) keeps all its titles.
+        if hub.resolvedLibrarySectionID == nil {
+            items = await plexService.loadedHiddenLibraryFilter(for: .home).filtering(merged.items)
+        } else {
+            items = merged.items
+        }
 
         isLoading = false
     }

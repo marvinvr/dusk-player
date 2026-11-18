@@ -112,7 +112,13 @@ final class LibraryOrderStore {
     /// Hides the hidden libraries' content wherever items from several
     /// libraries meet. See `HiddenLibraryFilter`.
     var hiddenLibraryFilter: HiddenLibraryFilter {
-        HiddenLibraryFilter(hiddenLibraryIDs: hiddenSectionIdentities)
+        hiddenLibraryFilter(for: .everywhere)
+    }
+
+    /// `hiddenLibraryFilter` plus the sections the server's own Visibility
+    /// setting keeps out of `scope` (Home, or Home and search).
+    func hiddenLibraryFilter(for scope: HiddenLibraryFilter.Scope) -> HiddenLibraryFilter {
+        HiddenLibraryFilter(accountHiddenIDs: hiddenSectionIdentities, sections: sections, scope: scope)
     }
 
     /// `orderedSections` without the hidden ones: what screens that list

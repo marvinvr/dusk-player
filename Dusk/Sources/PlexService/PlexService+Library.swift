@@ -294,8 +294,9 @@ extension PlexService {
         return await loadedHiddenLibraryFilter().filtering(items)
     }
 
-    /// Hidden libraries' titles never come back: search feeds both the Search
-    /// screen and Siri.
+    /// Hidden libraries' titles never come back, nor those of libraries the
+    /// server excludes from global search: search feeds both the Search screen
+    /// and Siri.
     func search(query: String, serverID: String? = nil) async throws -> [PlexSearchResult] {
         let hubs = try await fetchHubs(
             path: "/hubs/search",
@@ -308,7 +309,7 @@ extension PlexService {
             serverID: serverID
         )
 
-        return await loadedHiddenLibraryFilter().filtering(hubs)
+        return await loadedHiddenLibraryFilter(for: .search).filtering(hubs)
             .filter { !$0.items.isEmpty }
             .flatMap { PlexSearchResult.results(from: $0) }
     }

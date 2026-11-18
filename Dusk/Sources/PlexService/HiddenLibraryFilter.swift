@@ -13,10 +13,44 @@ import Foundation
 /// shape: section keys are per-server counters. An item or hub that does not
 /// say which section it belongs to is kept, because there is nothing to match
 /// it against.
+///
+/// The server's own per-library Visibility (`PlexLibrary.visibility`) adds to
+/// this for Home and search only — see `Scope`.
 struct HiddenLibraryFilter: Sendable {
+    /// Where the filter is applied. The account flag hides a library in every
+    /// scope; the server's Visibility setting only keeps a library's titles
+    /// out of Home (and search), never out of its own tab, like Plex Web.
+    enum Scope: Sendable {
+        /// Library lists, a library's own rows, person pages, copies.
+        case everywhere
+        /// Every Home row, Continue Watching, recommendations, the Top Shelf.
+        case home
+        /// Search and Siri.
+        case search
+    }
+
     let hiddenLibraryIDs: Set<String>
 
     static let none = HiddenLibraryFilter(hiddenLibraryIDs: [])
+
+    init(hiddenLibraryIDs: Set<String>) {
+        self.hiddenLibraryIDs = hiddenLibraryIDs
+    }
+
+    /// The account-hidden libraries plus the sections whose server-side
+    /// Visibility excludes them from `scope`.
+    init(accountHiddenIDs: Set<String>, sections: [PlexLibrary], scope: Scope) {
+        let serverExcluded: [PlexLibrary]
+        switch scope {
+        case .everywhere:
+            serverExcluded = []
+        case .home:
+            serverExcluded = sections.filter { $0.visibility != .included }
+        case .search:
+            serverExcluded = sections.filter { $0.visibility == .excludedFromHomeAndSearch }
+        }
+        hiddenLibraryIDs = accountHiddenIDs.union(serverExcluded.map(\.id))
+    }
 
     func hides(serverID: String?, librarySectionID: String?) -> Bool {
         guard !hiddenLibraryIDs.isEmpty,

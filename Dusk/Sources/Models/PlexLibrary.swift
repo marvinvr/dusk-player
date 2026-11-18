@@ -45,6 +45,36 @@ enum PlexLibraryType: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// A section's server-side Visibility (library › Advanced › Visibility), sent
+/// as `hidden` on `/library/sections`. Unlike the account's Hidden Libraries
+/// it never hides the library itself: it stays in the library list and can be
+/// browsed, only its titles leave Home (and, for `.excludedFromHomeAndSearch`,
+/// search and Siri). See `HiddenLibraryFilter.Scope`.
+enum PlexLibraryVisibility: Int, Codable, Sendable, Hashable {
+    /// "Include in home screen and global search" (`hidden="0"` or absent).
+    case included = 0
+    /// "Exclude from home screen".
+    case excludedFromHome = 1
+    /// "Exclude from home screen and global search".
+    case excludedFromHomeAndSearch = 2
+
+    /// Lenient: PMS sends an integer, but a string or bool must not fail the
+    /// whole section list, and an unknown value counts as included.
+    init<Key: CodingKey>(_ container: KeyedDecodingContainer<Key>, forKey key: Key) {
+        let raw: Int?
+        if let value = try? container.decodeIfPresent(Int.self, forKey: key) {
+            raw = value
+        } else if let value = try? container.decodeIfPresent(String.self, forKey: key) {
+            raw = Int(value)
+        } else if let value = try? container.decodeIfPresent(Bool.self, forKey: key) {
+            raw = value ? 1 : 0
+        } else {
+            raw = nil
+        }
+        self = raw.flatMap(Self.init(rawValue:)) ?? .included
+    }
+}
+
 /// A library section on the Plex server (e.g. "Movies", "TV Shows").
 /// Returned from `GET /library/sections` in the `Directory` array.
 struct PlexLibrary: Codable, Sendable, Identifiable {
@@ -88,11 +118,14 @@ struct PlexLibrary: Codable, Sendable, Identifiable {
     let thumb: String?
     let art: String?
     let composite: String?
+    /// The server-side Visibility setting (library › Advanced), Plex's `hidden`.
+    let visibility: PlexLibraryVisibility
 
     enum CodingKeys: String, CodingKey {
         case key, title, type, subtype, agent, scanner, language, uuid
         case updatedAt, createdAt, scannedAt
         case thumb, art, composite
+        case visibility = "hidden"
     }
 
     init(from decoder: Decoder) throws {
@@ -112,6 +145,7 @@ struct PlexLibrary: Codable, Sendable, Identifiable {
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
         composite = try container.decodeIfPresent(String.self, forKey: .composite)
+        visibility = PlexLibraryVisibility(container, forKey: .visibility)
     }
 
     private static let videoSectionAgents: Set<String> = [
