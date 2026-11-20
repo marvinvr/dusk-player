@@ -64,7 +64,7 @@ struct ContinueWatchingMenuTests {
             onSelectRoute: { _ in },
             onRemoveFromContinueWatching: {}
         )
-        .actions(playlistPresenter: nil)
+        .actions(playlistPresenter: nil, playback: PlaybackCoordinator(plexService: PlexService()))
         .map(\.title)
     }
 
@@ -81,7 +81,8 @@ struct ContinueWatchingMenuTests {
         #expect(movie.canMarkUnwatchedFromContextMenu)
 
         let titles = menuTitles(for: movie)
-        #expect(titles.first == "Mark Watched")
+        #expect(titles.first == "Play from Start")
+        #expect(titles.dropFirst().first == "Mark Watched")
         #expect(titles.contains("Mark Unwatched"))
         #expect(titles.contains("Remove from Continue Watching"))
 
@@ -100,7 +101,10 @@ struct ContinueWatchingMenuTests {
         #expect(inProgress.canMarkWatchedFromContextMenu)
         #expect(menuTitles(for: inProgress).contains("Mark Watched"))
 
+        #expect(menuTitles(for: inProgress).first == "Play from Start")
+
         let nextUp = try item(["type": "episode", "duration": 2_400_000])
+        #expect(!menuTitles(for: nextUp).contains("Play from Start"))
         #expect(nextUp.canMarkWatchedFromContinueWatchingMenu)
         #expect(menuTitles(for: nextUp).contains("Mark Watched"))
         #expect(!menuTitles(for: nextUp).contains("Mark Unwatched"))
@@ -112,6 +116,7 @@ struct ContinueWatchingMenuTests {
         #expect(!watched.canMarkWatchedFromContextMenu)
         #expect(!watched.canMarkWatchedFromContinueWatchingMenu)
         #expect(!menuTitles(for: watched).contains("Mark Watched"))
+        #expect(!menuTitles(for: watched).contains("Play from Start"))
         #expect(menuTitles(for: watched).contains("Mark Unwatched"))
     }
 }

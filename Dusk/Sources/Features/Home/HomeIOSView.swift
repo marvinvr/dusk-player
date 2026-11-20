@@ -7,6 +7,7 @@ import UIKit
 struct HomeIOSView: View {
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(AddToPlaylistPresenter.self) private var addToPlaylistPresenter: AddToPlaylistPresenter?
+    @Environment(PlaybackCoordinator.self) private var playback
     @Binding var path: NavigationPath
 
     let viewModel: HomeViewModel
@@ -109,7 +110,7 @@ struct HomeIOSView: View {
                                         Task { await viewModel.removeFromContinueWatching(item) }
                                     }
                                 )
-                                .actions(playlistPresenter: addToPlaylistPresenter)
+                                .actions(playlistPresenter: addToPlaylistPresenter, playback: playback)
                             }
                         )
                         #if os(macOS)

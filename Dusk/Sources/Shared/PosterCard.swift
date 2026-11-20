@@ -502,6 +502,17 @@ extension PlexItem {
     /// they start it again. `viewCount` then hides Mark Watched on poster
     /// menus, but this row is the in-progress copy, and marking it watched is
     /// the scrobble that takes it off the row.
+    /// A movie, episode or video with a resume position (a rewatch too): its
+    /// menu offers "Play from Start" beside the tap that resumes.
+    var canPlayFromStartFromContextMenu: Bool {
+        switch type {
+        case .movie, .episode, .clip:
+            return isPartiallyWatched
+        default:
+            return false
+        }
+    }
+
     var canMarkWatchedFromContinueWatchingMenu: Bool {
         if canMarkWatchedFromContextMenu { return true }
         switch type {

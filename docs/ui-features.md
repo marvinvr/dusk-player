@@ -640,7 +640,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `onRemoveFromContinueWatching` adds Plex's "Remove from Continue Watching" action
   (server `PUT /actions/removeFromContinueWatching`); the hero supplies it because its
   items are always the Continue Watching hub. `HomeViewModel.removeFromContinueWatching`
-  drops the item optimistically, then reloads to reconcile.
+  drops the item optimistically, then reloads to reconcile. A resumable movie,
+  episode or video (`canPlayFromStartFromContextMenu`, a rewatch too) leads with
+  "Play from Start" (`playback.playFromStart`); the movie/episode detail Resume
+  button carries the same entry in its context menu, and so does the Mac item
+  menu beside "Resume" (#83). No visible button is added for it.
 - `HomeHubItemsView` is the full "show all" grid for hub contents. It has its own small
   view model and uses the shared poster grid; all-clip hubs render it 16:9.
 

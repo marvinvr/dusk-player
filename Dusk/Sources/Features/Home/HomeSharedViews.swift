@@ -12,6 +12,7 @@ struct HomeItemMenuAction: Identifiable {
 
 struct HomeItemContextMenu: View {
     @Environment(AddToPlaylistPresenter.self) private var playlistPresenter: AddToPlaylistPresenter?
+    @Environment(PlaybackCoordinator.self) private var playback
 
     let item: PlexItem
     let detailsLabel: String
@@ -33,12 +34,20 @@ struct HomeItemContextMenu: View {
             onSelectRoute: onSelectRoute
         )
         #else
-        HomeItemMenuButtons(actions: actions(playlistPresenter: playlistPresenter))
+        HomeItemMenuButtons(actions: actions(playlistPresenter: playlistPresenter, playback: playback))
         #endif
     }
 
-    func actions(playlistPresenter: AddToPlaylistPresenter?) -> [HomeItemMenuAction] {
+    func actions(playlistPresenter: AddToPlaylistPresenter?, playback: PlaybackCoordinator) -> [HomeItemMenuAction] {
         var actions: [HomeItemMenuAction] = []
+
+        // The card's tap resumes; the menu is the only way to start over (#83).
+        if item.canPlayFromStartFromContextMenu {
+            let item = item
+            actions.append(HomeItemMenuAction(title: "Play from Start", systemImage: "arrow.counterclockwise") {
+                Task { await playback.playFromStart(id: item.id, placeholder: PlaybackPlaceholder(item: item)) }
+            })
+        }
 
         if item.canMarkWatchedFromContinueWatchingMenu {
             actions.append(HomeItemMenuAction(title: "Mark Watched", systemImage: "eye", perform: onMarkWatched))

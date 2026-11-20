@@ -382,6 +382,21 @@ struct EpisodeDetailView: View {
         .detailHeroNativePrimaryButtonStyle()
         .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
         .contextMenu {
+            // The button resumes; long-press / right-click starts over (#83).
+            if (details.viewOffset ?? 0) > 0,
+               !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
+                Button {
+                    Task {
+                        await playback.playFromStart(
+                            id: details.id,
+                            placeholder: PlaybackPlaceholder(details: details)
+                        )
+                    }
+                } label: {
+                    Label("Play from Start", systemImage: "arrow.counterclockwise")
+                }
+            }
+
             if !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
                 PlayVersionContextMenu(versions: details.media) { version in
                     Task {

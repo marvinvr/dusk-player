@@ -5,7 +5,7 @@ import SwiftUI
 /// Mac: every poster, shelf card and the Home hero use it, so the same item
 /// always offers the same commands in the same order.
 ///
-///     Play / Resume
+///     Play / Resume, Play from Start (resumable only)
 ///     Go to Episode/Movie…, Go to Season, Go to Show
 ///     ─
 ///     Mark as Watched  or  Mark as Unwatched (by state)
@@ -35,6 +35,11 @@ struct MacItemContextMenu: View {
     var body: some View {
         if let playTitle {
             Button(playTitle, systemImage: "play.fill", action: play)
+        }
+
+        // Only beside "Resume": a watched item's "Play" already starts over.
+        if item.canPlayFromStartFromContextMenu, !item.isWatched {
+            Button("Play from Start", systemImage: "arrow.counterclockwise", action: playFromStart)
         }
 
         if let detailsRoute {
@@ -103,6 +108,12 @@ struct MacItemContextMenu: View {
                 placeholder: PlaybackPlaceholder(item: item)
             )
         }
+    }
+
+    private func playFromStart() {
+        let item = item
+        let playback = playback
+        Task { await playback.playFromStart(id: item.id, placeholder: PlaybackPlaceholder(item: item)) }
     }
 
     // MARK: - Navigation
