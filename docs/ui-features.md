@@ -1193,8 +1193,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - iOS/iPadOS: a vertical `ScrollView` of sections, each a horizontal `ScrollView`
   with its ruler and rows. The channel column and the ruler corner pin with
   `visualEffect` against the horizontal scroll, the ruler against the outer vertical
-  one (render time, no scroll lag; it sits outside the `LazyVStack`, which would
-  drop it), titles stick to the visible edge with a render-time offset; so they
+  one (render time, no scroll lag; it sits outside the windowed rows, which would
+  drop it). Rows are windowed by hand (bands of 25 around the outer vertical
+  scroll, spacers for the rest): a `LazyVStack` inside the horizontal scroll view
+  is not lazy vertically, built every row, and a few thousand IPTV channels crashed
+  SwiftUI (AttributeGraph `grow_region`). Titles stick to the visible edge with a render-time offset; so they
   end in an ellipsis, a block crossing the edge also gives up that width at its
   trailing end, rounded up to 16 pt steps (`onGeometryChange`), so only those
   blocks re-lay out, once per step. Cells and ruler marks are windowed to

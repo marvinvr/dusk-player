@@ -91,6 +91,8 @@ struct IPTVPlaylist: Hashable, Sendable {
     /// Guide URLs advertised by `#EXTM3U url-tvg=… x-tvg-url=…`.
     var guideURLs: [URL]
     var entries: [IPTVPlaylistEntry]
+    /// Xtream movie / series entries left out (`XtreamURL.isVOD`).
+    var skippedVODEntries = 0
 }
 
 /// One XMLTV `<programme>`.
@@ -116,6 +118,31 @@ struct IPTVGuide: Hashable, Sendable {
     var programmes: [String: [IPTVProgramme]]
 
     static let empty = IPTVGuide(channels: [:], programmes: [:])
+
+    var programmeCount: Int { programmes.values.reduce(0) { $0 + $1.count } }
+
+    /// At most `limit` programmes, the ones closest to `now` (on air first,
+    /// then outward in both directions), so a provider's guide of many
+    /// thousand channels times a week costs a bounded amount of memory in
+    /// the lineup and the guide grid (about 1 KB per programme). Programmes
+    /// as close as the last one kept are kept too, so the cut is one instant,
+    /// never half a time slot.
+    func limited(to limit: Int, around now: Date) -> IPTVGuide {
+        guard programmeCount > limit, limit > 0 else { return self }
+        func distance(_ programme: IPTVProgramme) -> TimeInterval {
+            if programme.start > now { return programme.start.timeIntervalSince(now) }
+            if programme.stop < now { return now.timeIntervalSince(programme.stop) }
+            return 0
+        }
+        let distances = programmes.values.flatMap { $0.map(distance) }.sorted()
+        let cutoff = distances[limit - 1]
+        return IPTVGuide(
+            channels: channels,
+            programmes: programmes
+                .mapValues { $0.filter { distance($0) <= cutoff } }
+                .filter { !$0.value.isEmpty }
+        )
+    }
 }
 
 /// Everything AVPlayer needs to open one IPTV channel. Rides on

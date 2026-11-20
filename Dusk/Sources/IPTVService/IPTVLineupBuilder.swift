@@ -65,21 +65,27 @@ enum IPTVLineupBuilder {
         return PlexLiveTVLineup(provider: provider(for: source), guides: guides)
     }
 
-    /// XMLTV channel ids worth keeping while parsing, or nil when some entry
-    /// can only be matched by name (then every channel has to be read).
     /// How many days back the guide has to reach for this playlist: the
     /// longest catch-up window of any entry, 0 when none has catch-up.
     static func catchUpDays(for playlist: IPTVPlaylist) -> Int {
         playlist.entries.compactMap(\.catchUp?.days).max() ?? 0
     }
 
-    static func wantedGuideChannelIDs(for playlist: IPTVPlaylist) -> Set<String>? {
+    /// What of the XMLTV file is worth keeping while parsing: every
+    /// `tvg-id`, plus every entry's `tvg-name` and title for the display-name
+    /// match. Never "everything": a provider's guide covers far more channels
+    /// than one playlist (and an Xtream list's VOD rows have no `tvg-id`).
+    static func guideChannelFilter(for playlist: IPTVPlaylist) -> (ids: Set<String>, names: Set<String>) {
         var ids = Set<String>()
+        var names = Set<String>()
         for entry in playlist.entries {
-            guard let id = entry.tvgID else { return nil }
-            ids.insert(id)
+            if let id = entry.tvgID { ids.insert(id) }
+            for name in [entry.tvgName, entry.title].compactMap({ $0 }) {
+                let normalized = GuideChannelResolver.normalized(name)
+                if !normalized.isEmpty { names.insert(normalized) }
+            }
         }
-        return ids
+        return (ids, names)
     }
 
     /// `tvg-id` first (exactly, then ignoring case), then the entry's
@@ -115,7 +121,7 @@ enum IPTVLineupBuilder {
         }
 
         static func normalized(_ name: String) -> String {
-            name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            XMLTVParser.normalizedName(name)
         }
     }
 }

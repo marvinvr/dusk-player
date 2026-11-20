@@ -96,6 +96,96 @@ struct M3UParserTests {
     }
 }
 
+@Suite("Xtream playlists")
+struct XtreamPlaylistTests {
+    private let credentials = XtreamURL.Credentials(username: "user", password: "p@ss")
+
+    @Test func credentialsComeFromTheGetPHPQuery() {
+        let url = URL(string: "http://panel.example.com:8080/get.php?username=user&password=p%40ss&type=m3u_plus&output=ts")!
+        #expect(XtreamURL.credentials(fromPlaylistURL: url) == credentials)
+        #expect(XtreamURL.credentials(fromPlaylistURL: URL(string: "https://x.example.com/list.m3u")!) == nil)
+    }
+
+    @Test func moviesAndSeriesAreVOD() {
+        #expect(XtreamURL.isVOD(URL(string: "http://panel.example.com/movie/user/pass/123.mkv")!))
+        #expect(XtreamURL.isVOD(URL(string: "http://panel.example.com/series/user/pass/456.mp4")!))
+        #expect(XtreamURL.isVOD(URL(string: "http://panel.example.com/proxy/MOVIE/user/pass/1.avi")!))
+        #expect(!XtreamURL.isVOD(URL(string: "http://panel.example.com/live/user/pass/123.ts")!))
+        // A generic list's path that merely contains the word.
+        #expect(!XtreamURL.isVOD(URL(string: "https://cdn.example.com/movie/trailer.m3u8")!))
+    }
+
+    @Test func rawTSLiveBecomesHLS() {
+        func hls(_ text: String, _ credentials: XtreamURL.Credentials? = nil) -> String? {
+            XtreamURL.liveHLSURL(for: URL(string: text)!, credentials: credentials)?.absoluteString
+        }
+        #expect(hls("http://panel.example.com:8080/live/user/pass/123.ts") == "http://panel.example.com:8080/live/user/pass/123.m3u8")
+        #expect(hls("http://panel.example.com/live/user/pass/123") == "http://panel.example.com/live/user/pass/123.m3u8")
+        #expect(hls("http://panel.example.com/live/user/pass/123.ts?token=a") == "http://panel.example.com/live/user/pass/123.m3u8?token=a")
+        // Older extensionless form: only when the path carries the playlist's credentials.
+        #expect(hls("http://panel.example.com/user/p%40ss/123", credentials) == "http://panel.example.com/live/user/p%40ss/123.m3u8")
+        #expect(hls("http://panel.example.com/user/p%40ss/123.ts", credentials) == "http://panel.example.com/live/user/p%40ss/123.m3u8")
+        #expect(hls("http://panel.example.com/other/name/123", credentials) == nil)
+        #expect(hls("http://panel.example.com/user/p%40ss/123") == nil)
+        // Already HLS, not a numeric stream id, or not Xtream at all.
+        #expect(hls("http://panel.example.com/live/user/pass/123.m3u8") == nil)
+        #expect(hls("http://panel.example.com/live/user/pass/news.ts") == nil)
+        #expect(hls("https://cdn.example.com/a/b/segment.ts") == nil)
+    }
+
+    @Test func m3uPlusKeepsLiveChannelsAsHLSAndSkipsVOD() {
+        let text = """
+        #EXTM3U
+        #EXTINF:-1 tvg-id="news.us" tvg-name="US| News" group-title="US | General",US| News
+        http://panel.example.com:8080/live/user/p@ss/101.ts
+        #EXTINF:-1 tvg-id="" tvg-name="Film (2020)" group-title="VOD | Action",Film (2020)
+        http://panel.example.com:8080/movie/user/p@ss/201.mkv
+        #EXTINF:-1 tvg-id="" tvg-name="Show S01 E01" group-title="SERIES | Drama",Show S01 E01
+        http://panel.example.com:8080/series/user/p@ss/301.mp4
+        #EXTINF:-1 tvg-id="old.style",Old Style
+        http://panel.example.com:8080/user/p@ss/102
+        """
+        let options = M3UParser.Options(
+            playlistURL: URL(string: "http://panel.example.com:8080/get.php?username=user&password=p@ss&type=m3u_plus&output=ts")
+        )
+        let playlist = M3UParser.parse(text, options: options)
+        #expect(playlist.entries.map(\.title) == ["US| News", "Old Style"])
+        #expect(playlist.entries.map(\.streamURL.path) == ["/live/user/p@ss/101.m3u8", "/live/user/p@ss/102.m3u8"])
+        #expect(playlist.skippedVODEntries == 2)
+    }
+
+    @Test func fileParseMatchesTextParseAcrossChunks() throws {
+        // > 1 MB so lines cross the reader's chunk boundary; CRLF and LF mixed.
+        var text = "#EXTM3U\r\n"
+        for index in 0..<12_000 {
+            text += "#EXTINF:-1 tvg-id=\"c\(index)\" group-title=\"Group \(index % 7)\",Channel \(index)\r\n"
+            text += index.isMultiple(of: 2)
+                ? "http://panel.example.com/live/u/p/\(index).ts\n"
+                : "http://panel.example.com/movie/u/p/\(index).mkv\r\n"
+        }
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("dusk-m3u-\(UUID().uuidString).m3u")
+        try Data(text.utf8).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(text.utf8.count > 1 << 20)
+
+        let fromFile = try M3UParser.parse(fileURL: file)
+        #expect(fromFile == M3UParser.parse(text))
+        #expect(fromFile.entries.count == 6_000)
+        #expect(fromFile.skippedVODEntries == 6_000)
+        #expect(fromFile.entries.last?.streamURL.absoluteString == "http://panel.example.com/live/u/p/11998.m3u8")
+    }
+
+    @Test func fileParseDropsAnEndlessLine() throws {
+        var data = Data("#EXTM3U\n#EXTINF:-1,First\nhttp://a.example.com/1.m3u8\n".utf8)
+        data.append(Data(repeating: 0x41, count: 3 << 20))
+        data.append(Data("\n#EXTINF:-1,Second\nhttp://a.example.com/2.m3u8".utf8))
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("dusk-m3u-\(UUID().uuidString).m3u")
+        try data.write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
+        #expect(try M3UParser.parse(fileURL: file).entries.map(\.title) == ["First", "Second"])
+    }
+}
+
 @Suite("XMLTV parser")
 struct XMLTVParserTests {
     private let window = IPTVFixtures.guideNow.addingTimeInterval(-6 * 3600)...IPTVFixtures.guideNow.addingTimeInterval(24 * 3600)
@@ -141,7 +231,39 @@ struct XMLTVParserTests {
     @Test func channelFilterSkipsOtherProgrammes() throws {
         let guide = try parse(channelIDs: ["news.one"])
         #expect(Set(guide.programmes.keys) == ["news.one"])
+        #expect(Set(guide.channels.keys) == ["news.one"])
         #expect(try parse().programmes["unknown.channel"]?.count == 1)
+    }
+
+    @Test func channelFilterMatchesIDsIgnoringCaseAndDisplayNames() throws {
+        let guide = try XMLTVParser.parse(
+            data: Data(IPTVFixtures.guide.utf8),
+            options: XMLTVParser.Options(window: window, channelIDs: ["sport.two"], channelNames: ["movies 24"])
+        )
+        #expect(Set(guide.programmes.keys) == ["Sport.Two", "movies"])
+        #expect(Set(guide.channels.keys) == ["Sport.Two", "movies"])
+    }
+
+    @Test func guideLimitKeepsTheProgrammesClosestToNow() {
+        let now = IPTVFixtures.guideNow
+        func programme(_ channel: String, hours: Double) -> IPTVProgramme {
+            IPTVProgramme(channelID: channel, start: now.addingTimeInterval(hours * 3600),
+                          stop: now.addingTimeInterval((hours + 1) * 3600), title: "\(channel) \(hours)")
+        }
+        let guide = IPTVGuide(channels: [:], programmes: [
+            "a": (-6...5).map { programme("a", hours: Double($0)) },
+            "b": (-6...5).map { programme("b", hours: Double($0)) },
+            "c": [programme("c", hours: 30)],
+        ])
+        #expect(guide.programmeCount == 25)
+        #expect(guide.limited(to: 100, around: now) == guide)
+
+        let limited = guide.limited(to: 6, around: now)
+        // On air and just ended (distance 0), then an hour out either way; ties
+        // at the cut are kept, so 8 rather than 6.
+        #expect(limited.programmes["a"]?.map(\.title) == ["a -2.0", "a -1.0", "a 0.0", "a 1.0"])
+        #expect(limited.programmes["b"]?.count == 4)
+        #expect(limited.programmes["c"] == nil)
     }
 
     @Test func dates() {
@@ -190,11 +312,15 @@ struct IPTVLineupBuilderTests {
 
     private func lineup() throws -> PlexLiveTVLineup {
         let playlist = M3UParser.parse(IPTVFixtures.extendedPlaylist)
+        // The same filter the loader uses: the case-insensitive and the
+        // by-name matches below must survive it.
+        let filter = IPTVLineupBuilder.guideChannelFilter(for: playlist)
         let guide = try XMLTVParser.parse(
             data: Data(IPTVFixtures.guide.utf8),
             options: XMLTVParser.Options(
                 window: IPTVFixtures.guideNow.addingTimeInterval(-3600)...IPTVFixtures.guideNow.addingTimeInterval(86400),
-                channelIDs: IPTVLineupBuilder.wantedGuideChannelIDs(for: playlist)
+                channelIDs: filter.ids,
+                channelNames: filter.names
             )
         )
         return IPTVLineupBuilder.lineup(
@@ -255,10 +381,11 @@ struct IPTVLineupBuilderTests {
         #expect(movies.headers == ["Authorization": "Bearer secret", "X-Token": "abc"])
     }
 
-    @Test func guideFilterNeedsEveryTvgID() {
-        let withIDs = M3UParser.parse("#EXTINF:-1 tvg-id=\"a\",A\nhttp://x.example.com/a\n#EXTINF:-1 tvg-id=\"b\",B\nhttp://x.example.com/b\n")
-        #expect(IPTVLineupBuilder.wantedGuideChannelIDs(for: withIDs) == ["a", "b"])
-        #expect(IPTVLineupBuilder.wantedGuideChannelIDs(for: M3UParser.parse(IPTVFixtures.extendedPlaylist)) == nil)
+    @Test func guideFilterHasIDsAndNames() {
+        let playlist = M3UParser.parse("#EXTINF:-1 tvg-id=\"a\" tvg-name=\" Alpha \",A One\nhttp://x.example.com/a\n#EXTINF:-1 tvg-id=\"\",B\nhttp://x.example.com/b\n")
+        let filter = IPTVLineupBuilder.guideChannelFilter(for: playlist)
+        #expect(filter.ids == ["a"])
+        #expect(filter.names == ["alpha", "a one", "b"])
     }
 
     @Test func sourceHeaderNeedsNameAndValue() {

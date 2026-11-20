@@ -200,18 +200,23 @@ struct IPTVSourceLoader: Sendable {
 
     func load(source: IPTVSource, headerValue: String?, now: Date = .now) async throws -> IPTVSourceLineup {
         let headers = Self.headers(for: source, headerValue: headerValue)
+        let started = Date.now
         let playlist = try await fetchPlaylist(source.playlistURL, headers: headers)
+        let playlistSeconds = Date.now.timeIntervalSince(started)
 
         var guide = IPTVGuide.empty
         var guideError: String?
         if let guideURL = source.guideURL ?? playlist.guideURLs.first {
+            let filter = IPTVLineupBuilder.guideChannelFilter(for: playlist)
             do {
                 guide = try await fetchGuide(
                     guideURL,
                     headers: headers,
+                    now: now,
                     options: XMLTVParser.Options(
                         window: Self.guideWindow(catchUpDays: IPTVLineupBuilder.catchUpDays(for: playlist), now: now),
-                        channelIDs: IPTVLineupBuilder.wantedGuideChannelIDs(for: playlist)
+                        channelIDs: filter.ids,
+                        channelNames: filter.names
                     )
                 )
             } catch {
@@ -225,6 +230,12 @@ struct IPTVSourceLoader: Sendable {
             guide: guide,
             sourceHeaders: headers
         )
+        iptvLogger.notice("""
+            IPTV source loaded: \(playlist.entries.count, privacy: .public) channels, \
+            \(playlist.skippedVODEntries, privacy: .public) movie/series entries skipped, \
+            playlist \(String(format: "%.1f", playlistSeconds), privacy: .public) s, \
+            total \(String(format: "%.1f", Date.now.timeIntervalSince(started)), privacy: .public) s
+            """)
         return IPTVSourceLineup(source: source, lineup: lineup, guideError: guideError)
     }
 
@@ -236,34 +247,59 @@ struct IPTVSourceLoader: Sendable {
         return now.addingTimeInterval(-past)...now.addingTimeInterval(8 * 24 * 60 * 60)
     }
 
+    /// Downloaded to a file and parsed from disk in chunks on a background
+    /// thread, like the guide: an Xtream `m3u_plus` list carries the whole
+    /// movie and series catalogue (tens of megabytes, tens of thousands of
+    /// entries), and the panel builds it on request, so the first byte can
+    /// take a minute.
     func fetchPlaylist(_ url: URL, headers: [String: String]) async throws -> IPTVPlaylist {
-        let (data, response) = try await session.data(for: request(url, headers: headers))
+        let (fileURL, response) = try await session.download(for: request(url, headers: headers))
+        defer { try? FileManager.default.removeItem(at: fileURL) }
         try Self.validate(response, what: "playlist")
-        let playlist = M3UParser.parse(data)
-        guard !playlist.entries.isEmpty else { throw IPTVLoadError.emptyPlaylist }
+        let options = M3UParser.Options(playlistURL: url)
+        let playlist = try await Task.detached(priority: .utility) {
+            try M3UParser.parse(fileURL: fileURL, options: options)
+        }.value
+        guard !playlist.entries.isEmpty else {
+            throw playlist.skippedVODEntries > 0 ? IPTVLoadError.onlyMoviesAndSeries : IPTVLoadError.emptyPlaylist
+        }
         return playlist
     }
 
     /// Downloaded to a file and streamed through the parser on a background
     /// thread: guides of tens of megabytes are normal.
-    func fetchGuide(_ url: URL, headers: [String: String], options: XMLTVParser.Options) async throws -> IPTVGuide {
+    func fetchGuide(
+        _ url: URL,
+        headers: [String: String],
+        now: Date = .now,
+        options: XMLTVParser.Options
+    ) async throws -> IPTVGuide {
         let (fileURL, response) = try await session.download(for: request(url, headers: headers))
         defer { try? FileManager.default.removeItem(at: fileURL) }
         try Self.validate(response, what: "program guide")
         return try await Task.detached(priority: .utility) {
             try XMLTVParser.parse(fileURL: fileURL, options: options)
+                .limited(to: Self.maxGuideProgrammes, around: now)
         }.value
     }
 
     private func request(_ url: URL, headers: [String: String]) -> URLRequest {
         var request = URLRequest(url: url)
-        request.timeoutInterval = 30
+        // The idle timeout (between bytes, the first one included), not a
+        // limit on the whole download. Xtream panels and other generated
+        // lists answer slowly; other IPTV apps wait minutes.
+        request.timeoutInterval = Self.requestTimeout
         request.cachePolicy = .reloadIgnoringLocalCacheData
         for (name, value) in headers {
             request.setValue(value, forHTTPHeaderField: name)
         }
         return request
     }
+
+    static let requestTimeout: TimeInterval = 180
+    /// See `IPTVGuide.limited`. 100k is two days around now for 2,000
+    /// channels with hourly programmes; most guides never reach it.
+    static let maxGuideProgrammes = 100_000
 
     private static func validate(_ response: URLResponse, what: String) throws {
         guard let http = response as? HTTPURLResponse else { return }
@@ -275,12 +311,15 @@ struct IPTVSourceLoader: Sendable {
 
 enum IPTVLoadError: LocalizedError {
     case emptyPlaylist
+    case onlyMoviesAndSeries
     case httpStatus(Int, what: String)
 
     var errorDescription: String? {
         switch self {
         case .emptyPlaylist:
             "The playlist has no channels."
+        case .onlyMoviesAndSeries:
+            "The playlist has only movies and series, no live channels."
         case .httpStatus(let status, let what):
             switch status {
             case 401, 403: "The \(what) was refused (HTTP \(status)). Check the source’s header."

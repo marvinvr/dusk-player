@@ -659,8 +659,36 @@ struct LiveTVGuideGrid: View {
         }
         .scrollIndicators(.hidden)
         .scrollTargetBehavior(LiveTVGuideShortMomentum())
+        #if DEBUG
+        .modifier(ScreenshotGuideRowScroll(metrics: metrics))
+        #endif
     }
 }
+
+#if DEBUG
+/// `-DuskScreenshotGuideRow`: scrolls the outer guide to a row, then 100
+/// rows on. Only attached in screenshot runs that ask for it.
+private struct ScreenshotGuideRowScroll: ViewModifier {
+    let metrics: LiveTVGuideMetrics
+    @State private var position = ScrollPosition()
+
+    func body(content: Content) -> some View {
+        if let row = ScreenshotMode.guideRow {
+            content
+                .scrollPosition($position)
+                .task {
+                    let stride = metrics.rowHeight + metrics.rowSpacing
+                    try? await Task.sleep(for: .seconds(1))
+                    position.scrollTo(y: CGFloat(row) * stride)
+                    try? await Task.sleep(for: .seconds(1))
+                    position.scrollTo(y: CGFloat(row + 100) * stride)
+                }
+        } else {
+            content
+        }
+    }
+}
+#endif
 
 /// A flick travels a fraction of what `UIScrollView` would give it, and never
 /// more than a screenful, so the guide stays where the viewer is reading
@@ -724,6 +752,14 @@ private struct LiveTVGuideSectionScroller: View {
     @State private var page = 0
     /// Read when the timeline moves; not state, so a scroll redraws nothing.
     @State private var scroll = ScrollTracker()
+    /// Which band of `rowsPerBand` rows the outer vertical scroll is at. The
+    /// rows sit in this horizontal scroll view, so a `LazyVStack` here is not
+    /// lazy vertically: it built every row of the section at once, and an
+    /// IPTV list of thousands of channels overflowed SwiftUI's attribute
+    /// graph (crash). Rows have a fixed height, so they are windowed by hand.
+    @State private var rowBand = 0
+
+    private static let rowsPerBand = 25
 
     private final class ScrollTracker { var x: CGFloat = 0 }
 
@@ -737,24 +773,62 @@ private struct LiveTVGuideSectionScroller: View {
 
     /// Ruler plus rows: how far the ruler can stay pinned inside the section.
     private var contentHeight: CGFloat {
+        metrics.rulerHeight + rowsHeight
+    }
+
+    private var rowsHeight: CGFloat {
         let rows = CGFloat(section.rows.count)
-        return metrics.rulerHeight + rows * metrics.rowHeight + max(rows - 1, 0) * metrics.rowSpacing
+        return rows * metrics.rowHeight + max(rows - 1, 0) * metrics.rowSpacing
+    }
+
+    private var rowStride: CGFloat { metrics.rowHeight + metrics.rowSpacing }
+
+    /// The band on screen, the one before and two after: more than a screen
+    /// either way at any row height, so a scroll never reaches an undrawn row
+    /// before the band changes.
+    private var drawnRows: Range<Int> {
+        let count = section.rows.count
+        let lower = min(max(0, (rowBand - 1) * Self.rowsPerBand), count)
+        let upper = min(max(lower, (rowBand + 3) * Self.rowsPerBand), count)
+        return lower..<upper
+    }
+
+    /// Only `drawnRows`, with spacers standing in for the rest so the
+    /// section keeps its full height.
+    private var rows: some View {
+        let drawn = drawnRows
+        return VStack(alignment: .leading, spacing: 0) {
+            if drawn.lowerBound > 0 {
+                Color.clear.frame(height: CGFloat(drawn.lowerBound) * rowStride)
+            }
+            VStack(alignment: .leading, spacing: metrics.rowSpacing) {
+                ForEach(section.rows[drawn]) { row in
+                    rowView(row)
+                }
+            }
+            if drawn.upperBound < section.rows.count {
+                Color.clear.frame(height: CGFloat(section.rows.count - drawn.upperBound) * rowStride)
+            }
+        }
+        .frame(height: rowsHeight, alignment: .top)
+        .onGeometryChange(for: Int.self) { [rowStride] proxy in
+            let scrolledPast = -proxy.frame(in: .scrollView(axis: .vertical)).minY
+            return max(0, Int((scrolledPast / (rowStride * CGFloat(Self.rowsPerBand))).rounded(.down)))
+        } action: { band in
+            rowBand = band
+        }
     }
 
     var body: some View {
         ScrollView(.horizontal) {
             VStack(alignment: .leading, spacing: 0) {
-                // Outside the lazy stack, which would drop it once its slot
+                // Outside the windowed rows, which would drop it once its slot
                 // has scrolled away while it is still pinned on screen.
                 rulerHeader
                     .pinnedToTopEdge(maxOffset: max(contentHeight - metrics.rulerHeight, 0))
                     .zIndex(2)
 
-                LazyVStack(alignment: .leading, spacing: metrics.rowSpacing) {
-                    ForEach(section.rows) { row in
-                        rowView(row)
-                    }
-                }
+                rows
             }
         }
         .scrollPosition($position)

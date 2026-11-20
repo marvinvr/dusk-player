@@ -41,6 +41,7 @@ enum ScreenshotMode {
         static let iptvCatchUpHoursAgo = "DuskScreenshotIPTVCatchUpHoursAgo"
         static let guideMoves = "DuskScreenshotGuideMoves"
         static let guideOffset = "DuskScreenshotGuideOffsetMinutes"
+        static let guideRow = "DuskScreenshotGuideRow"
     }
 
     private static var defaults: UserDefaults { .standard }
@@ -121,6 +122,14 @@ enum ScreenshotMode {
     static var guideOffsetMinutes: Int? {
         guard isActive, defaults.object(forKey: Key.guideOffset) != nil else { return nil }
         return defaults.integer(forKey: Key.guideOffset)
+    }
+
+    /// `-DuskScreenshotGuideRow 6000`: the iOS grid guide scrolls down to
+    /// that channel row a second after it opens, then 100 rows further a
+    /// second later (checks the windowed rows follow a scroll).
+    static var guideRow: Int? {
+        guard isActive, defaults.object(forKey: Key.guideRow) != nil else { return nil }
+        return defaults.integer(forKey: Key.guideRow)
     }
 
     /// Keeps the player HUD on screen instead of auto-hiding it.

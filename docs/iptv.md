@@ -17,7 +17,9 @@ XMLTV works.
   (Kodi's `url|…` suffix dropped), `#EXTVLCOPT:http-user-agent/http-referrer`,
   Kodi `url|Header=value&…`. Option lines before or after `#EXTINF` belong to
   the entry closed by the next URL line; a junk URL line drops the pending entry
-  so its options never leak. Only http(s) streams are kept.
+  so its options never leak. Only http(s) streams are kept. Fed line by line
+  (`M3UParser.Reader`); the loader parses the downloaded file in 1 MB chunks
+  (`parse(fileURL:)`), a line over 1 MB is dropped. Xtream rules: see below.
 - `IPTVService/XMLTVParser.swift` + `GzipFile.swift`: streaming `XMLParser`
   over a downloaded file (gzip files are gunzipped to a temp file first with
   the Compression framework). Keeps only programmes inside the window
@@ -51,7 +53,10 @@ XMLTV works.
   `PlexLiveTVProvider.isIPTV` gate everything Plex-only.
 - **Always AVPlayer.** `playIPTV` builds an AVPlayer engine directly; Force
   VLCKit, the resolver and the direct-play → server-stream ladder never apply.
-  An IPTV channel can never reach VLCKit.
+  An IPTV channel can never reach VLCKit. AVPlayer cannot play a raw MPEG-TS
+  stream over HTTP ("The server is not correctly configured."), so Xtream
+  `output=ts` live URLs are rewritten to the panel's HLS URL at parse time (see
+  Xtream Codes). Any other raw-TS source still fails with that message.
 - **Nothing reaches Plex.** `reportTimelineOrQueueOfflineSync` returns for IPTV
   (a nil server ID would otherwise fall back to the primary server); no
   scrobble, Trakt, Up Next, markers, quality, offline sync, SharePlay, or debug
@@ -68,6 +73,46 @@ XMLTV works.
 - **Headers**: the source header (+ entry referrer / pipe headers) go on the
   playlist and guide requests, the asset (`AVURLAssetHTTPHeaderFieldsKey`,
   undocumented but long-standing), and both FairPlay requests.
+
+## Xtream Codes and Large Playlists
+
+Xtream panels (`get.php?username=…&password=…&type=m3u_plus&output=ts`) are
+the usual backend behind "big" IPTV subscriptions. Their `m3u_plus` list holds
+the live channels **and** the whole VOD catalogue: tens of thousands of
+entries, tens of megabytes, generated on request (first byte after 30–60 s).
+
+- **Loading** (`IPTVSourceLoader.fetchPlaylist`): `URLSession.download` to a
+  file, chunked parse on a detached task. `requestTimeout` (180 s) is the idle
+  timeout, first byte included; it was 30 s, which every slow panel hit
+  ("The request timed out."). Same timeout for the guide.
+- **VOD skipped** (`XtreamURL.isVOD`): `…/movie|series/<user>/<pass>/<id>.<ext>`
+  entries are dropped and counted (`IPTVPlaylist.skippedVODEntries`). A list
+  with only those says so instead of "no channels". Groups are not used: VOD
+  group names are free text.
+- **Live as HLS** (`XtreamURL.liveHLSURL`): `…/live/<user>/<pass>/<id>.ts` (or
+  no extension) → `…/live/<user>/<pass>/<id>.m3u8`, which Xtream serves for
+  every live channel (usually via a 302). The older `…/<user>/<pass>/<id>` form
+  is rewritten only when user/password match the playlist URL's query. Numeric
+  ids only; `.m3u8` URLs and everything else stay as written. A panel with HLS
+  output disabled for the account fails at play time with AVPlayer's error (no
+  VLCKit fallback).
+- **Guide filter** (`IPTVLineupBuilder.guideChannelFilter`): XMLTV channels are
+  kept by `tvg-id` (exact or ignoring case) or by a display name equal to an
+  entry's `tvg-name`/title; programmes only for kept channels. Name matches need
+  the `<channel>` before its programmes (the XMLTV order). Before, one entry
+  without `tvg-id` (every Xtream VOD row) turned the filter off and the whole
+  provider guide was kept.
+- **Guide budget** (`IPTVGuide.limited`, `maxGuideProgrammes` = 100k): after
+  parsing, only the programmes closest to now are kept (on air first, then
+  outward both ways). Each kept programme costs about 1 KB in the lineup and
+  the guide grid.
+
+Measured in the tvOS 27.2 simulator (Debug, synthetic panel below: 12k live +
+30k movies + 18k episodes, 39.8 MB): first byte after 45 s used to time out at
+30 s; now it loads in 49.4 s (≈4.4 s after the first byte), footprint 128 MB.
+With a 190 MB XMLTV (6k channels, 5 days hourly): 670–780 MB before, 300–315 MB
+after. iOS: the eager guide rows (see `ui-features.md` › Live TV) crashed at
+1.35 GB right after the list loaded; now 110–131 MB.
 
 ## FairPlay
 
@@ -150,7 +195,7 @@ once. Verified in the sim with a 6 s silent ENDLIST slate (re-requests at
 
 ## Verification
 
-- Unit tests: `M3UParserTests`, `XMLTVParserTests`, `IPTVLineupBuilderTests`,
+- Unit tests: `M3UParserTests`, `XtreamPlaylistTests`, `XMLTVParserTests`, `IPTVLineupBuilderTests`,
   `IPTVSourceStoreTests`, `FairPlayKeyExchangeTests` (fixtures in
   `DuskTests/IPTVFixtures.swift`).
 - Simulator: `python3 scripts/iptv_test_source.py 47880` (Apple's public
@@ -171,3 +216,12 @@ once. Verified in the sim with a 6 s silent ENDLIST slate (re-requests at
   mutes AVPlayer (the bipbop samples beep). The seeded source is stored in the
   profile like a real one. Apple's samples are VOD, so the live bar's playhead
   sits at the start of the programme window; real live streams behave normally.
+- Xtream / large lists: `python3 scripts/iptv_xtream_test_source.py --delay 45`
+  (synthetic panel on 47890, needs ffmpeg; `--epg-channels 3000` adds a big
+  `url-tvg` guide). Seed `-DuskScreenshotIPTVPlaylist
+  "http://127.0.0.1:47890/get.php?username=dusk&password=test&type=m3u_plus&output=ts"`;
+  `.ts` channels are a real live MPEG-TS, `.m3u8` the same channel as live HLS
+  (silent test pattern). The loader logs `IPTV source loaded: N channels, M
+  movie/series entries skipped, playlist … s` (category `IPTV`).
+  `-DuskScreenshotGuideRow 6000` scrolls the iOS guide to that row (then +100)
+  to check the windowed rows.

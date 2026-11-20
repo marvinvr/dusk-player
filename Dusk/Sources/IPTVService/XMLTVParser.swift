@@ -10,11 +10,20 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
     struct Options: Sendable {
         /// Programmes that do not overlap this range are dropped.
         var window: ClosedRange<Date>
-        /// XMLTV channel ids to keep programmes for; nil keeps all.
+        /// XMLTV channel ids to keep programmes for (also matched ignoring
+        /// case); nil keeps every channel.
         var channelIDs: Set<String>?
+        /// With `channelIDs`: channels whose display name (trimmed,
+        /// lowercased) is in here are kept too, for playlist entries matched
+        /// by name. Needs the `<channel>` before its programmes, which is the
+        /// XMLTV order.
+        var channelNames: Set<String> = []
     }
 
     private let options: Options
+    private let lowercasedChannelIDs: Set<String>
+    /// Channels kept by a case-insensitive id or display-name match.
+    private var matchedChannelIDs = Set<String>()
     private var channels: [String: IPTVGuideChannel] = [:]
     private var programmes: [String: [IPTVProgramme]] = [:]
 
@@ -31,6 +40,16 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
 
     private init(options: Options) {
         self.options = options
+        lowercasedChannelIDs = Set((options.channelIDs ?? []).map { $0.lowercased() })
+    }
+
+    private func wantsChannel(_ id: String) -> Bool {
+        guard let ids = options.channelIDs else { return true }
+        return ids.contains(id) || matchedChannelIDs.contains(id) || lowercasedChannelIDs.contains(id.lowercased())
+    }
+
+    static func normalizedName(_ name: String) -> String {
+        name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     static func parse(stream: InputStream, options: Options) throws -> IPTVGuide {
@@ -94,7 +113,7 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
             hasSubtitle = false
             hasSummary = false
             guard let channelID = attributes["channel"]?.nilIfEmpty,
-                  options.channelIDs?.contains(channelID) ?? true,
+                  wantsChannel(channelID),
                   let start = attributes["start"].flatMap(Self.date),
                   let stop = attributes["stop"].flatMap(Self.date) ?? Optional(start),
                   stop >= start,
@@ -159,7 +178,17 @@ final class XMLTVParser: NSObject, XMLParserDelegate {
                 hasSummary = true
             }
         case "channel":
-            if let channel = currentChannel { channels[channel.id] = channel }
+            if let channel = currentChannel {
+                if options.channelIDs == nil {
+                    channels[channel.id] = channel
+                } else if wantsChannel(channel.id)
+                    || channel.displayNames.contains(where: { options.channelNames.contains(Self.normalizedName($0)) }) {
+                    // Programmes of channels the playlist never lists are
+                    // most of a big provider's guide; they are never read.
+                    matchedChannelIDs.insert(channel.id)
+                    channels[channel.id] = channel
+                }
+            }
             currentChannel = nil
         case "programme":
             if let programme = currentProgramme {
