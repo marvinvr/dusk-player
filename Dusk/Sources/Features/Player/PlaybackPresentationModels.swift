@@ -171,10 +171,14 @@ struct PlaybackSource: Sendable {
 
     /// Startup recovery rungs after a failed HDR signaling/remux attempt.
     var hdrRemuxFallback: HDRRemuxFallback? = nil
+    /// Retag a `hev1` HEVC init segment `hvc1` (through `RemuxHLSLoader`).
+    /// AVPlayer only; `.spatialAudio` sessions of a hev1 MP4 without Dolby
+    /// Vision signaling.
+    var retagsHEV1SampleEntry = false
 
     /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
     var usesRemuxHLSLoader: Bool {
-        (restoresDolbyAtmos || dolbyVisionRemux != nil) && dolbyVision7Conversion == nil
+        (restoresDolbyAtmos || dolbyVisionRemux != nil || retagsHEV1SampleEntry) && dolbyVision7Conversion == nil
     }
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.

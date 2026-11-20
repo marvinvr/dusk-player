@@ -528,6 +528,36 @@ so the whole live HUD is derived from one instant.
   render, seeking works, and the fallback paths engage. Atmos output itself
   (HDMI receiver, AirPods) needs real hardware.
 
+## HEVC tagged hev1 (MP4/MOV)
+- Plex reports `hvc1` and `hev1` HEVC alike as `codec=hevc`. AVPlayer opens a
+  `hev1` MP4, plays the audio and never shows a picture, with no error, so the
+  failure watch never fires (customer report, Nov 2026; reproduced in the
+  simulator with `ffmpeg -c:v libx265 -pix_fmt yuv420p10le -tag:v hev1`, the
+  same encode tagged `hvc1` plays).
+- Detection: before choosing, `startPlaybackSession` probes HEVC files bound
+  for AVPlayer (`StreamResolver.needsHEVCSampleEntryProbe`: AVPlayer
+  container, HEVC, no known tag, no forced engine, not AirPlay) with
+  `HEVCSampleEntryProbe`. It reads the video format description through
+  AVURLAsset (moov only; ~30 ms on a LAN mock), with a 4 s timeout and a
+  per-file cache; nil keeps plain direct play. The tag is stamped on the
+  details' video streams as `PlexStream.codecID` (also decoded from Plex's
+  `codecID` when the server sends one), so every later `StreamResolver` call
+  in the session sees it.
+- Routing: `StreamResolver.evaluate` turns an AVPlayer decision for
+  `containsHEV1Video` into `.vlcKit` + `requiresServerTranscode`. The ladder
+  asks for the lossless remux (`requestSpatialAudioRemux`, `isHEV1Remux`,
+  audio converted only when not copyable); `RemuxHLSLoader` with
+  `retagsHEV1SampleEntry` renames the init segment's `hev1` entry `hvc1`
+  (`HEVCSampleEntryRetag`, only when its `hvcC` holds VPS/SPS/PPS) and the
+  variant's `CODECS`. ffmpeg's copy-remux keeps `hev1`, so Plex's likely does
+  too; the retag is a no-op otherwise. A declined remux skips the server
+  stream (it would copy `hev1` again) and direct plays on VLCKit. Forced
+  engines are left alone.
+- Verified (2026-11, iPhone simulator, mock PMS): direct play black before,
+  remux + retag shows the picture after, declined remux plays on VLCKit, an
+  `hvc1` file keeps AVPlayer direct play. Not verified: real PMS remux output
+  for a `hev1` source, devices.
+
 ## HDR Video and Dolby Vision 8 (HDR Remux)
 
 - Why: VLCKit 3 renders into an untagged 8-bit RGBA surface on iOS/tvOS (see

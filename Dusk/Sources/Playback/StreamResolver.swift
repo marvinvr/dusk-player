@@ -229,7 +229,62 @@ enum StreamResolver {
                 requiresServerTranscode: true
             )
         }
+        // HEVC tagged `hev1` (parameter sets in-band) in MP4/MOV: AVPlayer
+        // opens it, plays the audio and never shows a picture — no error,
+        // so the delivery ladder would never kick in. Send it to the Plex
+        // copy-remux (`RemuxHLSLoader` retags the init segment `hvc1`);
+        // the last-resort direct play opens on VLCKit, which decodes it.
+        if decision.engine == .avPlayer, containsHEV1Video(media) {
+            return Decision(
+                engine: .vlcKit,
+                reason: "HEVC tagged hev1 shows no picture in AVPlayer; Plex remux retagged hvc1, else VLCKit",
+                requiresServerTranscode: true
+            )
+        }
         return decision
+    }
+
+    // MARK: - HEVC Sample Entry (hev1)
+
+    /// Whether `media` is an AVPlayer container whose HEVC video is known to
+    /// use the `hev1` sample entry (Plex `codecID` or a file probe).
+    static func containsHEV1Video(_ media: PlexMedia) -> Bool {
+        guard let container = media.container?.lowercased(), avContainers.contains(container) else {
+            return false
+        }
+        return media.parts.contains { part in
+            part.streams.contains {
+                $0.streamType == .video && $0.codec?.lowercased() == "hevc"
+                    && $0.codecID?.lowercased() == "hev1"
+            }
+        }
+    }
+
+    /// Whether the coordinator should probe the file's HEVC sample entry
+    /// before choosing: the file would otherwise direct play on AVPlayer
+    /// and nothing says which tag it carries. Forced engines are left alone.
+    static func needsHEVCSampleEntryProbe(
+        media: PlexMedia,
+        forceAVPlayer: Bool = false,
+        forceVLCKit: Bool = false
+    ) -> Bool {
+        guard !forceAVPlayer, !forceVLCKit, !isDolbyVisionProfile5(media) else { return false }
+        let videoStreams = media.parts.flatMap(\.streams).filter { $0.streamType == .video }
+        guard videoStreams.contains(where: { $0.codec?.lowercased() == "hevc" }),
+              !videoStreams.contains(where: { $0.codecID?.nilIfEmpty != nil }) else {
+            return false
+        }
+        return localEngineDecision(for: media).engine == .avPlayer
+    }
+
+    /// Why a `hev1` file cannot take the retagging Plex remux, or nil.
+    static func hev1RemuxBlocker(media: PlexMedia, subtitleStream: PlexStream?) -> String? {
+        guard containsHEV1Video(media) else { return "not hev1 HEVC" }
+        guard media.parts.count == 1 else { return "multi-part media" }
+        if let subtitleStream, !canRideRemux(subtitle: subtitleStream) {
+            return "subtitle \(subtitleStream.codec?.uppercased() ?? "?") cannot ride the remux"
+        }
+        return nil
     }
 
     private static func localEngineDecision(for media: PlexMedia) -> Decision {

@@ -469,6 +469,100 @@ struct HLSAttributeList {
     }
 }
 
+/// Relabels a `hev1` HEVC sample entry as `hvc1` in a remux's init segment.
+///
+/// Plex's copy-remux keeps the source's `hev1` tag, and AVFoundation shows
+/// no picture for it (audio plays, no error). Both entries carry the same
+/// `hvcC`; `hev1` only allows parameter sets to live in-band as well. When
+/// the `hvcC` already holds a VPS, SPS and PPS — what ffmpeg, x265 and
+/// every common muxer write — the decoder has all it needs from the sample
+/// entry, and in-band repeats stay harmless. Without them the entry is left
+/// alone (the session then ends on the ladder's VLCKit direct play).
+enum HEVCSampleEntryRetag {
+    private static let containerHeaderPadding: [String: Int] = [
+        "moov": 0, "trak": 0, "mdia": 0, "minf": 0, "stbl": 0,
+        "stsd": 8,    // full box header + entry count
+    ]
+
+    /// VisualSampleEntry fields between the box header and its child boxes.
+    private static let visualSampleEntryFieldsLength = 78
+
+    /// The init segment with every eligible `hev1` entry renamed `hvc1`, or
+    /// nil when there was nothing to retag or the data does not parse.
+    static func patchedInitSegment(_ data: Data) -> Data? {
+        var didPatch = false
+        guard let patched = MP4BoxRewriter.rewrite(
+            [UInt8](data),
+            containerHeaderPadding: containerHeaderPadding,
+            transform: { type, box in
+                guard type == "hev1", carriesParameterSets(box) else { return nil }
+                var renamed = box
+                renamed.replaceSubrange(4..<8, with: Array("hvc1".utf8))
+                didPatch = true
+                return renamed
+            }
+        ), didPatch else {
+            return nil
+        }
+        return Data(patched)
+    }
+
+    /// `CODECS="hev1.…"` → `hvc1.…` on a variant line, matching the
+    /// retagged init segment (AVFoundation picks the decoder from it first).
+    static func rewrittenStreamInfLine(_ line: String) -> String {
+        guard var list = HLSAttributeList(line: line),
+              let codecs = list.quotedValue(of: "CODECS") else { return line }
+        let entries = codecs.split(separator: ",").map { entry -> String in
+            let trimmed = entry.trimmingCharacters(in: .whitespaces)
+            return trimmed.lowercased().hasPrefix("hev1") ? "hvc1" + trimmed.dropFirst(4) : trimmed
+        }
+        let rewritten = entries.joined(separator: ",")
+        guard rewritten != codecs else { return line }
+        list.setQuoted("CODECS", to: rewritten)
+        return list.line
+    }
+
+    /// Whether the entry's `hvcC` holds at least one VPS (32), SPS (33)
+    /// and PPS (34) NAL unit.
+    static func carriesParameterSets(_ box: [UInt8]) -> Bool {
+        let childrenStart = 8 + visualSampleEntryFieldsLength
+        guard box.count > childrenStart else { return false }
+        var offset = childrenStart
+        while offset + 8 <= box.count {
+            let size = Int(MP4BoxRewriter.readUInt32(box, at: offset))
+            guard size >= 8, offset + size <= box.count else { return false }
+            if String(decoding: box[(offset + 4)..<(offset + 8)], as: UTF8.self) == "hvcC" {
+                return parameterSetTypes(inHVCC: Array(box[(offset + 8)..<(offset + size)]))
+                    .isSuperset(of: [32, 33, 34])
+            }
+            offset += size
+        }
+        return false
+    }
+
+    /// NAL unit types with at least one entry in an `hvcC` payload.
+    private static func parameterSetTypes(inHVCC payload: [UInt8]) -> Set<UInt8> {
+        // 22 bytes of HEVCDecoderConfigurationRecord header, then numOfArrays.
+        guard payload.count > 22 else { return [] }
+        var types: Set<UInt8> = []
+        var offset = 23
+        for _ in 0..<Int(payload[22]) {
+            guard offset + 3 <= payload.count else { return [] }
+            let type = payload[offset] & 0x3F
+            let count = Int(payload[offset + 1]) << 8 | Int(payload[offset + 2])
+            offset += 3
+            for _ in 0..<count {
+                guard offset + 2 <= payload.count else { return [] }
+                let length = Int(payload[offset]) << 8 | Int(payload[offset + 1])
+                offset += 2 + length
+                guard offset <= payload.count else { return [] }
+            }
+            if count > 0 { types.insert(type) }
+        }
+        return types
+    }
+}
+
 /// Minimal ISO BMFF box walking for patching HLS init segments.
 enum MP4BoxRewriter {
     /// Walks `bytes` as a run of boxes. `transform` may replace any box
@@ -563,15 +657,18 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
 
     private let restoresDolbyAtmos: Bool
     private let dolbyVision: DolbyVisionConfiguration?
+    private let retagsHEV1: Bool
 
     init(
         session: URLSession = PlexTransportSecurity.session,
         restoresDolbyAtmos: Bool,
-        dolbyVision: DolbyVisionConfiguration?
+        dolbyVision: DolbyVisionConfiguration?,
+        retagsHEV1: Bool = false
     ) {
         self.session = session
         self.restoresDolbyAtmos = restoresDolbyAtmos
         self.dolbyVision = dolbyVision
+        self.retagsHEV1 = retagsHEV1
     }
 
     /// The URL to hand AVFoundation in place of `url` (http/https only).
@@ -672,6 +769,10 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
             )
             segment = patched
         }
+        if retagsHEV1, let patched = HEVCSampleEntryRetag.patchedInitSegment(segment) {
+            atmosSignalingLogger.notice("Retagged the hev1 HEVC sample entry hvc1 in the HLS init segment")
+            segment = patched
+        }
         return (segment, "public.mpeg-4")
     }
 
@@ -687,6 +788,8 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
                 routeNextURIThroughLoader = true
                 if let dolbyVision {
                     lines.append(DolbyVisionSignaling.rewrittenStreamInfLine(line, configuration: dolbyVision))
+                } else if retagsHEV1 {
+                    lines.append(HEVCSampleEntryRetag.rewrittenStreamInfLine(line))
                 } else {
                     lines.append(line)
                 }

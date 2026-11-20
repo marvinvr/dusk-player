@@ -203,7 +203,7 @@ extension PlaybackCoordinator {
         var didFetchDetails = false
         var movieResumeSource: PlexMediaDetails?
         do {
-            let details: PlexMediaDetails
+            var details: PlexMediaDetails
             if let preparedDetails {
                 details = preparedDetails
             } else if !suppressLocalDownload,
@@ -323,12 +323,38 @@ extension PlaybackCoordinator {
             )
             let part = localMediaVersion?.part ?? media?.firstAvailablePart
 
-            guard let media,
-                  let part else {
+            guard var media,
+                  var part else {
                 playbackSessionLogger.error(
                     "Playback attempt failed before engine selection for ratingKey \(ratingKey, privacy: .public): no playable media version was available"
                 )
                 return .hardFailure("No playable media found.")
+            }
+
+            // Plex reports hvc1 and hev1 alike as "hevc"; AVPlayer shows no
+            // picture for hev1. Probe the file before handing an HEVC MP4 to
+            // AVPlayer and stamp the answer on the details, so every engine
+            // decision of this session (remux, fallbacks) sees it.
+            if !wantsAirPlay,
+               StreamResolver.needsHEVCSampleEntryProbe(
+                   media: media,
+                   forceAVPlayer: preferences.forceAVPlayer,
+                   forceVLCKit: preferences.forceVLCKit
+               ),
+               let probeURL = localURL ?? plexService.directPlayURL(for: part, serverID: itemServerID),
+               let sampleEntry = await HEVCSampleEntryProbe.sampleEntry(
+                   of: probeURL,
+                   cacheKey: localURL.map { "file:\($0.path)" } ?? "\(itemServerID ?? "-")/\(part.id)/\(part.key)"
+               ) {
+                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID,
+                      profileSession == plexService.serverSessionToken else { return .superseded }
+                let stamped = details.stampingVideoSampleEntry(sampleEntry, mediaID: media.id, partID: part.id)
+                if let stampedMedia = stamped.media.first(where: { $0.id == media.id }),
+                   let stampedPart = stampedMedia.parts.first(where: { $0.id == part.id }) {
+                    details = stamped
+                    media = stampedMedia
+                    part = stampedPart
+                }
             }
 
             // The session's server, in this order: the one the candidate names,
@@ -482,6 +508,12 @@ extension PlaybackCoordinator {
                         spatialAudioStreamIDs = (
                             audioStreamID, subtitleStreamID,
                             dolbyVisionRemux.convertsAudio, dolbyVisionRemux.restoresDolbyAtmos
+                        )
+                    } else if StreamResolver.containsHEV1Video(media) {
+                        // A server stream would copy the hev1 video again and
+                        // stay black on AVPlayer; VLCKit decodes the file.
+                        playbackSessionLogger.notice(
+                            "No hev1 remux for ratingKey \(ratingKey, privacy: .public); direct play on VLCKit"
                         )
                     } else {
                         let serverStreamSessionID = UUID().uuidString
@@ -782,7 +814,9 @@ extension PlaybackCoordinator {
                 restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
                 dolbyVisionRemux: dolbyVisionRemux,
                 dolbyVision7Conversion: dolbyVision7Conversion,
-                hdrRemuxFallback: hdrRemuxFallback
+                hdrRemuxFallback: hdrRemuxFallback,
+                retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
+                    && StreamResolver.containsHEV1Video(media)
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1429,7 +1463,9 @@ extension PlaybackCoordinator {
             restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
             dolbyVisionRemux: dolbyVisionRemux,
             dolbyVision7Conversion: dolbyVision7Conversion,
-            hdrRemuxFallback: hdrRemuxFallback
+            hdrRemuxFallback: hdrRemuxFallback,
+            retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
+                && StreamResolver.containsHEV1Video(media)
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,

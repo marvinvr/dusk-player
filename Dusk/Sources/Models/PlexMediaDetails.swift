@@ -87,7 +87,7 @@ struct PlexMediaDetails: Decodable, Sendable, Identifiable {
 
     /// The media versions for this item. A single item can have multiple
     /// versions (e.g. different resolutions or codecs).
-    let media: [PlexMedia]
+    var media: [PlexMedia]
 
     enum CodingKeys: String, CodingKey {
         case ratingKey, key, type, subtype, librarySectionID, librarySectionTitle, title, editionTitle, summary, year, guid
@@ -169,6 +169,23 @@ extension PlexMediaDetails {
     /// Mirrors `PlexItem.isClip`.
     var isClip: Bool {
         subtype == "clip" || type == .clip
+    }
+
+    /// A copy whose video streams in `partID` of `mediaID` carry
+    /// `sampleEntry` as their `codecID`, so every later engine decision for
+    /// the session sees what the file probe found.
+    func stampingVideoSampleEntry(_ sampleEntry: String, mediaID: Int, partID: Int) -> PlexMediaDetails {
+        var copy = self
+        for mediaIndex in copy.media.indices where copy.media[mediaIndex].id == mediaID {
+            for partIndex in copy.media[mediaIndex].parts.indices
+            where copy.media[mediaIndex].parts[partIndex].id == partID {
+                for streamIndex in copy.media[mediaIndex].parts[partIndex].streams.indices
+                where copy.media[mediaIndex].parts[partIndex].streams[streamIndex].streamType == .video {
+                    copy.media[mediaIndex].parts[partIndex].streams[streamIndex].codecID = sampleEntry
+                }
+            }
+        }
+        return copy
     }
 }
 
@@ -276,7 +293,7 @@ struct PlexMedia: Codable, Sendable, Identifiable {
     let duration: Int?
     let optimizedForStreaming: Int?
 
-    let parts: [PlexMediaPart]
+    var parts: [PlexMediaPart]
 
     /// Whether this version has at least one part Plex still reports as present.
     var hasAvailablePart: Bool {
@@ -372,7 +389,7 @@ struct PlexMediaPart: Codable, Sendable, Identifiable {
     let accessible: Bool?
     let exists: Bool?
 
-    let streams: [PlexStream]
+    var streams: [PlexStream]
 
     /// Treat a part as unavailable only when Plex explicitly flags it missing;
     /// absent flags mean "assume available" so we never hide good versions.
@@ -535,6 +552,11 @@ struct PlexStream: Codable, Sendable, Identifiable {
     let chromaSubsampling: String?
     let profile: String?
     let level: Int?
+    /// The container's sample-entry tag (`hvc1`, `hev1`, `avc1`, …) when
+    /// known: from Plex's `codecID`, or stamped by the coordinator after
+    /// probing the file (`HEVCSampleEntryProbe`). AVPlayer shows no picture
+    /// for `hev1` HEVC, see `StreamResolver.containsHEV1Video`.
+    var codecID: String?
 
     // Dolby Vision fields (video streams). Plex only sends these when the
     // stream carries a DV layer; `doviProfile` 5 has no HDR10-compatible
@@ -563,7 +585,7 @@ struct PlexStream: Codable, Sendable, Identifiable {
         case isDefault = "default"
         case width, height, bitrate, frameRate, bitDepth
         case colorSpace, colorRange, colorPrimaries, colorTrc
-        case chromaSubsampling, profile, level
+        case chromaSubsampling, profile, level, codecID
         case doviPresent = "DOVIPresent"
         case doviProfile = "DOVIProfile"
         case doviLevel = "DOVILevel"
@@ -607,7 +629,8 @@ struct PlexStream: Codable, Sendable, Identifiable {
         samplingRate: Int?,
         isForced: Bool?,
         isHearingImpaired: Bool?,
-        key: String?
+        key: String?,
+        codecID: String? = nil
     ) {
         self.id = id
         self.streamType = streamType
@@ -641,6 +664,7 @@ struct PlexStream: Codable, Sendable, Identifiable {
         self.isForced = isForced
         self.isHearingImpaired = isHearingImpaired
         self.key = key
+        self.codecID = codecID
     }
 
     init(from decoder: Decoder) throws {
@@ -672,6 +696,7 @@ struct PlexStream: Codable, Sendable, Identifiable {
         chromaSubsampling = try container.decodeIfPresent(String.self, forKey: .chromaSubsampling)
         profile = try container.decodeIfPresent(String.self, forKey: .profile)
         level = try container.decodeIfPresent(Int.self, forKey: .level)
+        codecID = try? container.decodeIfPresent(String.self, forKey: .codecID)
         doviPresent = try Self.decodeBoolish(container: container, key: .doviPresent)
         doviProfile = try container.decodeIfPresent(Int.self, forKey: .doviProfile)
         doviLevel = try container.decodeIfPresent(Int.self, forKey: .doviLevel)

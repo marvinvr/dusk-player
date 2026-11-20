@@ -68,6 +68,10 @@ extension PlaybackCoordinator {
         let isAV1Remux = StreamResolver.canRemuxAV1(media)
         let isDolbyVisionRemux = StreamResolver.isDolbyVisionProfile5(media)
         let resolverDecision = StreamResolver.evaluate(media: media)
+        // hev1 HEVC in MP4: the remux carries the picture AVPlayer cannot
+        // show from the file (the loader retags the init segment hvc1).
+        let isHEV1Remux = !isDolbyVisionRemux && resolverDecision.requiresServerTranscode
+            && StreamResolver.containsHEV1Video(media)
         let audioStream = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
         if StreamResolver.containsAV1(media), !isAV1Remux { return nil }
         if isAV1Remux && !resolverDecision.requiresServerTranscode && !convertsAudio { return nil }
@@ -89,12 +93,12 @@ extension PlaybackCoordinator {
         } ?? false
         let convertsAV1Audio = isAV1Remux && audioStream.map { !StreamResolver.canCopyAV1Audio($0) } == true
         let convertsAudio = convertsAudio || convertsDV7TrueHD || convertsAV1Audio
-            || (isDolbyVisionRemux && audioStream.map { !StreamResolver.canCopyIntoRemux(audio: $0) } == true)
+            || ((isDolbyVisionRemux || isHEV1Remux) && audioStream.map { !StreamResolver.canCopyIntoRemux(audio: $0) } == true)
         // Audio conversion serves picture preservation/decoder recovery, so
         // it does not depend on the spatial-audio preference.
         let considersSpatialAudio = preferences.spatialAudioRemuxEnabled || convertsAudio
         let considersHDRVideo = preferences.hdrVideoRemuxEnabled
-        guard considersSpatialAudio || considersHDRVideo || isDolbyVisionRemux || isAV1Remux,
+        guard considersSpatialAudio || considersHDRVideo || isDolbyVisionRemux || isAV1Remux || isHEV1Remux,
               !preferences.forceAVPlayer,
               !preferences.forceVLCKit else {
             return nil
@@ -103,7 +107,7 @@ extension PlaybackCoordinator {
         #if os(tvOS)
         // Enhanced SDR subtitles take priority over an optional Atmos copy
         // remux. Never veto a remux needed to decode audio or preserve HDR/DV.
-        if !isAV1Remux, !convertsAudio, StreamResolver.evaluateForDirectPlayback(
+        if !isAV1Remux, !isHEV1Remux, !convertsAudio, StreamResolver.evaluateForDirectPlayback(
             media: media,
             part: part,
             enhancementMode: preferences.videoEnhancementMode,
@@ -120,6 +124,8 @@ extension PlaybackCoordinator {
         if isAV1Remux {
             blocker = subtitleStream.map { StreamResolver.canRideRemux(subtitle: $0) } == false
                 ? "selected subtitle requires video conversion" : nil
+        } else if isHEV1Remux {
+            blocker = StreamResolver.hev1RemuxBlocker(media: media, subtitleStream: subtitleStream)
         } else if isDolbyVisionRemux {
             blocker = StreamResolver.dolbyVisionRemuxBlocker(
                 media: media,
@@ -236,6 +242,11 @@ extension PlaybackCoordinator {
             if isAV1Remux {
                 let audioNote = convertsAudio ? ", audio converted to E-AC-3" : ""
                 reason = "AV1 hardware decode via Plex fMP4 remux (video copied\(audioNote))"
+            } else if isHEV1Remux {
+                let audioNote = convertsAudio
+                    ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.streams.audioCodec?.uppercased() ?? "a supported codec")"
+                    : ""
+                reason = "HEVC hev1 retagged hvc1 via lossless Plex remux\(audioNote)"
             } else if isDolbyVisionRemux {
                 let audioNote = convertsAudio
                     ? ", \(audioStream?.codec?.uppercased() ?? "audio") converted to \(result.streams.audioCodec?.uppercased() ?? "a supported codec")"
