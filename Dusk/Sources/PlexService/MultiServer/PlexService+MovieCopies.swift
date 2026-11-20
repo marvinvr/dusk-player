@@ -10,8 +10,10 @@ struct MoviePlaybackVersion: Identifiable, Sendable {
     let media: PlexMedia
     var id: ID { ID(item: details.id, mediaID: media.id) }
 
-    var label: String {
-        MediaTextFormatter.movieCopyVersionLabel(media, library: details.librarySectionTitle)
+    var label: String { MediaTextFormatter.playbackVersionTitle(media) }
+
+    var detail: String? {
+        MediaTextFormatter.playbackVersionDetail(media, library: details.librarySectionTitle)
     }
 
     static func versions(in copies: [PlexMediaDetails]) -> [MoviePlaybackVersion] {

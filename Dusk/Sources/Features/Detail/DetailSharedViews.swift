@@ -1140,13 +1140,9 @@ struct MovieCopyVersionMenu: View {
     var body: some View {
         // One copy leaves nothing to choose; Play already plays it.
         if versions.count > 1 {
-            Menu {
-                ForEach(versions) { version in
-                    Button(version.label) { onSelect(version) }
-                }
-            } label: {
-                Label("Play Version", systemImage: "play.square")
-            }
+            PlayVersionMenu(options: versions.map { version in
+                PlayVersionOption(title: version.label, detail: version.detail) { onSelect(version) }
+            })
         }
     }
 }
@@ -1157,17 +1153,12 @@ struct PlayVersionContextMenu: View {
 
     var body: some View {
         if !playableVersions.isEmpty {
-            Menu {
-                ForEach(playableVersions) { version in
-                    Button {
-                        onSelectVersion(version)
-                    } label: {
-                        Text(MediaTextFormatter.playbackVersionMenuLabel(version))
-                    }
-                }
-            } label: {
-                Label("Play Version", systemImage: "play.square")
-            }
+            PlayVersionMenu(options: playableVersions.map { version in
+                PlayVersionOption(
+                    title: MediaTextFormatter.playbackVersionTitle(version),
+                    detail: MediaTextFormatter.playbackVersionDetail(version)
+                ) { onSelectVersion(version) }
+            })
         }
     }
 
@@ -1175,6 +1166,116 @@ struct PlayVersionContextMenu: View {
         versions.filter { !$0.parts.isEmpty }
     }
 }
+
+/// The "Play Version" context-menu entry. iOS/macOS: a submenu whose items
+/// carry the details as the native secondary line. tvOS menus drop a second
+/// line, so there the entry opens the version list as a pop-up instead.
+private struct PlayVersionMenu: View {
+    let options: [PlayVersionOption]
+    #if os(tvOS)
+    @Environment(PlayVersionPresenter.self) private var presenter: PlayVersionPresenter?
+    #endif
+
+    var body: some View {
+        #if os(tvOS)
+        if let presenter {
+            Button {
+                presenter.target = PlayVersionPickerTarget(options: options)
+            } label: {
+                Label("Play Version…", systemImage: "play.square")
+            }
+        } else {
+            menu
+        }
+        #else
+        menu
+        #endif
+    }
+
+    private var menu: some View {
+        Menu {
+            ForEach(options) { option in
+                Button(action: option.action) {
+                    Text(option.title)
+                    #if !os(tvOS)
+                    if let detail = option.detail { Text(detail) }
+                    #endif
+                }
+            }
+        } label: {
+            Label("Play Version", systemImage: "play.square")
+        }
+    }
+}
+
+struct PlayVersionOption: Identifiable {
+    let id = UUID()
+    let title: String
+    let detail: String?
+    let action: () -> Void
+}
+
+#if os(tvOS)
+struct PlayVersionPickerTarget: Identifiable {
+    let id = UUID()
+    let options: [PlayVersionOption]
+}
+
+/// Owned by `MainTabView`; detail context menus hand it the versions.
+@MainActor
+@Observable
+final class PlayVersionPresenter {
+    var target: PlayVersionPickerTarget?
+    /// The picked version starts once the pop-up is gone, so the player
+    /// cover never races its dismissal.
+    var pendingAction: (() -> Void)?
+
+    func runPendingAction() {
+        let action = pendingAction
+        pendingAction = nil
+        action?()
+    }
+}
+
+/// tvOS version list: one settings row per version, title + small details.
+struct PlayVersionPickerView: View {
+    let target: PlayVersionPickerTarget
+    let presenter: PlayVersionPresenter
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: TVSettingsMetrics.sectionSpacing) {
+                    Text("Play Version")
+                        .font(DuskFont.TV.pageTitle)
+                        .foregroundStyle(Color.duskTextPrimary)
+                        .padding(.leading, TVSettingsMetrics.contentInset)
+
+                    TVSettingsSection {
+                        ForEach(Array(target.options.enumerated()), id: \.element.id) { index, option in
+                            if index > 0 {
+                                Rectangle()
+                                    .fill(Color.duskTextSecondary.opacity(0.16))
+                                    .frame(height: 1)
+                            }
+                            TVSettingsActionRow(title: option.title, subtitle: option.detail) {
+                                presenter.pendingAction = option.action
+                                dismiss()
+                            }
+                        }
+                    }
+                }
+                .frame(maxWidth: 980, alignment: .leading)
+                .padding(.horizontal, 60)
+                .padding(.vertical, 64)
+                .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+            }
+            .scrollIndicators(.hidden)
+        }
+    }
+}
+#endif
 
 extension View {
     /// Presents the "Download Subtitles" (OpenSubtitles via Plex) flow the way

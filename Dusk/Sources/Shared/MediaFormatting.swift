@@ -189,55 +189,37 @@ enum MediaTextFormatter {
         }
     }
 
-    static func playbackVersionMenuLabel(_ media: PlexMedia) -> String {
-        var parts: [String] = []
-
-        if let resolution = playbackVersionResolution(media) {
-            parts.append(resolution)
+    /// Play Version item title: resolution plus dynamic range, nothing else
+    /// ("4K · Dolby Vision", "1080p"). SDR goes unsaid.
+    static func playbackVersionTitle(_ media: PlexMedia) -> String {
+        var parts = [playbackVersionResolution(media)].compactMap { $0 }
+        if let video = media.parts.flatMap(\.streams).first(where: { $0.streamType == .video }) {
+            if video.doviPresent == true || video.doviProfile != nil {
+                parts.append("Dolby Vision")
+            } else if StreamResolver.hdrTransfer(of: video) != nil {
+                parts.append(StreamResolver.hdrVideoLabel(for: media))
+            }
         }
-
-        if let videoCodec = media.videoCodec?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !videoCodec.isEmpty {
-            parts.append(videoCodec.uppercased())
-        }
-
-        if let audioCodec = media.audioCodec?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !audioCodec.isEmpty {
-            parts.append(audioCodec.uppercased())
-        }
-
-        if let container = media.container?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !container.isEmpty {
-            parts.append(container.uppercased())
-        }
-
-        if let bitrateLabel = playbackVersionBitrate(media) {
-            parts.append(bitrateLabel)
-        }
-
-        if media.optimizedForStreaming == 1 {
-            parts.append("Optimized")
-        }
-
         return parts.isEmpty ? "Version \(media.id)" : parts.joined(separator: " · ")
     }
 
-    static func movieCopyVersionLabel(_ media: PlexMedia, library: String?) -> String {
-        var parts = [playbackVersionResolution(media)].compactMap { $0 }
-        let video = media.parts.flatMap(\.streams).first { $0.streamType == .video }
-        if video?.doviPresent == true || video?.doviProfile != nil {
-            parts.append("Dolby Vision")
-        } else if let video, StreamResolver.hdrTransfer(of: video) != nil {
-            parts.append(StreamResolver.hdrVideoLabel(for: media))
-        } else if video != nil {
-            parts.append("SDR")
-        }
+    /// Play Version item secondary text: size first, then codecs, container,
+    /// bitrate, Optimized and the owning library when copies span libraries.
+    static func playbackVersionDetail(_ media: PlexMedia, library: String? = nil) -> String? {
+        var parts: [String] = []
         let sizes = media.parts.compactMap(\.size)
         if sizes.count == media.parts.count, !sizes.isEmpty, sizes.allSatisfy({ $0 > 0 }) {
             parts.append(ByteCountFormatter.string(fromByteCount: Int64(sizes.reduce(0, +)), countStyle: .file))
         }
+        for value in [media.videoCodec, media.audioCodec, media.container] {
+            if let value = value?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                parts.append(value.uppercased())
+            }
+        }
+        if let bitrate = playbackVersionBitrate(media) { parts.append(bitrate) }
+        if media.optimizedForStreaming == 1 { parts.append("Optimized") }
         if let library = library?.nilIfEmpty { parts.append(library) }
-        return parts.joined(separator: " · ")
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private static func pluralizedCount(

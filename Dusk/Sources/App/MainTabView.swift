@@ -32,6 +32,7 @@ struct MainTabView: View {
     @State private var liveTVViewModel: LiveTVViewModel?
     @State private var addToPlaylist = AddToPlaylistPresenter()
     #if os(tvOS)
+    @State private var playVersion = PlayVersionPresenter()
     @Environment(TopShelfLinkRouter.self) private var topShelfLinks
     @State private var isHomeScrolledOffTop = false
     @State private var homeScrollToTopRevision = 0
@@ -50,6 +51,12 @@ struct MainTabView: View {
             .duskPopUp(item: $bindableAddToPlaylist.target) { target in
                 AddToPlaylistSheet(target: target, plexService: plexService)
             }
+            #if os(tvOS)
+            .environment(playVersion)
+            .duskPopUp(item: Bindable(playVersion).target, onDismiss: playVersion.runPendingAction) { target in
+                PlayVersionPickerView(target: target, presenter: playVersion)
+            }
+            #endif
             // Which tabs exist depends on the merged library list, so the shell
             // reloads it whenever the set of connected servers changes: it
             // mounts before the first server is connected.
