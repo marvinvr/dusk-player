@@ -7,6 +7,7 @@ struct EpisodeDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
     @Environment(UserPreferences.self) private var preferences
     @State private var viewModel: EpisodeDetailViewModel
     @State private var showSubtitleSearch = false
@@ -82,7 +83,7 @@ struct EpisodeDetailView: View {
                         backgroundLeadingInset: geometry.safeAreaInsets.leading
                     )
 
-                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
+                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = visibleSummary(details), !summary.isEmpty {
                         ExpandableSummaryText(
                             text: summary,
                             title: details.title,
@@ -149,6 +150,15 @@ struct EpisodeDetailView: View {
         }
     }
 
+    /// The synopsis, unless Hide Spoilers holds it back for an unfinished episode.
+    private func visibleSummary(_ details: PlexMediaDetails) -> String? {
+        UserPreferences.spoilerSafeSummary(
+            details.summary,
+            isUnwatchedEpisode: details.type == .episode && !viewModel.isWatched,
+            hidesSpoilers: hidesSpoilers
+        )
+    }
+
     @ViewBuilder
     private func heroSection(
         _ details: PlexMediaDetails,
@@ -162,7 +172,7 @@ struct EpisodeDetailView: View {
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
             title: details.title,
-            descriptionText: details.summary,
+            descriptionText: visibleSummary(details),
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,

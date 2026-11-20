@@ -202,6 +202,7 @@ struct HomeCinematicHero: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
     @Environment(PlexService.self) private var plexService
     @Environment(PlaybackCoordinator.self) private var playback
 
@@ -829,7 +830,11 @@ struct HomeCinematicHero: View {
                     }
                 }
 
-                if showsHeroSummary, let summary = viewModel.heroSummary(for: item) {
+                if showsHeroSummary, let summary = UserPreferences.spoilerSafeSummary(
+                    viewModel.heroSummary(for: item),
+                    isUnwatchedEpisode: item.isUnwatchedEpisode,
+                    hidesSpoilers: hidesSpoilers
+                ) {
                     Text(summary)
                         .font(layout.summaryFont)
                         .foregroundStyle(Color.primary.opacity(0.76))

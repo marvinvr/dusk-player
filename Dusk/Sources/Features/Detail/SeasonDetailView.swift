@@ -506,7 +506,7 @@ private struct SeasonEpisodeRow: View {
 
             if !showsInlineSummary {
                 NavigationLink(value: destination) {
-                    SeasonEpisodeSummaryText(episode: episode, lineLimit: 2)
+                    SeasonEpisodeSummaryText(episode: episode, isWatched: isWatched, lineLimit: 2)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .contentShape(Rectangle())
                 }
@@ -587,7 +587,7 @@ private struct SeasonEpisodeTextContent: View {
             }
 
             if showsInlineSummary {
-                SeasonEpisodeSummaryText(episode: episode, lineLimit: 3)
+                SeasonEpisodeSummaryText(episode: episode, isWatched: isWatched, lineLimit: 3)
                     #if os(macOS)
                     // A readable column on wide windows.
                     .frame(maxWidth: 680, alignment: .leading)
@@ -623,12 +623,19 @@ private struct SeasonEpisodeTextContent: View {
 }
 
 private struct SeasonEpisodeSummaryText: View {
+    @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
+
     let episode: PlexEpisode
+    let isWatched: Bool
     let lineLimit: Int
 
     @ViewBuilder
     var body: some View {
-        if let summary = episode.summary, !summary.isEmpty {
+        if let summary = UserPreferences.spoilerSafeSummary(
+            episode.summary,
+            isUnwatchedEpisode: !isWatched,
+            hidesSpoilers: hidesSpoilers
+        ), !summary.isEmpty {
             Text(summary)
                 .font(DuskFont.body(ios: .subheadline))
                 .foregroundStyle(Color.primary.opacity(0.76))

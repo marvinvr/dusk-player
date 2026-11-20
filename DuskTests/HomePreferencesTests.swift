@@ -60,4 +60,11 @@ struct HomePreferencesTests {
         preferences.continueWatchingArtwork = .poster
         #expect(UserPreferences().continueWatchingArtwork == .poster)
     }
+
+    @Test("Hide Spoilers drops only an unfinished episode's description")
+    func spoilerSafeSummary() {
+        #expect(UserPreferences.spoilerSafeSummary("Plot", isUnwatchedEpisode: true, hidesSpoilers: true) == nil)
+        #expect(UserPreferences.spoilerSafeSummary("Plot", isUnwatchedEpisode: false, hidesSpoilers: true) == "Plot")
+        #expect(UserPreferences.spoilerSafeSummary("Plot", isUnwatchedEpisode: true, hidesSpoilers: false) == "Plot")
+    }
 }

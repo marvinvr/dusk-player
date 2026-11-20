@@ -21,6 +21,8 @@ struct PlayerUpNextOverlayView: View {
     let onPlayNow: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
+
     #if os(tvOS)
     @FocusState private var isPlayFocused: Bool
     #endif
@@ -192,7 +194,11 @@ struct PlayerUpNextOverlayView: View {
                 }
             }
 
-            if let summary = presentation.item.summary,
+            if let summary = UserPreferences.spoilerSafeSummary(
+                presentation.item.summary,
+                isUnwatchedEpisode: presentation.item.isEpisode && !presentation.item.isWatched,
+                hidesSpoilers: hidesSpoilers
+            ),
                !summary.isEmpty,
                metrics.summaryLineLimit > 0 {
                 Text(summary)

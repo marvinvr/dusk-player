@@ -186,8 +186,8 @@ private struct MacGeneralSettingsPane: View {
 
             Section {
                 Toggle(isOn: $preferences.blursUnwatchedEpisodes) {
-                    Text("Blur Unwatched Episodes")
-                    Text("Hides the images of episodes you haven’t finished, so they can’t spoil anything.")
+                    Text("Hide Spoilers")
+                    Text("Blurs the images and hides the descriptions of episodes you haven’t finished.")
                 }
             } header: {
                 Text("Spoilers")

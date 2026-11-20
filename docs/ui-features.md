@@ -151,8 +151,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   season cards and tvOS season pills). Partial progress still renders the bar
   (`DuskPosterMetrics.posterProgressBarHeight`), white on a dark track like the
   TV app, everywhere.
-- Blur Unwatched Episodes (Settings › Appearance,
-  `UserPreferences.blursUnwatchedEpisodes`, off by default, issue #15) reaches
+- Hide Spoilers (Settings › Appearance; was Blur Unwatched Episodes, same
+  `UserPreferences.blursUnwatchedEpisodes` key, off by default, issue #15) reaches
   views as `\.blursUnwatchedEpisodes` (set in `DuskApp`). An image that is an
   unwatched (not fully watched, so in-progress counts) episode's **own still**
   goes through `spoilerBlur(_:)` (`PosterCard.swift`): a local SwiftUI blur sized
@@ -162,7 +162,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   Wired: `PosterArtwork`/`PosterActionCard` (`isUnwatchedEpisodeImage`), CW
   shelves (`landscapeImageIsUnwatchedEpisodeStill`), iOS season rows, tvOS
   series episode cards, Up Next card and
-  overlay, and the Top Shelf fallback (blur baked into the JPEG). The local
+  overlay, and the Top Shelf fallback (blur baked into the JPEG). The same
+  switch hides an unfinished episode's description (nothing in its place)
+  through `UserPreferences.spoilerSafeSummary`: iOS/Mac season rows, tvOS
+  series episode band, episode page (hero + below-hero synopsis), Home hero,
+  full-screen Up Next and the tvOS player Info tab. The local
   blur is deliberate over Plex's transcoder: it also covers downloaded artwork
   and never depends on a server honouring a parameter. Not covered: posters
   (show poster first), the player's loading backdrop and scrub previews.
@@ -1129,7 +1133,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   sequential lookups stay on the route's server, use cached parent metadata
   offline, and never fail the page when a parent is unavailable. Artwork still
   resolves through the local download cache before the Plex image URL. Episode
-  rows/cards retain their small stills and the Blur Unwatched Episodes setting;
+  rows/cards retain their small stills and the Hide Spoilers setting;
   season/show heroes never blur or change with episode focus/watch state.
 - `SeasonDetailView` (iOS/iPadOS/macOS) keeps the vertical episode list with per-episode
   detail navigation; after a continuous-play run it scrolls the list to the

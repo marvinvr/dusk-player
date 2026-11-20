@@ -338,8 +338,9 @@ final class UserPreferences {
         didSet { UserDefaults.standard.set(continueWatchingArtwork.rawValue, forKey: Keys.continueWatchingArtwork) }
     }
 
-    /// Whether the own images of TV episodes the user hasn't finished are
-    /// blurred, so a frame grab never spoils them. Off by default.
+    /// Hide Spoilers (stored under its old Blur Unwatched Episodes key): the
+    /// own images of TV episodes the user hasn't finished are blurred and
+    /// their descriptions hidden. Off by default.
     var blursUnwatchedEpisodes: Bool {
         didSet { UserDefaults.standard.set(blursUnwatchedEpisodes, forKey: Keys.blursUnwatchedEpisodes) }
     }
@@ -353,6 +354,17 @@ final class UserPreferences {
     /// (the Top Shelf publisher).
     static var storedBlursUnwatchedEpisodes: Bool {
         UserDefaults.standard.bool(forKey: Keys.blursUnwatchedEpisodes)
+    }
+
+    /// An episode's description with Hide Spoilers applied: nil while the
+    /// episode is unfinished (in-progress counts, as for the blur), so the
+    /// view shows nothing where the synopsis was.
+    nonisolated static func spoilerSafeSummary(
+        _ summary: String?,
+        isUnwatchedEpisode: Bool,
+        hidesSpoilers: Bool
+    ) -> String? {
+        hidesSpoilers && isUnwatchedEpisode ? nil : summary
     }
 
     /// Maximum version quality selected for downloads.

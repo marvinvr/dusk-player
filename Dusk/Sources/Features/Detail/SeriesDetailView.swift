@@ -11,6 +11,7 @@ struct SeriesDetailView: View {
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.blursUnwatchedEpisodes) private var hidesSpoilers
     @State private var viewModel: SeriesDetailViewModel
     @State private var focusedEpisodeKey: String?
     /// The show's extras, shared by its Extras row and the hero's Trailer button.
@@ -319,7 +320,11 @@ struct SeriesDetailView: View {
 
                     // Focusable above the Play button when cut off; Select
                     // shows the whole synopsis.
-                    if let summary = episode.summary, !summary.isEmpty {
+                    if let summary = UserPreferences.spoilerSafeSummary(
+                        episode.summary,
+                        isUnwatchedEpisode: !season.isWatched(episode),
+                        hidesSpoilers: hidesSpoilers
+                    ), !summary.isEmpty {
                         ExpandableSummaryText(
                             text: summary,
                             title: episode.title,

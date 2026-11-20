@@ -435,7 +435,7 @@ struct SettingsTVView: View {
             tvRowDivider
 
             TVSettingsToggleRow(
-                title: "Blur Unwatched Episodes",
+                title: "Hide Spoilers",
                 isOn: $preferences.blursUnwatchedEpisodes
             )
         }

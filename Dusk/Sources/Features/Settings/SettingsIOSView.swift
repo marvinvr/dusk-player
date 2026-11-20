@@ -683,7 +683,7 @@ struct SettingsIOSView: View {
             }
             .foregroundStyle(Color.duskTextPrimary)
 
-            Toggle("Blur Unwatched Episodes", isOn: $preferences.blursUnwatchedEpisodes)
+            Toggle("Hide Spoilers", isOn: $preferences.blursUnwatchedEpisodes)
                 .foregroundStyle(Color.duskTextPrimary)
 
             // The Mac app ships only the default icon (no alternate-icon API).

@@ -108,7 +108,14 @@ struct PlayerControlsOverlay: View {
         if viewModel.isLiveTV {
             return viewModel.liveProgram?.summary
         }
-        return mediaDetails?.summary ?? viewModel.iptvCatchUp?.program.summary
+        if let mediaDetails {
+            return UserPreferences.spoilerSafeSummary(
+                mediaDetails.summary,
+                isUnwatchedEpisode: mediaDetails.type == .episode && (mediaDetails.viewCount ?? 0) == 0,
+                hidesSpoilers: preferences.blursUnwatchedEpisodes
+            )
+        }
+        return viewModel.iptvCatchUp?.program.summary
     }
 
     private var mediaHeader: PlayerMediaHeader? {
