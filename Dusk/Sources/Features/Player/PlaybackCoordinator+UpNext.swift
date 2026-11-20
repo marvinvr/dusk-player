@@ -185,7 +185,8 @@ extension PlaybackCoordinator {
             queueIndex: candidate.queueIndex,
             queueTitle: queueTitle(for: candidate),
             mode: mode,
-            creditsMarkerID: creditsMarkerID
+            creditsMarkerID: creditsMarkerID,
+            isEstimatedCredits: isEstimated
         )
         if case let .timedAutoplay(countdown) = mode {
             poster.secondsRemaining = countdown

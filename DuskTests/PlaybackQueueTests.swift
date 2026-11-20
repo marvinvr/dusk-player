@@ -326,6 +326,29 @@ struct UpNextResolutionTests {
         #expect(!playback.haltUpNextPosterCountdown())
     }
 
+    /// #84: a guessed credits point flags the poster so it shows the compact
+    /// pill; a real Plex marker keeps the big card.
+    @Test(arguments: [true, false])
+    func posterRemembersAnEstimatedCreditsPoint(estimated: Bool) async throws {
+        let (playback, details) = try makeEpisodeSession()
+        defer { playback.cancelUpNextPosterCountdown() }
+        playback.adjacentEpisodes = PlaybackAdjacentEpisodes(
+            itemID: details.id,
+            isResolved: true,
+            next: .init(item: episodeItem("102")),
+            isOnlineEpisodeLookup: true
+        )
+        await playback.presentUpNextPosterIfPossible(
+            creditsMarkerID: 7,
+            isEstimated: estimated,
+            presentationID: playback.playerPresentationID,
+            ratingKey: details.ratingKey
+        )
+        let poster = try #require(playback.upNextPoster)
+        #expect(poster.isEstimatedCredits == estimated)
+        if estimated { #expect(poster.mode == .manual) }
+    }
+
     @Test func haltDoesNothingForAnUntimedPoster() throws {
         let (playback, _) = try makeEpisodeSession()
         #expect(!playback.haltUpNextPosterCountdown())

@@ -203,13 +203,15 @@ struct PlayerUpNextPosterView: View {
         .modifier(CompactChipGlass(isSelected: isSelected))
     }
 
-    /// iPhone always: in landscape the card covered the pause button. Else the
+    /// iPhone always: in landscape the card covered the pause button. A
+    /// guessed credits point too: it may still be mid-episode (#84). Else the
     /// blurred stills' rule: only an episode still ahead of the viewer is
     /// hidden, so a rewatch keeps the full card.
     private var isCompact: Bool {
         #if os(iOS)
         if UIDevice.current.userInterfaceIdiom == .phone { return true }
         #endif
+        if presentation.isEstimatedCredits { return true }
         return blursUnwatchedEpisodes && presentation.item.isEpisode && !presentation.item.isWatched
     }
 

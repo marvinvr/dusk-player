@@ -747,6 +747,9 @@ struct UpNextPosterPresentation: Sendable {
     /// Identifies the credits marker that triggered this poster, so repeat
     /// notifications for the same marker don't re-resolve the next episode.
     let creditsMarkerID: Int
+    /// The credits point is Dusk's guess (no Plex credits marker), so the
+    /// poster shows the compact pill rather than the big card (#84).
+    var isEstimatedCredits = false
     var secondsRemaining: Int?
     var countdownClock: UpNextCountdownClock?
     var isStarting = false
