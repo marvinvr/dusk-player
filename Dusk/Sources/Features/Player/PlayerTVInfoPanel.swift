@@ -172,6 +172,8 @@ struct PlayerTVInfoPanel: View {
                 .font(DuskFont.TV.body)
                 .foregroundStyle(Color.duskTextPrimary.opacity(0.86))
                 .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .spoilerRevealable(context.blursSummary, text: summary)
                 .padding(.bottom, 8)
         }
 

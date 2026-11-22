@@ -339,8 +339,9 @@ final class UserPreferences {
     }
 
     /// Hide Spoilers (stored under its old Blur Unwatched Episodes key): the
-    /// own images of TV episodes the user hasn't finished are blurred and
-    /// their descriptions hidden. Off by default.
+    /// own images and descriptions of TV episodes the user hasn't finished
+    /// are blurred (descriptions reveal on tap/Select; never on Home). Off by
+    /// default.
     var blursUnwatchedEpisodes: Bool {
         didSet { UserDefaults.standard.set(blursUnwatchedEpisodes, forKey: Keys.blursUnwatchedEpisodes) }
     }
@@ -356,15 +357,15 @@ final class UserPreferences {
         UserDefaults.standard.bool(forKey: Keys.blursUnwatchedEpisodes)
     }
 
-    /// An episode's description with Hide Spoilers applied: nil while the
-    /// episode is unfinished (in-progress counts, as for the blur), so the
-    /// view shows nothing where the synopsis was.
-    nonisolated static func spoilerSafeSummary(
-        _ summary: String?,
+    /// Whether Hide Spoilers blurs an episode's description until the user
+    /// reveals it (`ExpandableSummaryText.hidesSpoiler`, `spoilerRevealable`):
+    /// while the episode is unfinished, in-progress counts as for the image
+    /// blur. Home always shows descriptions in full.
+    nonisolated static func blursSummary(
         isUnwatchedEpisode: Bool,
         hidesSpoilers: Bool
-    ) -> String? {
-        hidesSpoilers && isUnwatchedEpisode ? nil : summary
+    ) -> Bool {
+        hidesSpoilers && isUnwatchedEpisode
     }
 
     /// Maximum version quality selected for downloads.

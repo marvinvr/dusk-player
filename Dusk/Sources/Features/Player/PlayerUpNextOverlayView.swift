@@ -194,11 +194,7 @@ struct PlayerUpNextOverlayView: View {
                 }
             }
 
-            if let summary = UserPreferences.spoilerSafeSummary(
-                presentation.item.summary,
-                isUnwatchedEpisode: presentation.item.isEpisode && !presentation.item.isWatched,
-                hidesSpoilers: hidesSpoilers
-            ),
+            if let summary = presentation.item.summary,
                !summary.isEmpty,
                metrics.summaryLineLimit > 0 {
                 Text(summary)
@@ -208,6 +204,13 @@ struct PlayerUpNextOverlayView: View {
                     .lineLimit(metrics.summaryLineLimit)
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: metrics.summaryWidth, alignment: .leading)
+                    .spoilerRevealable(
+                        UserPreferences.blursSummary(
+                            isUnwatchedEpisode: presentation.item.isEpisode && !presentation.item.isWatched,
+                            hidesSpoilers: hidesSpoilers
+                        ),
+                        text: summary
+                    )
             }
 
             if presentation.shouldAutoplay {

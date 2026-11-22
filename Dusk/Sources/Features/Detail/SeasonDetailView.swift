@@ -631,11 +631,7 @@ private struct SeasonEpisodeSummaryText: View {
 
     @ViewBuilder
     var body: some View {
-        if let summary = UserPreferences.spoilerSafeSummary(
-            episode.summary,
-            isUnwatchedEpisode: !isWatched,
-            hidesSpoilers: hidesSpoilers
-        ), !summary.isEmpty {
+        if let summary = episode.summary, !summary.isEmpty {
             Text(summary)
                 .font(DuskFont.body(ios: .subheadline))
                 .foregroundStyle(Color.primary.opacity(0.76))
@@ -643,6 +639,11 @@ private struct SeasonEpisodeSummaryText: View {
                 .lineLimit(lineLimit)
                 .truncationMode(.tail)
                 .fixedSize(horizontal: false, vertical: true)
+                // A tap reveals it instead of opening the episode.
+                .spoilerRevealable(
+                    UserPreferences.blursSummary(isUnwatchedEpisode: !isWatched, hidesSpoilers: hidesSpoilers),
+                    text: summary
+                )
         }
     }
 }

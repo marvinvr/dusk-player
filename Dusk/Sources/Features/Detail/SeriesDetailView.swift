@@ -318,19 +318,20 @@ struct SeriesDetailView: View {
                         }
                     }
 
-                    // Focusable above the Play button when cut off; Select
-                    // shows the whole synopsis.
-                    if let summary = UserPreferences.spoilerSafeSummary(
-                        episode.summary,
-                        isUnwatchedEpisode: !season.isWatched(episode),
-                        hidesSpoilers: hidesSpoilers
-                    ), !summary.isEmpty {
+                    // Focusable above the Play button when cut off (Select
+                    // shows the whole synopsis) or spoiler-blurred (Select
+                    // reveals it).
+                    if let summary = episode.summary, !summary.isEmpty {
                         ExpandableSummaryText(
                             text: summary,
                             title: episode.title,
                             collapsedLineLimit: 2,
                             font: DuskFont.TV.caption,
-                            lineSpacing: 3
+                            lineSpacing: 3,
+                            hidesSpoiler: UserPreferences.blursSummary(
+                                isUnwatchedEpisode: !season.isWatched(episode),
+                                hidesSpoilers: hidesSpoilers
+                            )
                         )
                         .frame(maxWidth: 720, alignment: .leading)
                         .onMoveCommand { direction in

@@ -79,6 +79,7 @@ struct PlayerControlsOverlay: View {
         PlayerControlsContext(
             mediaHeader: mediaHeader,
             summary: summary,
+            blursSummary: blursSummary,
             subtitleControlTitle: subtitleControlTitle,
             audioControlTitle: audioControlTitle,
             qualityControlTitle: qualityControlTitle,
@@ -109,13 +110,19 @@ struct PlayerControlsOverlay: View {
             return viewModel.liveProgram?.summary
         }
         if let mediaDetails {
-            return UserPreferences.spoilerSafeSummary(
-                mediaDetails.summary,
-                isUnwatchedEpisode: mediaDetails.type == .episode && (mediaDetails.viewCount ?? 0) == 0,
-                hidesSpoilers: preferences.blursUnwatchedEpisodes
-            )
+            return mediaDetails.summary
         }
         return viewModel.iptvCatchUp?.program.summary
+    }
+
+    /// Hide Spoilers: the Info tab blurs an unfinished episode's synopsis
+    /// until Select reveals it.
+    private var blursSummary: Bool {
+        guard !viewModel.isLiveTV, let mediaDetails else { return false }
+        return UserPreferences.blursSummary(
+            isUnwatchedEpisode: mediaDetails.type == .episode && (mediaDetails.viewCount ?? 0) == 0,
+            hidesSpoilers: preferences.blursUnwatchedEpisodes
+        )
     }
 
     private var mediaHeader: PlayerMediaHeader? {
@@ -199,6 +206,8 @@ struct PlayerControlsContext {
     let mediaHeader: PlayerMediaHeader?
     /// Item synopsis (or the live program's), used by the tvOS panel's Info tab.
     let summary: String?
+    /// Hide Spoilers: `summary` blurs until revealed.
+    let blursSummary: Bool
     let subtitleControlTitle: String
     let audioControlTitle: String
     let qualityControlTitle: String

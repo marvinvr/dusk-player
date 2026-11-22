@@ -163,10 +163,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   shelves (`landscapeImageIsUnwatchedEpisodeStill`), iOS season rows, tvOS
   series episode cards, Up Next card and
   overlay, and the Top Shelf fallback (blur baked into the JPEG). The same
-  switch hides an unfinished episode's description (nothing in its place)
-  through `UserPreferences.spoilerSafeSummary`: iOS/Mac season rows, tvOS
-  series episode band, episode page (hero + below-hero synopsis), Home hero,
-  full-screen Up Next and the tvOS player Info tab. The local
+  switch blurs an unfinished episode's description
+  (`UserPreferences.blursSummary`) until the user reveals it: tvOS keeps the
+  text focusable and Select unblurs it, iOS/Mac a tap/click (the tap is taken
+  only while blurred, so revealed season-row text opens the episode again).
+  The reveal lives in view state keyed on the text, so it lasts for that view
+  and the next episode in the tvOS band blurs again. `ExpandableSummaryText`
+  (`hidesSpoiler:`, also via `DetailHeroSection.blursDescription`) covers the
+  tvOS series episode band and the episode page (hero + below-hero synopsis);
+  `spoilerRevealable(_:text:)` covers iOS/Mac season rows, full-screen Up Next
+  and the tvOS player Info tab. Home (the hero) always shows descriptions in
+  full. The local
   blur is deliberate over Plex's transcoder: it also covers downloaded artwork
   and never depends on a server honouring a parameter. Not covered: posters
   (show poster first), the player's loading backdrop and scrub previews.

@@ -303,6 +303,8 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
     let titleArtworkURL: URL?
     let title: String
     var descriptionText: String? = nil
+    /// Hide Spoilers: the description blurs until revealed.
+    var blursDescription = false
     let topInset: CGFloat
     let containerWidth: CGFloat
     var backgroundLeadingInset: CGFloat = 0
@@ -327,6 +329,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         titleArtworkURL: URL? = nil,
         title: String,
         descriptionText: String? = nil,
+        blursDescription: Bool = false,
         topInset: CGFloat,
         containerWidth: CGFloat,
         backgroundLeadingInset: CGFloat = 0,
@@ -344,6 +347,7 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
         self.titleArtworkURL = titleArtworkURL
         self.title = title
         self.descriptionText = descriptionText
+        self.blursDescription = blursDescription
         self.topInset = topInset
         self.containerWidth = containerWidth
         self.backgroundLeadingInset = backgroundLeadingInset
@@ -663,7 +667,8 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 font: macIsWide ? .title3 : .body,
                 lineSpacing: 2,
                 foregroundStyle: Color.primary.opacity(0.82),
-                allowsExpansion: false
+                allowsExpansion: false,
+                hidesSpoiler: blursDescription
             )
             .frame(maxWidth: MacUILayout.readableTextWidth * (macIsWide ? 1.2 : 1), alignment: .leading)
             #else
@@ -671,7 +676,8 @@ struct DetailHeroSection<Supertitle: View, Subtitle: View, Actions: View>: View 
                 text: descriptionText,
                 title: title,
                 collapsedLineLimit: 8,
-                allowsExpansion: false
+                allowsExpansion: false,
+                hidesSpoiler: blursDescription
             )
             .frame(maxWidth: .infinity, alignment: .leading)
             #endif
@@ -1103,6 +1109,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         titleArtworkURL: URL? = nil,
         title: String,
         descriptionText: String? = nil,
+        blursDescription: Bool = false,
         topInset: CGFloat,
         containerWidth: CGFloat,
         backgroundLeadingInset: CGFloat = 0,
@@ -1119,6 +1126,7 @@ extension DetailHeroSection where Supertitle == EmptyView {
         self.titleArtworkURL = titleArtworkURL
         self.title = title
         self.descriptionText = descriptionText
+        self.blursDescription = blursDescription
         self.topInset = topInset
         self.containerWidth = containerWidth
         self.backgroundLeadingInset = backgroundLeadingInset

@@ -12,6 +12,11 @@ import SwiftUI
 /// - iOS: "Show More" / "Show Less", or a tap on the text, expands in place.
 ///   Where the layout can't grow (`allowsExpansion: false`, the iPad hero
 ///   column) a tap opens the full text in a sheet instead.
+///
+/// `hidesSpoiler` (Hide Spoilers on an unfinished episode) blurs the text
+/// until it is revealed: tvOS keeps it focusable and the first Select
+/// unblurs it, iOS/Mac a tap or click. The reveal lasts while this view shows
+/// the same text; see `spoilerRevealable` for prose outside this view.
 struct ExpandableSummaryText: View {
     /// Default collapsed height of a synopsis block. tvOS fits one extra line in
     /// the same space now that the prose is 27pt rather than 29pt.
@@ -31,15 +36,33 @@ struct ExpandableSummaryText: View {
     var lineSpacing: CGFloat = 4
     var foregroundStyle = Color.primary.opacity(0.76)
     var allowsExpansion = true
+    var hidesSpoiler = false
 
+    @State private var revealedText: String?
     @State private var isTruncated = false
     @State private var isExpanded = false
     @State private var showsFullText = false
 
+    /// Keyed on the text, so a view that switches episodes (the tvOS series
+    /// band) blurs the next one again.
+    private var isBlurred: Bool {
+        hidesSpoiler && revealedText != text
+    }
+
+    private func reveal() {
+        withAnimation(.easeOut(duration: 0.25)) {
+            revealedText = text
+        }
+    }
+
     var body: some View {
         #if os(tvOS)
         Button {
-            showsFullText = true
+            if isBlurred {
+                reveal()
+            } else if isTruncated {
+                showsFullText = true
+            }
         } label: {
             SummaryTextLabel(
                 text: text,
@@ -49,12 +72,15 @@ struct ExpandableSummaryText: View {
                 foregroundStyle: foregroundStyle,
                 isTruncated: $isTruncated
             )
+            .spoilerTextBlur(isBlurred, text: text)
         }
         .buttonStyle(SummaryTextPlatterButtonStyle())
         // A disabled button never takes focus, so text that fits stays out of
-        // the way of Up/Down between the rows around it.
-        .disabled(!isTruncated)
-        .accessibilityHint(isTruncated ? "Shows the full text" : "")
+        // the way of Up/Down between the rows around it. Spoiler-hidden text
+        // stays focusable once revealed, so focus never jumps out from under
+        // the press that revealed it.
+        .disabled(!isTruncated && !hidesSpoiler)
+        .accessibilityHint(isBlurred ? "" : (isTruncated ? "Shows the full text" : ""))
         .fullScreenCover(isPresented: $showsFullText) {
             SummaryFullTextView(title: title, text: text)
         }
@@ -90,14 +116,19 @@ struct ExpandableSummaryText: View {
                     lineLimit: collapsedLineLimit,
                     isTruncated: $isTruncated
                 )
+                .spoilerTextBlur(isBlurred, text: text)
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    if isBlurred {
+                        reveal()
+                        return
+                    }
                     guard isTruncated else { return }
                     showsFullText = true
                 }
                 .accessibilityAddTraits(isTruncated ? .isButton : [])
 
-            if isTruncated {
+            if isTruncated, !isBlurred {
                 Button("more") {
                     showsFullText = true
                 }
@@ -139,8 +170,13 @@ struct ExpandableSummaryText: View {
                     lineLimit: collapsedLineLimit,
                     isTruncated: $isTruncated
                 )
+                .spoilerTextBlur(isBlurred, text: text)
                 .contentShape(Rectangle())
                 .onTapGesture {
+                    if isBlurred {
+                        reveal()
+                        return
+                    }
                     guard isTruncated else { return }
                     if allowsExpansion {
                         isExpanded.toggle()
@@ -150,7 +186,7 @@ struct ExpandableSummaryText: View {
                 }
                 .accessibilityAddTraits(isTruncated ? .isButton : [])
 
-            if allowsExpansion, isTruncated {
+            if allowsExpansion, isTruncated, !isBlurred {
                 Button(isExpanded ? "Show Less" : "Show More") {
                     isExpanded.toggle()
                 }
@@ -166,6 +202,79 @@ struct ExpandableSummaryText: View {
         #endif
     }
     #endif
+}
+
+// MARK: - Spoiler Blur
+
+extension View {
+    /// Hide Spoilers for prose that isn't an `ExpandableSummaryText`: blurred
+    /// while `hidesSpoiler`, until a tap or click (tvOS: focus, then Select)
+    /// reveals it. `text` is what the view shows: the reveal holds while it
+    /// stays the same, so the next item blurs again, and VoiceOver reads it
+    /// once revealed.
+    func spoilerRevealable(_ hidesSpoiler: Bool, text: String) -> some View {
+        modifier(SpoilerRevealModifier(hidesSpoiler: hidesSpoiler, text: text))
+    }
+
+    /// The plain blur over hidden prose, no glyph or label: the text keeps
+    /// its shape so it reads as "there is a description". VoiceOver hears
+    /// that it is hidden, not the text.
+    fileprivate func spoilerTextBlur(_ isBlurred: Bool, text: String) -> some View {
+        self
+            // Radius 0 rather than a branch, so revealing eases instead of
+            // swapping views.
+            .blur(radius: isBlurred ? SpoilerTextBlurMetrics.radius : 0)
+            .accessibilityLabel(isBlurred ? Text("Description hidden") : Text(verbatim: text))
+            .accessibilityHint(isBlurred ? Text("Shows the description") : Text(verbatim: ""))
+            .accessibilityAddTraits(isBlurred ? .isButton : [])
+    }
+}
+
+private enum SpoilerTextBlurMetrics {
+    /// Enough that no word survives at body size on each platform.
+    static var radius: CGFloat {
+        #if os(tvOS)
+        11
+        #else
+        6
+        #endif
+    }
+}
+
+private struct SpoilerRevealModifier: ViewModifier {
+    let hidesSpoiler: Bool
+    let text: String
+
+    @State private var revealedText: String?
+
+    private var isBlurred: Bool {
+        hidesSpoiler && revealedText != text
+    }
+
+    private func reveal() {
+        withAnimation(.easeOut(duration: 0.25)) {
+            revealedText = text
+        }
+    }
+
+    func body(content: Content) -> some View {
+        #if os(tvOS)
+        // Focusable only while the item is spoiler-hidden; stays so once
+        // revealed so focus doesn't jump from under the press.
+        Button(action: reveal) {
+            content.spoilerTextBlur(isBlurred, text: text)
+        }
+        .buttonStyle(SummaryTextPlatterButtonStyle())
+        .disabled(!hidesSpoiler)
+        #else
+        content
+            .spoilerTextBlur(isBlurred, text: text)
+            .contentShape(Rectangle())
+            // Only while blurred, so a revealed description passes taps to the
+            // row link around it again.
+            .gesture(TapGesture().onEnded(reveal), including: isBlurred ? .all : .subviews)
+        #endif
+    }
 }
 
 // MARK: - Truncation

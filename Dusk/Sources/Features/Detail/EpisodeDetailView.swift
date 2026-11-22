@@ -83,7 +83,7 @@ struct EpisodeDetailView: View {
                         backgroundLeadingInset: geometry.safeAreaInsets.leading
                     )
 
-                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = visibleSummary(details), !summary.isEmpty {
+                    if detailShowsSynopsisBelowHero(for: sizeClass), let summary = details.summary, !summary.isEmpty {
                         ExpandableSummaryText(
                             text: summary,
                             title: details.title,
@@ -91,7 +91,8 @@ struct EpisodeDetailView: View {
                             // full; two lines left the episode page mostly empty.
                             collapsedLineLimit: 6,
                             foregroundStyle: Color.primary.opacity(0.78),
-                            allowsExpansion: false
+                            allowsExpansion: false,
+                            hidesSpoiler: blursSummary(details)
                         )
                             .padding(.horizontal, 20)
                             .padding(.top, 24)
@@ -150,10 +151,9 @@ struct EpisodeDetailView: View {
         }
     }
 
-    /// The synopsis, unless Hide Spoilers holds it back for an unfinished episode.
-    private func visibleSummary(_ details: PlexMediaDetails) -> String? {
-        UserPreferences.spoilerSafeSummary(
-            details.summary,
+    /// Hide Spoilers blurs an unfinished episode's synopsis until revealed.
+    private func blursSummary(_ details: PlexMediaDetails) -> Bool {
+        UserPreferences.blursSummary(
             isUnwatchedEpisode: details.type == .episode && !viewModel.isWatched,
             hidesSpoilers: hidesSpoilers
         )
@@ -172,7 +172,8 @@ struct EpisodeDetailView: View {
         DetailHeroSection(
             backdropURL: viewModel.backdropURL(width: Int(containerWidth.rounded(.up)), height: Int(heroHeight.rounded(.up))),
             title: details.title,
-            descriptionText: visibleSummary(details),
+            descriptionText: details.summary,
+            blursDescription: blursSummary(details),
             topInset: topInset,
             containerWidth: containerWidth,
             backgroundLeadingInset: backgroundLeadingInset,
