@@ -143,6 +143,8 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
 struct PosterActionCard<ContextMenuContent: View>: View {
     let action: () -> Void
     let imageURL: URL?
+    /// Loaded when `imageURL` fails; see `PlexItem.fallbackPosterPath`.
+    var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?
     var progress: Double?
@@ -169,6 +171,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             Button(action: action) {
                 PosterArtwork(
                     imageURL: imageURL,
+                    fallbackImageURL: fallbackImageURL,
                     progress: progress,
                     width: width,
                     imageAspectRatio: imageAspectRatio,
@@ -199,6 +202,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
         Button(action: action) {
             PosterCard(
                 imageURL: imageURL,
+                fallbackImageURL: fallbackImageURL,
                 title: title,
                 subtitle: subtitle,
                 progress: progress,

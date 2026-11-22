@@ -358,6 +358,9 @@ struct HomeContinueWatchingShelf: View {
                         ? viewModel.landscapeImageURL(for: item, width: width, height: height)
                         : viewModel.posterURL(for: item, width: width, height: height)
                 },
+                fallbackPosterURL: showsStill ? nil : { item, width, height in
+                    viewModel.fallbackPosterURL(for: item, width: width, height: height)
+                },
                 progress: { viewModel.progress(for: $0) },
                 isUnwatchedEpisodeImage: { showsStill && $0.landscapeImageIsUnwatchedEpisodeStill }
             ) { item in

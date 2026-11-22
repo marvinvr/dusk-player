@@ -232,11 +232,15 @@ extension PlexItem {
 
     /// Best available primary image path for compact cards and rows.
     /// Usually portrait-style; for clips the default branch is intentionally
-    /// thumb-first because a clip's `thumb` is its 16:9 frame grab.
+    /// thumb-first because a clip's `thumb` is its 16:9 frame grab. An episode
+    /// shows its season's poster, so the art changes per season; a season
+    /// without its own poster either sends no `parentThumb` or the show's,
+    /// and both land on the show poster.
     var preferredPosterPath: String? {
         switch type {
         case .episode:
-            return grandparentThumb ?? parentThumb ?? thumb ?? grandparentArt ?? art ?? banner
+            return parentThumb?.nilIfEmpty ?? grandparentThumb?.nilIfEmpty
+                ?? thumb ?? grandparentArt ?? art ?? banner
         case .season:
             return thumb ?? parentThumb ?? art ?? banner
         default:
@@ -247,10 +251,20 @@ extension PlexItem {
     /// What a poster card shows when `preferredPosterPath` does not load. A
     /// season's own poster can be missing on the server while Plex still sends
     /// its path, so a new season of an old show in Recently Added would be a
-    /// blank card; the show's poster stands in for it.
+    /// blank card; the show's poster stands in for it. The same goes for an
+    /// episode showing its season's poster.
     var fallbackPosterPath: String? {
-        guard type == .season, let parentThumb, parentThumb != preferredPosterPath else { return nil }
-        return parentThumb
+        let showPoster: String?
+        switch type {
+        case .season:
+            showPoster = parentThumb?.nilIfEmpty
+        case .episode:
+            showPoster = grandparentThumb?.nilIfEmpty
+        default:
+            return nil
+        }
+        guard let showPoster, showPoster != preferredPosterPath else { return nil }
+        return showPoster
     }
 
     /// Best available landscape-style image path for feature rows.

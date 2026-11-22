@@ -227,6 +227,9 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
     var showAllRoute: AppNavigationRoute? = nil
     var subtitle: (PlexItem) -> String?
     var posterURL: (PlexItem, Int, Int) -> URL?
+    /// Loaded when `posterURL` fails, for rows of posters; see
+    /// `PlexItem.fallbackPosterPath`. Nil for rows of stills.
+    var fallbackPosterURL: ((PlexItem, Int, Int) -> URL?)? = nil
     var progress: (PlexItem) -> Double? = { $0.posterProgress }
     /// Whether `posterURL` hands back an unwatched episode's own still.
     var isUnwatchedEpisodeImage: (PlexItem) -> Bool = { _ in false }
@@ -246,6 +249,7 @@ struct PlexItemActionCarouselSection<ContextMenuContent: View>: View {
                 PosterActionCard(
                     action: { action(item) },
                     imageURL: posterURL(item, imageWidth, imageHeight),
+                    fallbackImageURL: fallbackPosterURL?(item, imageWidth, imageHeight),
                     title: item.continueWatchingDisplayTitle,
                     subtitle: subtitle(item),
                     progress: progress(item),

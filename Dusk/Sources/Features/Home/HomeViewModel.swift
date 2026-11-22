@@ -716,6 +716,10 @@ final class HomeViewModel {
         item.posterImageURL(plexService: plexService, width: width, height: height)
     }
 
+    func fallbackPosterURL(for item: PlexItem, width: Int, height: Int) -> URL? {
+        item.fallbackPosterImageURL(plexService: plexService, width: width, height: height)
+    }
+
     func landscapeImageURL(for item: PlexItem, width: Int, height: Int) -> URL? {
         item.landscapeImageURL(plexService: plexService, width: width, height: height)
     }

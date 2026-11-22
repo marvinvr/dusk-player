@@ -353,8 +353,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   default) swaps the hero for `HomeContinueWatchingShelf`, the library pages'
   `PlexItemActionCarouselSection` row, as the first shelf. Both shells then take
   their no-hero path (iOS large "Home" title; tvOS "Home" header, no fold snapping
-  or hero focus), so nothing is shown twice. Its cards show 2:3 posters (the show
-  poster for episodes) unless Continue Watching Artwork
+  or hero focus), so nothing is shown twice. Its cards show 2:3 posters (the season
+  poster for episodes, see below) unless Continue Watching Artwork
   (`UserPreferences.continueWatchingArtwork`, shown only while Compact is on) is set
   to Episode Still, the old 16:9 still/backdrop look.
 - Home filters playlist/music/unknown content and hides Plex "continue watching/on deck"
@@ -425,6 +425,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   season whose own poster fails to load falls back to the show's (`fallbackPosterPath`
   → `DuskAsyncImage(fallbackURL:)`): Plex can send a season poster path even when the
   season has none (unconfirmed against a real PMS; the show poster also covers any other failure). Home keeps one card per show in Recently Added (`oneCardPerShow`).
+- An episode's poster (`PlexItem.preferredPosterPath`: every poster row and grid, the
+  compact Continue Watching row, pinned playlists, Top Shelf) is its season's poster
+  (`parentThumb`), then the show's (`grandparentThumb`), then its own still, so the art
+  changes per season. A season without its own poster sends no `parentThumb` or the
+  show's; a season path that fails to load falls back to the show poster the same way
+  as seasons do (`fallbackPosterPath`, also passed through `PlexItemActionCarouselSection`
+  → `PosterActionCard`). 16:9 still rows, heroes and backdrops are unchanged.
 - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS focus-driven
   paging, image preloading, title-logo fallback, pager state, and motion
   reduction. iOS enables automatic rotation (`autoRotates: true`): the hero advances
@@ -766,8 +773,8 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 - The `DuskTopShelf` app extension (tvOS only, bundle id
   `com.dusk-player.app.topshelf`) fills the Top Shelf when Dusk sits in the Home
-  Screen's top row: sectioned content with 2:3 poster tiles (the show's poster
-  for an episode; a clip keeps its 16:9 frame grab). "Continue Watching" comes
+  Screen's top row: sectioned content with 2:3 poster tiles (the season's poster
+  for an episode, else the show's; a clip keeps its 16:9 frame grab). "Continue Watching" comes
   first, Home's merged list as-is (started items with progress and next episodes
   mixed, `ContinueWatchingMerge` order; no separate "Up Next"). Up to 3 of Home's
   Recently Added rows follow, in Home's Library Order and with Home's titles,

@@ -45,6 +45,9 @@ struct HomePinnedPlaylistShelf: View {
             subtitle: { $0.hubPosterSubtitle },
             posterURL: { item, width, height in
                 viewModel.posterURL(for: item, width: width, height: height)
+            },
+            fallbackPosterURL: { item, width, height in
+                viewModel.fallbackPosterURL(for: item, width: width, height: height)
             }
         ) { item in
             Button {
