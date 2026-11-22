@@ -28,6 +28,7 @@ enum IPTVLineupBuilder {
         let resolver = GuideChannelResolver(guide: guide)
         var usedIDs = Set<String>()
         var guides: [PlexLiveChannelGuide] = []
+        let sourceIdentity = IPTVResumeKey.sourceIdentity(playlistURL: source.playlistURL)
 
         for (index, entry) in playlist.entries.enumerated() {
             var channelID = "iptv:\(source.id.uuidString):\(entry.tvgID ?? entry.streamURL.absoluteString)"
@@ -49,6 +50,7 @@ enum IPTVLineupBuilder {
                 logo: logo?.absoluteString,
                 playable: IPTVPlayableChannel(
                     sourceID: source.id,
+                    sourceIdentity: sourceIdentity,
                     streamURL: entry.streamURL,
                     headers: headers,
                     userAgent: entry.userAgent,

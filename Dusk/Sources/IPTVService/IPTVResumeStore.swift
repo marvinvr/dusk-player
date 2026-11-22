@@ -1,10 +1,13 @@
 import CryptoKit
 import Foundation
 
-/// Identifies one past IPTV programme across launches: a hash of the source,
-/// the channel's own (live) stream URL and the programme's airtime. Never the
-/// catch-up URL itself, which can carry "now"-relative values (`{lutc}`,
-/// `{offset}`) or tokens that change between plays.
+/// Identifies one past IPTV programme across launches and devices: a hash of
+/// the source's playlist (`sourceIdentity(playlistURL:)`), the channel's own
+/// (live) stream URL and the programme's airtime. Never the source's UUID,
+/// which every device mints for itself when the source is added (sources do
+/// not sync), and never the catch-up URL itself, which can carry
+/// "now"-relative values (`{lutc}`, `{offset}`) or tokens that change between
+/// plays.
 struct IPTVResumeKey: Hashable, Sendable {
     let rawValue: String
 
@@ -12,9 +15,9 @@ struct IPTVResumeKey: Hashable, Sendable {
         self.rawValue = rawValue
     }
 
-    init(sourceID: UUID, channelStreamURL: URL, start: Date, end: Date) {
+    init(sourceIdentity: String, channelStreamURL: URL, start: Date, end: Date) {
         let identity = [
-            sourceID.uuidString.lowercased(),
+            sourceIdentity,
             channelStreamURL.absoluteString,
             String(Int(start.timeIntervalSince1970)),
             String(Int(end.timeIntervalSince1970)),
@@ -29,7 +32,39 @@ struct IPTVResumeKey: Hashable, Sendable {
     /// live channel has no resume point).
     init?(channel: PlexLiveChannel, program: PlexLiveProgram) {
         guard let live = channel.iptv, let start = program.beginsAt, let end = program.endsAt else { return nil }
-        self.init(sourceID: live.sourceID, channelStreamURL: live.streamURL, start: start, end: end)
+        self.init(sourceIdentity: live.sourceIdentity, channelStreamURL: live.streamURL, start: start, end: end)
+    }
+
+    /// The same source on every device: the playlist URL as entered, with
+    /// scheme and host lowercased, the default port, a trailing slash and
+    /// the fragment dropped, and the query sorted. An Xtream playlist is its
+    /// server (and base path) plus username: its password and output options
+    /// may change.
+    static func sourceIdentity(playlistURL: URL) -> String {
+        guard var components = URLComponents(url: playlistURL, resolvingAgainstBaseURL: false),
+              components.host != nil else { return playlistURL.absoluteString }
+        components.scheme = components.scheme?.lowercased()
+        components.host = components.host?.lowercased()
+        if (components.scheme == "http" && components.port == 80) || (components.scheme == "https" && components.port == 443) {
+            components.port = nil
+        }
+        components.fragment = nil
+        while components.percentEncodedPath.count > 1, components.percentEncodedPath.hasSuffix("/") {
+            components.percentEncodedPath.removeLast()
+        }
+        if let credentials = XtreamURL.credentials(fromPlaylistURL: playlistURL) {
+            // The panel's base path, without `get.php` (or `player_api.php`).
+            let path = components.percentEncodedPath
+            components.percentEncodedPath = path.lastIndex(of: "/").map { String(path[..<$0]) } ?? ""
+            components.query = nil
+            return "xtream:" + (components.string ?? playlistURL.absoluteString) + "|" + credentials.username
+        }
+        if let items = components.percentEncodedQueryItems, !items.isEmpty {
+            components.percentEncodedQueryItems = items.sorted { ($0.name, $0.value ?? "") < ($1.name, $1.value ?? "") }
+        } else {
+            components.query = nil
+        }
+        return components.string ?? playlistURL.absoluteString
     }
 }
 
@@ -83,11 +118,23 @@ final class IPTVResumeStore {
         entries = Self.decode(defaults.data(forKey: Self.storageKey))
         if prune() { persist() }
         cloud?.observeExternalChanges { [weak self] in self?.mergeFromCloud() }
+        cloud?.synchronize()
         mergeFromCloud()
     }
 
-    /// Where to offer resuming the programme from, if anywhere.
+    /// Asks iCloud for what changed while the app was away; called at launch
+    /// and on every return to the foreground (`DuskApp`). Whatever arrives
+    /// later comes through the external-change notification.
+    func refreshFromCloud() {
+        cloud?.synchronize()
+        mergeFromCloud()
+    }
+
+    /// Where to offer resuming the programme from, if anywhere. Reads the
+    /// cloud copy first: another device may have written since the last
+    /// notification reached this one.
     func resumePosition(for key: IPTVResumeKey) -> TimeInterval? {
+        mergeFromCloud()
         guard let entry = entries[key.rawValue], let position = entry.position,
               now().timeIntervalSince(entry.updatedAt) < Self.maximumAge else { return nil }
         return position
@@ -166,6 +213,8 @@ final class IPTVResumeStore {
 protocol IPTVResumeCloud: AnyObject {
     func read() -> Data?
     func write(_ data: Data)
+    /// Exchanges pending changes with iCloud (the system batches them).
+    func synchronize()
     /// Calls back on the main actor when another device changed the copy.
     func observeExternalChanges(_ handler: @escaping @MainActor () -> Void)
 }
@@ -188,6 +237,10 @@ final class UbiquitousIPTVResumeCloud: IPTVResumeCloud {
         store.set(data, forKey: Self.key)
     }
 
+    func synchronize() {
+        store.synchronize()
+    }
+
     func observeExternalChanges(_ handler: @escaping @MainActor () -> Void) {
         observer = NotificationCenter.default.addObserver(
             forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
@@ -196,7 +249,5 @@ final class UbiquitousIPTVResumeCloud: IPTVResumeCloud {
         ) { _ in
             MainActor.assumeIsolated { handler() }
         }
-        // Fetches what changed while the app was not running.
-        store.synchronize()
     }
 }

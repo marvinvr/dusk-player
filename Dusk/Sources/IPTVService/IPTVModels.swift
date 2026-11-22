@@ -150,6 +150,9 @@ struct IPTVGuide: Hashable, Sendable {
 /// tell an IPTV channel from a Plex tuner channel.
 struct IPTVPlayableChannel: Hashable, Sendable {
     let sourceID: UUID
+    /// The source as every device knows it (`IPTVResumeKey.sourceIdentity`);
+    /// `sourceID` is minted per device.
+    let sourceIdentity: String
     let streamURL: URL
     /// Source header plus the entry's referrer / pipe headers. Applied to the
     /// playlist, segments, certificate and license requests.

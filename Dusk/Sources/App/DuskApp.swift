@@ -269,6 +269,11 @@ struct DuskApp: App {
             .task {
                 PlaybackEngineFactory.prewarmIfNeeded()
             }
+            .task {
+                // Starts the iCloud mirror of IPTV resume points at launch
+                // rather than at the first catch-up prompt.
+                IPTVResumeStore.shared.refreshFromCloud()
+            }
             .task(
                 id: seerrContextID
             ) {
@@ -299,6 +304,7 @@ struct DuskApp: App {
                     analytics.recordAppOpenedIfNeeded()
                     Task { await traktService.flushPending() }
                     Task { await supporterStore.sceneDidBecomeActive() }
+                    IPTVResumeStore.shared.refreshFromCloud()
                 }
 
                 if newPhase == .active,

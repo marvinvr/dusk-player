@@ -239,6 +239,7 @@ extension IPTVPlayableChannel {
               let url = catchUp.url(streamURL: streamURL, start: start, end: end, now: now) else { return nil }
         return IPTVPlayableChannel(
             sourceID: sourceID,
+            sourceIdentity: sourceIdentity,
             streamURL: url,
             headers: headers,
             userAgent: userAgent,

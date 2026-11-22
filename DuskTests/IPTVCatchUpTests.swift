@@ -70,6 +70,7 @@ struct IPTVCatchUpTests {
         let drm = IPTVDRMConfiguration(licenseType: "com.apple.fps", licenseURL: URL(string: "https://lic.example/fps"), certificateURL: nil)
         let live = IPTVPlayableChannel(
             sourceID: UUID(),
+            sourceIdentity: "https://tv.example/playlist.m3u",
             streamURL: URL(string: "https://tv.example/live/1.m3u8")!,
             headers: ["Authorization": "Bearer t"],
             userAgent: "UA",
@@ -137,7 +138,7 @@ struct LiveTVGuideCatchUpTests {
 
     private let channel = PlexLiveChannel(
         iptvID: "c1", number: "1", title: "One", logo: nil,
-        playable: IPTVPlayableChannel(sourceID: UUID(), streamURL: URL(string: "https://x/1")!, headers: [:], userAgent: nil, drm: nil)
+        playable: IPTVPlayableChannel(sourceID: UUID(), sourceIdentity: "https://x/list.m3u", streamURL: URL(string: "https://x/1")!, headers: [:], userAgent: nil, drm: nil)
     )
 
     @Test func decodesTheGuid() throws {

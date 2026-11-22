@@ -183,9 +183,14 @@ defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
 Plex keeps no state for IPTV, so `IPTVService/IPTVResumeStore.swift` remembers
 how far a catch-up programme was watched.
 
-- Key (`IPTVResumeKey`): SHA-256 (first 128 bits, hex) of source id + the
-  channel's live stream URL + programme start/end. Never the catch-up URL,
-  which can carry "now"-relative placeholders. Live channels get no key.
+- Key (`IPTVResumeKey`): SHA-256 (first 128 bits, hex) of the source identity
+  + the channel's live stream URL + programme start/end. The source identity
+  (`IPTVResumeKey.sourceIdentity`) is the playlist URL with scheme/host
+  lowercased, default port, trailing slash and fragment dropped and the query
+  sorted; Xtream (`get.php?username=…`) is server + base path + username.
+  Never the source UUID: sources don't sync, every device mints its own, so a
+  UUID key never matched across devices. Never the catch-up URL, which can
+  carry "now"-relative placeholders. Live channels get no key.
 - Storage: one JSON dictionary in UserDefaults (`iptvResumePoints`). Entries
   expire after 14 days, the newest 200 are kept, pruned on launch and every
   write. A position under 30 s is ignored (never saved, never clears a
@@ -198,8 +203,10 @@ how far a catch-up programme was watched.
   is loading (it can report 0).
 - iCloud: mirrored to `NSUbiquitousKeyValueStore` (one key, same
   dictionary, ~15 KB at the cap) through `IPTVResumeCloud`: merged per entry,
-  newest `updatedAt` wins (tombstones included), on launch, on every write
-  and on `didChangeExternallyNotification`. Entitlement
+  newest `updatedAt` wins (tombstones included), at app launch and every
+  foreground (`refreshFromCloud`: `synchronize()` + merge, from `DuskApp`),
+  on every write, at every prompt read and on
+  `didChangeExternallyNotification`. Entitlement
   `com.apple.developer.ubiquity-kvstore-identifier` on the iOS/tvOS app
   entitlements and `Dusk-macOS-AppStore.entitlements` (testflight.sh swaps it
   in for the Mac archive; ad-hoc Mac builds can't carry it). Never on Top
