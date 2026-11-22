@@ -178,6 +178,32 @@ defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
   `-DuskScreenshotScreen iptvPlayer -DuskScreenshotIPTVCatchUpHoursAgo <h>`
   plays back the programme that was on h hours ago.
 
+### Resume points
+
+Plex keeps no state for IPTV, so `IPTVService/IPTVResumeStore.swift` remembers
+how far a catch-up programme was watched, on device only.
+
+- Key (`IPTVResumeKey`): SHA-256 (first 128 bits, hex) of source id + the
+  channel's live stream URL + programme start/end. Never the catch-up URL,
+  which can carry "now"-relative placeholders. Live channels get no key.
+- Storage: one JSON dictionary in UserDefaults (`iptvResumePoints`). Entries
+  expire after 14 days, the newest 200 are kept, pruned on launch and every
+  write. A position under 30 s is ignored (never saved, never clears a
+  point); the last 5% (at most 2 min) counts as finished and leaves a
+  position-less tombstone (so a merged copy can't revive the old point).
+  Only finite streams (duration > 0) count. Losing it is fine; no migrations.
+- Saves (`PlaybackCoordinator+IPTVResume.swift`): pause, scene inactive /
+  background, session end (`finalizeCurrentPlaybackSession`, so playing to the
+  end clears it) and every ~20 s on the timeline tick. Never while the engine
+  is loading (it can report 0).
+- Prompt: the guide's `replay` asks with a `confirmationDialog` (programme
+  title; "Resume from 12:34" / "Play from Start" / Cancel) when a point
+  exists, else plays straight away. Resume passes the point as
+  `PlaybackSource.startPosition`.
+- Sim: play a catch-up programme for over 30 s, leave the player, select it
+  again. The stored dictionary is in the app container's
+  `Library/Preferences/com.dusk-player.app.plist`.
+
 ## Retune (slate → live, drops)
 
 IPTV channels never end. In `AVPlayerEngine`, for an IPTV source:

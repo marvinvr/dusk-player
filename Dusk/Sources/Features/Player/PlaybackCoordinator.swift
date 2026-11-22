@@ -173,6 +173,10 @@ final class PlaybackCoordinator {
     /// player is the ordinary on-demand one, but like a live IPTV channel
     /// nothing of it may reach Plex.
     var isPlayingIPTVCatchUp = false
+    /// The catch-up programme playing, for its local resume point
+    /// (`IPTVResumeStore`); nil for everything else.
+    @ObservationIgnored var activeIPTVResumeKey: IPTVResumeKey?
+    @ObservationIgnored var iptvResumeLastSavedAt: Date?
     var hasScrobbled = false
     var didFinalizeCurrentSession = false
     var isHandlingPlaybackEnded = false
@@ -585,13 +589,24 @@ final class PlaybackCoordinator {
     /// catch-up URL for the programme's times, played like the channel
     /// (same headers, user agent and FairPlay flow) but as a finite stream —
     /// the normal on-demand player with a seek bar, no live HUD, no retune.
+    /// Starts at `startPosition` (a resume point) or the beginning.
     /// Returns false when the programme cannot be played back.
     @discardableResult
-    func playIPTVCatchUp(channel: PlexLiveChannel, program: PlexLiveProgram) async -> Bool {
+    func playIPTVCatchUp(
+        channel: PlexLiveChannel,
+        program: PlexLiveProgram,
+        startPosition: TimeInterval? = nil
+    ) async -> Bool {
         guard let live = channel.iptv,
               let start = program.beginsAt, let end = program.endsAt,
               let stream = live.catchUpStream(start: start, end: end) else { return false }
-        await playIPTV(channel: channel, stream: stream, program: program, lineup: nil)
+        await playIPTV(
+            channel: channel,
+            stream: stream,
+            program: program,
+            lineup: nil,
+            startPosition: startPosition
+        )
         return true
     }
 
@@ -604,7 +619,8 @@ final class PlaybackCoordinator {
         channel: PlexLiveChannel,
         stream: IPTVPlayableChannel,
         program: PlexLiveProgram?,
-        lineup: PlexLiveTVLineup?
+        lineup: PlexLiveTVLineup?,
+        startPosition: TimeInterval? = nil
     ) async {
         sharePlayController.leave()
         let attemptID = UUID()
@@ -678,10 +694,12 @@ final class PlaybackCoordinator {
         activeItemDetails = nil
         activeLiveTVContext = liveContext
         isPlayingIPTVCatchUp = isCatchUp
+        activeIPTVResumeKey = isCatchUp ? program.flatMap { IPTVResumeKey(channel: channel, program: $0) } : nil
+        iptvResumeLastSavedAt = nil
         engine = newEngine
         var source = PlaybackSource(
             url: stream.streamURL,
-            startPosition: nil,
+            startPosition: isCatchUp ? startPosition : nil,
             context: context,
             preferredAudioTrackPosition: nil,
             locality: .remoteNetwork,
@@ -1053,6 +1071,9 @@ final class PlaybackCoordinator {
     /// freeze while the user pauses during the credits.
     func noteActivePlaybackState(_ state: PlaybackState) {
         latestActivePlaybackState = state
+        if state == .paused, engine?.state == .paused {
+            saveIPTVResumePoint()
+        }
 
         // The engine's own state: `state` can be the HUD's optimistic one.
         if engine?.state == .playing, isSpatialAudioSession {

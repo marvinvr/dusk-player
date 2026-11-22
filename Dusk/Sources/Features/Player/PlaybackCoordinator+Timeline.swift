@@ -8,6 +8,7 @@ extension PlaybackCoordinator {
         timelineTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.reportCurrentTimeline()
+                self?.saveIPTVResumePointIfDue()
                 self?.pingActiveTranscodeSessionIfNeeded()
             }
         }
@@ -160,9 +161,11 @@ extension PlaybackCoordinator {
         switch phase {
         case .inactive:
             reportCurrentTimeline()
+            saveIPTVResumePoint()
         case .background:
             playerSceneWasBackgrounded = true
             reportCurrentTimeline()
+            saveIPTVResumePoint()
         case .active:
             // Control Center, Notification Center, a system alert or the app
             // switcher peek only make the scene inactive: nothing was torn

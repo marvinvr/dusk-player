@@ -25,6 +25,9 @@ struct LiveTVRootContent: View {
     /// dismissing dropped the presentation on tvOS, so nothing ever played
     /// (issue #17).
     @State private var pendingPlay: PendingLivePlay?
+    /// A past IPTV programme watched part of the way: asks whether to
+    /// resume it or start over, like Plex's Resume / Play from Start.
+    @State private var resumeOffer: IPTVResumeOffer?
     #if os(tvOS)
     /// One per guide section, so each source scrolls on its own.
     @State private var tvCursors: [String: LiveTVGuideCursor] = [:]
@@ -39,6 +42,12 @@ struct LiveTVRootContent: View {
         /// A past programme played back (catch-up or a recording), not the
         /// channel live.
         let isReplay: Bool
+    }
+
+    private struct IPTVResumeOffer {
+        let channel: PlexLiveChannel
+        let program: PlexLiveProgram
+        let position: TimeInterval
     }
 
     var body: some View {
@@ -107,6 +116,34 @@ struct LiveTVRootContent: View {
             .macUISheetSize(minHeight: 320, idealHeight: 460)
             #endif
         }
+        .confirmationDialog(
+            resumeOffer?.program.primaryDisplayTitle ?? "",
+            isPresented: Binding(
+                get: { resumeOffer != nil },
+                set: { if !$0 { resumeOffer = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: resumeOffer
+        ) { offer in
+            Button(Self.resumeTitle(offer.position)) {
+                Task {
+                    await playback.playIPTVCatchUp(
+                        channel: offer.channel, program: offer.program, startPosition: offer.position
+                    )
+                }
+            }
+            Button("Play from Start") {
+                Task { await playback.playIPTVCatchUp(channel: offer.channel, program: offer.program) }
+            }
+            Button("Cancel", role: .cancel) {}
+        }
+    }
+
+    /// "Resume from 12:34" (1:02:03 past an hour): Plex's minutes-only
+    /// label would read "0m" for a point under a minute in.
+    private static func resumeTitle(_ position: TimeInterval) -> String {
+        let pattern: Duration.TimeFormatStyle.Pattern = position >= 3600 ? .hourMinuteSecond : .minuteSecond
+        return "Resume from \(Duration.seconds(Int(position)).formatted(.time(pattern: pattern)))"
     }
 
     /// Mac: "Open Live TV Settings…" next to Try Again when an IPTV source
@@ -260,7 +297,11 @@ struct LiveTVRootContent: View {
     /// a Plex airing (played like any library item, resume point included).
     private func replay(_ program: PlexLiveProgram, channel: PlexLiveChannel) {
         if channel.iptv != nil {
-            Task { await playback.playIPTVCatchUp(channel: channel, program: program) }
+            if let position = playback.iptvResumePosition(channel: channel, program: program) {
+                resumeOffer = IPTVResumeOffer(channel: channel, program: program, position: position)
+            } else {
+                Task { await playback.playIPTVCatchUp(channel: channel, program: program) }
+            }
         } else if let item = viewModel.recording(for: program) {
             Task {
                 await playback.play(

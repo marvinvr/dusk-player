@@ -2240,6 +2240,7 @@ extension PlaybackCoordinator {
         let snapshot = timelineSnapshot(markCompleted: markCompleted)
         lastReportedTimeMs = snapshot.timeMs
         lastReportedDurationMs = snapshot.durationMs
+        saveIPTVResumePoint(timeMs: snapshot.timeMs, durationMs: snapshot.durationMs)
 
         if let ratingKey {
             reportTimelineOrQueueOfflineSync(
@@ -2340,6 +2341,7 @@ extension PlaybackCoordinator {
         cancelLiveTVScheduleRefresh()
         activeLiveTVContext = nil
         isPlayingIPTVCatchUp = false
+        activeIPTVResumeKey = nil
         activePlaybackServerID = nil
         activePlaybackUsesLocalDownload = false
         activeAudioStreamID = nil
