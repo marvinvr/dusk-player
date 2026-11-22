@@ -750,7 +750,7 @@ private struct LiveTVGuideSectionScroller: View {
     /// Which screenful of the axis is up: drawing is windowed around it, and
     /// only a change of page redraws the section.
     @State private var page = 0
-    /// Read when the timeline moves; not state, so a scroll redraws nothing.
+    /// Where the viewer is, as a time; not state, so a scroll redraws nothing.
     @State private var scroll = ScrollTracker()
     /// Which band of `rowsPerBand` rows the outer vertical scroll is at. The
     /// rows sit in this horizontal scroll view, so a `LazyVStack` here is not
@@ -761,7 +761,25 @@ private struct LiveTVGuideSectionScroller: View {
 
     private static let rowsPerBand = 25
 
-    private final class ScrollTracker { var x: CGFloat = 0 }
+    /// The leading edge kept as a time, not a point offset. Rotating under
+    /// the player re-lays the section out at another scale, and the scroll
+    /// view shifts its offset on its own as the landscape safe area comes and
+    /// goes; reading those offsets back as the viewer's position sent the
+    /// guide hours or days away after the player closed. Only a scroll the
+    /// viewer makes (or one of ours) moves the anchor; any layout change puts
+    /// the leading edge back on it.
+    private final class ScrollTracker {
+        var anchor: Date?
+        var phase: ScrollPhase = .idle
+    }
+
+    /// What the leading edge depends on besides the anchor: a change in any
+    /// of these moves the anchor's point, so the scroll is put back on it.
+    private struct ScrollLayout: Equatable {
+        var contentWidth: CGFloat
+        var containerWidth: CGFloat
+        var leadingInset: CGFloat
+    }
 
     private var timeline: LiveTVGuideTimeline { section.timeline }
     private var viewport: CGFloat { max(width - metrics.channelWidth, 1) }
@@ -834,17 +852,39 @@ private struct LiveTVGuideSectionScroller: View {
         .scrollPosition($position)
         .scrollIndicators(.hidden)
         .scrollTargetBehavior(LiveTVGuideShortMomentum())
-        .onScrollGeometryChange(for: CGFloat.self) { $0.contentOffset.x } action: { _, x in
-            scroll.x = x
+        .onScrollPhaseChange { _, phase in
+            scroll.phase = phase
+        }
+        .onScrollGeometryChange(for: CGFloat.self) { Self.leadingX($0) } action: { _, x in
+            // Offsets that change while nobody scrolls are layout, not the
+            // viewer: those are corrected below, never adopted.
+            guard scroll.phase != .idle else { return }
+            scroll.anchor = timeline.date(forX: x)
+        }
+        .onScrollGeometryChange(for: ScrollLayout.self) { geometry in
+            ScrollLayout(
+                contentWidth: geometry.contentSize.width,
+                containerWidth: geometry.containerSize.width,
+                leadingInset: geometry.contentInsets.leading
+            )
+        } action: { _, _ in
+            restoreAnchor()
         }
         .onScrollGeometryChange(for: Int.self) { [viewport] geometry in
-            Int((geometry.contentOffset.x / viewport).rounded(.down))
+            Int((Self.leadingX(geometry) / viewport).rounded(.down))
         } action: { _, new in
             page = new
         }
         // The guide reaches back into the past now, so it opens on now rather
-        // than on its start; the past is a scroll to the left.
-        .onAppear { scrollToNow(animated: false) }
+        // than on its start; the past is a scroll to the left. A section that
+        // comes back (the player closing) returns to where it was.
+        .onAppear {
+            if scroll.anchor == nil {
+                scrollToNow(animated: false)
+            } else {
+                restoreAnchor()
+            }
+        }
         .onChange(of: jump) { _, jump in
             if let day = jump.day {
                 scroll(toDay: day)
@@ -852,24 +892,31 @@ private struct LiveTVGuideSectionScroller: View {
                 scrollToNow(animated: true)
             }
         }
-        .onChange(of: timeline) { old, new in
+        .onChange(of: timeline) {
             // The axis moves under the viewer (the now zone rolls on, a guide
-            // reload): keep the same moment at the leading edge.
-            guard old.contains(now), new.contains(now), old != new else { return }
-            let x = max(0, new.x(for: old.date(forX: scroll.x)))
-            if abs(x - scroll.x) > 0.5 { position.scrollTo(x: x) }
+            // reload, another scale after a rotation): keep the same moment at
+            // the leading edge.
+            restoreAnchor()
         }
         #if DEBUG
         .task {
             guard let minutes = ScreenshotMode.guideOffsetMinutes else { return }
             try? await Task.sleep(for: .seconds(1))
-            position.scrollTo(x: CGFloat(minutes) * metrics.pointsPerMinute)
+            scrollTo(x: CGFloat(minutes) * metrics.pointsPerMinute, animated: false)
         }
         #endif
     }
 
-    private func scrollToNow(animated: Bool) {
-        let x = timeline.nowOffset(now)
+    /// The content x at the leading edge. In landscape the content starts
+    /// inside the safe area, so the raw offset is off by that inset (and
+    /// changes with it on a rotation, without anyone scrolling).
+    nonisolated private static func leadingX(_ geometry: ScrollGeometry) -> CGFloat {
+        geometry.contentOffset.x + geometry.contentInsets.leading
+    }
+
+    private func scrollTo(x: CGFloat, animated: Bool) {
+        let x = min(max(x, 0), max(timeline.width - viewport, 0))
+        scroll.anchor = timeline.date(forX: x)
         if animated {
             withAnimation(.smooth) { position.scrollTo(x: x) }
         } else {
@@ -877,11 +924,21 @@ private struct LiveTVGuideSectionScroller: View {
         }
     }
 
+    /// Puts the leading edge back on the anchored time, on the current axis.
+    /// Not while the viewer is scrolling: that is where the anchor comes from.
+    private func restoreAnchor() {
+        guard let anchor = scroll.anchor, scroll.phase == .idle else { return }
+        let date = min(max(anchor, timeline.start), timeline.end)
+        let x = min(max(timeline.x(for: date), 0), max(timeline.width - viewport, 0))
+        position.scrollTo(x: x)
+    }
+
+    private func scrollToNow(animated: Bool) {
+        scrollTo(x: timeline.nowOffset(now), animated: animated)
+    }
+
     private func scroll(toDay day: Date) {
-        let x = timeline.x(for: min(max(day, timeline.start), timeline.end))
-        withAnimation(.smooth) {
-            position.scrollTo(x: min(x, max(timeline.width - viewport, 0)))
-        }
+        scrollTo(x: timeline.x(for: min(max(day, timeline.start), timeline.end)), animated: true)
     }
 
     /// Tapping a marker hops to the far side of it: away from now, which is
@@ -890,9 +947,7 @@ private struct LiveTVGuideSectionScroller: View {
         let x = cell.start >= now
             ? timeline.x(for: cell.end) - viewport * LiveTVGuideCursor.marginShare
             : timeline.x(for: cell.start) - viewport * (1 - LiveTVGuideCursor.comfortableShare)
-        withAnimation(.smooth) {
-            position.scrollTo(x: min(max(x, 0), max(timeline.width - viewport, 0)))
-        }
+        scrollTo(x: x, animated: true)
     }
 
     private var rulerHeader: some View {

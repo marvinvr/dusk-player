@@ -1216,7 +1216,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   trailing end, rounded up to 16 pt steps (`onGeometryChange`), so only those
   blocks re-lay out, once per step. Cells and ruler marks are windowed to
   a few screenfuls around the scroll position. `LiveTVGuideShortMomentum` shortens
-  flicks; `TargetContext.velocity` is in points per **millisecond**. Toolbar: Now +
+  flicks; `TargetContext.velocity` is in points per **millisecond**. Each section
+  keeps its horizontal position as a time (`ScrollTracker.anchor`), set only by
+  a scroll in a non-idle `ScrollPhase` or by our own jumps, and puts the leading
+  edge back on it whenever the timeline, viewport, content width or leading
+  inset changes. Never adopt idle offset changes: the player cover rotates the
+  iPhone to landscape and back (another scale, a 62 pt safe-area inset that
+  shifts `contentOffset` on its own), and reading those back drifted the guide
+  further with every play/close. Content x = `contentOffset.x +
+  contentInsets.leading`. Toolbar: Now +
   day menu (scrolls every section). Tap live = play, later = details sheet, marker =
   skip; tap channel = tune.
 - tvOS: rows are full-width focusable buttons, so Up/Down is native focus, with
@@ -1257,12 +1265,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   All device sections share the Plex day (a tvOS day cross moves the others to
   the same moment) and playing from any of them still switches within all Plex
   channels.
-- Plex sections drop filler airings before the axis is built
+- Every section (Plex and IPTV) drops filler airings before the axis is built
   (`PlexLiveTVLineup.removingFillerAirings`): a title that runs 12 h or more at
-  a stretch on a channel (a Threadfin relay's "No live session" between
-  events) is placeholder, and all its airings on that channel become empty time,
-  so they collapse like an IPTV guide's gaps. Playback and the channel list
-  still use the full lineup.
+  a stretch on a channel (a relay's "No live session" between events, straight
+  from its XMLTV or through Threadfin) is placeholder, and all its airings on
+  that channel become empty time, so they collapse like any empty stretch.
+  Playback and the channel list still use the full lineup (`play` maps an IPTV
+  section back to its source's lineup).
 - IPTV sources (Settings › Live TV › IPTV Sources) add one guide section per
   source after the Plex channels, with the same rows and cards; IPTV alone
   shows the tab. See `iptv.md`.

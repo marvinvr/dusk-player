@@ -248,7 +248,7 @@ struct LiveTVRootContent: View {
         }
         for plex in plexSections {
             // Placeholder airings drawn as empty time, so they collapse the
-            // way an IPTV guide's empty stretches do.
+            // way an empty stretch of the guide does.
             let lineup = plex.lineup.removingFillerAirings()
             add(
                 id: plex.id, title: plex.title, lineup: lineup,
@@ -257,9 +257,12 @@ struct LiveTVRootContent: View {
             )
         }
         for iptv in viewModel.iptvLineups {
+            // A relay's guide fills the days between live sessions with a
+            // "No live session" programme, which drew those days to scale.
+            let lineup = iptv.lineup.removingFillerAirings()
             add(
-                id: "iptv-\(iptv.source.id)", title: iptv.source.name, lineup: iptv.lineup,
-                window: LiveTVGuideTimeline.wholeGuideWindow(of: iptv.lineup, now: now),
+                id: "iptv-\(iptv.source.id)", title: iptv.source.name, lineup: lineup,
+                window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
                 collapsesTrailingGap: false
             )
         }
@@ -409,7 +412,11 @@ struct LiveTVRootContent: View {
     private func play(channel: PlexLiveChannel, program: PlexLiveProgram?, lineup: PlexLiveTVLineup) {
         let program = program.flatMap { $0.isAiring() ? $0 : nil }
         // A tuner device's section switches within all Plex channels, as before.
-        let lineup = lineup.provider.isIPTV ? lineup : (viewModel.lineup ?? lineup)
+        // An IPTV section's lineup lacks its filler programmes (guide only):
+        // the player gets the source's full one.
+        let lineup = lineup.provider.isIPTV
+            ? (viewModel.iptvLineups.first { $0.lineup.provider.identifier == lineup.provider.identifier }?.lineup ?? lineup)
+            : (viewModel.lineup ?? lineup)
         Task {
             await playback.playLiveTV(channel: channel, program: program, lineup: lineup)
         }

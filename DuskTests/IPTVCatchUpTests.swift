@@ -384,6 +384,73 @@ struct LiveTVGuideCatchUpTests {
         }
     }
 
+    // MARK: Filler airings
+
+    private func airing(_ key: String, _ title: String, from begin: Date, to end: Date) throws -> PlexLiveProgram {
+        try JSONDecoder().decode(PlexLiveProgram.self, from: Data("""
+        { "ratingKey": "\(key)", "title": "\(title)",
+          "Media": [{ "beginsAt": \(Int(begin.timeIntervalSince1970)), "endsAt": \(Int(end.timeIntervalSince1970)), "gridKey": "g1" }] }
+        """.utf8))
+    }
+
+    /// A relay's IPTV guide: sessions days apart with "No live session"
+    /// programmes in between (days long, plus a short one between two
+    /// sessions on one day). Those draw as empty time, so the days collapse
+    /// in an IPTV section exactly as in a Plex one.
+    private func relayLineup(now: Date) throws -> PlexLiveTVLineup {
+        let hour: TimeInterval = 3600
+        let programs = [
+            try airing("s1", "Practice 1", from: now.addingTimeInterval(-72 * hour), to: now.addingTimeInterval(-71 * hour)),
+            try airing("f1", "No live session", from: now.addingTimeInterval(-71 * hour), to: now.addingTimeInterval(-hour / 2)),
+            try airing("s2", "Qualifying", from: now.addingTimeInterval(-hour / 2), to: now.addingTimeInterval(hour)),
+            try airing("f2", "No live session", from: now.addingTimeInterval(hour), to: now.addingTimeInterval(3 * hour)),
+            try airing("s3", "Sprint", from: now.addingTimeInterval(3 * hour), to: now.addingTimeInterval(4 * hour)),
+            try airing("f3", "No live session", from: now.addingTimeInterval(4 * hour), to: now.addingTimeInterval(48 * hour)),
+            try airing("s4", "Race", from: now.addingTimeInterval(48 * hour), to: now.addingTimeInterval(50 * hour)),
+        ]
+        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        return PlexLiveTVLineup(provider: provider, guides: [PlexLiveChannelGuide(channel: channel, programs: programs)])
+    }
+
+    private func relayTimeline(_ lineup: PlexLiveTVLineup, now: Date) -> LiveTVGuideTimeline {
+        LiveTVGuideTimeline(
+            window: LiveTVGuideTimeline.wholeGuideWindow(of: lineup, now: now),
+            lineup: lineup, now: now, pointsPerMinute: 5, collapsedWidth: 100, collapsesTrailingGap: false
+        )
+    }
+
+    @Test func fillerProgrammesKeepAnIPTVGuideFromCollapsing() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        #expect(relayTimeline(try relayLineup(now: now), now: now).collapses.isEmpty)
+    }
+
+    @Test func removingFillerCollapsesTheDaysBetweenSessions() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let lineup = try relayLineup(now: now).removingFillerAirings()
+        let titles = lineup.guides[0].programs.map(\.title)
+        // The two-hour filler between two sessions goes too: same title.
+        #expect(titles == ["Practice 1", "Qualifying", "Sprint", "Race"])
+
+        let timeline = relayTimeline(lineup, now: now)
+        // Days back, the two hours between Qualifying and Sprint, days ahead.
+        #expect(timeline.collapses.count == 3)
+        // Five days of guide in a few screens: the sessions to scale (plus up
+        // to half an hour before the first, the axis starts on a tick) and
+        // three markers.
+        #expect(timeline.width < 100 * 3 + 5 * 60 * 7)
+        let cells = LiveTVGuideSection.cells(for: lineup.guides[0], rowID: "r", timeline: timeline, now: now)
+        #expect(cells.filter(\.isCollapsedGap).count == 3)
+        #expect(cells.contains { $0.program?.title == "Race" })
+    }
+
+    @Test func longRealProgrammesOnOtherChannelsStay() throws {
+        let now = Date(timeIntervalSince1970: 1_793_000_000)
+        let movie = try airing("m", "Film", from: now.addingTimeInterval(-3600), to: now.addingTimeInterval(3 * 3600))
+        let provider = PlexLiveTVProvider(identifier: "iptv:x", providerIdentifier: IPTVLineupBuilder.providerIdentifier, title: "x", dvrID: 0, gridKey: "", serverID: "x")
+        let lineup = PlexLiveTVLineup(provider: provider, guides: [PlexLiveChannelGuide(channel: channel, programs: [movie])])
+        #expect(lineup.removingFillerAirings().guides[0].programs.map(\.title) == ["Film"])
+    }
+
     @Test func pastDaysAreWholeDays() {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Europe/Zurich")!
