@@ -181,7 +181,7 @@ defaults on `#EXTM3U` — `catchup` (or `catchup-type`), `catchup-days` (or
 ### Resume points
 
 Plex keeps no state for IPTV, so `IPTVService/IPTVResumeStore.swift` remembers
-how far a catch-up programme was watched, on device only.
+how far a catch-up programme was watched.
 
 - Key (`IPTVResumeKey`): SHA-256 (first 128 bits, hex) of source id + the
   channel's live stream URL + programme start/end. Never the catch-up URL,
@@ -196,6 +196,15 @@ how far a catch-up programme was watched, on device only.
   background, session end (`finalizeCurrentPlaybackSession`, so playing to the
   end clears it) and every ~20 s on the timeline tick. Never while the engine
   is loading (it can report 0).
+- iCloud: mirrored to `NSUbiquitousKeyValueStore` (one key, same
+  dictionary, ~15 KB at the cap) through `IPTVResumeCloud`: merged per entry,
+  newest `updatedAt` wins (tombstones included), on launch, on every write
+  and on `didChangeExternallyNotification`. Entitlement
+  `com.apple.developer.ubiquity-kvstore-identifier` on the iOS/tvOS app
+  entitlements and `Dusk-macOS-AppStore.entitlements` (testflight.sh swaps it
+  in for the Mac archive; ad-hoc Mac builds can't carry it). Never on Top
+  Shelf (its App ID has no iCloud). Without the entitlement or an iCloud
+  account the store is local-only, so the code needs no switch.
 - Prompt: the guide's `replay` asks with a `confirmationDialog` (programme
   title; "Resume from 12:34" / "Play from Start" / Cancel) when a point
   exists, else plays straight away. Resume passes the point as

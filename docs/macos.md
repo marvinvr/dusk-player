@@ -64,7 +64,9 @@ test installs override it on the command line only (see Local test install).
   turns it on for the Mac App Store archive (`ENABLE_HARDENED_RUNTIME = YES`
   in its signing xcconfig), where Apple Distribution signs the app and VLCKit
   with the same Team ID; no hardened-runtime exception entitlements are
-  needed. See Mac App Store / TestFlight below.
+  needed. The archive also signs with `Dusk-macOS-AppStore.entitlements`
+  (adds iCloud key-value storage, which needs a provisioning profile, so an
+  ad-hoc build must not claim it). See Mac App Store / TestFlight below.
 
 ## Build
 

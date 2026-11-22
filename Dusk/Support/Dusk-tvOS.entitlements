@@ -8,5 +8,7 @@
 	<array>
 		<string>group.com.dusk-player.app</string>
 	</array>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
 </dict>
 </plist>

@@ -33,9 +33,11 @@ struct IPTVResumeKey: Hashable, Sendable {
     }
 }
 
-/// How far a past IPTV programme was watched, kept on this device only (Plex
-/// knows nothing of IPTV). Small and throwaway: a capped dictionary in
-/// UserDefaults, entries expire after two weeks, losing it is harmless.
+/// How far a past IPTV programme was watched (Plex knows nothing of IPTV).
+/// Small and throwaway: a capped dictionary in UserDefaults, entries expire
+/// after two weeks, losing it is harmless. Mirrored to iCloud key-value
+/// storage when the app has it (`IPTVResumeCloud`), merged per entry by the
+/// newest write; without it everything stays on the device.
 ///
 /// A finished programme leaves a position-less entry (a tombstone) instead of
 /// disappearing, so a merged copy of the dictionary cannot bring an older
@@ -55,7 +57,7 @@ final class IPTVResumeStore {
         }
     }
 
-    static let shared = IPTVResumeStore()
+    static let shared = IPTVResumeStore(cloud: UbiquitousIPTVResumeCloud())
 
     /// Positions this early are not worth resuming (nor worth saving).
     static let minimumPosition: TimeInterval = 30
@@ -70,14 +72,18 @@ final class IPTVResumeStore {
     }
 
     private let defaults: UserDefaults
+    private let cloud: IPTVResumeCloud?
     private let now: () -> Date
     private(set) var entries: [String: Entry]
 
-    init(defaults: UserDefaults = .standard, now: @escaping () -> Date = Date.init) {
+    init(defaults: UserDefaults = .standard, cloud: IPTVResumeCloud? = nil, now: @escaping () -> Date = Date.init) {
         self.defaults = defaults
+        self.cloud = cloud
         self.now = now
         entries = Self.decode(defaults.data(forKey: Self.storageKey))
         if prune() { persist() }
+        cloud?.observeExternalChanges { [weak self] in self?.mergeFromCloud() }
+        mergeFromCloud()
     }
 
     /// Where to offer resuming the programme from, if anywhere.
@@ -100,6 +106,30 @@ final class IPTVResumeStore {
         entries[key.rawValue] = entry
         prune()
         persist()
+        // Merged first: the cloud may hold another device's newer entries.
+        mergeFromCloud()
+    }
+
+    /// Takes the cloud copy's newer entries; pushes back when this device
+    /// had something the cloud did not.
+    func mergeFromCloud() {
+        guard let cloud else { return }
+        let remote = Self.decode(cloud.read())
+        let merged = Self.merged(entries, remote, now: now())
+        if merged != entries {
+            entries = merged
+            persist()
+        }
+        if merged != remote, let data = try? JSONEncoder().encode(merged) {
+            cloud.write(data)
+        }
+    }
+
+    /// Per entry, the newer write wins (a tombstone included); then expiry
+    /// and the cap.
+    static func merged(_ local: [String: Entry], _ remote: [String: Entry], now: Date) -> [String: Entry] {
+        let combined = local.merging(remote) { mine, theirs in theirs.updatedAt > mine.updatedAt ? theirs : mine }
+        return pruned(combined, now: now)
     }
 
     /// Drops expired entries, then the oldest beyond the cap. Returns
@@ -128,5 +158,45 @@ final class IPTVResumeStore {
     static func decode(_ data: Data?) -> [String: Entry] {
         guard let data, let decoded = try? JSONDecoder().decode([String: Entry].self, from: data) else { return [:] }
         return decoded
+    }
+}
+
+/// Where the resume points are mirrored for the viewer's other devices.
+@MainActor
+protocol IPTVResumeCloud: AnyObject {
+    func read() -> Data?
+    func write(_ data: Data)
+    /// Calls back on the main actor when another device changed the copy.
+    func observeExternalChanges(_ handler: @escaping @MainActor () -> Void)
+}
+
+/// iCloud key-value storage (`com.apple.developer.ubiquity-kvstore-identifier`).
+/// One key, ~15 KB at the 200-entry cap, far below the 1 MB limit. Without
+/// the entitlement or an iCloud account the store only keeps a local copy,
+/// so this degrades to device-only on its own.
+@MainActor
+final class UbiquitousIPTVResumeCloud: IPTVResumeCloud {
+    static let key = "iptvResumePoints"
+    private let store = NSUbiquitousKeyValueStore.default
+    private var observer: NSObjectProtocol?
+
+    func read() -> Data? {
+        store.data(forKey: Self.key)
+    }
+
+    func write(_ data: Data) {
+        store.set(data, forKey: Self.key)
+    }
+
+    func observeExternalChanges(_ handler: @escaping @MainActor () -> Void) {
+        observer = NotificationCenter.default.addObserver(
+            forName: NSUbiquitousKeyValueStore.didChangeExternallyNotification,
+            object: store,
+            queue: .main
+        ) { _ in
+            MainActor.assumeIsolated { handler() }
+        }
+        // Fetches what changed while the app was not running.
+        store.synchronize()
     }
 }

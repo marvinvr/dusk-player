@@ -239,6 +239,13 @@ def plan(settings_json, out_dir, platform):
         if not p: out(3, f"profile missing for {bundle} ({pplat}): no Mac App Store provisioning profile installed (only other types)")
         if st != "ACTIVE": out(3, f"profile '{p['Name']}' for {bundle} is {st or 'unknown to App Store Connect'} (capabilities changed? regenerate it)")
         ent_path = expand(s.get("CODE_SIGN_ENTITLEMENTS", ""), s)
+        # The Mac App Store archive adds iCloud key-value storage, which an ad-hoc
+        # local build cannot carry (no profile), from its own entitlements file.
+        if mac and ent_path.endswith(".entitlements"):
+            store_ent = ent_path[:-len(".entitlements")] + "-AppStore.entitlements"
+            if os.path.exists(store_ent if os.path.isabs(store_ent) else os.path.join(s.get("PROJECT_DIR", "."), store_ent)):
+                ent_path = store_ent
+                lines.append(f"CODE_SIGN_ENTITLEMENTS = {store_ent}")
         if ent_path:
             full = ent_path if os.path.isabs(ent_path) else os.path.join(s.get("PROJECT_DIR", "."), ent_path)
             want, have = plistlib.load(open(full, "rb")), p["Entitlements"]

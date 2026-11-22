@@ -9,5 +9,7 @@
 	</array>
 	<key>com.apple.developer.group-session</key>
 	<true/>
+	<key>com.apple.developer.ubiquity-kvstore-identifier</key>
+	<string>$(TeamIdentifierPrefix)$(CFBundleIdentifier)</string>
 </dict>
 </plist>

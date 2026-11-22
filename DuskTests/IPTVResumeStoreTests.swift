@@ -125,3 +125,80 @@ struct IPTVResumeStoreTests {
         #expect(store.resumePosition(for: key(TimeInterval(total - 1) * 3600)) == 600)
     }
 }
+
+@Suite("IPTV resume store cloud mirror")
+@MainActor
+struct IPTVResumeStoreCloudTests {
+    @MainActor
+    private final class FakeCloud: IPTVResumeCloud {
+        var data: Data?
+        var writes = 0
+        var handler: (@MainActor () -> Void)?
+        func read() -> Data? { data }
+        func write(_ data: Data) { self.data = data; writes += 1 }
+        func observeExternalChanges(_ handler: @escaping @MainActor () -> Void) { self.handler = handler }
+    }
+
+    private final class Clock {
+        var now = Date(timeIntervalSince1970: 1_793_100_000)
+    }
+
+    private func makeDefaults() -> UserDefaults {
+        let name = "IPTVResumeStoreCloudTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: name)!
+        defaults.removePersistentDomain(forName: name)
+        return defaults
+    }
+
+    private func key(_ index: Int) -> IPTVResumeKey {
+        let start = Date(timeIntervalSince1970: 1_793_000_000 + TimeInterval(index) * 3600)
+        return IPTVResumeKey(sourceID: UUID(uuidString: "6F1C2B9E-0D4A-4C55-9A57-3E2E1B7C8D90")!,
+                             channelStreamURL: URL(string: "https://tv.example/live/1.m3u8")!,
+                             start: start, end: start.addingTimeInterval(3600))
+    }
+
+    @Test func twoDevicesShareTheNewestPoint() {
+        let cloud = FakeCloud()
+        let clock = Clock()
+        let tv = IPTVResumeStore(defaults: makeDefaults(), cloud: cloud, now: { clock.now })
+        let phone = IPTVResumeStore(defaults: makeDefaults(), cloud: cloud, now: { clock.now })
+
+        tv.record(position: 600, duration: 3600, for: key(0))
+        cloud.handler?()
+        phone.mergeFromCloud()
+        #expect(phone.resumePosition(for: key(0)) == 600)
+
+        clock.now = clock.now.addingTimeInterval(60)
+        phone.record(position: 1500, duration: 3600, for: key(0))
+        tv.mergeFromCloud()
+        #expect(tv.resumePosition(for: key(0)) == 1500)
+
+        // A stale write does not win: the TV's older value stays behind.
+        clock.now = clock.now.addingTimeInterval(60)
+        phone.record(position: 3590, duration: 3600, for: key(0))
+        tv.mergeFromCloud()
+        #expect(tv.resumePosition(for: key(0)) == nil)
+    }
+
+    @Test func mergeKeepsTheNewerEntryPerKey() {
+        typealias Entry = IPTVResumeStore.Entry
+        let now = Date(timeIntervalSince1970: 1_793_100_000)
+        let older = Entry(position: 100, duration: 3600, updatedAt: now.addingTimeInterval(-60))
+        let newer = Entry(position: 200, duration: 3600, updatedAt: now)
+        let tombstone = Entry(position: nil, duration: 3600, updatedAt: now)
+        let expired = Entry(position: 300, duration: 3600, updatedAt: now.addingTimeInterval(-15 * 24 * 3600))
+        let merged = IPTVResumeStore.merged(["a": older, "b": tombstone, "c": expired], ["a": newer, "b": older], now: now)
+        #expect(merged == ["a": newer, "b": tombstone])
+    }
+
+    @Test func worksWithoutACloudCopy() {
+        let cloud = FakeCloud()
+        let store = IPTVResumeStore(defaults: makeDefaults(), cloud: cloud)
+        #expect(cloud.writes == 0)
+        cloud.data = Data("not json".utf8)
+        store.mergeFromCloud()
+        store.record(position: 600, duration: 3600, for: key(1))
+        #expect(store.resumePosition(for: key(1)) == 600)
+        #expect(IPTVResumeStore.decode(cloud.data)[key(1).rawValue]?.position == 600)
+    }
+}
