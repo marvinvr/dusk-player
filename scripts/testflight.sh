@@ -28,8 +28,9 @@
 #   SIGNING_KEYCHAIN_PASSWORD_FILE           optional, unlocks SIGNING_KEYCHAIN
 # Signing is manual with an installed App Store provisioning profile per bundle id and platform
 # (the newest matching one in ~/Library/Developer/Xcode/UserData/Provisioning Profiles or
-# ~/Library/MobileDevice/Provisioning Profiles). Apple assigns the build number; versions in
-# the repo are never touched.
+# ~/Library/MobileDevice/Provisioning Profiles). The build number is the highest build of the app
+# on App Store Connect across all platforms and versions + 1, the same for every platform of a run
+# (passed as CURRENT_PROJECT_VERSION, extensions included); versions in the repo are never touched.
 # macOS additionally needs a Mac App Store profile (.provisionprofile, App Store Connect type
 # MAC_APP_STORE), the "Apple Distribution" identity and a "3rd Party Mac Developer Installer"
 # (Mac Installer Distribution) identity for the .pkg; it is archived with the hardened runtime
@@ -60,7 +61,7 @@ while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY=1 ;; --no-wait) WAIT=0 ;;
     --platform) WANT="${2:-}"; shift ;; --platform=*) WANT="${1#*=}" ;;
-    -h|--help) sed -n '2,36p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,37p' "$0"; exit 0 ;;
     -*) echo "TESTFLIGHT FAIL platform=- code=2 reason=unknown option $1 log=-"; exit 2 ;;
     *) REF="$1" ;;
   esac
@@ -264,7 +265,7 @@ def plan(settings_json, out_dir, platform):
     open(os.path.join(out_dir, "signing.xcconfig"), "w").write("\n".join(lines) + "\n")
     export = {"method": "app-store-connect", "destination": "upload", "teamID": team, "signingStyle": "manual",
               "signingCertificate": "Apple Distribution", "provisioningProfiles": mapping, "uploadSymbols": True,
-              "manageAppVersionAndBuildNumber": True}
+              "manageAppVersionAndBuildNumber": False}  # keep the run's shared CURRENT_PROJECT_VERSION
     if mac: export["installerSigningCertificate"] = MAC_INSTALLER[0]
     plistlib.dump(export, open(os.path.join(out_dir, "ExportOptions.plist"), "wb"))
     apps = api("/v1/apps?filter[bundleId]=" + urllib.parse.quote(app_bundle) + "&fields[apps]=bundleId")["data"]
@@ -285,6 +286,31 @@ def check_mac_identities(team):
     if not re.search(rf'"(?:{"|".join(MAC_INSTALLER)}): [^"]*\({team}\)"', identities("basic")):
         out(3, f"installer identity missing: 3rd Party Mac Developer Installer (Mac Installer Distribution) certificate for team {team} not in the keychain")
 
+def next_build(settings_json):
+    # One number for every platform of a run: the highest build of the app(s) on App Store Connect,
+    # over all platforms and versions, + 1. Build numbers only have to grow per platform + version,
+    # so the global max + 1 is always valid and never collides, also when only one platform is built.
+    sdks = tuple(v[2] for v in PLATFORMS.values())
+    bundles = sorted({t["buildSettings"]["PRODUCT_BUNDLE_IDENTIFIER"] for t in json.load(open(settings_json))
+                      if t["buildSettings"].get("WRAPPER_EXTENSION") == "app" and t["buildSettings"].get("PRODUCT_BUNDLE_IDENTIFIER")
+                      and t["buildSettings"].get("PLATFORM_NAME", t["buildSettings"].get("SDKROOT", "")).startswith(sdks)})
+    if not bundles: out(8, "no app targets")
+    top, count = 0, 0
+    for bundle in bundles:
+        apps = api("/v1/apps?filter[bundleId]=" + urllib.parse.quote(bundle) + "&fields[apps]=bundleId")["data"]
+        app_id = next((a["id"] for a in apps if a["attributes"]["bundleId"] == bundle), None)
+        if not app_id: out(3, f"no App Store Connect app for {bundle}")
+        path = f"/v1/builds?filter[app]={app_id}&limit=200&fields[builds]=version"
+        while path:
+            d = api(path)
+            for b in d["data"]:
+                count += 1
+                m = re.match(r"\d+", b["attributes"]["version"] or "")  # "22" (or a dotted "1.2.3": its first part)
+                if m: top = max(top, int(m.group()))
+            nxt = d.get("links", {}).get("next")
+            path = nxt[len("https://api.appstoreconnect.apple.com"):] if nxt else None
+    print(f"{top + 1} {top} {count}")
+
 def latest(app_id, platform):
     d = api(f"/v1/builds?filter[app]={app_id}&filter[preReleaseVersion.platform]={PLATFORMS[platform][1]}"
             "&sort=-uploadedDate&limit=1&fields[builds]=version,processingState")["data"]
@@ -293,6 +319,7 @@ def latest(app_id, platform):
 if __name__ == "__main__":
     if sys.argv[1] == "plan": plan(*sys.argv[2:5])
     elif sys.argv[1] == "latest": latest(*sys.argv[2:4])
+    elif sys.argv[1] == "nextbuild": next_build(sys.argv[2])
     elif sys.argv[1] == "external": external(*sys.argv[2:5])
 PY
 TF="python3 -I $WORK/tf.py"
@@ -308,6 +335,13 @@ if [ -n "${SIGNING_KEYCHAIN:-}" ]; then
   fi
   security set-keychain-settings -t 7200 -l "$KC" 2>/dev/null
 fi
+
+# One build number for all platforms (also the skipped ones' next), so iOS / tvOS / macOS of a run match.
+BUILD_INFO=$($TF nextbuild "$WORK/settings.json" 2>&1); rc=$?
+[ $rc -eq 0 ] || fail "$rc" "could not pick the build number: $BUILD_INFO"
+read -r BUILD TOP NBUILDS <<<"$BUILD_INFO"
+[[ "$BUILD" =~ ^[0-9]+$ ]] || fail 1 "could not pick the build number: $BUILD_INFO"
+say "build number $BUILD for all platforms (highest on App Store Connect: $TOP, over $NBUILDS builds)"
 
 build_one() {  # <platform> <scheme>, run as a background job with RESULT set
   PLAT=$1; local scheme=$2 dir="$WORK/$1" dest
@@ -337,7 +371,7 @@ build_one() {  # <platform> <scheme>, run as a background job with RESULT set
   say "archiving $scheme ..."
   xcodebuild -project "$XCPROJ" -scheme "$scheme" -configuration Release -destination "$dest" \
     -archivePath "$dir/App.xcarchive" -derivedDataPath "$dir/DerivedData" -xcconfig "$dir/signing.xcconfig" \
-    archive >"$dir/archive.log" 2>&1 || {
+    CURRENT_PROJECT_VERSION="$BUILD" archive >"$dir/archive.log" 2>&1 || {
     local e; e=$(errors "$dir/archive.log"); is_signing "$e" && fail 3 "archive signing failed: $e"; fail 4 "archive failed: $e"; }
 
   local prev; prev=$($TF latest "$app_id" "$PLAT" | cut -d' ' -f1)
