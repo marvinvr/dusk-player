@@ -359,6 +359,14 @@ so the whole live HUD is derived from one instant.
   ties, then source order. Stream IDs are used only within the active part,
   never persisted. Unknown language or a missing language/purpose match uses
   existing automatic selection. A miss does not erase the saved choice.
+- Downloaded (Plex sidecar) subtitles: the descriptor records `external` and
+  reads purpose only from Plex's flags and `displayTitle`, never the provider
+  release name Plex puts in `title`/`extendedDisplayTitle` (it differs per
+  episode and trips the SDH/forced markers). A remembered sidecar matches the
+  next episode on language and forced only: a same-language sidecar wins, else
+  an embedded track in that language (same SDH flag first). Nothing is fetched
+  automatically; the next episode's download is still the viewer's. Choices
+  saved before `external` existed decode as nil and keep the strict rule.
 - Subtitles have three states: unspecified, explicitly Off, or a descriptor.
   Off overrides forced/default/global subtitles too. Changing audio only keeps
   the independently saved subtitle preference, and vice versa. Automatic picks,

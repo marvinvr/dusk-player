@@ -9,29 +9,45 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
     let descriptive: Bool
     let codec: String?
     let channels: Int?
+    /// A Plex sidecar (a subtitle downloaded through Plex's search, or a file
+    /// next to the media). Nil for choices saved before this was recorded.
+    let external: Bool?
 
     @MainActor
     init?(stream: PlexStream) {
         guard let language = PlayerViewModel.normalizedLanguageCode(stream.languageCode ?? stream.languageTag),
               language != "und", language != "unk" else { return nil }
         self.language = language
-        let title = stream.extendedDisplayTitle ?? stream.displayTitle ?? ""
+        let isExternal = stream.key != nil
+        // A downloaded sidecar's `title` is the provider's release name, which
+        // Plex folds into `extendedDisplayTitle`: different every episode and
+        // full of accidental markers ("SUCCESSORS" contains "cc"). Only the
+        // short display title and Plex's own flags describe its purpose.
+        let title = (isExternal ? stream.displayTitle : stream.extendedDisplayTitle ?? stream.displayTitle) ?? ""
         forced = stream.isForced == true || PlayerViewModel.containsForcedMarker(title)
         hearingImpaired = stream.isHearingImpaired == true || PlayerViewModel.containsHearingImpairedMarker(title)
         commentary = PlayerViewModel.containsCommentaryMarker(title)
         descriptive = PlayerViewModel.containsDescriptiveAudioMarker(title)
         codec = stream.codec?.lowercased()
         channels = stream.channels
+        external = stream.streamType == .subtitle ? isExternal : nil
     }
 
     @MainActor
     func match(in streams: [PlexStream], type: PlexStreamType) -> PlexStream? {
         // Language and purpose are requirements. Codec/channels only break ties;
         // never substitute forced subtitles or commentary for a normal track.
+        //
+        // A downloaded subtitle is the exception for SDH: which OpenSubtitles
+        // result the viewer happened to pick says nothing about the next
+        // episode, which usually has no download yet. Its language is the
+        // choice, so any same-language sidecar wins, then an embedded track
+        // (same SDH flag first).
+        let relaxesHearingImpaired = type == .subtitle && external == true
         let candidates = streams.filter { stream in
             guard stream.streamType == type, let candidate = Self(stream: stream) else { return false }
             return language == candidate.language && forced == candidate.forced
-                && hearingImpaired == candidate.hearingImpaired
+                && (relaxesHearingImpaired || hearingImpaired == candidate.hearingImpaired)
                 && commentary == candidate.commentary && descriptive == candidate.descriptive
         }
         return candidates.enumerated().max { lhs, rhs in
@@ -41,8 +57,15 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
         }?.element
     }
 
+    @MainActor
     private func score(_ stream: PlexStream) -> Int {
-        (codec != nil && codec == stream.codec?.lowercased() ? 4 : 0)
+        let isExternal = stream.key != nil
+        let sameKind = external.map { $0 == isExternal } ?? false
+        let sameHearingImpaired = Self(stream: stream)?.hearingImpaired == hearingImpaired
+        return (external == true && sameKind ? 16 : 0)
+            + (sameHearingImpaired ? 8 : 0)
+            + (sameKind ? 1 : 0)
+            + (codec != nil && codec == stream.codec?.lowercased() ? 4 : 0)
             + (channels != nil && channels == stream.channels ? 2 : 0)
     }
 }

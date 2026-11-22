@@ -49,6 +49,79 @@ struct ShowTrackPreferenceTests {
         #expect(descriptor.match(in: target.media[0].parts[0].streams, type: .subtitle)?.id == 2)
     }
 
+    // Shaped like a Plex OpenSubtitles download: a sidecar key, the provider's
+    // release name as `title` (folded into extendedDisplayTitle) and its flags.
+    private func downloadedSubtitle(id: Int, language: String = "eng", release: String, hearingImpaired: Bool = false) -> String {
+        #"{"id":\#(id),"streamType":3,"languageCode":"\#(language)","codec":"srt","key":"/library/streams/\#(id)","#
+            + #""title":"\#(release)","displayTitle":"English (SRT External)","#
+            + #""extendedDisplayTitle":"\#(release) (English SRT External)","hearingImpaired":\#(hearingImpaired)}"#
+    }
+
+    @Test func downloadedSubtitleReleaseNameIsNotAPurpose() throws {
+        // "SUCCESSORS" contains "cc", "SDHQ" contains "sdh": neither is SDH.
+        let first = try episode(streams: downloadedSubtitle(id: 1, release: "Show.S01E01.1080p.WEB.H264-SUCCESSORS"))
+        let descriptor = try #require(ShowTrackDescriptor(stream: first.media[0].parts[0].streams[0]))
+        #expect(descriptor.external == true)
+        #expect(!descriptor.hearingImpaired && !descriptor.forced)
+        let next = try episode(season: 1, streams: downloadedSubtitle(id: 9, release: "Show.S01E02.1080p.WEB.H264-SDHQ"))
+        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 9)
+    }
+
+    @Test func downloadedSubtitlePrefersTheNextDownloadInItsLanguage() throws {
+        let first = try episode(streams: downloadedSubtitle(id: 1, release: "Show.S01E01", hearingImpaired: true))
+        let descriptor = try #require(ShowTrackDescriptor(stream: first.media[0].parts[0].streams[0]))
+        let next = try episode(streams: #"""
+            {"id":20,"streamType":3,"languageCode":"eng","codec":"srt","hearingImpaired":true},
+            {"id":21,"streamType":3,"languageCode":"ger","codec":"srt","key":"/library/streams/21"},
+            """# + downloadedSubtitle(id: 22, release: "Show.S01E02"))
+        // A same-language download wins even when its SDH flag differs.
+        #expect(descriptor.match(in: next.media[0].parts[0].streams, type: .subtitle)?.id == 22)
+    }
+
+    @Test func downloadedSubtitleFallsBackToAnEmbeddedTrackInItsLanguage() throws {
+        let first = try episode(streams: downloadedSubtitle(id: 1, release: "Show.S01E01", hearingImpaired: true))
+        let descriptor = try #require(ShowTrackDescriptor(stream: first.media[0].parts[0].streams[0]))
+        let next = try episode(streams: #"""
+            {"id":30,"streamType":3,"languageCode":"ger","codec":"srt"},
+            {"id":31,"streamType":3,"languageCode":"eng","codec":"pgs","forced":true},
+            {"id":32,"streamType":3,"languageCode":"eng","codec":"pgs"},
+            {"id":33,"streamType":3,"languageCode":"eng","codec":"pgs","hearingImpaired":true}
+            """#)
+        let part = next.media[0].parts[0]
+        // Same SDH flag first, then any normal track; never the forced one.
+        #expect(descriptor.match(in: part.streams, type: .subtitle)?.id == 33)
+        #expect(descriptor.match(in: part.streams.filter { $0.id != 33 }, type: .subtitle)?.id == 32)
+        #expect(descriptor.match(in: part.streams.filter { $0.id == 30 || $0.id == 31 }, type: .subtitle) == nil)
+        let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
+        #expect(remembered.hasMatch(in: part))
+        #expect(remembered.subtitleStreamID(in: part, fallback: nil) == 33)
+    }
+
+    @Test func embeddedSubtitleStillRequiresItsPurposeAndPrefersEmbedded() throws {
+        let first = try episode(streams: #"{"id":1,"streamType":3,"languageCode":"eng","codec":"srt"}"#)
+        let descriptor = try #require(ShowTrackDescriptor(stream: first.media[0].parts[0].streams[0]))
+        #expect(descriptor.external == false)
+        let next = try episode(streams: #"""
+            {"id":40,"streamType":3,"languageCode":"eng","codec":"srt","key":"/library/streams/40"},
+            {"id":41,"streamType":3,"languageCode":"eng","codec":"srt"},
+            {"id":42,"streamType":3,"languageCode":"eng","codec":"srt","hearingImpaired":true}
+            """#)
+        let streams = next.media[0].parts[0].streams
+        #expect(descriptor.match(in: streams, type: .subtitle)?.id == 41)
+        #expect(descriptor.match(in: [streams[2]], type: .subtitle) == nil)
+    }
+
+    @Test func choicesSavedBeforeExternalWasRecordedStillDecode() throws {
+        let json = #"{"subtitles":{"track":{"_0":{"language":"en","forced":false,"hearingImpaired":false,"commentary":false,"descriptive":false,"codec":"srt"}}}}"#
+        let decoded = try JSONDecoder().decode(ShowTrackPreferences.self, from: Data(json.utf8))
+        guard case let .track(descriptor) = decoded.subtitles else {
+            Issue.record("Expected a subtitle descriptor")
+            return
+        }
+        #expect(descriptor.external == nil)
+        #expect(descriptor.language == "en")
+    }
+
     @Test func codecAndChannelsBreakTiesWithoutBecomingRequirements() throws {
         let details = try episode(streams: #"""
             {"id":1,"streamType":2,"languageCode":"eng","codec":"aac","channels":2},
