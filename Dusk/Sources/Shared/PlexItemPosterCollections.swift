@@ -173,7 +173,8 @@ struct PlexItemPosterCarouselSection<ContextMenuContent: View>: View {
                     width: posterWidth,
                     imageAspectRatio: imageAspectRatio,
                     isWatched: item.posterIsWatched,
-                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage(item)
+                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage(item),
+                    playbackItem: item
                 ) {
                     contextMenuContent(item)
                 }
@@ -408,7 +409,8 @@ struct PlexItemPosterGrid<ContextMenuContent: View>: View {
             progress: progress(item),
             width: layout.posterWidth,
             imageAspectRatio: imageAspectRatio,
-            isWatched: item.posterIsWatched
+            isWatched: item.posterIsWatched,
+            playbackItem: item
         ) {
             contextMenuContent(item)
         }

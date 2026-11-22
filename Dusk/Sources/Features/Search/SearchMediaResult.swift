@@ -14,6 +14,10 @@ enum SearchMediaResult: Identifiable {
         }
     }
 
+    var plexItem: PlexItem? {
+        if case .plex(let item) = self { item } else { nil }
+    }
+
     var title: String {
         switch self {
         // A season's own title is its numbering, which the subtitle carries.

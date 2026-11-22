@@ -315,6 +315,7 @@
 		3E000C6743D40D73028729F7 /* PlexService+WatchedFanOut.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04D6AB63E25D9FB1689524DA /* PlexService+WatchedFanOut.swift */; };
 		3E0BFC927FDE3B0B8D91214A /* PlaybackListContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC8F22FF06DCE995B73F170A /* PlaybackListContext.swift */; };
 		3E5708606C4B48B5C63967E9 /* AnalyticsEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA381EA5CD4ECEFE907AF34 /* AnalyticsEvent.swift */; };
+		3E647D2AA83EB34C1B302A99 /* TVQuickPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD735E97ABB615C1405BE55D /* TVQuickPlay.swift */; };
 		3E744B48B309FD0FD509C2F4 /* TraktStores.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EFBA113658D024DAB6145F8 /* TraktStores.swift */; };
 		3EAA10E7EC776A17B907C2C0 /* OfflinePlaybackSyncManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2193D7CDE9B3DBA573562F21 /* OfflinePlaybackSyncManager.swift */; };
 		3EE144E6CB5B2B64EB3C71E7 /* AudioSubtitleSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F02B87A34A8F4052D2573D3 /* AudioSubtitleSettingsView.swift */; };
@@ -353,6 +354,7 @@
 		471AA74D7EB80B8C7B91A8AF /* HEVCSampleEntryProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A52586077A370B8E9A7441F /* HEVCSampleEntryProbe.swift */; };
 		471B694988DE289D70C10D02 /* PlexHub.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9771A4F964C286E6DA9AB6A /* PlexHub.swift */; };
 		475D1E7FBE211E59E91DD4AA /* SiriTitleMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E36D9204A97644783EA96756 /* SiriTitleMatchingTests.swift */; };
+		4764280F57C5475DBC99FE84 /* TVQuickPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD735E97ABB615C1405BE55D /* TVQuickPlay.swift */; };
 		4773E4B5E36B7A58C87905A3 /* MacPlayerMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 438642C3D6246C7502CD9F50 /* MacPlayerMenu.swift */; };
 		484F535586432045883E58C4 /* PlexService+PlayQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = C43937068D7202707688418D /* PlexService+PlayQueue.swift */; };
 		4896B597B25AA6EA4E2439FA /* MoreView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CF112C2CD6A3121CE87B5DF9 /* MoreView.swift */; };
@@ -864,6 +866,7 @@
 		ABA9903AC35A0A29883DBEFB /* View+Platform.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2093D98894D53D593F96FB9 /* View+Platform.swift */; };
 		AC28360EC1CF132739059263 /* PlexPhoto.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0846EB3E709691266C84901 /* PlexPhoto.swift */; };
 		AC4FF52517BD6B7AB9265405 /* PlaybackCoordinator+SpatialAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ABCEFDAC2C5DF0C8DB8C0AE /* PlaybackCoordinator+SpatialAudio.swift */; };
+		AC55F840F1DE81F1ECBF466F /* TVQuickPlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD735E97ABB615C1405BE55D /* TVQuickPlay.swift */; };
 		ACDCBEB4C33315E8E8778A44 /* PlexItemPager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F84DBA9CFE37DDD62ADF08E6 /* PlexItemPager.swift */; };
 		AD188E1FF7D84B108A1727CF /* PlexLiveTVGuideMatchingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E198E305F60A7C171B58533 /* PlexLiveTVGuideMatchingTests.swift */; };
 		AD4DCFFF862EEA065290CFCE /* IPTVLineupBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF04B6FB12B4622E943EA62 /* IPTVLineupBuilder.swift */; };
@@ -1736,6 +1739,7 @@
 		D951B0B025AC02D32BB3473B /* PlexDownloadQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexDownloadQueueTests.swift; sourceTree = "<group>"; };
 		D97C0F3FABBE04C2708A7342 /* PlexItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexItem.swift; sourceTree = "<group>"; };
 		DA1F9A43D09E5C5AD680E39C /* PlaybackNowPlayingController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackNowPlayingController.swift; sourceTree = "<group>"; };
+		DD735E97ABB615C1405BE55D /* TVQuickPlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TVQuickPlay.swift; sourceTree = "<group>"; };
 		DDCDE8E5C86ED17101A0442F /* PreferredVersionSelectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreferredVersionSelectionTests.swift; sourceTree = "<group>"; };
 		DF6A3B1BC36ECD7390A15164 /* VLCKit.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = VLCKit.xcframework; path = Frameworks/VLCKit.xcframework; sourceTree = "<group>"; };
 		DFB71284BB5753D67C45724C /* PlexExtra.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlexExtra.swift; sourceTree = "<group>"; };
@@ -2172,6 +2176,7 @@
 				F69C3F67C503DFC3555CBEAE /* RecommendationCore.swift */,
 				FF3C67EBF2FAF56D8C4B8DB3 /* ServerAvailabilityViews.swift */,
 				F4238A148972887A3594A4DB /* String+NilIfEmpty.swift */,
+				DD735E97ABB615C1405BE55D /* TVQuickPlay.swift */,
 				C2093D98894D53D593F96FB9 /* View+Platform.swift */,
 			);
 			path = Shared;
@@ -3259,6 +3264,7 @@
 				DB8A8ABC3546C8C0F380CB9F /* SupporterStore.swift in Sources */,
 				9DF9958B1EA93A662CD33B34 /* SupporterView.swift in Sources */,
 				2E9D3607568553E857332DBA /* SystemCaptionStyle.swift in Sources */,
+				3E647D2AA83EB34C1B302A99 /* TVQuickPlay.swift in Sources */,
 				BA9E74091F704ED4565A42AA /* TVSettingsComponents.swift in Sources */,
 				E6750EC6A3BF901FD8F1F7BE /* TopShelfLink.swift in Sources */,
 				410A7E65FFE01463059DB50D /* TopShelfPublisher.swift in Sources */,
@@ -3624,6 +3630,7 @@
 				FF63BB828C968E2E35006F18 /* SupporterStore.swift in Sources */,
 				57532B38BDC3B883642E1FEA /* SupporterView.swift in Sources */,
 				60FE74C8C073877BA51A4FCC /* SystemCaptionStyle.swift in Sources */,
+				AC55F840F1DE81F1ECBF466F /* TVQuickPlay.swift in Sources */,
 				3FE983092FCE0D8477FB79CD /* TVSettingsComponents.swift in Sources */,
 				6A3CDB296A780EA52525F3C1 /* TopShelfLink.swift in Sources */,
 				F2429E816D85721A8BFC2DA0 /* TopShelfPublisher.swift in Sources */,
@@ -4080,6 +4087,7 @@
 				57B22A4FD60FFF0FD3B41A8B /* SupporterStore.swift in Sources */,
 				B3E36D10A20B3822F564CC06 /* SupporterView.swift in Sources */,
 				17478109AC93E8E714941952 /* SystemCaptionStyle.swift in Sources */,
+				4764280F57C5475DBC99FE84 /* TVQuickPlay.swift in Sources */,
 				3A9150548F8324B8FEE20FF1 /* TVSettingsComponents.swift in Sources */,
 				5531EEA02B8F061D01C7EE09 /* TopShelfLink.swift in Sources */,
 				90968EDF6F8C51A06CF70A24 /* TopShelfPublisher.swift in Sources */,

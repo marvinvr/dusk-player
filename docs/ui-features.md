@@ -284,6 +284,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   empty columns, sized like the missing posters, so the section extends under them
   and Down from a column with no cell lands on the nearest poster in that row.
   iOS stays a `LazyVGrid`.
+- tvOS Play/Pause on a focused card plays instead of opening the page (#86),
+  via `tvQuickPlay` (`Shared/TVQuickPlay.swift`, `.onPlayPauseCommand` on the
+  card's button). `PosterNavigationCard` maps its route: movie/video/episode
+  plays from its saved position (pass `playbackItem` so the hub offset is the
+  fallback), show/season plays `SeriesDetailViewModel.playTarget` (the season
+  the series page opens on, then its `nextEpisodeToPlay`, the same episode as
+  the page's Play button). `PosterActionCard` and the series page's episode
+  cards run their own action. Select still opens the page; the player owns its
+  own Play/Pause (the cover holds focus).
 - On tvOS, library poster cells (`PosterNavigationCard` and `PosterActionCard`,
   shared by library grids, hub rows, collections, and search) use
   `duskTVOSSystemPosterButton()`: `.buttonStyle(.card)` and a rounded-rectangle border

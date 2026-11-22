@@ -228,13 +228,69 @@ final class SeriesDetailViewModel {
     /// unwatched. Specials sort first but are rarely where someone left off, so
     /// they only win when the show has nothing else.
     private func initialSeasonID(in show: ShowDetailViewModel) -> PlexItemID? {
-        let seasons = show.visibleSeasons
+        guard let season = Self.initialSeason(in: show.visibleSeasons) else { return nil }
+        return PlexItemID(serverID: season.serverID ?? show.serverID, ratingKey: season.ratingKey)
+    }
+
+    private static func initialSeason(in seasons: [PlexSeason]) -> PlexSeason? {
         let regular = seasons.filter { $0.index > 0 }
         let candidates = regular.isEmpty ? seasons : regular
-        guard let season = candidates.first(where: { !$0.isFullyWatched }) ?? candidates.first else {
+        return candidates.first(where: { !$0.isFullyWatched }) ?? candidates.first
+    }
+
+    /// The episode this page's Play button would start on for a show or season
+    /// route (the season `initialSeasonID` opens, then its `nextEpisodeToPlay`),
+    /// without loading the rest of the page. Play/Pause on a show or season
+    /// card uses it (`TVQuickPlay`). Nil when there is nothing playable.
+    static func playTarget(
+        entry: Entry,
+        id: PlexItemID,
+        plexService: PlexService,
+        downloadManager: DownloadManager?,
+        offlinePlaybackSyncManager: OfflinePlaybackSyncManager?,
+        prefersOfflineAvailability: Bool
+    ) async -> PlexEpisode? {
+        let serverID = id.serverID
+            ?? downloadManager?.serverID(for: id)
+            ?? plexService.pool.primary?.serverID
+        let seasonID: PlexItemID
+        switch entry {
+        case .episode:
+            return nil
+        case .season:
+            seasonID = id
+        case .show:
+            // Same sources and offline filter as `ShowDetailViewModel.load` /
+            // `visibleSeasons`.
+            var seasons: [PlexSeason]
+            var isCached = false
+            do {
+                seasons = try await plexService.getSeasons(showKey: id.ratingKey, serverID: serverID)
+            } catch {
+                seasons = downloadManager?.cachedSeasons(show: id) ?? []
+                isCached = true
+            }
+            seasons.sort { $0.index < $1.index }
+            if DownloadsFeature.isVisible, isCached, let downloadManager {
+                seasons = seasons.filter { downloadManager.hasDownloadedEpisodes(season: $0.id) }
+            }
+            guard let season = initialSeason(in: seasons) else { return nil }
+            seasonID = PlexItemID(serverID: season.serverID ?? serverID, ratingKey: season.ratingKey)
+        }
+
+        let season = SeasonDetailViewModel(
+            id: seasonID,
+            plexService: plexService,
+            downloadManager: downloadManager,
+            offlinePlaybackSyncManager: offlinePlaybackSyncManager,
+            prefersOfflineAvailability: prefersOfflineAvailability
+        )
+        await season.load()
+        guard let episode = season.nextEpisodeToPlay,
+              !season.constrainsPlaybackToOfflineAvailability || season.isPlayableOffline(episode) else {
             return nil
         }
-        return PlexItemID(serverID: season.serverID ?? show.serverID, ratingKey: season.ratingKey)
+        return episode
     }
 
     private func entryEpisodeDetails() async -> PlexMediaDetails? {

@@ -31,6 +31,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var unwatchedCount: Int? = nil
     /// The artwork is an unwatched episode's own still; see `spoilerBlur`.
     var isUnwatchedEpisodeImage = false
+    /// The item behind `route`, when known; see `tvQuickPlay(route:item:)`.
+    var playbackItem: PlexItem? = nil
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -60,6 +62,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
             .duskTVOSSystemPosterButton()
             .focused($isFocused)
             .carouselLeadingFocusTarget()
+            .tvQuickPlay(route: route, item: playbackItem)
             .contextMenu {
                 contextMenuContent()
             }
@@ -185,6 +188,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
             .duskTVOSSystemPosterButton()
             .focused($isFocused)
             .carouselLeadingFocusTarget()
+            .tvQuickPlay(action: action)
             .contextMenu {
                 contextMenuContent()
             }

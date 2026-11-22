@@ -106,6 +106,7 @@ primitive:
 
 - `PosterCard`, `PlatformPosterCard`, `PlexItemPosterCollections`: poster cards,
   action cards, grids, and carousels.
+- `TVQuickPlay`: tvOS Play/Pause-on-a-card playback for those cards.
 - `MediaFormatting`: episode labels, durations, dates, progress, and version
   labels.
 - `PlexItemPresentation`: common poster URL/subtitle/progress/title helpers and

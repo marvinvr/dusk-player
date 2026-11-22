@@ -241,7 +241,8 @@ private extension SearchRootContent {
                                     width: width,
                                     imageAspectRatio: aspectRatio,
                                     availabilityBadge: vm.availabilityBadge(for: item),
-                                    isWatched: item.isWatched
+                                    isWatched: item.isWatched,
+                                    playbackItem: item.plexItem
                                 ) {
                                     if case .plex(let plexItem) = item {
                                         AddToPlaylistMenuButton(target: AddToPlaylistTarget(item: plexItem))
@@ -332,7 +333,8 @@ private extension SearchRootContent {
                                             width: activeLayout.posterWidth,
                                             imageAspectRatio: aspectRatio,
                                             availabilityBadge: vm.availabilityBadge(for: item),
-                                            isWatched: item.isWatched
+                                            isWatched: item.isWatched,
+                                            playbackItem: item.plexItem
                                         ) {
                                             if case .plex(let plexItem) = item {
                                                 AddToPlaylistMenuButton(target: AddToPlaylistTarget(item: plexItem))

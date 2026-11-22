@@ -902,6 +902,7 @@ private struct SeriesEpisodeCard: View {
             .duskSuppressTVOSButtonChrome()
             .focused($isFocused)
             .duskTVOSFocusEffectShape(artworkShape, scales: false)
+            .tvQuickPlay(action: onPlay)
             .accessibilityLabel("Play \(episode.title)")
             .frame(width: artworkWidth, height: artworkHeight, alignment: .leading)
 
