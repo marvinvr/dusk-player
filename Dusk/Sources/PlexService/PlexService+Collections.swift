@@ -43,17 +43,20 @@ extension PlexService {
         )
     }
 
-    /// A collection's titles, in the collection's own sort order.
+    /// A collection's titles, in the collection's own sort order, or in
+    /// `sort` (a Plex sort value such as `titleSort:desc`) when given.
     func getCollectionItems(
         ratingKey: String,
         start: Int = 0,
         size: Int = 50,
+        sort: String? = nil,
         serverID: String? = nil
     ) async throws -> PlexItemPage {
         try await fetchItemPage(
             path: "/library/metadata/\(ratingKey)/children",
             start: start,
             size: size,
+            extraQueryItems: sort.map { [URLQueryItem(name: "sort", value: $0)] } ?? [],
             serverID: serverID
         )
     }
@@ -95,6 +98,7 @@ extension PlexService {
         path: String,
         start: Int,
         size: Int,
+        extraQueryItems: [URLQueryItem] = [],
         serverID: String?
     ) async throws -> PlexItemPage {
         let targetID = try resolveServerID(serverID)
@@ -103,7 +107,7 @@ extension PlexService {
             queryItems: [
                 URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
                 URLQueryItem(name: "X-Plex-Container-Size", value: String(size)),
-            ],
+            ] + extraQueryItems,
             serverID: targetID
         )
         let container = try decodeJSON(MetadataResponse<PlexItem>.self, from: data, serverID: targetID)

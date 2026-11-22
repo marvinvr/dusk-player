@@ -1,36 +1,82 @@
 import Foundation
 
 /// A Plex collection (manual or smart): its own metadata plus its titles,
-/// paged in the collection's sort order. Everything is read from the
+/// paged in the collection's sort order or the sort picked for it (see
+/// `CollectionSort`). Everything is read from the
 /// collection's server.
 @MainActor
 @Observable
 final class CollectionDetailViewModel {
     private let plexService: PlexService
+    private let sortStore: CollectionSortStore
     let id: PlexItemID
     let pager: PlexItemPager
 
     private(set) var collection: PlexItem?
     private(set) var isLoading = false
     private(set) var error: String?
+    /// `nil` is the collection's own order.
+    private(set) var selectedSort: LibrarySortOption?
+    /// The server ignored `sort=` on this collection, so every title is
+    /// loaded and sorted here.
+    private(set) var sortsOnDevice = false
+    /// The sorted titles while `sortsOnDevice`; `nil` until they are loaded.
+    private(set) var deviceSortedItems: [PlexItem]?
 
-    init(id: PlexItemID, plexService: PlexService) {
+    /// What the pager sends as `sort=`; read by its fetch closure.
+    @ObservationIgnored private let serverSort: ServerSort
+    @ObservationIgnored private var itemsGeneration = 0
+
+    @MainActor
+    private final class ServerSort {
+        var value: String?
+    }
+
+    init(id: PlexItemID, plexService: PlexService, sortStore: CollectionSortStore = CollectionSortStore()) {
         self.id = id
         self.plexService = plexService
+        self.sortStore = sortStore
+        let selectedSort = sortStore.sort(for: id)
+        self.selectedSort = selectedSort
         let ratingKey = id.ratingKey
         let serverID = id.serverID
+        let serverSort = ServerSort()
+        serverSort.value = selectedSort?.plexValue
+        self.serverSort = serverSort
         self.pager = PlexItemPager { [plexService] start, size in
             try await plexService.getCollectionItems(
                 ratingKey: ratingKey,
                 start: start,
                 size: size,
+                sort: serverSort.value,
                 serverID: serverID
             )
         }
     }
 
     var serverID: String? { id.serverID }
-    var items: [PlexItem] { pager.items }
+    var items: [PlexItem] {
+        guard sortsOnDevice, selectedSort != nil else { return pager.items }
+        return deviceSortedItems ?? []
+    }
+
+    /// Titles are still being loaded to be sorted on the device.
+    var isSortingOnDevice: Bool {
+        sortsOnDevice && selectedSort != nil && deviceSortedItems == nil
+    }
+
+    var availableSortFields: [LibrarySortField] {
+        CollectionSort.fields(forSubtype: collection?.subtype)
+    }
+
+    /// Only offered once there is something to reorder.
+    var showsSortMenu: Bool {
+        (pager.totalSize ?? collection?.childCount ?? items.count) > 1
+    }
+
+    var sortTitle: String {
+        selectedSort?.title ?? CollectionSort.defaultTitle
+    }
 
     var title: String { collection?.title ?? "" }
 
@@ -118,7 +164,7 @@ final class CollectionDetailViewModel {
         isLoading = true
         error = nil
 
-        async let items: Void = pager.reload()
+        async let items: Void = loadItems()
         do {
             collection = try await plexService.getCollection(ratingKey: id.ratingKey, serverID: serverID)
         } catch {
@@ -133,7 +179,35 @@ final class CollectionDetailViewModel {
     /// Re-reads watch state after playback or a return to the foreground.
     func refresh() async {
         guard collection != nil else { return }
+        await loadItems()
+    }
+
+    func selectSort(_ sort: LibrarySortOption?) async {
+        guard sort != selectedSort else { return }
+        selectedSort = sort
+        sortStore.setSort(sort, for: id)
+        deviceSortedItems = nil
+        await loadItems()
+    }
+
+    /// The first page in the chosen order. Plex is asked to sort it; when
+    /// the page shows the server ignored that, the whole collection is
+    /// loaded and sorted here, and stays that way for this collection.
+    private func loadItems() async {
+        itemsGeneration += 1
+        let generation = itemsGeneration
+        let sort = selectedSort
+        serverSort.value = sortsOnDevice ? nil : sort?.plexValue
         await pager.reload()
+        guard generation == itemsGeneration, let sort else { return }
+
+        if !sortsOnDevice {
+            guard !CollectionSort.follows(pager.items, sort: sort) else { return }
+            sortsOnDevice = true
+        }
+        await pager.loadRemaining()
+        guard generation == itemsGeneration else { return }
+        deviceSortedItems = CollectionSort.sorted(pager.items, by: sort)
     }
 
     func loadMoreIfNeeded(currentItem: PlexItem) async {
@@ -142,7 +216,7 @@ final class CollectionDetailViewModel {
 
     func setWatched(_ watched: Bool, for item: PlexItem) async {
         try? await plexService.setWatchedAcrossServers(watched, id: item.id)
-        await pager.reload()
+        await loadItems()
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {

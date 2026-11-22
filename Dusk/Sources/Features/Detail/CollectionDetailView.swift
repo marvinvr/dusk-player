@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A Plex collection: the backdrop-led detail hero (title, "Collection · 12
-/// movies", summary) over a paged grid of its titles. Movie collections get
+/// movies", summary) over a sort chip and a paged grid of its titles. Movie collections get
 /// Play (the title in progress, else the next unwatched one) and Shuffle; a
 /// show collection only browses. Smart collections look the same: the server
 /// resolves their filter when the titles are listed.
@@ -10,6 +10,7 @@ struct CollectionDetailView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: CollectionDetailViewModel
+    @FocusState private var focusedItemID: PlexItemID?
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
@@ -34,6 +35,24 @@ struct CollectionDetailView: View {
         .duskNavigationBarTitleDisplayModeInline()
         #if !os(macOS)
         .toolbarBackground(.hidden, for: .navigationBar)
+        #endif
+        #if os(macOS)
+        // A standard toolbar menu on the Mac, like the library grids' sort.
+        .toolbar {
+            if viewModel.collection != nil, viewModel.showsSortMenu {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu {
+                        sortMenuPickers
+                    } label: {
+                        Label(viewModel.sortTitle, systemImage: "arrow.up.arrow.down")
+                            .labelStyle(.titleOnly)
+                            .fixedSize()
+                    }
+                    .help("Sort: \(viewModel.sortTitle)")
+                    .id("sort|\(viewModel.sortTitle)")
+                }
+            }
+        }
         #endif
         .task {
             await viewModel.load()
@@ -85,8 +104,13 @@ struct CollectionDetailView: View {
                             .padding(.top, 32)
                     }
 
+                    if showsInlineSortMenu, viewModel.showsSortMenu {
+                        sortRow
+                            .padding(.top, sortRowTopPadding)
+                    }
+
                     itemsSection(layout)
-                        .padding(.top, 40)
+                        .padding(.top, showsInlineSortMenu && viewModel.showsSortMenu ? 20 : 40)
                         .padding(.bottom, 56)
                 }
                 .padding(.top, -geometry.safeAreaInsets.top)
@@ -193,12 +217,84 @@ struct CollectionDetailView: View {
         #endif
     }
 
+    // MARK: - Sort
+
+    /// The Mac sorts from the window toolbar instead.
+    private var showsInlineSortMenu: Bool {
+        #if os(macOS)
+        false
+        #else
+        true
+        #endif
+    }
+
+    private var sortRowTopPadding: CGFloat {
+        #if os(tvOS)
+        // Room for the focus lift above the chip.
+        22
+        #else
+        32
+        #endif
+    }
+
+    /// The library grid's sort chip, leading with the collection's own order.
+    private var sortRow: some View {
+        let isSorted = viewModel.selectedSort != nil
+        return HStack {
+            Menu {
+                LibrarySortMenuSections(
+                    fields: viewModel.availableSortFields,
+                    selected: viewModel.selectedSort,
+                    defaultTitle: CollectionSort.defaultTitle
+                ) { sort in
+                    Task { await viewModel.selectSort(sort) }
+                }
+            } label: {
+                BrowseChipMenuLabel(
+                    value: viewModel.sortTitle,
+                    systemImage: "arrow.up.arrow.down.circle",
+                    isActive: isSorted,
+                    accessibilityTitle: "Sort"
+                )
+            }
+            .browseChipButtonStyle(isOn: isSorted)
+
+            // The titles on screen stay until the new order lands.
+            if viewModel.pager.isLoading, !viewModel.items.isEmpty {
+                ProgressView()
+                    .padding(.leading, 6)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, horizontalPadding)
+        #if os(tvOS)
+        .padding(.vertical, 18)
+        // Up from any poster in the first row reaches the chip, and the
+        // focused chip's lift draws over the grid, not under it.
+        .focusSection()
+        .zIndex(1)
+        #endif
+    }
+
+    #if os(macOS)
+    private var sortMenuPickers: some View {
+        LibrarySortMenuPickers(
+            fields: viewModel.availableSortFields,
+            selected: viewModel.selectedSort,
+            defaultTitle: CollectionSort.defaultTitle
+        ) { sort in
+            Task { await viewModel.selectSort(sort) }
+        }
+    }
+    #endif
+
     // MARK: - Items
 
     @ViewBuilder
     private func itemsSection(_ layout: AdaptivePosterGridLayout) -> some View {
         if viewModel.items.isEmpty {
-            if viewModel.pager.hasLoadedOnce {
+            if viewModel.pager.hasLoadedOnce, !viewModel.isSortingOnDevice {
                 FeatureEmptyStateView(
                     systemImage: "square.stack",
                     title: "This collection is empty"
@@ -224,7 +320,8 @@ struct CollectionDetailView: View {
                     onItemAppear: { item in
                         Task { await viewModel.loadMoreIfNeeded(currentItem: item) }
                     },
-                    playThroughTitle: viewModel.title
+                    playThroughTitle: viewModel.title,
+                    focusedItemID: $focusedItemID
                 ) { item in
                     PlexItemContextMenuContent(
                         item: item,
@@ -246,6 +343,10 @@ struct CollectionDetailView: View {
             }
             #if os(tvOS)
             .focusSection()
+            // Down from the sort chip lands on the first title. Left to the
+            // engine it picked the second poster, though the chip sits over
+            // the first.
+            .defaultFocus($focusedItemID, viewModel.items.first?.id, priority: .userInitiated)
             #endif
         }
     }

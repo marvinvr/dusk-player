@@ -960,8 +960,25 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   first paint and is part of the snapshot. A collection opens `CollectionDetailView`
   (`.media(type: .collection, id:)`): backdrop hero (the collection's art, else its
   first title's), "Collection · 12 movies · 1977–2019" (year span only once every
-  title is loaded; "Smart Collection" for smart ones), summary, then a paged grid via
-  `PlexItemPager`. Movie collections get Play (in-progress title, else first unwatched,
+  title is loaded; "Smart Collection" for smart ones), summary, a sort chip, then a
+  paged grid via `PlexItemPager`.
+- **Collection sort** (`CollectionSort`): the library grid's sort menu
+  (`LibrarySortMenuSections`, Mac toolbar `LibrarySortMenuPickers`) led by
+  **Collection Order**, the default, which sends no `sort=` so the server's own order
+  (Collection Sort setting: release/alphabetical/custom) stays. Other fields: Release
+  Date, Title, Date Added, Critic/Audience Rating (clip collections: dates + title).
+  The choice is remembered per collection (`CollectionSortStore`,
+  `collectionSort.<serverID>|<ratingKey>`; nothing stored = Collection Order). Plex is
+  asked via `sort=` on `/library/metadata/{rk}/children`; if the first page is not in
+  that order (`CollectionSort.follows`, ≤10 % neighbour inversions tolerated) the
+  server ignored it, so every title is loaded (`PlexItemPager.loadRemaining`) and
+  sorted on the device (articles stripped from titles, missing values last) for the
+  rest of the screen's life. Real PMS support for `sort=` on collection children is
+  unconfirmed; `scripts/mock_large_plex.py --collection-ignores-sort` exercises the
+  fallback. Play and play-through follow the shown order. tvOS:
+  the grid has `defaultFocus(..., priority: .userInitiated)` on its first title,
+  because the engine otherwise dropped Down from the chip onto the second poster
+  (Back from a title still restores focus to that title). Movie collections get Play (in-progress title, else first unwatched,
   else first) and Shuffle (random unwatched title); there is no play queue, so each
   starts one title. Show collections only browse. Movie, show (iOS) and series (tvOS)
   detail pages end with `DetailCollectionShelves`: a "Part of <collection>" row per

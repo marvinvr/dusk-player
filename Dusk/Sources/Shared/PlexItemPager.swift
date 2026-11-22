@@ -64,7 +64,21 @@ final class PlexItemPager {
         guard hasMore, !isLoading, !isLoadingMore,
               items.suffix(pageSize / 2).contains(where: { $0.id == currentItem.id })
         else { return }
+        await loadNextPage()
+    }
 
+    /// Loads every remaining page (a list sorted on the device needs all of
+    /// it).
+    func loadRemaining() async {
+        while hasMore, !isLoading, !isLoadingMore, !Task.isCancelled {
+            let count = items.count
+            await loadNextPage()
+            if items.count == count { break }
+        }
+    }
+
+    private func loadNextPage() async {
+        guard hasMore, !isLoadingMore else { return }
         let current = generation
         isLoadingMore = true
         defer { isLoadingMore = false }

@@ -172,7 +172,9 @@ Libraries:
   optional collection scoping (`LibraryCollectionItemsView`, a video library's
   channel filter). Plex collections of movie/TV libraries are
   `LibraryCollectionsView`/`LibraryCollectionsViewModel` (paged grid) and
-  `Detail/CollectionDetailView` + model; `DetailCollectionShelves` is the "Part of"
+  `Detail/CollectionDetailView` + model (`Detail/CollectionSort`: per-collection sort,
+  device-side fallback); `Libraries/LibrarySortMenu` holds the sort menu and browse chip
+  pieces shared with the library grid; `DetailCollectionShelves` is the "Part of"
   row on movie/show detail pages, `DetailExtrasShelf` the "Extras" row on movie/show/
   season/episode pages; `Shared/PlexItemPager` pages plain listings.
 - Photo libraries live in `Features/Photos`: `PhotoBrowserViewModel` (paged

@@ -360,31 +360,12 @@ struct LibraryItemsView: View {
         }
 
         Menu {
-            Picker("Sort By", selection: Binding(
-                get: { viewModel.selectedSort.field },
-                set: { field in
-                    guard field != viewModel.selectedSort.field else { return }
-                    Task { await viewModel.selectSort(LibrarySortOption(field)) }
-                }
-            )) {
-                ForEach(viewModel.availableSortFields) { field in
-                    Text(field.title).tag(field)
-                }
-            }
-            .pickerStyle(.inline)
-
-            if viewModel.selectedSort.field.hasDirection {
-                let field = viewModel.selectedSort.field
-                Picker("Order", selection: Binding(
-                    get: { viewModel.selectedSort.isDescending },
-                    set: { descending in
-                        Task { await viewModel.selectSort(LibrarySortOption(field, descending: descending)) }
-                    }
-                )) {
-                    Text(field.directionTitles.ascending).tag(false)
-                    Text(field.directionTitles.descending).tag(true)
-                }
-                .pickerStyle(.inline)
+            LibrarySortMenuPickers(
+                fields: viewModel.availableSortFields,
+                selected: viewModel.selectedSort
+            ) { sort in
+                guard let sort else { return }
+                Task { await viewModel.selectSort(sort) }
             }
         } label: {
             macToolbarMenuLabel(viewModel.selectedSort.title, systemImage: "arrow.up.arrow.down")
@@ -534,25 +515,12 @@ struct LibraryItemsView: View {
     private var sortMenu: some View {
         let selected = viewModel.selectedSort
         return Menu {
-            Section("Sort By") {
-                ForEach(viewModel.availableSortFields) { field in
-                    Button {
-                        guard field != selected.field else { return }
-                        Task { await viewModel.selectSort(LibrarySortOption(field)) }
-                    } label: {
-                        if field == selected.field {
-                            Label(field.title, systemImage: "checkmark")
-                        } else {
-                            Text(field.title)
-                        }
-                    }
-                }
-            }
-            if selected.field.hasDirection {
-                Section("Order") {
-                    sortDirectionButton(descending: false)
-                    sortDirectionButton(descending: true)
-                }
+            LibrarySortMenuSections(
+                fields: viewModel.availableSortFields,
+                selected: selected
+            ) { sort in
+                guard let sort else { return }
+                Task { await viewModel.selectSort(sort) }
             }
         } label: {
             browseControlLabel(
@@ -562,20 +530,6 @@ struct LibraryItemsView: View {
             )
         }
         .browseChipButtonStyle(isOn: selected != viewModel.defaultSortOption)
-    }
-
-    private func sortDirectionButton(descending: Bool) -> some View {
-        let field = viewModel.selectedSort.field
-        let title = descending ? field.directionTitles.descending : field.directionTitles.ascending
-        return Button {
-            Task { await viewModel.selectSort(LibrarySortOption(field, descending: descending)) }
-        } label: {
-            if viewModel.selectedSort.isDescending == descending {
-                Label(title, systemImage: "checkmark")
-            } else {
-                Text(title)
-            }
-        }
     }
 
     /// Opens the Filters sheet. With filters on it shows the "on" look of
@@ -675,27 +629,13 @@ struct LibraryItemsView: View {
         systemImage: String,
         isActive: Bool
     ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(DuskFont.glyphMedium(ios: .headline))
-                .browseChipForeground(isActive ? Color.duskTextPrimary : Color.duskTextSecondary, tv: isActive ? .primary : .secondary)
-
-            Text(value)
-                .font(DuskFont.buttonLabel(ios: .subheadline.weight(.medium)))
-                .browseChipForeground(Color.duskTextPrimary)
-                .lineLimit(1)
-
-            Image(systemName: "chevron.down")
-                .font(DuskFont.glyphSmall(ios: .caption.weight(.semibold)))
-                .browseChipForeground(Color.duskTextSecondary, tv: .secondary)
-        }
-        .browseChipPill(
-            cornerRadius: controlCornerRadius,
-            stroke: isActive ? Color.duskTextPrimary.opacity(0.35) : Color.duskTextSecondary.opacity(0.18)
+        BrowseChipMenuLabel(
+            value: value,
+            systemImage: systemImage,
+            isActive: isActive,
+            accessibilityTitle: systemImage == "line.3.horizontal.decrease.circle" ? "Genre" : "Sort",
+            cornerRadius: controlCornerRadius
         )
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(systemImage == "line.3.horizontal.decrease.circle" ? "Genre" : "Sort")
-        .accessibilityValue(value)
     }
 
     private func posterGrid(_ layout: AdaptivePosterGridLayout) -> some View {
@@ -736,56 +676,6 @@ struct LibraryItemsView: View {
             title: viewModel.emptyStateTitle,
             message: viewModel.emptyStateMessage
         )
-    }
-}
-
-/// The browse row's chips. iOS and the Mac draw a custom pill; tvOS uses
-/// system glass capsules, like the hub's Browse chips, so the label carries
-/// no chrome or fixed colours there (a fixed label colour went white on the
-/// focused white glass).
-private extension View {
-    func browseChipForeground(_ color: Color, tv: HierarchicalShapeStyle = .primary) -> some View {
-        #if os(tvOS)
-        foregroundStyle(tv)
-        #else
-        foregroundStyle(color)
-        #endif
-    }
-
-    @ViewBuilder
-    func browseChipPill(
-        cornerRadius: CGFloat,
-        fill: Color = Color.duskSurface,
-        stroke: Color = Color.duskTextSecondary.opacity(0.18)
-    ) -> some View {
-        #if os(tvOS)
-        self
-        #else
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        self
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(shape.fill(fill))
-            .overlay { shape.stroke(stroke, lineWidth: 1) }
-        #endif
-    }
-
-    /// tvOS: focus is the system's solid white glass, so an active chip
-    /// can't use a solid fill too. It sits on a lighter, `TextPrimary`-tinted
-    /// glass platter instead, like the tab bar's selected tab.
-    @ViewBuilder
-    func browseChipButtonStyle(isOn: Bool) -> some View {
-        #if os(tvOS)
-        self
-            .menuStyle(.button)
-            .buttonStyle(.glass(isOn ? .regular.tint(Color.duskTextPrimary.opacity(0.3)) : .regular))
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            // nil, never a colour: an explicit tint recolours the label too.
-            .tint(nil)
-        #else
-        self
-        #endif
     }
 }
 

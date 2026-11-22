@@ -647,6 +647,8 @@ class Handler(BaseHTTPRequestHandler):
             if m.group(2):
                 rks = sorted(c["rks"], key=lambda r: lib.items[r]["title"].lower()) if c["smart"] \
                     else sorted(c["rks"], key=lambda r: lib.items[r]["year"])
+                if q.get("sort") and not self.args.collection_ignores_sort:
+                    rks = self.sorted_rks(rks, q)
                 self.paged(rks, q, lib.metadata, scan_rows=len(lib.sections[c["sec"]]["rks"]) if c["smart"] else 0)
             else:
                 self.delay()
@@ -739,6 +741,10 @@ class Handler(BaseHTTPRequestHandler):
         fc = q.get("firstCharacter")
         if fc:
             rks = [rk for rk in rks if lib.items[rk]["title"][:1].upper() == fc.upper()]
+        return self.sorted_rks(rks, q)
+
+    def sorted_rks(self, rks, q):
+        lib = self.lib
         sort = (q.get("sort") or "titleSort").split(",")[0]
         field, _, direction = sort.partition(":")
         keyfuncs = {
@@ -747,6 +753,7 @@ class Handler(BaseHTTPRequestHandler):
             "originallyAvailableAt": lambda rk: lib.items[rk]["year"],
             "lastViewedAt": lambda rk: lib.items[rk].get("lastViewedAt", 0),
             "duration": lambda rk: lib.items[rk]["duration"],
+            "audienceRating": lambda rk: lib.items[rk]["rating"],
         }
         keyfunc = keyfuncs.get(field, lambda rk: lib.items[rk]["title"].lower())
         return sorted(rks, key=keyfunc, reverse=direction == "desc")
@@ -853,6 +860,8 @@ def main():
     p.add_argument("--db-workers", type=int, default=2)
     p.add_argument("--collection-mode", type=int, default=2, choices=(0, 1, 2),
                    help="sections' Collections pref: 0 disabled, 1 hide items in collections, 2 show both")
+    p.add_argument("--collection-ignores-sort", action="store_true",
+                   help="collection /children ignore sort= (exercises the app's on-device sort)")
     p.add_argument("--photos", type=int, default=0, help="photos (and clips) in a photo library; 0 = none")
     p.add_argument("--image-cache", default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                                           "..", "build", "mock-photo-images"))
