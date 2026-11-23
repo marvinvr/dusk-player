@@ -407,12 +407,22 @@ enum ScreenshotMode {
     }
 
     /// `-DuskScreenshotDownloads movie:1001,episode:2011` queues real
-    /// downloads from the demo server.
+    /// downloads from the demo server. `movie:1001@p720` asks for that
+    /// conversion quality (`DownloadQuality` raw value) instead of Original.
     @MainActor
     private static func queueRequestedDownloads(plexService: PlexService, downloadManager: DownloadManager) async {
+        let qualities = Dictionary(
+            (defaults.string(forKey: Key.downloads) ?? "").split(separator: ",").compactMap { entry -> (String, DownloadQuality)? in
+                let parts = entry.split(separator: "@").map(String.init)
+                guard parts.count == 2, let quality = DownloadQuality(rawValue: parts[1]),
+                      let ratingKey = parts[0].split(separator: ":").last else { return nil }
+                return (String(ratingKey), quality)
+            },
+            uniquingKeysWith: { first, _ in first }
+        )
         for (type, id) in await downloadEntries(Key.downloads, plexService: plexService) {
             guard downloadManager.record(for: id) == nil else { continue }
-            await downloadManager.queueDownload(id: id, type: type)
+            await downloadManager.queueDownload(id: id, type: type, quality: qualities[id.ratingKey])
         }
     }
 
@@ -431,7 +441,7 @@ enum ScreenshotMode {
         guard let spec = defaults.string(forKey: key)?.nilIfEmpty else { return [] }
         var entries: [(PlexMediaType, PlexItemID)] = []
         for entry in spec.split(separator: ",") {
-            let parts = entry.split(separator: ":").map(String.init)
+            let parts = entry.split(separator: "@")[0].split(separator: ":").map(String.init)
             guard parts.count == 2, let type = PlexMediaType(rawValue: parts[0]),
                   let serverID = await server(holding: parts[1], plexService: plexService) else { continue }
             entries.append((type, PlexItemID(serverID: serverID, ratingKey: parts[1])))
