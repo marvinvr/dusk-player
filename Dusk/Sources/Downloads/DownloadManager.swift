@@ -1,6 +1,9 @@
 import Foundation
 import Network
 import Observation
+#if os(iOS)
+import UIKit
+#endif
 
 private enum DownloadManagerError: LocalizedError {
     case insufficientStorage(requiredBytes: Int64, availableBytes: Int64, reserveBytes: Int64)
@@ -82,7 +85,6 @@ final class DownloadManager {
 
     private(set) var isNetworkConstrained = false
 
-    @ObservationIgnored private var isNetworkPaused = false
     @ObservationIgnored private var isProfileSwitching = false
     @ObservationIgnored private var isReconcilingTransfers = true
     @ObservationIgnored private var hasDeferredProfileActivation = false
@@ -112,7 +114,37 @@ final class DownloadManager {
     /// The path monitor has reported at least once, so `isNetworkConstrained`
     /// is real rather than its initial false (matters for a background launch).
     @ObservationIgnored private var hasNetworkPath = false
-    @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
+    /// Records whose current transfer has received bytes since it started.
+    /// A handed-off transfer without any is still waiting inside URLSession.
+    private var transferBytesReceivedKeys: Set<String> = []
+    /// Records requeued once after their transfer failed before any bytes
+    /// arrived (`DownloadQueuePolicy.shouldRequeueAfterFailure`).
+    @ObservationIgnored private var requeuedAfterFailureKeys: Set<String> = []
+    /// Records paused only to restart their transfer with new request flags
+    /// (Wi-Fi Only changed, or a live transfer moving to the background
+    /// session). Their pause event requeues them instead of pausing.
+    @ObservationIgnored private var restartingTransferKeys: Set<String> = []
+    /// Downloads finished by a background wake that are still being moved
+    /// into place; the wake's completion handler waits for them.
+    @ObservationIgnored private var pendingCompletionCount = 0
+    /// Relaunch reconciliation ran before a profile was active: transfers it
+    /// kept running (global key → task) and in-flight records it left alone.
+    /// `judgeRelaunchedTransfersIfNeeded` settles them once a profile is.
+    @ObservationIgnored private var unjudgedRelaunchTransfers: [String: Int] = [:]
+    @ObservationIgnored private var unjudgedRelaunchRecords: Set<String> = []
+    /// Whether the scene is in the background (set by `DuskApp`).
+    @ObservationIgnored private(set) var isAppInBackground = false
+    #if os(iOS)
+    /// The system Live Activity for downloads the user started (iOS 26+).
+    @ObservationIgnored private(set) lazy var continuedTask = DownloadContinuedTaskController(downloadManager: self)
+    #endif
+    /// The Simultaneous Downloads setting is the session's per-host
+    /// connection limit, read once when the session is created (a change
+    /// applies from the next launch; the background session cannot be
+    /// reconfigured while its transfers live on).
+    @ObservationIgnored private lazy var transferController = DownloadTransferController(
+        maximumConnectionsPerHost: preferences.maximumActiveDownloads.rawValue
+    ) { [weak self] event in
         Task { @MainActor [weak self] in
             self?.handleTransferEvent(event)
         }
@@ -203,6 +235,13 @@ final class DownloadManager {
     /// Why a queued download is not moving: its server is switched off or not
     /// reachable right now. Nil while the queue is actually able to run.
     func queueWaitReason(for record: DownloadedMediaRecord) -> String? {
+        if DownloadQueuePolicy.isWaitingForWiFi(
+            status: record.status,
+            wifiOnly: preferences.downloadsWifiOnly,
+            isNetworkConstrained: isNetworkConstrained
+        ) {
+            return "Waiting for Wi-Fi"
+        }
         guard record.status == .queued else { return nil }
         let name = serverName(for: record.serverID) ?? record.serverName ?? "the server"
         switch plexService.pool.state(for: record.serverID) {
@@ -237,8 +276,12 @@ final class DownloadManager {
         fileStore.availableStorageBytes()
     }
 
+    /// Preparing or transferring right now; a transfer still waiting inside
+    /// URLSession for a free slot counts as queued.
     var activeDownloadCount: Int {
-        records.filter { $0.status == .preparing || $0.status == .downloading }.count
+        records.filter {
+            $0.status == .preparing || ($0.status == .downloading && !isAwaitingTransfer($0))
+        }.count
     }
 
     var downloadedMovies: [DownloadedMediaRecord] {
@@ -470,6 +513,7 @@ final class DownloadManager {
             }
             removeAggregatePlaceholder(for: DownloadScope(id: id, type: type))
             processQueueIfNeeded()
+            noteUserStartedDownloads()
         } catch {
             guard !(error is CancellationError), !isProfileSwitching,
                   initiatingProfileID == plexService.activeProfileID else { return }
@@ -482,6 +526,7 @@ final class DownloadManager {
         do {
             try await queueEpisodeDownload(episode, quality: quality)
             processQueueIfNeeded()
+            noteUserStartedDownloads()
         } catch {
             guard !(error is CancellationError), !isProfileSwitching,
                   initiatingProfileID == plexService.activeProfileID else { return }
@@ -552,7 +597,49 @@ final class DownloadManager {
         completeProfileActivation()
     }
 
+    /// The deferred half of relaunch reconciliation: running transfers of
+    /// another profile pause, in-flight records without a transfer (and
+    /// without a finished event since launch) go back to the queue.
+    private func judgeRelaunchedTransfersIfNeeded() {
+        guard !unjudgedRelaunchTransfers.isEmpty || !unjudgedRelaunchRecords.isEmpty,
+              plexService.isSessionReady, let activeProfileID = plexService.activeProfileID else { return }
+        let transfers = unjudgedRelaunchTransfers
+        let orphans = unjudgedRelaunchRecords
+        unjudgedRelaunchTransfers = [:]
+        unjudgedRelaunchRecords = []
+        var changed = false
+        for (key, taskIdentifier) in transfers {
+            guard let index = storedRecords.firstIndex(where: { $0.globalKey == key }),
+                  storedRecords[index].status == .downloading,
+                  storedRecords[index].downloadTaskIdentifier == taskIdentifier,
+                  storedRecords[index].accountProfileID != activeProfileID else { continue }
+            storedRecords[index].status = .paused
+            storedRecords[index].wasPausedForProfileSwitch = true
+            storedRecords[index].updatedAt = .now
+            pendingProfileSuspensionTaskIDs.insert(taskIdentifier)
+            transferController.pause(taskIdentifier: taskIdentifier)
+            changed = true
+        }
+        for key in orphans {
+            guard let index = storedRecords.firstIndex(where: { $0.globalKey == key }),
+                  storedRecords[index].status == .preparing || storedRecords[index].status == .downloading
+            else { continue }
+            if storedRecords[index].accountProfileID == activeProfileID {
+                storedRecords[index].status = .queued
+                storedRecords[index].wasPausedForProfileSwitch = false
+            } else {
+                storedRecords[index].status = .paused
+                storedRecords[index].wasPausedForProfileSwitch = true
+            }
+            storedRecords[index].downloadTaskIdentifier = nil
+            storedRecords[index].updatedAt = .now
+            changed = true
+        }
+        if changed { persist() }
+    }
+
     private func completeProfileActivation() {
+        judgeRelaunchedTransfersIfNeeded()
         hasDeferredProfileActivation = false
         lastProgressPersistDates.removeAll()
         speedEstimates.removeAll()
@@ -574,7 +661,6 @@ final class DownloadManager {
         }
         isProfileSwitching = false
         isQueuePaused = false
-        evaluateNetworkConstraints()
         processQueueIfNeeded()
         backfillExternalSubtitles(serverIDs: Set(plexService.pool.connections.map(\.serverID)))
         refillSmartDownloads()
@@ -592,6 +678,7 @@ final class DownloadManager {
     func retryDownload(id: PlexItemID) {
         guard let record = record(for: id) else { return }
         retryDownload(globalKey: record.globalKey)
+        noteUserStartedDownloads()
     }
 
     private func retryDownload(globalKey: String) {
@@ -661,6 +748,7 @@ final class DownloadManager {
     func resumeDownload(id: PlexItemID) {
         guard let record = record(for: id) else { return }
         resumeDownload(globalKey: record.globalKey)
+        noteUserStartedDownloads()
     }
 
     private func resumeDownload(globalKey: String) {
@@ -690,6 +778,7 @@ final class DownloadManager {
             guard record.status.canResume else { return }
             resumeDownload(globalKey: record.globalKey)
         }
+        noteUserStartedDownloads()
     }
 
     func cancelDownload(id: PlexItemID) {
@@ -741,28 +830,244 @@ final class DownloadManager {
             persist()
         }
         processQueueIfNeeded()
+        noteUserStartedDownloads()
     }
 
-    /// Re-evaluates whether downloads should be paused or resumed based on
-    /// the current network state and the Wi-Fi Only preference.
-    /// Called automatically when the network path changes and should also be
-    /// called externally when `preferences.downloadsWifiOnly` is toggled.
     func resumePendingWork() {
-        evaluateNetworkConstraints()
         processQueueIfNeeded()
         refillSmartDownloads()
     }
 
-    func evaluateNetworkConstraints() {
-        if preferences.downloadsWifiOnly && isNetworkConstrained {
-            if !isQueuePaused {
-                isNetworkPaused = true
-                pauseAllDownloads()
-            }
-        } else if isNetworkPaused {
-            isNetworkPaused = false
-            resumeAllDownloads()
+    /// Wi-Fi Only is enforced by URLSession, not by pausing: every transfer
+    /// request disallows expensive and constrained networks while it is on,
+    /// so a transfer on cellular simply waits (even while Dusk is suspended)
+    /// and continues on Wi-Fi by itself. Queue rows say "Waiting for Wi-Fi".
+    ///
+    /// A request's flags are fixed when its task is created, so toggling the
+    /// setting restarts the handed-off transfers (keeping their resume data)
+    /// with the new flags. Called by `DuskApp` when the setting changes.
+    func wifiOnlyPreferenceDidChange() {
+        let keys = records
+            .filter { $0.status == .downloading && !deletingDownloadIDs.contains($0.globalKey) }
+            .map(\.globalKey)
+        for globalKey in keys {
+            restartTransfer(globalKey: globalKey)
         }
+    }
+
+    /// Stops a handed-off transfer (resume data kept) and queues it again, so
+    /// the queue creates a new task: new request flags, or the background
+    /// session instead of the live one.
+    private func restartTransfer(globalKey: String) {
+        guard let record = record(globalKey: globalKey), record.status == .downloading,
+              let taskIdentifier = record.downloadTaskIdentifier else { return }
+        restartingTransferKeys.insert(globalKey)
+        // Transient: the pause event turns it back into `.queued`.
+        update(globalKey: globalKey) {
+            $0.status = .paused
+            $0.updatedAt = .now
+        }
+        transferController.pause(taskIdentifier: taskIdentifier)
+    }
+
+    /// The session's start-order hint for a new transfer: its position among
+    /// the records still to download (`DownloadQueuePolicy.transferPriority`).
+    private func transferPriority(for globalKey: String) -> Float {
+        let pending = records
+            .filter { $0.status != .completed && $0.status != .failed && $0.status != .cancelled }
+            .sorted { $0.addedAt < $1.addedAt }
+        let position = pending.firstIndex { $0.globalKey == globalKey } ?? pending.count
+        return DownloadQueuePolicy.transferPriority(position: position)
+    }
+
+    /// A handed-off transfer that has not received a byte yet: the session
+    /// starts it when one of the Simultaneous Downloads slots frees up.
+    func isAwaitingTransfer(_ record: DownloadedMediaRecord) -> Bool {
+        DownloadQueuePolicy.isAwaitingTransfer(
+            status: record.status,
+            downloadedBytes: record.downloadedBytes,
+            isMoving: transferBytesReceivedKeys.contains(record.globalKey)
+        )
+    }
+
+    // MARK: - Live Activity
+
+    /// The user started, resumed or retried downloads: show the system Live
+    /// Activity for the queue (iOS 26+). Automatic work never calls this.
+    private func noteUserStartedDownloads() {
+        #if os(iOS)
+        continuedTask.userStartedDownloads()
+        #endif
+    }
+
+    /// The queue as the Live Activity sees it: the active profile's active
+    /// records, plus `includingFinished` keys in any state.
+    func activityItems(includingFinished keys: Set<String> = []) -> [DownloadActivityItem] {
+        records
+            .filter { $0.status == .queued || $0.status == .preparing || $0.status == .downloading || keys.contains($0.globalKey) }
+            .filter { !deletingDownloadIDs.contains($0.globalKey) }
+            .sorted { $0.addedAt < $1.addedAt }
+            .map { record in
+                DownloadActivityItem(
+                    globalKey: record.globalKey,
+                    title: record.title,
+                    showTitle: record.type == .episode ? record.grandparentTitle?.nilIfEmpty : nil,
+                    episodeLabel: record.type == .episode ? (record.subtitle?.nilIfEmpty ?? "Episode") : nil,
+                    isConverted: record.downloadQuality != .original,
+                    serverName: serverName(for: record.serverID) ?? record.serverName,
+                    status: record.status,
+                    progress: record.progress,
+                    preparationProgress: record.preparationProgress,
+                    downloadedBytes: record.downloadedBytes,
+                    totalBytes: record.totalBytes,
+                    isAwaitingTransfer: isAwaitingTransfer(record),
+                    waitReason: queueWaitReason(for: record)
+                )
+            }
+    }
+
+    /// The continued task ended (queue done, everything waiting, or expired).
+    /// Live transfers must not be left in a process iOS may now suspend.
+    func continuedTaskDidEnd() {
+        if isAppInBackground {
+            moveLiveTransfersToBackgroundSession()
+        }
+    }
+
+    // MARK: - Background
+
+    /// New transfers go to the in-process session only while the downloads
+    /// continued-processing task keeps Dusk running in the background (see
+    /// `DownloadTransferController`).
+    private var usesLiveTransfers: Bool {
+        #if os(iOS)
+        #if DEBUG
+        // `-DuskDebugLiveTransfers 1`: foreground transfers use the live
+        // session, so the move to the background session on leaving the app
+        // can be exercised in the simulator (which has no BGTaskScheduler).
+        if UserDefaults.standard.string(forKey: "DuskDebugLiveTransfers") == "1" { return !isAppInBackground }
+        #endif
+        return isAppInBackground && continuedTask.isRunning
+        #else
+        return false
+        #endif
+    }
+
+    func sceneDidEnterBackground() {
+        isAppInBackground = true
+        #if os(iOS)
+        if !continuedTask.isRunning {
+            moveLiveTransfersToBackgroundSession()
+        }
+        #endif
+    }
+
+    func sceneDidBecomeActive() {
+        isAppInBackground = false
+    }
+
+    /// Live transfers stop when Dusk is suspended. Before that can happen
+    /// (the continued task ended, or Dusk left the foreground without one),
+    /// they restart in the background session from their resume data.
+    func moveLiveTransfersToBackgroundSession() {
+        let keys = storedRecords
+            .filter {
+                $0.status == .downloading
+                    && $0.downloadTaskIdentifier.map(DownloadTransferController.isLiveIdentifier) == true
+            }
+            .map(\.globalKey)
+        guard !keys.isEmpty else { return }
+        for globalKey in keys {
+            restartTransfer(globalKey: globalKey)
+        }
+        #if os(iOS)
+        // Pausing (resume data) and re-creating the tasks takes a moment;
+        // keep Dusk running until they are in the background session.
+        let assertion = UIApplication.shared.beginBackgroundTask(withName: "Move live downloads")
+        Task { @MainActor [weak self] in
+            let deadline = ContinuousClock.now.advanced(by: .seconds(25))
+            while ContinuousClock.now < deadline, let self, self.hasPendingLiveMove(keys) {
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            UIApplication.shared.endBackgroundTask(assertion)
+        }
+        #endif
+    }
+
+    /// Whether any of `keys` is still paused for its restart, queued, being
+    /// prepared, or on a live task.
+    private func hasPendingLiveMove(_ keys: [String]) -> Bool {
+        keys.contains { key in
+            guard let record = record(globalKey: key) else { return false }
+            switch record.status {
+            case .queued, .preparing:
+                return true
+            case .paused:
+                return restartingTransferKeys.contains(key)
+            case .downloading:
+                return record.downloadTaskIdentifier.map(DownloadTransferController.isLiveIdentifier) ?? true
+            case .completed, .failed, .cancelled:
+                return false
+            }
+        }
+    }
+
+    /// A background wake delivered its events. Calling iOS's completion
+    /// handler lets it suspend Dusk, so first let the queue hand off what
+    /// it can (finished files moved into place, the next transfers created),
+    /// up to `DownloadQueuePolicy.backgroundWakeSettleLimit`.
+    private func completeBackgroundEventsWhenSettled(sessionIdentifier: String) {
+        Task { @MainActor [weak self] in
+            let clock = ContinuousClock()
+            let deadline = clock.now.advanced(by: DownloadQueuePolicy.backgroundWakeSettleLimit)
+            var isPrepared = false
+            // A cold background launch has no Plex session yet; bringing it up
+            // is bounded by the same deadline as the rest.
+            let preparation = Task { @MainActor [weak self] in
+                guard let self else { return }
+                if !self.plexService.isSessionReady {
+                    _ = await self.prepareSessionForBackgroundWork()
+                }
+                self.processQueueIfNeeded()
+                // One beat so `processQueue` can mark records `.preparing`.
+                try? await Task.sleep(for: .milliseconds(200))
+                isPrepared = true
+            }
+            while clock.now < deadline {
+                if isPrepared, self?.isSettledForBackgroundSuspension ?? true { break }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+            // `preparation` is left to finish if iOS keeps Dusk running.
+            _ = preparation
+            DownloadBackgroundSessionRegistry.completeEvents(for: sessionIdentifier)
+        }
+    }
+
+    private var isSettledForBackgroundSuspension: Bool {
+        queueTask == nil
+            && pendingCompletionCount == 0
+            && !storedRecords.contains { $0.status == .preparing && $0.downloadQuality == .original }
+    }
+
+    /// Brings the Plex session up when iOS launched Dusk in the background
+    /// without a scene (background URLSession wake, BGTask). Returns whether
+    /// the session is ready.
+    func prepareSessionForBackgroundWork() async -> Bool {
+        guard plexService.isAuthenticated else { return false }
+        if !plexService.homeBootstrapCompleted {
+            try? await plexService.bootstrapHomeSession()
+        }
+        guard plexService.isSessionReady, !Task.isCancelled else { return false }
+        // The scene's `.task` does this on a normal launch.
+        activateProfile()
+        // Wait for the first network path so Wi-Fi Only state is real.
+        for _ in 0..<20 where !hasNetworkPath {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        if plexService.pool.connections.isEmpty {
+            _ = try? await plexService.connectAllServers(trigger: "Background")
+        }
+        return !Task.isCancelled
     }
 
     func deleteDownload(id: PlexItemID) {
@@ -1170,11 +1475,6 @@ final class DownloadManager {
         }
     }
 
-    private var occupiedTransferSlots: Int {
-        records.filter {
-            $0.status == .downloading || ($0.status == .preparing && $0.downloadQuality == .original)
-        }.count
-    }
 
     private func processQueue() async {
         isProcessingQueue = true
@@ -1186,17 +1486,19 @@ final class DownloadManager {
         guard plexService.isSessionReady,
               plexService.activeProfileID?.nilIfEmpty != nil,
               !isReconcilingTransfers, !isProfileSwitching, !isQueuePaused else { return }
+        judgeRelaunchedTransfersIfNeeded()
 
-        // Limit server conversions separately so preparing a long movie does
-        // not prevent an Original download from using a free transfer slot.
-        for next in records where next.status == .queued {
+        // Every queued Original download is handed to the background session
+        // right away (the session runs `maximumActiveDownloads` of them at a
+        // time), so the queue keeps moving while Dusk is suspended. Server
+        // conversions stay limited to two at a time.
+        for next in records.sorted(by: { $0.addedAt < $1.addedAt }) where next.status == .queued {
             guard preparationTasks[next.globalKey] == nil,
                   !deletingDownloadIDs.contains(next.globalKey),
                   isServerConnected(next.serverID) else { continue }
-            if next.downloadQuality == .original {
-                guard occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue else { continue }
-            } else {
-                guard records.filter({ $0.status == .preparing && $0.downloadQuality != .original }).count < 2 else { continue }
+            let counts = DownloadQueuePolicy.Counts(records: records)
+            guard DownloadQueuePolicy.canStart(isOriginal: next.downloadQuality == .original, counts: counts) else {
+                continue
             }
             update(globalKey: next.globalKey) {
                 $0.status = .preparing
@@ -1307,12 +1609,19 @@ final class DownloadManager {
                 throw CancellationError()
             }
             _ = try fileStore.targetVideoURL(accountProfileID: profileID, for: details, part: transferPart)
-            try validateAvailableStorage(for: transferPart)
+            try validateAvailableStorage(for: transferPart, globalKey: record.globalKey)
             request.cachePolicy = .reloadIgnoringLocalCacheData
             request.allowsExpensiveNetworkAccess = !preferences.downloadsWifiOnly
             request.allowsConstrainedNetworkAccess = !preferences.downloadsWifiOnly
             let resumeData = fileStore.resumeData(relativePath: latest.resumeDataPath)
-            let taskIdentifier = try transferController.start(request: request, resumeData: resumeData, globalKey: record.globalKey)
+            transferBytesReceivedKeys.remove(record.globalKey)
+            let taskIdentifier = try transferController.start(
+                request: request,
+                resumeData: resumeData,
+                globalKey: record.globalKey,
+                live: usesLiveTransfers,
+                priority: transferPriority(for: record.globalKey)
+            )
             if resumeData != nil { fileStore.deleteResumeData(relativePath: latest.resumeDataPath) }
             update(globalKey: record.globalKey) {
                 $0.status = .downloading
@@ -1420,16 +1729,17 @@ final class DownloadManager {
                 update(globalKey: record.globalKey) { $0.preparationProgress = item.progress }
                 switch item.status {
                 case .available:
-                    // Retain the server item until a native slot is free.
-                    // Poll again after waiting so expired files are noticed.
-                    if occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue {
+                    // Hand off right away: the session's connection limit
+                    // queues it behind running transfers. If the prepared file
+                    // expires before the session gets to it, the transfer
+                    // fails without bytes and is requeued once, which
+                    // regenerates it here.
+                    if DownloadQueuePolicy.Counts(records: records).handedOff < DownloadQueuePolicy.maximumHandedOffTransfers {
                         let prepared = try await plexService.preparedDownload(
                             context: pollContext, queueID: queueID, itemID: itemID, sourceMedia: sourceMedia
                         )
                         try checkPreparation(record)
-                        // Another preparation may have claimed the last slot
-                        // while the decision request was in flight.
-                        if occupiedTransferSlots < preferences.maximumActiveDownloads.rawValue { return prepared }
+                        return prepared
                     }
                 case .expired:
                     throw PlexDownloadQueueError.expired
@@ -1898,14 +2208,24 @@ final class DownloadManager {
         }
     }
 
-    private func validateAvailableStorage(for part: PlexMediaPart) throws {
+    private func validateAvailableStorage(for part: PlexMediaPart, globalKey: String) throws {
         let expectedSize = max(0, part.size.map(Int64.init) ?? 0)
         guard let availableBytes = fileStore.availableStorageBytes() else {
             return
         }
 
         let reserveBytes = preferences.downloadFreeSpaceReserve.bytes
-        if availableBytes - expectedSize < reserveBytes {
+        // Handed-off transfers (possibly many, all at once) have not written
+        // their files yet; count what they still need.
+        let otherPendingBytes = storedRecords
+            .filter { $0.status == .downloading && $0.globalKey != globalKey }
+            .reduce(Int64(0)) { $0 + remainingBytes(for: $1) }
+        if !DownloadQueuePolicy.hasRoom(
+            availableBytes: availableBytes,
+            expectedBytes: expectedSize,
+            reserveBytes: reserveBytes,
+            otherPendingBytes: otherPendingBytes
+        ) {
             throw DownloadManagerError.insufficientStorage(
                 requiredBytes: expectedSize,
                 availableBytes: availableBytes,
@@ -2100,6 +2420,10 @@ final class DownloadManager {
         case let .progress(taskIdentifier, globalKey, progress, downloadedBytes, totalBytes):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else { return }
             guard !deletingDownloadIDs.contains(globalKey) else { return }
+            if downloadedBytes > 0, !transferBytesReceivedKeys.contains(globalKey) {
+                transferBytesReceivedKeys.insert(globalKey)
+                requeuedAfterFailureKeys.remove(globalKey)
+            }
             updateSpeedEstimate(globalKey: globalKey, downloadedBytes: downloadedBytes)
             update(globalKey: globalKey, persist: shouldPersistProgress(globalKey: globalKey, progress: progress)) { item in
                 guard item.status != .paused && item.status != .cancelled else { return }
@@ -2120,8 +2444,10 @@ final class DownloadManager {
                 return
             }
             let resumeDataPath = resumeData.flatMap { try? fileStore.saveResumeData($0, globalKey: globalKey) }
+            let isRestart = restartingTransferKeys.remove(globalKey) != nil
+            transferBytesReceivedKeys.remove(globalKey)
             update(globalKey: globalKey) { item in
-                item.status = .paused
+                item.status = isRestart && item.status == .paused ? .queued : .paused
                 item.resumeDataPath = resumeDataPath ?? item.resumeDataPath
                 item.downloadTaskIdentifier = nil
                 item.errorMessage = resumeDataPath == nil && resumeData != nil
@@ -2164,6 +2490,8 @@ final class DownloadManager {
                 finishProfileSuspension(taskIdentifier: taskIdentifier)
                 return
             }
+            transferBytesReceivedKeys.remove(globalKey)
+            pendingCompletionCount += 1
             Task {
                 await completeDownload(
                     globalKey: globalKey,
@@ -2171,8 +2499,11 @@ final class DownloadManager {
                     temporaryURL: temporaryURL,
                     response: response
                 )
+                pendingCompletionCount -= 1
                 finishProfileSuspension(taskIdentifier: taskIdentifier)
             }
+        case let .backgroundEventsFinished(sessionIdentifier):
+            completeBackgroundEventsWhenSettled(sessionIdentifier: sessionIdentifier)
         case let .failed(taskIdentifier, globalKey, error):
             guard let globalKey = resolvedGlobalKey(globalKey, taskIdentifier: taskIdentifier) else {
                 finishProfileSuspension(taskIdentifier: taskIdentifier)
@@ -2184,6 +2515,24 @@ final class DownloadManager {
             }
             if record(globalKey: globalKey)?.status == .paused {
                 finishProfileSuspension(taskIdentifier: taskIdentifier)
+                return
+            }
+            let receivedBytes = transferBytesReceivedKeys.remove(globalKey) != nil
+            if record(globalKey: globalKey)?.status == .downloading,
+               DownloadQueuePolicy.shouldRequeueAfterFailure(
+                   receivedBytes: receivedBytes,
+                   alreadyRequeued: requeuedAfterFailureKeys.contains(globalKey),
+                   error: error
+               ) {
+                requeuedAfterFailureKeys.insert(globalKey)
+                update(globalKey: globalKey) { item in
+                    item.status = .queued
+                    item.downloadTaskIdentifier = nil
+                    item.updatedAt = .now
+                }
+                speedEstimates.removeValue(forKey: globalKey)
+                finishProfileSuspension(taskIdentifier: taskIdentifier)
+                processQueueIfNeeded()
                 return
             }
             if let status = record(globalKey: globalKey)?.status, status != .completed, status != .cancelled {
@@ -2271,6 +2620,12 @@ final class DownloadManager {
         }
         let activeTasks = await transferController.existingTasks()
         let activeProfileID = plexService.activeProfileID
+        // A background relaunch (URLSession wake, BGTask) starts before the
+        // Plex session and profile exist. Pausing or requeueing then would
+        // treat every running transfer as another profile's and drop the
+        // finished-file events that iOS is about to deliver. Keep transfers
+        // running and decide per profile once one is active.
+        let canJudgeProfiles = plexService.isSessionReady && activeProfileID != nil
         var matchedRecordKeys: Set<String> = []
         var changed = false
 
@@ -2304,7 +2659,10 @@ final class DownloadManager {
             storedRecords[recordIndex].downloadTaskIdentifier = task.identifier
             storedRecords[recordIndex].updatedAt = .now
 
-            if storedRecords[recordIndex].accountProfileID == activeProfileID,
+            if !canJudgeProfiles {
+                storedRecords[recordIndex].status = .downloading
+                unjudgedRelaunchTransfers[storedRecords[recordIndex].globalKey] = task.identifier
+            } else if storedRecords[recordIndex].accountProfileID == activeProfileID,
                plexService.isSessionReady {
                 storedRecords[recordIndex].status = .downloading
             } else {
@@ -2319,6 +2677,12 @@ final class DownloadManager {
         for index in storedRecords.indices
         where storedRecords[index].status == .preparing || storedRecords[index].status == .downloading {
             if matchedRecordKeys.contains(storedRecords[index].globalKey) {
+                continue
+            }
+            if !canJudgeProfiles {
+                // Possibly finished while Dusk was not running: its event
+                // still needs the record's task identifier.
+                unjudgedRelaunchRecords.insert(storedRecords[index].globalKey)
                 continue
             }
 
@@ -2494,7 +2858,9 @@ final class DownloadManager {
         hasNetworkPath = true
         guard constrained != isNetworkConstrained else { return }
         isNetworkConstrained = constrained
-        evaluateNetworkConstraints()
+        // Transfers wait for Wi-Fi inside URLSession; only queue work that
+        // was skipped needs a nudge.
+        processQueueIfNeeded()
     }
 
     private func removeAggregatePlaceholder(for scope: DownloadScope) {
@@ -2619,7 +2985,7 @@ extension DownloadManager {
             }
         }
         if let rule = smartDownloadRule(show: showID) {
-            refillSmartDownloads(rule: rule, force: true)
+            refillSmartDownloads(rule: rule, force: true, userInitiated: true)
         }
     }
 
@@ -2627,7 +2993,7 @@ extension DownloadManager {
         guard let rule = smartDownloadRule(show: show), rule.count != count else { return }
         updateSmartDownloadRule(rule.globalKey) { $0.count = count }
         if let updated = smartDownloadRule(show: show) {
-            refillSmartDownloads(rule: updated, force: true)
+            refillSmartDownloads(rule: updated, force: true, userInitiated: true)
         }
     }
 
@@ -2665,7 +3031,15 @@ extension DownloadManager {
         }
     }
 
-    private func refillSmartDownloads(rule: SmartDownloadRule, force: Bool, justWatched: Set<String> = []) {
+    /// `userInitiated`: the user just turned the rule on or changed it, so
+    /// the episodes it queues show the downloads Live Activity. Refills from
+    /// watching, reconnects and the background task stay silent.
+    private func refillSmartDownloads(
+        rule: SmartDownloadRule,
+        force: Bool,
+        justWatched: Set<String> = [],
+        userInitiated: Bool = false
+    ) {
         let key = rule.globalKey
         if smartRefillTasks[key] != nil {
             smartRefillReruns[key, default: []].formUnion(justWatched)
@@ -2679,6 +3053,9 @@ extension DownloadManager {
             guard let self else { return }
             await self.performSmartRefill(ruleKey: key, justWatched: justWatched)
             self.smartRefillTasks.removeValue(forKey: key)
+            if userInitiated {
+                self.noteUserStartedDownloads()
+            }
             if let rerun = self.smartRefillReruns.removeValue(forKey: key),
                let current = self.storedSmartDownloadRules.first(where: { $0.globalKey == key }) {
                 self.refillSmartDownloads(rule: current, force: true, justWatched: rerun)
@@ -2753,28 +3130,14 @@ extension DownloadManager {
     /// the active profile, then waits until the new episodes are handed to the
     /// background URLSession. Returns false when it could not run.
     func runBackgroundSmartRefill() async -> Bool {
-        guard !storedSmartDownloadRules.isEmpty, plexService.isAuthenticated else { return false }
-        if !plexService.homeBootstrapCompleted {
-            try? await plexService.bootstrapHomeSession()
-        }
-        guard plexService.isSessionReady, !Task.isCancelled else { return false }
-        // The scene's `.task` does this on a normal launch.
-        activateProfile()
-
-        // Wi-Fi Only: decide on the real network, not the monitor's default.
-        for _ in 0..<20 where !hasNetworkPath {
-            try? await Task.sleep(for: .milliseconds(100))
-        }
+        guard !storedSmartDownloadRules.isEmpty,
+              await prepareSessionForBackgroundWork() else { return false }
+        // Wi-Fi Only: decided on the real network, not the monitor's default.
         guard SmartDownloadBackgroundPolicy.shouldRun(
             hasRules: !activeSmartDownloadRules.isEmpty,
             wifiOnly: preferences.downloadsWifiOnly,
             isNetworkConstrained: isNetworkConstrained
         ) else { return false }
-
-        if plexService.pool.connections.isEmpty {
-            _ = try? await plexService.connectAllServers(trigger: "Background")
-        }
-        guard !Task.isCancelled else { return false }
 
         refillSmartDownloads(force: true)
         for task in Array(smartRefillTasks.values) {

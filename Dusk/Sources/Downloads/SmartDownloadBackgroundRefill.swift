@@ -7,8 +7,8 @@ import UIKit
 /// Decisions for the background Keep Next N refill, kept pure for tests.
 enum SmartDownloadBackgroundPolicy {
     /// Wi-Fi Only means no refill on an expensive or constrained network, the
-    /// same rule `DownloadManager.evaluateNetworkConstraints` applies to the
-    /// queue (and every transfer request carries it too).
+    /// network every transfer request refuses while the setting is on (see
+    /// `DownloadManager.wifiOnlyPreferenceDidChange`).
     static func shouldRun(hasRules: Bool, wifiOnly: Bool, isNetworkConstrained: Bool) -> Bool {
         hasRules && !(wifiOnly && isNetworkConstrained)
     }

@@ -321,6 +321,13 @@ struct DownloadsRootContent: View {
     }
 
     private var queueActivityHint: String {
+        #if os(iOS)
+        // iOS 26+: the downloads Live Activity keeps the queue (conversions
+        // included) running after the user leaves; force-quitting stops it.
+        if DownloadContinuedTaskController.isSupported {
+            return "Downloads continue when you leave Dusk, unless you swipe it away."
+        }
+        #endif
         let hasPendingConversion = downloadManager.queuedRecords.contains {
             $0.downloadQuality != .original && ($0.status == .queued || $0.status == .preparing)
         }
@@ -781,7 +788,7 @@ private struct MacDownloadQueueRow: View {
             )
 
             Group {
-                if record.status == .downloading {
+                if record.status == .downloading, !downloadManager.isAwaitingTransfer(record) {
                     ProgressView(value: record.progress)
                 } else if record.status == .preparing, let progress = record.preparationProgress {
                     ProgressView(value: progress)
@@ -827,6 +834,9 @@ private struct MacDownloadQueueRow: View {
         if state.isDeleting { return "Removing…" }
         if let waitReason = downloadManager.queueWaitReason(for: record) { return waitReason }
         let size = { (bytes: Int64) in ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
+        if downloadManager.isAwaitingTransfer(record) {
+            return record.totalBytes.map { "Queued · \(size($0))" } ?? "Queued"
+        }
         switch record.status {
         case .queued:
             return record.totalBytes.map { "Queued · \(size($0))" } ?? "Queued"
@@ -1120,6 +1130,12 @@ private struct DownloadQueueRow: View {
             return record.totalBytes.map { "\(waitReason) · \(formattedBytes($0))" } ?? waitReason
         }
 
+        // Handed to the background session, which starts it when a
+        // Simultaneous Downloads slot frees up.
+        if downloadManager.isAwaitingTransfer(record) {
+            return record.totalBytes.map { "Queued · \(formattedBytes($0))" } ?? "Queued"
+        }
+
         return switch record.status {
         case .queued:
             record.totalBytes.map { "Queued · \(formattedBytes($0))" } ?? "Queued"
@@ -1167,7 +1183,7 @@ private struct DownloadQueueRow: View {
                 ProgressView()
                     .controlSize(.small)
             }
-        } else if record.status == .downloading {
+        } else if record.status == .downloading, !downloadManager.isAwaitingTransfer(record) {
             CircularProgressView(progress: record.progress)
                 .frame(width: 24, height: 24)
         } else if record.status == .paused {
@@ -1177,7 +1193,7 @@ private struct DownloadQueueRow: View {
             Image(systemName: "exclamationmark.circle.fill")
                 .foregroundStyle(.red)
         } else {
-            Image(systemName: record.status == .queued ? "clock" : "arrow.down.circle")
+            Image(systemName: record.status == .queued || record.status == .downloading ? "clock" : "arrow.down.circle")
                 .foregroundStyle(Color.duskTextSecondary)
         }
     }
@@ -1262,7 +1278,14 @@ private extension View {
     @ViewBuilder
     func downloadQueueIdleTimerDisabled(_ isDisabled: Bool) -> some View {
         #if os(iOS)
-        modifier(DownloadQueueIdleTimerModifier(isDisabled: isDisabled))
+        // iOS 26+: the downloads continued-processing task keeps the queue
+        // running after the screen locks, so auto-lock stays on. Older iOS
+        // has nothing that keeps Dusk awake for conversions and hand-offs.
+        if DownloadContinuedTaskController.isSupported {
+            self
+        } else {
+            modifier(DownloadQueueIdleTimerModifier(isDisabled: isDisabled))
+        }
         #else
         self
         #endif

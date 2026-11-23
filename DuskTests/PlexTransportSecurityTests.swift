@@ -100,7 +100,7 @@ struct PlexTransportSecurityTests {
     }
 
     @Test func backgroundTransfersRejectNonHTTPRequestsBeforeCreatingATask() {
-        let controller = DownloadTransferController { _ in }
+        let controller = DownloadTransferController(maximumConnectionsPerHost: 1) { _ in }
         var request = URLRequest(url: URL(string: "ftp://public.example/video")!)
         request.setValue("test-token", forHTTPHeaderField: "X-Plex-Token")
         #expect(throws: URLError.self) {

@@ -305,14 +305,16 @@ struct DuskApp: App {
                 await offlinePlaybackSyncManager.syncPendingActions(force: true)
             }
             .onChange(of: scenePhase) { _, newPhase in
-                #if os(iOS)
                 if newPhase == .background {
+                    downloadManager.sceneDidEnterBackground()
+                    #if os(iOS)
                     SmartDownloadBackgroundRefill.schedule(
                         hasRules: !downloadManager.storedSmartDownloadRules.isEmpty
                     )
+                    #endif
                 }
-                #endif
                 if newPhase == .active {
+                    downloadManager.sceneDidBecomeActive()
                     downloadManager.resumePendingWork()
                     analytics.recordAppOpenedIfNeeded()
                     Task { await traktService.flushPending() }
@@ -331,7 +333,7 @@ struct DuskApp: App {
                 }
             }
             .onChange(of: userPreferences.downloadsWifiOnly) {
-                downloadManager.evaluateNetworkConstraints()
+                downloadManager.wifiOnlyPreferenceDidChange()
             }
             .onChange(of: userPreferences.analyticsEnabled) {
                 analytics.reportingPreferenceDidChange()

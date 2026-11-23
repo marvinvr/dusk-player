@@ -6,6 +6,10 @@ enum DownloadTransferEvent: Sendable {
     case cancelled(taskIdentifier: Int, globalKey: String?)
     case finished(taskIdentifier: Int, globalKey: String?, temporaryURL: URL, response: DownloadTransferResponse?)
     case failed(taskIdentifier: Int, globalKey: String?, error: Error)
+    /// iOS delivered every event of a background wake. The manager calls
+    /// `DownloadBackgroundSessionRegistry.completeEvents` once its own
+    /// follow-up work (the next hand-off) has settled.
+    case backgroundEventsFinished(sessionIdentifier: String)
 }
 
 struct DownloadTransferResponse: Sendable {
@@ -35,10 +39,31 @@ enum DownloadBackgroundSessionRegistry {
         lock.lock()
         let handler = completionHandlers.removeValue(forKey: identifier)
         lock.unlock()
+        // Called from the main actor (`DownloadManager`), as UIKit expects.
         handler?()
     }
 }
 
+/// Owns the URLSessions that move download bytes.
+///
+/// - The **background** session (iOS) is the transport: its transfers keep
+///   going while Dusk is suspended, locked or killed by the system. Every
+///   queued Original download is handed to it up front, and the session's
+///   `httpMaximumConnectionsPerHost` (the Simultaneous Downloads setting at
+///   launch) decides how many run at once, so the queue no longer needs Dusk
+///   to wake up between files.
+/// - The **live** session (iOS 26+) is used only for a transfer created while
+///   Dusk runs in the background under the downloads continued-processing
+///   task. iOS treats any background-session task created in the background
+///   as discretionary (it may wait for power and Wi-Fi), so a converted file
+///   that Plex finished preparing while the user was away would otherwise sit
+///   idle. Live transfers are moved to the background session before Dusk can
+///   be suspended (`DownloadManager.moveLiveTransfersToBackgroundSession`).
+///
+/// Task identifiers are only unique per session. Live tasks are reported with
+/// negative identifiers (`-(taskIdentifier + 1)`) so a record's
+/// `downloadTaskIdentifier` names exactly one task. Live tasks never survive
+/// the process, so relaunch reconciliation only ever sees background ones.
 final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
     private struct ProgressSnapshot {
         let date: Date
@@ -47,6 +72,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
     private static let progressEventInterval: TimeInterval = 0.75
 
     private let eventHandler: @Sendable (DownloadTransferEvent) -> Void
+    private let maximumConnectionsPerHost: Int
     private let stateLock = NSLock()
     private var pausedTaskIdentifiers: Set<Int> = []
     private var cancelledTaskIdentifiers: Set<Int> = []
@@ -61,27 +87,68 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         #else
         let configuration = URLSessionConfiguration.default
         #endif
-        configuration.allowsExpensiveNetworkAccess = true
-        configuration.allowsConstrainedNetworkAccess = true
-        configuration.waitsForConnectivity = true
+        Self.applyCommonSettings(to: configuration, maximumConnectionsPerHost: maximumConnectionsPerHost)
         return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
     }()
 
-    init(eventHandler: @escaping @Sendable (DownloadTransferEvent) -> Void) {
+    private lazy var liveSession: URLSession = {
+        let configuration = URLSessionConfiguration.default
+        Self.applyCommonSettings(to: configuration, maximumConnectionsPerHost: maximumConnectionsPerHost)
+        return URLSession(configuration: configuration, delegate: self, delegateQueue: nil)
+    }()
+
+    init(maximumConnectionsPerHost: Int, eventHandler: @escaping @Sendable (DownloadTransferEvent) -> Void) {
+        self.maximumConnectionsPerHost = max(1, maximumConnectionsPerHost)
         self.eventHandler = eventHandler
         super.init()
         _ = session
     }
 
+    private static func applyCommonSettings(to configuration: URLSessionConfiguration, maximumConnectionsPerHost: Int) {
+        configuration.allowsExpensiveNetworkAccess = true
+        configuration.allowsConstrainedNetworkAccess = true
+        configuration.waitsForConnectivity = true
+        configuration.httpMaximumConnectionsPerHost = maximumConnectionsPerHost
+    }
+
+    static func isLiveIdentifier(_ identifier: Int) -> Bool {
+        identifier < 0
+    }
+
+    private func reportedIdentifier(for task: URLSessionTask, in session: URLSession) -> Int {
+        session === liveSessionIfCreated ? -(task.taskIdentifier + 1) : task.taskIdentifier
+    }
+
+    /// Avoids creating the live session just to compare against it.
+    private var hasLiveSession = false
+    private var liveSessionIfCreated: URLSession? {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        return hasLiveSession ? liveSession : nil
+    }
+
+    private func makeLiveSessionIfNeeded() -> URLSession {
+        stateLock.lock()
+        defer { stateLock.unlock() }
+        hasLiveSession = true
+        return liveSession
+    }
+
+    /// Starts a transfer and returns its reported identifier. `live` uses the
+    /// in-process session (see the type comment); everything else goes to the
+    /// background session.
     func start(
         request: URLRequest,
         resumeData: Data?,
-        globalKey: String
+        globalKey: String,
+        live: Bool = false,
+        priority: Float = URLSessionTask.defaultPriority
     ) throws -> Int {
         try PlexTransportSecurity.validate(request)
+        let targetSession = live ? makeLiveSessionIfNeeded() : session
         let task: URLSessionDownloadTask
         if let resumeData {
-            let resumed = session.downloadTask(withResumeData: resumeData)
+            let resumed = targetSession.downloadTask(withResumeData: resumeData)
             // Resume data may contain an endpoint saved by an older version.
             // If URLSession cannot expose that request yet, restart from the
             // freshly validated URL rather than trusting opaque resume data.
@@ -90,14 +157,18 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
                 task = resumed
             } else {
                 resumed.cancel()
-                task = session.downloadTask(with: request)
+                task = targetSession.downloadTask(with: request)
             }
         } else {
-            task = session.downloadTask(with: request)
+            task = targetSession.downloadTask(with: request)
         }
         task.taskDescription = globalKey
+        // Earlier queue entries first: the handed-off tasks wait inside the
+        // session, which otherwise starts them in creation order (and
+        // preparations finish in any order).
+        task.priority = priority
         task.resume()
-        return task.taskIdentifier
+        return reportedIdentifier(for: task, in: targetSession)
     }
 
     func urlSession(
@@ -136,6 +207,8 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         }
     }
 
+    /// Background-session tasks only: live tasks die with the process, so
+    /// after a relaunch there are none to reconcile.
     func existingTasks() async -> [DownloadTransferTask] {
         await withCheckedContinuation { continuation in
             session.getAllTasks { tasks in
@@ -155,8 +228,14 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         taskIdentifier: Int,
         completion: @escaping @Sendable (URLSessionDownloadTask?) -> Void
     ) {
-        session.getAllTasks { tasks in
-            let task = tasks.first { $0.taskIdentifier == taskIdentifier } as? URLSessionDownloadTask
+        let isLive = Self.isLiveIdentifier(taskIdentifier)
+        guard let targetSession = isLive ? liveSessionIfCreated : session else {
+            completion(nil)
+            return
+        }
+        let rawIdentifier = isLive ? -taskIdentifier - 1 : taskIdentifier
+        targetSession.getAllTasks { tasks in
+            let task = tasks.first { $0.taskIdentifier == rawIdentifier } as? URLSessionDownloadTask
             completion(task)
         }
     }
@@ -168,6 +247,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         totalBytesWritten: Int64,
         totalBytesExpectedToWrite: Int64
     ) {
+        let identifier = reportedIdentifier(for: downloadTask, in: session)
         let totalBytes = totalBytesExpectedToWrite > 0 ? totalBytesExpectedToWrite : 0
         let progressValue: Double
         if totalBytes > 0 {
@@ -178,13 +258,13 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
 
         stateLock.lock()
         let now = Date()
-        let previous = progressSnapshots[downloadTask.taskIdentifier]
+        let previous = progressSnapshots[identifier]
         let isComplete = totalBytes > 0 && totalBytesWritten >= totalBytes
         let shouldEmit = previous == nil
             || isComplete
             || now.timeIntervalSince(previous?.date ?? .distantPast) >= Self.progressEventInterval
         if shouldEmit {
-            progressSnapshots[downloadTask.taskIdentifier] = ProgressSnapshot(
+            progressSnapshots[identifier] = ProgressSnapshot(
                 date: now
             )
         }
@@ -193,7 +273,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         guard shouldEmit else { return }
 
         eventHandler(.progress(
-            taskIdentifier: downloadTask.taskIdentifier,
+            taskIdentifier: identifier,
             globalKey: downloadTask.taskDescription,
             progress: progressValue,
             downloadedBytes: totalBytesWritten,
@@ -206,13 +286,14 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         downloadTask: URLSessionDownloadTask,
         didFinishDownloadingTo location: URL
     ) {
+        let identifier = reportedIdentifier(for: downloadTask, in: session)
         do {
             let stableLocation = FileManager.default.temporaryDirectory
                 .appendingPathComponent(UUID().uuidString)
             try FileManager.default.moveItem(at: location, to: stableLocation)
             let httpResponse = downloadTask.response as? HTTPURLResponse
             eventHandler(.finished(
-                taskIdentifier: downloadTask.taskIdentifier,
+                taskIdentifier: identifier,
                 globalKey: downloadTask.taskDescription,
                 temporaryURL: stableLocation,
                 response: DownloadTransferResponse(
@@ -223,7 +304,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
             ))
         } catch {
             eventHandler(.failed(
-                taskIdentifier: downloadTask.taskIdentifier,
+                taskIdentifier: identifier,
                 globalKey: downloadTask.taskDescription,
                 error: error
             ))
@@ -235,10 +316,11 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
         task: URLSessionTask,
         didCompleteWithError error: Error?
     ) {
+        let identifier = reportedIdentifier(for: task, in: session)
         stateLock.lock()
-        let wasPaused = pausedTaskIdentifiers.remove(task.taskIdentifier) != nil
-        let wasCancelled = cancelledTaskIdentifiers.remove(task.taskIdentifier) != nil
-        progressSnapshots.removeValue(forKey: task.taskIdentifier)
+        let wasPaused = pausedTaskIdentifiers.remove(identifier) != nil
+        let wasCancelled = cancelledTaskIdentifiers.remove(identifier) != nil
+        progressSnapshots.removeValue(forKey: identifier)
         stateLock.unlock()
 
         if wasPaused {
@@ -247,7 +329,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
 
         if wasCancelled {
             eventHandler(.cancelled(
-                taskIdentifier: task.taskIdentifier,
+                taskIdentifier: identifier,
                 globalKey: task.taskDescription
             ))
             return
@@ -255,7 +337,7 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
 
         if let error {
             eventHandler(.failed(
-                taskIdentifier: task.taskIdentifier,
+                taskIdentifier: identifier,
                 globalKey: task.taskDescription,
                 error: error
             ))
@@ -263,6 +345,6 @@ final class DownloadTransferController: NSObject, URLSessionDownloadDelegate, @u
     }
 
     func urlSessionDidFinishEvents(forBackgroundURLSession session: URLSession) {
-        DownloadBackgroundSessionRegistry.completeEvents(for: session.configuration.identifier ?? "")
+        eventHandler(.backgroundEventsFinished(sessionIdentifier: session.configuration.identifier ?? ""))
     }
 }

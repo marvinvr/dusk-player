@@ -52,6 +52,7 @@
 	<array>
 		<string>com.dusk-player.app.smart-downloads.refill</string>
 		<string>com.dusk-player.app.smart-downloads.refresh</string>
+		<string>com.dusk-player.app.downloads.continued.*</string>
 	</array>
 	<key>UIBackgroundModes</key>
 	<array>
