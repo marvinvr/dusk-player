@@ -87,12 +87,16 @@ Conversion uses the Generic profile with a **static** HTTP MKV/H.264/AAC target,
 separate preparation progress. Before native handoff, the decision must confirm
 the requested container/codecs; a ready-file HEAD supplies its actual size when
 available. Dusk never substitutes the original file after conversion failure.
-Two server preparations may run alongside the configured native transfer slots.
+Two server preparations run at a time; a prepared file is handed to the
+background session as soon as Plex reports it available (the session queues it
+behind running transfers).
 An expired job/file may be regenerated twice automatically; explicit Retry
 starts a new recovery budget. A prepared file can expire while paused, too.
 
-Preparation requires the app to run; suspension delays polling/handoff until
-the app resumes. Queue/client/item identity survives relaunch. Once handed off,
+Preparation requires the app to run. On iOS 26+ the downloads continued
+task (see Background Transfers) keeps Dusk running after the user leaves;
+otherwise suspension delays polling/handoff until iOS wakes Dusk or the user
+opens it. Queue/client/item identity survives relaunch. Once handed off,
 the existing background URLSession owns transfer. Cancellation and completion
 enqueue item-only cleanup; pending cleanup persists across offline periods and
 profile switches and runs only with its owner's credentials. A cancellation
@@ -186,9 +190,45 @@ validation must leave the record `failed`, not `completed`.
 ## Background Transfers
 
 `DownloadTransferController` owns `URLSessionDownloadDelegate`. iOS uses
-background session id `com.dusk-player.app.downloads.background`; `DuskAppDelegate`
-stores completion handlers in `DownloadBackgroundSessionRegistry`, and
-`urlSessionDidFinishEvents` calls them. Other platforms use a default session.
+background session id `com.dusk-player.app.downloads.background`; other
+platforms use a default session. Rules (pure parts in `DownloadQueuePolicy`,
+tested in `DuskTests/DownloadQueuePolicyTests.swift`):
+
+- **Hand-off ahead.** `processQueue` hands every queued Original download to
+  the session right away (up to 50, four resolving at a time), not one per
+  free slot. Simultaneous Downloads is the session's
+  `httpMaximumConnectionsPerHost`, read when the session is created, so a
+  change applies from the next launch. The session runs the rest on its own
+  while Dusk is suspended or killed by the system; nothing waits for Dusk to
+  wake between files. Tasks get a `priority` from their queue position (a
+  hint: preparations finish in any order). A handed-off record is
+  `.downloading`; until its first byte (`isAwaitingTransfer`) rows show it as
+  Queued and `activeDownloadCount` leaves it out. The storage check counts
+  what other handed-off transfers still need.
+- **Background wake.** `urlSessionDidFinishEvents` emits
+  `.backgroundEventsFinished`; the manager calls iOS's completion handler
+  only after finished files are moved and the queue has handed off what it
+  can (max 20 s, bringing the Plex session up on a cold launch via
+  `prepareSessionForBackgroundWork`).
+- **Relaunch reconciliation before a profile exists** (background launch):
+  matched tasks keep running and unmatched in-flight records keep their task
+  ids, so the finished-file events iOS delivers right after launch still
+  complete them. `judgeRelaunchedTransfersIfNeeded` applies the
+  per-profile pause/requeue once a profile is active.
+- **Early failure.** A transfer that fails before any byte (stale staged URL,
+  prepared file expired, unusable resume data) is requeued once with a fresh
+  request instead of failing.
+- **Live session (iOS 26+).** Any background-session task created while Dusk
+  is in the background is discretionary for iOS (it may wait for power and
+  Wi-Fi). While the continued task keeps Dusk running in the background, new
+  transfers (typically a conversion Plex just finished) use an in-process
+  session instead; their identifiers are negative (`-(id + 1)`). When the task
+  ends or Dusk leaves the foreground without one, `moveLiveTransfersToBackgroundSession`
+  pauses them (resume data) and restarts them in the background session under
+  a short `beginBackgroundTask`. Resume data from the default session works in
+  the background session (sim-verified, byte-identical file). DEBUG
+  `-DuskDebugLiveTransfers 1` puts foreground transfers on the live session to
+  exercise that move.
 Progress is throttled in the delegate and persisted less frequently by
 `DownloadManager`. Pause uses `cancel(byProducingResumeData:)`; resume data is
 saved under `ResumeData/` and deleted after reuse. `PlexTransportSecurity`
@@ -198,10 +238,45 @@ that task and restarts using the freshly validated request. This prevents old
 resume data from restoring a public HTTP endpoint. Task descriptions carry the
 record `globalKey`; use them for relaunch reconciliation instead of task ids.
 
-Network constraints are split between URLSession configuration and
-`DownloadManager`'s `NWPathMonitor`. When Wi-Fi Only is enabled and the network
-is expensive or constrained, the manager pauses the queue and later resumes only
-if that pause was network-driven.
+Wi-Fi Only is enforced by URLSession: every transfer request sets
+`allowsExpensive/ConstrainedNetworkAccess = !downloadsWifiOnly`, so on cellular
+a transfer waits inside the session (also while Dusk is suspended) and goes on
+by itself on Wi-Fi. Nothing is paused. `NWPathMonitor` only feeds the "Waiting
+for Wi-Fi" row text (`queueWaitReason`) and the Live Activity. Request flags are
+fixed per task, so toggling the setting restarts handed-off transfers from
+their resume data (`wifiOnlyPreferenceDidChange`, `restartTransfer`).
+
+### Downloads Live Activity (iOS 26+)
+
+`DownloadContinuedTaskController` (`DownloadContinuedTask.swift`) submits one
+`BGContinuedProcessingTask` (`com.dusk-player.app.downloads.continued.<uuid>`,
+wildcard in `BGTaskSchedulerPermittedIdentifiers`, registered per id just
+before submit, strategy `.queue`) when the user starts, resumes or retries
+downloads, or turns on / changes Keep Next N. iOS draws the Live Activity
+(Lock Screen, Dynamic Island) from its title, subtitle and progress and keeps
+Dusk running after the user leaves, so conversions keep polling and new
+transfers are created without being demoted. No widget extension.
+
+- One task for the whole queue; items added meanwhile join it. Wording and
+  bar come from `DownloadActivitySummary` (tested in
+  `DuskTests/DownloadActivitySummaryTests.swift`): "Downloading 4 episodes" /
+  "Downloading Severance", subtitle = the moving item, "Preparing on <server>"
+  or the wait reason; a conversion is half preparation, half transfer; items
+  weigh by size; the bar never moves back.
+- Ends when the batch is done ("Downloaded 4 episodes", or "2 downloads
+  failed" with `success: false`), when everything left has waited 20 s (Wi-Fi
+  Only on cellular, server away: the session keeps those transfers), or 15 s
+  after start with nothing to do.
+- Expiration (the user's ✕ on the activity, or iOS ending it; the API does not
+  say which) = Pause All, resume data kept.
+- Submit failures (simulator: "BGTaskScheduler is not available on this
+  platform", or iOS refusing) change nothing: the background session carries
+  the transfers as before.
+- Never submitted for automatic work: Smart Downloads refills (background task,
+  after watching, on reconnect), auto-resume, relaunch reconciliation.
+- Not on iOS 18–25 or the iPad app on a Mac (`isSupported`). There the queue
+  sheet keeps the screen awake while downloads are active; on iOS 26+ it does
+  not, and its hint says downloads continue unless the app is swiped away.
 
 ## Metadata And Artwork Cache
 
@@ -336,9 +411,10 @@ quality) and the pure planner (`SmartDownloadPlanner`, tested in
   Wi-Fi Only is on and the network is expensive/constrained
   (`SmartDownloadBackgroundPolicy`), connects servers, refills every rule and
   returns once each reachable episode is handed to the background URLSession.
-  Wi-Fi Only is enforced twice more downstream: the queue pauses on a
-  constrained network, and every transfer request sets
-  `allowsExpensive/ConstrainedNetworkAccess = !downloadsWifiOnly`.
+  Wi-Fi Only is enforced again downstream: every transfer request sets
+  `allowsExpensive/ConstrainedNetworkAccess = !downloadsWifiOnly`. Refills
+  never show the downloads Live Activity; turning a rule on or changing N
+  does (`userInitiated`).
   The simulator cannot submit BGTask requests, so
   `_simulateLaunchForTaskWithIdentifier` finds nothing there; the DEBUG
   argument `-DuskSimulateSmartRefillAfter <seconds>` runs the same task body
@@ -361,8 +437,8 @@ quality) and the pure planner (`SmartDownloadPlanner`, tested in
 
 `DownloadActionButton` is the inline download/delete/pause/resume/retry control.
 `DownloadsView` owns the downloaded movie/show grid, queue sheet, queue awake
-hint, pending sync banner, transfer-rate and ETA display, and the
-queue-sheet-only idle timer hold while active downloads exist. Queue rows
+hint, pending sync banner, transfer-rate and ETA display, and (below iOS 26
+only) the queue-sheet idle timer hold while active downloads exist. Queue rows
 dismiss the sheet before appending the media destination to the Downloads tab
 navigation path, so detail screens are shown in the full tab stack rather than
 inside the sheet.
@@ -419,3 +495,10 @@ Protocol/decision fixtures and legacy-record migration coverage live in
 establish live-server behavior: before release, verify conversion permissions,
 multiple versions, expiry, profile switching, cancellation during add/poll/file
 transfer, full offline MKV playback, and iOS background relaunch with a real PMS.
+The downloads Live Activity only runs on a device (the simulator has no
+BGTaskScheduler); test it locked for a couple of hours with a converted item
+in the queue. Simulator recipe for the transfer side: scratch wrapper of the
+dusk-screenshots mock that throttles media GETs, reports the real short-cut
+size, and fakes `/downloadQueue`; `-DuskScreenshotDownloads movie:1001@p720`
+queues a conversion; background with `simctl launch … com.apple.Preferences`,
+kill with `simctl terminate` (counts as a system kill, transfers continue).
