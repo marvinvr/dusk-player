@@ -168,10 +168,18 @@ struct DownloadsRootContent: View {
                 isDimmed: state.isDeleting
             ) {
                 if !state.isDeleting {
-                    Button(role: .destructive) {
-                        downloadManager.deleteDownload(scope: item.scope)
-                    } label: {
-                        Label("Delete Download", systemImage: "trash")
+                    if case .show = item {
+                        SmartDownloadMenuContent(
+                            show: item.scope.id,
+                            quality: state.records.first?.downloadQuality ?? .original
+                        )
+                    }
+                    if state.hasRecords {
+                        Button(role: .destructive) {
+                            downloadManager.deleteDownload(scope: item.scope)
+                        } label: {
+                            Label("Delete Download", systemImage: "trash")
+                        }
                     }
                 }
             }

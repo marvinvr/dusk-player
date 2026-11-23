@@ -68,7 +68,7 @@ struct SeasonDetailView: View {
             Task { await viewModel.refresh() }
         }
         .sheet(item: $episodeToDownload) { episode in
-            DownloadQualitySelectionSheet { quality in
+            DownloadQualitySelectionSheet { quality, _ in
                 episodeToDownload = nil
                 Task {
                     await downloadManager.queueDownload(episode: episode, quality: quality)

@@ -244,7 +244,7 @@ struct MainTabView: View {
     #endif
 
     private var hasDownloads: Bool {
-        DownloadsFeature.isVisible && !downloadManager.records.isEmpty
+        DownloadsFeature.isVisible && downloadManager.hasDownloadsContent
     }
 
     private var availableTabs: [MainTabItem] {

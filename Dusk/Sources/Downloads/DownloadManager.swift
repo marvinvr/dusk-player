@@ -77,6 +77,8 @@ final class DownloadManager {
     private(set) var isProcessingQueue = false
     private(set) var isQueuePaused = false
     private(set) var deletingDownloadIDs: Set<String> = []
+    /// Keep Next N Unwatched rules of every profile; see `SmartDownloads.swift`.
+    private(set) var storedSmartDownloadRules: [SmartDownloadRule] = []
 
     private(set) var isNetworkConstrained = false
 
@@ -100,6 +102,13 @@ final class DownloadManager {
     /// backfill already tried this launch (a failure waits for the next one).
     @ObservationIgnored private var subtitleCachingKeys: Set<String> = []
     @ObservationIgnored private var subtitleBackfillAttemptedKeys: Set<String> = []
+    /// Running refills by rule key, and rules asked to refill again meanwhile.
+    @ObservationIgnored private var smartRefillTasks: [String: Task<Void, Never>] = [:]
+    @ObservationIgnored private var smartRefillReruns: [String: Set<String>] = [:]
+    /// Pending local watch state (`OfflinePlaybackSyncManager.effectiveWatched`)
+    /// so an episode watched offline counts before Plex has heard about it.
+    /// Arguments: server id, rating key, Plex's watched state.
+    @ObservationIgnored var effectiveWatchedState: ((String, String, Bool) -> Bool)?
     @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
         Task { @MainActor [weak self] in
             self?.handleTransferEvent(event)
@@ -119,6 +128,7 @@ final class DownloadManager {
         let snapshot = fileStore.loadSnapshot()
         storedRecords = snapshot.records
         pendingQueueRemovals = snapshot.pendingQueueRemovals ?? []
+        storedSmartDownloadRules = snapshot.smartDownloadRules ?? []
         rekeyLegacyServerIdentifiers()
         reconcileCompletedFiles()
         _ = transferController
@@ -151,6 +161,7 @@ final class DownloadManager {
         guard !appeared.isEmpty else { return }
         processQueueIfNeeded()
         backfillExternalSubtitles(serverIDs: appeared)
+        refillSmartDownloads(serverIDs: appeared)
     }
 
     /// Records written before servers were identified by machine identifier can
@@ -258,7 +269,8 @@ final class DownloadManager {
             )
         }
 
-        return grouped.compactMap { showID, episodes -> DownloadedShowSummary? in
+        let rules = activeSmartDownloadRules
+        var summaries = grouped.compactMap { showID, episodes -> DownloadedShowSummary? in
             guard let first = episodes.first,
                   let accountProfileID = first.accountProfileID else {
                 return nil
@@ -279,10 +291,34 @@ final class DownloadManager {
                 thumbPath: cachedShow?.thumb ?? first.thumbPath,
                 artPath: cachedShow?.art ?? first.artPath,
                 downloadedEpisodeCount: episodes.count,
-                totalEpisodeCount: cachedShow?.leafCount
+                totalEpisodeCount: cachedShow?.leafCount,
+                smartRule: rules.first { $0.showID == PlexItemID(serverID: serverID, ratingKey: showKey) }
             )
         }
-        .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
+        // A smart show stays listed while its next episodes are still on the
+        // way or it is fully watched, so the rule can always be found and
+        // turned off.
+        for rule in rules where !summaries.contains(where: { $0.itemID == rule.showID }) {
+            let cachedShow = metadataCache.mediaDetails(
+                accountProfileID: rule.accountProfileID,
+                serverID: rule.serverID,
+                ratingKey: rule.showRatingKey
+            )
+            summaries.append(DownloadedShowSummary(
+                serverID: rule.serverID,
+                ratingKey: rule.showRatingKey,
+                title: cachedShow?.title ?? rule.showTitle ?? "TV Show",
+                thumbPath: cachedShow?.thumb ?? rule.thumbPath,
+                artPath: cachedShow?.art ?? rule.artPath,
+                downloadedEpisodeCount: 0,
+                totalEpisodeCount: cachedShow?.leafCount,
+                smartRule: rule,
+                pendingEpisodeCount: records.filter {
+                    $0.type == .episode && $0.status != .completed && matchesBranch($0, of: rule.showID)
+                }.count
+            ))
+        }
+        return summaries.sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
     }
 
     /// The record for one item.
@@ -538,6 +574,7 @@ final class DownloadManager {
         evaluateNetworkConstraints()
         processQueueIfNeeded()
         backfillExternalSubtitles(serverIDs: Set(plexService.pool.connections.map(\.serverID)))
+        refillSmartDownloads()
     }
 
     private func completeDeferredProfileActivationIfPossible() {
@@ -710,6 +747,7 @@ final class DownloadManager {
     func resumePendingWork() {
         evaluateNetworkConstraints()
         processQueueIfNeeded()
+        refillSmartDownloads()
     }
 
     func evaluateNetworkConstraints() {
@@ -734,6 +772,11 @@ final class DownloadManager {
     }
 
     func deleteDownload(scope: DownloadScope) {
+        // Deleting a whole show also ends its rule, or the next refill would
+        // bring the episodes straight back.
+        if scope.type == .show {
+            removeSmartDownloadRule(show: scope.id)
+        }
         deleteRecords(relatedRecords(for: scope))
     }
 
@@ -742,6 +785,9 @@ final class DownloadManager {
     }
 
     func deleteAllDownloads() {
+        let activeProfileID = plexService.activeProfileID
+        storedSmartDownloadRules.removeAll { $0.accountProfileID == activeProfileID }
+        persist()
         deleteRecords(records)
     }
 
@@ -999,7 +1045,11 @@ final class DownloadManager {
         upsert(record)
     }
 
-    private func queueEpisodeDownload(_ episode: PlexEpisode, quality: DownloadQuality = .original) async throws {
+    private func queueEpisodeDownload(
+        _ episode: PlexEpisode,
+        quality: DownloadQuality = .original,
+        isSmartDownload: Bool = false
+    ) async throws {
         guard !isProfileSwitching,
               plexService.isSessionReady,
               let accountProfileID = plexService.activeProfileID?.nilIfEmpty else {
@@ -1040,6 +1090,7 @@ final class DownloadManager {
             mediaID: nil,
             partID: nil,
             downloadQuality: quality,
+            isSmartDownload: isSmartDownload,
             relativeVideoPath: nil,
             resumeDataPath: nil,
             downloadTaskIdentifier: nil,
@@ -1238,7 +1289,7 @@ final class DownloadManager {
                 }
                 // A background transfer may outlive this process. Its output
                 // metadata must be durable before URLSession takes ownership.
-                try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+                try fileStore.saveSnapshot(currentSnapshot)
             } else {
                 guard let connection = plexService.pool.connection(for: record.serverID),
                       let sourceURL = plexService.directPlayURL(for: part, serverID: record.serverID) else {
@@ -1307,7 +1358,7 @@ final class DownloadManager {
         }
         // Retry this checked write even if a previous persistence attempt
         // failed after assigning the in-memory identity.
-        try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+        try fileStore.saveSnapshot(currentSnapshot)
         let context = try plexService.captureDownloadQueueContext(
             serverID: record.serverID, profileID: profileID, clientIdentifier: latest.queueClientIdentifier!
         )
@@ -1320,7 +1371,7 @@ final class DownloadManager {
                 update(globalKey: record.globalKey) { $0.plexDownloadQueueID = queueID }
                 try checkPreparation(record)
             }
-            try fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+            try fileStore.saveSnapshot(currentSnapshot)
             let itemID: String
             if let existing = latest.plexDownloadItemID {
                 itemID = existing
@@ -2497,8 +2548,214 @@ final class DownloadManager {
         processQueueIfNeeded()
     }
 
+    private var currentSnapshot: DownloadStoreSnapshot {
+        DownloadStoreSnapshot(
+            records: storedRecords,
+            pendingQueueRemovals: pendingQueueRemovals,
+            smartDownloadRules: storedSmartDownloadRules.isEmpty ? nil : storedSmartDownloadRules
+        )
+    }
+
     private func persist() {
-        try? fileStore.saveSnapshot(DownloadStoreSnapshot(records: storedRecords, pendingQueueRemovals: pendingQueueRemovals))
+        try? fileStore.saveSnapshot(currentSnapshot)
+    }
+}
+
+// MARK: - Smart Downloads (Keep Next N Unwatched)
+
+extension DownloadManager {
+    private static let smartRefillMinimumInterval: TimeInterval = 60
+
+    /// The active profile's rules.
+    var activeSmartDownloadRules: [SmartDownloadRule] {
+        storedSmartDownloadRules.filter { $0.accountProfileID == plexService.activeProfileID }
+    }
+
+    var hasDownloadsContent: Bool {
+        !records.isEmpty || !activeSmartDownloadRules.isEmpty
+    }
+
+    func smartDownloadRule(show: PlexItemID) -> SmartDownloadRule? {
+        activeSmartDownloadRules.first {
+            $0.showRatingKey == show.ratingKey && (show.serverID == nil || $0.serverID == show.serverID)
+        }
+    }
+
+    /// Turns on Keep Next `count` Unwatched for a show and fills it right away.
+    /// Existing downloads of the show stay manual: they count toward the
+    /// window but the rule never removes them.
+    func enableSmartDownloads(show: PlexItemID, count: Int, quality: DownloadQuality) async {
+        guard !isProfileSwitching, plexService.isSessionReady,
+              let accountProfileID = plexService.activeProfileID?.nilIfEmpty,
+              let serverID = show.serverID ?? plexService.pool.primary?.serverID else { return }
+        let showID = PlexItemID(serverID: serverID, ratingKey: show.ratingKey)
+        if let existing = smartDownloadRule(show: showID) {
+            updateSmartDownloadRule(existing.globalKey) {
+                $0.count = count
+                $0.quality = quality
+            }
+        } else {
+            storedSmartDownloadRules.append(SmartDownloadRule(
+                accountProfileID: accountProfileID,
+                serverID: serverID,
+                showRatingKey: show.ratingKey,
+                count: count,
+                quality: quality,
+                createdAt: .now
+            ))
+            persist()
+            // Title and artwork for the Downloads grid before any episode lands.
+            if let details = try? await fetchAndCacheDetails(ratingKey: show.ratingKey, serverID: serverID),
+               let rule = smartDownloadRule(show: showID) {
+                updateSmartDownloadRule(rule.globalKey) {
+                    $0.showTitle = details.title
+                    $0.thumbPath = details.thumb
+                    $0.artPath = details.art
+                }
+            }
+        }
+        if let rule = smartDownloadRule(show: showID) {
+            refillSmartDownloads(rule: rule, force: true)
+        }
+    }
+
+    func setSmartDownloadCount(_ count: Int, show: PlexItemID) {
+        guard let rule = smartDownloadRule(show: show), rule.count != count else { return }
+        updateSmartDownloadRule(rule.globalKey) { $0.count = count }
+        if let updated = smartDownloadRule(show: show) {
+            refillSmartDownloads(rule: updated, force: true)
+        }
+    }
+
+    /// Stops the rule. Its downloads stay on the device as ordinary
+    /// downloads; deleting them is the existing Delete action.
+    func disableSmartDownloads(show: PlexItemID) {
+        guard let rule = smartDownloadRule(show: show) else { return }
+        removeSmartDownloadRule(show: rule.showID)
+        var changed = false
+        for index in storedRecords.indices
+        where storedRecords[index].isSmartDownload
+            && storedRecords[index].accountProfileID == rule.accountProfileID
+            && storedRecords[index].type == .episode
+            && matchesBranch(storedRecords[index], of: rule.showID) {
+            storedRecords[index].isSmartDownload = false
+            changed = true
+        }
+        if changed { persist() }
+    }
+
+    /// Called when an episode crossed the watched threshold in Dusk. Plex may
+    /// not have the scrobble yet, so the episode counts as watched here.
+    func smartDownloadsEpisodeWatched(_ episode: PlexItemID, showRatingKey: String) {
+        guard let rule = smartDownloadRule(show: PlexItemID(serverID: episode.serverID, ratingKey: showRatingKey)) else {
+            return
+        }
+        refillSmartDownloads(rule: rule, force: true, justWatched: [episode.ratingKey])
+    }
+
+    /// Refills every rule of the active profile (optionally only the rules on
+    /// some servers). Rules refilled in the last minute are skipped.
+    func refillSmartDownloads(serverIDs: Set<String>? = nil, force: Bool = false) {
+        for rule in activeSmartDownloadRules where serverIDs?.contains(rule.serverID) ?? true {
+            refillSmartDownloads(rule: rule, force: force)
+        }
+    }
+
+    private func refillSmartDownloads(rule: SmartDownloadRule, force: Bool, justWatched: Set<String> = []) {
+        let key = rule.globalKey
+        if smartRefillTasks[key] != nil {
+            smartRefillReruns[key, default: []].formUnion(justWatched)
+            return
+        }
+        if !force, let last = rule.lastRefillAt,
+           Date.now.timeIntervalSince(last) < Self.smartRefillMinimumInterval {
+            return
+        }
+        smartRefillTasks[key] = Task { [weak self] in
+            guard let self else { return }
+            await self.performSmartRefill(ruleKey: key, justWatched: justWatched)
+            self.smartRefillTasks.removeValue(forKey: key)
+            if let rerun = self.smartRefillReruns.removeValue(forKey: key),
+               let current = self.storedSmartDownloadRules.first(where: { $0.globalKey == key }) {
+                self.refillSmartDownloads(rule: current, force: true, justWatched: rerun)
+            }
+        }
+    }
+
+    /// One refill: read the show's episodes and watch state from its own
+    /// server, remove the rule's watched downloads, queue the missing ones.
+    /// An unreachable server or a failed request changes nothing; the next
+    /// foreground, server reconnect or finished episode tries again.
+    private func performSmartRefill(ruleKey: String, justWatched: Set<String>) async {
+        guard let rule = storedSmartDownloadRules.first(where: { $0.globalKey == ruleKey }),
+              !isProfileSwitching, plexService.isSessionReady,
+              rule.accountProfileID == plexService.activeProfileID,
+              isServerConnected(rule.serverID) else { return }
+
+        let episodes: [PlexEpisode]
+        do {
+            episodes = try await plexService.getAllEpisodes(showKey: rule.showRatingKey, serverID: rule.serverID)
+        } catch {
+            return
+        }
+        // An empty answer is more likely a server hiccup than a show with
+        // every episode deleted; never clear the window on it.
+        guard !Task.isCancelled, !episodes.isEmpty, !isProfileSwitching,
+              rule.accountProfileID == plexService.activeProfileID,
+              let current = storedSmartDownloadRules.first(where: { $0.globalKey == ruleKey }) else { return }
+
+        let showRecords = records.filter { $0.type == .episode && matchesBranch($0, of: current.showID) }
+        let plan = SmartDownloadPlanner.plan(
+            episodes: episodes.map { episode in
+                let plexWatched = episode.isWatched
+                let watched = justWatched.contains(episode.ratingKey)
+                    || (effectiveWatchedState?(current.serverID, episode.ratingKey, plexWatched) ?? plexWatched)
+                return SmartDownloadPlanner.Episode(
+                    ratingKey: episode.ratingKey,
+                    seasonIndex: episode.parentIndex,
+                    index: episode.index,
+                    isWatched: watched
+                )
+            },
+            downloads: showRecords.map {
+                SmartDownloadPlanner.Download(globalKey: $0.globalKey, ratingKey: $0.ratingKey, isSmart: $0.isSmartDownload)
+            },
+            count: current.count
+        )
+
+        let removals = Set(plan.globalKeysToRemove)
+        deleteRecords(showRecords.filter { removals.contains($0.globalKey) })
+        updateSmartDownloadRule(ruleKey) {
+            $0.remainingUnwatchedCount = plan.remainingUnwatchedCount
+            $0.lastRefillAt = .now
+            if $0.showTitle == nil { $0.showTitle = episodes.first?.grandparentTitle }
+            if $0.thumbPath == nil { $0.thumbPath = episodes.first?.grandparentThumb }
+        }
+
+        let episodesByKey = Dictionary(episodes.map { ($0.ratingKey, $0) }, uniquingKeysWith: { first, _ in first })
+        for ratingKey in plan.ratingKeysToQueue {
+            guard let episode = episodesByKey[ratingKey],
+                  storedSmartDownloadRules.contains(where: { $0.globalKey == ruleKey }),
+                  rule.accountProfileID == plexService.activeProfileID else { break }
+            try? await queueEpisodeDownload(episode, quality: current.quality, isSmartDownload: true)
+        }
+        if !plan.ratingKeysToQueue.isEmpty {
+            processQueueIfNeeded()
+        }
+    }
+
+    private func removeSmartDownloadRule(show: PlexItemID) {
+        guard let rule = smartDownloadRule(show: show) else { return }
+        smartRefillTasks.removeValue(forKey: rule.globalKey)?.cancel()
+        smartRefillReruns.removeValue(forKey: rule.globalKey)
+        storedSmartDownloadRules.removeAll { $0.globalKey == rule.globalKey }
+        persist()
+    }
+
+    private func updateSmartDownloadRule(_ globalKey: String, mutate: (inout SmartDownloadRule) -> Void) {
+        guard let index = storedSmartDownloadRules.firstIndex(where: { $0.globalKey == globalKey }) else { return }
+        mutate(&storedSmartDownloadRules[index])
+        persist()
     }
 }
 

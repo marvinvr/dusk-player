@@ -301,6 +301,43 @@ profile during the one-time migration; they must not be left as unscoped
 actions. Switching users pauses the outgoing profile's queue and leaves failed
 sync actions attached to that profile until it becomes active again.
 
+## Smart Downloads (Keep Next N Unwatched)
+
+Per show, iPhone/iPad only (`DownloadsFeature`). `SmartDownloads.swift` holds
+the rule (`SmartDownloadRule`: profile + server + show key, N of 3/5/10,
+quality) and the pure planner (`SmartDownloadPlanner`, tested in
+`DuskTests/SmartDownloadPlannerTests.swift`). Rules persist in
+`downloads.json` (`smartDownloadRules`); records the rule queued carry
+`isSmartDownload`.
+
+- **Window**: the show's `allLeaves` from its own server, specials (season 0)
+  left out, starting after the furthest watched episode (Continue Watching
+  semantics), first N unwatched. Watched = Plex `viewCount`, overridden by
+  pending offline sync (`effectiveWatchedState`) and by the episode that just
+  finished in Dusk.
+- **Ownership**: any existing download in the window fills a slot. Only
+  `isSmartDownload` records outside the window (watched, beyond N, gone from
+  the server) are removed; manual downloads are never touched.
+- **Triggers**: rule created/changed, `resumePendingWork` (foreground),
+  server reconnect, profile activation (those are throttled to one per minute
+  per rule), and an episode crossing the watched threshold
+  (`PlaybackCoordinator+Session.finalizeCurrentPlaybackSession`). Queued
+  episodes go through the normal queue: background URLSession, Wi-Fi Only,
+  storage reserve, concurrency.
+- **Failure handling**: unreachable server or failed/empty `allLeaves`
+  changes nothing. A failed episode keeps its slot until retried (no requeue
+  loop). A fully watched show keeps its rule (`remainingUnwatchedCount == 0`)
+  so new episodes arrive on their own, and stays in the Downloads grid.
+- **Off**: Stop Keeping clears the rule and turns its downloads into ordinary
+  ones. Deleting the whole show (or Delete All) also ends the rule. Deleting
+  or cancelling one smart episode inside the window brings it back on the
+  next refill.
+- **UI**: Download Show sheet has an Episodes section (All / Next 3/5/10
+  Unwatched). A smart show's hero button uses `arrow.down.circle.dotted` and
+  opens an action sheet (change N, pause/resume/retry, Stop Keeping, Delete).
+  Long-press menus on the button and the Downloads poster share
+  `SmartDownloadMenuContent`; the poster subtitle reads "Next 5 · 3 episodes".
+
 ## UI Hooks
 
 `DownloadActionButton` is the inline download/delete/pause/resume/retry control.

@@ -154,6 +154,9 @@ struct DuskApp: App {
         let analyticsClient = AnalyticsClient(preferences: prefs)
         let downloads = DownloadManager(plexService: service, preferences: prefs)
         let playbackSync = OfflinePlaybackSyncManager(plexService: service)
+        downloads.effectiveWatchedState = { [weak playbackSync] serverID, ratingKey, fallback in
+            playbackSync?.effectiveWatched(serverID: serverID, ratingKey: ratingKey, fallback: fallback) ?? fallback
+        }
         _plexService = State(initialValue: service)
         _seerrService = State(initialValue: seerr)
         _downloadManager = State(initialValue: downloads)

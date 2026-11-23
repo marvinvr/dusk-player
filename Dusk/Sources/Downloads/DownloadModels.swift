@@ -188,6 +188,9 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     var mediaID: Int?
     var partID: Int?
     var downloadQuality: DownloadQuality = .original
+    /// Queued by the show's Keep Next N Unwatched rule (`SmartDownloadRule`),
+    /// so the rule may remove it once watched. Manual downloads stay false.
+    var isSmartDownload: Bool = false
     /// Persisted before any server mutation; each request owns its own Plex queue.
     var queueClientIdentifier: String? = nil
     var plexDownloadQueueID: String? = nil
@@ -249,7 +252,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
         case grandparentRatingKey, grandparentTitle
         case thumbPath, artPath
         case mediaID, partID
-        case downloadQuality, queueClientIdentifier, plexDownloadQueueID, plexDownloadItemID
+        case downloadQuality, isSmartDownload, queueClientIdentifier, plexDownloadQueueID, plexDownloadItemID
         case preparationProgress, preparationRetryCount, convertedMediaData
         case relativeVideoPath, externalSubtitlePaths, hasMissingExternalSubtitles, resumeDataPath, downloadTaskIdentifier, wasPausedForProfileSwitch
         case status, progress, downloadedBytes, totalBytes
@@ -325,6 +328,7 @@ extension DownloadedMediaRecord {
         mediaID = try container.decodeIfPresent(Int.self, forKey: .mediaID)
         partID = try container.decodeIfPresent(Int.self, forKey: .partID)
         downloadQuality = try container.decodeIfPresent(DownloadQuality.self, forKey: .downloadQuality) ?? .original
+        isSmartDownload = try container.decodeIfPresent(Bool.self, forKey: .isSmartDownload) ?? false
         queueClientIdentifier = try container.decodeIfPresent(String.self, forKey: .queueClientIdentifier)
         plexDownloadQueueID = try container.decodeIfPresent(String.self, forKey: .plexDownloadQueueID)
         plexDownloadItemID = try container.decodeIfPresent(String.self, forKey: .plexDownloadItemID)
@@ -361,6 +365,10 @@ struct DownloadedShowSummary: Identifiable, Hashable {
     let artPath: String?
     let downloadedEpisodeCount: Int
     let totalEpisodeCount: Int?
+    /// The show's Keep Next N Unwatched rule, when one is on.
+    var smartRule: SmartDownloadRule? = nil
+    /// Episodes of the show still queued or transferring.
+    var pendingEpisodeCount: Int = 0
 
     var id: String {
         DownloadedMediaRecord.globalKey(serverID: serverID, ratingKey: ratingKey)
@@ -371,6 +379,18 @@ struct DownloadedShowSummary: Identifiable, Hashable {
     }
 
     var subtitle: String {
+        if let smartRule {
+            let detail: String? = if downloadedEpisodeCount > 0 {
+                downloadedEpisodeCount == 1 ? "1 episode" : "\(downloadedEpisodeCount) episodes"
+            } else if pendingEpisodeCount > 0 {
+                "downloading"
+            } else if smartRule.remainingUnwatchedCount == 0 {
+                "all watched"
+            } else {
+                nil
+            }
+            return [smartRule.shortLabel, detail].compactMap { $0 }.joined(separator: " · ")
+        }
         if let totalEpisodeCount, totalEpisodeCount > 0 {
             return "\(downloadedEpisodeCount) of \(totalEpisodeCount) episodes"
         }
@@ -381,6 +401,7 @@ struct DownloadedShowSummary: Identifiable, Hashable {
 struct DownloadStoreSnapshot: Codable, Sendable {
     var records: [DownloadedMediaRecord] = []
     var pendingQueueRemovals: [DownloadQueueRemoval]? = nil
+    var smartDownloadRules: [SmartDownloadRule]? = nil
 }
 
 /// Cleanup survives an offline cancellation or a Plex Home profile switch.

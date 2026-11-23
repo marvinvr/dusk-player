@@ -15,6 +15,7 @@ struct DownloadActionButton: View {
     @State private var isStartingDownload = false
     @State private var isShowingDeleteConfirmation = false
     @State private var isShowingQualitySelection = false
+    @State private var isShowingSmartOptions = false
 
     /// Server-scoped identity of the item the button acts on. Rating keys
     /// collide across servers, so the download record must be found by both.
@@ -80,10 +81,32 @@ struct DownloadActionButton: View {
                 Text(deleteConfirmationMessage)
             }
             .sheet(isPresented: $isShowingQualitySelection) {
-                DownloadQualitySelectionSheet { quality in
+                DownloadQualitySelectionSheet(offersKeepNext: type == .show) { quality, keepNext in
                     isShowingQualitySelection = false
-                    startDownload(quality: quality)
+                    if let keepNext {
+                        startSmartDownloads(count: keepNext, quality: quality)
+                    } else {
+                        startDownload(quality: quality)
+                    }
                 }
+            }
+            .confirmationDialog(
+                smartRule?.menuLabel ?? "",
+                isPresented: $isShowingSmartOptions,
+                titleVisibility: .visible
+            ) {
+                if let smartRule {
+                    SmartDownloadDialogActions(
+                        rule: smartRule,
+                        state: state,
+                        onPause: { downloadManager.pauseDownload(scope: scope) },
+                        onResume: { downloadManager.resumeDownload(scope: scope) },
+                        onRetry: retry,
+                        onDelete: { downloadManager.deleteDownload(scope: scope) }
+                    )
+                }
+            } message: {
+                Text("Watched episodes are removed and the next ones download automatically.")
             }
             .onChange(of: state.status) { _, newStatus in
                 if newStatus != nil {
@@ -101,8 +124,15 @@ struct DownloadActionButton: View {
                     onDelete: { downloadManager.deleteDownload(scope: scope) },
                     onRetry: retry
                 )
+                if type == .show {
+                    SmartDownloadMenuContent(show: id, quality: state.records.first?.downloadQuality ?? .original)
+                }
             }
         }
+    }
+
+    private var smartRule: SmartDownloadRule? {
+        type == .show ? downloadManager.smartDownloadRule(show: id) : nil
     }
 
     private var scope: DownloadScope {
@@ -129,13 +159,16 @@ struct DownloadActionButton: View {
             case .paused:
                 Image(systemName: "pause.circle")
             case .completed:
-                Image(systemName: "checkmark.circle.fill")
+                // Kept by Keep Next N Unwatched: the dotted arrow of its menu.
+                Image(systemName: smartRule == nil ? "checkmark.circle.fill" : "arrow.down.circle.dotted")
             case .failed:
                 Image(systemName: "exclamationmark.circle.fill")
             case .cancelled:
                 Image(systemName: "arrow.down.circle")
             case nil:
-                Image(systemName: "arrow.down.circle")
+                // A smart show with nothing on the device (fully watched, or
+                // waiting for its server) still says it is being kept.
+                Image(systemName: smartRule == nil ? "arrow.down.circle" : "arrow.down.circle.dotted")
             }
         }
     }
@@ -147,6 +180,10 @@ struct DownloadActionButton: View {
 
         if isStartingDownload && state.status == nil {
             return "Starting Download"
+        }
+
+        if let smartRule, state.status == nil || state.status == .completed {
+            return smartRule.menuLabel
         }
 
         return switch state.status {
@@ -204,6 +241,8 @@ struct DownloadActionButton: View {
     private func handleTap() {
         if state.isDeleting || (isStartingDownload && state.status == nil) {
             return
+        } else if smartRule != nil {
+            isShowingSmartOptions = true
         } else if state.canPause {
             downloadManager.pauseDownload(scope: scope)
         } else if state.status == .paused {
@@ -270,8 +309,21 @@ struct DownloadActionButton: View {
         }
     }
 
+    private func startSmartDownloads(count: Int, quality: DownloadQuality) {
+        isStartingDownload = true
+        Task {
+            await downloadManager.enableSmartDownloads(show: id, count: count, quality: quality)
+            isStartingDownload = false
+        }
+    }
+
     private func retry() {
-        if type == .season || type == .show {
+        if smartRule != nil {
+            // Re-queuing the whole show would download every episode.
+            for record in state.records where record.status == .failed {
+                downloadManager.retryDownload(id: record.itemID)
+            }
+        } else if type == .season || type == .show {
             startDownload()
         } else {
             downloadManager.retryDownload(id: id)
@@ -282,12 +334,36 @@ struct DownloadActionButton: View {
 struct DownloadQualitySelectionSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var selectedQuality = DownloadQuality.original
+    /// 0 = every episode; otherwise Keep Next N Unwatched.
+    @State private var keepNextCount = 0
 
-    let onDownload: (DownloadQuality) -> Void
+    /// Shows get the Episodes choice (all, or keep the next N unwatched).
+    var offersKeepNext = false
+    /// The chosen quality, and the Keep Next count when one was picked.
+    let onDownload: (DownloadQuality, Int?) -> Void
 
     var body: some View {
         NavigationStack {
             Form {
+                if offersKeepNext {
+                    Section {
+                        Picker("Episodes", selection: $keepNextCount) {
+                            Text("All Episodes").tag(0)
+                            ForEach(SmartDownloadRule.countOptions, id: \.self) { count in
+                                Text("Next \(count) Unwatched").tag(count)
+                            }
+                        }
+                        .pickerStyle(.inline)
+                        .labelsHidden()
+                    } header: {
+                        Text("Episodes")
+                    } footer: {
+                        if keepNextCount > 0 {
+                            Text("Watched episodes are removed and the next ones download automatically.")
+                        }
+                    }
+                }
+
                 Section {
                     Picker("Quality", selection: $selectedQuality) {
                         ForEach(DownloadQuality.allCases) { quality in
@@ -297,6 +373,10 @@ struct DownloadQualitySelectionSheet: View {
                     }
                     .pickerStyle(.inline)
                     .labelsHidden()
+                } header: {
+                    if offersKeepNext {
+                        Text("Quality")
+                    }
                 } footer: {
                     Text("Original downloads the file as it is. Other qualities ask your Plex server to convert a smaller copy first, which may leave out embedded subtitles. Keep Dusk open while Plex prepares it; the download then continues in the background.")
                 }
@@ -304,7 +384,7 @@ struct DownloadQualitySelectionSheet: View {
             #if os(macOS)
             .formStyle(.grouped)
             #endif
-            .navigationTitle("Download Quality")
+            .navigationTitle(offersKeepNext ? "Download Show" : "Download Quality")
             .duskNavigationBarTitleDisplayModeInline()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -314,7 +394,7 @@ struct DownloadQualitySelectionSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Download") {
-                        onDownload(selectedQuality)
+                        onDownload(selectedQuality, keepNextCount > 0 ? keepNextCount : nil)
                     }
                 }
             }
@@ -367,5 +447,82 @@ struct DownloadContextMenuContent: View {
                 }
             }
         }
+    }
+}
+
+/// The long-press menu entries for a show's Keep Next N Unwatched rule:
+/// turn it on with a count, change the count, or stop it. Shared by the show's
+/// Download button and its poster in Downloads.
+struct SmartDownloadMenuContent: View {
+    @Environment(DownloadManager.self) private var downloadManager
+
+    let show: PlexItemID
+    /// Used when the rule is turned on from here (no quality sheet).
+    var quality: DownloadQuality = .original
+
+    var body: some View {
+        if let rule = downloadManager.smartDownloadRule(show: show) {
+            Picker(selection: Binding(
+                get: { rule.count },
+                set: { downloadManager.setSmartDownloadCount($0, show: show) }
+            )) {
+                ForEach(SmartDownloadRule.countOptions, id: \.self) { count in
+                    Text("Next \(count) Unwatched").tag(count)
+                }
+            } label: {
+                Label("Keep Next Unwatched", systemImage: "arrow.down.circle.dotted")
+            }
+            .pickerStyle(.menu)
+
+            Button {
+                downloadManager.disableSmartDownloads(show: show)
+            } label: {
+                Label("Stop Keeping \(rule.shortLabel)", systemImage: "xmark.circle")
+            }
+        } else {
+            Menu {
+                ForEach(SmartDownloadRule.countOptions, id: \.self) { count in
+                    Button("Next \(count) Unwatched") {
+                        Task { await downloadManager.enableSmartDownloads(show: show, count: count, quality: quality) }
+                    }
+                }
+            } label: {
+                Label("Keep Next Unwatched", systemImage: "arrow.down.circle.dotted")
+            }
+        }
+    }
+}
+
+/// The action sheet a smart show's Download button opens.
+private struct SmartDownloadDialogActions: View {
+    @Environment(DownloadManager.self) private var downloadManager
+
+    let rule: SmartDownloadRule
+    let state: DownloadControlState
+    let onPause: () -> Void
+    let onResume: () -> Void
+    let onRetry: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        ForEach(SmartDownloadRule.countOptions.filter { $0 != rule.count }, id: \.self) { count in
+            Button("Keep Next \(count) Unwatched") {
+                downloadManager.setSmartDownloadCount(count, show: rule.showID)
+            }
+        }
+        if state.canPause {
+            Button("Pause Downloads", action: onPause)
+        } else if state.status == .paused {
+            Button("Resume Downloads", action: onResume)
+        } else if state.status == .failed {
+            Button("Retry Downloads", action: onRetry)
+        }
+        Button("Stop Keeping \(rule.shortLabel)") {
+            downloadManager.disableSmartDownloads(show: rule.showID)
+        }
+        if state.hasRecords {
+            Button("Delete Downloads", role: .destructive, action: onDelete)
+        }
+        Button("Cancel", role: .cancel) {}
     }
 }

@@ -2275,6 +2275,17 @@ extension PlaybackCoordinator {
                     }
                 }
             }
+
+            // Keep Next N Unwatched: a finished episode leaves the show's
+            // window, so its smart download goes and the next one queues.
+            if hasScrobbled, activeLiveTVContext == nil,
+               let details = activeItemDetails, details.type == .episode,
+               let showRatingKey = details.grandparentRatingKey {
+                downloadManager?.smartDownloadsEpisodeWatched(
+                    PlexItemID(serverID: activePlaybackServerID ?? details.serverID, ratingKey: ratingKey),
+                    showRatingKey: showRatingKey
+                )
+            }
         }
 
         engine?.onPlaybackEnded = nil
