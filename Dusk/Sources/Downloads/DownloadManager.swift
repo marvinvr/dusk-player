@@ -109,6 +109,9 @@ final class DownloadManager {
     /// so an episode watched offline counts before Plex has heard about it.
     /// Arguments: server id, rating key, Plex's watched state.
     @ObservationIgnored var effectiveWatchedState: ((String, String, Bool) -> Bool)?
+    /// The path monitor has reported at least once, so `isNetworkConstrained`
+    /// is real rather than its initial false (matters for a background launch).
+    @ObservationIgnored private var hasNetworkPath = false
     @ObservationIgnored private lazy var transferController = DownloadTransferController { [weak self] event in
         Task { @MainActor [weak self] in
             self?.handleTransferEvent(event)
@@ -2488,6 +2491,7 @@ final class DownloadManager {
 
     private func handleNetworkPathUpdate(_ path: NWPath) {
         let constrained = path.isExpensive || path.isConstrained
+        hasNetworkPath = true
         guard constrained != isNetworkConstrained else { return }
         isNetworkConstrained = constrained
         evaluateNetworkConstraints()
@@ -2742,6 +2746,54 @@ extension DownloadManager {
         if !plan.ratingKeysToQueue.isEmpty {
             processQueueIfNeeded()
         }
+    }
+
+    /// The background refill (`SmartDownloadBackgroundRefill`): brings the
+    /// session up if iOS launched Dusk without a scene, refills every rule of
+    /// the active profile, then waits until the new episodes are handed to the
+    /// background URLSession. Returns false when it could not run.
+    func runBackgroundSmartRefill() async -> Bool {
+        guard !storedSmartDownloadRules.isEmpty, plexService.isAuthenticated else { return false }
+        if !plexService.homeBootstrapCompleted {
+            try? await plexService.bootstrapHomeSession()
+        }
+        guard plexService.isSessionReady, !Task.isCancelled else { return false }
+        // The scene's `.task` does this on a normal launch.
+        activateProfile()
+
+        // Wi-Fi Only: decide on the real network, not the monitor's default.
+        for _ in 0..<20 where !hasNetworkPath {
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+        guard SmartDownloadBackgroundPolicy.shouldRun(
+            hasRules: !activeSmartDownloadRules.isEmpty,
+            wifiOnly: preferences.downloadsWifiOnly,
+            isNetworkConstrained: isNetworkConstrained
+        ) else { return false }
+
+        if plexService.pool.connections.isEmpty {
+            _ = try? await plexService.connectAllServers(trigger: "Background")
+        }
+        guard !Task.isCancelled else { return false }
+
+        refillSmartDownloads(force: true)
+        for task in Array(smartRefillTasks.values) {
+            await task.value
+        }
+        processQueueIfNeeded()
+
+        // Original-quality episodes reach URLSession within seconds; a
+        // converted copy waits for Plex, as long as iOS lets the task run.
+        while !Task.isCancelled {
+            let pending = records
+                .filter { $0.isSmartDownload && $0.type == .episode }
+                .map { (status: $0.status, serverConnected: isServerConnected($0.serverID)) }
+            if SmartDownloadBackgroundPolicy.isHandedOff(pending), smartRefillTasks.isEmpty { break }
+            // The queue skips a pass while relaunch reconciliation runs.
+            processQueueIfNeeded()
+            try? await Task.sleep(for: .seconds(1))
+        }
+        return !Task.isCancelled
     }
 
     private func removeSmartDownloadRule(show: PlexItemID) {

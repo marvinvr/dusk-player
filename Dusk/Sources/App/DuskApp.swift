@@ -157,6 +157,9 @@ struct DuskApp: App {
         downloads.effectiveWatchedState = { [weak playbackSync] serverID, ratingKey, fallback in
             playbackSync?.effectiveWatched(serverID: serverID, ratingKey: ratingKey, fallback: fallback) ?? fallback
         }
+        #if os(iOS)
+        SmartDownloadBackgroundRefill.register(downloadManager: downloads)
+        #endif
         _plexService = State(initialValue: service)
         _seerrService = State(initialValue: seerr)
         _downloadManager = State(initialValue: downloads)
@@ -302,6 +305,13 @@ struct DuskApp: App {
                 await offlinePlaybackSyncManager.syncPendingActions(force: true)
             }
             .onChange(of: scenePhase) { _, newPhase in
+                #if os(iOS)
+                if newPhase == .background {
+                    SmartDownloadBackgroundRefill.schedule(
+                        hasRules: !downloadManager.storedSmartDownloadRules.isEmpty
+                    )
+                }
+                #endif
                 if newPhase == .active {
                     downloadManager.resumePendingWork()
                     analytics.recordAppOpenedIfNeeded()

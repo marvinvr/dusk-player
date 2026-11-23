@@ -324,6 +324,25 @@ quality) and the pure planner (`SmartDownloadPlanner`, tested in
   (`PlaybackCoordinator+Session.finalizeCurrentPlaybackSession`). Queued
   episodes go through the normal queue: background URLSession, Wi-Fi Only,
   storage reserve, concurrency.
+- **Background refill** (iOS, `SmartDownloadBackgroundRefill`): a
+  `BGProcessingTask` (`…smart-downloads.refill`, external power + network, so
+  iOS usually runs it overnight on the charger) and a `BGAppRefreshTask`
+  (`…smart-downloads.refresh`). Registered in `DuskApp.init`, scheduled on
+  scene background and after each run while any rule exists, cancelled when
+  none does (Info-iOS.plist: `BGTaskSchedulerPermittedIdentifiers`, modes
+  `fetch` + `processing`). `DownloadManager.runBackgroundSmartRefill`
+  bootstraps the Plex Home session if iOS launched Dusk without a scene,
+  activates the profile, waits for the first network path, skips the run when
+  Wi-Fi Only is on and the network is expensive/constrained
+  (`SmartDownloadBackgroundPolicy`), connects servers, refills every rule and
+  returns once each reachable episode is handed to the background URLSession.
+  Wi-Fi Only is enforced twice more downstream: the queue pauses on a
+  constrained network, and every transfer request sets
+  `allowsExpensive/ConstrainedNetworkAccess = !downloadsWifiOnly`.
+  The simulator cannot submit BGTask requests, so
+  `_simulateLaunchForTaskWithIdentifier` finds nothing there; the DEBUG
+  argument `-DuskSimulateSmartRefillAfter <seconds>` runs the same task body
+  (background the app first). Real scheduling needs a device.
 - **Failure handling**: unreachable server or failed/empty `allLeaves`
   changes nothing. A failed episode keeps its slot until retried (no requeue
   loop). A fully watched show keeps its rule (`remainingUnwatchedCount == 0`)

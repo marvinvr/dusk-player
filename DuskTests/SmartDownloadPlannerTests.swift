@@ -111,3 +111,26 @@ struct SmartDownloadPlannerTests {
         #expect(old.smartDownloadRules == nil)
     }
 }
+
+@Suite("Smart downloads: background refill")
+struct SmartDownloadBackgroundPolicyTests {
+    @Test func wifiOnlySkipsTheRefillOnAnExpensiveNetwork() {
+        #expect(!SmartDownloadBackgroundPolicy.shouldRun(hasRules: true, wifiOnly: true, isNetworkConstrained: true))
+        #expect(SmartDownloadBackgroundPolicy.shouldRun(hasRules: true, wifiOnly: true, isNetworkConstrained: false))
+        #expect(SmartDownloadBackgroundPolicy.shouldRun(hasRules: true, wifiOnly: false, isNetworkConstrained: true))
+        #expect(!SmartDownloadBackgroundPolicy.shouldRun(hasRules: false, wifiOnly: false, isNetworkConstrained: false))
+    }
+
+    @Test func runEndsOnceEveryReachableEpisodeIsHandedOff() {
+        #expect(SmartDownloadBackgroundPolicy.isHandedOff([]))
+        #expect(SmartDownloadBackgroundPolicy.isHandedOff([
+            (status: .downloading, serverConnected: true),
+            (status: .completed, serverConnected: true),
+            (status: .failed, serverConnected: true),
+            // Waits for its server; the run must not hang on it.
+            (status: .queued, serverConnected: false),
+        ]))
+        #expect(!SmartDownloadBackgroundPolicy.isHandedOff([(status: .queued, serverConnected: true)]))
+        #expect(!SmartDownloadBackgroundPolicy.isHandedOff([(status: .preparing, serverConnected: false)]))
+    }
+}
