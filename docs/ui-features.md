@@ -644,6 +644,17 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     unmaterialised lazy stack turns the down-press into a dead end.
     `shelfTopPadding` is derived from the measured top safe area because it is what
     keeps the first shelf header clear of the floating tab bar at the fold.
+  - **The hero and the shelves sit behind `HomeTVRenderBoundary`s.** The move's
+    own state (focus, `heroExit`/`heroExitShelf`, `shelvesUnlocked`,
+    `isHeroShowing`, `isScrolledOffTop`) changes about six times per down-press,
+    four of them in the first 40 ms of the scroll. Without the boundaries each
+    change rebuilt every hero page and every poster card (they take closures,
+    which SwiftUI cannot diff), measured in a Release simulator build. That was
+    the laggy Down/Up on device. The hero rebuilds only when its key (item ids,
+    size, focused/current page, focus) changes; the shelves get the landing
+    request through `homeTVShelfLanding`, read only by `homeTVShelfFocus(_:)`.
+    Model data still reaches both through observation. A plain value either one
+    captures must go into its key.
   - Unchanged and still load-bearing: both `.focusSection()`s, the focus
     scope / `defaultFocus` / `requestHeroPrimaryFocusIfNeeded` dance.
   - `HomeViewModel.heroItems()` caps the rotation at 10 items **on tvOS only**, since

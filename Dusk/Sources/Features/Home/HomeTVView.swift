@@ -169,80 +169,98 @@ struct HomeTVView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     if !heroItems.isEmpty {
-                        HomeCinematicHero(
-                            items: heroItems,
-                            viewModel: viewModel,
+                        // Rebuilt only when what it shows changes. See
+                        // `HomeTVRenderBoundary`. Items are read inside, so
+                        // a change to them reaches the hero through
+                        // observation, not through the key.
+                        HomeTVRenderBoundary(key: HomeTVHeroRenderKey(
+                            itemIDs: heroItemIDs,
                             containerSize: heroContainerSize,
                             topInset: geometry.safeAreaInsets.top,
-                            contentLeadingInset: leadingContentInset,
-                            contentTrailingInset: trailingContentInset,
-                            layout: .tv,
-                            // Rotation pages by moving focus to the next page's
-                            // play button, and only while a play button has
-                            // focus (`focusedItemKey`), so it never pages the
-                            // hero out from under focus or behind another tab.
-                            autoRotates: true,
-                            supportsDragNavigation: false,
+                            leadingInset: leadingContentInset,
+                            trailingInset: trailingContentInset,
                             selectionResetRevision: heroSelectionResetRevision,
-                            onMoveDown: { beginHeroExit(heroHeight: heroHeight) },
                             focusedItemKey: focusedHeroKey,
-                            onFocusItem: { item in
-                                focusedTarget = .heroPrimaryAction(item.id.storageKey)
-                            },
-                            onVisibleItemChange: { key in
-                                visibleHeroKey = key
-                            },
-                            primaryAction: { item, callbacks in
-                                let key = item.id.storageKey
-                                return AnyView(
-                                    Button {
-                                        callbacks.restartRotation()
-                                        play(item)
-                                    } label: {
-                                        HomeHeroActionButtonLabel(
-                                            title: viewModel.heroPrimaryActionTitle(for: item),
-                                            systemImage: "play.fill"
-                                        )
-                                    }
-                                    #if os(tvOS)
-                                    .homeHeroNativeButtonStyle()
-                                    .focused($focusedTarget, equals: .heroPrimaryAction(key))
-                                    .prefersDefaultFocus(key == currentHeroKey, in: homeFocusScope)
-                                    // The other pages' buttons are only reachable
-                                    // from a play button (left/right). Coming in
-                                    // from the shelves or the tab bar, the engine
-                                    // would otherwise pick whichever button is
-                                    // nearest, a page away off screen.
-                                    .disabled(!heroHasFocus && key != currentHeroKey)
-                                    #endif
-                                    .contextMenu {
-                                        HomeItemContextMenu(
-                                            item: item,
-                                            detailsLabel: heroDetailsLabel(for: item),
-                                            onMarkWatched: {
-                                                Task { await viewModel.setWatched(true, for: item) }
-                                            },
-                                            onMarkUnwatched: {
-                                                Task { await viewModel.setWatched(false, for: item) }
-                                            },
-                                            onSelectRoute: { route in
-                                                path.append(route)
-                                            },
-                                            onRemoveFromContinueWatching: {
-                                                Task { await viewModel.removeFromContinueWatching(item) }
-                                            }
-                                        )
-                                        .onAppear {
-                                            callbacks.pauseRotation()
-                                        }
-                                        .onDisappear {
+                            currentItemKey: currentHeroKey,
+                            hasFocus: heroHasFocus,
+                            viewModel: ObjectIdentifier(viewModel)
+                        )) {
+                            HomeCinematicHero(
+                                items: viewModel.heroItems(),
+                                viewModel: viewModel,
+                                containerSize: heroContainerSize,
+                                topInset: geometry.safeAreaInsets.top,
+                                contentLeadingInset: leadingContentInset,
+                                contentTrailingInset: trailingContentInset,
+                                layout: .tv,
+                                // Rotation pages by moving focus to the next page's
+                                // play button, and only while a play button has
+                                // focus (`focusedItemKey`), so it never pages the
+                                // hero out from under focus or behind another tab.
+                                autoRotates: true,
+                                supportsDragNavigation: false,
+                                selectionResetRevision: heroSelectionResetRevision,
+                                onMoveDown: { beginHeroExit(heroHeight: heroHeight) },
+                                focusedItemKey: focusedHeroKey,
+                                onFocusItem: { item in
+                                    focusedTarget = .heroPrimaryAction(item.id.storageKey)
+                                },
+                                onVisibleItemChange: { key in
+                                    visibleHeroKey = key
+                                },
+                                primaryAction: { item, callbacks in
+                                    let key = item.id.storageKey
+                                    return AnyView(
+                                        Button {
                                             callbacks.restartRotation()
+                                            play(item)
+                                        } label: {
+                                            HomeHeroActionButtonLabel(
+                                                title: viewModel.heroPrimaryActionTitle(for: item),
+                                                systemImage: "play.fill"
+                                            )
                                         }
-                                    }
-                                    .accessibilityAddTraits(.isButton)
-                                )
-                            }
-                        )
+                                        #if os(tvOS)
+                                        .homeHeroNativeButtonStyle()
+                                        .focused($focusedTarget, equals: .heroPrimaryAction(key))
+                                        .prefersDefaultFocus(key == currentHeroKey, in: homeFocusScope)
+                                        // The other pages' buttons are only reachable
+                                        // from a play button (left/right). Coming in
+                                        // from the shelves or the tab bar, the engine
+                                        // would otherwise pick whichever button is
+                                        // nearest, a page away off screen.
+                                        .disabled(!heroHasFocus && key != currentHeroKey)
+                                        #endif
+                                        .contextMenu {
+                                            HomeItemContextMenu(
+                                                item: item,
+                                                detailsLabel: heroDetailsLabel(for: item),
+                                                onMarkWatched: {
+                                                    Task { await viewModel.setWatched(true, for: item) }
+                                                },
+                                                onMarkUnwatched: {
+                                                    Task { await viewModel.setWatched(false, for: item) }
+                                                },
+                                                onSelectRoute: { route in
+                                                    path.append(route)
+                                                },
+                                                onRemoveFromContinueWatching: {
+                                                    Task { await viewModel.removeFromContinueWatching(item) }
+                                                }
+                                            )
+                                            .onAppear {
+                                                callbacks.pauseRotation()
+                                            }
+                                            .onDisappear {
+                                                callbacks.restartRotation()
+                                            }
+                                        }
+                                        .accessibilityAddTraits(.isButton)
+                                    )
+                                }
+                            )
+                        }
+                        .equatable()
                         .frame(width: heroContainerSize.width)
                         // Before the offset, so the hint moves with the hero
                         // and centres on the display. An offset only moves
@@ -262,18 +280,30 @@ struct HomeTVView: View {
                             .padding(.top, DuskPosterMetrics.pageSectionSpacing)
                     }
 
-                    shelvesStack(hasHero: !heroItems.isEmpty)
-                        .environment(\.carouselLeadingFocusGeneration, heroExitFocusGeneration)
-                        .padding(
-                            .top,
-                            heroItems.isEmpty
-                                ? 56
-                                : shelfTopPadding(safeAreaTop: geometry.safeAreaInsets.top)
-                        )
-                        .padding(.bottom, DuskPosterMetrics.pageBottomPadding)
-                        #if os(tvOS)
-                        .focusSection()
-                        #endif
+                    HomeTVRenderBoundary(key: HomeTVShelvesRenderKey(
+                        hasHero: !heroItems.isEmpty,
+                        offlineServerNames: offlineServerNames,
+                        recentlyAddedInlineItemLimit: recentlyAddedInlineItemLimit,
+                        showsLiveTV: showsLiveTV,
+                        showsCompactContinueWatching: showsCompactContinueWatching,
+                        viewModel: ObjectIdentifier(viewModel),
+                        liveTVViewModel: ObjectIdentifier(liveTVViewModel)
+                    )) {
+                        shelvesStack()
+                    }
+                    .equatable()
+                    .environment(\.homeTVShelfLanding, shelfLanding(hasHero: !heroItems.isEmpty))
+                    .environment(\.carouselLeadingFocusGeneration, heroExitFocusGeneration)
+                    .padding(
+                        .top,
+                        heroItems.isEmpty
+                            ? 56
+                            : shelfTopPadding(safeAreaTop: geometry.safeAreaInsets.top)
+                    )
+                    .padding(.bottom, DuskPosterMetrics.pageBottomPadding)
+                    #if os(tvOS)
+                    .focusSection()
+                    #endif
                 }
                 .frame(width: geometry.size.width, alignment: .leading)
                 .padding(.top, heroItems.isEmpty ? 24 : 0)
@@ -415,16 +445,30 @@ struct HomeTVView: View {
     /// the focus engine then finds no target and the down-press is a dead end.
     /// A plain stack costs one extra layout pass and makes the move reliable.
     @ViewBuilder
-    private func shelvesStack(hasHero: Bool) -> some View {
+    private func shelvesStack() -> some View {
         #if os(tvOS)
         VStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves(hasHero: hasHero)
+            shelves()
         }
         #else
         LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
-            shelves(hasHero: hasHero)
+            shelves()
         }
         #endif
+    }
+
+    /// What the hero exit asks of the shelves, handed down through the
+    /// environment (`homeTVShelfFocus(_:)`) rather than built into them, so
+    /// the exit's state changes never rebuild the shelves themselves.
+    private func shelfLanding(hasHero: Bool) -> HomeTVShelfLanding {
+        guard hasHero else { return HomeTVShelfLanding() }
+        let focus: HomeTVShelfFocus = heroExit == .landing
+            ? .landing
+            : .reachable(shelvesUnlocked ? .none : .rewindWhenHidden)
+        return HomeTVShelfLanding(
+            shelf: heroExit == .idle ? firstShelfID : heroExitShelf,
+            focus: focus
+        )
     }
 
     /// The shelf the hero's down-press lands on: the first one `shelves()`
@@ -469,17 +513,10 @@ struct HomeTVView: View {
     }
 
     @ViewBuilder
-    private func shelves(hasHero: Bool) -> some View {
-        let landingShelf = heroExit == .idle ? firstShelfID : heroExitShelf
-        let focus = { (shelf: HomeTVShelfID) -> HomeTVShelfFocus in
-            guard hasHero, shelf == landingShelf else { return .reachable() }
-            if heroExit == .landing { return .landing }
-            return .reachable(shelvesUnlocked ? .none : .rewindWhenHidden)
-        }
-
+    private func shelves() -> some View {
         ServerOutageNote(offlineServerNames: offlineServerNames)
             .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
-            .homeTVShelfFocus(focus(.outageNote))
+            .homeTVShelfFocus(.outageNote)
 
         if showsCompactContinueWatching {
             HomeContinueWatchingShelf(
@@ -488,23 +525,23 @@ struct HomeTVView: View {
                 onSelectRoute: { path.append($0) },
                 play: play
             )
-            .homeTVShelfFocus(focus(.continueWatching))
+            .homeTVShelfFocus(.continueWatching)
         }
 
         ForEach(viewModel.pinnedPlaylistRows) { row in
             HomePinnedPlaylistShelf(row: row, viewModel: viewModel)
-                .homeTVShelfFocus(focus(.pinnedPlaylist(row.id)))
+                .homeTVShelfFocus(.pinnedPlaylist(row.id))
         }
 
         if showsLiveTV {
             LiveTVHomeShelf(viewModel: liveTVViewModel, play: playLiveTV)
-                .homeTVShelfFocus(focus(.liveTV))
+                .homeTVShelfFocus(.liveTV)
         }
 
         let watchlistIndex = viewModel.watchlistIndex
         ForEach(Array(viewModel.hubs.enumerated()), id: \.element.id) { index, hub in
             if index == watchlistIndex {
-                watchlistShelf(focus: focus(.watchlist))
+                watchlistShelf()
             }
 
             let items = viewModel.inlineItems(
@@ -533,12 +570,12 @@ struct HomeTVView: View {
                 ) { item in
                     hubContextMenu(item, in: hub)
                 }
-                .homeTVShelfFocus(focus(.hub(hub.id)))
+                .homeTVShelfFocus(.hub(hub.id))
             }
         }
 
         if let watchlistIndex, watchlistIndex >= viewModel.hubs.count {
-            watchlistShelf(focus: focus(.watchlist))
+            watchlistShelf()
         }
 
         ForEach(viewModel.personalizedShelves) { shelf in
@@ -565,7 +602,7 @@ struct HomeTVView: View {
                         }
                     )
                 }
-                .homeTVShelfFocus(focus(.personalized(shelf.id)))
+                .homeTVShelfFocus(.personalized(shelf.id))
             }
         }
     }
@@ -589,11 +626,11 @@ struct HomeTVView: View {
         }
     }
 
-    private func watchlistShelf(focus: HomeTVShelfFocus) -> some View {
+    private func watchlistShelf() -> some View {
         HomeWatchlistShelf(viewModel: viewModel) { item, watched in
             Task { await viewModel.setWatched(watched, for: item) }
         }
-        .homeTVShelfFocus(focus)
+        .homeTVShelfFocus(.watchlist)
     }
 
     /// The bottom-centre "More ⌄" affordance. tvOS only; the hero is not
@@ -957,14 +994,92 @@ private enum HomeTVShelfFocus: Equatable {
     }
 }
 
+/// Which shelf the hero exit is about, and what it asks of it. Every other
+/// shelf is `.reachable()` with no request.
+private struct HomeTVShelfLanding: Equatable {
+    var shelf: HomeTVShelfID?
+    var focus = HomeTVShelfFocus.reachable()
+
+    func focus(for shelf: HomeTVShelfID) -> HomeTVShelfFocus {
+        shelf == self.shelf ? focus : .reachable()
+    }
+}
+
+private extension EnvironmentValues {
+    @Entry var homeTVShelfLanding = HomeTVShelfLanding()
+}
+
 private extension View {
-    func homeTVShelfFocus(_ focus: HomeTVShelfFocus) -> some View {
+    /// Turns `homeTVShelfLanding` into this shelf's carousel request. Only
+    /// this modifier reads it, so a landing step updates the request without
+    /// rebuilding the shelf it sits on.
+    func homeTVShelfFocus(_ shelf: HomeTVShelfID) -> some View {
         #if os(tvOS)
-        environment(\.carouselLeadingItemRequest, focus.request)
+        modifier(HomeTVShelfFocusModifier(shelf: shelf))
         #else
         self
         #endif
     }
+}
+
+#if os(tvOS)
+private struct HomeTVShelfFocusModifier: ViewModifier {
+    let shelf: HomeTVShelfID
+    @Environment(\.homeTVShelfLanding) private var landing
+
+    func body(content: Content) -> some View {
+        content.environment(\.carouselLeadingItemRequest, landing.focus(for: shelf).request)
+    }
+}
+#endif
+
+/// Rebuilds `content` only when `key` changes (or when something `content`
+/// reads from an observable model changes, which invalidates it directly).
+///
+/// Home's hero and shelves sit in one body with the state that drives the
+/// hero ⇄ shelves move: focus, the hero exit's phases, whether the hero is
+/// showing, whether the page is off its top. Each of those changed during a
+/// single down-press, and each rebuilt every hero page and every poster card
+/// (they take closures, which SwiftUI cannot compare), several times while
+/// the page scroll was running. That was the lag on Down from the hero.
+///
+/// The key must hold every plain value `content` captures. Closures, state,
+/// bindings and models it captures are read through shared storage, so a
+/// kept older copy still sees current values.
+private struct HomeTVRenderBoundary<Key: Equatable & Sendable, Content: View>: View, Equatable {
+    let key: Key
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        content()
+    }
+
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.key == rhs.key
+    }
+}
+
+private struct HomeTVHeroRenderKey: Equatable, Sendable {
+    var itemIDs: [PlexItemID]
+    var containerSize: CGSize
+    var topInset: CGFloat
+    var leadingInset: CGFloat
+    var trailingInset: CGFloat
+    var selectionResetRevision: Int
+    var focusedItemKey: String?
+    var currentItemKey: String?
+    var hasFocus: Bool
+    var viewModel: ObjectIdentifier
+}
+
+private struct HomeTVShelvesRenderKey: Equatable, Sendable {
+    var hasHero: Bool
+    var offlineServerNames: [String]
+    var recentlyAddedInlineItemLimit: Int
+    var showsLiveTV: Bool
+    var showsCompactContinueWatching: Bool
+    var viewModel: ObjectIdentifier
+    var liveTVViewModel: ObjectIdentifier
 }
 
 /// The parts of the scroll geometry `settleFold` needs, measured from the
