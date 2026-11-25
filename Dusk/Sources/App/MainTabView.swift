@@ -34,7 +34,7 @@ struct MainTabView: View {
     #if os(tvOS)
     @State private var playVersion = PlayVersionPresenter()
     @Environment(TopShelfLinkRouter.self) private var topShelfLinks
-    @State private var isHomeScrolledOffTop = false
+    @State private var homeScrollReport = HomeScrollReport()
     @State private var homeScrollToTopRevision = 0
     #endif
 
@@ -184,7 +184,9 @@ struct MainTabView: View {
         MainTabTVShell(
             tabs: availableTabs,
             selection: tabSelection,
-            rootBackAction: rootBackAction,
+            // Asked when Back is pressed, not when the shell renders: the
+            // shell never re-renders for Home's scroll (`HomeScrollReport`).
+            rootBackAction: { rootBackAction },
             content: tabRootView(for:)
         )
         #else
@@ -206,7 +208,7 @@ struct MainTabView: View {
         if selectedTab != .home {
             return { activate(.home) }
         }
-        guard isHomeScrolledOffTop else { return nil }
+        guard homeScrollReport.isScrolledOffTop else { return nil }
         return { homeScrollToTopRevision += 1 }
     }
 
@@ -362,7 +364,7 @@ struct MainTabView: View {
                 path: $homePath,
                 isSelected: selectedTab == .home,
                 liveTVViewModel: resolvedLiveTVViewModel,
-                isScrolledOffTop: $isHomeScrolledOffTop,
+                scrollReport: homeScrollReport,
                 scrollToTopRevision: homeScrollToTopRevision
             )
             #else

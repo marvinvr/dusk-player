@@ -15,10 +15,10 @@ struct HomeView: View {
     @Binding var path: NavigationPath
     let isSelected: Bool
     let liveTVViewModel: LiveTVViewModel
-    /// tvOS: set while the page is scrolled away from its top, so the tab
+    /// tvOS: whether the page is scrolled away from its top, so the tab
     /// shell can send the Siri Remote's Back press back to the hero instead
-    /// of letting it leave the app.
-    var isScrolledOffTop: Binding<Bool> = .constant(false)
+    /// of letting it leave the app. See `HomeScrollReport`.
+    var scrollReport: HomeScrollReport?
     /// tvOS: bumped by the tab shell to bring the page back to the hero.
     var scrollToTopRevision = 0
     @State private var viewModel: HomeViewModel?
@@ -54,7 +54,7 @@ struct HomeView: View {
             // The scrolled-down report comes from the page itself, so it goes
             // stale once a loading, error, or outage state replaces the page.
             .onChange(of: showsPlatformContent) { _, isShowing in
-                if !isShowing { isScrolledOffTop.wrappedValue = false }
+                if !isShowing { scrollReport?.report(isScrolledOffTop: false) }
             }
             .onChange(of: viewModel?.isLoading ?? false) { wasLoading, isLoading in
                 if wasLoading, !isLoading { hasFinishedFirstLoad = true }
@@ -128,17 +128,14 @@ struct HomeView: View {
             liveTVViewModel: liveTVViewModel,
             showsLiveTV: preferences.showsLiveTVOnHome,
             showsCompactContinueWatching: preferences.compactHomeContinueWatching,
-            isScrolledOffTop: isScrolledOffTop,
+            scrollReport: scrollReport,
             scrollToTopRevision: scrollToTopRevision,
             playLiveTV: playLiveTV,
             play: play
         )
         .overlay(alignment: .topTrailing) {
             if preferences.showsClock {
-                HomeTVClock()
-                    // Leaves with the tab bar when the page scrolls down.
-                    .opacity(isScrolledOffTop.wrappedValue ? 0 : 1)
-                    .animation(.easeInOut(duration: 0.25), value: isScrolledOffTop.wrappedValue)
+                HomeTVScrollFadingClock(scrollReport: scrollReport)
             }
         }
         #else
@@ -222,3 +219,35 @@ struct HomeView: View {
         heroSelectionResetRevision += 1
     }
 }
+
+/// tvOS: whether Home is scrolled away from its top.
+///
+/// A shared reference rather than state, so a report never re-renders the
+/// tab shell or Home: it flips as the page starts to scroll, and a re-render
+/// there landed on the first frames of the hero ⇄ shelves move. The tab
+/// shell's Back interceptor reads it when Back is pressed; the clock's fade
+/// is the only view that observes it.
+@MainActor
+@Observable
+final class HomeScrollReport {
+    private(set) var isScrolledOffTop = false
+
+    func report(isScrolledOffTop: Bool) {
+        guard self.isScrolledOffTop != isScrolledOffTop else { return }
+        self.isScrolledOffTop = isScrolledOffTop
+    }
+}
+
+#if os(tvOS)
+/// The Home clock, which leaves with the tab bar when the page scrolls down.
+private struct HomeTVScrollFadingClock: View {
+    let scrollReport: HomeScrollReport?
+
+    var body: some View {
+        let isScrolledOffTop = scrollReport?.isScrolledOffTop ?? false
+        HomeTVClock()
+            .opacity(isScrolledOffTop ? 0 : 1)
+            .animation(.easeInOut(duration: 0.25), value: isScrolledOffTop)
+    }
+}
+#endif

@@ -142,9 +142,10 @@ private final class DuskDuoTabBarLabelRefreshView: UIView {
 struct MainTabTVShell<Content: View>: View {
     let tabs: [MainTabItem]
     let selection: Binding<MainTabItem>
-    /// Runs on a Siri Remote Back press at the root of the selected tab; `nil`
-    /// leaves the press to the system. See `MainTabView.rootBackAction`.
-    let rootBackAction: (() -> Void)?
+    /// Asked on a Siri Remote Back press at the root of the selected tab for
+    /// what to run; `nil` leaves the press to the system. See
+    /// `MainTabView.rootBackAction`.
+    let rootBackAction: () -> (() -> Void)?
     let content: (MainTabItem) -> Content
 
     var body: some View {
@@ -197,7 +198,7 @@ struct MainTabTVShell<Content: View>: View {
 /// stack, the stack never sees Back and tvOS would leave the app (#62). The
 /// recognizer takes that press and pops the stack itself.
 private struct DuskTVRootBackInterceptor: UIViewControllerRepresentable {
-    let action: (() -> Void)?
+    let action: () -> (() -> Void)?
 
     func makeUIViewController(context: Context) -> DuskTVRootBackController {
         DuskTVRootBackController()
@@ -210,7 +211,8 @@ private struct DuskTVRootBackInterceptor: UIViewControllerRepresentable {
 }
 
 private final class DuskTVRootBackController: UIViewController, UIGestureRecognizerDelegate {
-    var action: (() -> Void)?
+    /// Read when Back is pressed, so it reflects state at that moment.
+    var action: () -> (() -> Void)? = { nil }
 
     private weak var shellTabBarController: UITabBarController?
 
@@ -248,7 +250,7 @@ private final class DuskTVRootBackController: UIViewController, UIGestureRecogni
             navigationController.popViewController(animated: true)
             return
         }
-        action?()
+        action()?()
     }
 
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive press: UIPress) -> Bool {
@@ -262,7 +264,7 @@ private final class DuskTVRootBackController: UIViewController, UIGestureRecogni
             guard let focusedItem, selected !== tabBarController else { return false }
             return !Self.isFocusItem(focusedItem, inside: selected)
         }
-        guard action != nil else { return false }
+        guard action() != nil else { return false }
         return !Self.isInSearchResults(focusedItem)
     }
 

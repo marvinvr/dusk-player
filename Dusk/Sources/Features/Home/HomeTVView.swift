@@ -27,9 +27,9 @@ struct HomeTVView: View {
     /// Settings › Home Advanced: the small Continue Watching row replaces
     /// the cinematic hero, and the page behaves as one without a hero.
     let showsCompactContinueWatching: Bool
-    /// Reports whether the page is scrolled away from its top. See
-    /// `HomeView.isScrolledOffTop`.
-    @Binding var isScrolledOffTop: Bool
+    /// Told whether the page is scrolled away from its top. See
+    /// `HomeScrollReport`.
+    let scrollReport: HomeScrollReport?
     let scrollToTopRevision: Int
     let playLiveTV: (PlexLiveChannel, PlexLiveProgram, PlexLiveTVLineup) -> Void
     let play: (PlexItem) -> Void
@@ -46,7 +46,12 @@ struct HomeTVView: View {
 
     /// Whether the hero still covers at least half the screen. Tells
     /// `HomeTVFoldSnapping` which side of the fold a focus move starts from.
-    @State private var isHeroShowing = true
+    /// Not state: it flips halfway through every hero ⇄ shelves scroll, and
+    /// nothing draws from it.
+    @State private var heroVisibility = HomeTVHeroVisibility()
+    /// What the hero exit asks of the shelves and which play buttons take
+    /// focus. See `HomeTVFocusRouting`.
+    @State private var focusRouting = HomeTVFocusRouting()
     /// Whether focus has settled below the hero. Closed while the play button
     /// has focus; opened once the hero's down-press has landed on the first
     /// shelf's first item (`beginHeroExit`). Latched, not derived from the
@@ -181,8 +186,6 @@ struct HomeTVView: View {
                             trailingInset: trailingContentInset,
                             selectionResetRevision: heroSelectionResetRevision,
                             focusedItemKey: focusedHeroKey,
-                            currentItemKey: currentHeroKey,
-                            hasFocus: heroHasFocus,
                             viewModel: ObjectIdentifier(viewModel)
                         )) {
                             HomeCinematicHero(
@@ -223,13 +226,7 @@ struct HomeTVView: View {
                                         #if os(tvOS)
                                         .homeHeroNativeButtonStyle()
                                         .focused($focusedTarget, equals: .heroPrimaryAction(key))
-                                        .prefersDefaultFocus(key == currentHeroKey, in: homeFocusScope)
-                                        // The other pages' buttons are only reachable
-                                        // from a play button (left/right). Coming in
-                                        // from the shelves or the tab bar, the engine
-                                        // would otherwise pick whichever button is
-                                        // nearest, a page away off screen.
-                                        .disabled(!heroHasFocus && key != currentHeroKey)
+                                        .homeTVHeroButtonGate(key: key, focusScope: homeFocusScope)
                                         #endif
                                         .contextMenu {
                                             HomeItemContextMenu(
@@ -261,6 +258,12 @@ struct HomeTVView: View {
                             )
                         }
                         .equatable()
+                        .onChange(
+                            of: HomeTVHeroButtonGateState(hasFocus: heroHasFocus, currentKey: currentHeroKey),
+                            initial: true
+                        ) { _, gate in
+                            focusRouting.heroButtonGate = gate
+                        }
                         .frame(width: heroContainerSize.width)
                         // Before the offset, so the hint moves with the hero
                         // and centres on the display. An offset only moves
@@ -292,7 +295,9 @@ struct HomeTVView: View {
                         shelvesStack()
                     }
                     .equatable()
-                    .environment(\.homeTVShelfLanding, shelfLanding(hasHero: !heroItems.isEmpty))
+                    .onChange(of: shelfLanding(hasHero: !heroItems.isEmpty), initial: true) { _, landing in
+                        focusRouting.shelfLanding = landing
+                    }
                     .environment(\.carouselLeadingFocusGeneration, heroExitFocusGeneration)
                     .padding(
                         .top,
@@ -316,10 +321,12 @@ struct HomeTVView: View {
             // `heroHeight`. Without a hero, the "Home" header keeps the inset.
             .ignoresSafeArea(edges: heroItems.isEmpty ? [] : .top)
             .scrollPosition($scrollPosition)
+            .environment(focusRouting)
             .scrollTargetBehavior(
                 HomeTVFoldSnapping(
                     foldY: heroItems.isEmpty ? nil : heroHeight,
-                    startsAboveFold: heroHasFocus || isHeroShowing,
+                    heroHasFocus: heroHasFocus,
+                    heroVisibility: heroVisibility,
                     pinsToFold: heroExit != .idle,
                     pressGuard: heroPressGuard
                 )
@@ -327,7 +334,7 @@ struct HomeTVView: View {
             .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
                 scrollGeometry.contentOffset.y + scrollGeometry.contentInsets.top < heroHeight * 0.5
             } action: { _, isShowing in
-                isHeroShowing = isShowing
+                heroVisibility.isShowing = isShowing
             }
             .onPreferenceChange(CarouselLeadingItemFocusedKey.self) { hasLanded in
                 if hasLanded {
@@ -352,10 +359,10 @@ struct HomeTVView: View {
             .onScrollGeometryChange(for: Bool.self) { scrollGeometry in
                 !heroItems.isEmpty && HomeTVScrollMetrics(scrollGeometry).offset > 1
             } action: { _, isOffTop in
-                isScrolledOffTop = isOffTop
+                scrollReport?.report(isScrolledOffTop: isOffTop)
             }
             .onChange(of: heroItems.isEmpty) { _, isEmpty in
-                if isEmpty { isScrolledOffTop = false }
+                if isEmpty { scrollReport?.report(isScrolledOffTop: false) }
             }
             // Without a hero nothing locks the shelves. Keeping the latch open
             // then also covers a hero that arrives late: the shelves stay
@@ -457,9 +464,9 @@ struct HomeTVView: View {
         #endif
     }
 
-    /// What the hero exit asks of the shelves, handed down through the
-    /// environment (`homeTVShelfFocus(_:)`) rather than built into them, so
-    /// the exit's state changes never rebuild the shelves themselves.
+    /// What the hero exit asks of the shelves, handed down through
+    /// `HomeTVFocusRouting` (`homeTVShelfFocus(_:)`) rather than built into
+    /// them, so the exit's state changes never rebuild the shelves.
     private func shelfLanding(hasHero: Bool) -> HomeTVShelfLanding {
         guard hasHero else { return HomeTVShelfLanding() }
         let focus: HomeTVShelfFocus = heroExit == .landing
@@ -899,10 +906,15 @@ private struct HomeTVFoldSnapping: ScrollTargetBehavior {
     /// Content y of the first shelf's top edge, i.e. the hero height. `nil`
     /// when there is no hero, which leaves every target alone.
     var foldY: CGFloat?
-    /// Which side of the fold the scroll starts from. It comes from the last
-    /// render, so it describes the page as it was *before* the focus move that
-    /// triggered the scroll.
-    var startsAboveFold: Bool
+    /// Whether a play button had focus at the last render, i.e. *before* the
+    /// focus move that triggered the scroll.
+    var heroHasFocus: Bool
+    /// Read live: whether the hero still covers half the screen.
+    var heroVisibility: HomeTVHeroVisibility?
+    /// Which side of the fold the scroll starts from.
+    private var startsAboveFold: Bool {
+        heroHasFocus || heroVisibility?.isShowing ?? true
+    }
     /// A hero exit is under way (`HomeTVView.beginHeroExit`): the page is
     /// going to the fold and nowhere else, whatever the focus engine proposes
     /// when the first card takes focus.
@@ -1005,14 +1017,10 @@ private struct HomeTVShelfLanding: Equatable {
     }
 }
 
-private extension EnvironmentValues {
-    @Entry var homeTVShelfLanding = HomeTVShelfLanding()
-}
-
 private extension View {
-    /// Turns `homeTVShelfLanding` into this shelf's carousel request. Only
-    /// this modifier reads it, so a landing step updates the request without
-    /// rebuilding the shelf it sits on.
+    /// Turns `HomeTVFocusRouting.shelfLanding` into this shelf's carousel
+    /// request. Only this modifier reads it, so a landing step updates the
+    /// request without rebuilding the shelf it sits on.
     func homeTVShelfFocus(_ shelf: HomeTVShelfID) -> some View {
         #if os(tvOS)
         modifier(HomeTVShelfFocusModifier(shelf: shelf))
@@ -1025,13 +1033,68 @@ private extension View {
 #if os(tvOS)
 private struct HomeTVShelfFocusModifier: ViewModifier {
     let shelf: HomeTVShelfID
-    @Environment(\.homeTVShelfLanding) private var landing
+    @Environment(HomeTVFocusRouting.self) private var routing: HomeTVFocusRouting?
 
     func body(content: Content) -> some View {
-        content.environment(\.carouselLeadingItemRequest, landing.focus(for: shelf).request)
+        let focus = routing?.shelfLanding.focus(for: shelf) ?? .reachable()
+        content.environment(\.carouselLeadingItemRequest, focus.request)
     }
 }
 #endif
+
+/// Whether a hero play button has focus, and the page whose button Home
+/// hands focus to (`HomeTVView.heroPrimaryKey(in:)`).
+private struct HomeTVHeroButtonGateState: Equatable {
+    var hasFocus = false
+    var currentKey: String?
+}
+
+/// The focus state the hero ⇄ shelves move hands down: what the exit asks of
+/// the shelves, and which play buttons take focus.
+///
+/// An observable object rather than environment values: a changed
+/// environment value is checked by every view below it that reads the
+/// environment (each poster card, each hero page), while an observed
+/// property only invalidates the few modifiers that read it. Changing the
+/// environment on the shelves when the landing finished cost a ~30 ms
+/// hitch 250 ms into the scroll (Release simulator build).
+@MainActor
+@Observable
+private final class HomeTVFocusRouting {
+    var shelfLanding = HomeTVShelfLanding()
+    var heroButtonGate = HomeTVHeroButtonGateState()
+}
+
+#if os(tvOS)
+private extension View {
+    func homeTVHeroButtonGate(key: String, focusScope: Namespace.ID) -> some View {
+        modifier(HomeTVHeroButtonGate(key: key, focusScope: focusScope))
+    }
+}
+
+private struct HomeTVHeroButtonGate: ViewModifier {
+    let key: String
+    let focusScope: Namespace.ID
+    @Environment(HomeTVFocusRouting.self) private var routing: HomeTVFocusRouting?
+
+    func body(content: Content) -> some View {
+        let gate = routing?.heroButtonGate ?? HomeTVHeroButtonGateState()
+        return content
+            .prefersDefaultFocus(key == gate.currentKey, in: focusScope)
+            // The other pages' buttons are only reachable from a play button
+            // (left/right). Coming in from the shelves or the tab bar, the
+            // engine would otherwise pick whichever button is nearest, a page
+            // away off screen.
+            .disabled(!gate.hasFocus && key != gate.currentKey)
+    }
+}
+#endif
+
+/// See `HomeTVView.heroVisibility`. A plain reference: `HomeTVFoldSnapping`
+/// reads it while the focus engine proposes a scroll, and nothing draws it.
+private final class HomeTVHeroVisibility {
+    var isShowing = true
+}
 
 /// Rebuilds `content` only when `key` changes (or when something `content`
 /// reads from an observable model changes, which invalidates it directly).
@@ -1067,8 +1130,6 @@ private struct HomeTVHeroRenderKey: Equatable, Sendable {
     var trailingInset: CGFloat
     var selectionResetRevision: Int
     var focusedItemKey: String?
-    var currentItemKey: String?
-    var hasFocus: Bool
     var viewModel: ObjectIdentifier
 }
 

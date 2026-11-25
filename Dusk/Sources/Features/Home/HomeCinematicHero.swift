@@ -406,10 +406,31 @@ struct HomeCinematicHero: View {
             // Focus arriving on a play button (Home on screen, back from the
             // shelves or the tab bar, a page change) starts a fresh interval;
             // focus going anywhere else holds the rotation where it is.
-            .onChange(of: focusedItemKey) { _, key in
-                if key == nil {
-                    pauseHeroRotation()
-                } else {
+            //
+            // A page change restarts right away. Focus leaving or coming back
+            // is the hero ⇄ shelves move, whose scroll starts in that same
+            // frame: there the rotation stops (`isRotationSuspended`) and the
+            // pager freezes (`HeroPagerTimelineSchedule`) without any state
+            // change, and the pause or restart is recorded once the move has
+            // settled (`.task` below). Writing it at once re-rendered every
+            // hero page a second time in the move's first frame.
+            .onChange(of: focusedItemKey) { old, key in
+                // Focus left: the task below records the pause.
+                guard key != nil else { return }
+                // Back after the pause was recorded: the task restarts it. A
+                // return before then restarts here, or the interval would
+                // count the time focus spent away.
+                if old == nil, isHeroRotationPaused { return }
+                restartHeroRotation()
+            }
+            .task(id: focusedItemKey == nil) {
+                let changedAt = Date()
+                // Past the end of the page scroll (about a second).
+                try? await Task.sleep(for: .milliseconds(1500))
+                guard !Task.isCancelled else { return }
+                if focusedItemKey == nil {
+                    pauseHeroRotation(at: changedAt)
+                } else if isHeroRotationPaused {
                     restartHeroRotation()
                 }
             }
@@ -1126,7 +1147,12 @@ struct HomeCinematicHero: View {
             .padding(.horizontal, -4)
         #else
         if autoRotates {
-            TimelineView(.periodic(from: .now, by: 0.05)) { timeline in
+            // A paused or suspended rotation draws its frozen progress, so it
+            // stops the 20 Hz ticks too (on tvOS, all the while focus is off
+            // the hero).
+            TimelineView(
+                HeroPagerTimelineSchedule(isPaused: pausedHeroRotationProgress != nil || isRotationSuspended)
+            ) { timeline in
                 pagerContent(currentIndex: currentIndex, date: timeline.date)
             }
         } else {
@@ -1311,9 +1337,14 @@ struct HomeCinematicHero: View {
     }
 
     private func pauseHeroRotation() {
+        pauseHeroRotation(at: Date())
+    }
+
+    /// Pauses with the progress the rotation had at `date`.
+    private func pauseHeroRotation(at date: Date) {
         guard autoRotates, !isHeroRotationPaused else { return }
         isHeroRotationPaused = true
-        pausedHeroRotationProgress = heroRotationProgress(at: Date())
+        pausedHeroRotationProgress = heroRotationProgress(at: date)
         heroRotationRevision += 1
     }
 
@@ -2377,3 +2408,20 @@ private struct MacHeroPagerPillHover: ViewModifier {
     }
 }
 #endif
+
+/// The pager's progress ticks: every 50 ms, or just once while the rotation
+/// is paused.
+private struct HeroPagerTimelineSchedule: TimelineSchedule {
+    let isPaused: Bool
+
+    func entries(from startDate: Date, mode: TimelineScheduleMode) -> AnyIterator<Date> {
+        if isPaused {
+            return AnyIterator([startDate].makeIterator())
+        }
+        return AnyIterator(
+            PeriodicTimelineSchedule(from: startDate, by: 0.05)
+                .entries(from: startDate, mode: mode)
+                .makeIterator()
+        )
+    }
+}

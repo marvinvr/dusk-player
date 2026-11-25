@@ -652,9 +652,27 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
     which SwiftUI cannot diff), measured in a Release simulator build. That was
     the laggy Down/Up on device. The hero rebuilds only when its key (item ids,
     size, focused/current page, focus) changes; the shelves get the landing
-    request through `homeTVShelfLanding`, read only by `homeTVShelfFocus(_:)`.
+    request through `HomeTVFocusRouting`, read only by `homeTVShelfFocus(_:)`.
     Model data still reaches both through observation. A plain value either one
     captures must go into its key.
+  - **Nothing else re-renders during the move.** The other moving parts are
+    kept out of rendered state:
+    - The landing request and the play buttons' focus gate
+      (`homeTVHeroButtonGate`) are observed properties of `HomeTVFocusRouting`.
+      They are not environment values, because a changed environment value is
+      re-checked by every view below it. That was a ~30 ms hitch 250 ms into the
+      scroll.
+    - `isHeroShowing` is a plain reference (`HomeTVHeroVisibility`) that
+      `HomeTVFoldSnapping` reads live.
+    - The scrolled-off-top flag lives in `HomeScrollReport`. Only the clock fade
+      observes it, and the tab shell's Back interceptor asks for its action when
+      Back is pressed (`rootBackAction` is a provider), so MainTabView no longer
+      re-renders as the page leaves or reaches its top.
+    - On focus leaving or returning, the hero stops its rotation through
+      `isRotationSuspended` alone. The pager's `HeroPagerTimelineSchedule`
+      stops ticking (also whenever the rotation is paused). The pause or restart
+      itself is recorded 1.5 s later, after the scroll; a page change restarts at
+      once.
   - Unchanged and still load-bearing: both `.focusSection()`s, the focus
     scope / `defaultFocus` / `requestHeroPrimaryFocusIfNeeded` dance.
   - `HomeViewModel.heroItems()` caps the rotation at 10 items **on tvOS only**, since
