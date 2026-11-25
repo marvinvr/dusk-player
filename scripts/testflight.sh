@@ -316,9 +316,22 @@ def latest(app_id, platform):
             "&sort=-uploadedDate&limit=1&fields[builds]=version,processingState")["data"]
     print(f"{d[0]['id']} {d[0]['attributes']['version']} {d[0]['attributes']['processingState']}" if d else "- - -")
 
+def upload_failed(app_id, platform, since):
+    # Uploads Apple rejected while processing (e.g. ITMS-90626) never become builds; buildUploads has the errors.
+    from datetime import datetime
+    for u in api(f"/v1/apps/{app_id}/buildUploads?limit=50")["data"]:
+        a = u["attributes"]; st = a.get("state") or {}
+        if a.get("platform") != PLATFORMS[platform][1] or st.get("state") != "FAILED": continue
+        try:
+            if datetime.fromisoformat(a["createdDate"]).timestamp() < float(since): continue
+        except Exception: continue
+        errs = "; ".join(f"{e.get('code')} {e.get('description')}" for e in st.get("errors") or []) or "no details"
+        print(f"FAILED build {a.get('cfBundleVersion')}: {errs}"[:450]); return
+
 if __name__ == "__main__":
     if sys.argv[1] == "plan": plan(*sys.argv[2:5])
     elif sys.argv[1] == "latest": latest(*sys.argv[2:4])
+    elif sys.argv[1] == "uploadfail": upload_failed(*sys.argv[2:5])
     elif sys.argv[1] == "nextbuild": next_build(sys.argv[2])
     elif sys.argv[1] == "external": external(*sys.argv[2:5])
 PY
@@ -375,6 +388,7 @@ build_one() {  # <platform> <scheme>, run as a background job with RESULT set
     local e; e=$(errors "$dir/archive.log"); is_signing "$e" && fail 3 "archive signing failed: $e"; fail 4 "archive failed: $e"; }
 
   local prev; prev=$($TF latest "$app_id" "$PLAT" | cut -d' ' -f1)
+  local t0=$(( $(date +%s) - 120 ))  # uploads newer than this (2 min clock slack) belong to this run
   [ $DRY -eq 1 ] && plutil -replace destination -string export "$dir/ExportOptions.plist"
   say "$([ $DRY -eq 1 ] && echo 'exporting (dry run, no upload)' || echo 'exporting + uploading') ..."
   xcodebuild -exportArchive -archivePath "$dir/App.xcarchive" -exportOptionsPlist "$dir/ExportOptions.plist" \
@@ -394,6 +408,10 @@ build_one() {  # <platform> <scheme>, run as a background job with RESULT set
   for _ in $(seq 1 135); do
     sleep 20
     read -r id num state <<<"$($TF latest "$app_id" "$PLAT")"
+    if [ "$id" = "$prev" ] || [ "$id" = "-" ]; then
+      local uf; uf=$($TF uploadfail "$app_id" "$PLAT" "$t0" 2>/dev/null | tail -1)
+      [[ "$uf" == FAILED* ]] && fail 6 "upload rejected by App Store Connect, ${uf#FAILED }"
+    fi
     if [ "$id" != "$prev" ] && [ "$id" != "-" ]; then
       case "$state" in
         VALID)
