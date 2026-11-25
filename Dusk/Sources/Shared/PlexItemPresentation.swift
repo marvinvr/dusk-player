@@ -27,11 +27,8 @@ extension PlexItem {
     /// season cards, so a row of mixed items marks them all alike.
     var posterIsWatched: Bool {
         switch type {
-        case .movie, .episode, .clip:
+        case .movie, .episode, .clip, .show, .season:
             return isWatched
-        case .show, .season:
-            guard let leafCount, leafCount > 0, let viewedLeafCount else { return false }
-            return viewedLeafCount >= leafCount
         default:
             return false
         }

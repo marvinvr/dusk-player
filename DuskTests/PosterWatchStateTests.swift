@@ -40,6 +40,21 @@ struct PosterWatchStateTests {
         #expect(!(try item(["type": "show", "leafCount": 0, "viewedLeafCount": 0])).posterIsWatched)
         #expect(!(try item(["type": "collection", "viewCount": 3])).posterIsWatched)
     }
+
+    @Test("isWatched uses leaf counts for shows and seasons, viewCount for episodes (#88)")
+    func isWatchedByType() throws {
+        for type in ["show", "season"] {
+            // A container's viewCount is a play count: one episode played is not "watched".
+            #expect(!(try item(["type": type, "viewCount": 1, "leafCount": 10, "viewedLeafCount": 1])).isWatched, "\(type)")
+            #expect(try item(["type": type, "viewCount": 10, "leafCount": 10, "viewedLeafCount": 10]).isWatched, "\(type)")
+            #expect(!(try item(["type": type, "viewCount": 2])).isWatched, "\(type)")
+            #expect(!(try item(["type": type, "leafCount": 0, "viewedLeafCount": 0])).isWatched, "\(type)")
+        }
+        #expect(try item(["type": "episode", "viewCount": 1]).isWatched)
+        #expect(!(try item(["type": "episode", "viewOffset": 60_000])).isWatched)
+        #expect(!(try item(["type": "episode", "leafCount": 1, "viewedLeafCount": 1])).isWatched)
+        #expect(try item(["type": "movie", "viewCount": 3]).isWatched)
+    }
 }
 
 /// Continue Watching hero and compact-row menus (`HomeItemContextMenu`).

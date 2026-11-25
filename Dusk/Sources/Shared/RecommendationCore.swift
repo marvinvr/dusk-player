@@ -209,7 +209,7 @@ enum RecommendationCandidateSupport {
                 return viewedLeafCount >= leafCount
             }
 
-            return item.isWatched
+            return (item.viewCount ?? 0) > 0
         default:
             return item.isWatched
         }

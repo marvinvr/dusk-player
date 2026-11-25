@@ -224,10 +224,18 @@ extension PlexItem {
         return true
     }
 
-    /// Whether the item has been fully watched.
+    /// Whether the item has been fully watched. Shows and seasons count as
+    /// watched only when every episode is (`viewCount` on a container is a
+    /// play count and turns positive after one episode, see #88).
     var isWatched: Bool {
-        guard let count = viewCount else { return false }
-        return count > 0
+        switch type {
+        case .show, .season:
+            guard let leafCount, leafCount > 0, let viewedLeafCount else { return false }
+            return viewedLeafCount >= leafCount
+        default:
+            guard let count = viewCount else { return false }
+            return count > 0
+        }
     }
 
     /// Best available primary image path for compact cards and rows.
