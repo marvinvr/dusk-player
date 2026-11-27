@@ -1,0 +1,31 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 2,
+      "Id": "a3c7ff8d2e82a71bed80f6db5ba20599",
+      "ImageBlurHashes": {},
+      "ImageTags": {},
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "Dusk Fixture Recorder",
+      "RunTimeTicks": 0,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Playlist",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "a3c7ff8d2e82a71bed80f6db5ba20599",
+        "Key": "a3c7ff8d-2e82-a71b-ed80-f6db5ba20599",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 2
+      }
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 1
+}

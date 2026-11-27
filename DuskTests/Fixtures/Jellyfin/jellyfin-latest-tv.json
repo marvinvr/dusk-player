@@ -1,0 +1,168 @@
+[
+  {
+    "BackdropImageTags": [],
+    "ChannelId": null,
+    "CommunityRating": 7.944,
+    "Container": "mkv",
+    "HasSubtitles": true,
+    "Id": "1425b2d45aa726f909625431ba326ce2",
+    "ImageBlurHashes": {
+      "Backdrop": {
+        "5bbe8c328f72e3e8d3c3a66429afa304": "WbH1JSTKo#x[JB%2}@xZWBs:WAs:aJrrnhVtr=jF$%n%ayn%t6R*"
+      },
+      "Logo": {
+        "b4f06deff1b4fb84bf3dbfee628a4747": "HDP6~xRj_3_34n4nD%%Mxu-;%M~qj[M{j[-;xuj["
+      },
+      "Primary": {
+        "921a21ffd2060748e108b59c37323b00": "WMDcgu~oR5vyMdN1-;aKVr-nxaa%M{niw]s,t7V[%M%1smV@V[V[",
+        "cbca09e11db683a2f4e85043ac9851d9": "dTF;{Do#V@xa}ln#s;sl={xYj]%2D,s;axxDM{axi|s:",
+        "da55742315e47ea7339f09ca44b89be4": "dTF;{Do#V@xa}ln#s;sl={xYj]%2D,s;axxDM{axi|s:"
+      },
+      "Thumb": {
+        "87b044ad27772cdec898df2bc9da2cc6": "WRHwu:Y5Sjx[E*$*}rxWkDxtaexunNv~nNR6r=aK=|xaRji{oyM{"
+      }
+    },
+    "ImageTags": {
+      "Primary": "921a21ffd2060748e108b59c37323b00"
+    },
+    "IndexNumber": 10,
+    "IsFolder": false,
+    "LocationType": "FileSystem",
+    "MediaType": "Video",
+    "Name": "Being Alive",
+    "ParentBackdropImageTags": [
+      "5bbe8c328f72e3e8d3c3a66429afa304"
+    ],
+    "ParentBackdropItemId": "13a31c432423066216ecba4adc386996",
+    "ParentIndexNumber": 4,
+    "ParentLogoImageTag": "b4f06deff1b4fb84bf3dbfee628a4747",
+    "ParentLogoItemId": "13a31c432423066216ecba4adc386996",
+    "ParentPrimaryImageItemId": "80598c2c808c8fc8de7b70113e52d733",
+    "ParentPrimaryImageTag": "da55742315e47ea7339f09ca44b89be4",
+    "ParentThumbImageTag": "87b044ad27772cdec898df2bc9da2cc6",
+    "ParentThumbItemId": "13a31c432423066216ecba4adc386996",
+    "PremiereDate": "2026-10-05T22:00:00.0000000Z",
+    "ProductionYear": 2026,
+    "RunTimeTicks": 33223359999,
+    "SeasonId": "80598c2c808c8fc8de7b70113e52d733",
+    "SeasonName": "Season 4",
+    "SeriesId": "13a31c432423066216ecba4adc386996",
+    "SeriesName": "Ted Lasso",
+    "SeriesPrimaryImageTag": "cbca09e11db683a2f4e85043ac9851d9",
+    "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+    "Type": "Episode",
+    "UserData": {
+      "IsFavorite": false,
+      "ItemId": "1425b2d45aa726f909625431ba326ce2",
+      "Key": "383203004010",
+      "PlayCount": 0,
+      "PlaybackPositionTicks": 0,
+      "Played": false
+    },
+    "VideoType": "VideoFile"
+  },
+  {
+    "BackdropImageTags": [],
+    "ChannelId": null,
+    "Id": "fe534a8faf46aabe947fb46815c0d635",
+    "ImageBlurHashes": {
+      "Backdrop": {
+        "738e55368c36e11fb5eddea9c2f2075b": "WPB}I8V?k?R:ROtS?wozRkj=V@V@IUbIMxs8t7a}NMV?Rij^t7t7"
+      },
+      "Logo": {
+        "2dd39ca091a74f68fccfec873c650fd2": "HLJuAa%Mxut7xuWBxuWBM{00xut7xut7t7ofj[xu"
+      },
+      "Primary": {
+        "323da82bb94c2c94cd072399fe3462d1": "dSIF9#tRyD_2_Mt6-pof9[s:IAE1ISozIoNFD$M{R*oL",
+        "ebeeae2c16c3f3a2ac1a5da2e7a46d1a": "dSIF9#tRyD_2_Mt6-pof9[s:IAE1ISozIoNFD$M{R*oL"
+      },
+      "Thumb": {
+        "ab76af26e69fcb02dfb1e7077fa65235": "WSCQ=H?GDiOZcFOt?^w[Mxbco#XTI;WCxus.WBt6S%WAoJfkbIt7"
+      }
+    },
+    "ImageTags": {
+      "Primary": "323da82bb94c2c94cd072399fe3462d1"
+    },
+    "IndexNumber": 1,
+    "IsFolder": true,
+    "LocationType": "FileSystem",
+    "MediaType": "Unknown",
+    "Name": "Season 1",
+    "ParentBackdropImageTags": [
+      "738e55368c36e11fb5eddea9c2f2075b"
+    ],
+    "ParentBackdropItemId": "7820db538a32435f48c0a565e198f893",
+    "ParentLogoImageTag": "2dd39ca091a74f68fccfec873c650fd2",
+    "ParentLogoItemId": "7820db538a32435f48c0a565e198f893",
+    "ParentThumbImageTag": "ab76af26e69fcb02dfb1e7077fa65235",
+    "ParentThumbItemId": "7820db538a32435f48c0a565e198f893",
+    "PremiereDate": "2022-02-16T23:00:00.0000000Z",
+    "ProductionYear": 2022,
+    "SeriesId": "7820db538a32435f48c0a565e198f893",
+    "SeriesName": "Severance",
+    "SeriesPrimaryImageTag": "ebeeae2c16c3f3a2ac1a5da2e7a46d1a",
+    "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+    "Type": "Season",
+    "UserData": {
+      "IsFavorite": false,
+      "ItemId": "fe534a8faf46aabe947fb46815c0d635",
+      "Key": "371980001",
+      "PlayCount": 0,
+      "PlaybackPositionTicks": 0,
+      "Played": false,
+      "PlayedPercentage": 0,
+      "UnplayedItemCount": 9
+    }
+  },
+  {
+    "AirDays": [],
+    "BackdropImageTags": [
+      "8635884fe0a24bdb4edee384b5c54ca7"
+    ],
+    "ChannelId": null,
+    "CommunityRating": 8.6,
+    "EndDate": "2013-05-15T22:00:00.0000000Z",
+    "Id": "4eb7e22c1653ab565cf44daa4176ca56",
+    "ImageBlurHashes": {
+      "Backdrop": {
+        "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+      },
+      "Logo": {
+        "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+      },
+      "Primary": {
+        "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+      },
+      "Thumb": {
+        "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+      }
+    },
+    "ImageTags": {
+      "Logo": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "Primary": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "Thumb": "20adba5802b559b4284240b66107aaf8"
+    },
+    "IsFolder": true,
+    "LocationType": "FileSystem",
+    "MediaType": "Unknown",
+    "Name": "The Office",
+    "OfficialRating": "TV-14",
+    "OriginalLanguage": "en",
+    "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+    "ProductionYear": 2005,
+    "RunTimeTicks": 0,
+    "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+    "Status": "Ended",
+    "Type": "Series",
+    "UserData": {
+      "IsFavorite": false,
+      "ItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "Key": "73244",
+      "PlayCount": 0,
+      "PlaybackPositionTicks": 0,
+      "Played": false,
+      "PlayedPercentage": 0,
+      "UnplayedItemCount": 186
+    }
+  }
+]

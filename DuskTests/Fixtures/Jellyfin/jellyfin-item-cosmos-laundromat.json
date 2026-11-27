@@ -1,0 +1,341 @@
+{
+  "BackdropImageTags": [
+    "c2f69f3286d73beeb6b7ad2416d69ee8"
+  ],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [],
+  "CommunityRating": 6.3,
+  "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+  "DateCreated": "2026-06-21T13:09:08.9913344Z",
+  "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "5af9bd8eb6c14c5ab0451cb2f8786595",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt4957236"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/movie/358332"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "074229225b7254292f131f9f49f8dcd6",
+      "Name": "Animation"
+    },
+    {
+      "Id": "a30dcc65be22eb3c21c03f7c1c7a57d1",
+      "Name": "Fantasy"
+    }
+  ],
+  "Genres": [
+    "Animation",
+    "Fantasy"
+  ],
+  "Height": 320,
+  "Id": "377cc376d476c10935f3dbe98256914b",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "c2f69f3286d73beeb6b7ad2416d69ee8": "W59@L,-;H;Mx_3_3~V-o9aM{-:WVMc%2x^t8ITIT_2af?axtIps:"
+    },
+    "Logo": {
+      "9f824b036c13327d7c1c0478727cad83": "OJC=,ya|IsoKIrj@az0lfQ$}j@NJazWD9fj@WDaz$}oKNJ"
+    },
+    "Primary": {
+      "0ab57b0471733d9efd8f2e206bcadff9": "dGBMMfJ80#-n+eNFK4$*RhNG%2$*yCWYrts+E2smt2NH"
+    }
+  },
+  "ImageTags": {
+    "Logo": "9f824b036c13327d7c1c0478727cad83",
+    "Primary": "0ab57b0471733d9efd8f2e206bcadff9"
+  },
+  "IsFolder": false,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 523137,
+      "Container": "mp4",
+      "DefaultAudioStreamIndex": 1,
+      "ETag": "d393339202d6d522c093475c83fc2cc1",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": false,
+      "Id": "377cc376d476c10935f3dbe98256914b",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 471612,
+          "Codec": "h264",
+          "CodecTag": "avc1",
+          "DisplayTitle": "360p H264 SDR",
+          "Height": 320,
+          "Index": 0,
+          "IsAVC": true,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "Level": 21,
+          "NalLengthSize": "4",
+          "PixelFormat": "yuv420p",
+          "Profile": "Constrained Baseline",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/12288",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 568
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 47854,
+          "ChannelLayout": "mono",
+          "Channels": 1,
+          "Codec": "aac",
+          "CodecTag": "mp4a",
+          "DisplayTitle": "AAC - Mono - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "Undetermined",
+          "LocalizedOriginal": "Original",
+          "Profile": "LC",
+          "SampleRate": 16000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/16000",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        }
+      ],
+      "Name": "Cosmos Laundromat (2015)",
+      "Path": "/data/Movies/Cosmos Laundromat (2015)/Cosmos Laundromat (2015).mp4",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 7305230000,
+      "Size": 47770492,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "16:9",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 24,
+      "BitDepth": 8,
+      "BitRate": 471612,
+      "Codec": "h264",
+      "CodecTag": "avc1",
+      "DisplayTitle": "360p H264 SDR",
+      "Height": 320,
+      "Index": 0,
+      "IsAVC": true,
+      "IsAnamorphic": false,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "Level": 21,
+      "NalLengthSize": "4",
+      "PixelFormat": "yuv420p",
+      "Profile": "Constrained Baseline",
+      "RealFrameRate": 24,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 24,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/12288",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 568
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 47854,
+      "ChannelLayout": "mono",
+      "Channels": 1,
+      "Codec": "aac",
+      "CodecTag": "mp4a",
+      "DisplayTitle": "AAC - Mono - Default",
+      "Index": 1,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "Undetermined",
+      "LocalizedOriginal": "Original",
+      "Profile": "LC",
+      "SampleRate": 16000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/16000",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Cosmos Laundromat",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "Cosmos Laundromat",
+  "Overview": "On a desolate island, a suicidal sheep named Franck meets his fate…in the form of a quirky salesman named Victor, who offers him the gift of a lifetime. The gift is many lifetimes, actually, in many different worlds – each lasting just a few minutes. In the sequel to the pilot, Franck will find a new reason to live…in the form of a bewitching female adventurer named Tara, who awakens his long-lost lust for life. But can Franck keep up with her?",
+  "ParentId": "aa5380d0c01924c4efd3a6146a617a3a",
+  "Path": "/data/Movies/Cosmos Laundromat (2015)/Cosmos Laundromat (2015).mp4",
+  "People": [
+    {
+      "Id": "e9948ab58a0ea664d4377689d82eac2d",
+      "ImageBlurHashes": {
+        "Primary": {
+          "888614422b1983edd102c8ce5849820c": "dPK^ve.4lGo@yDDjEQWZEARRH[nP?]NW%I%f?tRj%fxF"
+        }
+      },
+      "Name": "Pierre Bokma",
+      "PrimaryImageTag": "888614422b1983edd102c8ce5849820c",
+      "Role": "Franck",
+      "Type": "Actor"
+    },
+    {
+      "Id": "8bbcea2e5bc9f851deef22c4eec8f4dc",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c2739d2dffcc316dd4bcd91b16747340": "dPEelS9a0f%L-qs-E2t69tt7%2R*E1t7t7WVNGWV%2j["
+        }
+      },
+      "Name": "Reinout Scholten van Aschat",
+      "PrimaryImageTag": "c2739d2dffcc316dd4bcd91b16747340",
+      "Role": "Victor",
+      "Type": "Actor"
+    },
+    {
+      "Id": "06511ed9ceeac4d39dc7b078bf5a0c00",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Mathieu Auvray",
+      "Role": "Director",
+      "Type": "Director"
+    },
+    {
+      "Id": "48aac8983750eb69b6b35e6485207413",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Esther Wouda",
+      "Role": "Writer",
+      "Type": "Writer"
+    },
+    {
+      "Id": "49f34ba9aaa3cc6004fbee058aea50b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cd344ce7f8d56ba5c1b6682ed017bc2": "dJINUFIp~q=|-4In$eWVOtt7XAj?=_jExB%2bcWXt7xa"
+        }
+      },
+      "Name": "Ton Roosendaal",
+      "PrimaryImageTag": "1cd344ce7f8d56ba5c1b6682ed017bc2",
+      "Role": "Producer",
+      "Type": "Producer"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2015-08-09T22:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionLocations": [
+    "Netherlands"
+  ],
+  "ProductionYear": 2015,
+  "ProviderIds": {
+    "Imdb": "tt4957236",
+    "Tmdb": "358332"
+  },
+  "RemoteTrailers": [
+    {
+      "Name": "Cosmos Laundromat, Pilot: Trailer",
+      "Url": "https://www.youtube.com/watch?v=u8Y6S6ev-Vg"
+    }
+  ],
+  "RunTimeTicks": 7305230000,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "cosmos laundromat",
+  "SpecialFeatureCount": 0,
+  "Studios": [
+    {
+      "Id": "66ac02ba6812c3e031d36b31750e19e3",
+      "Name": "Blender Foundation"
+    },
+    {
+      "Id": "568fcec1200490396b9fc92ea892067c",
+      "Name": "Blender Institute"
+    }
+  ],
+  "Taglines": [
+    "Any life you ever wanted!"
+  ],
+  "Tags": [
+    "sheep",
+    "short film"
+  ],
+  "Trickplay": {},
+  "Type": "Movie",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "377cc376d476c10935f3dbe98256914b",
+    "Key": "358332",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  },
+  "VideoType": "VideoFile",
+  "Width": 568
+}

@@ -1,0 +1,10 @@
+{
+  "AppName": "Dusk",
+  "AppVersion": "1.0",
+  "Authenticated": false,
+  "Code": "000000",
+  "DateAdded": "2026-01-01T00:00:00.0000000Z",
+  "DeviceId": "dusk-fixture-recorder",
+  "DeviceName": "Dusk Fixture Recorder",
+  "Secret": "REDACTED_SECRET"
+}

@@ -1,0 +1,2970 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "CanDelete": false,
+      "CanDownload": true,
+      "ChannelId": null,
+      "Chapters": [
+        {
+          "ImageDateModified": "2026-11-27T15:45:43.1710762Z",
+          "ImagePath": "/config/metadata/library/35/3574710e4da38d9eed286042b0bbd440/chapters/639174172120667316_0.jpg",
+          "ImageTag": "78c63052dc213113d544713205a44ac1",
+          "Name": "Chapter 01",
+          "StartPositionTicks": 0
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:45:43.4750803Z",
+          "ImagePath": "/config/metadata/library/35/3574710e4da38d9eed286042b0bbd440/chapters/639174172120667316_1028940000.jpg",
+          "ImageTag": "6f32b985acbe0df3cbbdfadab2324ca8",
+          "Name": "Chapter 02",
+          "StartPositionTicks": 1028940000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:45:43.7970846Z",
+          "ImagePath": "/config/metadata/library/35/3574710e4da38d9eed286042b0bbd440/chapters/639174172120667316_5291540000.jpg",
+          "ImageTag": "0e456f6c71dcac27e21e56959775e486",
+          "Name": "Chapter 03",
+          "StartPositionTicks": 5291540000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:45:44.0790885Z",
+          "ImagePath": "/config/metadata/library/35/3574710e4da38d9eed286042b0bbd440/chapters/639174172120667316_8334580000.jpg",
+          "ImageTag": "3aeaf186193c29e06dbd6d882bba7502",
+          "Name": "Chapter 04",
+          "StartPositionTicks": 8334580000
+        }
+      ],
+      "CommunityRating": 8,
+      "Container": "mkv",
+      "DateCreated": "2026-06-18T22:06:52.0667316Z",
+      "DisplayPreferencesId": "26dd4a82b00c839c498471cdba80a99c",
+      "EnableMediaSourceDisplay": true,
+      "Etag": "035064307ffe73a1a4e00850c93a1fb0",
+      "ExternalUrls": [
+        {
+          "Name": "IMDb",
+          "Url": "https://www.imdb.com/title/tt1725594"
+        },
+        {
+          "Name": "TMDB",
+          "Url": "https://www.themoviedb.org/tv/2316/season/7/episode/6"
+        }
+      ],
+      "GenreItems": [
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Comedy"
+      ],
+      "HasSubtitles": true,
+      "Height": 1080,
+      "Id": "3574710e4da38d9eed286042b0bbd440",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "9904ba47146bb7f1f96e19e3576e6369": "d$I}*Sx^Nexu?wkCNGt7I=RPjFbHI]ozt8ofWCozogoJ",
+          "a857e5390b07f19557c3bf5887543260": "W9Cimq~oNFM_ng9t~UxvxtWmM{IV4n9aNG?a-pxukVIonO-:xaR+",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "a857e5390b07f19557c3bf5887543260"
+      },
+      "IndexNumber": 6,
+      "IsFolder": false,
+      "IsHD": true,
+      "LocalTrailerCount": 0,
+      "LocationType": "FileSystem",
+      "LockData": false,
+      "LockedFields": [],
+      "MediaSources": [
+        {
+          "Bitrate": 6339840,
+          "Container": "mkv",
+          "DefaultAudioStreamIndex": 1,
+          "DefaultSubtitleStreamIndex": 2,
+          "ETag": "1de215469f87d98c7d847c191c993411",
+          "Formats": [],
+          "GenPtsInput": false,
+          "HasSegments": true,
+          "Id": "3574710e4da38d9eed286042b0bbd440",
+          "IgnoreDts": false,
+          "IgnoreIndex": false,
+          "IsInfiniteStream": false,
+          "IsRemote": false,
+          "MediaAttachments": [],
+          "MediaStreams": [
+            {
+              "AspectRatio": "16:9",
+              "AudioSpatialFormat": "None",
+              "AverageFrameRate": 23.976025,
+              "BitDepth": 8,
+              "BitRate": 25845776,
+              "Codec": "hevc",
+              "DisplayTitle": "1080p HEVC SDR",
+              "Height": 1080,
+              "Index": 0,
+              "IsAnamorphic": false,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "Level": 120,
+              "PixelFormat": "yuv420p",
+              "Profile": "Main",
+              "RealFrameRate": 23.976025,
+              "RefFrames": 1,
+              "ReferenceFrameRate": 23.976025,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Video",
+              "VideoRange": "SDR",
+              "VideoRangeType": "SDR",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitDepth": 24,
+              "BitRate": 3738911,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "English - DTS-HD MA - 5.1 - Default",
+              "Index": 1,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS-HD MA",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "English - Default - PGSSUB",
+              "Height": 1080,
+              "Index": 2,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "Score": 112211,
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "Spanish - PGSSUB",
+              "Height": 1080,
+              "Index": 3,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "spa",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "Spanish",
+              "LocalizedUndefined": "Undefined",
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            }
+          ],
+          "Name": "The Office (US) - S07E06 - Costume Contest Bluray-1080p Remux",
+          "Path": "/data/Real/TV/The Office (US)/Season 7/The Office (US) - S07E06 - Costume Contest Bluray-1080p Remux.mkv",
+          "Protocol": "File",
+          "ReadAtNativeFramerate": false,
+          "RequiredHttpHeaders": {},
+          "RequiresClosing": false,
+          "RequiresLooping": false,
+          "RequiresOpening": false,
+          "RunTimeTicks": 13253330000,
+          "Size": 1050300060,
+          "SupportsDirectPlay": true,
+          "SupportsDirectStream": true,
+          "SupportsProbing": true,
+          "SupportsTranscoding": true,
+          "TranscodingSubProtocol": "http",
+          "Type": "Default",
+          "UseMostCompatibleTranscodingProfile": false,
+          "VideoType": "VideoFile"
+        }
+      ],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 23.976025,
+          "BitDepth": 8,
+          "BitRate": 25845776,
+          "Codec": "hevc",
+          "DisplayTitle": "1080p HEVC SDR",
+          "Height": 1080,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 23.976025,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 23.976025,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitDepth": 24,
+          "BitRate": 3738911,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "English - DTS-HD MA - 5.1 - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS-HD MA",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - Default - PGSSUB",
+          "Height": 1080,
+          "Index": 2,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "Score": 112211,
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "Spanish - PGSSUB",
+          "Height": 1080,
+          "Index": 3,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "spa",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "Spanish",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "MediaType": "Video",
+      "Name": "Costume Contest",
+      "OriginalLanguage": "en",
+      "Overview": "When Darryl takes an idea to corporate over his head, Michael freaks out. Everyone in the office is in a competitive mood as the Halloween costume contest gets underway. Meanwhile, Pam tries to get the truth out of Danny about their dating history.",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentId": "6736770d03a0066c8c9eba27a925a3e2",
+      "ParentIndexNumber": 7,
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentPrimaryImageItemId": "6736770d03a0066c8c9eba27a925a3e2",
+      "ParentPrimaryImageTag": "9904ba47146bb7f1f96e19e3576e6369",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "Path": "/data/Real/TV/The Office (US)/Season 7/The Office (US) - S07E06 - Costume Contest Bluray-1080p Remux.mkv",
+      "People": [
+        {
+          "Id": "41924714d75ff8b107e71562f11bcae9",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+            }
+          },
+          "Name": "Steve Carell",
+          "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+          "Role": "Michael Scott",
+          "Type": "Actor"
+        },
+        {
+          "Id": "12728bc964881bc1793c7f5daad9ac4d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+            }
+          },
+          "Name": "Rainn Wilson",
+          "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+          "Role": "Dwight Schrute",
+          "Type": "Actor"
+        },
+        {
+          "Id": "9b60dd143630cde612f03063c2bc97d8",
+          "ImageBlurHashes": {
+            "Primary": {
+              "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+            }
+          },
+          "Name": "John Krasinski",
+          "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+          "Role": "Jim Halpert",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e397172ed87062e41cda00beca0f5622",
+          "ImageBlurHashes": {
+            "Primary": {
+              "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+            }
+          },
+          "Name": "Jenna Fischer",
+          "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+          "Role": "Pam Beesly",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e273b9feeab0aba7e35ce83b087b578f",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+            }
+          },
+          "Name": "B.J. Novak",
+          "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+          "Role": "Ryan Howard",
+          "Type": "Actor"
+        },
+        {
+          "Id": "26aaa9af41e3eb4ac289520019a9704d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ffad5af1dd6df555b6112685f2a5a5da": "dSM6n:9Gpc^*~Wxt-;%2Ez-p-ARjX9M{s:M|-;oJ%2ae"
+            }
+          },
+          "Name": "Ed Helms",
+          "PrimaryImageTag": "ffad5af1dd6df555b6112685f2a5a5da",
+          "Role": "Andy Bernard",
+          "Type": "Actor"
+        },
+        {
+          "Id": "a27d653db884a4d2b5cf38da28361d67",
+          "ImageBlurHashes": {
+            "Primary": {
+              "eca2031af75b8fb4d950061760ac7deb": "dgMjO7?H%#x]~pt7%Mt79tWpV?Rj?vWVxutR-;bH%Lxu"
+            }
+          },
+          "Name": "Zach Woods",
+          "PrimaryImageTag": "eca2031af75b8fb4d950061760ac7deb",
+          "Role": "Gabe Lewis",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "2533b158a8d666dda6b987390272ffe2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "e6c792dfe353fe65523dd10185d15020": "dHH-iT?GGwx]pyt6~qbw.SM{-oxFkXbHn%t8tmbG%2%2"
+            }
+          },
+          "Name": "Ellie Kemper",
+          "PrimaryImageTag": "e6c792dfe353fe65523dd10185d15020",
+          "Role": "Erin Hannon",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "4df9b253f2331014aa82e384a2bdc0dd",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c36624c06bbdb0efa2f53e4b4d5a2288": "d#OL}paKyD?G~BxtX9t7XmofV@WW%fR*bHofxut7aya#"
+            }
+          },
+          "Name": "Creed Bratton",
+          "PrimaryImageTag": "c36624c06bbdb0efa2f53e4b4d5a2288",
+          "Role": "Creed Bratton",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "906f302a6f31c8093582f2a59ae4c9df",
+          "ImageBlurHashes": {
+            "Primary": {
+              "90483c3407f14c5822101cd01b69a005": "dyJhIEwvNyn+2[S2f,OE$RoMs:xHxHWqs.s:FxWWa|W;"
+            }
+          },
+          "Name": "Mindy Kaling",
+          "PrimaryImageTag": "90483c3407f14c5822101cd01b69a005",
+          "Role": "Kelly Kapoor",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "540c5cc08f2d8c4e7e83be49b2ca19b2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c5281950382103e6d21d27504667fee9": "dbJ*L?s.Txx[~pj[%ftRX-t7$%%2S$ofo0WVxuWBs:oe"
+            }
+          },
+          "Name": "Kate Flannery",
+          "PrimaryImageTag": "c5281950382103e6d21d27504667fee9",
+          "Role": "Meredith Palmer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "f6dd43e2ab6976df5470b6d38aa8f06c",
+          "ImageBlurHashes": {
+            "Primary": {
+              "620b465c5b7967c3fdf67c28a993dde3": "dEB2=WJB0yI:#iNHxvX9E,s:r;WB5Rs,xabII:WW$%fk"
+            }
+          },
+          "Name": "Leslie David Baker",
+          "PrimaryImageTag": "620b465c5b7967c3fdf67c28a993dde3",
+          "Role": "Stanley Hudson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "572c7a00b4bb27a2cd0d6dbe89b2bae1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "2b78caafe2ba7e51cbfd6f15c438f87b": "dfHn,IXU13t7_1xZJ6I;E3r?s+RiNGa#WYoLXTofoyX8"
+            }
+          },
+          "Name": "Brian Baumgartner",
+          "PrimaryImageTag": "2b78caafe2ba7e51cbfd6f15c438f87b",
+          "Role": "Kevin Malone",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "22ac1ac371ff5c31f59763d76cf53031",
+          "ImageBlurHashes": {
+            "Primary": {
+              "df9a808c29aee22011efdf629ba606d4": "dA8|V6xZK*kq~Vt6gOg3Ehbb$$s:EhS2$ixGx]fP%1t7"
+            }
+          },
+          "Name": "Craig Robinson",
+          "PrimaryImageTag": "df9a808c29aee22011efdf629ba606d4",
+          "Role": "Darryl Philbin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "724ac5bc7a0a4a3f9d17fe0ce539af1e",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a04bc8c2c848f813445170e8da53a759": "dYG[4{-q0$XAMus.WCR*5@oz=|t7$$ofo#xaI.fkxYt6"
+            }
+          },
+          "Name": "Phyllis Smith",
+          "PrimaryImageTag": "a04bc8c2c848f813445170e8da53a759",
+          "Role": "Phyllis Lapin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "0fd2361382ea5178fff1f18f35c32865",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c2842e656eb73ea977b8ceee00a4751c": "dYL:$Nni.T%M~BV@?bbb9^R*Mwof.8tR%Lxa%MWB%2xa"
+            }
+          },
+          "Name": "Oscar Nuñez",
+          "PrimaryImageTag": "c2842e656eb73ea977b8ceee00a4751c",
+          "Role": "Oscar Martinez",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "35862a408d84c89ba328de4a05191729",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ecca495c9a437a28acedc40a8ba64125": "dWOpDB?G*J-.?wozt8tS%#ozi{jF-;ogxat7x^bIaej]"
+            }
+          },
+          "Name": "Angela Kinsey",
+          "PrimaryImageTag": "ecca495c9a437a28acedc40a8ba64125",
+          "Role": "Angela Martin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "90111dd1d518fef21bf7e33875c1c0be",
+          "ImageBlurHashes": {
+            "Primary": {
+              "68a1daabc8984d59c3eb5ec5e275c493": "d+LW36$jl8tR~BjFg3ofJ7WCaKj[xut7oftQ%LWBoft7"
+            }
+          },
+          "Name": "Paul Lieberstein",
+          "PrimaryImageTag": "68a1daabc8984d59c3eb5ec5e275c493",
+          "Role": "Toby Flenderson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "eae45ae1151f9846ad15d99bd32a5b1d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "41fb4e77dbfe19163c1ca41c9a174a64": "dHB{[exu5Roz-;ofofWV0LRk-os:NHWW%2xa%Mj[R*fQ"
+            }
+          },
+          "Name": "Timothy Olyphant",
+          "PrimaryImageTag": "41fb4e77dbfe19163c1ca41c9a174a64",
+          "Role": "Danny Cordray",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "22c7fe4e8eac777650e7c572bc18593a",
+          "ImageBlurHashes": {
+            "Primary": {
+              "e3debf2e9350cc981055efd569c4b79a": "dHJ7%V-;1j%N+[M{4.ae5mofv~t7.9WB%gt701M|r;od"
+            }
+          },
+          "Name": "David Koechner",
+          "PrimaryImageTag": "e3debf2e9350cc981055efd569c4b79a",
+          "Role": "Todd Packer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "c16750fc8e91fe6de8902c2af0b88cc8",
+          "ImageBlurHashes": {
+            "Primary": {
+              "b96236b1608e571a8ebc165778e0eab5": "djIOFTM|57?H4mWBIoWAx^t7xZR*WCWBogj[D%ofjFRj"
+            }
+          },
+          "Name": "Robert R. Shafer",
+          "PrimaryImageTag": "b96236b1608e571a8ebc165778e0eab5",
+          "Role": "Bob Vance",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "9fc4349a848c319001f25b8bb439b08c",
+          "ImageBlurHashes": {
+            "Primary": {}
+          },
+          "Name": "Dean Holland",
+          "Role": "Director",
+          "Type": "Director"
+        },
+        {
+          "Id": "243a5c22ef03566b28062774df117710",
+          "ImageBlurHashes": {
+            "Primary": {
+              "44f585162cabc2f829bc670e9f9fb9ae": "dTHBc3NQPXp1bwnox]SilAWU$f%1tmNzt8xupJaixZt6"
+            }
+          },
+          "Name": "Justin Spitzer",
+          "PrimaryImageTag": "44f585162cabc2f829bc670e9f9fb9ae",
+          "Role": "Writer",
+          "Type": "Writer"
+        },
+        {
+          "Id": "9d51457a6fcbfd156fe3014ee7a32976",
+          "ImageBlurHashes": {
+            "Primary": {
+              "50c70baed5c52613fe504b24d276d0d9": "dEHBGCR52Z-pvyxa?bX91~M{v#soEKWA?bxutRWE-Uxt"
+            }
+          },
+          "Name": "Warren Lieberstein",
+          "PrimaryImageTag": "50c70baed5c52613fe504b24d276d0d9",
+          "Role": "Producer",
+          "Type": "Producer"
+        },
+        {
+          "Id": "41924714d75ff8b107e71562f11bcae9",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+            }
+          },
+          "Name": "Steve Carell",
+          "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+          "Role": "Producer",
+          "Type": "Producer"
+        },
+        {
+          "Id": "514aa378923007120e24422f0d70b52b",
+          "ImageBlurHashes": {
+            "Primary": {}
+          },
+          "Name": "Halsted Sullivan",
+          "Role": "Producer",
+          "Type": "Producer"
+        }
+      ],
+      "PlayAccess": "Full",
+      "PremiereDate": "2010-10-27T22:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 1.7777777777777777,
+      "ProductionYear": 2010,
+      "ProviderIds": {
+        "Imdb": "tt1725594",
+        "Tmdb": "170271",
+        "TvRage": "1064985565",
+        "Tvdb": "2948661"
+      },
+      "RemoteTrailers": [],
+      "RunTimeTicks": 13253330000,
+      "SeasonId": "6736770d03a0066c8c9eba27a925a3e2",
+      "SeasonName": "Season 7",
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "SeriesStudio": "NBC",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "SortName": "007 - 0006 - Costume Contest",
+      "SpecialFeatureCount": 0,
+      "Studios": [],
+      "Taglines": [],
+      "Tags": [],
+      "Trickplay": {},
+      "Type": "Episode",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "3574710e4da38d9eed286042b0bbd440",
+        "Key": "73244007006",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1920
+    },
+    {
+      "BackdropImageTags": [],
+      "CanDelete": false,
+      "CanDownload": true,
+      "ChannelId": null,
+      "Chapters": [],
+      "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+      "DateCreated": "2026-10-21T12:12:31.5937313Z",
+      "DisplayPreferencesId": "d82491aa65daa4655f5f038d41ec6127",
+      "EnableMediaSourceDisplay": true,
+      "Etag": "62c542b317658933a92c0bb6e933f4ea",
+      "ExternalUrls": [],
+      "GenreItems": [],
+      "Genres": [],
+      "Height": 360,
+      "Id": "8f5f2540865d9f0b7d9ac3b3d9bf0514",
+      "ImageBlurHashes": {
+        "Primary": {
+          "fe6e8152555e3f4d50bc57ebc02afb0e": "WJH2iZRR.bb^4,sl?Hoh?aD*J4%2r:Ros*%2t8bHD~s;n$a$-qs:"
+        }
+      },
+      "ImageTags": {
+        "Primary": "fe6e8152555e3f4d50bc57ebc02afb0e"
+      },
+      "IsFolder": false,
+      "LocalTrailerCount": 0,
+      "LocationType": "FileSystem",
+      "LockData": false,
+      "LockedFields": [],
+      "MediaSources": [
+        {
+          "Bitrate": 999887,
+          "Container": "mp4",
+          "DefaultAudioStreamIndex": 1,
+          "ETag": "3000adb0bffbb6ebe60692769eba6161",
+          "Formats": [],
+          "GenPtsInput": false,
+          "HasSegments": false,
+          "Id": "8f5f2540865d9f0b7d9ac3b3d9bf0514",
+          "IgnoreDts": false,
+          "IgnoreIndex": false,
+          "IsInfiniteStream": false,
+          "IsRemote": false,
+          "MediaAttachments": [],
+          "MediaStreams": [
+            {
+              "AspectRatio": "16:9",
+              "AudioSpatialFormat": "None",
+              "AverageFrameRate": 24,
+              "BitDepth": 8,
+              "BitRate": 791374,
+              "Codec": "h264",
+              "CodecTag": "avc1",
+              "DisplayTitle": "360p H264 SDR",
+              "Height": 360,
+              "Index": 0,
+              "IsAVC": true,
+              "IsAnamorphic": false,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "und",
+              "Level": 30,
+              "NalLengthSize": "4",
+              "PixelFormat": "yuv420p",
+              "Profile": "Constrained Baseline",
+              "RealFrameRate": 24,
+              "RefFrames": 1,
+              "ReferenceFrameRate": 24,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/12288",
+              "Type": "Video",
+              "VideoRange": "SDR",
+              "VideoRangeType": "SDR",
+              "Width": 640
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitRate": 128194,
+              "ChannelLayout": "stereo",
+              "Channels": 2,
+              "Codec": "aac",
+              "CodecTag": "mp4a",
+              "DisplayTitle": "AAC - Stereo - Default",
+              "Index": 1,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "und",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "Undetermined",
+              "LocalizedOriginal": "Original",
+              "Profile": "LC",
+              "SampleRate": 44100,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/44100",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            }
+          ],
+          "Name": "Garden Makeover",
+          "Path": "/data/Home Videos/Garden Makeover.mp4",
+          "Protocol": "File",
+          "ReadAtNativeFramerate": false,
+          "RequiredHttpHeaders": {},
+          "RequiresClosing": false,
+          "RequiresLooping": false,
+          "RequiresOpening": false,
+          "RunTimeTicks": 250086170,
+          "Size": 3125724,
+          "SupportsDirectPlay": true,
+          "SupportsDirectStream": true,
+          "SupportsProbing": true,
+          "SupportsTranscoding": true,
+          "TranscodingSubProtocol": "http",
+          "Type": "Default",
+          "UseMostCompatibleTranscodingProfile": false,
+          "VideoType": "VideoFile"
+        }
+      ],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 791374,
+          "Codec": "h264",
+          "CodecTag": "avc1",
+          "DisplayTitle": "360p H264 SDR",
+          "Height": 360,
+          "Index": 0,
+          "IsAVC": true,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "Level": 30,
+          "NalLengthSize": "4",
+          "PixelFormat": "yuv420p",
+          "Profile": "Constrained Baseline",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/12288",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 640
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 128194,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "aac",
+          "CodecTag": "mp4a",
+          "DisplayTitle": "AAC - Stereo - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "Undetermined",
+          "LocalizedOriginal": "Original",
+          "Profile": "LC",
+          "SampleRate": 44100,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/44100",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        }
+      ],
+      "MediaType": "Video",
+      "Name": "Garden Makeover",
+      "Overview": "license:http://creativecommons.org/licenses/by/3.0/",
+      "ParentId": "647f0a81b1ea357383d647ffcd37964d",
+      "Path": "/data/Home Videos/Garden Makeover.mp4",
+      "People": [],
+      "PlayAccess": "Full",
+      "PrimaryImageAspectRatio": 1.7777777777777777,
+      "ProviderIds": {},
+      "RemoteTrailers": [],
+      "RunTimeTicks": 250086170,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "SortName": "garden makeover",
+      "SpecialFeatureCount": 0,
+      "Studios": [],
+      "Taglines": [],
+      "Tags": [],
+      "Trickplay": {},
+      "Type": "Video",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "8f5f2540865d9f0b7d9ac3b3d9bf0514",
+        "Key": "8f5f2540-865d-9f0b-7d9a-c3b3d9bf0514",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 640
+    },
+    {
+      "BackdropImageTags": [],
+      "CanDelete": false,
+      "CanDownload": true,
+      "ChannelId": null,
+      "Chapters": [
+        {
+          "ImageDateModified": "2026-11-27T15:41:19.904435Z",
+          "ImagePath": "/config/metadata/library/08/083fb54a3a32d5e8b7c5eda6349b8fea/chapters/637440514630000000_0.jpg",
+          "ImageTag": "c01b260cc448144ab90a942012e24c96",
+          "Name": "Chapter 01",
+          "StartPositionTicks": 0
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:41:20.3514415Z",
+          "ImagePath": "/config/metadata/library/08/083fb54a3a32d5e8b7c5eda6349b8fea/chapters/637440514630000000_866700000.jpg",
+          "ImageTag": "4cc9f725a5fd1c17653e215e48877435",
+          "Name": "Chapter 02",
+          "StartPositionTicks": 866700000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:41:20.9704505Z",
+          "ImagePath": "/config/metadata/library/08/083fb54a3a32d5e8b7c5eda6349b8fea/chapters/637440514630000000_2974640000.jpg",
+          "ImageTag": "91286291e52522193fd6efa3c85cd6a7",
+          "Name": "Chapter 03",
+          "StartPositionTicks": 2974640000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:41:21.3684562Z",
+          "ImagePath": "/config/metadata/library/08/083fb54a3a32d5e8b7c5eda6349b8fea/chapters/637440514630000000_9804800000.jpg",
+          "ImageTag": "332ba9afd5f2bc4e97ff581b4621e47f",
+          "Name": "Chapter 04",
+          "StartPositionTicks": 9804800000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:41:21.5894594Z",
+          "ImagePath": "/config/metadata/library/08/083fb54a3a32d5e8b7c5eda6349b8fea/chapters/637440514630000000_12576310000.jpg",
+          "ImageTag": "b14a7d4f0e8c7a9afe127fd2f762f210",
+          "Name": "Chapter 05",
+          "StartPositionTicks": 12576310000
+        }
+      ],
+      "CommunityRating": 8.2,
+      "Container": "mkv",
+      "DateCreated": "2020-12-20T08:57:43.0000000Z",
+      "DisplayPreferencesId": "26dd4a82b00c839c498471cdba80a99c",
+      "EnableMediaSourceDisplay": true,
+      "Etag": "6b6fca05452ec9168dff26b5a5f05522",
+      "ExternalUrls": [
+        {
+          "Name": "IMDb",
+          "Url": "https://www.imdb.com/title/tt0664527"
+        },
+        {
+          "Name": "TMDB",
+          "Url": "https://www.themoviedb.org/tv/2316/season/2/episode/4"
+        }
+      ],
+      "GenreItems": [
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Comedy"
+      ],
+      "HasSubtitles": true,
+      "Height": 1080,
+      "Id": "083fb54a3a32d5e8b7c5eda6349b8fea",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "69df6aaf27b763d8e4f60632057fde76": "WLEoMg={Xnt,NF-p~C-=x]cDXS%1^j?ItRbvtRxZ?HxatRbvNHt6",
+          "76495669bf740ec378e83d788deb664d": "dKMZwc%%Ad-W;.WBtRsq-DxBwZxa[9xaNGrp*_NGOZRP",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "69df6aaf27b763d8e4f60632057fde76"
+      },
+      "IndexNumber": 4,
+      "IsFolder": false,
+      "IsHD": true,
+      "LocalTrailerCount": 0,
+      "LocationType": "FileSystem",
+      "LockData": false,
+      "LockedFields": [],
+      "MediaSources": [
+        {
+          "Bitrate": 8812222,
+          "Container": "mkv",
+          "DefaultAudioStreamIndex": 1,
+          "ETag": "224cd38299f8aeb98da40c5aa817949f",
+          "Formats": [],
+          "GenPtsInput": false,
+          "HasSegments": true,
+          "Id": "083fb54a3a32d5e8b7c5eda6349b8fea",
+          "IgnoreDts": false,
+          "IgnoreIndex": false,
+          "IsInfiniteStream": false,
+          "IsRemote": false,
+          "MediaAttachments": [],
+          "MediaStreams": [
+            {
+              "AspectRatio": "16:9",
+              "AudioSpatialFormat": "None",
+              "AverageFrameRate": 23.976025,
+              "BitDepth": 8,
+              "BitRate": 27232549,
+              "Codec": "hevc",
+              "DisplayTitle": "1080p HEVC SDR",
+              "Height": 1080,
+              "Index": 0,
+              "IsAnamorphic": false,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "Level": 120,
+              "PixelFormat": "yuv420p",
+              "Profile": "Main",
+              "RealFrameRate": 23.976025,
+              "RefFrames": 1,
+              "ReferenceFrameRate": 23.976025,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Video",
+              "VideoRange": "SDR",
+              "VideoRangeType": "SDR",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitDepth": 24,
+              "BitRate": 3658287,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "Surround 5.1 - English - DTS-HD MA - Default",
+              "Index": 1,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS-HD MA",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Title": "Surround 5.1",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitRate": 1536000,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "Surround 5.1 - English - DTS",
+              "Index": 2,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Title": "Surround 5.1",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "English - PGSSUB",
+              "Height": 1080,
+              "Index": 3,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            }
+          ],
+          "Name": "The Office (US) - S02E04 - The Fire Bluray-1080p Remux",
+          "Path": "/data/Real/TV/The Office (US)/Season 2/The Office (US) - S02E04 - The Fire Bluray-1080p Remux.mkv",
+          "Protocol": "File",
+          "ReadAtNativeFramerate": false,
+          "RequiredHttpHeaders": {},
+          "RequiresClosing": false,
+          "RequiresLooping": false,
+          "RequiresOpening": false,
+          "RunTimeTicks": 12915090000,
+          "Size": 1422633092,
+          "SupportsDirectPlay": true,
+          "SupportsDirectStream": true,
+          "SupportsProbing": true,
+          "SupportsTranscoding": true,
+          "TranscodingSubProtocol": "http",
+          "Type": "Default",
+          "UseMostCompatibleTranscodingProfile": false,
+          "VideoType": "VideoFile"
+        }
+      ],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 23.976025,
+          "BitDepth": 8,
+          "BitRate": 27232549,
+          "Codec": "hevc",
+          "DisplayTitle": "1080p HEVC SDR",
+          "Height": 1080,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 23.976025,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 23.976025,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitDepth": 24,
+          "BitRate": 3658287,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "Surround 5.1 - English - DTS-HD MA - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS-HD MA",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Surround 5.1",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 1536000,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "Surround 5.1 - English - DTS",
+          "Index": 2,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Surround 5.1",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - PGSSUB",
+          "Height": 1080,
+          "Index": 3,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "MediaType": "Video",
+      "Name": "The Fire",
+      "OriginalLanguage": "en",
+      "Overview": "The Office is forced into the parking lot for the day when a fire starts in the kitchen. To ease everyone's boredom, Jim suggests a game of \"Desert Island\" and \"Who Would You Do?\", where certain staff members reveal a little too much information about themselves. Throughout the day, Michael talks business with Ryan, leaving Dwight feeling left out.",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "ParentIndexNumber": 2,
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentPrimaryImageItemId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "ParentPrimaryImageTag": "76495669bf740ec378e83d788deb664d",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "Path": "/data/Real/TV/The Office (US)/Season 2/The Office (US) - S02E04 - The Fire Bluray-1080p Remux.mkv",
+      "People": [
+        {
+          "Id": "41924714d75ff8b107e71562f11bcae9",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+            }
+          },
+          "Name": "Steve Carell",
+          "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+          "Role": "Michael Scott",
+          "Type": "Actor"
+        },
+        {
+          "Id": "12728bc964881bc1793c7f5daad9ac4d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+            }
+          },
+          "Name": "Rainn Wilson",
+          "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+          "Role": "Dwight Schrute",
+          "Type": "Actor"
+        },
+        {
+          "Id": "9b60dd143630cde612f03063c2bc97d8",
+          "ImageBlurHashes": {
+            "Primary": {
+              "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+            }
+          },
+          "Name": "John Krasinski",
+          "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+          "Role": "Jim Halpert",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e397172ed87062e41cda00beca0f5622",
+          "ImageBlurHashes": {
+            "Primary": {
+              "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+            }
+          },
+          "Name": "Jenna Fischer",
+          "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+          "Role": "Pam Beesly",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e273b9feeab0aba7e35ce83b087b578f",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+            }
+          },
+          "Name": "B.J. Novak",
+          "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+          "Role": "Ryan Howard",
+          "Type": "Actor"
+        },
+        {
+          "Id": "dd55a95cb8562fc4654b22045c42afd1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "67d49fb09e9fb20f6368f6a20b7a5692": "daHUX$tR%}?H~WWBpIxuJBRPnjNGOYWUxaofyDof%Lt7"
+            }
+          },
+          "Name": "David Denman",
+          "PrimaryImageTag": "67d49fb09e9fb20f6368f6a20b7a5692",
+          "Role": "Roy Anderson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "906f302a6f31c8093582f2a59ae4c9df",
+          "ImageBlurHashes": {
+            "Primary": {
+              "90483c3407f14c5822101cd01b69a005": "dyJhIEwvNyn+2[S2f,OE$RoMs:xHxHWqs.s:FxWWa|W;"
+            }
+          },
+          "Name": "Mindy Kaling",
+          "PrimaryImageTag": "90483c3407f14c5822101cd01b69a005",
+          "Role": "Kelly Kapoor",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "540c5cc08f2d8c4e7e83be49b2ca19b2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c5281950382103e6d21d27504667fee9": "dbJ*L?s.Txx[~pj[%ftRX-t7$%%2S$ofo0WVxuWBs:oe"
+            }
+          },
+          "Name": "Kate Flannery",
+          "PrimaryImageTag": "c5281950382103e6d21d27504667fee9",
+          "Role": "Meredith Palmer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "f6dd43e2ab6976df5470b6d38aa8f06c",
+          "ImageBlurHashes": {
+            "Primary": {
+              "620b465c5b7967c3fdf67c28a993dde3": "dEB2=WJB0yI:#iNHxvX9E,s:r;WB5Rs,xabII:WW$%fk"
+            }
+          },
+          "Name": "Leslie David Baker",
+          "PrimaryImageTag": "620b465c5b7967c3fdf67c28a993dde3",
+          "Role": "Stanley Hudson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "572c7a00b4bb27a2cd0d6dbe89b2bae1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "2b78caafe2ba7e51cbfd6f15c438f87b": "dfHn,IXU13t7_1xZJ6I;E3r?s+RiNGa#WYoLXTofoyX8"
+            }
+          },
+          "Name": "Brian Baumgartner",
+          "PrimaryImageTag": "2b78caafe2ba7e51cbfd6f15c438f87b",
+          "Role": "Kevin Malone",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "724ac5bc7a0a4a3f9d17fe0ce539af1e",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a04bc8c2c848f813445170e8da53a759": "dYG[4{-q0$XAMus.WCR*5@oz=|t7$$ofo#xaI.fkxYt6"
+            }
+          },
+          "Name": "Phyllis Smith",
+          "PrimaryImageTag": "a04bc8c2c848f813445170e8da53a759",
+          "Role": "Phyllis Lapin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "0fd2361382ea5178fff1f18f35c32865",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c2842e656eb73ea977b8ceee00a4751c": "dYL:$Nni.T%M~BV@?bbb9^R*Mwof.8tR%Lxa%MWB%2xa"
+            }
+          },
+          "Name": "Oscar Nuñez",
+          "PrimaryImageTag": "c2842e656eb73ea977b8ceee00a4751c",
+          "Role": "Oscar Martinez",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "35862a408d84c89ba328de4a05191729",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ecca495c9a437a28acedc40a8ba64125": "dWOpDB?G*J-.?wozt8tS%#ozi{jF-;ogxat7x^bIaej]"
+            }
+          },
+          "Name": "Angela Kinsey",
+          "PrimaryImageTag": "ecca495c9a437a28acedc40a8ba64125",
+          "Role": "Angela Martin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "90111dd1d518fef21bf7e33875c1c0be",
+          "ImageBlurHashes": {
+            "Primary": {
+              "68a1daabc8984d59c3eb5ec5e275c493": "d+LW36$jl8tR~BjFg3ofJ7WCaKj[xut7oftQ%LWBoft7"
+            }
+          },
+          "Name": "Paul Lieberstein",
+          "PrimaryImageTag": "68a1daabc8984d59c3eb5ec5e275c493",
+          "Role": "Toby Flenderson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "e690d435964c95b28936e74ebd5fa1f2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "cde4bc6bd5465b874923c28448d26d53": "djHBY+$*T2kE_4WYXUW@Nzf+xvfmSPt6xaa$tRkAxtof"
+            }
+          },
+          "Name": "Amy Adams",
+          "PrimaryImageTag": "cde4bc6bd5465b874923c28448d26d53",
+          "Role": "Katy",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "82256be008a29bdd978f18ce968dfb15",
+          "ImageBlurHashes": {
+            "Primary": {
+              "b0438148922fa0754d1a1e9833d7617c": "dSK^?F%MPo_N?ut6_NX8pJM{DOkC%#x]%2%2yDkC%1n$"
+            }
+          },
+          "Name": "Ken Kwapis",
+          "PrimaryImageTag": "b0438148922fa0754d1a1e9833d7617c",
+          "Role": "Director",
+          "Type": "Director"
+        },
+        {
+          "Id": "e273b9feeab0aba7e35ce83b087b578f",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+            }
+          },
+          "Name": "B.J. Novak",
+          "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+          "Role": "Writer",
+          "Type": "Writer"
+        }
+      ],
+      "PlayAccess": "Full",
+      "PremiereDate": "2005-10-10T22:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 1.7777777777777777,
+      "ProductionYear": 2005,
+      "ProviderIds": {
+        "Imdb": "tt0664527",
+        "Tmdb": "170137",
+        "TvRage": "200112",
+        "Tvdb": "306095"
+      },
+      "RemoteTrailers": [],
+      "RunTimeTicks": 12915090000,
+      "SeasonId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "SeasonName": "Season 2",
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "SeriesStudio": "NBC",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "SortName": "002 - 0004 - The Fire",
+      "SpecialFeatureCount": 0,
+      "Studios": [],
+      "Taglines": [],
+      "Tags": [],
+      "Trickplay": {},
+      "Type": "Episode",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "083fb54a3a32d5e8b7c5eda6349b8fea",
+        "Key": "73244002004",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1920
+    },
+    {
+      "BackdropImageTags": [],
+      "CanDelete": false,
+      "CanDownload": true,
+      "ChannelId": null,
+      "Chapters": [],
+      "CommunityRating": 8.1,
+      "Container": "mkv",
+      "DateCreated": "2018-08-25T06:05:50.0000000Z",
+      "DisplayPreferencesId": "26dd4a82b00c839c498471cdba80a99c",
+      "EnableMediaSourceDisplay": true,
+      "Etag": "8f63e6d2b26ebfb14f756659981d5838",
+      "ExternalUrls": [
+        {
+          "Name": "IMDb",
+          "Url": "https://www.imdb.com/title/tt1248743"
+        },
+        {
+          "Name": "TMDB",
+          "Url": "https://www.themoviedb.org/tv/2316/season/5/episode/2"
+        }
+      ],
+      "GenreItems": [
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Comedy"
+      ],
+      "HasSubtitles": true,
+      "Height": 1080,
+      "Id": "fdf5cf1a3e66c772c2475a3094ba8d6f",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "5f0bafa8a9d2ed8aa166a839237df55a": "d[Kw%@-:fPt7_4tRj?t7I]WAf5WYRnjFoeWVs:a{ofof",
+          "89a8a22c7ec14ce3c85ab2dc2eb499dc": "WDC=*s9FRk^%R$$%}[xWM|WBW=xZIp%1NGI;oeW=%NInxat7adoM",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "89a8a22c7ec14ce3c85ab2dc2eb499dc"
+      },
+      "IndexNumber": 2,
+      "IsFolder": false,
+      "IsHD": true,
+      "LocalTrailerCount": 0,
+      "LocationType": "FileSystem",
+      "LockData": false,
+      "LockedFields": [],
+      "MediaSources": [
+        {
+          "Bitrate": 6564089,
+          "Container": "mkv",
+          "DefaultAudioStreamIndex": 1,
+          "DefaultSubtitleStreamIndex": 2,
+          "ETag": "aab7dd05bb5c685ace3d06da52da8dd2",
+          "Formats": [],
+          "GenPtsInput": false,
+          "HasSegments": true,
+          "Id": "fdf5cf1a3e66c772c2475a3094ba8d6f",
+          "IgnoreDts": false,
+          "IgnoreIndex": false,
+          "IsInfiniteStream": false,
+          "IsRemote": false,
+          "MediaAttachments": [],
+          "MediaStreams": [
+            {
+              "AspectRatio": "16:9",
+              "AudioSpatialFormat": "None",
+              "AverageFrameRate": 23.976025,
+              "BitDepth": 8,
+              "BitRate": 27386131,
+              "Codec": "hevc",
+              "DisplayTitle": "1080p HEVC SDR",
+              "Height": 1080,
+              "Index": 0,
+              "IsAnamorphic": false,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "Level": 120,
+              "PixelFormat": "yuv420p",
+              "Profile": "Main",
+              "RealFrameRate": 23.976025,
+              "RefFrames": 1,
+              "ReferenceFrameRate": 23.976025,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Video",
+              "VideoRange": "SDR",
+              "VideoRangeType": "SDR",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitDepth": 24,
+              "BitRate": 3717477,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "English - DTS-HD MA - 5.1 - Default",
+              "Index": 1,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS-HD MA",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "English - Default - PGSSUB",
+              "Height": 1080,
+              "Index": 2,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "Score": 112211,
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "Spanish - PGSSUB",
+              "Height": 1080,
+              "Index": 3,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "spa",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "Spanish",
+              "LocalizedUndefined": "Undefined",
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            }
+          ],
+          "Name": "The Office (US) - S05E02 - Business Ethics Bluray-1080p Remux",
+          "Path": "/data/Real/TV/The Office (US)/Season 5/The Office (US) - S05E02 - Business Ethics Bluray-1080p Remux.mkv",
+          "Protocol": "File",
+          "ReadAtNativeFramerate": false,
+          "RequiredHttpHeaders": {},
+          "RequiresClosing": false,
+          "RequiresLooping": false,
+          "RequiresOpening": false,
+          "RunTimeTicks": 12992630000,
+          "Size": 1066059898,
+          "SupportsDirectPlay": true,
+          "SupportsDirectStream": true,
+          "SupportsProbing": true,
+          "SupportsTranscoding": true,
+          "TranscodingSubProtocol": "http",
+          "Type": "Default",
+          "UseMostCompatibleTranscodingProfile": false,
+          "VideoType": "VideoFile"
+        }
+      ],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 23.976025,
+          "BitDepth": 8,
+          "BitRate": 27386131,
+          "Codec": "hevc",
+          "DisplayTitle": "1080p HEVC SDR",
+          "Height": 1080,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 23.976025,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 23.976025,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitDepth": 24,
+          "BitRate": 3717477,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "English - DTS-HD MA - 5.1 - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS-HD MA",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - Default - PGSSUB",
+          "Height": 1080,
+          "Index": 2,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "Score": 112211,
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "Spanish - PGSSUB",
+          "Height": 1080,
+          "Index": 3,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "spa",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "Spanish",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "MediaType": "Video",
+      "Name": "Business Ethics",
+      "OriginalLanguage": "en",
+      "Overview": "Holly leads a business ethics seminar as a result of Ryan's scandal, and when Michael encourages everyone to share their own unethical work behaviors, things get out of hand. Meanwhile, Jim messes with Dwight by requiring him to follow the Dunder Mifflin \"Time Theft\" policy.",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentId": "37d54a32bef17e181623a2d44a8e344d",
+      "ParentIndexNumber": 5,
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentPrimaryImageItemId": "37d54a32bef17e181623a2d44a8e344d",
+      "ParentPrimaryImageTag": "5f0bafa8a9d2ed8aa166a839237df55a",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "Path": "/data/Real/TV/The Office (US)/Season 5/The Office (US) - S05E02 - Business Ethics Bluray-1080p Remux.mkv",
+      "People": [
+        {
+          "Id": "41924714d75ff8b107e71562f11bcae9",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+            }
+          },
+          "Name": "Steve Carell",
+          "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+          "Role": "Michael Scott",
+          "Type": "Actor"
+        },
+        {
+          "Id": "12728bc964881bc1793c7f5daad9ac4d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+            }
+          },
+          "Name": "Rainn Wilson",
+          "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+          "Role": "Dwight Schrute",
+          "Type": "Actor"
+        },
+        {
+          "Id": "9b60dd143630cde612f03063c2bc97d8",
+          "ImageBlurHashes": {
+            "Primary": {
+              "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+            }
+          },
+          "Name": "John Krasinski",
+          "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+          "Role": "Jim Halpert",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e397172ed87062e41cda00beca0f5622",
+          "ImageBlurHashes": {
+            "Primary": {
+              "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+            }
+          },
+          "Name": "Jenna Fischer",
+          "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+          "Role": "Pam Beesly",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e273b9feeab0aba7e35ce83b087b578f",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+            }
+          },
+          "Name": "B.J. Novak",
+          "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+          "Role": "Ryan Howard",
+          "Type": "Actor"
+        },
+        {
+          "Id": "26aaa9af41e3eb4ac289520019a9704d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ffad5af1dd6df555b6112685f2a5a5da": "dSM6n:9Gpc^*~Wxt-;%2Ez-p-ARjX9M{s:M|-;oJ%2ae"
+            }
+          },
+          "Name": "Ed Helms",
+          "PrimaryImageTag": "ffad5af1dd6df555b6112685f2a5a5da",
+          "Role": "Andy Bernard",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "4df9b253f2331014aa82e384a2bdc0dd",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c36624c06bbdb0efa2f53e4b4d5a2288": "d#OL}paKyD?G~BxtX9t7XmofV@WW%fR*bHofxut7aya#"
+            }
+          },
+          "Name": "Creed Bratton",
+          "PrimaryImageTag": "c36624c06bbdb0efa2f53e4b4d5a2288",
+          "Role": "Creed Bratton",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "906f302a6f31c8093582f2a59ae4c9df",
+          "ImageBlurHashes": {
+            "Primary": {
+              "90483c3407f14c5822101cd01b69a005": "dyJhIEwvNyn+2[S2f,OE$RoMs:xHxHWqs.s:FxWWa|W;"
+            }
+          },
+          "Name": "Mindy Kaling",
+          "PrimaryImageTag": "90483c3407f14c5822101cd01b69a005",
+          "Role": "Kelly Kapoor",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "540c5cc08f2d8c4e7e83be49b2ca19b2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c5281950382103e6d21d27504667fee9": "dbJ*L?s.Txx[~pj[%ftRX-t7$%%2S$ofo0WVxuWBs:oe"
+            }
+          },
+          "Name": "Kate Flannery",
+          "PrimaryImageTag": "c5281950382103e6d21d27504667fee9",
+          "Role": "Meredith Palmer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "f6dd43e2ab6976df5470b6d38aa8f06c",
+          "ImageBlurHashes": {
+            "Primary": {
+              "620b465c5b7967c3fdf67c28a993dde3": "dEB2=WJB0yI:#iNHxvX9E,s:r;WB5Rs,xabII:WW$%fk"
+            }
+          },
+          "Name": "Leslie David Baker",
+          "PrimaryImageTag": "620b465c5b7967c3fdf67c28a993dde3",
+          "Role": "Stanley Hudson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "572c7a00b4bb27a2cd0d6dbe89b2bae1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "2b78caafe2ba7e51cbfd6f15c438f87b": "dfHn,IXU13t7_1xZJ6I;E3r?s+RiNGa#WYoLXTofoyX8"
+            }
+          },
+          "Name": "Brian Baumgartner",
+          "PrimaryImageTag": "2b78caafe2ba7e51cbfd6f15c438f87b",
+          "Role": "Kevin Malone",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "724ac5bc7a0a4a3f9d17fe0ce539af1e",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a04bc8c2c848f813445170e8da53a759": "dYG[4{-q0$XAMus.WCR*5@oz=|t7$$ofo#xaI.fkxYt6"
+            }
+          },
+          "Name": "Phyllis Smith",
+          "PrimaryImageTag": "a04bc8c2c848f813445170e8da53a759",
+          "Role": "Phyllis Lapin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "0fd2361382ea5178fff1f18f35c32865",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c2842e656eb73ea977b8ceee00a4751c": "dYL:$Nni.T%M~BV@?bbb9^R*Mwof.8tR%Lxa%MWB%2xa"
+            }
+          },
+          "Name": "Oscar Nuñez",
+          "PrimaryImageTag": "c2842e656eb73ea977b8ceee00a4751c",
+          "Role": "Oscar Martinez",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "35862a408d84c89ba328de4a05191729",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ecca495c9a437a28acedc40a8ba64125": "dWOpDB?G*J-.?wozt8tS%#ozi{jF-;ogxat7x^bIaej]"
+            }
+          },
+          "Name": "Angela Kinsey",
+          "PrimaryImageTag": "ecca495c9a437a28acedc40a8ba64125",
+          "Role": "Angela Martin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "d936a660c764061880ea412b90265554",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d76aae5235216ad23537b5424c393669": "dgM6#P-oTyx[_Nt7%Mx]pIkDaLog-;jYbHWVOsbbxZt7"
+            }
+          },
+          "Name": "Amy Ryan",
+          "PrimaryImageTag": "d76aae5235216ad23537b5424c393669",
+          "Role": "Holly Flax",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "6872f2cd8a264b721a39e0b3d9d48bae",
+          "ImageBlurHashes": {
+            "Primary": {}
+          },
+          "Name": "Bethany Dwyer",
+          "Role": "Beth",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "88f8a87b70ac58e29e17c15058c61487",
+          "ImageBlurHashes": {
+            "Primary": {
+              "2426f2cb46b8a792b7d5a71924eb5e72": "dNDSE%^*E+OF%Ls:ozWW0fE2wcxDg3kCs:xtt7t7%2t6"
+            }
+          },
+          "Name": "Jeffrey Blitz",
+          "PrimaryImageTag": "2426f2cb46b8a792b7d5a71924eb5e72",
+          "Role": "Director",
+          "Type": "Director"
+        },
+        {
+          "Id": "d2888619fbf96cee9a822051ba72ae2e",
+          "ImageBlurHashes": {
+            "Primary": {}
+          },
+          "Name": "Ryan Koh",
+          "Role": "Writer",
+          "Type": "Writer"
+        }
+      ],
+      "PlayAccess": "Full",
+      "PremiereDate": "2008-10-08T22:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 1.7777777777777777,
+      "ProductionYear": 2008,
+      "ProviderIds": {
+        "Imdb": "tt1248743",
+        "Tmdb": "170231",
+        "TvRage": "706011",
+        "Tvdb": "390588"
+      },
+      "RemoteTrailers": [],
+      "RunTimeTicks": 12992630000,
+      "SeasonId": "37d54a32bef17e181623a2d44a8e344d",
+      "SeasonName": "Season 5",
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "SeriesStudio": "NBC",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "SortName": "005 - 0002 - Business Ethics",
+      "SpecialFeatureCount": 0,
+      "Studios": [],
+      "Taglines": [],
+      "Tags": [],
+      "Trickplay": {},
+      "Type": "Episode",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "fdf5cf1a3e66c772c2475a3094ba8d6f",
+        "Key": "73244005002",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1920
+    },
+    {
+      "BackdropImageTags": [],
+      "CanDelete": false,
+      "CanDownload": true,
+      "ChannelId": null,
+      "Chapters": [
+        {
+          "ImageDateModified": "2026-11-27T15:42:56.761828Z",
+          "ImagePath": "/config/metadata/library/7c/7ce695c6dc2994334963f54c13187a3f/chapters/637792057630000000_0.jpg",
+          "ImageTag": "80a52f7ae12e344b0dcf8675fb72babe",
+          "Name": "Chapter 01",
+          "StartPositionTicks": 0
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:42:57.4338371Z",
+          "ImagePath": "/config/metadata/library/7c/7ce695c6dc2994334963f54c13187a3f/chapters/637792057630000000_875460000.jpg",
+          "ImageTag": "d98e6bf9ced6e7a70ffe8a310c4dedcd",
+          "Name": "Chapter 02",
+          "StartPositionTicks": 875460000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:42:57.9778444Z",
+          "ImagePath": "/config/metadata/library/7c/7ce695c6dc2994334963f54c13187a3f/chapters/637792057630000000_5831660000.jpg",
+          "ImageTag": "dc22a04309a8a712c7c9e9c53ce99013",
+          "Name": "Chapter 03",
+          "StartPositionTicks": 5831660000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:42:58.5198517Z",
+          "ImagePath": "/config/metadata/library/7c/7ce695c6dc2994334963f54c13187a3f/chapters/637792057630000000_8791280000.jpg",
+          "ImageTag": "625d055497bc436d91dec3481fc24b36",
+          "Name": "Chapter 04",
+          "StartPositionTicks": 8791280000
+        },
+        {
+          "ImageDateModified": "2026-11-27T15:42:58.9398574Z",
+          "ImagePath": "/config/metadata/library/7c/7ce695c6dc2994334963f54c13187a3f/chapters/637792057630000000_12375700000.jpg",
+          "ImageTag": "99fd39416c5f2bbaa8e3161487ebca63",
+          "Name": "Chapter 05",
+          "StartPositionTicks": 12375700000
+        }
+      ],
+      "CommunityRating": 7.7,
+      "Container": "mkv",
+      "DateCreated": "2022-01-31T06:02:43.0000000Z",
+      "DisplayPreferencesId": "26dd4a82b00c839c498471cdba80a99c",
+      "EnableMediaSourceDisplay": true,
+      "Etag": "6b15ccbd267fd0e944388b1f6ba0756f",
+      "ExternalUrls": [
+        {
+          "Name": "IMDb",
+          "Url": "https://www.imdb.com/title/tt0756966"
+        },
+        {
+          "Name": "TMDB",
+          "Url": "https://www.themoviedb.org/tv/2316/season/2/episode/14"
+        }
+      ],
+      "GenreItems": [
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Comedy"
+      ],
+      "HasSubtitles": true,
+      "Height": 1080,
+      "Id": "7ce695c6dc2994334963f54c13187a3f",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "76495669bf740ec378e83d788deb664d": "dKMZwc%%Ad-W;.WBtRsq-DxBwZxa[9xaNGrp*_NGOZRP",
+          "e0560e2803faae4c7a8c4fbb48f19965": "WEC6P;0dw_%1tl-:?F%3t6xGxuR%oc%2bHs:xaWY-;NEs;%2R%t8",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "e0560e2803faae4c7a8c4fbb48f19965"
+      },
+      "IndexNumber": 14,
+      "IsFolder": false,
+      "IsHD": true,
+      "LocalTrailerCount": 0,
+      "LocationType": "FileSystem",
+      "LockData": false,
+      "LockedFields": [],
+      "MediaSources": [
+        {
+          "Bitrate": 7482315,
+          "Container": "mkv",
+          "DefaultAudioStreamIndex": 1,
+          "DefaultSubtitleStreamIndex": 3,
+          "ETag": "2cbf0f3966a1a40737f7c5cdb962fd9d",
+          "Formats": [],
+          "GenPtsInput": false,
+          "HasSegments": true,
+          "Id": "7ce695c6dc2994334963f54c13187a3f",
+          "IgnoreDts": false,
+          "IgnoreIndex": false,
+          "IsInfiniteStream": false,
+          "IsRemote": false,
+          "MediaAttachments": [],
+          "MediaStreams": [
+            {
+              "AspectRatio": "16:9",
+              "AudioSpatialFormat": "None",
+              "AverageFrameRate": 23.976025,
+              "BitDepth": 8,
+              "BitRate": 27237583,
+              "Codec": "hevc",
+              "DisplayTitle": "1080p HEVC SDR",
+              "Height": 1080,
+              "Index": 0,
+              "IsAnamorphic": false,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "Level": 120,
+              "PixelFormat": "yuv420p",
+              "Profile": "Main",
+              "RealFrameRate": 23.976025,
+              "RefFrames": 1,
+              "ReferenceFrameRate": 23.976025,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Type": "Video",
+              "VideoRange": "SDR",
+              "VideoRangeType": "SDR",
+              "Width": 1920
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitDepth": 24,
+              "BitRate": 3632895,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "Surround 5.1 - English - DTS-HD MA - Default",
+              "Index": 1,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS-HD MA",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Title": "Surround 5.1",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "BitRate": 1536000,
+              "ChannelLayout": "5.1",
+              "Channels": 6,
+              "Codec": "dts",
+              "DisplayTitle": "Surround 5.1 - English - DTS",
+              "Index": 2,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedLanguage": "English",
+              "LocalizedOriginal": "Original",
+              "Profile": "DTS",
+              "SampleRate": 48000,
+              "SupportsExternalStream": false,
+              "TimeBase": "1/1000",
+              "Title": "Surround 5.1",
+              "Type": "Audio",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "subrip",
+              "DisplayTitle": "English - Default - SUBRIP",
+              "Index": 3,
+              "IsDefault": true,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": true,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "Score": 112221,
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Title": "English",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "subrip",
+              "DisplayTitle": "English SDH - SUBRIP",
+              "Index": 4,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": true,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Title": "English SDH",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown"
+            },
+            {
+              "AudioSpatialFormat": "None",
+              "Codec": "PGSSUB",
+              "DisplayTitle": "English - PGSSUB",
+              "Height": 1080,
+              "Index": 5,
+              "IsDefault": false,
+              "IsExternal": false,
+              "IsForced": false,
+              "IsHearingImpaired": false,
+              "IsInterlaced": false,
+              "IsOriginal": false,
+              "IsTextSubtitleStream": false,
+              "Language": "eng",
+              "LocalizedDefault": "Default",
+              "LocalizedExternal": "External",
+              "LocalizedForced": "Forced",
+              "LocalizedHearingImpaired": "Hearing Impaired",
+              "LocalizedLanguage": "English",
+              "LocalizedUndefined": "Undefined",
+              "SupportsExternalStream": true,
+              "TimeBase": "1/1000",
+              "Type": "Subtitle",
+              "VideoRange": "Unknown",
+              "VideoRangeType": "Unknown",
+              "Width": 1920
+            }
+          ],
+          "Name": "The Office (US) - S02E14 - The Carpet Bluray-1080p Remux",
+          "Path": "/data/Real/TV/The Office (US)/Season 2/The Office (US) - S02E14 - The Carpet Bluray-1080p Remux.mkv",
+          "Protocol": "File",
+          "ReadAtNativeFramerate": false,
+          "RequiredHttpHeaders": {},
+          "RequiresClosing": false,
+          "RequiresLooping": false,
+          "RequiresOpening": false,
+          "RunTimeTicks": 12709860000,
+          "Size": 1188739811,
+          "SupportsDirectPlay": true,
+          "SupportsDirectStream": true,
+          "SupportsProbing": true,
+          "SupportsTranscoding": true,
+          "TranscodingSubProtocol": "http",
+          "Type": "Default",
+          "UseMostCompatibleTranscodingProfile": false,
+          "VideoType": "VideoFile"
+        }
+      ],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 23.976025,
+          "BitDepth": 8,
+          "BitRate": 27237583,
+          "Codec": "hevc",
+          "DisplayTitle": "1080p HEVC SDR",
+          "Height": 1080,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 23.976025,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 23.976025,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitDepth": 24,
+          "BitRate": 3632895,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "Surround 5.1 - English - DTS-HD MA - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS-HD MA",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Surround 5.1",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 1536000,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "Surround 5.1 - English - DTS",
+          "Index": 2,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Surround 5.1",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "subrip",
+          "DisplayTitle": "English - Default - SUBRIP",
+          "Index": 3,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": true,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "Score": 112221,
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Title": "English",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "subrip",
+          "DisplayTitle": "English SDH - SUBRIP",
+          "Index": 4,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": true,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Title": "English SDH",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - PGSSUB",
+          "Height": 1080,
+          "Index": 5,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "MediaType": "Video",
+      "Name": "The Carpet",
+      "OriginalLanguage": "en",
+      "Overview": "When someone soils the carpet in Michael's office, Michael sees it as a form of hatred towards him and realizes for the first time that not everyone may like him. Due to the odor of his office, Michael temporarily switches workspaces with Jim, and while there, Michael reminisces of his pre-management days, reliving pranks with Dwight that he and Todd Packer played on the staff. Meanwhile, Jim realizes why Kelly sits alone in the back of the office as he plays messenger for a childish flirtation between Kelly and Ryan, and Pam tries to cope with the day without Jim to make her laugh.",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "ParentIndexNumber": 2,
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentPrimaryImageItemId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "ParentPrimaryImageTag": "76495669bf740ec378e83d788deb664d",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "Path": "/data/Real/TV/The Office (US)/Season 2/The Office (US) - S02E14 - The Carpet Bluray-1080p Remux.mkv",
+      "People": [
+        {
+          "Id": "41924714d75ff8b107e71562f11bcae9",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+            }
+          },
+          "Name": "Steve Carell",
+          "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+          "Role": "Michael Scott",
+          "Type": "Actor"
+        },
+        {
+          "Id": "12728bc964881bc1793c7f5daad9ac4d",
+          "ImageBlurHashes": {
+            "Primary": {
+              "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+            }
+          },
+          "Name": "Rainn Wilson",
+          "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+          "Role": "Dwight Schrute",
+          "Type": "Actor"
+        },
+        {
+          "Id": "9b60dd143630cde612f03063c2bc97d8",
+          "ImageBlurHashes": {
+            "Primary": {
+              "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+            }
+          },
+          "Name": "John Krasinski",
+          "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+          "Role": "Jim Halpert",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e397172ed87062e41cda00beca0f5622",
+          "ImageBlurHashes": {
+            "Primary": {
+              "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+            }
+          },
+          "Name": "Jenna Fischer",
+          "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+          "Role": "Pam Beesly",
+          "Type": "Actor"
+        },
+        {
+          "Id": "e273b9feeab0aba7e35ce83b087b578f",
+          "ImageBlurHashes": {
+            "Primary": {
+              "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+            }
+          },
+          "Name": "B.J. Novak",
+          "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+          "Role": "Ryan Howard",
+          "Type": "Actor"
+        },
+        {
+          "Id": "dd55a95cb8562fc4654b22045c42afd1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "67d49fb09e9fb20f6368f6a20b7a5692": "daHUX$tR%}?H~WWBpIxuJBRPnjNGOYWUxaofyDof%Lt7"
+            }
+          },
+          "Name": "David Denman",
+          "PrimaryImageTag": "67d49fb09e9fb20f6368f6a20b7a5692",
+          "Role": "Roy Anderson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "4df9b253f2331014aa82e384a2bdc0dd",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c36624c06bbdb0efa2f53e4b4d5a2288": "d#OL}paKyD?G~BxtX9t7XmofV@WW%fR*bHofxut7aya#"
+            }
+          },
+          "Name": "Creed Bratton",
+          "PrimaryImageTag": "c36624c06bbdb0efa2f53e4b4d5a2288",
+          "Role": "Creed Bratton",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "906f302a6f31c8093582f2a59ae4c9df",
+          "ImageBlurHashes": {
+            "Primary": {
+              "90483c3407f14c5822101cd01b69a005": "dyJhIEwvNyn+2[S2f,OE$RoMs:xHxHWqs.s:FxWWa|W;"
+            }
+          },
+          "Name": "Mindy Kaling",
+          "PrimaryImageTag": "90483c3407f14c5822101cd01b69a005",
+          "Role": "Kelly Kapoor",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "540c5cc08f2d8c4e7e83be49b2ca19b2",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c5281950382103e6d21d27504667fee9": "dbJ*L?s.Txx[~pj[%ftRX-t7$%%2S$ofo0WVxuWBs:oe"
+            }
+          },
+          "Name": "Kate Flannery",
+          "PrimaryImageTag": "c5281950382103e6d21d27504667fee9",
+          "Role": "Meredith Palmer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "f6dd43e2ab6976df5470b6d38aa8f06c",
+          "ImageBlurHashes": {
+            "Primary": {
+              "620b465c5b7967c3fdf67c28a993dde3": "dEB2=WJB0yI:#iNHxvX9E,s:r;WB5Rs,xabII:WW$%fk"
+            }
+          },
+          "Name": "Leslie David Baker",
+          "PrimaryImageTag": "620b465c5b7967c3fdf67c28a993dde3",
+          "Role": "Stanley Hudson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "572c7a00b4bb27a2cd0d6dbe89b2bae1",
+          "ImageBlurHashes": {
+            "Primary": {
+              "2b78caafe2ba7e51cbfd6f15c438f87b": "dfHn,IXU13t7_1xZJ6I;E3r?s+RiNGa#WYoLXTofoyX8"
+            }
+          },
+          "Name": "Brian Baumgartner",
+          "PrimaryImageTag": "2b78caafe2ba7e51cbfd6f15c438f87b",
+          "Role": "Kevin Malone",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "22ac1ac371ff5c31f59763d76cf53031",
+          "ImageBlurHashes": {
+            "Primary": {
+              "df9a808c29aee22011efdf629ba606d4": "dA8|V6xZK*kq~Vt6gOg3Ehbb$$s:EhS2$ixGx]fP%1t7"
+            }
+          },
+          "Name": "Craig Robinson",
+          "PrimaryImageTag": "df9a808c29aee22011efdf629ba606d4",
+          "Role": "Darryl Philbin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "724ac5bc7a0a4a3f9d17fe0ce539af1e",
+          "ImageBlurHashes": {
+            "Primary": {
+              "a04bc8c2c848f813445170e8da53a759": "dYG[4{-q0$XAMus.WCR*5@oz=|t7$$ofo#xaI.fkxYt6"
+            }
+          },
+          "Name": "Phyllis Smith",
+          "PrimaryImageTag": "a04bc8c2c848f813445170e8da53a759",
+          "Role": "Phyllis Lapin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "0fd2361382ea5178fff1f18f35c32865",
+          "ImageBlurHashes": {
+            "Primary": {
+              "c2842e656eb73ea977b8ceee00a4751c": "dYL:$Nni.T%M~BV@?bbb9^R*Mwof.8tR%Lxa%MWB%2xa"
+            }
+          },
+          "Name": "Oscar Nuñez",
+          "PrimaryImageTag": "c2842e656eb73ea977b8ceee00a4751c",
+          "Role": "Oscar Martinez",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "35862a408d84c89ba328de4a05191729",
+          "ImageBlurHashes": {
+            "Primary": {
+              "ecca495c9a437a28acedc40a8ba64125": "dWOpDB?G*J-.?wozt8tS%#ozi{jF-;ogxat7x^bIaej]"
+            }
+          },
+          "Name": "Angela Kinsey",
+          "PrimaryImageTag": "ecca495c9a437a28acedc40a8ba64125",
+          "Role": "Angela Martin",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "90111dd1d518fef21bf7e33875c1c0be",
+          "ImageBlurHashes": {
+            "Primary": {
+              "68a1daabc8984d59c3eb5ec5e275c493": "d+LW36$jl8tR~BjFg3ofJ7WCaKj[xut7oftQ%LWBoft7"
+            }
+          },
+          "Name": "Paul Lieberstein",
+          "PrimaryImageTag": "68a1daabc8984d59c3eb5ec5e275c493",
+          "Role": "Toby Flenderson",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "f00521fb048d868e323f103254ee52f7",
+          "ImageBlurHashes": {
+            "Primary": {
+              "fe0fa9a915cfc1acc9c1cf3bba9d9249": "dtI49Yni0et7v}xaX8RjJTaywca{S$WBjFt6M{oft7ae"
+            }
+          },
+          "Name": "Ken Howard",
+          "PrimaryImageTag": "fe0fa9a915cfc1acc9c1cf3bba9d9249",
+          "Role": "Ed Truck",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "22c7fe4e8eac777650e7c572bc18593a",
+          "ImageBlurHashes": {
+            "Primary": {
+              "e3debf2e9350cc981055efd569c4b79a": "dHJ7%V-;1j%N+[M{4.ae5mofv~t7.9WB%gt701M|r;od"
+            }
+          },
+          "Name": "David Koechner",
+          "PrimaryImageTag": "e3debf2e9350cc981055efd569c4b79a",
+          "Role": "Todd Packer",
+          "Type": "GuestStar"
+        },
+        {
+          "Id": "710ffe82cc8d679c501a04dbfe2a54b7",
+          "ImageBlurHashes": {
+            "Primary": {
+              "7f6ef436583dc953d1623ec380da5de6": "duHeOS%2%g%M~WjZtRtRozRjRjayoft7WBfkxut7ayjt"
+            }
+          },
+          "Name": "Victor Nelli, Jr.",
+          "PrimaryImageTag": "7f6ef436583dc953d1623ec380da5de6",
+          "Role": "Director",
+          "Type": "Director"
+        },
+        {
+          "Id": "90111dd1d518fef21bf7e33875c1c0be",
+          "ImageBlurHashes": {
+            "Primary": {
+              "68a1daabc8984d59c3eb5ec5e275c493": "d+LW36$jl8tR~BjFg3ofJ7WCaKj[xut7oftQ%LWBoft7"
+            }
+          },
+          "Name": "Paul Lieberstein",
+          "PrimaryImageTag": "68a1daabc8984d59c3eb5ec5e275c493",
+          "Role": "Writer",
+          "Type": "Writer"
+        }
+      ],
+      "PlayAccess": "Full",
+      "PremiereDate": "2006-01-25T23:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 1.7777777777777777,
+      "ProductionYear": 2006,
+      "ProviderIds": {
+        "Imdb": "tt0756966",
+        "Tmdb": "170149",
+        "TvRage": "314688",
+        "Tvdb": "306105"
+      },
+      "RemoteTrailers": [],
+      "RunTimeTicks": 12709860000,
+      "SeasonId": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "SeasonName": "Season 2",
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "SeriesStudio": "NBC",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "SortName": "002 - 0014 - The Carpet",
+      "SpecialFeatureCount": 0,
+      "Studios": [],
+      "Taglines": [],
+      "Tags": [],
+      "Trickplay": {
+        "7ce695c6dc2994334963f54c13187a3f": {
+          "320": {
+            "Bandwidth": 10045,
+            "Height": 180,
+            "Interval": 10000,
+            "ThumbnailCount": 127,
+            "TileHeight": 10,
+            "TileWidth": 10,
+            "Width": 320
+          }
+        }
+      },
+      "Type": "Episode",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "7ce695c6dc2994334963f54c13187a3f",
+        "Key": "73244002014",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1920
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 5
+}

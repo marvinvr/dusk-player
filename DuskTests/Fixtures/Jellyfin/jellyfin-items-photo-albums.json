@@ -1,0 +1,182 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 31,
+      "Id": "a84083d1306de65687918cd5992577f9",
+      "ImageBlurHashes": {
+        "Primary": {
+          "23cb528e61a1d7485be2924b78b2dcd8": "V*N1T2xDNGx]WB~q%MofoyofNGt6ayWBf7t7RjWBoLWC"
+        }
+      },
+      "ImageTags": {
+        "Primary": "23cb528e61a1d7485be2924b78b2dcd8"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "2025 Summer Trip",
+      "RecursiveItemCount": 31,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "PhotoAlbum",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "a84083d1306de65687918cd5992577f9",
+        "Key": "a84083d1-306d-e656-8791-8cd5992577f9",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 2,
+      "Id": "58455f87e1e4950304f36f9460038bb3",
+      "ImageBlurHashes": {
+        "Primary": {
+          "55e004fbfd170c8f3d4f6a82d680a311": "VrJ$vjxZ9wWDNd}=s-Iro2R+S4jtR-W;o0a~fRNbR+xF"
+        }
+      },
+      "ImageTags": {
+        "Primary": "55e004fbfd170c8f3d4f6a82d680a311"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "2026",
+      "RecursiveItemCount": 60,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Folder",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "58455f87e1e4950304f36f9460038bb3",
+        "Key": "58455f87-e1e4-9503-04f3-6f9460038bb3",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 60
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 30,
+      "Id": "0aeb03d7340c7ed459b9caecd0caaba0",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1e72017b3439e42200e13f40d20c9e3e": "V668{F.5Mxoy%xOhW+Mgj;x@nOofxvt6oa.iteb.thoa"
+        }
+      },
+      "ImageTags": {
+        "Primary": "1e72017b3439e42200e13f40d20c9e3e"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "City Walks",
+      "RecursiveItemCount": 30,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "PhotoAlbum",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "0aeb03d7340c7ed459b9caecd0caaba0",
+        "Key": "0aeb03d7-340c-7ed4-59b9-caecd0caaba0",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 31,
+      "Id": "aeb822b9548e99629aad370d23f206ad",
+      "ImageBlurHashes": {
+        "Primary": {
+          "0743fc2eb2b4a8a565141d01232abb19": "VaK^]L4Tay.7Mx9ZkWM|kCxuM|t8M{kCoy_3jYRjt7jZ"
+        }
+      },
+      "ImageTags": {
+        "Primary": "0743fc2eb2b4a8a565141d01232abb19"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Family",
+      "RecursiveItemCount": 31,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "PhotoAlbum",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "aeb822b9548e99629aad370d23f206ad",
+        "Key": "aeb822b9-548e-9962-9aad-370d23f206ad",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 10,
+      "Id": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "ImageBlurHashes": {
+        "Primary": {
+          "ca032de89af0d0de881a0d71cf42abd1": "Vz9+aHo#bJo$oecIa$j@a$axMxaejXada}s*jvfloffl"
+        }
+      },
+      "ImageTags": {
+        "Primary": "ca032de89af0d0de881a0d71cf42abd1"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Loose",
+      "RecursiveItemCount": 10,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "PhotoAlbum",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+        "Key": "3dcf3c1d-c0e6-bb44-9106-b5b8ec00052a",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "ChildCount": 30,
+      "Id": "338e696b991ba00177a44ad17e84726c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "6555f3160aa88bf22dd707bf8a36012d": "VlK1Xnt8of%Mt7?wR*t7xuof_3WBj?ofkB~qxuayoMof"
+        }
+      },
+      "ImageTags": {
+        "Primary": "6555f3160aa88bf22dd707bf8a36012d"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Nature",
+      "RecursiveItemCount": 30,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "PhotoAlbum",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "338e696b991ba00177a44ad17e84726c",
+        "Key": "338e696b-991b-a001-77a4-4ad17e84726c",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      }
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 6
+}

@@ -1,0 +1,39 @@
+[
+  {
+    "BlurHash": "dEC=I?%K0$#;?WxGE6Se0zRjxGSvD-Nat2niIdbaxqai",
+    "Height": 3000,
+    "ImageTag": "0365dc4be0aee9bc30ce697faff421fb",
+    "ImageType": "Primary",
+    "Path": "/config/metadata/library/98/980dffd6dfa0d8cfd69e5bd6b350e983/poster.jpg",
+    "Size": 1159256,
+    "Width": 2000
+  },
+  {
+    "BlurHash": "PhJH]vofxuWBayxuM{ofM{oft7xuayxuxuay00oft7xuRjoft7WB",
+    "Height": 1114,
+    "ImageTag": "3441313fb0eccf339d51d98e1c117ff9",
+    "ImageType": "Logo",
+    "Path": "/config/metadata/library/98/980dffd6dfa0d8cfd69e5bd6b350e983/logo.png",
+    "Size": 118169,
+    "Width": 4319
+  },
+  {
+    "BlurHash": "WKD@?WO912,vEyt5$+R+t2xZI;xXB5r]w0OnnjsoOTV[RkSenisW",
+    "Height": 2160,
+    "ImageTag": "1c19a28452e05a1aa8346335467d8935",
+    "ImageType": "Thumb",
+    "Path": "/config/metadata/library/98/980dffd6dfa0d8cfd69e5bd6b350e983/landscape.jpg",
+    "Size": 2287211,
+    "Width": 3840
+  },
+  {
+    "BlurHash": "WCD8B~OS9[}G1uxr~ARkRnxuNG$yG9-Bn5KMw1oeEzxGV@J%i|xI",
+    "Height": 2160,
+    "ImageIndex": 0,
+    "ImageTag": "1676f5a4dec19f33258e88482c88208d",
+    "ImageType": "Backdrop",
+    "Path": "/config/metadata/library/98/980dffd6dfa0d8cfd69e5bd6b350e983/backdrop.jpg",
+    "Size": 2034322,
+    "Width": 3840
+  }
+]

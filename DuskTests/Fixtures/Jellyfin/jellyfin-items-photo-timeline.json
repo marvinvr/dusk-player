@@ -1,0 +1,328 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+      "DateCreated": "2026-10-20T04:17:46.9741569Z",
+      "Height": 1924,
+      "Id": "72a5dbc0a7d9cf769f8e127f8c425aba",
+      "ImageBlurHashes": {
+        "Primary": {
+          "00c6758f239e060f4b9de6f26ad1df97": "lhHo$Z%dkC0CR-oxIXRQWC?St2WBe?WDazo#ozj["
+        }
+      },
+      "ImageTags": {
+        "Primary": "00c6758f239e060f4b9de6f26ad1df97"
+      },
+      "IsFolder": false,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "VID_0002",
+      "RunTimeTicks": 80000000,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Video",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "72a5dbc0a7d9cf769f8e127f8c425aba",
+        "Key": "72a5dbc0-a7d9-cf76-9f8e-127f8c425aba",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1080
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+      "DateCreated": "2026-10-20T04:17:46.3241509Z",
+      "Height": 1080,
+      "Id": "b6f5e5651b8f43c89f4363a0de731cab",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a08d05691c6a2e71d3e9a7cf8b58e85a": "WpKLgr%$bwkXWTozt:ksNJozt6ax0MkXNFWUkCRPxuozxYbbW?Ri"
+        }
+      },
+      "ImageTags": {
+        "Primary": "a08d05691c6a2e71d3e9a7cf8b58e85a"
+      },
+      "IsFolder": false,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "VID_0001",
+      "RunTimeTicks": 120000000,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Video",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "b6f5e5651b8f43c89f4363a0de731cab",
+        "Key": "b6f5e565-1b8f-43c8-9f43-63a0de731cab",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile",
+      "Width": 1920
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:41.2041034Z",
+      "Height": 2000,
+      "Id": "fd9edb9eac826fed6119f039e4751f78",
+      "ImageBlurHashes": {
+        "Primary": {
+          "bf231f740cf0c8334f01929936e5b767": "V9A,OH~U9Zoa%1~6=_-p%Lt4^$-moJoe%1_1-nRiS3oe"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "bf231f740cf0c8334f01929936e5b767"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_7",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "fd9edb9eac826fed6119f039e4751f78",
+        "Key": "fd9edb9e-ac82-6fed-6119-f039e4751f78",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.9341009Z",
+      "Height": 2000,
+      "Id": "88413c9ea4bfd0ca1a585f15345d2382",
+      "ImageBlurHashes": {
+        "Primary": {
+          "4c0fb62da09907a032fd5fbfc08bf45c": "VrGa^3%0M_t8ay~U%KWAofa#?G%1a|oeae-:xaWBofax"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "4c0fb62da09907a032fd5fbfc08bf45c"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_9",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "88413c9ea4bfd0ca1a585f15345d2382",
+        "Key": "88413c9e-a4bf-d0ca-1a58-5f15345d2382",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.8741003Z",
+      "Height": 2000,
+      "Id": "1f385b52cc7237d10433f1d8fe91383a",
+      "ImageBlurHashes": {
+        "Primary": {
+          "5976161cba9f6e992de963b45a3b4c2a": "VEBfts%25USi%1F$of^it7NH0LNGRPs,s,rBae9aM{Rj"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "5976161cba9f6e992de963b45a3b4c2a"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_10",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "1f385b52cc7237d10433f1d8fe91383a",
+        "Key": "1f385b52-cc72-37d1-0433-f1d8fe91383a",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.8441Z",
+      "Height": 2000,
+      "Id": "595fdfc2f1de00a935a7ff9d1b52a689",
+      "ImageBlurHashes": {
+        "Primary": {
+          "0c65025d6a6252221d85b001bcf0634f": "VeCQ9]MyIUt7V[_MMyM{t7ay?uRjRjj[WB-;bFWBWBWB"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "0c65025d6a6252221d85b001bcf0634f"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_8",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "595fdfc2f1de00a935a7ff9d1b52a689",
+        "Key": "595fdfc2-f1de-00a9-35a7-ff9d1b52a689",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.8340999Z",
+      "Height": 2000,
+      "Id": "24b6a7e74cd317ccdefe605ef4ceebc7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "dc78c99749fd257c697397b9575502a4": "VC85M+_Mr_tRoy_M.7xbtRbaxuxuxboMRQx]t8jcayRj"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "dc78c99749fd257c697397b9575502a4"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_2",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "24b6a7e74cd317ccdefe605ef4ceebc7",
+        "Key": "24b6a7e7-4cd3-17cc-defe-605ef4ceebc7",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.7940996Z",
+      "Height": 2000,
+      "Id": "77f753d09ee37cb373311e4733843691",
+      "ImageBlurHashes": {
+        "Primary": {
+          "927ff31d8fa9669e6aec01a096e1adb4": "Vz9+aHo#bJo$oecIa$j@a$axMxaejXada}s*jvfloffl"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "927ff31d8fa9669e6aec01a096e1adb4"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_1",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "77f753d09ee37cb373311e4733843691",
+        "Key": "77f753d0-9ee3-7cb3-7331-1e4733843691",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.7740994Z",
+      "Height": 2000,
+      "Id": "d1f703fc3b2e3080fc9dbeb8a1c2d1e0",
+      "ImageBlurHashes": {
+        "Primary": {
+          "9831661194ea012f62d6edd582165c34": "V]LM#3ogR+ofWV~WS5ayofaytmS5ayoLa}SPa#ayjuj["
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "9831661194ea012f62d6edd582165c34"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_5",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "d1f703fc3b2e3080fc9dbeb8a1c2d1e0",
+        "Key": "d1f703fc-3b2e-3080-fc9d-beb8a1c2d1e0",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    },
+    {
+      "Album": "Loose",
+      "AlbumId": "3dcf3c1dc0e6bb449106b5b8ec00052a",
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "DateCreated": "2026-10-20T04:17:40.7640993Z",
+      "Height": 2000,
+      "Id": "c2b3559ec1d6d9efbd48bfcff572a7a0",
+      "ImageBlurHashes": {
+        "Primary": {
+          "ce0d251c453d1b9795cd9396b49bf883": "VQKw:@aexa%f9]~W-otQn$xZ%MM{SOW;%L%2oe-:ayNH"
+        }
+      },
+      "ImageOrientation": "TopLeft",
+      "ImageTags": {
+        "Primary": "ce0d251c453d1b9795cd9396b49bf883"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Photo",
+      "Name": "photo_3",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Photo",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "c2b3559ec1d6d9efbd48bfcff572a7a0",
+        "Key": "c2b3559e-c1d6-d9ef-bd48-bfcff572a7a0",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "Width": 3000
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 192
+}

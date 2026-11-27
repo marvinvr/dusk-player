@@ -1,0 +1,733 @@
+{
+  "BackdropImageTags": [],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [
+    {
+      "ImageDateModified": "2026-11-27T15:40:55.5160825Z",
+      "ImagePath": "/config/metadata/library/bf/bf695ca96f49ed398033495d141110b4/chapters/637440513760000000_0.jpg",
+      "ImageTag": "d7c70c700c52ce17a6b168f23b1ad005",
+      "Name": "Chapter 01",
+      "StartPositionTicks": 0
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:40:55.8250869Z",
+      "ImagePath": "/config/metadata/library/bf/bf695ca96f49ed398033495d141110b4/chapters/637440513760000000_547210000.jpg",
+      "ImageTag": "71bbbd714fa38d42d49846e0152a1fa4",
+      "Name": "Chapter 02",
+      "StartPositionTicks": 547210000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:40:56.1720919Z",
+      "ImagePath": "/config/metadata/library/bf/bf695ca96f49ed398033495d141110b4/chapters/637440513760000000_5909650000.jpg",
+      "ImageTag": "f7bebdea84828eb0696955ec0f4874ca",
+      "Name": "Chapter 03",
+      "StartPositionTicks": 5909650000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:40:56.6370987Z",
+      "ImagePath": "/config/metadata/library/bf/bf695ca96f49ed398033495d141110b4/chapters/637440513760000000_13727460000.jpg",
+      "ImageTag": "5479ce63e9ae0f5e62749bfa9a708802",
+      "Name": "Chapter 04",
+      "StartPositionTicks": 13727460000
+    }
+  ],
+  "CommunityRating": 7.55,
+  "Container": "mkv",
+  "DateCreated": "2020-12-20T08:56:16.0000000Z",
+  "DisplayPreferencesId": "26dd4a82b00c839c498471cdba80a99c",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "74468675cec94915ab2af2bbaef1bc96",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt0664521"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/tv/2316/season/1/episode/1"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "08d31605d366d63a7a924f944b4417f1",
+      "Name": "Comedy"
+    }
+  ],
+  "Genres": [
+    "Comedy"
+  ],
+  "HasSubtitles": true,
+  "Height": 1080,
+  "Id": "bf695ca96f49ed398033495d141110b4",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+    },
+    "Logo": {
+      "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+    },
+    "Primary": {
+      "22f82df02f46e618909e146f5de1907a": "dpODRZ-:-;?b$xxuRjad~pxuWDoe-oR*bIs.M_RkaeRj",
+      "2951db227fc18090be8ff9fc256faec9": "WAC$yIx^xvE00JoKxu~qt7D%t7D%Ipt7xv?bM{Rj_2%M%Mxaj[Rj",
+      "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+    },
+    "Thumb": {
+      "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+    }
+  },
+  "ImageTags": {
+    "Primary": "2951db227fc18090be8ff9fc256faec9"
+  },
+  "IndexNumber": 1,
+  "IsFolder": false,
+  "IsHD": true,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 5980518,
+      "Container": "mkv",
+      "DefaultAudioStreamIndex": 1,
+      "ETag": "7897d937ab2c4046d120c1211fd0e0b0",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": true,
+      "Id": "bf695ca96f49ed398033495d141110b4",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 23.976025,
+          "BitDepth": 8,
+          "BitRate": 26150836,
+          "Codec": "hevc",
+          "DisplayTitle": "1080p HEVC SDR",
+          "Height": 1080,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 23.976025,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 23.976025,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitDepth": 24,
+          "BitRate": 2086211,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "dts",
+          "DisplayTitle": "Stereo - English - DTS-HD MA - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS-HD MA",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Stereo",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 1536000,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "dts",
+          "DisplayTitle": "Stereo - English - DTS",
+          "Index": 2,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Stereo",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 192000,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "ac3",
+          "DisplayTitle": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak - English - Dolby Digital - Stereo",
+          "Index": 3,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 192000,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "ac3",
+          "DisplayTitle": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis - English - Dolby Digital - Stereo",
+          "Index": 4,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - PGSSUB",
+          "Height": 1080,
+          "Index": 5,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "Name": "The Office (US) - S01E01 - Pilot Bluray-1080p Remux",
+      "Path": "/data/Real/TV/The Office (US)/Season 1/The Office (US) - S01E01 - Pilot Bluray-1080p Remux.mkv",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 14051620000,
+      "Size": 1050449745,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "16:9",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 23.976025,
+      "BitDepth": 8,
+      "BitRate": 26150836,
+      "Codec": "hevc",
+      "DisplayTitle": "1080p HEVC SDR",
+      "Height": 1080,
+      "Index": 0,
+      "IsAnamorphic": false,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "Level": 120,
+      "PixelFormat": "yuv420p",
+      "Profile": "Main",
+      "RealFrameRate": 23.976025,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 23.976025,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 1920
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitDepth": 24,
+      "BitRate": 2086211,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "dts",
+      "DisplayTitle": "Stereo - English - DTS-HD MA - Default",
+      "Index": 1,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "Profile": "DTS-HD MA",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "Stereo",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 1536000,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "dts",
+      "DisplayTitle": "Stereo - English - DTS",
+      "Index": 2,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "Profile": "DTS",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "Stereo",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 192000,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "ac3",
+      "DisplayTitle": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak - English - Dolby Digital - Stereo",
+      "Index": 3,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "Commentary by Steve Carell, John Krasinski, Rainn Wilson, and B.J. Novak",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 192000,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "ac3",
+      "DisplayTitle": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis - English - Dolby Digital - Stereo",
+      "Index": 4,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "Commentary by John Krasinski, Rainn Wilson, Jenna Fischer, B.J. Novak, Greg Daniels, and Ken Kwapis",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "Codec": "PGSSUB",
+      "DisplayTitle": "English - PGSSUB",
+      "Height": 1080,
+      "Index": 5,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedForced": "Forced",
+      "LocalizedHearingImpaired": "Hearing Impaired",
+      "LocalizedLanguage": "English",
+      "LocalizedUndefined": "Undefined",
+      "SupportsExternalStream": true,
+      "TimeBase": "1/1000",
+      "Type": "Subtitle",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown",
+      "Width": 1920
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Pilot",
+  "OriginalLanguage": "en",
+  "Overview": "A documentary crew arrives at the offices of Dunder Mifflin to observe the employees and learn about modern management. Manager Michael Scott tries to paint a happy picture, while sales rep Jim fights with his nemesis Dwight and flirts with receptionist Pam.",
+  "ParentBackdropImageTags": [
+    "8635884fe0a24bdb4edee384b5c54ca7"
+  ],
+  "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ParentId": "89b6f2f7378f55721704fcbc3b7b776f",
+  "ParentIndexNumber": 1,
+  "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+  "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ParentPrimaryImageItemId": "89b6f2f7378f55721704fcbc3b7b776f",
+  "ParentPrimaryImageTag": "22f82df02f46e618909e146f5de1907a",
+  "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+  "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "Path": "/data/Real/TV/The Office (US)/Season 1/The Office (US) - S01E01 - Pilot Bluray-1080p Remux.mkv",
+  "People": [
+    {
+      "Id": "41924714d75ff8b107e71562f11bcae9",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+        }
+      },
+      "Name": "Steve Carell",
+      "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+      "Role": "Michael Scott",
+      "Type": "Actor"
+    },
+    {
+      "Id": "12728bc964881bc1793c7f5daad9ac4d",
+      "ImageBlurHashes": {
+        "Primary": {
+          "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+        }
+      },
+      "Name": "Rainn Wilson",
+      "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+      "Role": "Dwight Schrute",
+      "Type": "Actor"
+    },
+    {
+      "Id": "9b60dd143630cde612f03063c2bc97d8",
+      "ImageBlurHashes": {
+        "Primary": {
+          "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+        }
+      },
+      "Name": "John Krasinski",
+      "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+      "Role": "Jim Halpert",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e397172ed87062e41cda00beca0f5622",
+      "ImageBlurHashes": {
+        "Primary": {
+          "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+        }
+      },
+      "Name": "Jenna Fischer",
+      "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+      "Role": "Pam Beesly",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e273b9feeab0aba7e35ce83b087b578f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+        }
+      },
+      "Name": "B.J. Novak",
+      "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+      "Role": "Ryan Howard",
+      "Type": "Actor"
+    },
+    {
+      "Id": "dd55a95cb8562fc4654b22045c42afd1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "67d49fb09e9fb20f6368f6a20b7a5692": "daHUX$tR%}?H~WWBpIxuJBRPnjNGOYWUxaofyDof%Lt7"
+        }
+      },
+      "Name": "David Denman",
+      "PrimaryImageTag": "67d49fb09e9fb20f6368f6a20b7a5692",
+      "Role": "Roy Anderson",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "fa2dfad9f680aa2db598e96ac3a8c583",
+      "ImageBlurHashes": {
+        "Primary": {
+          "9413ad58b259703b2e48b52302a384f3": "dUJk4W?GPVT0?wXS-;?HOst8%2og%#V@%MRjo~ogt6kC"
+        }
+      },
+      "Name": "Melora Hardin",
+      "PrimaryImageTag": "9413ad58b259703b2e48b52302a384f3",
+      "Role": "Jan Levinson",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "4df9b253f2331014aa82e384a2bdc0dd",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c36624c06bbdb0efa2f53e4b4d5a2288": "d#OL}paKyD?G~BxtX9t7XmofV@WW%fR*bHofxut7aya#"
+        }
+      },
+      "Name": "Creed Bratton",
+      "PrimaryImageTag": "c36624c06bbdb0efa2f53e4b4d5a2288",
+      "Role": "Creed Bratton",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "f6dd43e2ab6976df5470b6d38aa8f06c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "620b465c5b7967c3fdf67c28a993dde3": "dEB2=WJB0yI:#iNHxvX9E,s:r;WB5Rs,xabII:WW$%fk"
+        }
+      },
+      "Name": "Leslie David Baker",
+      "PrimaryImageTag": "620b465c5b7967c3fdf67c28a993dde3",
+      "Role": "Stanley Hudson",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "572c7a00b4bb27a2cd0d6dbe89b2bae1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "2b78caafe2ba7e51cbfd6f15c438f87b": "dfHn,IXU13t7_1xZJ6I;E3r?s+RiNGa#WYoLXTofoyX8"
+        }
+      },
+      "Name": "Brian Baumgartner",
+      "PrimaryImageTag": "2b78caafe2ba7e51cbfd6f15c438f87b",
+      "Role": "Kevin Malone",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "724ac5bc7a0a4a3f9d17fe0ce539af1e",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a04bc8c2c848f813445170e8da53a759": "dYG[4{-q0$XAMus.WCR*5@oz=|t7$$ofo#xaI.fkxYt6"
+        }
+      },
+      "Name": "Phyllis Smith",
+      "PrimaryImageTag": "a04bc8c2c848f813445170e8da53a759",
+      "Role": "Phyllis Lapin",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "0fd2361382ea5178fff1f18f35c32865",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c2842e656eb73ea977b8ceee00a4751c": "dYL:$Nni.T%M~BV@?bbb9^R*Mwof.8tR%Lxa%MWB%2xa"
+        }
+      },
+      "Name": "Oscar Nuñez",
+      "PrimaryImageTag": "c2842e656eb73ea977b8ceee00a4751c",
+      "Role": "Oscar Martinez",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "35862a408d84c89ba328de4a05191729",
+      "ImageBlurHashes": {
+        "Primary": {
+          "ecca495c9a437a28acedc40a8ba64125": "dWOpDB?G*J-.?wozt8tS%#ozi{jF-;ogxat7x^bIaej]"
+        }
+      },
+      "Name": "Angela Kinsey",
+      "PrimaryImageTag": "ecca495c9a437a28acedc40a8ba64125",
+      "Role": "Angela Martin",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "bce43db221ae8ccdf86aae54c50f1443",
+      "ImageBlurHashes": {
+        "Primary": {
+          "068d08484c2467b48694babe89018931": "dRJ6]EtR0foMK%n+yDozWFR*=|aLJnjF%MWo%Ms:RiRj"
+        }
+      },
+      "Name": "Henriette Mantel",
+      "PrimaryImageTag": "068d08484c2467b48694babe89018931",
+      "Role": "Office Worker",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "0bc1d198a412a132efbf29ff5b3d4124",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Mike McCaul",
+      "Role": "Office Worker",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "10904d222b04267b23b317517f37d5f6",
+      "ImageBlurHashes": {
+        "Primary": {
+          "00f9e8a003ebe53068abd3eacbf8a61c": "dYIE#1?a11bwrrRPENS4T0tQr;Rk9}S5xvofIpWBxYt8"
+        }
+      },
+      "Name": "Toby Huss",
+      "PrimaryImageTag": "00f9e8a003ebe53068abd3eacbf8a61c",
+      "Role": "Todd Packer (voice) (uncredited)",
+      "Type": "GuestStar"
+    },
+    {
+      "Id": "82256be008a29bdd978f18ce968dfb15",
+      "ImageBlurHashes": {
+        "Primary": {
+          "b0438148922fa0754d1a1e9833d7617c": "dSK^?F%MPo_N?ut6_NX8pJM{DOkC%#x]%2%2yDkC%1n$"
+        }
+      },
+      "Name": "Ken Kwapis",
+      "PrimaryImageTag": "b0438148922fa0754d1a1e9833d7617c",
+      "Role": "Director",
+      "Type": "Director"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 1.7777777777777777,
+  "ProductionYear": 2005,
+  "ProviderIds": {
+    "Imdb": "tt0664521",
+    "Tmdb": "170135",
+    "TvRage": "200103",
+    "Tvdb": "110413"
+  },
+  "RemoteTrailers": [],
+  "RunTimeTicks": 14051620000,
+  "SeasonId": "89b6f2f7378f55721704fcbc3b7b776f",
+  "SeasonName": "Season 1",
+  "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "SeriesName": "The Office",
+  "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+  "SeriesStudio": "NBC",
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "001 - 0001 - Pilot",
+  "SpecialFeatureCount": 0,
+  "Studios": [],
+  "Taglines": [],
+  "Tags": [],
+  "Trickplay": {},
+  "Type": "Episode",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "bf695ca96f49ed398033495d141110b4",
+    "Key": "73244001001",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  },
+  "VideoType": "VideoFile",
+  "Width": 1920
+}

@@ -1,0 +1,320 @@
+{
+  "BackdropImageTags": [
+    "ec242129008ec806747093f48a6e22a9"
+  ],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [],
+  "CommunityRating": 6.473,
+  "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+  "DateCreated": "2026-06-21T13:09:05.9713034Z",
+  "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "595c1df01911e248f1ee77d84bd2d794",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt1254207"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/movie/10378"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "074229225b7254292f131f9f49f8dcd6",
+      "Name": "Animation"
+    },
+    {
+      "Id": "08d31605d366d63a7a924f944b4417f1",
+      "Name": "Comedy"
+    },
+    {
+      "Id": "ccbd8d9008aab2b5e749e1cc4bc458a4",
+      "Name": "Family"
+    }
+  ],
+  "Genres": [
+    "Animation",
+    "Comedy",
+    "Family"
+  ],
+  "Height": 360,
+  "Id": "e5cb59120940723818de75672d35d17e",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "ec242129008ec806747093f48a6e22a9": "W~IF-;x^ocX9Wrt7?wWssmozj]ofkYIojFj[e.flT1S4a}R*axj]"
+    },
+    "Primary": {
+      "0a132bafa89e1af7379eacb60001bb2c": "dgNdRO%gtm.8^Nxt%Lxu_3t7xat6TMWCkXR+~Uslt7s,"
+    },
+    "Thumb": {
+      "6a12519a4df8215b2a0acdf76019eedc": "WfQJ}{x^=]^*xY?a?vW=oLxZoJof^fs.EOR+WCWV~WxZW.R.WXt6"
+    }
+  },
+  "ImageTags": {
+    "Logo": "a0e59e780d1b46e1ac661f1f6d73c650",
+    "Primary": "0a132bafa89e1af7379eacb60001bb2c",
+    "Thumb": "6a12519a4df8215b2a0acdf76019eedc"
+  },
+  "IsFolder": false,
+  "LocalTrailerCount": 1,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 829916,
+      "Container": "mp4",
+      "DefaultAudioStreamIndex": 1,
+      "ETag": "fb6e5ba0cf4bdd79684b801f3688371b",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": false,
+      "Id": "e5cb59120940723818de75672d35d17e",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 697070,
+          "Codec": "h264",
+          "CodecTag": "avc1",
+          "DisplayTitle": "360p H264 SDR",
+          "Height": 360,
+          "Index": 0,
+          "IsAVC": true,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "Level": 30,
+          "NalLengthSize": "4",
+          "PixelFormat": "yuv420p",
+          "Profile": "Constrained Baseline",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/12288",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 640
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 128209,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "aac",
+          "CodecTag": "mp4a",
+          "DisplayTitle": "AAC - Stereo - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "Undetermined",
+          "LocalizedOriginal": "Original",
+          "Profile": "LC",
+          "SampleRate": 44100,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/44100",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        }
+      ],
+      "Name": "Big Buck Bunny (2008)",
+      "Path": "/data/Movies/Big Buck Bunny (2008)/Big Buck Bunny (2008).mp4",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 5964800000,
+      "Size": 61878609,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "16:9",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 24,
+      "BitDepth": 8,
+      "BitRate": 697070,
+      "Codec": "h264",
+      "CodecTag": "avc1",
+      "DisplayTitle": "360p H264 SDR",
+      "Height": 360,
+      "Index": 0,
+      "IsAVC": true,
+      "IsAnamorphic": false,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "Level": 30,
+      "NalLengthSize": "4",
+      "PixelFormat": "yuv420p",
+      "Profile": "Constrained Baseline",
+      "RealFrameRate": 24,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 24,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/12288",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 640
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 128209,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "aac",
+      "CodecTag": "mp4a",
+      "DisplayTitle": "AAC - Stereo - Default",
+      "Index": 1,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "Undetermined",
+      "LocalizedOriginal": "Original",
+      "Profile": "LC",
+      "SampleRate": 44100,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/44100",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Big Buck Bunny",
+  "OfficialRating": "G",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "Big Buck Bunny",
+  "Overview": "Follow a day of the life of Big Buck Bunny when he meets three bullying rodents: Frank, Rinky, and Gamera. The rodents amuse themselves by harassing helpless creatures by throwing fruits, nuts and rocks at them. After the deaths of two of Bunny's favorite butterflies, and an offensive attack on Bunny himself, Bunny sets aside his gentle nature and orchestrates a complex plan for revenge.",
+  "ParentId": "aa5380d0c01924c4efd3a6146a617a3a",
+  "Path": "/data/Movies/Big Buck Bunny (2008)/Big Buck Bunny (2008).mp4",
+  "People": [
+    {
+      "Id": "e984787b9dc95dcfc659a00f4f812fa3",
+      "Name": "Sacha Goedegebure",
+      "Role": "Director",
+      "Type": "Director"
+    },
+    {
+      "Id": "e984787b9dc95dcfc659a00f4f812fa3",
+      "Name": "Sacha Goedegebure",
+      "Role": "Screenplay",
+      "Type": "Writer"
+    },
+    {
+      "Id": "49f34ba9aaa3cc6004fbee058aea50b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cd344ce7f8d56ba5c1b6682ed017bc2": "dJINUFIp~q=|-4In$eWVOtt7XAj?=_jExB%2bcWXt7xa"
+        }
+      },
+      "Name": "Ton Roosendaal",
+      "PrimaryImageTag": "1cd344ce7f8d56ba5c1b6682ed017bc2",
+      "Role": "Producer",
+      "Type": "Producer"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2008-04-09T22:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionLocations": [
+    "Netherlands"
+  ],
+  "ProductionYear": 2008,
+  "ProviderIds": {
+    "Imdb": "tt1254207",
+    "Tmdb": "10378"
+  },
+  "RemoteTrailers": [
+    {
+      "Name": "Big Buck Bunny trailer",
+      "Url": "https://www.youtube.com/watch?v=yUQM7H4Swgw"
+    }
+  ],
+  "RunTimeTicks": 5964800000,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "big buck bunny",
+  "SpecialFeatureCount": 2,
+  "Studios": [
+    {
+      "Id": "66ac02ba6812c3e031d36b31750e19e3",
+      "Name": "Blender Foundation"
+    }
+  ],
+  "Taglines": [],
+  "Tags": [
+    "squirrel",
+    "bunny",
+    "repayment",
+    "mobbing",
+    "revenge",
+    "open source",
+    "blender",
+    "conejo",
+    "short film",
+    "hilarious"
+  ],
+  "Trickplay": {},
+  "Type": "Movie",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "e5cb59120940723818de75672d35d17e",
+    "Key": "10378",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  },
+  "VideoType": "VideoFile",
+  "Width": 640
+}

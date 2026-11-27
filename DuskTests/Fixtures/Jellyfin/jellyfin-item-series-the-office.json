@@ -1,0 +1,339 @@
+{
+  "AirDays": [],
+  "BackdropImageTags": [
+    "8635884fe0a24bdb4edee384b5c54ca7"
+  ],
+  "CanDelete": false,
+  "CanDownload": false,
+  "ChannelId": null,
+  "Chapters": [],
+  "ChildCount": 9,
+  "CommunityRating": 8.6,
+  "CumulativeRunTimeTicks": 0,
+  "DateCreated": "2026-11-27T15:40:45.3036205Z",
+  "DateLastMediaAdded": "2026-06-18T22:19:36.1477159Z",
+  "DisplayPreferencesId": "f63033ff6886ecc7083a696cbeced1b0",
+  "EnableMediaSourceDisplay": true,
+  "EndDate": "2013-05-15T22:00:00.0000000Z",
+  "Etag": "ce2e97d74aeb9c00e785532187d74104",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt0386676"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/tv/2316"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "08d31605d366d63a7a924f944b4417f1",
+      "Name": "Comedy"
+    }
+  ],
+  "Genres": [
+    "Comedy"
+  ],
+  "Id": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+    },
+    "Logo": {
+      "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+    },
+    "Primary": {
+      "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+    },
+    "Thumb": {
+      "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+    }
+  },
+  "ImageTags": {
+    "Logo": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+    "Primary": "e0ce18f7308a1a86a0463d6acf99bd55",
+    "Thumb": "20adba5802b559b4284240b66107aaf8"
+  },
+  "IsFolder": true,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaType": "Unknown",
+  "Name": "The Office",
+  "OfficialRating": "TV-14",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "The Office",
+  "Overview": "The everyday lives of office employees in the Scranton, Pennsylvania branch of the fictional Dunder Mifflin Paper Company.",
+  "ParentId": "2ea186f2451cfcc730ef5149850bbb20",
+  "Path": "/data/Real/TV/The Office (US)",
+  "People": [
+    {
+      "Id": "41924714d75ff8b107e71562f11bcae9",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+        }
+      },
+      "Name": "Steve Carell",
+      "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+      "Role": "Michael Scott",
+      "Type": "Actor"
+    },
+    {
+      "Id": "12728bc964881bc1793c7f5daad9ac4d",
+      "ImageBlurHashes": {
+        "Primary": {
+          "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+        }
+      },
+      "Name": "Rainn Wilson",
+      "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+      "Role": "Dwight Schrute",
+      "Type": "Actor"
+    },
+    {
+      "Id": "9b60dd143630cde612f03063c2bc97d8",
+      "ImageBlurHashes": {
+        "Primary": {
+          "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+        }
+      },
+      "Name": "John Krasinski",
+      "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+      "Role": "Jim Halpert",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e397172ed87062e41cda00beca0f5622",
+      "ImageBlurHashes": {
+        "Primary": {
+          "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+        }
+      },
+      "Name": "Jenna Fischer",
+      "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+      "Role": "Pam Beesly",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e273b9feeab0aba7e35ce83b087b578f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+        }
+      },
+      "Name": "B.J. Novak",
+      "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+      "Role": "Ryan Howard",
+      "Type": "Actor"
+    },
+    {
+      "Id": "26aaa9af41e3eb4ac289520019a9704d",
+      "ImageBlurHashes": {
+        "Primary": {
+          "ffad5af1dd6df555b6112685f2a5a5da": "dSM6n:9Gpc^*~Wxt-;%2Ez-p-ARjX9M{s:M|-;oJ%2ae"
+        }
+      },
+      "Name": "Ed Helms",
+      "PrimaryImageTag": "ffad5af1dd6df555b6112685f2a5a5da",
+      "Role": "Andy Bernard",
+      "Type": "Actor"
+    },
+    {
+      "Id": "2ce0b3f5a1c8da3568c782afe3785b2c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "085e0ff27842668b7bdec6b42a9d30ad": "dGE_ja^P630z.6NG^%?Gx]WV%1xZtQRkjb%1J7R*-U-V"
+        }
+      },
+      "Name": "Rashida Jones",
+      "PrimaryImageTag": "085e0ff27842668b7bdec6b42a9d30ad",
+      "Role": "Karen Filippelli",
+      "Type": "Actor"
+    },
+    {
+      "Id": "fbcc3cdac51591d1655f98b9b6163e88",
+      "ImageBlurHashes": {
+        "Primary": {
+          "708fc7e11d61ef17269ed7a368571a41": "dUE^=,%20f9u}ts:IoWB9uRkxa%1ELWBoykCRjfQt6Wp"
+        }
+      },
+      "Name": "James Spader",
+      "PrimaryImageTag": "708fc7e11d61ef17269ed7a368571a41",
+      "Role": "Robert California",
+      "Type": "Actor"
+    },
+    {
+      "Id": "dd55a95cb8562fc4654b22045c42afd1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "67d49fb09e9fb20f6368f6a20b7a5692": "daHUX$tR%}?H~WWBpIxuJBRPnjNGOYWUxaofyDof%Lt7"
+        }
+      },
+      "Name": "David Denman",
+      "PrimaryImageTag": "67d49fb09e9fb20f6368f6a20b7a5692",
+      "Role": "Roy Anderson",
+      "Type": "Actor"
+    },
+    {
+      "Id": "fa2dfad9f680aa2db598e96ac3a8c583",
+      "ImageBlurHashes": {
+        "Primary": {
+          "9413ad58b259703b2e48b52302a384f3": "dUJk4W?GPVT0?wXS-;?HOst8%2og%#V@%MRjo~ogt6kC"
+        }
+      },
+      "Name": "Melora Hardin",
+      "PrimaryImageTag": "9413ad58b259703b2e48b52302a384f3",
+      "Role": "Jan Levinson",
+      "Type": "Actor"
+    },
+    {
+      "Id": "a27d653db884a4d2b5cf38da28361d67",
+      "ImageBlurHashes": {
+        "Primary": {
+          "eca2031af75b8fb4d950061760ac7deb": "dgMjO7?H%#x]~pt7%Mt79tWpV?Rj?vWVxutR-;bH%Lxu"
+        }
+      },
+      "Name": "Zach Woods",
+      "PrimaryImageTag": "eca2031af75b8fb4d950061760ac7deb",
+      "Role": "Gabe Lewis",
+      "Type": "Actor"
+    },
+    {
+      "Id": "2533b158a8d666dda6b987390272ffe2",
+      "ImageBlurHashes": {
+        "Primary": {
+          "e6c792dfe353fe65523dd10185d15020": "dHH-iT?GGwx]pyt6~qbw.SM{-oxFkXbHn%t8tmbG%2%2"
+        }
+      },
+      "Name": "Ellie Kemper",
+      "PrimaryImageTag": "e6c792dfe353fe65523dd10185d15020",
+      "Role": "Erin Hannon",
+      "Type": "Actor"
+    },
+    {
+      "Id": "4df9b253f2331014aa82e384a2bdc0dd",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c36624c06bbdb0efa2f53e4b4d5a2288": "d#OL}paKyD?G~BxtX9t7XmofV@WW%fR*bHofxut7aya#"
+        }
+      },
+      "Name": "Creed Bratton",
+      "PrimaryImageTag": "c36624c06bbdb0efa2f53e4b4d5a2288",
+      "Role": "Creed Bratton",
+      "Type": "Actor"
+    },
+    {
+      "Id": "906f302a6f31c8093582f2a59ae4c9df",
+      "ImageBlurHashes": {
+        "Primary": {
+          "90483c3407f14c5822101cd01b69a005": "dyJhIEwvNyn+2[S2f,OE$RoMs:xHxHWqs.s:FxWWa|W;"
+        }
+      },
+      "Name": "Mindy Kaling",
+      "PrimaryImageTag": "90483c3407f14c5822101cd01b69a005",
+      "Role": "Kelly Kapoor",
+      "Type": "Actor"
+    },
+    {
+      "Id": "540c5cc08f2d8c4e7e83be49b2ca19b2",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c5281950382103e6d21d27504667fee9": "dbJ*L?s.Txx[~pj[%ftRX-t7$%%2S$ofo0WVxuWBs:oe"
+        }
+      },
+      "Name": "Kate Flannery",
+      "PrimaryImageTag": "c5281950382103e6d21d27504667fee9",
+      "Role": "Meredith Palmer",
+      "Type": "Actor"
+    },
+    {
+      "Id": "372a8e14ca06fabfc67fc5e9aeefe7f7",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Steve Burgess",
+      "Role": "Producer",
+      "Type": "Producer"
+    },
+    {
+      "Id": "689fa1fdfab49269d6c557ff8b7f019c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "04d19d262273adc03f31278faadabfb4": "dcH_DW?wE+p0~WxvR-X99tRjsnV@T0t8s;o1kDbcs:oJ"
+        }
+      },
+      "Name": "Greg Daniels",
+      "PrimaryImageTag": "04d19d262273adc03f31278faadabfb4",
+      "Role": "",
+      "Type": "Creator"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionYear": 2005,
+  "ProviderIds": {
+    "Imdb": "tt0386676",
+    "Tmdb": "2316",
+    "TvRage": "6061",
+    "Tvdb": "73244"
+  },
+  "RecursiveItemCount": 186,
+  "RemoteTrailers": [],
+  "RunTimeTicks": 0,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "office",
+  "SpecialFeatureCount": 0,
+  "Status": "Ended",
+  "Studios": [
+    {
+      "Id": "786503487dee61267bfc1bedc8991ee3",
+      "Name": "NBC"
+    },
+    {
+      "Id": "54ed2553d84a40f8e5f9c7dda37de5d2",
+      "Name": "Universal Television"
+    },
+    {
+      "Id": "b9c047dd218dc4df0675744e84556f6a",
+      "Name": "Deedle-Dee Productions"
+    },
+    {
+      "Id": "8c4d3cb547f14a8267945a17ec08d29f",
+      "Name": "Reveille Productions"
+    },
+    {
+      "Id": "0106d8fcdd78534dd54c959c119ceb4e",
+      "Name": "Shine America"
+    },
+    {
+      "Id": "719a92d29ac8cd55eb1653b4d8dd99a7",
+      "Name": "Universal Media Studios"
+    }
+  ],
+  "Taglines": [],
+  "Tags": [
+    "office",
+    "work",
+    "boss",
+    "remake",
+    "employer employee relationship",
+    "sitcom",
+    "employment",
+    "workplace comedy"
+  ],
+  "Type": "Series",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+    "Key": "73244",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false,
+    "PlayedPercentage": 0,
+    "UnplayedItemCount": 186
+  }
+}

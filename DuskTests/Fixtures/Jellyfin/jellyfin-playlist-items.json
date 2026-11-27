@@ -1,0 +1,108 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [
+        "1676f5a4dec19f33258e88482c88208d"
+      ],
+      "ChannelId": null,
+      "CommunityRating": 7.843,
+      "Container": "mkv",
+      "HasSubtitles": true,
+      "Id": "980dffd6dfa0d8cfd69e5bd6b350e983",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "1676f5a4dec19f33258e88482c88208d": "WCD8B~OS9[}G1uxr~ARkRnxuNG$yG9-Bn5KMw1oeEzxGV@J%i|xI"
+        },
+        "Logo": {
+          "3441313fb0eccf339d51d98e1c117ff9": "PhJH]vofxuWBayxuM{ofM{oft7xuayxuxuay00oft7xuRjoft7WB"
+        },
+        "Primary": {
+          "0365dc4be0aee9bc30ce697faff421fb": "dEC=I?%K0$#;?WxGE6Se0zRjxGSvD-Nat2niIdbaxqai"
+        },
+        "Thumb": {
+          "1c19a28452e05a1aa8346335467d8935": "WKD@?WO912,vEyt5$+R+t2xZI;xXB5r]w0OnnjsoOTV[RkSenisW"
+        }
+      },
+      "ImageTags": {
+        "Logo": "3441313fb0eccf339d51d98e1c117ff9",
+        "Primary": "0365dc4be0aee9bc30ce697faff421fb",
+        "Thumb": "1c19a28452e05a1aa8346335467d8935"
+      },
+      "IsFolder": false,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "Knives Out",
+      "OfficialRating": "CH-12",
+      "OriginalLanguage": "en",
+      "PlaylistItemId": "980dffd6dfa0d8cfd69e5bd6b350e983",
+      "PremiereDate": "2019-11-26T23:00:00.0000000Z",
+      "ProductionYear": 2019,
+      "RunTimeTicks": 78172470000,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Movie",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "980dffd6dfa0d8cfd69e5bd6b350e983",
+        "Key": "546554",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile"
+    },
+    {
+      "BackdropImageTags": [
+        "9131f2fe24befdbaf7094768f7300849"
+      ],
+      "ChannelId": null,
+      "CommunityRating": 7.491,
+      "Container": "mkv",
+      "HasSubtitles": true,
+      "Id": "b4863e59c8ec6641d6cbad411e0f6a07",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "9131f2fe24befdbaf7094768f7300849": "WPA^FJ%houbwnOwc?dt7a^S$jFs8IuV?jXfmS2ofJDkDxZw^Nbbw"
+        },
+        "Logo": {
+          "75faf1a18f10443d29818e8f56cc4f9d": "HAL2?S=[s-xX=[s-WWNJ}.^_xXNJ$}az$#$#odWp"
+        },
+        "Primary": {
+          "412932ab93151bc87afcd10ce55f36a2": "dLE-]t^k5FE9}Z$jxYt7VEiy?G%M=|e?tSog$,oNbHR+"
+        },
+        "Thumb": {
+          "5e85af39656b8708bc6bd9c5e61310a3": "WcHe%$%2p0o}Vr-7=;aJnMt3Rknz+XX8xBw[XTt6~7t7xZw[S$t6"
+        }
+      },
+      "ImageTags": {
+        "Logo": "75faf1a18f10443d29818e8f56cc4f9d",
+        "Primary": "412932ab93151bc87afcd10ce55f36a2",
+        "Thumb": "5e85af39656b8708bc6bd9c5e61310a3"
+      },
+      "IsFolder": false,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "Paddington 2",
+      "OfficialRating": "CH-0",
+      "OriginalLanguage": "en",
+      "PlaylistItemId": "b4863e59c8ec6641d6cbad411e0f6a07",
+      "PremiereDate": "2017-11-04T23:00:00.0000000Z",
+      "ProductionYear": 2017,
+      "RunTimeTicks": 61989120000,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Movie",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "b4863e59c8ec6641d6cbad411e0f6a07",
+        "Key": "b4863e59-c8ec-6641-d6cb-ad411e0f6a07",
+        "LastPlayedDate": "2026-11-27T19:28:21.0000000Z",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 3094690000,
+        "Played": false,
+        "PlayedPercentage": 4.992311554027546
+      },
+      "VideoType": "VideoFile"
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 2
+}

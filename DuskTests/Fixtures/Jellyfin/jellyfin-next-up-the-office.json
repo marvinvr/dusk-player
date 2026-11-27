@@ -1,0 +1,69 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "CommunityRating": 7.55,
+      "Container": "mkv",
+      "HasSubtitles": true,
+      "Id": "bf695ca96f49ed398033495d141110b4",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "22f82df02f46e618909e146f5de1907a": "dpODRZ-:-;?b$xxuRjad~pxuWDoe-oR*bIs.M_RkaeRj",
+          "2951db227fc18090be8ff9fc256faec9": "WAC$yIx^xvE00JoKxu~qt7D%t7D%Ipt7xv?bM{Rj_2%M%Mxaj[Rj",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "2951db227fc18090be8ff9fc256faec9"
+      },
+      "IndexNumber": 1,
+      "IsFolder": false,
+      "LocationType": "FileSystem",
+      "MediaType": "Video",
+      "Name": "Pilot",
+      "OriginalLanguage": "en",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentIndexNumber": 1,
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentPrimaryImageItemId": "89b6f2f7378f55721704fcbc3b7b776f",
+      "ParentPrimaryImageTag": "22f82df02f46e618909e146f5de1907a",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+      "ProductionYear": 2005,
+      "RunTimeTicks": 14051620000,
+      "SeasonId": "89b6f2f7378f55721704fcbc3b7b776f",
+      "SeasonName": "Season 1",
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Episode",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "bf695ca96f49ed398033495d141110b4",
+        "Key": "73244001001",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false
+      },
+      "VideoType": "VideoFile"
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 1
+}

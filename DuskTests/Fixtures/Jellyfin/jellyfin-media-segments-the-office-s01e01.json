@@ -1,0 +1,20 @@
+{
+  "Items": [
+    {
+      "EndTicks": 545550000,
+      "Id": "01a21de6e05a791b9a4f88f20123615d",
+      "ItemId": "bf695ca96f49ed398033495d141110b4",
+      "StartTicks": 0,
+      "Type": "Intro"
+    },
+    {
+      "EndTicks": 14051620000,
+      "Id": "01a21de79b627dc1b9db20d80c866787",
+      "ItemId": "bf695ca96f49ed398033495d141110b4",
+      "StartTicks": 13727460000,
+      "Type": "Outro"
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 2
+}

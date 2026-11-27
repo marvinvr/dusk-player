@@ -1,0 +1,78 @@
+{
+  "AlbumCount": 0,
+  "ArtistCount": 0,
+  "BackdropImageTags": [],
+  "CanDelete": false,
+  "CanDownload": false,
+  "ChannelId": null,
+  "Chapters": [],
+  "ChildCount": 1,
+  "DateCreated": "2026-11-27T15:43:03.8969244Z",
+  "DisplayPreferencesId": "b607178b0ac2f604a458d3d2363fdc83",
+  "EnableMediaSourceDisplay": true,
+  "EpisodeCount": 0,
+  "Etag": "8d788d29c2f74df5304a47fec87c9062",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/name/nm0185819"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/person/8784"
+    }
+  ],
+  "GenreItems": [],
+  "Genres": [],
+  "Id": "7756ef19211166d2d5290b3eb1d354b9",
+  "ImageBlurHashes": {
+    "Primary": {
+      "68aff68f4e78d3e88f83a1f1f5a8c425": "dYExhZoe0fWq$$oLbvbI57j[-Vj[T0ayaKjsIUWBxuoe"
+    }
+  },
+  "ImageTags": {
+    "Primary": "68aff68f4e78d3e88f83a1f1f5a8c425"
+  },
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaType": "Unknown",
+  "MovieCount": 1,
+  "MusicVideoCount": 0,
+  "Name": "Daniel Craig",
+  "Overview": "Daniel Wroughton Craig (born March 2, 1968) is an English actor. He gained international fame by playing the fictional secret agent James Bond for five installments in the film series: Casino Royale (2006), Quantum of Solace (2008), Skyfall (2012), Spectre (2015), and No Time to Die (2021).\n\nAfter training at the National Youth Theatre in London and graduating from the Guildhall School of Music and Drama in 1991, Craig began his career on stage. He began acting with the drama The Power of One (1992) and had his breakthrough role in the drama serial Our Friends in the North (1996). He gained prominence for his supporting roles in films such as Elizabeth (1998), Lara Croft: Tomb Raider (2001), Road to Perdition (2002), Layer Cake (2004), and Munich (2005).\n\nIn 2006, Craig played Bond in Casino Royale, a reboot of the Bond franchise that was favourably received by critics and earned Craig a nomination for the BAFTA Award for Best Actor in a Leading Role. His non-Bond appearances since then include roles in the fantasy film The Golden Compass (2007), the drama Defiance (2008), the science fiction Western Cowboys & Aliens (2011), the mystery thriller The Girl with the Dragon Tattoo (2011), and the heist film Logan Lucky (2017). For his performance as Detective Benoit Blanc in the Knives Out film series (2019, 2022), he received two Golden Globe Award nominations.\n\nOn stage, Craig starred in the Royal National Theatre's production of Angels in America (1993) on the West End. He made his Broadway debut in the play A Steady Rain (2009) and returned to Broadway in the revivals of Harold Pinter's Betrayal (2011) and William Shakespeare's Macbeth (2022). He starred as Iago in the New York Theatre Workshop production of Othello (2016).",
+  "ParentId": null,
+  "Path": "/config/metadata/People/D/Daniel Craig",
+  "People": [],
+  "PlayAccess": "Full",
+  "PremiereDate": "1968-03-01T23:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionLocations": [
+    "Chester, Cheshire, England, UK"
+  ],
+  "ProgramCount": 0,
+  "ProviderIds": {
+    "Imdb": "nm0185819",
+    "Tmdb": "8784"
+  },
+  "RemoteTrailers": [],
+  "SeriesCount": 0,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SongCount": 0,
+  "SortName": "Daniel Craig",
+  "SpecialFeatureCount": 0,
+  "Studios": [],
+  "Taglines": [],
+  "Tags": [],
+  "TrailerCount": 0,
+  "Type": "Person",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "7756ef19211166d2d5290b3eb1d354b9",
+    "Key": "Person-Daniel Craig",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  }
+}

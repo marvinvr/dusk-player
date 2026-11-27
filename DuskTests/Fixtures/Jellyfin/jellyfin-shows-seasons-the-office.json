@@ -1,0 +1,483 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "89b6f2f7378f55721704fcbc3b7b776f",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "22f82df02f46e618909e146f5de1907a": "dpODRZ-:-;?b$xxuRjad~pxuWDoe-oR*bIs.M_RkaeRj",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "22f82df02f46e618909e146f5de1907a"
+      },
+      "IndexNumber": 1,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 1",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+      "ProductionYear": 2005,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "89b6f2f7378f55721704fcbc3b7b776f",
+        "Key": "73244001",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 6
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "d1d5322ff67a5677d347ab6999aa8cc3",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "76495669bf740ec378e83d788deb664d": "dKMZwc%%Ad-W;.WBtRsq-DxBwZxa[9xaNGrp*_NGOZRP",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "76495669bf740ec378e83d788deb664d"
+      },
+      "IndexNumber": 2,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 2",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2005-09-19T22:00:00.0000000Z",
+      "ProductionYear": 2005,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "d1d5322ff67a5677d347ab6999aa8cc3",
+        "Key": "73244002",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 22
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "0bba9307595c23129b2fde228c87732b",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "08e7202565cb16c49a15fa3403478912": "doHLY$tQxvxv^-x]Rjog%NtRRja~t7WCt6RjR*t7s.jF",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "08e7202565cb16c49a15fa3403478912"
+      },
+      "IndexNumber": 3,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 3",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2006-09-20T22:00:00.0000000Z",
+      "ProductionYear": 2006,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "0bba9307595c23129b2fde228c87732b",
+        "Key": "73244003",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 22
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "db0e8f8b6e9d5f161a08d246a7512b81",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "729b4f85f41f74fa24eaa8e056249c61": "dvDJ@uWBNGxv.Tj]WCo#bdozofWBRjWqoejYs+WBRks:",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "729b4f85f41f74fa24eaa8e056249c61"
+      },
+      "IndexNumber": 4,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 4",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2007-09-26T22:00:00.0000000Z",
+      "ProductionYear": 2007,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "db0e8f8b6e9d5f161a08d246a7512b81",
+        "Key": "73244004",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 14
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "37d54a32bef17e181623a2d44a8e344d",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "5f0bafa8a9d2ed8aa166a839237df55a": "d[Kw%@-:fPt7_4tRj?t7I]WAf5WYRnjFoeWVs:a{ofof",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "5f0bafa8a9d2ed8aa166a839237df55a"
+      },
+      "IndexNumber": 5,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 5",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2008-09-24T22:00:00.0000000Z",
+      "ProductionYear": 2008,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "37d54a32bef17e181623a2d44a8e344d",
+        "Key": "73244005",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 26
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "27b88955dcc64fb6a0501fe62d637133",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "19bae78d0a121b48d8256abcb6769679": "djIrHY%MtR%M~qt7xas:.8x]Rjof9YogoKj@IqVsWCR*",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "19bae78d0a121b48d8256abcb6769679"
+      },
+      "IndexNumber": 6,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 6",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2009-09-16T22:00:00.0000000Z",
+      "ProductionYear": 2009,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "27b88955dcc64fb6a0501fe62d637133",
+        "Key": "73244006",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 24
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "6736770d03a0066c8c9eba27a925a3e2",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "9904ba47146bb7f1f96e19e3576e6369": "d$I}*Sx^Nexu?wkCNGt7I=RPjFbHI]ozt8ofWCozogoJ",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "9904ba47146bb7f1f96e19e3576e6369"
+      },
+      "IndexNumber": 7,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 7",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2010-09-22T22:00:00.0000000Z",
+      "ProductionYear": 2010,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "6736770d03a0066c8c9eba27a925a3e2",
+        "Key": "73244007",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 25
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "67ff2a04df86d6506c4a8772bfba5d20",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "7b2025cbde28eea64adaddd9052a443e": "drJj*uxGx[xZ~Ct7R*oftSt7kCWX%2xaoyofrqj[WBWU",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "7b2025cbde28eea64adaddd9052a443e"
+      },
+      "IndexNumber": 8,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 8",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2011-09-21T22:00:00.0000000Z",
+      "ProductionYear": 2011,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "67ff2a04df86d6506c4a8772bfba5d20",
+        "Key": "73244008",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 24
+      }
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "d8e6e4c9171389fcb50a934f62bcff13",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "1c5f02ef3f35bea0d9be96b3cc6f400b": "dhIE*L%NNxo#ThkXoIohTht8j?ozETs;SONHR:M{jEaM",
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Primary": "1c5f02ef3f35bea0d9be96b3cc6f400b"
+      },
+      "IndexNumber": 9,
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Season 9",
+      "ParentBackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+      "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+      "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "PremiereDate": "2012-09-19T22:00:00.0000000Z",
+      "ProductionYear": 2012,
+      "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+      "SeriesName": "The Office",
+      "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Season",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "d8e6e4c9171389fcb50a934f62bcff13",
+        "Key": "73244009",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 23
+      }
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 9
+}

@@ -1,0 +1,114 @@
+{
+  "Items": [
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "51cec9645b896084d12b259acd05ccb1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "0bd107533faaa99a54fc0d523cccf7f2": "eLE.2_R*fQNH9Z?GWVfQS4RjfQfQfQfQfQ~CR+fQNINFXAbIfQbcM{"
+        }
+      },
+      "ImageTags": {
+        "Primary": "0bd107533faaa99a54fc0d523cccf7f2"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Adventure",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "08d31605d366d63a7a924f944b4417f1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "8203d3489e7b79a618be583fb32dbd23": "eaIq}+Dkj=EKRjX*}wELEKoLahIoNZs:ayD*EKxanls:Rkoej[oLof"
+        }
+      },
+      "ImageTags": {
+        "Primary": "8203d3489e7b79a618be583fb32dbd23"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Comedy",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "83a9dab21914792744c8fb23b9925dc6",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c30abb4e5df78b70c4470560879bce47": "eJDkh]X6fQXO5DxqoLfQoLRmfQfQfQfQfQ-*oLfQs.It0zoLfQsoxV"
+        }
+      },
+      "ImageTags": {
+        "Primary": "c30abb4e5df78b70c4470560879bce47"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Crime",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "ccbd8d9008aab2b5e749e1cc4bc458a4",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a2daf598832fdece1603a167996a3b4b": "eSHK3N.9EL9YR*DO0yxZ-ps:b^-Us:S4WBFx$PNGI:j@R*n%j[ofoe"
+        }
+      },
+      "ImageTags": {
+        "Primary": "a2daf598832fdece1603a167996a3b4b"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Family",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "d3a0ead52489743e5a68704142092c71",
+      "ImageBlurHashes": {
+        "Primary": {
+          "b23449419a7be786250fa17c2767847a": "ebGIGmbHfQWobw?^j[fQjb%LtRbHfQbHxtxUj@fQoeM}ELoLfQsoRP"
+        }
+      },
+      "ImageTags": {
+        "Primary": "b23449419a7be786250fa17c2767847a"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Mystery",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    },
+    {
+      "BackdropImageTags": [],
+      "ChannelId": null,
+      "Id": "0430d514c35e1f158fa93f1eeb8361ea",
+      "ImageBlurHashes": {
+        "Primary": {
+          "5247d7136fd1b1f8b9e0e9de22f3b43e": "ePFzgCK+wJM{azAD0~w]$%jto]=YWVJAjt10+wS2W;j@smoIWpo2a|"
+        }
+      },
+      "ImageTags": {
+        "Primary": "5247d7136fd1b1f8b9e0e9de22f3b43e"
+      },
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Science Fiction",
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Type": "Genre"
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 6
+}

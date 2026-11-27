@@ -1,0 +1,862 @@
+{
+  "BackdropImageTags": [
+    "9131f2fe24befdbaf7094768f7300849"
+  ],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [
+    {
+      "ImageDateModified": "2026-11-27T15:43:05.5479467Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_0.jpg",
+      "ImageTag": "ba533fae9068f117e414d536e678cb77",
+      "Name": "Chapter 1",
+      "StartPositionTicks": 0
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:05.8299505Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_4885420000.jpg",
+      "ImageTag": "8a629f0a0bdff4446067ffc2e0c3b330",
+      "Name": "Chapter 2",
+      "StartPositionTicks": 4885420000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:06.3349573Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_11285830000.jpg",
+      "ImageTag": "a7816c021524356fb3c39f542a919167",
+      "Name": "Chapter 3",
+      "StartPositionTicks": 11285830000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:06.8829647Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_16260000000.jpg",
+      "ImageTag": "9b3d435083eebf6d013402116eeb11bb",
+      "Name": "Chapter 4",
+      "StartPositionTicks": 16260000000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:07.2589698Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_23273750000.jpg",
+      "ImageTag": "fc39ea77d7d3d48d3c2b0a48bbbd954e",
+      "Name": "Chapter 5",
+      "StartPositionTicks": 23273750000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:07.6919757Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_28669170000.jpg",
+      "ImageTag": "b7b9faa07833da8c68a315ae026a1527",
+      "Name": "Chapter 6",
+      "StartPositionTicks": 28669170000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:08.1739822Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_33537080000.jpg",
+      "ImageTag": "bcb89d6cc9637ac68de442efa5f33697",
+      "Name": "Chapter 7",
+      "StartPositionTicks": 33537080000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:08.8029907Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_37375000000.jpg",
+      "ImageTag": "929d82fadb1d902b49b992e909ac366e",
+      "Name": "Chapter 8",
+      "StartPositionTicks": 37375000000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:09.2469967Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_41718750000.jpg",
+      "ImageTag": "1cf28911ecd7a48091741eeb4abf59d7",
+      "Name": "Chapter 9",
+      "StartPositionTicks": 41718750000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:09.6870026Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_45990420000.jpg",
+      "ImageTag": "c77f49e54c76de3174ab9b94825eef92",
+      "Name": "Chapter 10",
+      "StartPositionTicks": 45990420000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:10.1800093Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_50532500000.jpg",
+      "ImageTag": "2f04c2c0e90067ec761a50b09a87dcb0",
+      "Name": "Chapter 11",
+      "StartPositionTicks": 50532500000
+    },
+    {
+      "ImageDateModified": "2026-11-27T15:43:10.5680145Z",
+      "ImagePath": "/config/metadata/library/b4/b4863e59c8ec6641d6cbad411e0f6a07/chapters/639173816368469439_56300000000.jpg",
+      "ImageTag": "1c748f3aad5ca1a618a1b33dd28391c4",
+      "Name": "Chapter 12",
+      "StartPositionTicks": 56300000000
+    }
+  ],
+  "CommunityRating": 7.491,
+  "Container": "mkv",
+  "DateCreated": "2026-06-18T12:13:56.8469439Z",
+  "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "b4048b7f3ab0cd7c6000eea4d98dedf9",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt4468740"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/movie/346648"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "51cec9645b896084d12b259acd05ccb1",
+      "Name": "Adventure"
+    },
+    {
+      "Id": "08d31605d366d63a7a924f944b4417f1",
+      "Name": "Comedy"
+    },
+    {
+      "Id": "ccbd8d9008aab2b5e749e1cc4bc458a4",
+      "Name": "Family"
+    }
+  ],
+  "Genres": [
+    "Adventure",
+    "Comedy",
+    "Family"
+  ],
+  "HasSubtitles": true,
+  "Height": 802,
+  "Id": "b4863e59c8ec6641d6cbad411e0f6a07",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "9131f2fe24befdbaf7094768f7300849": "WPA^FJ%houbwnOwc?dt7a^S$jFs8IuV?jXfmS2ofJDkDxZw^Nbbw"
+    },
+    "Logo": {
+      "75faf1a18f10443d29818e8f56cc4f9d": "HAL2?S=[s-xX=[s-WWNJ}.^_xXNJ$}az$#$#odWp"
+    },
+    "Primary": {
+      "412932ab93151bc87afcd10ce55f36a2": "dLE-]t^k5FE9}Z$jxYt7VEiy?G%M=|e?tSog$,oNbHR+"
+    },
+    "Thumb": {
+      "5e85af39656b8708bc6bd9c5e61310a3": "WcHe%$%2p0o}Vr-7=;aJnMt3Rknz+XX8xBw[XTt6~7t7xZw[S$t6"
+    }
+  },
+  "ImageTags": {
+    "Logo": "75faf1a18f10443d29818e8f56cc4f9d",
+    "Primary": "412932ab93151bc87afcd10ce55f36a2",
+    "Thumb": "5e85af39656b8708bc6bd9c5e61310a3"
+  },
+  "IsFolder": false,
+  "IsHD": true,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 5068115,
+      "Container": "mkv",
+      "DefaultAudioStreamIndex": 2,
+      "DefaultSubtitleStreamIndex": 3,
+      "ETag": "99502486f60e8d79ce5c9e4b7e95151a",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": true,
+      "Id": "b4863e59c8ec6641d6cbad411e0f6a07",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "2.40:1",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 3340115,
+          "Codec": "hevc",
+          "DisplayTitle": "@7566Kbps High Profiles @L4.1 - 1080p - HEVC - SDR",
+          "Height": 802,
+          "Index": 0,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 120,
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "@7566Kbps High Profiles @L4.1",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 192000,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "ac3",
+          "DisplayTitle": "AC3@192Kbps 2 chnls - Turkish - Dolby Digital - Stereo",
+          "Index": 1,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "tur",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "Turkish",
+          "LocalizedOriginal": "Original",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "AC3@192Kbps 2 chnls",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 1536000,
+          "ChannelLayout": "5.1",
+          "Channels": 6,
+          "Codec": "dts",
+          "DisplayTitle": "DTS@1536Kbps 6 chnls - English - 5.1 - Default",
+          "Index": 2,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "Profile": "DTS",
+          "SampleRate": 48000,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/1000",
+          "Title": "DTS@1536Kbps 6 chnls",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "subrip",
+          "DisplayTitle": "Turkish - Default - SUBRIP",
+          "Index": 3,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": true,
+          "Language": "tur",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "Turkish",
+          "LocalizedUndefined": "Undefined",
+          "Score": 112221,
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "Codec": "PGSSUB",
+          "DisplayTitle": "English - PGSSUB",
+          "Height": 1080,
+          "Index": 4,
+          "IsDefault": false,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedForced": "Forced",
+          "LocalizedHearingImpaired": "Hearing Impaired",
+          "LocalizedLanguage": "English",
+          "LocalizedUndefined": "Undefined",
+          "SupportsExternalStream": true,
+          "TimeBase": "1/1000",
+          "Type": "Subtitle",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown",
+          "Width": 1920
+        }
+      ],
+      "Name": "Paddington 2 (2017) - 1080p",
+      "Path": "/data/Real/Movies/Paddington 2 (2017)/Paddington 2 (2017) - 1080p.mkv",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 61989120000,
+      "Size": 3927100209,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "2.40:1",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 24,
+      "BitDepth": 8,
+      "BitRate": 3340115,
+      "Codec": "hevc",
+      "DisplayTitle": "@7566Kbps High Profiles @L4.1 - 1080p - HEVC - SDR",
+      "Height": 802,
+      "Index": 0,
+      "IsAnamorphic": false,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "Level": 120,
+      "PixelFormat": "yuv420p",
+      "Profile": "Main",
+      "RealFrameRate": 24,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 24,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "@7566Kbps High Profiles @L4.1",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 1920
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 192000,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "ac3",
+      "DisplayTitle": "AC3@192Kbps 2 chnls - Turkish - Dolby Digital - Stereo",
+      "Index": 1,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "tur",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "Turkish",
+      "LocalizedOriginal": "Original",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "AC3@192Kbps 2 chnls",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 1536000,
+      "ChannelLayout": "5.1",
+      "Channels": 6,
+      "Codec": "dts",
+      "DisplayTitle": "DTS@1536Kbps 6 chnls - English - 5.1 - Default",
+      "Index": 2,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "Profile": "DTS",
+      "SampleRate": 48000,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/1000",
+      "Title": "DTS@1536Kbps 6 chnls",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "Codec": "subrip",
+      "DisplayTitle": "Turkish - Default - SUBRIP",
+      "Index": 3,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": true,
+      "Language": "tur",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedForced": "Forced",
+      "LocalizedHearingImpaired": "Hearing Impaired",
+      "LocalizedLanguage": "Turkish",
+      "LocalizedUndefined": "Undefined",
+      "Score": 112221,
+      "SupportsExternalStream": true,
+      "TimeBase": "1/1000",
+      "Type": "Subtitle",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "Codec": "PGSSUB",
+      "DisplayTitle": "English - PGSSUB",
+      "Height": 1080,
+      "Index": 4,
+      "IsDefault": false,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedForced": "Forced",
+      "LocalizedHearingImpaired": "Hearing Impaired",
+      "LocalizedLanguage": "English",
+      "LocalizedUndefined": "Undefined",
+      "SupportsExternalStream": true,
+      "TimeBase": "1/1000",
+      "Type": "Subtitle",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown",
+      "Width": 1920
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Paddington 2",
+  "OfficialRating": "CH-0",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "Paddington 2",
+  "Overview": "Paddington, now happily settled with the Browns, picks up a series of odd jobs to buy the perfect present for his Aunt Lucy, but it is stolen.",
+  "ParentId": "75da74a824ae4c175b598dbb6f213f32",
+  "Path": "/data/Real/Movies/Paddington 2 (2017)/Paddington 2 (2017) - 1080p.mkv",
+  "People": [
+    {
+      "Id": "d32f7954a2ba7629f33fb759c73b1555",
+      "ImageBlurHashes": {
+        "Primary": {
+          "411c834b04b844e03ee92ee93c1ba92a": "dVNTUU?a_N?bs+RQxaoLyDR*IBs;_2ofxu%2-:oyaet7"
+        }
+      },
+      "Name": "Ben Whishaw",
+      "PrimaryImageTag": "411c834b04b844e03ee92ee93c1ba92a",
+      "Role": "Paddington Brown (voice)",
+      "Type": "Actor"
+    },
+    {
+      "Id": "de524f8227e102427a690ac06c28d5d1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a8806c2d71eb4d32e830c7db7881e636": "dVK,?LxGJB?b0fR*-;flo#t7-os:?bxa%MxuWXofj]WW"
+        }
+      },
+      "Name": "Sally Hawkins",
+      "PrimaryImageTag": "a8806c2d71eb4d32e830c7db7881e636",
+      "Role": "Mary Brown",
+      "Type": "Actor"
+    },
+    {
+      "Id": "17a4439fe409532d7ae5db2a2a56daa5",
+      "ImageBlurHashes": {
+        "Primary": {
+          "6ee903124a0ca21131309c0e88f316f8": "dOB{feNG0f%2={R*NHxaIos:xGNGI;s.s:R*Rkj[t7j]"
+        }
+      },
+      "Name": "Hugh Bonneville",
+      "PrimaryImageTag": "6ee903124a0ca21131309c0e88f316f8",
+      "Role": "Henry Brown",
+      "Type": "Actor"
+    },
+    {
+      "Id": "3d86be81a4e4ab52f8e59d92e9eb5a38",
+      "ImageBlurHashes": {
+        "Primary": {
+          "5614f880917435a583ee313aaf7b8c00": "dgKmOt?G0LWC4:NGRjM{OXof%2xuE1RkogWBIVWCxafk"
+        }
+      },
+      "Name": "Madeleine Harris",
+      "PrimaryImageTag": "5614f880917435a583ee313aaf7b8c00",
+      "Role": "Judy Brown",
+      "Type": "Actor"
+    },
+    {
+      "Id": "4a0dabfbf4a4e89d149770839f00955f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "24b8c1ba8804a860996ef98fe7931437": "dgI4w_~WEhSi9ZNF-pxuEiNGnijst7xaxuogs:WBf6oe"
+        }
+      },
+      "Name": "Samuel Joslin",
+      "PrimaryImageTag": "24b8c1ba8804a860996ef98fe7931437",
+      "Role": "Jonathan Brown",
+      "Type": "Actor"
+    },
+    {
+      "Id": "74326d0b121f3d384ceb18b56b7321b1",
+      "ImageBlurHashes": {
+        "Primary": {
+          "6f511654b9f1cc2faf1fd2e26b134ed6": "dqPX%*t5TK-py=octRg3r]njs9s:xvS#jZt7k=n%kCjb"
+        }
+      },
+      "Name": "Julie Walters",
+      "PrimaryImageTag": "6f511654b9f1cc2faf1fd2e26b134ed6",
+      "Role": "Mrs. Bird",
+      "Type": "Actor"
+    },
+    {
+      "Id": "ff6017c154253de3fbb348a30a99eeaa",
+      "ImageBlurHashes": {
+        "Primary": {
+          "8f07c675f9f5e6256a28fbc21292455a": "dlH_iNt7EN%M4mWARjRitSof%1WXNGjst7ofIUWVn$ae"
+        }
+      },
+      "Name": "Hugh Grant",
+      "PrimaryImageTag": "8f07c675f9f5e6256a28fbc21292455a",
+      "Role": "Phoenix Buchanan",
+      "Type": "Actor"
+    },
+    {
+      "Id": "752a935756079f0eef85ebcf01cf203a",
+      "ImageBlurHashes": {
+        "Primary": {
+          "54c4efdcea13f0f8b55db08431c6ea75": "dTI3g$={57IV%0jZ-UxG1cR*%LxtWCn*s:WXVsjuxZxG"
+        }
+      },
+      "Name": "Imelda Staunton",
+      "PrimaryImageTag": "54c4efdcea13f0f8b55db08431c6ea75",
+      "Role": "Aunt Lucy (voice)",
+      "Type": "Actor"
+    },
+    {
+      "Id": "2a2a4bde37000a335fd22f1ec01db20a",
+      "ImageBlurHashes": {
+        "Primary": {
+          "fb2328a178b6b7a06b2ded14ec6bc07d": "dWD[tnt757W;-ooeNafk0fWB-UoLEMWVxZjst6ayofj["
+        }
+      },
+      "Name": "Brendan Gleeson",
+      "PrimaryImageTag": "fb2328a178b6b7a06b2ded14ec6bc07d",
+      "Role": "Knuckles McGinty",
+      "Type": "Actor"
+    },
+    {
+      "Id": "7b8c64c3fe3ef23ac522675874012ace",
+      "ImageBlurHashes": {
+        "Primary": {
+          "fe170a21d96164f2767bab343acabf40": "dZGbM4=|tmI;~W%LbcR*E1NGV@ofS$M{j[ofxaofWBbb"
+        }
+      },
+      "Name": "Jim Broadbent",
+      "PrimaryImageTag": "fe170a21d96164f2767bab343acabf40",
+      "Role": "Samuel Gruber",
+      "Type": "Actor"
+    },
+    {
+      "Id": "9175e0667df858b72fb675f76e3ba2fa",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a875a24714c27ae212f6e5cd76cb540c": "dL9ZiyoL0eay%2jtM|j[57ay=|oLE1fQ%2ayWBj[ofWB"
+        }
+      },
+      "Name": "Peter Capaldi",
+      "PrimaryImageTag": "a875a24714c27ae212f6e5cd76cb540c",
+      "Role": "Reginald Curry",
+      "Type": "Actor"
+    },
+    {
+      "Id": "79b1f93035074f91d441f82491119173",
+      "ImageBlurHashes": {
+        "Primary": {
+          "705e79ec3156205f838b16b1ca19508a": "dhHn{WRPXMNG~TRix]R%o~R%sRxvg3WXs;s,x[WAoft8"
+        }
+      },
+      "Name": "Ben Miller",
+      "PrimaryImageTag": "705e79ec3156205f838b16b1ca19508a",
+      "Role": "Colonel Lancaster",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e4dd3ecbe180f8e5ecc0bc8ac8c2af1f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "111c7e34c0a3a506b00a92349d0487c9": "dWLzHm=|K+yD0fS5s;aK.9WB-o%2-=s:xuW=tlkWaeaf"
+        }
+      },
+      "Name": "Jessica Hynes",
+      "PrimaryImageTag": "111c7e34c0a3a506b00a92349d0487c9",
+      "Role": "Miss Kitts",
+      "Type": "Actor"
+    },
+    {
+      "Id": "5a90547757efa6e5289f28ba596f58b2",
+      "ImageBlurHashes": {
+        "Primary": {
+          "e4dde8eb3c32e72414e6dd273f265741": "dpF}yat70eNai^oLtRWVOYWBr=ofIUWBxujuR*WVn%oL"
+        }
+      },
+      "Name": "Michael Gambon",
+      "PrimaryImageTag": "e4dde8eb3c32e72414e6dd273f265741",
+      "Role": "Uncle Pastuzo (voice)",
+      "Type": "Actor"
+    },
+    {
+      "Id": "17af7ce2acaeea75c9550841712edb8f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "7ae80718cd0516a06e50a284d529741d": "dWCY:aj[0foeV@ayozoeEMoexFRkNHWVs:ofNGoLxaWC"
+        }
+      },
+      "Name": "Noah Taylor",
+      "PrimaryImageTag": "7ae80718cd0516a06e50a284d529741d",
+      "Role": "Phibs",
+      "Type": "Actor"
+    },
+    {
+      "Id": "c2e35b2161cc6aacfb2fb0b31266a70c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cf47735f802083d82a83507b57015c7": "dUGlMI%10=XpNkt8toWsJCIqZ}xsTNt8%1NIO0ohtSt8"
+        }
+      },
+      "Name": "Paul King",
+      "PrimaryImageTag": "1cf47735f802083d82a83507b57015c7",
+      "Role": "Director",
+      "Type": "Director"
+    },
+    {
+      "Id": "c2e35b2161cc6aacfb2fb0b31266a70c",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cf47735f802083d82a83507b57015c7": "dUGlMI%10=XpNkt8toWsJCIqZ}xsTNt8%1NIO0ohtSt8"
+        }
+      },
+      "Name": "Paul King",
+      "PrimaryImageTag": "1cf47735f802083d82a83507b57015c7",
+      "Role": "Screenplay",
+      "Type": "Writer"
+    },
+    {
+      "Id": "ec1e80242bac9aeff98c23fd9a60b3c5",
+      "ImageBlurHashes": {
+        "Primary": {
+          "d9bac841a5b88af044fbb8c4211da64b": "dXI4*DbwBE-;~qjZtSo#EhjEwbR*T0ogxuxa%ht7xut7"
+        }
+      },
+      "Name": "Simon Farnaby",
+      "PrimaryImageTag": "d9bac841a5b88af044fbb8c4211da64b",
+      "Role": "Screenplay",
+      "Type": "Writer"
+    },
+    {
+      "Id": "15a8cde699d4db0da3bfdf79d2703513",
+      "ImageBlurHashes": {
+        "Primary": {
+          "77f990a6a2b6a44290e9b4bbdc68bb91": "dWF4+U$g57X8~An$NGt7EMR+$*s:ELofs;RkIpoes:ay"
+        }
+      },
+      "Name": "Jon Croker",
+      "PrimaryImageTag": "77f990a6a2b6a44290e9b4bbdc68bb91",
+      "Role": "Writer",
+      "Type": "Writer"
+    },
+    {
+      "Id": "332d80644a3164c2bc02c1eb5068dd05",
+      "ImageBlurHashes": {
+        "Primary": {
+          "c171d01e01d657e369bb406d3a14f455": "dZDm2ZbcF}xw?wt8TLWUXoWAnhoMR+WqaJn~T0ofs.W="
+        }
+      },
+      "Name": "Mark Burton",
+      "PrimaryImageTag": "c171d01e01d657e369bb406d3a14f455",
+      "Role": "Writer",
+      "Type": "Writer"
+    },
+    {
+      "Id": "b64aac87a57ce394a52bbc23ccfda445",
+      "ImageBlurHashes": {
+        "Primary": {
+          "85d37a413ab7d35a8214c80af651612e": "dOGtTv=|0zI:M_WUxHWB9}NIV@R*E1I:-Vs:R,kVxFt6"
+        }
+      },
+      "Name": "David Heyman",
+      "PrimaryImageTag": "85d37a413ab7d35a8214c80af651612e",
+      "Role": "Producer",
+      "Type": "Producer"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2017-11-05T00:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionLocations": [
+    "France",
+    "United Kingdom"
+  ],
+  "ProductionYear": 2017,
+  "ProviderIds": {
+    "Imdb": "tt4468740",
+    "Tmdb": "346648",
+    "TmdbCollection": "488924"
+  },
+  "RemoteTrailers": [
+    {
+      "Name": "PADDINGTON 2 -  US Trailer 2",
+      "Url": "https://www.youtube.com/watch?v=07Um1PY_P4o"
+    },
+    {
+      "Name": "PADDINGTON 2 - Full US Trailer",
+      "Url": "https://www.youtube.com/watch?v=sw7RElt-SvE"
+    },
+    {
+      "Name": "PADDINGTON 2 - Official Film Trailer (International)",
+      "Url": "https://www.youtube.com/watch?v=52x5HJ9H8DM"
+    },
+    {
+      "Name": "PADDINGTON 2 - Teaser Trailer",
+      "Url": "https://www.youtube.com/watch?v=a6NNiM4fygc"
+    }
+  ],
+  "RunTimeTicks": 61989120000,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "paddington 0000000002",
+  "SpecialFeatureCount": 0,
+  "Studios": [
+    {
+      "Id": "fc0a25f6bf762cd00ece740096a80a11",
+      "Name": "StudioCanal"
+    },
+    {
+      "Id": "9d4615a9c392f7eecedf6ea05f127c5a",
+      "Name": "Heyday Films"
+    },
+    {
+      "Id": "b2c13dbc9fbf171c48cc3425df1e18ec",
+      "Name": "Anton Capital Entertainment"
+    }
+  ],
+  "Taglines": [
+    "Magic. Mystery. Marmalade."
+  ],
+  "Tags": [
+    "prison",
+    "london, england",
+    "based on novel or book",
+    "escape",
+    "police",
+    "fair",
+    "carnival",
+    "hot air balloon",
+    "sandwich",
+    "sequel",
+    "prison escape",
+    "jail",
+    "bear",
+    "misunderstanding",
+    "train",
+    "false accusations",
+    "based on children's book",
+    "family",
+    "animals",
+    "aging actor",
+    "duringcreditsstinger",
+    "bad guy",
+    "live action and animation",
+    "candid",
+    "talking animal",
+    "cgi-live action hybrid",
+    "book",
+    "orange",
+    "witty",
+    "hilarious",
+    "comedy",
+    "amused",
+    "empathetic",
+    "enthusiastic",
+    "vibrant",
+    "prison drama",
+    "marmalade"
+  ],
+  "Trickplay": {
+    "b4863e59c8ec6641d6cbad411e0f6a07": {
+      "320": {
+        "Bandwidth": 9871,
+        "Height": 132,
+        "Interval": 10000,
+        "ThumbnailCount": 620,
+        "TileHeight": 10,
+        "TileWidth": 10,
+        "Width": 320
+      }
+    }
+  },
+  "Type": "Movie",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "b4863e59c8ec6641d6cbad411e0f6a07",
+    "Key": "346648",
+    "LastPlayedDate": "2026-11-27T19:28:21.0000000Z",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 3094690000,
+    "Played": false,
+    "PlayedPercentage": 4.992311554027546
+  },
+  "VideoType": "VideoFile",
+  "Width": 1920
+}

@@ -1,0 +1,397 @@
+{
+  "BackdropImageTags": [
+    "6ee433185b2cb338ea54e9a03c977535"
+  ],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [],
+  "CommunityRating": 5.715,
+  "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+  "DateCreated": "2026-06-21T13:10:10.5819658Z",
+  "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "f94273a9a0615c70697f012adff5eab8",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt2285752"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/movie/133701"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "0430d514c35e1f158fa93f1eeb8361ea",
+      "Name": "Science Fiction"
+    },
+    {
+      "Id": "074229225b7254292f131f9f49f8dcd6",
+      "Name": "Animation"
+    }
+  ],
+  "Genres": [
+    "Science Fiction",
+    "Animation"
+  ],
+  "Height": 800,
+  "Id": "32f920671588f567e2ec3d351399f374",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "6ee433185b2cb338ea54e9a03c977535": "WIHxyZ?aM^x,ng~o^[%KIntKoIIn^$?bIUITt6Io_2-;NGRP-pWX"
+    },
+    "Logo": {
+      "2e34e0ba5b6384d2a9b81f34ec993ecc": "HQEfTit7xu%MD%t7RjRjof~qt7j[t7M{j[Rjofof"
+    },
+    "Primary": {
+      "96708ba0f45217635689013884c0187e": "dlF$R#-:xt%2~pxut6t7t7a#WBWBj[RjRkWBxtaxj?oe"
+    }
+  },
+  "ImageTags": {
+    "Logo": "2e34e0ba5b6384d2a9b81f34ec993ecc",
+    "Primary": "96708ba0f45217635689013884c0187e"
+  },
+  "IsFolder": false,
+  "IsHD": true,
+  "LocalTrailerCount": 1,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 6361215,
+      "Container": "mov",
+      "DefaultAudioStreamIndex": 1,
+      "ETag": "6b5c56a6e5d0a2f87327b35089513632",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": false,
+      "Id": "32f920671588f567e2ec3d351399f374",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "2.40:1",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 6162664,
+          "Codec": "h264",
+          "CodecTag": "avc1",
+          "DisplayTitle": "1080p H264 SDR",
+          "Height": 800,
+          "Index": 0,
+          "IsAVC": true,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "Level": 40,
+          "NalLengthSize": "4",
+          "PixelFormat": "yuv420p",
+          "Profile": "Main",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/24",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 1920
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 191999,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "mp3",
+          "CodecTag": ".mp3",
+          "DisplayTitle": "English - MP3 - Stereo - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "eng",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "English",
+          "LocalizedOriginal": "Original",
+          "SampleRate": 44100,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/44100",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        }
+      ],
+      "Name": "Tears of Steel (2012)",
+      "Path": "/data/Movies/Tears of Steel (2012)/Tears of Steel (2012).mov",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 7341666670,
+      "Size": 583774083,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "2.40:1",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 24,
+      "BitDepth": 8,
+      "BitRate": 6162664,
+      "Codec": "h264",
+      "CodecTag": "avc1",
+      "DisplayTitle": "1080p H264 SDR",
+      "Height": 800,
+      "Index": 0,
+      "IsAVC": true,
+      "IsAnamorphic": false,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "Level": 40,
+      "NalLengthSize": "4",
+      "PixelFormat": "yuv420p",
+      "Profile": "Main",
+      "RealFrameRate": 24,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 24,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/24",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 1920
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 191999,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "mp3",
+      "CodecTag": ".mp3",
+      "DisplayTitle": "English - MP3 - Stereo - Default",
+      "Index": 1,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "eng",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "English",
+      "LocalizedOriginal": "Original",
+      "SampleRate": 44100,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/44100",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Tears of Steel",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "Tears of Steel",
+  "Overview": "The film’s premise is about a group of warriors and scientists, who gathered at the “Oude Kerk” in Amsterdam to stage a crucial event from the past, in a desperate attempt to rescue the world from destructive robots.",
+  "ParentId": "aa5380d0c01924c4efd3a6146a617a3a",
+  "Path": "/data/Movies/Tears of Steel (2012)/Tears of Steel (2012).mov",
+  "People": [
+    {
+      "Id": "7567444f26a0dd27eec6ea9ce62de754",
+      "ImageBlurHashes": {
+        "Primary": {
+          "5e4671fd1ba69af8dfa8056018522e00": "dPE.Y1~V0f4:%0-pozNG5RE2$*%2E1M|RjenIoRjxGof"
+        }
+      },
+      "Name": "Derek de Lint",
+      "PrimaryImageTag": "5e4671fd1ba69af8dfa8056018522e00",
+      "Role": "Old Thom",
+      "Type": "Actor"
+    },
+    {
+      "Id": "dc63d5afc6441210372cb0bae68b8915",
+      "ImageBlurHashes": {
+        "Primary": {
+          "d83f19d0b0d6bd3fd68a6c1917b3bdc0": "dHC~k-Rk9Fs+0Ms:kWNH9Fs,XBNe^*WXs8xDbwR+nhod"
+        }
+      },
+      "Name": "Sergio Hasselbaink",
+      "PrimaryImageTag": "d83f19d0b0d6bd3fd68a6c1917b3bdc0",
+      "Role": "Barly",
+      "Type": "Actor"
+    },
+    {
+      "Id": "a988f9adfb41975c48623542cda29794",
+      "ImageBlurHashes": {
+        "Primary": {
+          "3971d6fadf3b40534a09f58e42ece880": "dOFOW1~BElNHM{WCWBofE1IoIUM|I=R*tRkCt7t7t7t7"
+        }
+      },
+      "Name": "Vanja Rukavina",
+      "PrimaryImageTag": "3971d6fadf3b40534a09f58e42ece880",
+      "Role": "Thom",
+      "Type": "Actor"
+    },
+    {
+      "Id": "abb620985dc24a4396e59c6aafaff7f9",
+      "ImageBlurHashes": {
+        "Primary": {
+          "16086c54b8174ed41042630d0397218c": "dH9@S5-;0000t7WBofofD%Rj-;%Mt7ofRjRjD%M{%M%M"
+        }
+      },
+      "Name": "Denise Rebergen",
+      "PrimaryImageTag": "16086c54b8174ed41042630d0397218c",
+      "Role": "Celia",
+      "Type": "Actor"
+    },
+    {
+      "Id": "0d50f174a83b2c54e9303a719aaeaf77",
+      "ImageBlurHashes": {
+        "Primary": {
+          "ad37d7cbd54b7603c57d93890c0de071": "dXK^d9ib.TOs~qM{?bxu0fo}nhae%NNGxu%2.8WY-p?a"
+        }
+      },
+      "Name": "Rogier Schippers",
+      "PrimaryImageTag": "ad37d7cbd54b7603c57d93890c0de071",
+      "Role": "Kapitän",
+      "Type": "Actor"
+    },
+    {
+      "Id": "561af84c9a2217a6aa1ef05e6ac49508",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Chris Haley",
+      "Role": "Tech head",
+      "Type": "Actor"
+    },
+    {
+      "Id": "4c7c91b171da946cc097c4dd1b00e9db",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Jody Bhe",
+      "Role": "Djenghis",
+      "Type": "Actor"
+    },
+    {
+      "Id": "f3a97072ceb312db1104209ba5d135b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1587d708b3c18e441a735d47fa4ed902": "daIW$F9b0g-oR8t7kWoLE3t7-oRQIqWX%Ls.xas:bIfR"
+        }
+      },
+      "Name": "Ian Hubert",
+      "PrimaryImageTag": "1587d708b3c18e441a735d47fa4ed902",
+      "Role": "Director",
+      "Type": "Director"
+    },
+    {
+      "Id": "f3a97072ceb312db1104209ba5d135b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1587d708b3c18e441a735d47fa4ed902": "daIW$F9b0g-oR8t7kWoLE3t7-oRQIqWX%Ls.xas:bIfR"
+        }
+      },
+      "Name": "Ian Hubert",
+      "PrimaryImageTag": "1587d708b3c18e441a735d47fa4ed902",
+      "Role": "Writer",
+      "Type": "Writer"
+    },
+    {
+      "Id": "49f34ba9aaa3cc6004fbee058aea50b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cd344ce7f8d56ba5c1b6682ed017bc2": "dJINUFIp~q=|-4In$eWVOtt7XAj?=_jExB%2bcWXt7xa"
+        }
+      },
+      "Name": "Ton Roosendaal",
+      "PrimaryImageTag": "1cd344ce7f8d56ba5c1b6682ed017bc2",
+      "Role": "Producer",
+      "Type": "Producer"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2012-09-24T22:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6748046875,
+  "ProductionLocations": [
+    "Netherlands"
+  ],
+  "ProductionYear": 2012,
+  "ProviderIds": {
+    "Imdb": "tt2285752",
+    "Tmdb": "133701"
+  },
+  "RemoteTrailers": [
+    {
+      "Name": "Tears of Steel - Teaser",
+      "Url": "https://www.youtube.com/watch?v=WwHux5QZfC8"
+    }
+  ],
+  "RunTimeTicks": 7341666670,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "tears of steel",
+  "SpecialFeatureCount": 2,
+  "Studios": [
+    {
+      "Id": "66ac02ba6812c3e031d36b31750e19e3",
+      "Name": "Blender Foundation"
+    }
+  ],
+  "Taglines": [],
+  "Tags": [
+    "man vs machine",
+    "saving the world",
+    "amsterdam, netherlands",
+    "killer robot",
+    "fictional war"
+  ],
+  "Trickplay": {},
+  "Type": "Movie",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "32f920671588f567e2ec3d351399f374",
+    "Key": "133701",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  },
+  "VideoType": "VideoFile",
+  "Width": 1920
+}

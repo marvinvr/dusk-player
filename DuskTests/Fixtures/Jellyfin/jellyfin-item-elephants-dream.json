@@ -1,0 +1,334 @@
+{
+  "BackdropImageTags": [
+    "062a41b4267da9208294511a00ac4226"
+  ],
+  "CanDelete": false,
+  "CanDownload": true,
+  "ChannelId": null,
+  "Chapters": [],
+  "CommunityRating": 5.781,
+  "Container": "mov,mp4,m4a,3gp,3g2,mj2",
+  "DateCreated": "2026-06-21T13:10:03.8918972Z",
+  "DisplayPreferencesId": "dbf7709c41faaa746463d67978eb863d",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "c68ed84585a49a60bfcba07540439437",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt0807840"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/movie/9761"
+    }
+  ],
+  "GenreItems": [
+    {
+      "Id": "074229225b7254292f131f9f49f8dcd6",
+      "Name": "Animation"
+    },
+    {
+      "Id": "0430d514c35e1f158fa93f1eeb8361ea",
+      "Name": "Science Fiction"
+    }
+  ],
+  "Genres": [
+    "Animation",
+    "Science Fiction"
+  ],
+  "Height": 360,
+  "Id": "fb75c91b612f5d1c5b95e71c129a2ff1",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "062a41b4267da9208294511a00ac4226": "WJAAK@0L$%bHIA?uxvIUxutRM{xuNxxDS4n$R*fkoJkCWBWqs:WB"
+    },
+    "Primary": {
+      "002d785669cab5ba4a65ad9ab53fe65f": "d47,}Z?H4.9Z^Kn$I[R-9aIVIr%2?ubcMxjE9FR*~B%2"
+    }
+  },
+  "ImageTags": {
+    "Logo": "b6cca335f4507f7188b74bf5e18773e0",
+    "Primary": "002d785669cab5ba4a65ad9ab53fe65f"
+  },
+  "IsFolder": false,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaSources": [
+    {
+      "Bitrate": 830016,
+      "Container": "mp4",
+      "DefaultAudioStreamIndex": 1,
+      "ETag": "1500d5e6eb52f0324284e6b0fface3c8",
+      "Formats": [],
+      "GenPtsInput": false,
+      "HasSegments": false,
+      "Id": "fb75c91b612f5d1c5b95e71c129a2ff1",
+      "IgnoreDts": false,
+      "IgnoreIndex": false,
+      "IsInfiniteStream": false,
+      "IsRemote": false,
+      "MediaAttachments": [],
+      "MediaStreams": [
+        {
+          "AspectRatio": "16:9",
+          "AudioSpatialFormat": "None",
+          "AverageFrameRate": 24,
+          "BitDepth": 8,
+          "BitRate": 697313,
+          "Codec": "h264",
+          "CodecTag": "avc1",
+          "DisplayTitle": "360p H264 SDR",
+          "Height": 360,
+          "Index": 0,
+          "IsAVC": true,
+          "IsAnamorphic": false,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "Level": 30,
+          "NalLengthSize": "4",
+          "PixelFormat": "yuv420p",
+          "Profile": "Constrained Baseline",
+          "RealFrameRate": 24,
+          "RefFrames": 1,
+          "ReferenceFrameRate": 24,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/12288",
+          "Type": "Video",
+          "VideoRange": "SDR",
+          "VideoRangeType": "SDR",
+          "Width": 640
+        },
+        {
+          "AudioSpatialFormat": "None",
+          "BitRate": 128078,
+          "ChannelLayout": "stereo",
+          "Channels": 2,
+          "Codec": "aac",
+          "CodecTag": "mp4a",
+          "DisplayTitle": "AAC - Stereo - Default",
+          "Index": 1,
+          "IsDefault": true,
+          "IsExternal": false,
+          "IsForced": false,
+          "IsHearingImpaired": false,
+          "IsInterlaced": false,
+          "IsOriginal": false,
+          "IsTextSubtitleStream": false,
+          "Language": "und",
+          "LocalizedDefault": "Default",
+          "LocalizedExternal": "External",
+          "LocalizedLanguage": "Undetermined",
+          "LocalizedOriginal": "Original",
+          "Profile": "LC",
+          "SampleRate": 44100,
+          "SupportsExternalStream": false,
+          "TimeBase": "1/44100",
+          "Type": "Audio",
+          "VideoRange": "Unknown",
+          "VideoRangeType": "Unknown"
+        }
+      ],
+      "Name": "Elephants Dream (2006)",
+      "Path": "/data/Movies/Elephants Dream (2006)/Elephants Dream (2006).mp4",
+      "Protocol": "File",
+      "ReadAtNativeFramerate": false,
+      "RequiredHttpHeaders": {},
+      "RequiresClosing": false,
+      "RequiresLooping": false,
+      "RequiresOpening": false,
+      "RunTimeTicks": 6538239910,
+      "Size": 67835590,
+      "SupportsDirectPlay": true,
+      "SupportsDirectStream": true,
+      "SupportsProbing": true,
+      "SupportsTranscoding": true,
+      "TranscodingSubProtocol": "http",
+      "Type": "Default",
+      "UseMostCompatibleTranscodingProfile": false,
+      "VideoType": "VideoFile"
+    }
+  ],
+  "MediaStreams": [
+    {
+      "AspectRatio": "16:9",
+      "AudioSpatialFormat": "None",
+      "AverageFrameRate": 24,
+      "BitDepth": 8,
+      "BitRate": 697313,
+      "Codec": "h264",
+      "CodecTag": "avc1",
+      "DisplayTitle": "360p H264 SDR",
+      "Height": 360,
+      "Index": 0,
+      "IsAVC": true,
+      "IsAnamorphic": false,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "Level": 30,
+      "NalLengthSize": "4",
+      "PixelFormat": "yuv420p",
+      "Profile": "Constrained Baseline",
+      "RealFrameRate": 24,
+      "RefFrames": 1,
+      "ReferenceFrameRate": 24,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/12288",
+      "Type": "Video",
+      "VideoRange": "SDR",
+      "VideoRangeType": "SDR",
+      "Width": 640
+    },
+    {
+      "AudioSpatialFormat": "None",
+      "BitRate": 128078,
+      "ChannelLayout": "stereo",
+      "Channels": 2,
+      "Codec": "aac",
+      "CodecTag": "mp4a",
+      "DisplayTitle": "AAC - Stereo - Default",
+      "Index": 1,
+      "IsDefault": true,
+      "IsExternal": false,
+      "IsForced": false,
+      "IsHearingImpaired": false,
+      "IsInterlaced": false,
+      "IsOriginal": false,
+      "IsTextSubtitleStream": false,
+      "Language": "und",
+      "LocalizedDefault": "Default",
+      "LocalizedExternal": "External",
+      "LocalizedLanguage": "Undetermined",
+      "LocalizedOriginal": "Original",
+      "Profile": "LC",
+      "SampleRate": 44100,
+      "SupportsExternalStream": false,
+      "TimeBase": "1/44100",
+      "Type": "Audio",
+      "VideoRange": "Unknown",
+      "VideoRangeType": "Unknown"
+    }
+  ],
+  "MediaType": "Video",
+  "Name": "Elephants Dream",
+  "OfficialRating": "NR",
+  "OriginalLanguage": "en",
+  "OriginalTitle": "Elephants Dream",
+  "Overview": "Elephants Dream is the story of two strange characters exploring a capricious and seemingly infinite machine. The elder, Proog, acts as a tour-guide and protector, happily showing off the sights and dangers of the machine to his initially curious but increasingly skeptical protege Emo. As their journey unfolds we discover signs that the machine is not all Proog thinks it is, and his guiding takes on a more desperate aspect.  Elephants Dream is a story about communication and fiction, made purposefully open-ended as the world’s first 3D animated “Open movie”. The film itself is released under the Creative Commons license, along with the entirety of the production files used to make it (roughly 7 Gigabytes of data). The software used to make the movie is the free/open source animation suite Blender along with other open source software, thus allowing the movie to be remade, remixed and re-purposed with only a computer and the data on the DVD or download.",
+  "ParentId": "aa5380d0c01924c4efd3a6146a617a3a",
+  "Path": "/data/Movies/Elephants Dream (2006)/Elephants Dream (2006).mp4",
+  "People": [
+    {
+      "Id": "e0b62a4ae3dd0077f2ba9c35b04e5e5e",
+      "ImageBlurHashes": {
+        "Primary": {
+          "6b5b18ae482527fcf7f4b0ac27a57c5e": "dQELW=sp0zNa~CxGELNaEjt6VtV[JBkCaKaLX7W=$%jF"
+        }
+      },
+      "Name": "Tygo Gernandt",
+      "PrimaryImageTag": "6b5b18ae482527fcf7f4b0ac27a57c5e",
+      "Role": "Proog (voice)",
+      "Type": "Actor"
+    },
+    {
+      "Id": "3252d10fb7947e9b6df54ba97545df76",
+      "ImageBlurHashes": {
+        "Primary": {
+          "fe168c9a0ec942001c0f2f7b2b423faa": "dJFYDd^+6Btl%et7t5WX0#I?$%%1b^%L%MX9%gWCxZxZ"
+        }
+      },
+      "Name": "Cas Jansen",
+      "PrimaryImageTag": "fe168c9a0ec942001c0f2f7b2b423faa",
+      "Role": "Emo (voice)",
+      "Type": "Actor"
+    },
+    {
+      "Id": "4e90afdb50de3a03f8b102188e2d0834",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Bassam Kurdali",
+      "Role": "Director",
+      "Type": "Director"
+    },
+    {
+      "Id": "e67d89bd2ceb48960a1ecca0302e558d",
+      "ImageBlurHashes": {
+        "Primary": {}
+      },
+      "Name": "Pepijn Zwanenberg",
+      "Role": "Screenplay",
+      "Type": "Writer"
+    },
+    {
+      "Id": "49f34ba9aaa3cc6004fbee058aea50b7",
+      "ImageBlurHashes": {
+        "Primary": {
+          "1cd344ce7f8d56ba5c1b6682ed017bc2": "dJINUFIp~q=|-4In$eWVOtt7XAj?=_jExB%2bcWXt7xa"
+        }
+      },
+      "Name": "Ton Roosendaal",
+      "PrimaryImageTag": "1cd344ce7f8d56ba5c1b6682ed017bc2",
+      "Role": "Producer",
+      "Type": "Producer"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2006-03-23T23:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionLocations": [
+    "Netherlands"
+  ],
+  "ProductionYear": 2006,
+  "ProviderIds": {
+    "Imdb": "tt0807840",
+    "Tmdb": "9761"
+  },
+  "RemoteTrailers": [
+    {
+      "Name": "Elephants Dream Trailer",
+      "Url": "https://www.youtube.com/watch?v=_0wxP7EWsOc"
+    }
+  ],
+  "RunTimeTicks": 6538239910,
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "elephants dream",
+  "SpecialFeatureCount": 0,
+  "Studios": [
+    {
+      "Id": "66ac02ba6812c3e031d36b31750e19e3",
+      "Name": "Blender Foundation"
+    }
+  ],
+  "Taglines": [],
+  "Tags": [
+    "future",
+    "dreams",
+    "blender"
+  ],
+  "Trickplay": {},
+  "Type": "Movie",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "fb75c91b612f5d1c5b95e71c129a2ff1",
+    "Key": "9761",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false
+  },
+  "VideoType": "VideoFile",
+  "Width": 640
+}

@@ -1,0 +1,156 @@
+{
+  "BackdropImageTags": [],
+  "CanDelete": false,
+  "CanDownload": false,
+  "ChannelId": null,
+  "Chapters": [],
+  "ChildCount": 6,
+  "DateCreated": "2026-11-27T15:40:45.6353838Z",
+  "DateLastMediaAdded": "0001-01-01T00:00:00.0000000Z",
+  "DisplayPreferencesId": "dfd065f5787fb957a750d76dcf835aad",
+  "EnableMediaSourceDisplay": true,
+  "Etag": "bf4cfed897b94f9b8f40176d71608bec",
+  "ExternalUrls": [
+    {
+      "Name": "IMDb",
+      "Url": "https://www.imdb.com/title/tt0386676/episodes/?season=1"
+    },
+    {
+      "Name": "TMDB",
+      "Url": "https://www.themoviedb.org/tv/2316/season/1"
+    }
+  ],
+  "GenreItems": [],
+  "Genres": [],
+  "Id": "89b6f2f7378f55721704fcbc3b7b776f",
+  "ImageBlurHashes": {
+    "Backdrop": {
+      "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+    },
+    "Logo": {
+      "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+    },
+    "Primary": {
+      "22f82df02f46e618909e146f5de1907a": "dpODRZ-:-;?b$xxuRjad~pxuWDoe-oR*bIs.M_RkaeRj",
+      "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+    },
+    "Thumb": {
+      "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+    }
+  },
+  "ImageTags": {
+    "Primary": "22f82df02f46e618909e146f5de1907a"
+  },
+  "IndexNumber": 1,
+  "IsFolder": true,
+  "LocalTrailerCount": 0,
+  "LocationType": "FileSystem",
+  "LockData": false,
+  "LockedFields": [],
+  "MediaType": "Unknown",
+  "Name": "Season 1",
+  "Overview": "This season introduced the main characters, and established the general plot, which revolves around Michael Scott, regional manager of the Scranton branch office, trying to convince the filmmakers of the documentary that he presides over a happy, well-running office. Meanwhile, sales rep Jim Halpert finds methods to undermine his cube-mate, Dwight Schrute; receptionist Pam Beesly tries to deal with Michael's insensitivities and flubs; and temporary employee Ryan Howard is acting mostly as an observer of the insanity around him.",
+  "ParentBackdropImageTags": [
+    "8635884fe0a24bdb4edee384b5c54ca7"
+  ],
+  "ParentBackdropItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ParentId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ParentLogoImageTag": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+  "ParentLogoItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "ParentThumbImageTag": "20adba5802b559b4284240b66107aaf8",
+  "ParentThumbItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "Path": "/data/Real/TV/The Office (US)/Season 1",
+  "People": [
+    {
+      "Id": "41924714d75ff8b107e71562f11bcae9",
+      "ImageBlurHashes": {
+        "Primary": {
+          "a4a8e28d4c8a68589c3ef6a933184ee6": "dsJ7?it7%g-:~Vj@tRxtNHayV@WVtRkBo0of-:kBt6t6"
+        }
+      },
+      "Name": "Steve Carell",
+      "PrimaryImageTag": "a4a8e28d4c8a68589c3ef6a933184ee6",
+      "Role": "Michael Scott",
+      "Type": "Actor"
+    },
+    {
+      "Id": "12728bc964881bc1793c7f5daad9ac4d",
+      "ImageBlurHashes": {
+        "Primary": {
+          "4f81757011c40284b3d40805b7edbd3e": "dTFq%h%10|EM^*ofShbHN_az%2s:bvofoeofNbWV$*xa"
+        }
+      },
+      "Name": "Rainn Wilson",
+      "PrimaryImageTag": "4f81757011c40284b3d40805b7edbd3e",
+      "Role": "Dwight Schrute",
+      "Type": "Actor"
+    },
+    {
+      "Id": "9b60dd143630cde612f03063c2bc97d8",
+      "ImageBlurHashes": {
+        "Primary": {
+          "09c94408a6292144ebd0ed30e0abad46": "ddHBuXWC%#-;~WbHX9xuIps:V@WBb^s;%2WUtRfks:oe"
+        }
+      },
+      "Name": "John Krasinski",
+      "PrimaryImageTag": "09c94408a6292144ebd0ed30e0abad46",
+      "Role": "Jim Halpert",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e397172ed87062e41cda00beca0f5622",
+      "ImageBlurHashes": {
+        "Primary": {
+          "7eb7eda5bdf70c4b43f2ab807d091842": "dfJGmA%30yR*xVjY%0RipJW=xaa#NGWVozWBkWj[ozf5"
+        }
+      },
+      "Name": "Jenna Fischer",
+      "PrimaryImageTag": "7eb7eda5bdf70c4b43f2ab807d091842",
+      "Role": "Pam Beesly",
+      "Type": "Actor"
+    },
+    {
+      "Id": "e273b9feeab0aba7e35ce83b087b578f",
+      "ImageBlurHashes": {
+        "Primary": {
+          "d69dd9ea3f3a76e7847592bb8db1c5b1": "dYG[TZNHF}%g~pa#yDt89us.-pR*S4WBj[t7tRRk%2xt"
+        }
+      },
+      "Name": "B.J. Novak",
+      "PrimaryImageTag": "d69dd9ea3f3a76e7847592bb8db1c5b1",
+      "Role": "Ryan Howard",
+      "Type": "Actor"
+    }
+  ],
+  "PlayAccess": "Full",
+  "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+  "PrimaryImageAspectRatio": 0.6666666666666666,
+  "ProductionYear": 2005,
+  "ProviderIds": {
+    "Tmdb": "7240",
+    "Tvdb": "5511"
+  },
+  "RecursiveItemCount": 6,
+  "RemoteTrailers": [],
+  "SeriesId": "4eb7e22c1653ab565cf44daa4176ca56",
+  "SeriesName": "The Office",
+  "SeriesPrimaryImageTag": "e0ce18f7308a1a86a0463d6acf99bd55",
+  "SeriesStudio": "NBC",
+  "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+  "SortName": "0001",
+  "SpecialFeatureCount": 0,
+  "Studios": [],
+  "Taglines": [],
+  "Tags": [],
+  "Type": "Season",
+  "UserData": {
+    "IsFavorite": false,
+    "ItemId": "89b6f2f7378f55721704fcbc3b7b776f",
+    "Key": "73244001",
+    "PlayCount": 0,
+    "PlaybackPositionTicks": 0,
+    "Played": false,
+    "PlayedPercentage": 0,
+    "UnplayedItemCount": 6
+  }
+}

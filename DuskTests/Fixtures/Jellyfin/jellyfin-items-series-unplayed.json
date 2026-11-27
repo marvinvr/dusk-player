@@ -1,0 +1,232 @@
+{
+  "Items": [
+    {
+      "AirDays": [],
+      "BackdropImageTags": [
+        "8635884fe0a24bdb4edee384b5c54ca7"
+      ],
+      "ChannelId": null,
+      "ChildCount": 9,
+      "CommunityRating": 8.6,
+      "DateCreated": "2026-11-27T15:40:45.3036205Z",
+      "EndDate": "2013-05-15T22:00:00.0000000Z",
+      "GenreItems": [
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Comedy"
+      ],
+      "Id": "4eb7e22c1653ab565cf44daa4176ca56",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "8635884fe0a24bdb4edee384b5c54ca7": "WSC%UO?bNLD$M{NNOeM{ai%Lxuo$9HIURjxvn#jFxujYaxogaxNF"
+        },
+        "Logo": {
+          "cc076bcbb16ed56a9ffe2b09f2f7eb5b": "HAHC1RRj?b_3of00M{%M-;4nWBIU_3ofRj-;M{D%"
+        },
+        "Primary": {
+          "e0ce18f7308a1a86a0463d6acf99bd55": "ddM%[*_3t6-;00ofRPM{xtM{oMRj?bWBt7ogaeoykCWV"
+        },
+        "Thumb": {
+          "20adba5802b559b4284240b66107aaf8": "WQDck5^,ES9FROWZb~M{NMxv%LxvD*IUIptSxAsk%Ln$R+bJoHRi"
+        }
+      },
+      "ImageTags": {
+        "Logo": "cc076bcbb16ed56a9ffe2b09f2f7eb5b",
+        "Primary": "e0ce18f7308a1a86a0463d6acf99bd55",
+        "Thumb": "20adba5802b559b4284240b66107aaf8"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "The Office",
+      "OfficialRating": "TV-14",
+      "OriginalLanguage": "en",
+      "Overview": "The everyday lives of office employees in the Scranton, Pennsylvania branch of the fictional Dunder Mifflin Paper Company.",
+      "PremiereDate": "2005-03-23T23:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 0.6666666666666666,
+      "ProductionYear": 2005,
+      "ProviderIds": {
+        "Imdb": "tt0386676",
+        "Tmdb": "2316",
+        "TvRage": "6061",
+        "Tvdb": "73244"
+      },
+      "RecursiveItemCount": 186,
+      "RunTimeTicks": 0,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Status": "Ended",
+      "Type": "Series",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "4eb7e22c1653ab565cf44daa4176ca56",
+        "Key": "73244",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 186
+      }
+    },
+    {
+      "AirDays": [],
+      "BackdropImageTags": [
+        "738e55368c36e11fb5eddea9c2f2075b"
+      ],
+      "ChannelId": null,
+      "ChildCount": 2,
+      "CommunityRating": 8.385,
+      "DateCreated": "2026-11-27T15:40:45.3048638Z",
+      "EndDate": "2025-03-19T23:00:00.0000000Z",
+      "GenreItems": [
+        {
+          "Id": "090eac6e9de4fe1fbc194e5b96691277",
+          "Name": "Drama"
+        },
+        {
+          "Id": "d3a0ead52489743e5a68704142092c71",
+          "Name": "Mystery"
+        },
+        {
+          "Id": "3d621c0b6dc1921bc93fa859f7512270",
+          "Name": "Sci-Fi & Fantasy"
+        }
+      ],
+      "Genres": [
+        "Drama",
+        "Mystery",
+        "Sci-Fi & Fantasy"
+      ],
+      "Id": "7820db538a32435f48c0a565e198f893",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "738e55368c36e11fb5eddea9c2f2075b": "WPB}I8V?k?R:ROtS?wozRkj=V@V@IUbIMxs8t7a}NMV?Rij^t7t7"
+        },
+        "Logo": {
+          "2dd39ca091a74f68fccfec873c650fd2": "HLJuAa%Mxut7xuWBxuWBM{00xut7xut7t7ofj[xu"
+        },
+        "Primary": {
+          "ebeeae2c16c3f3a2ac1a5da2e7a46d1a": "dSIF9#tRyD_2_Mt6-pof9[s:IAE1ISozIoNFD$M{R*oL"
+        },
+        "Thumb": {
+          "ab76af26e69fcb02dfb1e7077fa65235": "WSCQ=H?GDiOZcFOt?^w[Mxbco#XTI;WCxus.WBt6S%WAoJfkbIt7"
+        }
+      },
+      "ImageTags": {
+        "Logo": "2dd39ca091a74f68fccfec873c650fd2",
+        "Primary": "ebeeae2c16c3f3a2ac1a5da2e7a46d1a",
+        "Thumb": "ab76af26e69fcb02dfb1e7077fa65235"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Severance",
+      "OfficialRating": "TV-MA",
+      "OriginalLanguage": "en",
+      "Overview": "Mark leads a team of office workers whose memories have been surgically divided between their work and personal lives. When a mysterious colleague appears outside of work, it begins a journey to discover the truth about their jobs.",
+      "PremiereDate": "2022-02-16T23:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 0.6666666666666666,
+      "ProductionYear": 2022,
+      "ProviderIds": {
+        "Imdb": "tt11280740",
+        "Tmdb": "95396",
+        "Tvdb": "371980"
+      },
+      "RecursiveItemCount": 19,
+      "RunTimeTicks": 0,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Status": "Continuing",
+      "Type": "Series",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "7820db538a32435f48c0a565e198f893",
+        "Key": "371980",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 19
+      }
+    },
+    {
+      "AirDays": [],
+      "BackdropImageTags": [
+        "5bbe8c328f72e3e8d3c3a66429afa304"
+      ],
+      "ChannelId": null,
+      "ChildCount": 4,
+      "CommunityRating": 8.37,
+      "DateCreated": "2026-11-27T15:40:45.2992623Z",
+      "EndDate": "2026-10-05T22:00:00.0000000Z",
+      "GenreItems": [
+        {
+          "Id": "090eac6e9de4fe1fbc194e5b96691277",
+          "Name": "Drama"
+        },
+        {
+          "Id": "08d31605d366d63a7a924f944b4417f1",
+          "Name": "Comedy"
+        }
+      ],
+      "Genres": [
+        "Drama",
+        "Comedy"
+      ],
+      "Id": "13a31c432423066216ecba4adc386996",
+      "ImageBlurHashes": {
+        "Backdrop": {
+          "5bbe8c328f72e3e8d3c3a66429afa304": "WbH1JSTKo#x[JB%2}@xZWBs:WAs:aJrrnhVtr=jF$%n%ayn%t6R*"
+        },
+        "Logo": {
+          "b4f06deff1b4fb84bf3dbfee628a4747": "HDP6~xRj_3_34n4nD%%Mxu-;%M~qj[M{j[-;xuj["
+        },
+        "Primary": {
+          "cbca09e11db683a2f4e85043ac9851d9": "dTF;{Do#V@xa}ln#s;sl={xYj]%2D,s;axxDM{axi|s:"
+        },
+        "Thumb": {
+          "87b044ad27772cdec898df2bc9da2cc6": "WRHwu:Y5Sjx[E*$*}rxWkDxtaexunNv~nNR6r=aK=|xaRji{oyM{"
+        }
+      },
+      "ImageTags": {
+        "Logo": "b4f06deff1b4fb84bf3dbfee628a4747",
+        "Primary": "cbca09e11db683a2f4e85043ac9851d9",
+        "Thumb": "87b044ad27772cdec898df2bc9da2cc6"
+      },
+      "IsFolder": true,
+      "LocationType": "FileSystem",
+      "MediaType": "Unknown",
+      "Name": "Ted Lasso",
+      "OfficialRating": "CH-12",
+      "OriginalLanguage": "en",
+      "Overview": "Ted Lasso, an American football coach, moves to England when he's hired to manage a soccer team—despite having no experience. With cynical players and a doubtful town, will he get them to see the Ted Lasso Way?",
+      "PremiereDate": "2020-08-13T22:00:00.0000000Z",
+      "PrimaryImageAspectRatio": 0.6666666666666666,
+      "ProductionYear": 2020,
+      "ProviderIds": {
+        "Imdb": "tt10986410",
+        "Tmdb": "97546",
+        "Tvdb": "383203"
+      },
+      "RecursiveItemCount": 44,
+      "RunTimeTicks": 0,
+      "ServerId": "99d23e4060434e129f9ae072bf97d30d",
+      "Status": "Continuing",
+      "Type": "Series",
+      "UserData": {
+        "IsFavorite": false,
+        "ItemId": "13a31c432423066216ecba4adc386996",
+        "Key": "13a31c43-2423-0662-16ec-ba4adc386996",
+        "PlayCount": 0,
+        "PlaybackPositionTicks": 0,
+        "Played": false,
+        "PlayedPercentage": 0,
+        "UnplayedItemCount": 44
+      }
+    }
+  ],
+  "StartIndex": 0,
+  "TotalRecordCount": 3
+}
