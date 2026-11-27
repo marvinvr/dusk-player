@@ -9,6 +9,16 @@ Plex mounts it read-write, Jellyfin read-only. No app code is involved.
 Applied on 2026-11-27. Every step was checked on both servers through their
 APIs; the results are in the tables below.
 
+> **Open tester leak, not caused by T-0:** the Jellyfin playlist
+> **"Dusk Fixture Recorder"** (created 21:35 UTC by the J-00a fixture recorder,
+> `scripts/jellyfin/record_fixtures.sh`; d4787e6 stops it from creating more
+> but did not delete this one) has `OpenAccess: true`. It holds Knives Out and
+> Paddington 2, so **tester**, and every other non-admin user, including the
+> passwordless login-screen user Dusk Guest, gets a "Playlists" view that lists
+> those two Real Movies titles. T-0 left it alone. Fix with one admin call:
+> `DELETE /Items/{id}`, or make it private with `POST /Playlists/{id}`
+> `{"OpenAccess": false}`.
+
 ## Files
 
 | File | What it does |
@@ -29,16 +39,21 @@ Run without `-I`, which would hide the user-site Pillow.
 ```sh
 python3 scripts/demo-testdata/make_media.py all       # versions multipart subtitles extras photos paging
 python3 scripts/demo-testdata/apply.py collections media
-# wait ~1 min for both scans, then
+# wait ~1 min for both scans (extras may also need a refresh, see below), then
 python3 scripts/demo-testdata/apply.py merge-versions extra-titles jf-titles playlists watch-state jf-users paging
+# paging creates the libraries; once Plex finished scanning them, run it again
+# so the Plex titles/years get written
+python3 scripts/demo-testdata/apply.py paging verify-paging
 python3 scripts/demo-testdata/apply.py plex-markers   # then wait for the markers
 python3 scripts/demo-testdata/apply.py plex-analysis  # BIF; wait until verify shows both indexes
 python3 scripts/demo-testdata/apply.py plex-analysis-restore preroll tester
 python3 scripts/demo-testdata/apply.py verify-media verify-plex-analysis
 ```
 
-Every step is idempotent: it looks up what exists and adds only what is
-missing. Items are matched across the servers by their `/data/...` path, not by
+There is deliberately no `all`, because several steps wait for asynchronous
+server work. Every step looks up what exists and adds only what is missing.
+Re-running `plex-markers`, `plex-analysis` and `watch-state` is a no-op once
+they are done. Items are matched across the servers by their `/data/...` path, not by
 title or id. Extras sometimes need a metadata refresh after the scan before
 they show up (Plex `PUT /library/metadata/{rk}/refresh?force=1`, Jellyfin
 `POST /Items/{id}/Refresh?recursive=true`).
@@ -76,19 +91,18 @@ the OFL font Pacifico (google/fonts), embedded as the ASS attachment.
 
 Its view was recorded before the first change and checked again at the end.
 
-- Plex `tes2552`: still `allLibraries=0` with Home Videos, Movies, Photos and
-  Shorts only. It sees the new test films, the photo album, the extras and
-  the Blender Open Movies / Weekend Watch collections, all inside those demo
-  libraries. It does not see Paging Test, Real Movies, Real TV or the
-  duskcompare playlists.
+- Plex `tes2552`, checked through the owner's share configuration on plex.tv
+  (`shared_servers`), not by signing in as tester: reading tester's token was
+  not allowed in this session. Still `allLibraries=0` with Home Videos,
+  Movies, Photos and Shorts only. Through those sections it gets the new test
+  films, the photo album, the extras and the Blender Open Movies / Weekend
+  Watch collections. Paging Test, Real Movies and Real TV are not shared with
+  it, and Plex playlists are private to duskcompare.
 - Jellyfin `tester`: still has its explicit `EnabledFolders` (the four demo
   libraries). It has no Collections view and no Paging Test. Every movie,
   episode, video and photo it can list lives under those four folders.
-- **Not caused by T-0, needs an owner:** a playlist called **"Dusk Fixture
-  Recorder"** was created on jellyfin-demo at 21:35 UTC while T-0 ran. It
-  contains Knives Out and Paddington 2, has `OpenAccess: true`, and therefore
-  gives tester a "Playlists" view that lists those two Real Movies titles. It
-  probably belongs to the P0-00 fixture harness. T-0 left it alone.
+- The "Dusk Fixture Recorder" leak at the top is the only non-demo item
+  tester can see.
 - Also not from T-0: during the run, duskcompare got a Plex resume point on
   Big Buck Bunny (79 s) that Jellyfin does not have. Someone played it as
   duskcompare on plex-demo. It breaks the "same state on both" rule until it
@@ -146,7 +160,12 @@ butler task disabled. `GenerateIndexFilesDuringAnalysis=1` plus an analysis did
 nothing. `GenerateBIFBehavior=asap` plus `PUT /library/metadata/{rk}/analyze` on
 the two films started BIF generation. Once both films had BIFs, both prefs were
 put back (`never`, `GenerateIndexFilesDuringAnalysis` off). The butler task
-stayed disabled, so no other item got previews.
+stayed disabled. Checked afterwards: across Movies, Home Videos, Shorts,
+Real Movies and Real TV, exactly two items have BIFs (Knives Out, Paddington 2).
+
+The Office S1 analysis (from `plex-markers`) also queued Plex's loudness
+analysis for those six remuxes. It was still running (S01E03) when T-0
+finished and ends on its own.
 
 ## Server changes outside the media folder
 
@@ -163,6 +182,20 @@ stayed disabled, so no other item got previews.
   ~10 s; no playback sessions were active).
 - On the Mac: `~/.config/jellyfin-demo/user-dusk-*-password` (mode 600), and
   the staging folder `~/.cache/dusk-demo-testdata`, which can be deleted.
+
+## Could not do
+
+- **HEIC**: the file is on the share and is a valid HEIF, but neither server
+  ingests it (PMS 1.43.5 Docker, Jellyfin 12.4). There is no HEIC to test from
+  either server.
+- **Episode-level extras on Jellyfin**: Jellyfin 12.4 files an episode's
+  `-behindthescenes` file under the season. Plex has it on the episode.
+- **A collection spanning a movie and a TV library on Plex**: Plex collections
+  are per section, so plex-demo has two same-named "Weekend Watch" collections.
+- **Identical extra titles everywhere**: the episode extra is titled by the file
+  name on Jellyfin and by the locked title on Plex.
+- **Tester's Plex view first-hand**: checked through the share configuration
+  only (see above).
 
 ## Not done
 

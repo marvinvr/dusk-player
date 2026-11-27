@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Apply the T-0 server-side test data to plex-demo and jellyfin-demo.
 
-    python3 -I scripts/demo-testdata/apply.py <step> [<step> ...]
-    python3 -I scripts/demo-testdata/apply.py all
+    python3 scripts/demo-testdata/apply.py <step> [<step> ...]
+    python3 scripts/demo-testdata/apply.py verify-<step>
 
-Every step is idempotent: it looks up what exists and only adds what is
-missing. Items are matched across the two servers by their /data/... path.
+There is no "all": several steps wait for asynchronous server work (scans,
+analysis), and plex-analysis must be followed by plex-analysis-restore. See
+README.md for the order. Every step looks up what exists and only adds what
+is missing. Items are matched across the two servers by their /data/... path.
 Media files must already be on the share (make_media.py).
 """
 import sys
@@ -374,9 +376,13 @@ def step_watch_state():
     plex, jf = plex_compare(), api.jf_compare()
     jidx = JFIndex(jf)
     for p in severance_first_three(pidx):
-        plex.req("GET", "/:/scrobble", {"key": pidx[p][1], "identifier": "com.plexapp.plugins.library"})
-        jf.post(f"/UserPlayedItems/{jidx[p]['Id']}", userId=jf.user_id)
-        log(f"watched on both: {Path(p).name}")
+        if not plex_meta(plex, pidx[p][1]).get("viewCount"):
+            plex.req("GET", "/:/scrobble", {"key": pidx[p][1], "identifier": "com.plexapp.plugins.library"})
+            log(f"plex: watched {Path(p).name}")
+        jd = jf.get(f"/Items/{jidx[p]['Id']}", userId=jf.user_id)["UserData"]
+        if not jd.get("Played"):
+            jf.post(f"/UserPlayedItems/{jidx[p]['Id']}", userId=jf.user_id)
+            log(f"jellyfin: watched {Path(p).name}")
     # keep the resume points equal: copy the Plex position to Jellyfin when they differ
     for p in RESUME_FILMS:
         off = plex_meta(plex, pidx[p][1]).get("viewOffset")
@@ -559,27 +565,44 @@ def step_plex_analysis():
     "never"; with GenerateBIFBehavior=asap an item analysis also writes the BIF.
     So the run flips it to asap, analyses only the two films, and
     `plex-analysis-restore` puts "never" back once both BIFs exist (the butler
-    task stays disabled, so nothing else gets previews). Intro detection runs
-    through the butler task (every show missing intros; plex-demo would run it
-    in its nightly window anyway); credits come from item analysis.
+    task stays disabled, so nothing else gets previews). Films that already
+    have a BIF are skipped, and nothing changes when both have one.
     """
     plex = api.plex_owner()
     pidx = PlexIndex(plex)
+    todo = [p for p in BIF_FILMS if not plex_meta(plex, pidx[p][1])["Media"][0]["Part"][0].get("indexes")]
+    if not todo:
+        log("plex: both films already have BIFs")
+        return
     plex.req("PUT", "/:/prefs", {"GenerateBIFBehavior": "asap"})
-    for p in BIF_FILMS:
+    for p in todo:
         plex.req("PUT", f"/library/metadata/{pidx[p][1]}/analyze")
-    log(f"plex: BIF analysis queued for {len(BIF_FILMS)} films; run plex-analysis-restore when both have BIFs")
+    log(f"plex: BIF analysis queued for {len(todo)} films; run plex-analysis-restore when both have BIFs")
 
 
 def step_plex_markers():
-    """Run before plex-analysis (an analysis while BIFs are on would also make episode BIFs)."""
+    """Intro + credits markers on The Office S1.
+
+    Run before plex-analysis: an analysis while BIFs are switched on would also
+    make episode BIFs. Credits come from item analysis; intros from the intro
+    butler task (every show missing intros; plex-demo runs it nightly anyway).
+    Episodes that already have both marker types are skipped.
+    """
     plex = api.plex_owner()
     pidx = PlexIndex(plex)
-    season = {pidx[p][1] for p in pidx.by_path if p.startswith(OFFICE_S1 + "/")}
-    for rk in sorted(season):
+    season = sorted({pidx[p][1] for p in pidx.by_path if p.startswith(OFFICE_S1 + "/")})
+    todo = []
+    for rk in season:
+        kinds = {m["type"] for m in plex.mc(f"/library/metadata/{rk}", includeMarkers=1)["Metadata"][0].get("Marker", [])}
+        if not {"intro", "credits"} <= kinds:
+            todo.append(rk)
+    if not todo:
+        log("plex: The Office S1 already has intro and credits markers")
+        return
+    for rk in todo:
         plex.req("PUT", f"/library/metadata/{rk}/analyze")  # credits detection
     plex.req("POST", "/butler/ButlerTaskGenerateIntroMarkers")
-    log(f"plex: analysis queued for {len(season)} Office S1 episodes, intro butler started")
+    log(f"plex: analysis queued for {len(todo)} Office S1 episodes, intro butler started")
 
 
 def step_plex_analysis_restore():
@@ -733,8 +756,8 @@ EXTRA_STEPS = {"plex-analysis-restore": (step_plex_analysis_restore, verify_plex
 
 
 def main(argv):
-    names = list(STEPS) if argv == ["all"] else argv
-    if not names:
+    names = argv
+    if not names or names == ["all"]:
         print(__doc__)
         print("steps:", ", ".join(STEPS))
         return 2
