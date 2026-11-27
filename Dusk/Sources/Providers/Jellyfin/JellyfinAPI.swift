@@ -137,11 +137,9 @@ enum JellyfinAPI {
         query.add("startIndex", startIndex)
         query.add("limit", limit)
         return .json(.get, "/Shows/\(seriesID)/Episodes", query: query.items, isUserScoped: true) { result, _ in
+            // No season-id check: specials can be listed inside the season
+            // they air in while carrying the specials season's id.
             try JellyfinItemQuery.validate(result.items, includeItemTypes: [.episode], limit: limit)
-            if let seasonID,
-               result.items.contains(where: { $0.seasonID.map { !JellyfinID.same($0, seasonID) } ?? false }) {
-                throw JellyfinError.unexpectedResponse("episode of another season")
-            }
         }
     }
 
@@ -394,7 +392,9 @@ enum JellyfinAPI {
         .noContent(.post, "/Playlists/\(id)", body: .fixed(update))
     }
 
-    /// Deletes a playlist (or any item the user may delete).
+    /// Deletes a playlist or any other item. Needs `CanDelete` on the item
+    /// (`Policy.EnableContentDeletion`): without it the server answers `401`
+    /// even for the user's own playlist, and `DELETE /Playlists/{id}` is `405`.
     static func deleteItem(id: String) -> JellyfinRequest<JellyfinNoContent> {
         .noContent(.delete, "/Items/\(id)")
     }
@@ -415,9 +415,8 @@ enum JellyfinAPI {
         query.add("limit", limit)
         query.add("addCurrentProgram", addCurrentProgram)
         query.add("enableFavoriteSorting", enableFavoriteSorting)
-        return .json(.get, "/LiveTv/Channels", query: query.items, isUserScoped: true) { result, _ in
-            try JellyfinItemQuery.validate(result.items, includeItemTypes: [.tvChannel], limit: limit)
-        }
+        // Envelope only: channel shapes are unverified (no tuner on jellyfin-demo).
+        return .json(.get, "/LiveTv/Channels", query: query.items, isUserScoped: true)
     }
 
     static func programs(_ programsQuery: JellyfinProgramsQueryDTO) -> JellyfinRequest<JellyfinQueryResult<JellyfinProgramDTO>> {
@@ -426,13 +425,8 @@ enum JellyfinAPI {
             if programsQuery.userID == nil { programsQuery.userID = context.userID }
             return programsQuery
         }
-        return .json(.post, "/LiveTv/Programs", body: body) { result, _ in
-            let channels = Set(programsQuery.channelIDs.map(JellyfinID.normalized))
-            if !channels.isEmpty,
-               result.items.contains(where: { $0.channelID.map { !channels.contains(JellyfinID.normalized($0)) } ?? false }) {
-                throw JellyfinError.unexpectedResponse("program of another channel")
-            }
-        }
+        // Envelope only: program shapes are unverified (no tuner on jellyfin-demo).
+        return .json(.post, "/LiveTv/Programs", body: body)
     }
 
     static func closeLiveStream(liveStreamID: String) -> JellyfinRequest<JellyfinNoContent> {

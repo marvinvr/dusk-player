@@ -13,8 +13,9 @@
 # Rules this script keeps, because the demo server is shared and the repo is public:
 # - Its own DeviceId. Signing in with a DeviceId revokes the previous token for
 #   it (03 §10.2), so sharing one with another agent or the app logs it out.
-# - Read-only calls, PlaybackInfo (no stream is ever fetched, no playback is
-#   reported) and one temporary playlist that is deleted again on exit.
+# - Read-only calls and PlaybackInfo (no stream is ever fetched, no playback
+#   is reported). Nothing is created: a non-admin user cannot delete what it
+#   creates (no EnableContentDeletion), so it would stay on the shared server.
 # - Tokens, ApiKey query values, play-session ids, Quick Connect secrets and
 #   client IP addresses are scrubbed before anything is written. The script
 #   fails and deletes its output when the live token or the password still
@@ -36,13 +37,9 @@ command -v jq >/dev/null || { echo "jq is required" >&2; exit 1; }
 
 TOKEN=""
 USER_ID=""
-PLAYLIST_ID=""
 WORK=$(mktemp -d)
 
 cleanup() {
-    if [[ -n "$PLAYLIST_ID" && -n "$TOKEN" ]]; then
-        curl -sS -o /dev/null -X DELETE -H "Authorization: $IDENTITY, Token=\"$TOKEN\"" "$JF/Items/$PLAYLIST_ID" || true
-    fi
     if [[ -n "$TOKEN" ]]; then
         curl -sS -o /dev/null -X POST -H "Authorization: $IDENTITY, Token=\"$TOKEN\"" "$JF/Sessions/Logout" || true
     fi
@@ -207,15 +204,19 @@ playback_info playback-info-paddington-avplayer-dts "$PADDINGTON" "$PROFILE_AVPL
 playback_info playback-info-av1-sdr-vlc "$AV1_SDR" "$PROFILE_VLC" 2 0
 get sessions "/Sessions?deviceId=$DEVICE_ID"
 
-# --- Playlists (one temporary playlist, deleted on exit) --------------------
-CREATE=$(jq -n --arg u "$USER_ID" --arg a "$KNIVES_OUT" --arg b "$PADDINGTON" \
-    '{Name: "Dusk Fixture Recorder", Ids: [$a, $b], UserId: $u, MediaType: "Video", IsPublic: false}')
-call POST "/Playlists" "$CREATE" > "$WORK/playlist.json"
-PLAYLIST_ID=$(jq -r .Id "$WORK/playlist.json")
-save playlist-create < "$WORK/playlist.json"
-get items-playlists "/Items?$U&includeItemTypes=Playlist&recursive=true&fields=ChildCount"
-get playlist-items "/Playlists/$PLAYLIST_ID/Items?$U"
-get playlist "/Playlists/$PLAYLIST_ID"
+# --- Playlists (read-only) --------------------------------------------------
+# Never create one: duskcompare has no EnableContentDeletion, so a playlist it
+# creates cannot be deleted again (DELETE /Items/{id} is 401). Record the first
+# existing playlist instead, preferring the T-0 test data.
+call GET "/Items?$U&includeItemTypes=Playlist&recursive=true&fields=ChildCount" > "$WORK/playlists.json"
+save items-playlists < "$WORK/playlists.json"
+PLAYLIST_ID=$(jq -r '[.Items[] | select(.Name | startswith("T-0"))] + .Items | first(.[].Id) // empty' "$WORK/playlists.json")
+if [[ -n "$PLAYLIST_ID" ]]; then
+    get playlist-items "/Playlists/$PLAYLIST_ID/Items?$U"
+    get playlist "/Playlists/$PLAYLIST_ID"
+else
+    echo "No playlist on the server; playlist fixtures skipped." >&2
+fi
 
 # --- Live TV (no tuner on the demo server: empty lists) ---------------------
 get livetv-info "/LiveTv/Info"

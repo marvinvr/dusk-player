@@ -76,6 +76,20 @@ struct JellyfinDTODecodingTests {
         }
     }
 
+    /// The detail validator (same id, `UserData` present) holds for every
+    /// kind recorded: movies, episode, season, series, person.
+    @Test func everyDetailPassesTheItemValidator() throws {
+        let context = try context()
+        let names = try JellyfinFixtures.allNames().filter { $0.hasPrefix("item-") && $0 != "item-images-knives-out" }
+        #expect(names.count >= 29)
+        for name in names {
+            let raw = try JellyfinFixtures.decode(JellyfinItemDTO.self, name)
+            #expect(throws: Never.self, "\(name)") {
+                _ = try JellyfinAPI.item(id: raw.id).decode(JellyfinFixtures.data(name), context)
+            }
+        }
+    }
+
     // MARK: The 12 torture files (03 §5.1)
 
     struct Torture: Sendable, CustomTestStringConvertible {
@@ -430,8 +444,7 @@ struct JellyfinDTODecodingTests {
 
     @Test func playlistsAndLiveTV() throws {
         let context = try context()
-        let created = try JellyfinFixtures.decode(JellyfinPlaylistCreationResultDTO.self, "playlist-create")
-        let entries = try JellyfinAPI.playlistItems(id: created.id).decode(JellyfinFixtures.data("playlist-items"), context)
+        let entries = try JellyfinAPI.playlistItems(id: "playlist").decode(JellyfinFixtures.data("playlist-items"), context)
         #expect(entries.items.map(\.name) == ["Knives Out", "Paddington 2"])
         #expect(entries.items.allSatisfy { $0.playlistItemID != nil })
         let playlist = try JellyfinFixtures.decode(JellyfinPlaylistDTO.self, "playlist")

@@ -121,6 +121,10 @@ struct JellyfinLiveTests {
         shows.recursive = true
         shows.includeItemTypes = [.series]
         let office = try #require(try await client.send(JellyfinAPI.items(shows)).items.first { $0.name == "The Office" })
+        // isPlayed on series: the validator checks the filter was applied.
+        var unplayedShows = shows
+        unplayedShows.isPlayed = false
+        _ = try await client.send(JellyfinAPI.items(unplayedShows))
         let seasons = try await client.send(JellyfinAPI.seasons(seriesID: office.id))
         let seasonOne = try #require(seasons.items.first { $0.indexNumber == 1 })
         let episodes = try await client.send(JellyfinAPI.episodes(
