@@ -491,10 +491,9 @@ enum StreamResolver {
     /// bitstream) and — with `DolbyVisionSignaling` — Dolby Vision 8.1/8.4.
     /// Returns why not, or nil when it qualifies.
     ///
-    /// Audio must be copyable (E-AC-3/AC-3/AAC): converting DTS & co. to
-    /// keep the picture would trade a lossless track for a lossy one, so
-    /// those files keep VLCKit. DV7 + TrueHD is the exception, see
-    /// `convertedTrueHDRemuxBlocker`.
+    /// Audio must be copyable (E-AC-3/AC-3/AAC) here. TrueHD and DTS are
+    /// converted instead (picture first, `hdrAudioConversionRemuxBlocker`);
+    /// any other audio (FLAC, PCM, Opus, …) keeps VLCKit.
     /// The display gate is the one the Atmos remux uses: Plex declares the
     /// variant HDR, which AVFoundation refuses on an SDR display.
     static func hdrVideoRemuxBlocker(
@@ -523,12 +522,17 @@ enum StreamResolver {
         return nil
     }
 
-    /// DV7 picture takes priority over local lossless TrueHD: start with a
-    /// video-copy remux, Plex converting TrueHD/MLP to E-AC-3, and the on-device
-    /// DV7 → 8.1 proxy. Other TrueHD files retain local decoding. This startup
-    /// choice does not depend on VLCKit's TrueHD capability or spatial audio.
-    /// Returns why not, or nil when the remux should be requested up front.
-    static func convertedTrueHDRemuxBlocker(
+    /// Picture first for HDR: an HDR or Dolby Vision file (HDR10, HDR10+,
+    /// HLG, Dolby Vision 7/8.x) whose audio is TrueHD/MLP or any DTS variant
+    /// starts with a video-copy remux on AVPlayer, Plex converting only the
+    /// audio to E-AC-3 (5.1, or 7.1 where Plex encodes it). VLCKit 3 shows no
+    /// HDR at all, so local lossless decoding would cost the picture. DV7 also
+    /// gets the on-device 8.1 proxy. SDR files keep decoding TrueHD/DTS
+    /// locally; Dolby Vision 5 converts through `dolbyVisionRemuxBlocker`.
+    /// This startup choice does not depend on VLCKit's TrueHD capability or
+    /// spatial audio. Returns why not, or nil when the remux should be
+    /// requested up front.
+    static func hdrAudioConversionRemuxBlocker(
         media: PlexMedia,
         decision: Decision,
         audioStream: PlexStream,
@@ -536,11 +540,8 @@ enum StreamResolver {
         displaySupportsHDR: Bool,
         hdrVideoRemuxEnabled: Bool
     ) -> String? {
-        guard ["truehd", "mlp"].contains(audioStream.codec?.lowercased() ?? "") else {
-            return "audio is not TrueHD/MLP"
-        }
-        guard dolbyVision7ConversionStream(in: media) != nil else {
-            return "non-DV7 TrueHD uses local decoding"
+        guard convertsForHDRPicture(audio: audioStream) else {
+            return "audio is not TrueHD/MLP or DTS"
         }
         guard hdrVideoRemuxEnabled else { return "HDR remux is off" }
         return hdrVideoRemuxBlocker(
@@ -550,6 +551,14 @@ enum StreamResolver {
             subtitleStream: subtitleStream,
             displaySupportsHDR: displaySupportsHDR
         )
+    }
+
+    /// Audio Plex converts to E-AC-3 so HDR video can stay on AVPlayer:
+    /// TrueHD/MLP and DTS in every flavour (Plex spells them all `dca`, with
+    /// the variant in `profile`; `dts…` covers other spellings).
+    static func convertsForHDRPicture(audio stream: PlexStream) -> Bool {
+        let codec = stream.codec?.lowercased() ?? ""
+        return codec == "truehd" || codec == "mlp" || codec.hasPrefix("dca") || codec.hasPrefix("dts")
     }
 
     /// HDR video AVPlayer can show from an HEVC remux: a PQ or HLG transfer,

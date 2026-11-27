@@ -51,8 +51,8 @@ extension PlaybackCoordinator {
     /// spatial-audio setting, and have Plex convert any audio the fMP4 cannot
     /// carry instead of refusing. Other HDR files (HDR10, HDR10+, HLG, Dolby
     /// Vision 7/8) take it when `hdrVideoRemuxEnabled` is on and the audio can
-    /// be copied. DV7 + TrueHD instead requests audio conversion up front:
-    /// picture wins over local lossless audio on that combination.
+    /// be copied. HDR/DV with TrueHD or DTS audio instead requests E-AC-3
+    /// conversion up front: picture wins over local lossless audio.
     func requestSpatialAudioRemux(
         ratingKey: String,
         mediaIndex: Int,
@@ -78,11 +78,12 @@ extension PlaybackCoordinator {
         let subtitleStream = subtitleStreamID.flatMap { id in
             part.streams.first { $0.streamType == .subtitle && $0.id == id }
         }
-        // Picture wins for DV7 + TrueHD even when VLCKit decodes it. Decide
-        // before the first Plex request, including on stock builds and track
-        // changes, so no undecodable local/copy-only attempt precedes the remux.
-        let convertsDV7TrueHD = audioStream.map {
-            StreamResolver.convertedTrueHDRemuxBlocker(
+        // Picture wins for HDR/DV + TrueHD/DTS even when VLCKit decodes the
+        // audio. Decide before the first Plex request, including on stock
+        // builds and track changes, so no SDR local/copy-only attempt
+        // precedes the remux.
+        let convertsHDRAudio = audioStream.map {
+            StreamResolver.hdrAudioConversionRemuxBlocker(
                 media: media,
                 decision: resolverDecision,
                 audioStream: $0,
@@ -92,7 +93,7 @@ extension PlaybackCoordinator {
             ) == nil
         } ?? false
         let convertsAV1Audio = isAV1Remux && audioStream.map { !StreamResolver.canCopyAV1Audio($0) } == true
-        let convertsAudio = convertsAudio || convertsDV7TrueHD || convertsAV1Audio
+        let convertsAudio = convertsAudio || convertsHDRAudio || convertsAV1Audio
             || ((isDolbyVisionRemux || isHEV1Remux) && audioStream.map { !StreamResolver.canCopyIntoRemux(audio: $0) } == true)
         // Audio conversion serves picture preservation/decoder recovery, so
         // it does not depend on the spatial-audio preference.
@@ -257,7 +258,7 @@ extension PlaybackCoordinator {
                 let target = result.streams.audioCodec?.uppercased() ?? "a supported codec"
                 let videoNote = remuxDolbyVision7Conversion(for: media, decision: .spatialAudio) != nil
                     ? ", Dolby Vision 7 → 8.1 on device"
-                    : ""
+                    : StreamResolver.containsHDRVideo(inPart: part) ? ", \(StreamResolver.hdrVideoLabel(for: media)) kept" : ""
                 reason = "\(source) converted to \(target) by Plex, video copied\(videoNote) (\(resolverDecision.reason))"
             } else {
                 var labels: [String] = []

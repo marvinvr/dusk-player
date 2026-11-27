@@ -16,7 +16,9 @@ struct HDRVideoRemuxRoutingTests {
         #expect(blocker(for: media, displaySupportsHDR: false) != nil)
     }
 
-    @Test func losslessAudioIsNeverConvertedForHDR() throws {
+    @Test func dtsCannotRideTheCopyRemux() throws {
+        // The copy gate refuses DTS; picture first converts it instead
+        // (`HDRPictureFirstRoutingTests`).
         let media = try makeMedia(video: #""colorTrc": "smpte2084""#, audioCodec: "dca")
         #expect(blocker(for: media)?.contains("conversion") == true)
     }
@@ -100,6 +102,175 @@ struct HDRVideoRemuxRoutingTests {
             fields += #", "colorTrc": "\#(trc)""#
         }
         return fields
+    }
+}
+
+/// Startup routing matrix for "picture first": every HDR/DV source keeps its
+/// picture on AVPlayer, Plex converting only TrueHD/DTS audio to E-AC-3;
+/// SDR keeps local TrueHD/DTS decoding on VLCKit. `route` composes the
+/// resolver gates in the order `requestSpatialAudioRemux` applies them
+/// (spatial-audio preference off, HDR setting on, HDR display).
+@Suite("HDR picture-first routing")
+struct HDRPictureFirstRoutingTests {
+    enum Route: Equatable {
+        case avPlayerDirect
+        case vlcKitDirect
+        case copyRemux
+        case convertedAudioRemux
+    }
+
+    enum Video: String, CaseIterable {
+        case sdr, hdr10, hlg, dv5, dv81, dv84, dv7
+
+        var json: String {
+            switch self {
+            case .sdr: #""colorTrc": "bt709""#
+            case .hdr10: #""colorTrc": "smpte2084""#
+            case .hlg: #""colorTrc": "arib-std-b67""#
+            case .dv5: #""DOVIPresent": true, "DOVIProfile": 5, "DOVILevel": 6, "DOVIBLCompatID": 0"#
+            case .dv81: #""DOVIPresent": true, "DOVIProfile": 8, "DOVILevel": 6, "DOVIBLCompatID": 1, "colorTrc": "smpte2084""#
+            case .dv84: #""DOVIPresent": true, "DOVIProfile": 8, "DOVILevel": 6, "DOVIBLCompatID": 4, "colorTrc": "arib-std-b67""#
+            case .dv7: #""DOVIPresent": true, "DOVIProfile": 7, "DOVILevel": 6, "DOVIBLCompatID": 6, "colorTrc": "smpte2084""#
+            }
+        }
+    }
+
+    enum Audio: String, CaseIterable {
+        case aac, eac3, trueHD, mlp, dts, dtsHDMA, dtsX
+
+        var json: String {
+            switch self {
+            case .aac: #""codec": "aac", "channels": 2"#
+            case .eac3: #""codec": "eac3", "channels": 6"#
+            case .trueHD: #""codec": "truehd", "channels": 8, "displayTitle": "English (TrueHD 7.1 Atmos)""#
+            case .mlp: #""codec": "mlp", "channels": 6"#
+            case .dts: #""codec": "dca", "channels": 6, "displayTitle": "English (DTS 5.1)""#
+            case .dtsHDMA: #""codec": "dca", "profile": "ma", "channels": 6, "displayTitle": "English (DTS-HD MA 5.1)""#
+            case .dtsX: #""codec": "dca", "profile": "dts:x", "channels": 8, "displayTitle": "English (DTS:X 7.1)""#
+            }
+        }
+
+        var isCopyable: Bool { self == .aac || self == .eac3 }
+    }
+
+    @Test(arguments: Video.allCases, Audio.allCases)
+    func matrix(video: Video, audio: Audio) throws {
+        let media = try makeMatrixMedia(video: video.json, audio: audio.json)
+        let expected: Route = switch (video, audio.isCopyable) {
+        case (.sdr, _): .vlcKitDirect
+        case (_, true): .copyRemux
+        case (_, false): .convertedAudioRemux
+        }
+        #expect(route(for: media) == expected, "\(video.rawValue) × \(audio.rawValue)")
+    }
+
+    @Test(arguments: [Video.hdr10, .dv81, .dv7], [Audio.trueHD, .dts, .dtsHDMA])
+    func sdrDisplayOrSettingOffKeepsVLCKit(video: Video, audio: Audio) throws {
+        let media = try makeMatrixMedia(video: video.json, audio: audio.json)
+        #expect(route(for: media, displaySupportsHDR: false) == .vlcKitDirect)
+        #expect(route(for: media, hdrVideoRemuxEnabled: false) == .vlcKitDirect)
+    }
+
+    @Test(arguments: [Audio.trueHD, .dtsHDMA])
+    func bitmapSubtitleStillVetoesTheRemux(audio: Audio) throws {
+        // Subtitle routing is unchanged: a PGS pick at startup keeps VLCKit.
+        let media = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "pgs")
+        #expect(route(for: media, subtitleID: 3) == .vlcKitDirect)
+        let text = try makeMatrixMedia(video: Video.dv81.json, audio: audio.json, subtitleCodec: "srt")
+        #expect(route(for: text, subtitleID: 3) == .convertedAudioRemux)
+    }
+
+    @Test func mp4HDRWithAACStaysDirectOnAVPlayer() throws {
+        let media = try makeMatrixMedia(container: "mp4", video: Video.hdr10.json, audio: Audio.aac.json)
+        #expect(route(for: media) == .avPlayerDirect)
+    }
+
+    @Test func otherLocalOnlyAudioOnHDRKeepsVLCKit() throws {
+        // Scope of the product decision: TrueHD and DTS only.
+        for codec in ["flac", "pcm", "opus"] {
+            let media = try makeMatrixMedia(video: Video.hdr10.json, audio: #""codec": "\#(codec)", "channels": 6"#)
+            #expect(route(for: media) == .vlcKitDirect, "\(codec)")
+        }
+    }
+
+    @Test func dtsSpellingsAreConverted() throws {
+        func stream(_ codec: String) throws -> PlexStream {
+            try JSONDecoder().decode(
+                PlexStream.self,
+                from: Data(#"{ "id": 2, "streamType": 2, "codec": "\#(codec)" }"#.utf8)
+            )
+        }
+        for codec in ["dca", "DCA", "dts", "dts-hd", "dca-ma", "truehd", "mlp"] {
+            #expect(StreamResolver.convertsForHDRPicture(audio: try stream(codec)), "\(codec)")
+        }
+        for codec in ["eac3", "ac3", "aac", "flac", "opus"] {
+            #expect(!StreamResolver.convertsForHDRPicture(audio: try stream(codec)), "\(codec)")
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func route(
+        for media: PlexMedia,
+        subtitleID: Int? = nil,
+        displaySupportsHDR: Bool = true,
+        hdrVideoRemuxEnabled: Bool = true
+    ) -> Route {
+        let streams = media.parts[0].streams
+        let audio = streams.first { $0.streamType == .audio }
+        let subtitle = subtitleID.flatMap { id in streams.first { $0.id == id } }
+        let decision = StreamResolver.evaluate(media: media)
+        if StreamResolver.isDolbyVisionProfile5(media) {
+            guard StreamResolver.dolbyVisionRemuxBlocker(
+                media: media, subtitleStream: subtitle, displaySupportsHDR: displaySupportsHDR
+            ) == nil else { return .vlcKitDirect }
+            return audio.map(StreamResolver.canCopyIntoRemux(audio:)) == false ? .convertedAudioRemux : .copyRemux
+        }
+        if decision.engine == .avPlayer, !decision.requiresServerTranscode { return .avPlayerDirect }
+        let convertsAudio = audio.map {
+            StreamResolver.hdrAudioConversionRemuxBlocker(
+                media: media, decision: decision, audioStream: $0, subtitleStream: subtitle,
+                displaySupportsHDR: displaySupportsHDR, hdrVideoRemuxEnabled: hdrVideoRemuxEnabled
+            ) == nil
+        } ?? false
+        if convertsAudio {
+            // The coordinator admits a converting request through this gate.
+            let admitted = StreamResolver.spatialAudioRemuxBlocker(
+                media: media, decision: decision, audioStream: audio, subtitleStream: subtitle,
+                displaySupportsHDR: displaySupportsHDR, convertsAudio: true
+            ) == nil
+            return admitted ? .convertedAudioRemux : .vlcKitDirect
+        }
+        guard hdrVideoRemuxEnabled else { return .vlcKitDirect }
+        return StreamResolver.hdrVideoRemuxBlocker(
+            media: media, decision: decision, audioStream: audio, subtitleStream: subtitle,
+            displaySupportsHDR: displaySupportsHDR
+        ) == nil ? .copyRemux : .vlcKitDirect
+    }
+
+    private func makeMatrixMedia(
+        container: String = "mkv",
+        video: String,
+        audio: String,
+        subtitleCodec: String? = nil
+    ) throws -> PlexMedia {
+        let subtitle = subtitleCodec.map { #", { "id": 3, "streamType": 3, "codec": "\#($0)" }"# } ?? ""
+        let json = """
+        {
+            "id": 10,
+            "container": "\(container)",
+            "Part": [{
+                "id": 20,
+                "key": "/library/parts/20/file.\(container)",
+                "container": "\(container)",
+                "Stream": [
+                    { "id": 1, "streamType": 1, "codec": "hevc", "bitDepth": 10, "frameRate": 23.976, \(video) },
+                    { "id": 2, "streamType": 2, "languageCode": "eng", "default": true, \(audio) }\(subtitle)
+                ]
+            }]
+        }
+        """
+        return try JSONDecoder().decode(PlexMedia.self, from: Data(json.utf8))
     }
 }
 

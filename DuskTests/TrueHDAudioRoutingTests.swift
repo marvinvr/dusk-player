@@ -132,17 +132,20 @@ struct TrueHDAudioRoutingTests {
         }
     }
 
-    @Test func dv8TrueHDKeepsLocalDecoding() throws {
+    @Test func dv8TrueHDStartsWithConvertedAudio() throws {
+        // Picture first: DV 8.1 keeps Dolby Vision on AVPlayer.
         let media = try makeMedia(
             video: #""DOVIPresent": true, "DOVIProfile": 8, "DOVIBLCompatID": 1, "colorTrc": "smpte2084""#,
             audio: trueHDOnlyAudio
         )
-        #expect(convertedBlocker(for: media) != nil)
+        #expect(convertedBlocker(for: media) == nil)
+        #expect(StreamResolver.dolbyVision7ConversionTarget(in: media) == nil)
     }
 
-    @Test func hdrTrueHDOnlyFileKeepsLocalDecoding() throws {
+    @Test func hdrTrueHDOnlyFileStartsWithConvertedAudio() throws {
         let media = try makeMedia(video: #""colorTrc": "smpte2084""#, audio: trueHDOnlyAudio)
-        #expect(convertedBlocker(for: media) != nil)
+        #expect(convertedBlocker(for: media) == nil)
+        // Direct play (no HDR display, setting off) still opens on TrueHD.
         #expect(PlayerViewModel.preferredLocalAudioStream(
             inPart: media.parts[0], preferredLanguage: nil, decodesTrueHD: true
         )?.id == 2)
@@ -281,7 +284,7 @@ struct TrueHDAudioRoutingTests {
         guard let audio = streams.first(where: { $0.streamType == .audio }) else {
             return "no audio"
         }
-        return StreamResolver.convertedTrueHDRemuxBlocker(
+        return StreamResolver.hdrAudioConversionRemuxBlocker(
             media: media,
             decision: StreamResolver.evaluate(media: media),
             audioStream: audio,

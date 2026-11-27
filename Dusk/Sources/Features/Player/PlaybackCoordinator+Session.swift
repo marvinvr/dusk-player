@@ -573,7 +573,7 @@ extension PlaybackCoordinator {
                     let subtitleStreamID = remuxSubtitleID
                     let mediaIndex = details.media.firstIndex { $0.id == media.id } ?? 0
                     // The request decides conversion before contacting Plex:
-                    // DV7 + TrueHD starts on AVPlayer with E-AC-3 audio.
+                    // HDR/DV + TrueHD/DTS starts on AVPlayer with E-AC-3 audio.
                     let remux = await requestSpatialAudioRemux(
                         ratingKey: ratingKey,
                         mediaIndex: mediaIndex,

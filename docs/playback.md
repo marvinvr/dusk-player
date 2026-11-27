@@ -578,13 +578,14 @@ so the whole live HUD is derived from one instant.
   HDR video (`isRemuxableHDRVideo`: PQ or HLG `colorTrc`, or DV 7 / 8.1 /
   8.4 / 8.6 by base-layer compatibility ID when the TRC is missing; 8.2 has
   an SDR base and is not HDR), `AVPlayer.eligibleForHDRPlayback`, a text
-  subtitle if any, and audio Plex can **copy** (E-AC-3/AC-3/AAC). DTS,
-  FLAC, PCM & co. keep VLCKit: converting a lossless track to keep the
-  picture would lower audio quality, and the remux never lowers quality.
-  DV7 + TrueHD is the picture-priority exception: request converted E-AC-3
-  audio up front and keep DV7 → 8.1 on AVPlayer. Other TrueHD-only files
-  use local lossless decoding on Dusk's VLCKit build. TrueHD with a copyable
-  sibling remuxes the sibling (see "Dolby TrueHD decoding").
+  subtitle if any, and audio Plex can **copy** (E-AC-3/AC-3/AAC).
+  **Picture first** (product decision, 1.9.1): HDR/DV with TrueHD/MLP or any
+  DTS variant (`dca`: DTS, DTS-HD MA, DTS:X core) requests converted E-AC-3
+  audio up front (`hdrAudioConversionRemuxBlocker`) and keeps the picture on
+  AVPlayer (DV7 also → 8.1 on device). VLCKit 3 shows no HDR, so local
+  lossless audio would cost the picture. SDR files keep local TrueHD/DTS
+  decoding. FLAC, PCM, Opus & co. with HDR still keep VLCKit. TrueHD with a
+  copyable sibling remuxes the sibling (see "Dolby TrueHD decoding").
 - Delivery and acceptance are the Atmos remux's
   (`requestSpatialAudioRemux`, session type `.spatialAudio`, initially lossless;
   failed requests/decoder startup use the HDR server-remux rungs above). A file
@@ -655,9 +656,9 @@ so the whole live HUD is derived from one instant.
   `convertedFromProfile = 7`); `DisplayModeMatcher` gets it in place of
   `dolbyVisionRemux`. VLCKit taking over a remux URL never converts.
   `StreamResolver.dolbyVisionSignalingStream` still excludes profile 7.
-- Picture-priority startup: when the remux audio pick is TrueHD/MLP,
-  `convertedTrueHDRemuxBlocker` qualifies DV7 for AVPlayer, regardless of
-  whether VLCKit can decode TrueHD. The demo clips `DV P7 MEL - Hybrid
+- Picture-priority startup: when the remux audio pick is TrueHD/MLP or DTS,
+  `hdrAudioConversionRemuxBlocker` qualifies any remuxable HDR video (DV7
+  included) for AVPlayer, regardless of whether VLCKit can decode the audio. The demo clips `DV P7 MEL - Hybrid
   HDR10 TrueHD Atmos (2020)` (7.1/48 kHz) and `DV P7 MEL - Hybrid HDR10+
   TrueHD 5.1 (2020)` (5.1/96 kHz, forced SRT) have this combination. The
   request chooses audio conversion before contacting Plex: video copied,
@@ -778,7 +779,7 @@ so the whole live HUD is derived from one instant.
     the session reason (Playback Info) names "Dolby Vision 7 → 8.1" and
     Display Mode reads "Dolby Vision 8.1 (from profile 7)"; the first-segment log shows RPUs ≈ samples
     and EL NALs dropped (FEL and MEL).
-  - Audio: E-AC-3 Atmos (receiver shows Atmos), AC-3; DV7 + TrueHD-only
+  - Audio: E-AC-3 Atmos (receiver shows Atmos), AC-3; DV7 + TrueHD/DTS-only
     starts on the converted-audio remux with real DV, on custom and stock
     VLCKit builds. Plain converted DD+ must not be labelled Atmos.
   - DV display mode switch on the TV (Match Content on).
@@ -1376,15 +1377,15 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     UHD remux with TrueHD Atmos + E-AC-3/AC-3 from HDR/Atmos on AVPlayer into
     VLCKit without HDR. These files keep exactly their old remux; only when
     no remux qualifies does direct play open on the TrueHD track.
-  - TrueHD-only files (`StreamResolver.convertedTrueHDRemuxBlocker`): DV7
-    takes the converted-audio remux up front to preserve Dolby Vision/HDR.
-    `requestSpatialAudioRemux` makes the choice before its first server
-    request, also on stock builds and track changes. Other TrueHD-only
+  - TrueHD/DTS on HDR (`StreamResolver.hdrAudioConversionRemuxBlocker`):
+    any HDR/DV file takes the converted-audio remux up front to preserve the
+    picture. `requestSpatialAudioRemux` makes the choice before its first
+    server request, also on stock builds and track changes. SDR TrueHD/DTS
     files retain local lossless decoding; spatial audio alone does not
     force an audio transcode.
-  - In a remux session, picking a TrueHD track retains DV7 picture by
-    converting audio. For non-DV7, picking TrueHD behaves like picking DTS:
-    `leaveSpatialAudioRemux` moves to VLCKit direct play with that track.
+  - In an HDR remux session, picking a TrueHD or DTS track keeps the
+    picture by converting audio. In an SDR remux (Atmos), it moves to
+    VLCKit direct play with that track (`leaveSpatialAudioRemux`).
   - A remux that converts its audio keeps converting when it is rebuilt
     around the same audio stream (subtitle change, the Dolby Vision 7
     retry): `PlaybackCoordinator.remuxAudioConversion` records the converted
