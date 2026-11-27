@@ -178,10 +178,17 @@ struct PlaybackSource: Sendable {
     /// AVPlayer only; `.spatialAudio` sessions of a hev1 MP4 without Dolby
     /// Vision signaling.
     var retagsHEV1SampleEntry = false
+    /// Relay the video segments through `RemuxSegmentRelay` to repair the
+    /// first keyframe timestamp Plex misplaces in each segment of an
+    /// open-GOP copy (`RemuxKeyframeTimestampRepair`). AVPlayer only; every
+    /// `.spatialAudio` (video copy) session. The Dolby Vision 7 proxy repairs
+    /// its segments itself.
+    var repairsKeyframeTimestamps = false
 
     /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
     var usesRemuxHLSLoader: Bool {
-        (restoresDolbyAtmos || dolbyVisionRemux != nil || retagsHEV1SampleEntry) && dolbyVision7Conversion == nil
+        (restoresDolbyAtmos || dolbyVisionRemux != nil || retagsHEV1SampleEntry || repairsKeyframeTimestamps)
+            && dolbyVision7Conversion == nil
     }
     /// Present only for a tuned Plex Live TV session. The player uses it for
     /// channel identity, channel switching, and live-window seek semantics.

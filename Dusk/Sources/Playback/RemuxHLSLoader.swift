@@ -724,6 +724,12 @@ enum MP4BoxRewriter {
 /// (`EAC3JOCSignaling`) and Dolby Vision (`DolbyVisionSignaling`) signaling is
 /// restored on the way through. Anything unexpected is passed through
 /// untouched.
+///
+/// With `repairsKeyframeTimestamps`, the video playlist's media segments go to
+/// a `RemuxSegmentRelay` on loopback instead, which fixes the first keyframe
+/// timestamp Plex misplaces in every segment of an open-GOP copy
+/// (`RemuxKeyframeTimestampRepair`). If the relay cannot start they stay on
+/// the server, as before.
 final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked Sendable {
     private static let schemePrefix = "dusk-remux-"
 
@@ -736,19 +742,34 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     private let retagsHEV1: Bool
     /// `CODECS` for a variant Plex lists without one (`RemuxVariantCodecs`).
     private let fallbackCodecs: String?
+    private let repairsKeyframeTimestamps: Bool
+    private let relayLock = NSLock()
+    /// Created with the first fMP4 media playlist; guarded by `relayLock`.
+    private var segmentRelay: RemuxSegmentRelay?
 
     init(
         session: URLSession = PlexTransportSecurity.session,
         restoresDolbyAtmos: Bool,
         dolbyVision: DolbyVisionConfiguration?,
         retagsHEV1: Bool = false,
-        fallbackCodecs: String? = nil
+        fallbackCodecs: String? = nil,
+        repairsKeyframeTimestamps: Bool = false
     ) {
         self.session = session
         self.restoresDolbyAtmos = restoresDolbyAtmos
         self.dolbyVision = dolbyVision
         self.retagsHEV1 = retagsHEV1
         self.fallbackCodecs = fallbackCodecs
+        self.repairsKeyframeTimestamps = repairsKeyframeTimestamps
+    }
+
+    deinit {
+        relayLock.withLock { segmentRelay }?.stop()
+    }
+
+    /// The segment relay once a video playlist started it (tests, diagnostics).
+    var activeSegmentRelay: RemuxSegmentRelay? {
+        relayLock.withLock { segmentRelay }
     }
 
     /// The URL to hand AVFoundation in place of `url` (http/https only).
@@ -814,7 +835,8 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
             if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
                 throw URLError(.badServerResponse)
             }
-            let body = transformedBody(data, response: response, serverURL: serverURL)
+            let relay = await startedSegmentRelay(forPlaylist: data, serverURL: serverURL)
+            let body = transformedBody(data, response: response, serverURL: serverURL, segmentRelay: relay)
             queue.async {
                 guard !loadingRequest.isCancelled else { return }
                 Self.respond(to: loadingRequest, with: body.data, contentType: body.contentType)
@@ -827,14 +849,38 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         }
     }
 
+    /// The relay for a media playlist whose segments are fMP4 (`EXT-X-MAP`):
+    /// the video. Nil for everything else (the master, WebVTT renditions,
+    /// segments) and when the relay cannot come up.
+    private func startedSegmentRelay(forPlaylist data: Data, serverURL: URL) async -> RemuxSegmentRelay? {
+        guard repairsKeyframeTimestamps, Self.isPlaylist(data),
+              data.range(of: Data("#EXT-X-MAP".utf8)) != nil,
+              data.range(of: Data("#EXTINF".utf8)) != nil else {
+            return nil
+        }
+        let relay = relayLock.withLock { () -> RemuxSegmentRelay in
+            if let segmentRelay { return segmentRelay }
+            let relay = RemuxSegmentRelay(origin: serverURL)
+            segmentRelay = relay
+            return relay
+        }
+        guard await relay.start() else {
+            atmosSignalingLogger.error("Remux segment relay unavailable; segments load from the server unrepaired")
+            return nil
+        }
+        return relay
+    }
+
     private func transformedBody(
         _ data: Data,
         response: URLResponse,
-        serverURL: URL
+        serverURL: URL,
+        segmentRelay: RemuxSegmentRelay? = nil
     ) -> (data: Data, contentType: String) {
         if Self.isPlaylist(data) {
             let text = String(decoding: data, as: UTF8.self)
-            return (Data(rewrittenPlaylist(text, baseURL: serverURL).utf8), "public.m3u-playlist")
+            let relayURL = segmentRelay.map { relay in { (url: URL) in relay.relayURL(for: url) } }
+            return (Data(rewrittenPlaylist(text, baseURL: serverURL, segmentURL: relayURL).utf8), "public.m3u-playlist")
         }
 
         var segment = data
@@ -857,8 +903,13 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     }
 
     /// Sends playlists and the init segment back through the loader; media
-    /// segments go straight to the server as absolute URLs.
-    func rewrittenPlaylist(_ playlist: String, baseURL: URL) -> String {
+    /// segments go straight to the server as absolute URLs, or to
+    /// `segmentURL`'s answer (the segment relay) when it has one.
+    func rewrittenPlaylist(
+        _ playlist: String,
+        baseURL: URL,
+        segmentURL: ((URL) -> URL?)? = nil
+    ) -> String {
         var routeNextURIThroughLoader = false
         var lines: [String] = []
 
@@ -882,6 +933,8 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
             } else if let absolute = URL(string: line, relativeTo: baseURL)?.absoluteURL {
                 if routeNextURIThroughLoader, let loaderURL = Self.loaderURL(for: absolute) {
                     lines.append(loaderURL.absoluteString)
+                } else if !routeNextURIThroughLoader, let relayed = segmentURL?(absolute) {
+                    lines.append(relayed.absoluteString)
                 } else {
                     lines.append(absolute.absoluteString)
                 }
