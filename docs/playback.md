@@ -389,8 +389,15 @@ so the whole live HUD is derived from one instant.
   there is no Dusk per-show sync across devices.
 - tvOS's existing enhanced-SDR/embedded-subtitle routing receives the resolved
   subtitle ID. Remembered SDR sidecars can start on VLCKit. HDR/DV never gains a
-  subtitle-induced VLC route: an unsupported remembered bitmap/ASS subtitle is
-  omitted from the HDR remux for that episode, without erasing the preference.
+  subtitle-induced VLC route at startup (picture first, 1.9.1): any startup
+  subtitle the remux cannot carry (PGS/VobSub, ASS/SSA), automatic or
+  remembered, is replaced in the HDR/DV remux by a text subtitle of the same
+  language and purpose (`ShowTrackPreferences.remuxSubtitleStreamID` →
+  `textSubtitleFallback`: forced only for forced, commentary only for
+  commentary, matching SDH flag preferred), or none. The preference is not
+  erased, and direct play (when no remux is possible, e.g. an SDR display)
+  still opens on the original subtitle. Picking an image subtitle
+  mid-session is still declined to keep HDR.
   Remembered audio that cannot be copied is converted by Plex when needed to
   preserve HDR. The existing remux conversion retention and declined-HDR-change
   guard remain in charge of later track changes (the `a310f05` behavior).
@@ -415,7 +422,9 @@ so the whole live HUD is derived from one instant.
   AC-3/E-AC-3 (spatial audio; on tvOS VLCKit already outputs discrete PCM).
   The auto-selected subtitle, if any, must be text (SRT/WebVTT/mov_text):
   bitmap subtitles would be burned in (a video re-encode) and ASS would lose
-  styling. HDR video additionally needs `AVPlayer.eligibleForHDRPlayback`:
+  styling. For HDR/DV the startup pick has already been swapped for a text
+  fallback (see per-show tracks above), so only SDR files stay on VLCKit for
+  an image subtitle. HDR video additionally needs `AVPlayer.eligibleForHDRPlayback`:
   Plex declares the remux's only variant `VIDEO-RANGE=PQ`, AVFoundation
   refuses it on an SDR display (`AVErrorNoCompatibleAlternatesForExternalDisplay`,
   e.g. every simulator) and rejects it with CoreMedia -12927 if the attribute

@@ -378,12 +378,12 @@ extension PlaybackCoordinator {
                 $0.subtitleStreamID(in: part, fallback: defaultSubtitleID)
             } ?? defaultSubtitleID
             let hasHDRVideo = ShowTrackPreferences.hasHDRVideo(in: part)
-            // A remembered PGS/ASS choice must not veto the HDR/DV remux and
-            // send the video into VLC. Retain the preference for compatible
-            // episodes, but start this remux without an unsupported subtitle.
-            let remuxSubtitleID = hasRememberedMatch
-                ? ShowTrackPreferences.remuxSubtitleStreamID(startupSubtitleID, in: part)
-                : startupSubtitleID
+            // Picture first: a PGS/VobSub/ASS pick (automatic or remembered)
+            // must not veto the HDR/DV remux and send the video into VLC.
+            // The remux starts with a same-language text subtitle, or none;
+            // a remembered preference is kept for compatible episodes, and
+            // direct play (no remux possible) still opens on the original.
+            let remuxSubtitleID = ShowTrackPreferences.remuxSubtitleStreamID(startupSubtitleID, in: part)
             let convertsRememberedAudio = rememberedAudio.map {
                 (StreamResolver.containsAV1(media)
                     ? !StreamResolver.canCopyAV1Audio($0)

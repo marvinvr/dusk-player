@@ -88,12 +88,37 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
         }
     }
 
+    /// The subtitle an HDR/DV remux starts with (picture first). A subtitle
+    /// the video-copy remux cannot carry (PGS/VobSub would be burned in, a
+    /// video transcode; ASS/SSA would lose its styling) gives way to a text
+    /// subtitle of the same language and purpose (`textSubtitleFallback`),
+    /// or none, instead of sending the video to VLC without HDR. SDR media
+    /// and subtitles that ride the remux are returned unchanged.
     @MainActor
     static func remuxSubtitleStreamID(_ streamID: Int?, in part: PlexMediaPart) -> Int? {
         guard hasHDRVideo(in: part), let streamID,
               let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == streamID }),
               !StreamResolver.canRideRemux(subtitle: stream) else { return streamID }
-        return nil
+        return textSubtitleFallback(for: stream, in: part)?.id
+    }
+
+    /// A text subtitle that can ride the remux in place of `stream`: same
+    /// language, forced only for forced and commentary only for commentary
+    /// (forced-only text must not stand in for full subtitles, nor the
+    /// reverse). The same SDH flag is preferred, then Plex's order.
+    @MainActor
+    static func textSubtitleFallback(for stream: PlexStream, in part: PlexMediaPart) -> PlexStream? {
+        guard let wanted = ShowTrackDescriptor(stream: stream) else { return nil }
+        let candidates = part.streams.compactMap { candidate -> (stream: PlexStream, descriptor: ShowTrackDescriptor)? in
+            guard candidate.streamType == .subtitle, candidate.id != stream.id,
+                  StreamResolver.canRideRemux(subtitle: candidate),
+                  let descriptor = ShowTrackDescriptor(stream: candidate),
+                  descriptor.language == wanted.language,
+                  descriptor.forced == wanted.forced,
+                  descriptor.commentary == wanted.commentary else { return nil }
+            return (candidate, descriptor)
+        }
+        return (candidates.first { $0.descriptor.hearingImpaired == wanted.hearingImpaired } ?? candidates.first)?.stream
     }
 
     @MainActor

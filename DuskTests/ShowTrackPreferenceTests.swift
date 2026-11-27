@@ -391,7 +391,8 @@ struct ShowTrackPreferenceTests {
             """)
         let media = details.media[0]
         let part = media.parts[0]
-        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == nil)
+        // Picture first: the PGS gives way to the English text subtitle.
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 3)
         #expect(ShowTrackPreferences.remuxSubtitleStreamID(3, in: part) == 3)
         let descriptor = try #require(ShowTrackDescriptor(stream: part.streams[2]))
         let remembered = ShowTrackPreferences(subtitles: .track(descriptor))
@@ -400,6 +401,112 @@ struct ShowTrackPreferenceTests {
             selectedSubtitleStreamID: remembered.subtitleStreamID(in: part, fallback: nil)
         )
         #expect(!decision.usesEnhancedSubtitleRenderer)
+    }
+
+    // MARK: - Picture first: image subtitles on HDR/DV
+
+    private let hdr10Video = #"{"id":1,"streamType":1,"codec":"hevc","bitDepth":10,"colorTrc":"smpte2084"}"#
+
+    @Test(arguments: [
+        #""colorTrc":"smpte2084""#,
+        #""colorTrc":"arib-std-b67""#,
+        #""DOVIPresent":true,"DOVIProfile":8,"DOVIBLCompatID":1,"colorTrc":"smpte2084""#,
+        #""DOVIPresent":true,"DOVIProfile":7,"DOVIBLCompatID":6,"colorTrc":"smpte2084""#,
+        #""DOVIPresent":true,"DOVIProfile":5,"DOVIBLCompatID":0"#,
+    ])
+    func imageSubtitleGivesWayToSameLanguageText(videoFields: String) throws {
+        // Dune: Part Two's English pair: SDH PGS and a plain SRT.
+        let part = try episode(streams: """
+            {"id":1,"streamType":1,"codec":"hevc","bitDepth":10,\(videoFields)},
+            {"id":2,"streamType":2,"codec":"truehd","languageCode":"eng"},
+            {"id":5,"streamType":3,"codec":"srt","languageCode":"fra","displayTitle":"Français"},
+            {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng","hearingImpaired":true,"displayTitle":"English SDH"},
+            {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == 7)
+        for vobsub in ["vobsub", "dvd_subtitle"] {
+            let vob = try episode(streams: """
+                \(hdr10Video),
+                {"id":6,"streamType":3,"codec":"\(vobsub)","languageCode":"eng"},
+                {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+                """).media[0].parts[0]
+            #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: vob) == 7, "\(vobsub)")
+        }
+    }
+
+    @Test func noSameLanguageTextStartsWithoutSubtitles() throws {
+        let part = try episode(streams: """
+            \(hdr10Video),
+            {"id":5,"streamType":3,"codec":"srt","languageCode":"fra"},
+            {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part) == nil)
+    }
+
+    @Test func forcedStaysForcedAndFullStaysFull() throws {
+        let part = try episode(streams: """
+            \(hdr10Video),
+            {"id":4,"streamType":3,"codec":"pgs","languageCode":"eng","forced":true,"displayTitle":"English Forced"},
+            {"id":5,"streamType":3,"codec":"pgs","languageCode":"eng","displayTitle":"English"},
+            {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English"},
+            {"id":7,"streamType":3,"codec":"srt","languageCode":"eng","displayTitle":"English Forced"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 7)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(5, in: part) == 6)
+        // Forced-only text never stands in for full subtitles, nor the reverse.
+        let fullOnly = try episode(streams: """
+            \(hdr10Video),
+            {"id":4,"streamType":3,"codec":"pgs","languageCode":"eng","forced":true},
+            {"id":6,"streamType":3,"codec":"srt","languageCode":"eng"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: fullOnly) == nil)
+    }
+
+    @Test func matchingSDHFlagIsPreferred() throws {
+        let part = try episode(streams: """
+            \(hdr10Video),
+            {"id":4,"streamType":3,"codec":"pgs","languageCode":"eng","hearingImpaired":true},
+            {"id":5,"streamType":3,"codec":"srt","languageCode":"eng"},
+            {"id":6,"streamType":3,"codec":"srt","languageCode":"eng","hearingImpaired":true}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(4, in: part) == 6)
+    }
+
+    @Test func sdrAndTextPicksAreUnchanged() throws {
+        let sdr = try episode(streams: """
+            {"id":1,"streamType":1,"codec":"hevc","bitDepth":8,"colorTrc":"bt709"},
+            {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"},
+            {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(6, in: sdr) == 6)
+        let hdr = try episode(streams: """
+            \(hdr10Video),
+            {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}
+            """).media[0].parts[0]
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(7, in: hdr) == 7)
+        #expect(ShowTrackPreferences.remuxSubtitleStreamID(nil, in: hdr) == nil)
+    }
+
+    @Test func fallbackKeepsTheHDRRemuxEligible() throws {
+        let media = try JSONDecoder().decode(PlexMedia.self, from: Data("""
+            {"id":1,"container":"mkv","Part":[{"id":2,"key":"/clip.mkv","container":"mkv","Stream":[
+              \(hdr10Video),
+              {"id":2,"streamType":2,"codec":"dca","profile":"ma","channels":6,"languageCode":"eng"},
+              {"id":6,"streamType":3,"codec":"pgs","languageCode":"eng"},
+              {"id":7,"streamType":3,"codec":"srt","languageCode":"eng"}]}]}
+            """.utf8))
+        let part = media.parts[0]
+        let decision = StreamResolver.evaluate(media: media)
+        let audio = try #require(part.streams.first { $0.streamType == .audio })
+        func blocker(_ subtitleID: Int?) -> String? {
+            StreamResolver.hdrAudioConversionRemuxBlocker(
+                media: media, decision: decision, audioStream: audio,
+                subtitleStream: subtitleID.flatMap { id in part.streams.first { $0.id == id } },
+                displaySupportsHDR: true, hdrVideoRemuxEnabled: true
+            )
+        }
+        #expect(blocker(6) != nil)
+        #expect(blocker(ShowTrackPreferences.remuxSubtitleStreamID(6, in: part)) == nil)
     }
 
     private func episode(
