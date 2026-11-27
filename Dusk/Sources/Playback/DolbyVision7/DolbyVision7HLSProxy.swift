@@ -238,6 +238,8 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
     private let upstreamMasterURL: URL
     private let target: DolbyVisionConfiguration
     private let restoresDolbyAtmos: Bool
+    /// `CODECS` for a variant Plex lists without one (`RemuxVariantCodecs`).
+    private let fallbackCodecs: String?
     private let sampleRewriter: any DolbyVisionSampleRewriting
     private let fetcher: any HLSUpstreamFetching
     private let token: String
@@ -279,6 +281,7 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         upstreamMasterURL: URL,
         target: DolbyVisionConfiguration,
         restoresDolbyAtmos: Bool,
+        fallbackCodecs: String? = nil,
         sampleRewriter: any DolbyVisionSampleRewriting = DoviBridgeSampleRewriter(),
         fetcher: any HLSUpstreamFetching = URLSessionHLSUpstreamFetcher.shared,
         requestHeadTimeout: TimeInterval = 10
@@ -286,6 +289,7 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         self.upstreamMasterURL = upstreamMasterURL
         self.target = target
         self.restoresDolbyAtmos = restoresDolbyAtmos
+        self.fallbackCodecs = fallbackCodecs
         self.sampleRewriter = sampleRewriter
         self.fetcher = fetcher
         self.requestHeadTimeout = requestHeadTimeout
@@ -744,6 +748,7 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
             text,
             baseURL: baseURL,
             target: target,
+            fallbackCodecs: fallbackCodecs,
             requiresInitSegment: isVideo,
             mapper: .init(
                 playlist: { [self] upstream, isVideo in

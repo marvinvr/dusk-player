@@ -32,6 +32,7 @@ enum DolbyVision7PlaylistRewriter {
         _ text: String,
         baseURL: URL,
         target: DolbyVisionConfiguration,
+        fallbackCodecs: String? = nil,
         requiresInitSegment: Bool = false,
         mapper: URLMapper
     ) throws -> String {
@@ -43,7 +44,7 @@ enum DolbyVision7PlaylistRewriter {
         for rawLine in text.components(separatedBy: "\n") {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             if line.hasPrefix("#EXT-X-STREAM-INF") {
-                lines.append(try variantLine(line, target: target))
+                lines.append(try variantLine(line, target: target, fallbackCodecs: fallbackCodecs))
                 nextURIIsVariant = true
             } else if line.hasPrefix("#EXT-X-I-FRAME-STREAM-INF") {
                 continue
@@ -94,9 +95,16 @@ enum DolbyVision7PlaylistRewriter {
     /// The variant with 8.1 signaling, which must have landed: an `hvc1`
     /// entry kept in `CODECS` and the target's `dvh1.08` in
     /// `SUPPLEMENTAL-CODECS` (a `hev1`, non-HEVC or `dvh1.07` variant is
-    /// left alone by `rewrittenStreamInfLine`).
-    private static func variantLine(_ line: String, target: DolbyVisionConfiguration) throws -> String {
-        let rewritten = DolbyVisionSignaling.rewrittenStreamInfLine(line, configuration: target)
+    /// left alone by `rewrittenStreamInfLine`). A variant without `CODECS`
+    /// takes `fallbackCodecs` first (`RemuxVariantCodecs`).
+    private static func variantLine(
+        _ line: String,
+        target: DolbyVisionConfiguration,
+        fallbackCodecs: String?
+    ) throws -> String {
+        let rewritten = DolbyVisionSignaling.rewrittenStreamInfLine(
+            line, configuration: target, fallbackCodecs: fallbackCodecs
+        )
         let attributes = HLSAttributeList(line: rewritten)
         let codecs = codecList(attributes?.quotedValue(of: "CODECS"))
         let supplemental = codecList(attributes?.quotedValue(of: "SUPPLEMENTAL-CODECS"))

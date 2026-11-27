@@ -614,6 +614,20 @@ so the whole live HUD is derived from one instant.
     cannot honestly be renamed, so a `hev1` variant and its init segment are
     left as plain HEVC. (DV5 renames `hev1` to `dvhe` and declares `dvhe.05.LL`
     to match.)
+  - Missing `CODECS` (`RemuxVariantCodecs`): PMS serves remux masters with
+    no `CODECS` at all (seen on plex-demo, copy and converted-audio alike:
+    `#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=…,RESOLUTION=…,FRAME-RATE=…,
+    VIDEO-RANGE=PQ`). Without it neither DV5 nor 8.x could be declared and
+    the DV7 rewriter refused every master. The coordinator now passes
+    `PlaybackSource.remuxVariantCodecs` (only with DV signaling) to the
+    loader and the DV7 proxy; a line without `CODECS` takes it before the
+    DV rewrite. It is what Plex writes when it does write one: `hvc1`
+    (`hev1` for a `hev1`/`dvhe` source), Main 10 `2.4` / Main `1.6`, Main
+    tier, Plex's `level` (or the lowest level the picture size/rate fits),
+    `b0`, plus the remux audio (`ec-3` when converting, else the copied
+    stream's `ec-3`/`ac-3`/`mp4a.40.2`). Unknown video or audio → no
+    fallback (a partial declaration would hide a track). Plex's own `CODECS`
+    always wins. The level cap below then applies as usual.
   - Level cap: tvOS 27 refuses a DV master declaring level 5.2 (`L156`)
     with -11848 although the same 4K24 stream declared 5.1 plays with DV
     engaged (AetherEngine #674; encoders often over-declare). The declared
@@ -632,8 +646,12 @@ so the whole live HUD is derived from one instant.
 - Turning `hdrVideoRemuxEnabled` off restores the previous behavior exactly:
   no HDR-only remux, and no profile 8 signaling on Atmos/converted-audio
   remuxes.
-- Unverified without real hardware/PMS: whether Plex already writes
-  `dvvC`/`SUPPLEMENTAL-CODECS` itself (the patch then leaves them alone),
+- Seen on plex-demo (2026-11): masters carry no `CODECS`/
+  `SUPPLEMENTAL-CODECS`; a DV7 source's remux init already has a `dvcC`
+  next to `hvcC` (Plex writes it; the profile 8 patch leaves an existing
+  box alone); DV5 remuxes are refused server-side ("DoVi (Profile 5) color
+  space is not supported"). Unverified without real hardware: whether Plex
+  writes `dvvC` for a real 8.1/8.4 source (the patch then leaves them alone),
   whether Plex declares `VIDEO-RANGE=HLG` for plain HLG sources, that the
   RPU is actually applied (an L2-trim test clip pulses visibly), HDR10+ on
   an HDR10+ TV, and the level cap on 4K60 and high-bitrate sources.

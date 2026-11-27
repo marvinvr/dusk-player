@@ -872,7 +872,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             let loader = RemuxHLSLoader(
                 restoresDolbyAtmos: source.restoresDolbyAtmos,
                 dolbyVision: source.dolbyVisionRemux,
-                retagsHEV1: source.retagsHEV1SampleEntry
+                retagsHEV1: source.retagsHEV1SampleEntry,
+                fallbackCodecs: source.remuxVariantCodecs
             )
             let url = playlistURL ?? source.url
             if let asset = RemuxHLSLoader.makeAsset(url: url, loader: loader) {
@@ -960,7 +961,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
         let proxy = DolbyVision7HLSProxy(
             upstreamMasterURL: source.url,
             target: target,
-            restoresDolbyAtmos: source.restoresDolbyAtmos
+            restoresDolbyAtmos: source.restoresDolbyAtmos,
+            fallbackCodecs: source.remuxVariantCodecs
         )
         proxy.onFatalError = { [weak self] error in
             Task { @MainActor [weak self] in

@@ -168,6 +168,9 @@ struct PlaybackSource: Sendable {
     /// device (through `DolbyVision7HLSProxy`, which also restores Atmos).
     /// AVPlayer only; nil for every other session.
     var dolbyVision7Conversion: DolbyVisionConfiguration? = nil
+    /// `CODECS` for the remux variant when Plex's master omits it
+    /// (`RemuxVariantCodecs`); set only with Dolby Vision signaling.
+    var remuxVariantCodecs: String? = nil
 
     /// Startup recovery rungs after a failed HDR signaling/remux attempt.
     var hdrRemuxFallback: HDRRemuxFallback? = nil

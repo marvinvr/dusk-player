@@ -213,6 +213,71 @@ struct DolbyVisionConfiguration: Sendable, Equatable {
     }
 }
 
+/// RFC 6381 `CODECS` for a Plex fMP4 remux variant, rebuilt from Plex's
+/// metadata for masters that omit the attribute (PMS writes
+/// `#EXT-X-STREAM-INF:…,VIDEO-RANGE=PQ` with no `CODECS` on copy and
+/// converted-audio remuxes alike). The result matches what Plex writes when
+/// it does include one, e.g. `hvc1.2.4.L153.b0,ec-3`: Main tier, Plex's
+/// reported level, the source's sample-entry family. The decoder reads the
+/// real profile/tier/level from `hvcC`; this only declares the variant so
+/// `DolbyVisionSignaling` can add `dvh1` (profile 5) or
+/// `SUPPLEMENTAL-CODECS` (8.1/8.4, and DV7 converted to 8.1).
+enum RemuxVariantCodecs {
+    /// The full attribute value, or nil when the video is not HEVC Main/Main
+    /// 10 or the remux audio has no known codec string (a wrong or partial
+    /// declaration is worse than none).
+    static func codecs(video: PlexStream, audioCodec: String?, hasAudio: Bool) -> String? {
+        guard let videoCodec = hevcCodec(for: video) else { return nil }
+        guard hasAudio else { return videoCodec }
+        guard let audio = audioCodecString(audioCodec) else { return nil }
+        return "\(videoCodec),\(audio)"
+    }
+
+    /// `hvc1.2.4.L153.b0` (Main 10) / `hvc1.1.6.L120.b0` (Main); `hev1` when
+    /// the source's sample entry is `hev1`/`dvhe`, which a remux keeps.
+    static func hevcCodec(for stream: PlexStream) -> String? {
+        guard stream.streamType == .video, stream.codec?.lowercased() == "hevc" else { return nil }
+        let profile: String
+        // Every Dolby Vision profile Dusk signals is Main 10 ("main 10").
+        let reported = stream.profile?.lowercased().trimmingCharacters(in: .whitespaces)
+            ?? ((stream.bitDepth ?? 10) > 8 ? "main 10" : "main")
+        switch reported {
+        case "main 10", "main10": profile = "2.4"
+        case "main": profile = "1.6"
+        default: return nil
+        }
+        let family = ["hev1", "dvhe"].contains(stream.codecID?.lowercased() ?? "") ? "hev1" : "hvc1"
+        let level = stream.level.flatMap { validLevels.contains($0) ? $0 : nil } ?? fallbackLevel(for: stream)
+        return "\(family).\(profile).L\(level).b0"
+    }
+
+    /// Plex's codec name for the remux audio → its HLS codec string.
+    static func audioCodecString(_ codec: String?) -> String? {
+        switch codec?.lowercased() {
+        case "eac3": "ec-3"
+        case "ac3": "ac-3"
+        case "aac": "mp4a.40.2"
+        default: nil
+        }
+    }
+
+    /// general_level_idc values (30 × level).
+    private static let validLevels: Set<Int> = [30, 60, 63, 90, 93, 120, 123, 150, 153, 156, 180, 183, 186]
+
+    /// Lowest level whose MaxLumaPs/MaxLumaSr fit the stream, for when Plex
+    /// reports no level.
+    private static func fallbackLevel(for stream: PlexStream) -> Int {
+        let pictureSize = Double(stream.width ?? 3840) * Double(stream.height ?? 2160)
+        let sampleRate = pictureSize * (stream.frameRate ?? 24)
+        let limits: [(level: Int, pictureSize: Double, sampleRate: Double)] = [
+            (120, 2_228_224, 66_846_720), (123, 2_228_224, 133_693_440),
+            (150, 8_912_896, 267_386_880), (153, 8_912_896, 534_773_760),
+            (156, 8_912_896, 1_069_547_520), (183, 35_651_584, 1_069_547_520),
+        ]
+        return limits.first { pictureSize <= $0.pictureSize && sampleRate <= $0.sampleRate }?.level ?? 186
+    }
+}
+
 /// Restores Dolby Vision signaling on Plex's fragmented-MP4 HLS remux.
 ///
 /// Plex copies a Dolby Vision HEVC bitstream (RPU NAL units included) into
@@ -296,9 +361,20 @@ enum DolbyVisionSignaling {
     ///   A `hev1` variant is left alone, like its init segment.
     ///
     /// Lines without an HEVC entry, or that do not parse, are left alone.
-    static func rewrittenStreamInfLine(_ line: String, configuration: DolbyVisionConfiguration) -> String {
-        guard var list = HLSAttributeList(line: line),
-              let codecsValue = list.quotedValue(of: "CODECS") else {
+    /// A line without any `CODECS` first takes `fallbackCodecs`
+    /// (`RemuxVariantCodecs`, built from Plex's metadata): Plex omits the
+    /// attribute on its fMP4 remux masters, and without it neither profile 5
+    /// nor 8.x can be declared.
+    static func rewrittenStreamInfLine(
+        _ line: String,
+        configuration: DolbyVisionConfiguration,
+        fallbackCodecs: String? = nil
+    ) -> String {
+        guard var list = HLSAttributeList(line: line) else { return line }
+        if list.value(of: "CODECS") == nil, let fallbackCodecs, !fallbackCodecs.isEmpty {
+            list.setQuoted("CODECS", to: fallbackCodecs)
+        }
+        guard let codecsValue = list.quotedValue(of: "CODECS") else {
             return line
         }
         let codecs = codecsValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
@@ -658,17 +734,21 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     private let restoresDolbyAtmos: Bool
     private let dolbyVision: DolbyVisionConfiguration?
     private let retagsHEV1: Bool
+    /// `CODECS` for a variant Plex lists without one (`RemuxVariantCodecs`).
+    private let fallbackCodecs: String?
 
     init(
         session: URLSession = PlexTransportSecurity.session,
         restoresDolbyAtmos: Bool,
         dolbyVision: DolbyVisionConfiguration?,
-        retagsHEV1: Bool = false
+        retagsHEV1: Bool = false,
+        fallbackCodecs: String? = nil
     ) {
         self.session = session
         self.restoresDolbyAtmos = restoresDolbyAtmos
         self.dolbyVision = dolbyVision
         self.retagsHEV1 = retagsHEV1
+        self.fallbackCodecs = fallbackCodecs
     }
 
     /// The URL to hand AVFoundation in place of `url` (http/https only).
@@ -787,7 +867,9 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
             if line.hasPrefix("#EXT-X-STREAM-INF") {
                 routeNextURIThroughLoader = true
                 if let dolbyVision {
-                    lines.append(DolbyVisionSignaling.rewrittenStreamInfLine(line, configuration: dolbyVision))
+                    lines.append(DolbyVisionSignaling.rewrittenStreamInfLine(
+                        line, configuration: dolbyVision, fallbackCodecs: fallbackCodecs
+                    ))
                 } else if retagsHEV1 {
                     lines.append(HEVCSampleEntryRetag.rewrittenStreamInfLine(line))
                 } else {

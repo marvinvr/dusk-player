@@ -771,6 +771,23 @@ extension PlaybackCoordinator {
         return StreamResolver.dolbyVision7ConversionTarget(in: media)
     }
 
+    /// `CODECS` for the remux variant, for when Plex's master omits it: the
+    /// part's video plus the audio the remux carries (E-AC-3 when Plex
+    /// converts the active stream, otherwise that stream's copied codec).
+    func remuxVariantCodecs(in part: PlexMediaPart) -> String? {
+        guard let video = part.streams.first(where: { $0.streamType == .video }) else { return nil }
+        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        let audioCodec: String?
+        if let conversion = remuxAudioConversion, conversion.audioStreamID == activeAudioStreamID {
+            audioCodec = "eac3"
+        } else {
+            audioCodec = (audioStreams.first { $0.id == activeAudioStreamID }
+                ?? audioStreams.first { $0.isSelected == true }
+                ?? audioStreams.first)?.codec
+        }
+        return RemuxVariantCodecs.codecs(video: video, audioCodec: audioCodec, hasAudio: !audioStreams.isEmpty)
+    }
+
     /// Whether the remux's audio is E-AC-3 + JOC. Only then does the session
     /// go through `RemuxHLSLoader`: claiming Atmos for a plain 5.1 E-AC-3
     /// track would mislabel it to the decoder (and to an HDMI receiver).

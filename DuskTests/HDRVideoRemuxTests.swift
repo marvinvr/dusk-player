@@ -274,6 +274,138 @@ struct HDRPictureFirstRoutingTests {
     }
 }
 
+/// Plex's fMP4 remux masters carry no `CODECS`; Dusk rebuilds it from the
+/// metadata so Dolby Vision can be declared at playlist level.
+@Suite("Remux variant CODECS from Plex metadata")
+@MainActor
+struct RemuxVariantCodecsTests {
+    /// The line PMS serves for a 4K Dolby Vision remux (plex-demo, 2026-11).
+    private let plexLine = "#EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=64473000,RESOLUTION=3840x2160,FRAME-RATE=23.976000,VIDEO-RANGE=PQ"
+
+    @Test(arguments: [
+        (#""profile": "main 10", "level": 153"#, "hvc1.2.4.L153.b0"),
+        (#""profile": "main 10", "level": 156, "codecID": "dvhe""#, "hev1.2.4.L156.b0"),
+        (#""profile": "main 10", "level": 150, "codecID": "hvc1""#, "hvc1.2.4.L150.b0"),
+        (#""profile": "main", "level": 120, "bitDepth": 8"#, "hvc1.1.6.L120.b0"),
+        // No level: the lowest that fits 4K24 is 5.0, 4K60 needs 5.1.
+        (#""profile": "main 10""#, "hvc1.2.4.L150.b0"),
+        (#""profile": "main 10", "frameRate": 60.0"#, "hvc1.2.4.L153.b0"),
+        (#""level": 153, "bitDepth": 10"#, "hvc1.2.4.L153.b0"),
+    ])
+    func hevcCodecFromMetadata(fields: String, expected: String) throws {
+        #expect(RemuxVariantCodecs.hevcCodec(for: try video(fields)) == expected)
+    }
+
+    @Test func unsupportedVideoGetsNoCodecs() throws {
+        #expect(RemuxVariantCodecs.hevcCodec(for: try video(#""profile": "rext", "level": 153"#)) == nil)
+        #expect(RemuxVariantCodecs.hevcCodec(for: try video(#""profile": "high""#, codec: "h264")) == nil)
+    }
+
+    @Test func audioCodecStrings() throws {
+        let stream = try video(#""profile": "main 10", "level": 153"#)
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: "eac3", hasAudio: true) == "hvc1.2.4.L153.b0,ec-3")
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: "AC3", hasAudio: true) == "hvc1.2.4.L153.b0,ac-3")
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: "aac", hasAudio: true) == "hvc1.2.4.L153.b0,mp4a.40.2")
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: nil, hasAudio: false) == "hvc1.2.4.L153.b0")
+        // A partial declaration would hide the audio: none at all instead.
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: "truehd", hasAudio: true) == nil)
+        #expect(RemuxVariantCodecs.codecs(video: stream, audioCodec: nil, hasAudio: true) == nil)
+    }
+
+    @Test func profile81IsDeclaredOnPlexsLine() throws {
+        let line = DolbyVisionSignaling.rewrittenStreamInfLine(
+            plexLine, configuration: try configuration(profile: 8, compat: 1),
+            fallbackCodecs: "hvc1.2.4.L153.b0,ec-3"
+        )
+        #expect(line.contains(#"CODECS="hvc1.2.4.L153.b0,ec-3""#))
+        #expect(line.contains(#"SUPPLEMENTAL-CODECS="dvh1.08.06/db1p""#))
+        #expect(line.contains("VIDEO-RANGE=PQ"))
+        #expect(line.components(separatedBy: "VIDEO-RANGE").count == 2)
+    }
+
+    @Test func profile84IsDeclaredHLG() throws {
+        let line = DolbyVisionSignaling.rewrittenStreamInfLine(
+            plexLine, configuration: try configuration(profile: 8, compat: 4),
+            fallbackCodecs: "hvc1.2.4.L153.b0,ec-3"
+        )
+        #expect(line.contains(#"SUPPLEMENTAL-CODECS="dvh1.08.06/db4h""#))
+        #expect(line.contains("VIDEO-RANGE=HLG"))
+        #expect(!line.contains("VIDEO-RANGE=PQ"))
+    }
+
+    @Test func profile5ReplacesTheFallbackHEVCEntry() throws {
+        let line = DolbyVisionSignaling.rewrittenStreamInfLine(
+            plexLine, configuration: try configuration(profile: 5, compat: 0),
+            fallbackCodecs: "hvc1.2.4.L153.b0,ec-3"
+        )
+        #expect(line.contains(#"CODECS="dvh1.05.06,ec-3""#))
+        #expect(!line.contains("SUPPLEMENTAL-CODECS"))
+    }
+
+    @Test func plexsOwnCodecsWin() throws {
+        let line = plexLine + #",CODECS="hvc1.2.4.L150.b0,ac-3""#
+        let rewritten = DolbyVisionSignaling.rewrittenStreamInfLine(
+            line, configuration: try configuration(profile: 8, compat: 1),
+            fallbackCodecs: "hvc1.2.4.L156.b0,ec-3"
+        )
+        #expect(rewritten.contains(#"CODECS="hvc1.2.4.L150.b0,ac-3""#))
+    }
+
+    @Test func withoutFallbackTheLineIsUnchanged() throws {
+        #expect(DolbyVisionSignaling.rewrittenStreamInfLine(
+            plexLine, configuration: try configuration(profile: 8, compat: 1)
+        ) == plexLine)
+    }
+
+    @Test func remuxLoaderDeclaresProfile81() throws {
+        let loader = RemuxHLSLoader(
+            restoresDolbyAtmos: false,
+            dolbyVision: try configuration(profile: 8, compat: 1),
+            fallbackCodecs: "hvc1.2.4.L153.b0,ec-3"
+        )
+        let master = plexLine + "\nsession/abc/base/index.m3u8\n"
+        let rewritten = loader.rewrittenPlaylist(master, baseURL: URL(string: "https://plex.test:32400/video/:/transcode/universal/start.m3u8")!)
+        #expect(rewritten.contains(#"SUPPLEMENTAL-CODECS="dvh1.08.06/db1p""#))
+        #expect(rewritten.contains("dusk-remux-https://plex.test:32400/video/:/transcode/universal/session/abc/base/index.m3u8"))
+    }
+
+    @Test func coordinatorDeclaresTheRemuxAudio() throws {
+        let part = try JSONDecoder().decode(PlexMediaPart.self, from: Data("""
+        { "id": 20, "key": "/library/parts/20/file.mkv", "Stream": [
+            { "id": 1, "streamType": 1, "codec": "hevc", "profile": "main 10", "level": 153 },
+            { "id": 2, "streamType": 2, "codec": "truehd", "channels": 8, "selected": true },
+            { "id": 3, "streamType": 2, "codec": "ac3", "channels": 6 }
+        ] }
+        """.utf8))
+        let playback = PlaybackCoordinator(plexService: PlexService())
+        playback.activeAudioStreamID = 2
+        playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: 2)
+        #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ec-3")
+        playback.remuxAudioConversion = nil
+        playback.activeAudioStreamID = 3
+        #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ac-3")
+        // A copied TrueHD stream is not a remux Plex accepts; no declaration.
+        playback.activeAudioStreamID = 2
+        #expect(playback.remuxVariantCodecs(in: part) == nil)
+    }
+
+    private func video(_ fields: String, codec: String = "hevc") throws -> PlexStream {
+        let frameRate = fields.contains("frameRate") ? "" : #""frameRate": 23.976, "#
+        return try JSONDecoder().decode(PlexStream.self, from: Data("""
+        { "id": 1, "streamType": 1, "codec": "\(codec)", "width": 3840, "height": 2160, \(frameRate)\(fields) }
+        """.utf8))
+    }
+
+    private func configuration(profile: Int, compat: Int) throws -> DolbyVisionConfiguration {
+        let stream = try JSONDecoder().decode(PlexStream.self, from: Data("""
+        { "id": 1, "streamType": 1, "codec": "hevc", "DOVIPresent": true, "DOVIProfile": \(profile),
+          "DOVILevel": 6, "DOVIBLCompatID": \(compat), "width": 3840, "height": 2160,
+          "frameRate": 23.976, "bitrate": 20000 }
+        """.utf8))
+        return try #require(DolbyVisionConfiguration(stream: stream))
+    }
+}
+
 @Suite("Dolby Vision HLS signaling")
 struct DolbyVisionSignalingTests {
     private let streamInf = #"#EXT-X-STREAM-INF:BANDWIDTH=60000000,CODECS="hvc1.2.4.L156.b0,ec-3",RESOLUTION=3840x2160,VIDEO-RANGE=PQ"#

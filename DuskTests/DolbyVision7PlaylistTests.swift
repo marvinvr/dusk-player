@@ -164,6 +164,40 @@ struct DolbyVision7PlaylistTests {
         #expect(target.bitrateKbps == 20_000)
     }
 
+    @Test func masterWithoutCodecsTakesTheFallbackAndConverts() throws {
+        // What PMS actually serves for a remux: no CODECS attribute at all.
+        let master = """
+        #EXTM3U
+        #EXT-X-STREAM-INF:PROGRAM-ID=1,BANDWIDTH=64473000,RESOLUTION=3840x2160,FRAME-RATE=23.976000,VIDEO-RANGE=PQ
+        session/abc/base/index.m3u8?X-Plex-Token=tok
+
+        """
+        #expect(isUnsupportedPlaylist { try rewrite(master, baseURL: masterURL) })
+        let rewritten = try DolbyVision7PlaylistRewriter.rewrite(
+            master, baseURL: masterURL, target: target,
+            fallbackCodecs: "hvc1.2.4.L156.b0,ec-3", mapper: mapper
+        )
+        let line = try #require(rewritten.components(separatedBy: "\n").first { $0.hasPrefix("#EXT-X-STREAM-INF") })
+        #expect(line.contains(#"CODECS="hvc1.2.4.L153.b0,ec-3""#))
+        #expect(line.contains(#"SUPPLEMENTAL-CODECS="dvh1.08.06/db1p""#))
+        #expect(line.contains("VIDEO-RANGE=PQ"))
+    }
+
+    @Test func hev1FallbackStillRefusesConversion() {
+        let master = """
+        #EXTM3U
+        #EXT-X-STREAM-INF:BANDWIDTH=64473000,RESOLUTION=3840x2160,VIDEO-RANGE=PQ
+        session/abc/base/index.m3u8
+
+        """
+        #expect(isUnsupportedPlaylist {
+            try DolbyVision7PlaylistRewriter.rewrite(
+                master, baseURL: masterURL, target: target,
+                fallbackCodecs: "hev1.2.4.L153.b0,ec-3", mapper: mapper
+            )
+        })
+    }
+
     @Test func plexReportedConfigurationIsNotConverted() throws {
         let json = """
         { "id": 1, "streamType": 1, "codec": "hevc", "DOVIPresent": true,

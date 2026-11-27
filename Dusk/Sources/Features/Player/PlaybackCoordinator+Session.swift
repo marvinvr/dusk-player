@@ -814,6 +814,8 @@ extension PlaybackCoordinator {
                 restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
                 dolbyVisionRemux: dolbyVisionRemux,
                 dolbyVision7Conversion: dolbyVision7Conversion,
+                remuxVariantCodecs: (dolbyVision7Conversion ?? dolbyVisionRemux) == nil
+                    ? nil : remuxVariantCodecs(in: part),
                 hdrRemuxFallback: hdrRemuxFallback,
                 retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
                     && StreamResolver.containsHEV1Video(media)
@@ -1463,6 +1465,8 @@ extension PlaybackCoordinator {
             restoresDolbyAtmos: hdrRemuxFallback == nil && playbackDecision.isSpatialAudio && activeAudioStreamIsDolbyAtmos(in: part),
             dolbyVisionRemux: dolbyVisionRemux,
             dolbyVision7Conversion: dolbyVision7Conversion,
+            remuxVariantCodecs: (dolbyVision7Conversion ?? dolbyVisionRemux) == nil
+                ? nil : remuxVariantCodecs(in: part),
             hdrRemuxFallback: hdrRemuxFallback,
             retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
                 && StreamResolver.containsHEV1Video(media)
