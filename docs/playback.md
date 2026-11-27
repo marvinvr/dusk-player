@@ -964,9 +964,24 @@ so the whole live HUD is derived from one instant.
   fills gaps from Plex only for direct play, downloads and the remux, which copy
   the source; a transcode, server stream, AirPlay or live tune stays live-only,
   because Plex's metadata describes the source and not that stream. IPTV has no
-  `debugInfo` and shows the engine's reading alone. VLCKit's HDR reads
-  `HDR10 (SDR output)` because libvlc draws into an 8-bit surface. A `~` bitrate
-  is measured rather than declared.
+  `debugInfo` and shows the engine's reading alone. A `~` bitrate is measured
+  rather than declared.
+- The dynamic range in that line is what is output, never the file's metadata:
+  `Dolby Vision 8.1` / `8.4` / `profile 5`, `Dolby Vision 8.1 (from profile 7)`
+  for the on-device conversion, `HDR10`, `HLG` or `SDR`. AVPlayer's comes from
+  `PlaybackVideoQuality.dynamicRange(for:)` over `AVPlayerDynamicRangeSignals`.
+  Once the video track's format description has loaded, it alone decides: the
+  `dvvC`/`dvcC` record in its sample description atoms (8.1/8.4 keep `hvc1`,
+  so the FourCC alone reads HDR10), else a DV FourCC, else its transfer
+  function. Profile 7, 8.2 and 8.6 play their base layer. Before the track
+  loads, the source's declared signaling (`SUPPLEMENTAL-CODECS`) stands in over
+  a non-SDR `VIDEO-RANGE`. HDR without `AVPlayer.eligibleForHDRPlayback` reads
+  `… (SDR output)`. VLCKit is always `SDR`, and its HDR reads
+  `HDR10 (SDR output)` because libvlc draws into an 8-bit surface.
+  Not detectable: HDR10+ (per-frame metadata only, so it reads HDR10), a TV
+  without Dolby Vision (the deprecated `availableHDRModes` is the only API, so
+  it is not used), and the Apple TV's active output mode (`AVDisplayManager`
+  only reports the requested criteria, which the Display Mode row shows).
 - iOS trap: every player sheet (Quality, Audio, Subtitles, Get Info) turns
   off the space-bar shortcut view (`PlayerKeyboardShortcutView`), which
   resigns first responder. That resign must stay deferred and change-only:
