@@ -1,0 +1,42 @@
+{
+  "artwork": [
+    "245f9cb17aad0ab7631696fa2535c18ad73b725f6e16a8e3ca9e3e5580a6507f.jpg",
+    "285545de12c00c41703b4ef478f798b78e90ca241b34b4b5c2d636497a5cf0ff.jpg",
+    "3a5b751922bc332b04c4a5484b5a56cb5127bb0f94d7dd99e2398792f81c9033.jpg",
+    "4d513764eaf046f94906df9d96dc06e8297b43037f3e9723cee65365a58b7c41.jpg",
+    "96da472573c664df532fbf09b10d53f8ceb35d4d1ad23b0ceac62f8d01aa6cd1.jpg",
+    "987b819b303f84d8f478791479cfb5dc982da938f721edd0ca017b9dc36bca3a.jpg",
+    "a38cd928bd9860b262f7506ca12ebb350b5553179137244578e8a0257f49d1a1.jpg",
+    "dc12db736a163d5829b28edcbe105d162255dcde88be26a94ae0d647d36876fb.jpg"
+  ],
+  "defaults": {
+    "HomeContinueWatchingServerIDs": {
+      "bigplexuser": [
+        "bigplexserver000000000000000000000000001"
+      ]
+    },
+    "PlexAutomaticallySignInHomeUser": true,
+    "PlexHomeMigrationCompleted": true,
+    "PlexLastGoodConnectionURI.bigplexserver000000000000000000000000001": "http://127.0.0.1:47721",
+    "PlexPrimaryProfileID": "bigplexuser",
+    "PlexServerURL.bigplexserver000000000000000000000000001": "http://127.0.0.1:47721"
+  },
+  "metadata": {
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/2ae24b05a6f69ac9c605cbc5be9eac289e663b1e6a5826cdb301436429e3bc55.json": "LegacyContainer-real-metadata-2ae24b05a6f6.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/33db271c6bdfdab982f1abde58904dee981588fd73bf37d4d254ea6546b54fbc.json": "LegacyContainer-real-metadata-33db271c6bdf.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/8d3a0252fb06db9780a59e535e6280471caca8da76a50fb11a9c8f569f279da1.json": "LegacyContainer-real-metadata-8d3a0252fb06.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/8fdb5f563a9b88002f94b3ede36d4c9eb8ab2b19b75597077bab64a7bcaa6a6c.json": "LegacyContainer-real-metadata-8fdb5f563a9b.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/9ec6f24ce99ac5b5e7d419cbfd2b4fa6f697c68462fc13d747f074e3823105b0.json": "LegacyContainer-real-metadata-9ec6f24ce99a.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/a3d2fd1255dd164fe3a146fd6cabed9c4f5c911cf83d7a41d5f4b157240d2011.json": "LegacyContainer-real-metadata-a3d2fd1255dd.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/b588d5647e7863f9afc905564120fb31f32bcb60acb964b25305d3e338da739f.json": "LegacyContainer-real-metadata-b588d5647e78.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/fc8ecaaf76de4facd01a7686eb79b76ba95817c06ccbec476f4b5f1f3ab659d5.json": "LegacyContainer-real-metadata-fc8ecaaf76de.json",
+    "Metadata/Profiles/bigplexuser/bigplexserver000000000000000000000000001/ff7b36d1066f094899adbab1879961e8f75151124c29c3d07e497f26a2be9d18.json": "LegacyContainer-real-metadata-ff7b36d1066f.json"
+  },
+  "videos": [
+    "Profiles/bigplexuser/Movies/Winter Stone (1977)/Winter Stone (1977).mp4",
+    "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E01 - Episode 1.mp4",
+    "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E02 - Episode 2.mp4",
+    "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E03 - Episode 3.mp4",
+    "Profiles/bigplexuser/TV Shows/Harbor Final/Season 01/S01E04 - Episode 4.mp4"
+  ]
+}

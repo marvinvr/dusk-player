@@ -1,0 +1,56 @@
+{
+  "devices": {
+    "iphone": {"device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro", "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "scale": 3},
+    "ipad": {"device_type": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB", "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "scale": 2},
+    "tv": {"device_type": "com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p", "runtime": "com.apple.CoreSimulator.SimRuntime.tvOS-27-0", "scale": 2}
+  },
+  "mock": {"movies": 300, "shows": 120, "photos": 0},
+  "timing": {"min_seconds": 8, "quiet_seconds": 4, "max_seconds": 60, "settle_seconds": 2},
+  "tolerance": {"fuzz_percent": 4, "max_differing_share": 0.0002},
+  "optional": [
+    {"pattern": "/photo/:/transcode\\?.*url=/playlists/\\d+/composite/", "except": ["playlists", "playlist"],
+     "why": "playlist artwork prefetch from the shell; fires or not depending on timing"},
+    {"pattern": "GET /hubs/promoted\\?contentDirectoryID=", "except": ["home"],
+     "why": "promoted-hub refresh under a pushed library page; timing-dependent"},
+    {"pattern": "/photo/:/transcode\\?height=2340&.*/art/", "screens": ["search"], "platforms": ["ipad"],
+     "why": "iPad Home hero backdrop preload; search pushes over Home early enough to cancel it in some runs"}
+  ],
+  "count_free": [
+    "\\[plextv\\] GET /api/v2/(resources|user|home/users)",
+    "\\[plextv\\] GET /(user|users/account)$",
+    "\\[plextv\\] GET /discover/library/sections/watchlist/all",
+    "\\[pms\\] GET /identity$",
+    "\\[pms\\] GET /library/sections$",
+    "\\[pms\\] GET /photo/:/transcode\\?",
+    "\\[pms\\] GET /library/sections/\\d+/all\\?X-Plex-Container-Size=(1|120)&X-Plex-Container-Start=0&genre="
+  ],
+  "count_free_why": "session restore, server connection probes, image loads and Home recommendation genre probes (reloaded when the library list refreshes) race each other, so how often they repeat varies run to run; their presence stays strict, every other count must match exactly",
+  "platform_masks": {"ipad": [[66, 0, 86, 22]]},
+  "platform_masks_why": "the iPad status bar shows today's date next to the pinned 9:41",
+  "launch_arguments": {
+    "tv": ["-showsClock", "<false/>"]
+  },
+  "screens": [
+    {"name": "home", "screen": "home"},
+    {"name": "movies", "screen": "movies"},
+    {"name": "shows", "screen": "shows"},
+    {"name": "library-grid", "screen": "library", "args": {"DuskScreenshotItemType": "movie"}},
+    {"name": "collections", "screen": "collections"},
+    {"name": "collection-detail", "screen": "detail", "args": {"DuskScreenshotItem": "800000", "DuskScreenshotItemType": "collection"}},
+    {"name": "movie-detail", "screen": "detail", "args": {"DuskScreenshotItem": "1004", "DuskScreenshotItemType": "movie"}},
+    {"name": "show-detail", "screen": "detail", "args": {"DuskScreenshotItem": "1301", "DuskScreenshotItemType": "show"}},
+    {"name": "season", "screen": "detail", "args": {"DuskScreenshotItem": "750001", "DuskScreenshotItemType": "season"}},
+    {"name": "episode", "screen": "detail", "args": {"DuskScreenshotItem": "750002", "DuskScreenshotItemType": "episode"}},
+    {"name": "search", "screen": "search", "args": {"DuskScreenshotSearch": "night"}},
+    {"name": "playlists", "screen": "playlists"},
+    {"name": "playlist", "screen": "playlist", "args": {"DuskScreenshotItem": "850001"}},
+    {"name": "photos", "screen": "photos", "mock": {"photos": 150}, "expect": "GET /library/sections/3/all\\?.*type=14",
+     "why": "Dusk sometimes never sends the photo-library emptiness probe (app race), then the route never fires; expect retries"},
+    {"name": "settings", "screen": "settings",
+     "masks": {"iphone": [[290, 715, 100, 30]], "ipad": [[900, 685, 110, 30]], "tv": [[640, 496, 80, 22]]},
+     "why": "masks cover the app version value, which main bumps independently of the refactor"},
+    {"name": "server-priority", "screen": "serverPriority"},
+    {"name": "downloads", "screen": "downloads", "skip": ["ipad", "tv"],
+     "why": "iPhone only: with no downloads the iPad tab bar has no Downloads tab and tvOS has none, so the route lands on Home"}
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "commit": "55a2ef6 (main; recorded from a local commit with identical app sources)",
+  "app_trees": {
+    "Dusk": "a70c2b7cc596efa51ed6152396217dfe0659f45b",
+    "DuskTopShelf": "752fcb3b633a9dded340ed4f317e0543d08e95c3",
+    "project.yml": "35f2ca6bc79071ad2dc406feec8a29c84cc43cbe"
+  },
+  "app_sources_dirty": false,
+  "xcode": "Xcode 27.2 Build version 27B52",
+  "vlckit": "3.7.3-dusk3",
+  "date": "2026-11-28",
+  "platforms": [
+    "iphone",
+    "ipad",
+    "tv"
+  ],
+  "runs": 3,
+  "vlckit_installed": "3.7.3-stock",
+  "verified_against": {
+    "commit": "2955518 (main, after J-00a and the 2026-11-27 player/search fixes)",
+    "app_trees": {
+      "Dusk": "80a4738c8ed184a8d8227548f89f826b149c438e",
+      "DuskTopShelf": "752fcb3b633a9dded340ed4f317e0543d08e95c3",
+      "project.yml": "35f2ca6bc79071ad2dc406feec8a29c84cc43cbe"
+    },
+    "date": "2026-11-28",
+    "result": "screens check: no difference on iphone, ipad, tv"
+  }
+}

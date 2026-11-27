@@ -1,0 +1,1 @@
+[{"headerName":"Authorization","name":"Freeview","id":"6B1E6C0A-3F2D-4C8B-9E7A-1D2C3B4A5F60","playlistURL":"https:\/\/iptv.example.com\/freeview.m3u","guideURL":"https:\/\/iptv.example.com\/epg.xml.gz"},{"name":"Panel","id":"0F9E8D7C-6B5A-4938-A7B6-C5D4E3F2A1B0","playlistURL":"http:\/\/panel.example:8080\/get.php?username=alice&password=secret&type=m3u_plus&output=ts"}]

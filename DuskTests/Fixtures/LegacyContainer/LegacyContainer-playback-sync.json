@@ -1,0 +1,44 @@
+{
+  "actions" : [
+    {
+      "accountProfileID" : "4f2a9c1d7e3b5a60",
+      "attemptCount" : 0,
+      "createdAt" : 800000000,
+      "durationMs" : 6960000,
+      "kind" : "progress",
+      "needsSync" : true,
+      "plexState" : "paused",
+      "ratingKey" : "1001",
+      "serverID" : "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9",
+      "shouldMarkWatched" : false,
+      "updatedAt" : 800003600,
+      "viewOffsetMs" : 1234000
+    },
+    {
+      "attemptCount" : 3,
+      "createdAt" : 800000000,
+      "kind" : "watched",
+      "lastAttemptAt" : 800086400,
+      "needsSync" : true,
+      "ratingKey" : "3001",
+      "serverID" : "http:\/\/192.168.1.10:32400",
+      "shouldMarkWatched" : true,
+      "updatedAt" : 800086400
+    },
+    {
+      "accountProfileID" : "plex-home-24601",
+      "attemptCount" : 1,
+      "createdAt" : 800003600,
+      "durationMs" : 2520000,
+      "kind" : "unwatched",
+      "lastAttemptAt" : 800003600,
+      "needsSync" : false,
+      "plexState" : "stopped",
+      "ratingKey" : "2011",
+      "serverID" : "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5",
+      "shouldMarkWatched" : false,
+      "updatedAt" : 800003600,
+      "viewOffsetMs" : 0
+    }
+  ]
+}

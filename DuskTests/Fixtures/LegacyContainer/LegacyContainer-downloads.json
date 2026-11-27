@@ -1,0 +1,114 @@
+{
+  "pendingQueueRemovals" : [
+    {
+      "clientIdentifier" : "C0FFEE00-1111-4222-8333-944445555666",
+      "profileID" : "plex-home-24601",
+      "queueID" : "17",
+      "ratingKey" : "2012",
+      "serverID" : "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5"
+    }
+  ],
+  "records" : [
+    {
+      "accountProfileID" : "4f2a9c1d7e3b5a60",
+      "addedAt" : 800000000,
+      "artPath" : "\/library\/metadata\/1001\/art\/1700000000",
+      "downloadQuality" : "original",
+      "downloadedBytes" : 4000000000,
+      "externalSubtitlePaths" : {
+        "7001" : "Subtitles\/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e\/7001.srt",
+        "7002" : "Subtitles\/547b0036d8c6f5d72c77415432032b11b28aafbec6a6d376d3c0de83e1d2a29e\/7002.ass"
+      },
+      "hasMissingExternalSubtitles" : false,
+      "isClip" : false,
+      "isSmartDownload" : false,
+      "mediaID" : 501,
+      "partID" : 601,
+      "preparationRetryCount" : 0,
+      "progress" : 1,
+      "ratingKey" : "1001",
+      "relativeVideoPath" : "Profiles\/4f2a9c1d7e3b5a60\/Movies\/Arrival (2016)\/Arrival (2016).mkv",
+      "serverID" : "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9",
+      "serverName" : "Living Room",
+      "status" : "completed",
+      "subtitle" : "2016",
+      "thumbPath" : "\/library\/metadata\/1001\/thumb\/1700000000",
+      "title" : "Arrival",
+      "totalBytes" : 4000000000,
+      "type" : "movie",
+      "updatedAt" : 800003600,
+      "wasPausedForProfileSwitch" : false
+    },
+    {
+      "accountProfileID" : "plex-home-24601",
+      "addedAt" : 800000000,
+      "convertedMediaData" : "eyJ2aWRlb0NvZGVjIjoiaDI2NCIsIndpZHRoIjoxMjgwLCJkdXJhdGlvbiI6MjUyMDAwMCwiUGFydCI6W3siaWQiOjkyLCJkdXJhdGlvbiI6MjUyMDAwMCwiY29udGFpbmVyIjoibWt2IiwiU3RyZWFtIjpbeyJjb2RlYyI6ImFhYyIsImxhbmd1YWdlQ29kZSI6ImVuZyIsImRpc3BsYXlUaXRsZSI6IkVuZ2xpc2ggKEFBQyBTdGVyZW8pIiwiY2hhbm5lbHMiOjIsImlkIjo5Mywic3RyZWFtVHlwZSI6Mn1dLCJrZXkiOiJcL2xpYnJhcnlcL3BhcnRzXC85MlwvMTcwMDAwMDAwMFwvZmlsZS5ta3YiLCJmaWxlIjoiXC90cmFuc2NvZGVcLzkyLm1rdiIsInNpemUiOjEyNjAwMDAwMDB9XSwiYml0cmF0ZSI6NDAwMCwiaGVpZ2h0Ijo3MjAsImF1ZGlvQ2hhbm5lbHMiOjIsImlkIjo5MSwidmlkZW9SZXNvbHV0aW9uIjoiNzIwIiwiY29udGFpbmVyIjoibWt2IiwiYXVkaW9Db2RlYyI6ImFhYyJ9",
+      "downloadQuality" : "p720",
+      "downloadTaskIdentifier" : 42,
+      "downloadedBytes" : 315000000,
+      "externalSubtitlePaths" : {
+
+      },
+      "grandparentRatingKey" : "2000",
+      "grandparentTitle" : "Severance",
+      "hasMissingExternalSubtitles" : true,
+      "isClip" : false,
+      "isSmartDownload" : true,
+      "mediaID" : 81,
+      "parentRatingKey" : "2010",
+      "parentTitle" : "Season 1",
+      "partID" : 82,
+      "plexDownloadItemID" : "3",
+      "plexDownloadQueueID" : "17",
+      "preparationProgress" : 0.5,
+      "preparationRetryCount" : 2,
+      "progress" : 0.25,
+      "queueClientIdentifier" : "C0FFEE00-1111-4222-8333-944445555666",
+      "ratingKey" : "2011",
+      "relativeVideoPath" : "Profiles\/plex-home-24601\/TV Shows\/Severance\/Season 01\/S01E01 - Pilot.mkv",
+      "resumeDataPath" : "ResumeData\/0d1c3e5f.resume",
+      "serverID" : "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5",
+      "serverName" : "Friend's Server",
+      "status" : "paused",
+      "subtitle" : "S1 · E1",
+      "thumbPath" : "\/library\/metadata\/2011\/thumb\/1700000001",
+      "title" : "Pilot",
+      "totalBytes" : 1260000000,
+      "type" : "episode",
+      "updatedAt" : 800086400,
+      "wasPausedForProfileSwitch" : true
+    },
+    {
+      "addedAt" : 800000000,
+      "downloadQuality" : "original",
+      "downloadedBytes" : 750,
+      "errorMessage" : "The network connection was lost.",
+      "hasMissingExternalSubtitles" : false,
+      "isClip" : true,
+      "isSmartDownload" : false,
+      "preparationRetryCount" : 0,
+      "progress" : 0.75,
+      "ratingKey" : "3001",
+      "serverID" : "http:\/\/192.168.1.10:32400",
+      "status" : "failed",
+      "title" : "Behind the Scenes",
+      "type" : "movie",
+      "updatedAt" : 800000000,
+      "wasPausedForProfileSwitch" : false
+    }
+  ],
+  "smartDownloadRules" : [
+    {
+      "accountProfileID" : "plex-home-24601",
+      "count" : 5,
+      "createdAt" : 800000000,
+      "lastRefillAt" : 800003600,
+      "quality" : "p720",
+      "remainingUnwatchedCount" : 7,
+      "serverID" : "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5",
+      "showRatingKey" : "2000",
+      "showTitle" : "Severance",
+      "thumbPath" : "\/library\/metadata\/2000\/thumb\/1700000002"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+# Paths under Dusk/Sources where provider names are allowed (G7), one
+# extended regex per line, matched against the path relative to Dusk/Sources.
+# 04-architecture.md: provider code lives in Providers/, the sign-in flow may
+# name the providers it offers. P0-19 tightens this list; keep it short.
+^Providers/
+^App/ScreenshotMode\.swift$

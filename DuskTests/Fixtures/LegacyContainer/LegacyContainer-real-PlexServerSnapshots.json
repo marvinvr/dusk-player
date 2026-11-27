@@ -1,0 +1,1 @@
+[{"connections":[{"protocol":"http","local":true,"address":"127.0.0.1","port":47721,"relay":false,"IPv6":false,"uri":"http:\/\/127.0.0.1:47721"}],"platform":"Linux","name":"Big NAS","productVersion":"1.42.1.10060","clientIdentifier":"bigplexserver000000000000000000000000001","platformVersion":"6.8","provides":"server","presence":true,"product":"Plex Media Server","owned":true}]

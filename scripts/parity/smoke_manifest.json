@@ -1,0 +1,45 @@
+{
+  "server": "smoke_proxy",
+  "proxy": {"upstream": "http://storage:10012", "server": "plex-demo"},
+  "devices": {
+    "iphone": {"device_type": "com.apple.CoreSimulator.SimDeviceType.iPhone-18-Pro", "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "scale": 3},
+    "ipad": {"device_type": "com.apple.CoreSimulator.SimDeviceType.iPad-Pro-13-inch-M5-12GB", "runtime": "com.apple.CoreSimulator.SimRuntime.iOS-27-0", "scale": 2},
+    "tv": {"device_type": "com.apple.CoreSimulator.SimDeviceType.Apple-TV-4K-3rd-generation-1080p", "runtime": "com.apple.CoreSimulator.SimRuntime.tvOS-27-0", "scale": 2}
+  },
+  "timing": {"min_seconds": 10, "quiet_seconds": 5, "max_seconds": 90, "settle_seconds": 3},
+  "tolerance": {"fuzz_percent": 6, "max_differing_share": 0.01},
+  "launch_arguments": {
+    "tv": ["-showsClock", "<false/>"]
+  },
+  "times": "fold",
+  "optional": [
+    {"pattern": "/photo/:/transcode", "why": "live artwork; which images load varies with recommendations"},
+    {"pattern": "/library/sections/\\d+/all\\?X-Plex-Container-Size=(1|120)&", "why": "Home/library recommendation probes pick genres from live watch history"},
+    {"pattern": "/library/metadata/\\d+\\?includeGuids=1&includeMarkers=1$", "why": "recommendation hydration of live items"},
+    {"pattern": "/library/all\\?guid=", "why": "cross-server match lookups for recommended items"}
+  ],
+  "rewrites": [
+    ["/transcode/universal/session/<uuid>/\\S*", "/transcode/universal/session/<uuid>/<segment>"],
+    ["([?&](time|offset|viewOffset|playbackTime|duration|bandwidth|playQueueItemID|containerKey)=)[0-9.]+", "\\1<n>"],
+    ["(/library/parts/\\d+/)[^/]+(/)", "\\1<n>\\2"]
+  ],
+  "presence_only": [
+    "/:/timeline",
+    "/:/progress",
+    "/transcode/universal/session/",
+    "/library/parts/",
+    "/photo/:/transcode"
+  ],
+  "screens": [
+    {"name": "home", "screen": "home", "pixels": false},
+    {"name": "movies-grid", "screen": "library", "args": {"DuskScreenshotItemType": "movie", "DuskScreenshotLibrary": "Movies"}},
+    {"name": "movie-detail", "screen": "detail", "args": {"DuskScreenshotItem": "1", "DuskScreenshotItemType": "movie"}},
+    {"name": "show-detail", "screen": "detail", "args": {"DuskScreenshotItem": "166528", "DuskScreenshotItemType": "show"}},
+    {"name": "season", "screen": "detail", "args": {"DuskScreenshotItem": "166529", "DuskScreenshotItemType": "season"}},
+    {"name": "episode", "screen": "detail", "args": {"DuskScreenshotItem": "166530", "DuskScreenshotItemType": "episode"}},
+    {"name": "search", "screen": "search", "args": {"DuskScreenshotSearch": "sintel"}},
+    {"name": "play-direct", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "1", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "60"}},
+    {"name": "play-remux", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "10", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "20"}},
+    {"name": "download", "screen": "downloads", "seconds": 30, "pixels": false, "args": {"DuskScreenshotDownloads": "episode:166504"}}
+  ]
+}
