@@ -33,9 +33,8 @@ struct SearchRootContent: View {
     #endif
 
     /// Same words as the empty state's title.
-    private var searchPrompt: String {
-        seerrService.isAvailableForCurrentContext ? "Search Plex and Seerr" : "Search Plex"
-    }
+    /// Seerr results join in when it's set up, but the words stay Plex's.
+    private var searchPrompt: String { "Search Plex" }
 
     var body: some View {
         ZStack {
@@ -196,7 +195,7 @@ private extension SearchRootContent {
         } else if vm.results.isEmpty {
             FeatureEmptyStateView(
                 systemImage: "magnifyingglass",
-                title: searchesSeerr ? "Search Plex and Seerr" : "Search Plex",
+                title: searchPrompt,
                 message: searchesSeerr
                     ? "Find movies, shows, episodes, and people, or request new ones."
                     : "Find movies, shows, episodes, and people."
