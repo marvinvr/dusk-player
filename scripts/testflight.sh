@@ -40,8 +40,10 @@ set -uo pipefail
 # --- per-repo config ---------------------------------------------------------------------
 PROJECT_SUBDIR=""          # directory with project.yml / the .xcodeproj, relative to the repo root
 SCHEMES="ios:Dusk tvos:Dusk-tvOS macos:Dusk-macOS"  # space separated <platform>:<scheme>, platform ios, tvos or macos
-EXTERNAL_GROUPS="External" # optional comma separated external TestFlight groups: a VALID build is added to them and
-                           # submitted for Beta App Review (internal groups with "all builds" get it automatically)
+EXTERNAL_GROUPS="JellyFin:2.0.*" # optional comma separated external TestFlight groups, each <name>[:<version glob>]: a VALID
+                           # build whose version matches is added to them and submitted for Beta App Review (internal
+                           # groups with "all builds" get it automatically). Marvin 2026-11-27: only the JellyFin group,
+                           # only 2.0.* builds; the old "External" group (public link) gets no new builds.
                            # (external=PENDING_OTHER_BUILD_IN_REVIEW: an older build of the same version is still in
                            # beta review, Apple allows one per version; submit this one once that review is done)
 export EXTERNAL_SKIP_VERSIONS=""  # space separated version globs kept internal-only (Marvin 2026-11-07: 1.8 goes external too)
@@ -171,14 +173,18 @@ def external(app_id, build_id, names):
     ver = api(f"/v1/builds/{build_id}/preReleaseVersion")["data"]["attributes"]["version"]
     if any(fnmatch.fnmatch(ver, g) for g in os.environ.get("EXTERNAL_SKIP_VERSIONS", "").split()):
         print(f"skipped-{ver}-internal-only"); return
+    wanted = []  # entries "<name>[:<version glob>]", a glob limits the group to matching versions
+    for e in names.split(","):
+        n, _, g = e.strip().partition(":")
+        if n.strip() and fnmatch.fnmatch(ver, g.strip() or "*"): wanted.append(n.strip())
+    if not wanted: print(f"skipped-{ver}-no-matching-group"); return
     groups = {g["attributes"]["name"]: g["id"] for g in api(f"/v1/apps/{app_id}/betaGroups?limit=200")["data"]
               if not g["attributes"]["isInternalGroup"]}
-    missing = [n for n in names.split(",") if n.strip() and n.strip() not in groups]
-    if missing: print("error:no-group-" + "+".join(m.strip().replace(" ", "_") for m in missing)); return
-    for n in names.split(","):
-        if not n.strip(): continue
+    missing = [n for n in wanted if n not in groups]
+    if missing: print("error:no-group-" + "+".join(m.replace(" ", "_") for m in missing)); return
+    for n in wanted:
         for _ in range(10):  # right after VALID the build can still 404 here for a minute
-            r = call("POST", f"/v1/betaGroups/{groups[n.strip()]}/relationships/builds", {"data": [{"type": "builds", "id": build_id}]})
+            r = call("POST", f"/v1/betaGroups/{groups[n]}/relationships/builds", {"data": [{"type": "builds", "id": build_id}]})
             if not r.get("error", "").startswith("404"): break
             time.sleep(15)
         if "error" in r: print("error:add-group:" + r["error"].replace(" ", "_")[:120]); return
