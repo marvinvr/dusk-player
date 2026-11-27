@@ -1894,7 +1894,7 @@ extension AVPlayerEngine {
         }
     }
 
-    private static func transfer(of description: CMFormatDescription) -> AVPlayerDynamicRangeSignals.Transfer {
+    static func transfer(of description: CMFormatDescription) -> AVPlayerDynamicRangeSignals.Transfer {
         let transfer = CMFormatDescriptionGetExtension(
             description,
             extensionKey: kCMFormatDescriptionExtension_TransferFunction
@@ -1911,7 +1911,7 @@ extension AVPlayerEngine {
     /// The Dolby Vision configuration box the sample entry carries (the one
     /// `RemuxHLSLoader` / `DolbyVision7InitRewriter` write for a remux), as
     /// CoreMedia parsed it from the init segment or file.
-    private static func dolbyVisionRecord(of description: CMFormatDescription) -> Data? {
+    static func dolbyVisionRecord(of description: CMFormatDescription) -> Data? {
         guard let atoms = CMFormatDescriptionGetExtension(
             description,
             extensionKey: kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
