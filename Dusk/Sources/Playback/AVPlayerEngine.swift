@@ -1803,6 +1803,11 @@ extension AVPlayerEngine {
             quality.bitrate = Int(exactly: indicatedBitrate.rounded())
         }
 
+        var rangeSignals = AVPlayerDynamicRangeSignals(
+            declaredDolbyVision: currentSource.flatMap { $0.dolbyVision7Conversion ?? $0.dolbyVisionRemux },
+            displaySupportsHDR: AVPlayer.eligibleForHDRPlayback
+        )
+
         let variants = await hlsVariants(of: item)
         if let variant = Self.playingVariant(among: variants, indicatedBitrate: indicatedBitrate, size: size) {
             let attributes = variant.videoAttributes
@@ -1810,9 +1815,8 @@ extension AVPlayerEngine {
             if let attributes {
                 let fourCCs = attributes.codecTypes.map(Self.videoFourCC)
                 quality.codec = PlaybackVideoQuality.codecName(for: fourCCs.first)
-                quality.dynamicRange = fourCCs.contains(where: PlaybackVideoQuality.isDolbyVisionCodec)
-                    ? PlaybackVideoQuality.dolbyVisionLabel
-                    : Self.dynamicRangeLabel(attributes.videoRange)
+                rangeSignals.variantCodecs = fourCCs
+                rangeSignals.variantTransfer = Self.transfer(attributes.videoRange)
             }
         }
 
@@ -1823,7 +1827,10 @@ extension AVPlayerEngine {
             if let description = try? await assetTrack.load(.formatDescriptions).first {
                 let fourCC = Self.videoFourCC(CMFormatDescriptionGetMediaSubType(description))
                 quality.codec = quality.codec ?? PlaybackVideoQuality.codecName(for: fourCC)
-                quality.dynamicRange = quality.dynamicRange ?? Self.dynamicRangeLabel(of: description, fourCC: fourCC)
+                rangeSignals.hasTrack = true
+                rangeSignals.trackCodecs = [fourCC]
+                rangeSignals.trackTransfer = Self.transfer(of: description)
+                rangeSignals.dolbyVisionRecord = Self.dolbyVisionRecord(of: description)
             }
             if quality.frameRate == nil, let nominal = try? await assetTrack.load(.nominalFrameRate) {
                 quality.frameRate = PlaybackVideoQuality.snappedFrameRate(Double(nominal))
@@ -1840,6 +1847,8 @@ extension AVPlayerEngine {
             quality.bitrate = Int(exactly: average.rounded())
             quality.bitrateIsEstimate = true
         }
+
+        quality.dynamicRange = PlaybackVideoQuality.dynamicRange(for: rangeSignals)
 
         // The awaits above can outlive the item.
         guard player.currentItem === item, !quality.isEmpty else { return }
@@ -1876,30 +1885,42 @@ extension AVPlayerEngine {
         }
     }
 
-    private static func dynamicRangeLabel(_ range: AVVideoRange) -> String? {
+    private static func transfer(_ range: AVVideoRange) -> AVPlayerDynamicRangeSignals.Transfer? {
         switch range {
-        case .sdr: PlaybackVideoQuality.sdrLabel
-        case .pq: PlaybackVideoQuality.hdr10Label
-        case .hlg: PlaybackVideoQuality.hlgLabel
+        case .sdr: .sdr
+        case .pq: .pq
+        case .hlg: .hlg
         default: nil
         }
     }
 
-    private static func dynamicRangeLabel(of description: CMFormatDescription, fourCC: String) -> String {
-        if PlaybackVideoQuality.isDolbyVisionCodec(fourCC) {
-            return PlaybackVideoQuality.dolbyVisionLabel
-        }
+    private static func transfer(of description: CMFormatDescription) -> AVPlayerDynamicRangeSignals.Transfer {
         let transfer = CMFormatDescriptionGetExtension(
             description,
             extensionKey: kCMFormatDescriptionExtension_TransferFunction
         ) as? String
         if transfer == kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ as String {
-            return PlaybackVideoQuality.hdr10Label
+            return .pq
         }
         if transfer == kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String {
-            return PlaybackVideoQuality.hlgLabel
+            return .hlg
         }
-        return PlaybackVideoQuality.sdrLabel
+        return .sdr
+    }
+
+    /// The Dolby Vision configuration box the sample entry carries (the one
+    /// `RemuxHLSLoader` / `DolbyVision7InitRewriter` write for a remux), as
+    /// CoreMedia parsed it from the init segment or file.
+    private static func dolbyVisionRecord(of description: CMFormatDescription) -> Data? {
+        guard let atoms = CMFormatDescriptionGetExtension(
+            description,
+            extensionKey: kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
+        ) as? [String: Any] else { return nil }
+        for key in ["dvvC", "dvcC", "dvwC"] {
+            if let data = atoms[key] as? Data { return data }
+            if let first = (atoms[key] as? [Data])?.first { return first }
+        }
+        return nil
     }
 
     /// CoreMedia subtypes pack their characters big endian.

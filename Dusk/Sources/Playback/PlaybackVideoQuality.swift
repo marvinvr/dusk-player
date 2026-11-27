@@ -5,8 +5,8 @@ import Foundation
 /// (`PlaybackEngine.currentVideoQuality`); `PlaybackDebugInfo.currentVideoQuality(live:)`
 /// fills the gaps from Plex only when the session copies the source's video.
 struct PlaybackVideoQuality: Equatable, Sendable {
-    /// Reported for SDR so "known SDR" stays distinct from "unknown" when
-    /// merging; `summary` leaves it out.
+    /// Only reported once measured (or for VLCKit, which only draws SDR):
+    /// unknown stays nil.
     static let sdrLabel = "SDR"
     static let hdr10Label = "HDR10"
     static let hlgLabel = "HLG"
@@ -32,14 +32,14 @@ struct PlaybackVideoQuality: Equatable, Sendable {
     }
 
     /// The compact line the player shows, e.g.
-    /// `3840×2160 (4K) · 23.976 fps · HEVC · HDR10 · 42.1 Mbps`. Nil when nothing
+    /// `3840×2160 (4K) · 23.976 fps · HEVC · Dolby Vision 8.1 · 42.1 Mbps`. Nil when nothing
     /// is known yet.
     var summary: String? {
         let parts = [
             resolutionLabel,
             frameRateLabel,
             codec,
-            dynamicRange == Self.sdrLabel ? nil : dynamicRange,
+            dynamicRange,
             bitrateLabel,
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
@@ -114,7 +114,7 @@ struct PlaybackVideoQuality: Equatable, Sendable {
         switch raw {
         case "avc1", "avc3", "h264", "x264", "avc", "dva1", "dvav": return "H.264"
         case "hvc1", "hev1", "hevc", "h265", "x265", "dvh1", "dvhe": return "HEVC"
-        case "av01", "av1": return "AV1"
+        case "av01", "av1", "dav1": return "AV1"
         case "vp09", "vp90", "vp9": return "VP9"
         case "vp08", "vp80", "vp8": return "VP8"
         case "mp2v", "mpgv", "mpeg2", "mpeg2video": return "MPEG-2"
@@ -130,7 +130,121 @@ struct PlaybackVideoQuality: Equatable, Sendable {
     /// Whether a CoreMedia subtype / HLS codec is a Dolby Vision sample entry.
     static func isDolbyVisionCodec(_ rawValue: String?) -> Bool {
         switch rawValue?.lowercased() {
-        case "dvh1", "dvhe", "dva1", "dvav": true
+        case "dvh1", "dvhe", "dva1", "dvav", "dav1": true
+        default: false
+        }
+    }
+
+    /// The dynamic range AVPlayer is putting on screen, from what it reports
+    /// about the playing variant and track, e.g. `Dolby Vision 8.1`,
+    /// `Dolby Vision 8.1 (from profile 7)`, `HDR10`, `SDR`. Nil until it has
+    /// measured anything. HDR10+ reads HDR10: its metadata is per frame and
+    /// nothing describing the track or variant carries it.
+    static func dynamicRange(for signals: AVPlayerDynamicRangeSignals) -> String? {
+        let transfer = signals.trackTransfer ?? signals.variantTransfer
+        guard signals.hasTrack || !signals.variantCodecs.isEmpty || transfer != nil else { return nil }
+
+        var label: String?
+        var isHDR = transfer == .pq || transfer == .hlg
+        if let dolbyVision = dolbyVisionPlaying(signals, transfer: transfer) {
+            label = dolbyVision.displayName
+            isHDR = true
+        } else if signals.trackCodecs.contains(where: isDolbyVisionCodec)
+                    || (!signals.hasTrack && signals.variantCodecs.contains(where: isDolbyVisionCodec)) {
+            // A Dolby Vision sample entry whose configuration isn't readable.
+            label = dolbyVisionLabel
+            isHDR = true
+        } else {
+            switch transfer {
+            case .pq: label = hdr10Label
+            case .hlg: label = hlgLabel
+            case .sdr: label = sdrLabel
+            case nil: label = nil
+            }
+        }
+        guard let label else { return nil }
+        // Same words as VLCKit's: the source is HDR, the screen gets SDR.
+        return isHDR && !signals.displaySupportsHDR ? "\(label) (SDR output)" : label
+    }
+
+    /// The track's own Dolby Vision configuration when it has one Apple
+    /// decodes; before the track is readable, the signaling the session
+    /// declared for the variant (`SUPPLEMENTAL-CODECS` / a `dvh1` CODECS).
+    /// Once the track is there it alone decides: a remux that fell back to an
+    /// unsignaled item plays its base layer.
+    private static func dolbyVisionPlaying(
+        _ signals: AVPlayerDynamicRangeSignals,
+        transfer: AVPlayerDynamicRangeSignals.Transfer?
+    ) -> DolbyVisionConfiguration? {
+        let declared = signals.declaredDolbyVision
+        if signals.hasTrack {
+            guard let record = signals.dolbyVisionRecord.flatMap(DolbyVisionRecord.init(data:)),
+                  record.isDecodedByApple else { return nil }
+            // A converted 8.1 keeps saying where it came from.
+            let convertedFrom = declared.flatMap { declared in
+                declared.profile == record.profile && declared.blSignalCompatibilityID == record.compatibilityID
+                    ? declared.convertedFromProfile : nil
+            }
+            return DolbyVisionConfiguration(
+                profile: record.profile,
+                level: record.level,
+                blSignalCompatibilityID: record.compatibilityID,
+                lumaSampleRate: nil,
+                lumaPictureSize: nil,
+                bitrateKbps: nil,
+                convertedFromProfile: convertedFrom
+            )
+        }
+        guard let declared, transfer != .sdr else { return nil }
+        return declared
+    }
+}
+
+/// What AVPlayer reports about the picture it plays, gathered by
+/// `AVPlayerEngine` for `PlaybackVideoQuality.dynamicRange(for:)`.
+struct AVPlayerDynamicRangeSignals: Equatable, Sendable {
+    enum Transfer: Sendable { case sdr, pq, hlg }
+
+    /// The playing HLS variant's `CODECS`, as FourCCs.
+    var variantCodecs: [String] = []
+    /// The variant's `VIDEO-RANGE`.
+    var variantTransfer: Transfer?
+    /// The video track's format description has loaded (HLS: once segments
+    /// arrive). From then on the track's facts win over the playlist's.
+    var hasTrack = false
+    var trackCodecs: [String] = []
+    /// The track's transfer function; SDR when untagged.
+    var trackTransfer: Transfer?
+    /// The payload of the track's `dvcC` / `dvvC` / `dvwC` box.
+    var dolbyVisionRecord: Data?
+    /// The Dolby Vision signaling the loaded source restores or converts to
+    /// (`PlaybackSource.dolbyVision7Conversion ?? dolbyVisionRemux`).
+    var declaredDolbyVision: DolbyVisionConfiguration?
+    /// `AVPlayer.eligibleForHDRPlayback`.
+    var displaySupportsHDR = true
+}
+
+/// A Dolby Vision decoder configuration record (`dvcC`/`dvvC`/`dvwC`):
+/// version (2 bytes), then profile (7 bits), level (6), rpu/el/bl present
+/// flags (3), then the base layer compatibility ID (4).
+struct DolbyVisionRecord: Equatable, Sendable {
+    let profile: Int
+    let level: Int
+    let compatibilityID: Int
+
+    init?(data: Data) {
+        let bytes = [UInt8](data.prefix(5))
+        guard bytes.count == 5 else { return nil }
+        profile = Int(bytes[2] >> 1)
+        level = Int((bytes[2] & 0x01) << 5 | bytes[3] >> 3)
+        compatibilityID = Int(bytes[4] >> 4)
+    }
+
+    /// Profiles Apple renders as Dolby Vision. Anything else (7, 8.2, 8.6)
+    /// plays its base layer.
+    var isDecodedByApple: Bool {
+        switch (profile, compatibilityID) {
+        case (5, _), (8, 1), (8, 4), (10, _): true
         default: false
         }
     }
@@ -142,11 +256,14 @@ extension PlaybackDebugInfo {
     /// something Plex's metadata doesn't describe, so those stay live-only:
     /// showing nothing beats showing the source's resolution for a 720p stream.
     func currentVideoQuality(live: PlaybackVideoQuality?) -> PlaybackVideoQuality {
-        let live = live ?? PlaybackVideoQuality()
+        var live = live ?? PlaybackVideoQuality()
         switch decision {
         case .directPlay, .localDownload, .spatialAudio:
             break
         case .transcode, .serverStream, .airPlay, .liveTV:
+            if engine == .vlcKit, !live.isEmpty {
+                live.dynamicRange = live.dynamicRange ?? PlaybackVideoQuality.sdrLabel
+            }
             return live
         }
 
@@ -172,24 +289,13 @@ extension PlaybackDebugInfo {
         // reaches the screen as SDR, and only its base layer ever plays.
         if engine == .vlcKit {
             guard let stream = part.streams.first(where: { $0.streamType == .video }),
-                  let transfer = StreamResolver.hdrTransfer(of: stream) else { return live }
+                  let transfer = StreamResolver.hdrTransfer(of: stream) else { return PlaybackVideoQuality.sdrLabel }
             let label = transfer == .hlg ? PlaybackVideoQuality.hlgLabel : PlaybackVideoQuality.hdr10Label
             return "\(label) (SDR output)"
         }
-
-        let sourceIsHDR = media.parts.lazy.flatMap(\.streams).contains(where: StreamResolver.isRemuxableHDRVideo)
-        guard let live else {
-            return sourceIsHDR ? StreamResolver.hdrVideoLabel(for: media) : nil
-        }
-        // AVPlayer knows it is on Dolby Vision; Plex knows which profile. A
-        // base-layer label would contradict it (DV7 converted to 8.1), and a
-        // live HDR10 is the failed-conversion retry, which plays exactly that.
-        if live == PlaybackVideoQuality.dolbyVisionLabel, sourceIsHDR {
-            let source = StreamResolver.hdrVideoLabel(for: media)
-            if source.hasPrefix(PlaybackVideoQuality.dolbyVisionLabel), !source.contains("base layer") {
-                return source
-            }
-        }
+        // AVPlayer measures what it plays (`PlaybackVideoQuality.dynamicRange(for:)`);
+        // the file's metadata says nothing about whether Dolby Vision survived
+        // the remux, so it never stands in.
         return live
     }
 }

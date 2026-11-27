@@ -25,7 +25,7 @@ struct PlaybackVideoQualityTests {
         #expect(PlaybackVideoQuality.bitsPerSecond(fromVLCDemuxRate: rate) == nil)
     }
 
-    @Test func summaryNamesEveryKnownFactAndLeavesOutSDR() {
+    @Test func summaryNamesEveryKnownFactIncludingSDR() {
         let quality = PlaybackVideoQuality(
             width: 3840, height: 2160, frameRate: 23.976, codec: "HEVC",
             dynamicRange: PlaybackVideoQuality.hdr10Label, bitrate: 42_100_000
@@ -35,7 +35,8 @@ struct PlaybackVideoQualityTests {
         let sdr = PlaybackVideoQuality(
             width: 640, height: 360, frameRate: 25, dynamicRange: PlaybackVideoQuality.sdrLabel, bitrate: 700_000
         )
-        #expect(sdr.summary == "640×360 · 25 fps · 700 kbps")
+        #expect(sdr.summary == "640×360 · 25 fps · SDR · 700 kbps")
+        #expect(PlaybackVideoQuality(width: 640, height: 360).summary == "640×360")
         #expect(PlaybackVideoQuality().summary == nil)
     }
 
@@ -104,20 +105,146 @@ struct PlaybackVideoQualityTests {
         #expect(hlg.currentVideoQuality(live: nil).dynamicRange == "HLG (SDR output)")
     }
 
-    @Test func avPlayerDolbyVisionGainsPlexsProfile() throws {
-        let info = try debugInfo(decision: .spatialAudio, dolbyVision: (profile: 8, compat: 1))
-        let live = PlaybackVideoQuality(dynamicRange: PlaybackVideoQuality.dolbyVisionLabel)
-        #expect(info.currentVideoQuality(live: live).dynamicRange == "Dolby Vision 8.1")
+    @Test func vlcKitSaysSDRForAnSDRSource() throws {
+        let info = try debugInfo(decision: .directPlay, engine: .vlcKit)
+        #expect(info.currentVideoQuality(live: nil).dynamicRange == "SDR")
+
+        let stream = try debugInfo(decision: .serverStream, engine: .vlcKit)
+        #expect(stream.currentVideoQuality(live: PlaybackVideoQuality(width: 1920, height: 1080)).dynamicRange == "SDR")
     }
 
-    @Test func aFailedDolbyVisionConversionReadsAsItsBaseLayer() throws {
-        let info = try debugInfo(decision: .spatialAudio, dolbyVision: (profile: 7, compat: 6))
-        let retry = PlaybackVideoQuality(dynamicRange: PlaybackVideoQuality.hdr10Label)
-        #expect(info.currentVideoQuality(live: retry).dynamicRange == "HDR10")
+    @Test func avPlayerNeverClaimsTheSourcesDolbyVisionUnmeasured() throws {
+        let info = try debugInfo(decision: .spatialAudio, dolbyVision: (profile: 8, compat: 1))
+        #expect(info.currentVideoQuality(live: nil).dynamicRange == nil)
 
-        // The converted stream is real Dolby Vision, not the source's profile 7.
-        let converted = PlaybackVideoQuality(dynamicRange: PlaybackVideoQuality.dolbyVisionLabel)
-        #expect(info.currentVideoQuality(live: converted).dynamicRange == "Dolby Vision")
+        let measured = PlaybackVideoQuality(dynamicRange: PlaybackVideoQuality.hdr10Label)
+        #expect(info.currentVideoQuality(live: measured).dynamicRange == "HDR10")
+    }
+
+    // MARK: AVPlayer dynamic range
+
+    @Test func dolbyVision81FromTheTracksConfigurationBox() {
+        // The remux keeps hvc1 and announces Dolby Vision through dvvC.
+        let signals = trackSignals(transfer: .pq, record: record(profile: 8, level: 6, compat: 1))
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.1")
+    }
+
+    @Test func dolbyVision84ReadsAsItsOwnProfile() {
+        let signals = trackSignals(transfer: .hlg, record: record(profile: 8, level: 6, compat: 4))
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.4")
+    }
+
+    @Test func dolbyVision5FromADvh1Track() {
+        let signals = trackSignals(codec: "dvh1", transfer: .sdr, record: record(profile: 5, level: 6, compat: 0))
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision profile 5")
+
+        // The sample entry alone still says Dolby Vision.
+        let bare = trackSignals(codec: "dvh1", transfer: .sdr, record: nil)
+        #expect(PlaybackVideoQuality.dynamicRange(for: bare) == "Dolby Vision")
+    }
+
+    @Test func convertedDolbyVision7NamesItsSource() {
+        var signals = trackSignals(transfer: .pq, record: record(profile: 8, level: 6, compat: 1))
+        signals.declaredDolbyVision = dolbyVision7.convertedToProfile81()
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.1 (from profile 7)")
+    }
+
+    @Test func unconvertedDolbyVision7PlaysItsHDR10BaseLayer() {
+        // The failed-conversion retry: the init keeps profile 7's dvcC.
+        let signals = trackSignals(transfer: .pq, record: record(profile: 7, level: 6, compat: 6))
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "HDR10")
+
+        // Profile 8.2 / 8.6 have no Apple Dolby Vision form either.
+        let p86 = trackSignals(transfer: .pq, record: record(profile: 8, level: 6, compat: 6))
+        #expect(PlaybackVideoQuality.dynamicRange(for: p86) == "HDR10")
+    }
+
+    @Test func aTrackWithoutDolbyVisionOverridesTheDeclaredSignaling() {
+        // A remux whose loader couldn't be installed plays the bare HDR10 item.
+        var signals = trackSignals(transfer: .pq, record: nil)
+        signals.declaredDolbyVision = dolbyVision81
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "HDR10")
+    }
+
+    @Test func declaredSignalingStandsInUntilTheTrackLoads() {
+        // SUPPLEMENTAL-CODECS leaves CODECS hvc1 and VIDEO-RANGE PQ.
+        var signals = AVPlayerDynamicRangeSignals(variantCodecs: ["hvc1"], variantTransfer: .pq)
+        signals.declaredDolbyVision = dolbyVision81
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.1")
+
+        // An SDR variant cannot be carrying it.
+        signals.variantTransfer = .sdr
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "SDR")
+    }
+
+    @Test func hdr10HlgAndSDRFromTheTransferFunction() {
+        #expect(PlaybackVideoQuality.dynamicRange(for: trackSignals(transfer: .pq, record: nil)) == "HDR10")
+        #expect(PlaybackVideoQuality.dynamicRange(for: trackSignals(transfer: .hlg, record: nil)) == "HLG")
+        #expect(PlaybackVideoQuality.dynamicRange(for: trackSignals(transfer: .sdr, record: nil)) == "SDR")
+        // The track's tags win over the playlist's VIDEO-RANGE.
+        var signals = trackSignals(transfer: .pq, record: nil)
+        signals.variantTransfer = .sdr
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "HDR10")
+    }
+
+    @Test func hdrOnADisplayWithoutHDRSaysSDROutput() {
+        var signals = trackSignals(transfer: .pq, record: record(profile: 8, level: 6, compat: 1))
+        signals.displaySupportsHDR = false
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.1 (SDR output)")
+
+        var sdr = trackSignals(transfer: .sdr, record: nil)
+        sdr.displaySupportsHDR = false
+        #expect(PlaybackVideoQuality.dynamicRange(for: sdr) == "SDR")
+    }
+
+    @Test func nothingMeasuredYetIsUnknown() {
+        var signals = AVPlayerDynamicRangeSignals()
+        signals.declaredDolbyVision = dolbyVision81
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == nil)
+    }
+
+    @Test func configurationRecordParsesProfileLevelAndCompatibility() throws {
+        let parsed = try #require(DolbyVisionRecord(data: record(profile: 8, level: 9, compat: 4)))
+        #expect(parsed == DolbyVisionRecord(data: Data([1, 0, 0x10, 0x4D, 0x40])))
+        #expect(parsed.profile == 8)
+        #expect(parsed.level == 9)
+        #expect(parsed.compatibilityID == 4)
+        #expect(DolbyVisionRecord(data: Data([1, 0, 0x10])) == nil)
+    }
+
+    private let dolbyVision81 = DolbyVisionConfiguration(
+        profile: 8, level: 6, blSignalCompatibilityID: 1,
+        lumaSampleRate: nil, lumaPictureSize: nil, bitrateKbps: nil
+    )
+
+    private let dolbyVision7 = DolbyVisionConfiguration(
+        profile: 7, level: 6, blSignalCompatibilityID: 6,
+        lumaSampleRate: nil, lumaPictureSize: nil, bitrateKbps: nil
+    )
+
+    private func trackSignals(
+        codec: String = "hvc1",
+        transfer: AVPlayerDynamicRangeSignals.Transfer,
+        record: Data?
+    ) -> AVPlayerDynamicRangeSignals {
+        AVPlayerDynamicRangeSignals(
+            variantCodecs: [codec],
+            hasTrack: true,
+            trackCodecs: [codec],
+            trackTransfer: transfer,
+            dolbyVisionRecord: record
+        )
+    }
+
+    /// A `dvcC`/`dvvC` payload: version 1.0, RPU + BL present, no EL.
+    private func record(profile: Int, level: Int, compat: Int) -> Data {
+        let flags = 0b101
+        return Data([
+            1, 0,
+            UInt8(profile << 1 | level >> 5),
+            UInt8((level & 0x1F) << 3 | flags),
+            UInt8(compat << 4),
+        ])
     }
 
     private func debugInfo(
