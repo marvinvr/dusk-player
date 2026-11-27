@@ -18,6 +18,9 @@ struct PosterArtwork: View {
     /// every URL failed), so a card is never just an empty square. Not shown
     /// while an image is still loading.
     var placeholderTitle: String? = nil
+    /// A watched movie, episode or video: the checkmark badge in the
+    /// top-trailing corner (`WatchedBadge`). See `PlexItem.posterShowsWatchedBadge`.
+    var showsWatchedBadge: Bool = false
 
     @Environment(\.blursUnwatchedEpisodes) private var blursUnwatchedEpisodes
     #if os(macOS)
@@ -74,6 +77,12 @@ struct PosterArtwork: View {
                             .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
                     )
                     .shadow(color: .black.opacity(0.25), radius: 10, y: 4)
+            }
+        }
+        .overlay(alignment: .topTrailing) {
+            if showsWatchedBadge, availabilityBadge?.isEmpty ?? true {
+                WatchedBadge(isOnPoster: !isHorizontalArtwork)
+                    .padding(WatchedBadge.inset)
             }
         }
         .overlay(alignment: .topTrailing) {
@@ -230,6 +239,55 @@ struct PosterArtwork: View {
         }
         .frame(height: height)
         .shadow(color: .black.opacity(0.28), radius: 2, y: 1)
+    }
+}
+
+// MARK: - Watched badge
+
+/// The watched mark on a movie, episode or video's artwork: a white
+/// checkmark on a dark glass disc, inset from the top-trailing corner. Dark
+/// glass with a hairline rim and a soft shadow keeps it legible on bright
+/// and dark art alike; no colour, per STYLE.md.
+struct WatchedBadge: View {
+    /// On a 2:3 poster rather than a 16:9 still. tvOS posters are narrower
+    /// than its episode stills, so they take a smaller badge.
+    var isOnPoster = false
+
+    private var diameter: CGFloat {
+        #if os(tvOS)
+        isOnPoster ? 40 : 52
+        #elseif os(macOS)
+        24
+        #else
+        26
+        #endif
+    }
+
+    /// Room between the badge and the artwork's edges, so it sits inside
+    /// the rounded corner rather than in it.
+    static var inset: CGFloat {
+        #if os(tvOS)
+        14
+        #else
+        8
+        #endif
+    }
+
+    var body: some View {
+        Image(systemName: "checkmark")
+            .font(.system(size: diameter * 0.44, weight: .bold))
+            .foregroundStyle(Color.white)
+            .frame(width: diameter, height: diameter)
+            .background {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Circle().fill(Color.black.opacity(0.42)))
+                    .environment(\.colorScheme, .dark)
+            }
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.22), lineWidth: 1))
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 1)
+            .accessibilityElement()
+            .accessibilityLabel("Watched")
     }
 }
 
@@ -426,6 +484,8 @@ struct PosterCard: View {
     var isWatched: Bool = false
     var unwatchedCount: Int? = nil
     var artworkPlaceholderTitle: String? = nil
+    /// Draws `WatchedBadge` on the artwork instead of the subtitle checkmark.
+    var showsWatchedBadge: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -439,14 +499,15 @@ struct PosterCard: View {
                 availabilityBadge: availabilityBadge,
                 isDimmed: isDimmed,
                 isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
-                placeholderTitle: artworkPlaceholderTitle
+                placeholderTitle: artworkPlaceholderTitle,
+                showsWatchedBadge: showsWatchedBadge
             )
 
             PosterCardText(
                 title: title,
                 subtitle: subtitle,
                 width: width,
-                isWatched: isWatched,
+                isWatched: isWatched && !showsWatchedBadge,
                 unwatchedCount: unwatchedCount
             )
         }

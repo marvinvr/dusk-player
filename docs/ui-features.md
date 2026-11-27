@@ -190,7 +190,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the row (no extra request): `progress` defaults to `PlexItem.posterProgress`
   (`viewOffset`) and the checkmark to `PlexItem.posterIsWatched` (played
   movie/episode/clip, or a show/season with every episode watched), so every
-  Home/library hub row and grid shows them, not only Continue Watching. Both take `imageAspectRatio` (default 2:3); pass
+  Home/library hub row and grid shows them, not only Continue Watching. For
+  movies, episodes and clips (`PlexItem.posterShowsWatchedBadge`) the cards
+  draw `WatchedBadge` on the artwork (`showsWatchedBadge`) and drop the
+  subtitle checkmark; shows and seasons keep the checkmark. An availability
+  badge in the same corner wins. Season episode rows (iOS) and the tvOS series
+  page pass it themselves and show no text checkmark. Both take `imageAspectRatio` (default 2:3); pass
   `16.0/9.0` for clip content so the requested transcode size matches the display
   aspect — a 2:3 request would be cropped server-side.
 - Clip rendering is item-driven: `PlexItem.isClip` (item `subtype == "clip"`) and

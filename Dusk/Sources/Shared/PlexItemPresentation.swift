@@ -34,6 +34,18 @@ extension PlexItem {
         }
     }
 
+    /// A played movie, episode or clip carries `WatchedBadge` on its artwork
+    /// in place of the subtitle checkmark. Shows and seasons keep the quiet
+    /// checkmark (and `UnwatchedCountBadge`) under the card.
+    var posterShowsWatchedBadge: Bool {
+        switch type {
+        case .movie, .episode, .clip:
+            return isWatched
+        default:
+            return false
+        }
+    }
+
     /// The title under a poster. A season or episode on its own in a row
     /// (Recently Added, mostly) is known by its show — "Season 6" alone says
     /// nothing — so it takes the show's title and leaves the numbering to the

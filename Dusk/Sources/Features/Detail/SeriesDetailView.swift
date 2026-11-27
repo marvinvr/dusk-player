@@ -894,7 +894,8 @@ private struct SeriesEpisodeCard: View {
                     showsPlayOverlay: false,
                     // `episodeImageURL` only falls back to the show poster
                     // when the episode has no still of its own.
-                    isUnwatchedEpisodeImage: !isWatched && episode.thumb != nil
+                    isUnwatchedEpisodeImage: !isWatched && episode.thumb != nil,
+                    showsWatchedBadge: isWatched
                 )
                 .opacity(isUnavailableOffline ? 0.46 : 1)
                 .contentShape(.contextMenuPreview, artworkShape)
@@ -909,8 +910,7 @@ private struct SeriesEpisodeCard: View {
             PosterCardText(
                 title: episode.title,
                 subtitle: episodeNumberLabel,
-                width: artworkWidth,
-                isWatched: isWatched
+                width: artworkWidth
             )
         }
         .frame(width: artworkWidth, alignment: .topLeading)

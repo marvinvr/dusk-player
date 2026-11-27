@@ -31,6 +31,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var unwatchedCount: Int? = nil
     /// The artwork is an unwatched episode's own still; see `spoilerBlur`.
     var isUnwatchedEpisodeImage = false
+    /// See `PosterCard.showsWatchedBadge`.
+    var showsWatchedBadge = false
     /// The item behind `route`, when known; see `tvQuickPlay(route:item:)`.
     var playbackItem: PlexItem? = nil
     /// See `PosterArtwork.placeholderTitle`.
@@ -58,7 +60,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                     showsPlayOverlay: showsPlayOverlay,
                     availabilityBadge: availabilityBadge,
                     isDimmed: isDimmed,
-                    placeholderTitle: artworkPlaceholderTitle
+                    placeholderTitle: artworkPlaceholderTitle,
+                    showsWatchedBadge: showsWatchedBadge
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -74,7 +77,7 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 title: title,
                 subtitle: subtitle,
                 width: width,
-                isWatched: isWatched,
+                isWatched: isWatched && !showsWatchedBadge,
                 unwatchedCount: unwatchedCount
             )
         }
@@ -96,7 +99,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
                 isWatched: isWatched,
                 unwatchedCount: unwatchedCount,
-                artworkPlaceholderTitle: artworkPlaceholderTitle
+                artworkPlaceholderTitle: artworkPlaceholderTitle,
+                showsWatchedBadge: showsWatchedBadge
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -162,6 +166,8 @@ struct PosterActionCard<ContextMenuContent: View>: View {
     var isDimmed = false
     var isUnwatchedEpisodeImage = false
     var isWatched = false
+    /// See `PosterCard.showsWatchedBadge`.
+    var showsWatchedBadge = false
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -185,7 +191,8 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                     showsPlayOverlay: showsPlayOverlay,
                     availabilityBadge: availabilityBadge,
                     isDimmed: isDimmed,
-                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage
+                    isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
+                    showsWatchedBadge: showsWatchedBadge
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -201,7 +208,7 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                 title: title,
                 subtitle: subtitle,
                 width: width,
-                isWatched: isWatched
+                isWatched: isWatched && !showsWatchedBadge
             )
         }
         .frame(width: width, alignment: .topLeading)
@@ -220,7 +227,8 @@ struct PosterActionCard<ContextMenuContent: View>: View {
                 availabilityBadge: availabilityBadge,
                 isDimmed: isDimmed,
                 isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
-                isWatched: isWatched
+                isWatched: isWatched,
+                showsWatchedBadge: showsWatchedBadge
             )
         }
         .buttonStyle(.plain)

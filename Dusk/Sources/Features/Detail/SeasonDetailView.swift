@@ -474,7 +474,8 @@ private struct SeasonEpisodeRow: View {
                         isUnavailableOffline: isUnavailableOffline,
                         // `episodeImageURL` only falls back to the show poster
                         // when the episode has no still of its own.
-                        isUnwatchedEpisodeImage: !isWatched && episode.thumb != nil
+                        isUnwatchedEpisodeImage: !isWatched && episode.thumb != nil,
+                        isWatched: isWatched
                     )
                 }
                 .buttonStyle(.plain)
@@ -529,6 +530,7 @@ private struct SeasonEpisodePosterArtwork: View {
     let showsPlayOverlay: Bool
     let isUnavailableOffline: Bool
     let isUnwatchedEpisodeImage: Bool
+    let isWatched: Bool
 
     var body: some View {
         PosterArtwork(
@@ -537,7 +539,8 @@ private struct SeasonEpisodePosterArtwork: View {
             width: artworkWidth,
             imageAspectRatio: 16.0 / 9.0,
             showsPlayOverlay: showsPlayOverlay,
-            isUnwatchedEpisodeImage: isUnwatchedEpisodeImage
+            isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
+            showsWatchedBadge: isWatched
         )
         .opacity(isUnavailableOffline ? 0.46 : 1)
     }
@@ -564,13 +567,7 @@ private struct SeasonEpisodeTextContent: View {
                         .foregroundStyle(Color.primary.opacity(0.78))
                 }
 
-                if isWatched {
-                    Image(systemName: "checkmark")
-                        .font(DuskFont.glyphSmall(ios: .caption2.weight(.semibold)))
-                        .foregroundStyle(Color.primary.opacity(0.6))
-                        .accessibilityLabel("Watched")
-                }
-
+                // Watched shows as `WatchedBadge` on the still.
                 downloadStatusBadge
             }
 

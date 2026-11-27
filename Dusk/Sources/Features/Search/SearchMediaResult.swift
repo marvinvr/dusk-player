@@ -54,6 +54,11 @@ enum SearchMediaResult: Identifiable {
         return item.posterIsWatched
     }
 
+    var showsWatchedBadge: Bool {
+        guard case .plex(let item) = self else { return false }
+        return item.posterShowsWatchedBadge
+    }
+
     var isClip: Bool {
         guard case .plex(let item) = self else { return false }
         return item.isClip

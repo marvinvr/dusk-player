@@ -184,9 +184,12 @@ poster** on every platform. Action buttons use the **native Liquid Glass** style
   leading on iPad); **to the right** of the primary on tvOS. Movie, Show, Season,
   and Episode all expose a watched toggle; Show/Season mark the whole show/season.
 
-**Watched state is quiet everywhere.** A small checkmark in the card's subtitle
-colour (no filled badge), the neutral white-on-dark progress bar of
-`PosterArtwork` for partially watched items, nothing for unwatched. A partially
+**Watched state stays neutral.** A watched movie, episode or video carries
+`WatchedBadge` on its artwork: a white checkmark on a dark glass disc, inset
+from the top-trailing corner (no colour). A fully watched show or season keeps
+a small checkmark in the card's subtitle colour instead. Partially watched
+items show only the neutral white-on-dark progress bar of `PosterArtwork`;
+unwatched items show nothing. A partially
 watched **season** also gets its unwatched-episode count as the system
 `N.circle.fill` symbol in the checkmark's slot, at its size and colour
 (`UnwatchedCountBadge`), so it never adds clutter. "Show More"

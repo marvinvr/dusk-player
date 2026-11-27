@@ -243,6 +243,7 @@ private extension SearchRootContent {
                                     imageAspectRatio: aspectRatio,
                                     availabilityBadge: vm.availabilityBadge(for: item),
                                     isWatched: item.isWatched,
+                                    showsWatchedBadge: item.showsWatchedBadge,
                                     playbackItem: item.plexItem,
                                     artworkPlaceholderTitle: item.title
                                 ) {
@@ -340,6 +341,7 @@ private extension SearchRootContent {
                                             imageAspectRatio: aspectRatio,
                                             availabilityBadge: vm.availabilityBadge(for: item),
                                             isWatched: item.isWatched,
+                                            showsWatchedBadge: item.showsWatchedBadge,
                                             playbackItem: item.plexItem,
                                             artworkPlaceholderTitle: item.title
                                         ) {
