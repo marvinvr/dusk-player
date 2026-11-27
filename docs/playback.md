@@ -665,6 +665,49 @@ so the whole live HUD is derived from one instant.
   RPU is actually applied (an L2-trim test clip pulses visibly), HDR10+ on
   an HDR10+ TV, and the level cap on 4K60 and high-bitrate sources.
 
+### Remux keyframe timestamp repair (open GOP)
+- Plex's fMP4 segmenter misstamps the first sample of every media segment
+  when it copies an open-GOP video (UHD Blu-ray remuxes: each keyframe is
+  followed in decode order by leading B-frames shown before it). The
+  keyframe's composition offset comes out one frame past its decode time, so
+  its presentation time equals its first leading frame's and its own slot
+  stays empty. Measured on Oppenheimer 4K (DV 8.1, DTS-HD MA → E-AC-3,
+  23.976): MKV keyframe 10.344 s, remux 10.260 s; mid-segment keyframes and
+  every other frame are exact; ffmpeg decodes the PTS backwards at each cut.
+  The same with the audio copied (DTS copy), so it predates the picture-first
+  routing and hits every open-GOP copy remux. `copyts`, `fastSeek` and
+  `X-Plex-Incomplete-Segments` do not change it; closed-GOP sources (El
+  Camino 4K) are clean. Inferred on-screen effect (not captured on a device):
+  the reported "picture jumps back" at a segment change, every ~10 s,
+  noticed in motion every 30–90 s.
+- Fix, `RemuxKeyframeTimestampRepair` (pure): sample 0 must be sync, a later
+  sample of its GOP must share its presentation time (within a quarter frame:
+  after a transcoder restart Plex's millisecond rounding leaves them 24 ticks
+  apart), and the GOP's other
+  times must leave exactly one hole (1.5–2.5 frames, within 4 frames after
+  it); then only sample 0's `trun` composition offset moves into the hole.
+  Anything else is left byte for byte (segment 0, the restart segment after a
+  seek, closed GOP, audio `traf`s).
+- Delivery: segments cannot go through `AVAssetResourceLoader`, so every
+  `.spatialAudio` session (`PlaybackSource.repairsKeyframeTimestamps`, which
+  puts plain HDR10 copies on `RemuxHLSLoader` too) points the fMP4 media
+  playlist's segments at `RemuxSegmentRelay`, a loopback relay started with
+  the first such playlist. It streams each segment: holds back only the bytes
+  up to the first `moof` (a few KB after two `sidx`), patches, then passes
+  everything through as received (upstream task suspended above 8 MiB
+  queued), keeping the server's status, `Content-Length`/`Content-Range`
+  (chunked when the server sends no length). WebVTT segments stay on the
+  server. If the relay cannot start, segments load from the server as
+  before. The Dolby Vision 7 proxy applies the same repair to each converted
+  segment. Relay tests run in the simulator because only device builds add
+  `requiredInterfaceType = .loopback` / `acceptLocalOnly` (the simulator
+  resets inbound connections on such listeners). `start()` only reports
+  success once a loopback ping answers (a listener can be `.ready` and still
+  reset every connection). Verified in the simulator against real Plex: a
+  77 MB segment relayed in 0.6 s with only the offset changed, and AVPlayer
+  playing the Oppenheimer 4K remux through it (real time, no stalls or
+  dropped frames, seek fine).
+
 ## Dolby Vision 7 (on-device 8.1 conversion)
 
 - Why: profile 7 (UHD Blu-ray, base layer + MEL/FEL enhancement layer) has
@@ -2944,7 +2987,10 @@ Plex clients do. There is no app setting: the server decides.
   `dolbyVisionRemuxBlocker`), Plex request in `PlexService+Playback.swift`,
   session logic in `PlaybackCoordinator+SpatialAudio.swift`, Atmos and Dolby
   Vision init-segment/playlist fixes in `Playback/RemuxHLSLoader.swift`
-  (tests: `DuskTests/HDRVideoRemuxTests.swift`).
+  (tests: `DuskTests/HDRVideoRemuxTests.swift`); segment keyframe repair in
+  `Playback/RemuxKeyframeTimestampRepair.swift` + `RemuxSegmentRelay.swift`
+  (tests: `DuskTests/RemuxKeyframeTimestampRepairTests.swift`,
+  `RemuxSegmentRelayTests.swift`).
 - Dolby Vision 7 → 8.1: gate in `remuxDolbyVision7Conversion`
   (`PlaybackCoordinator+SpatialAudio.swift`) and
   `StreamResolver.dolbyVision7ConversionTarget`, retry branch in

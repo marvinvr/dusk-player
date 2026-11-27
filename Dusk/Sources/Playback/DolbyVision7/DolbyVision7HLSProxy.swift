@@ -674,13 +674,16 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         let conversion = Task.detached(priority: .userInitiated) {
             try rewriter.rewrite(data)
         }
-        let converted = try await withTaskCancellationHandler {
+        var converted = try await withTaskCancellationHandler {
             try await conversion.value
         } onCancel: {
             conversion.cancel()
         }
         try Task.checkCancellation()
         try check(converted.stats)
+        // DV7 sources are UHD Blu-ray remuxes, open GOP: Plex misplaces each
+        // segment's first keyframe (`RemuxKeyframeTimestampRepair`).
+        RemuxKeyframeTimestampRepair.repairSegment(&converted.data)
         return HLSProxyResponse(status: 200, contentType: HLSProxyResponse.mp4ContentType, body: converted.data)
     }
 

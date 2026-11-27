@@ -818,7 +818,8 @@ extension PlaybackCoordinator {
                     ? nil : remuxVariantCodecs(in: part),
                 hdrRemuxFallback: hdrRemuxFallback,
                 retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
-                    && StreamResolver.containsHEV1Video(media)
+                    && StreamResolver.containsHEV1Video(media),
+                repairsKeyframeTimestamps: playbackDecision.isSpatialAudio
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1469,7 +1470,8 @@ extension PlaybackCoordinator {
                 ? nil : remuxVariantCodecs(in: part),
             hdrRemuxFallback: hdrRemuxFallback,
             retagsHEV1SampleEntry: playbackDecision.isSpatialAudio && dolbyVisionRemux == nil
-                && StreamResolver.containsHEV1Video(media)
+                && StreamResolver.containsHEV1Video(media),
+            repairsKeyframeTimestamps: playbackDecision.isSpatialAudio
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,

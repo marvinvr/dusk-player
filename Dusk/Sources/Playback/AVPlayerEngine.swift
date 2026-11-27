@@ -873,7 +873,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
                 restoresDolbyAtmos: source.restoresDolbyAtmos,
                 dolbyVision: source.dolbyVisionRemux,
                 retagsHEV1: source.retagsHEV1SampleEntry,
-                fallbackCodecs: source.remuxVariantCodecs
+                fallbackCodecs: source.remuxVariantCodecs,
+                repairsKeyframeTimestamps: source.repairsKeyframeTimestamps
             )
             let url = playlistURL ?? source.url
             if let asset = RemuxHLSLoader.makeAsset(url: url, loader: loader) {
