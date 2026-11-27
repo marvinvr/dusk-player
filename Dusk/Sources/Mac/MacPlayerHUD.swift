@@ -241,7 +241,8 @@ struct MacPlayerHUD: View {
                 help: "Audio & Subtitles",
                 accessibilityLabel: "Audio and Subtitles",
                 accessibilityValue: context.subtitleControlTitle,
-                items: mediaMenuItems
+                items: mediaMenuItems,
+                screenshotName: "media"
             )
             .disabled(viewModel.audioTracks.isEmpty && viewModel.subtitleTracks.isEmpty && !context.canDownloadSubtitles)
 
@@ -249,7 +250,8 @@ struct MacPlayerHUD: View {
                 systemName: "ellipsis.circle",
                 help: "More",
                 accessibilityLabel: "More",
-                items: moreMenuItems
+                items: moreMenuItems,
+                screenshotName: "more"
             )
 
             if showsPictureInPicture {

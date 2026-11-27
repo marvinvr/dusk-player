@@ -1,8 +1,9 @@
 # App Store Screenshots
 
 The App Store screenshots live in `screenshots/<version>/` (`iphone-6.9`,
-`ipad-13`, `appletv`). They are rendered by a separate, private tool that
-builds this repo's Debug app, captures it in the simulators against a local
+`ipad-13`, `appletv`, `mac`). They are rendered by a separate, private tool that
+builds this repo's Debug app, captures it in the simulators (the Mac app on
+the Mac itself, under its own bundle ID) against a local
 demo Plex server and composes the marketing panels; it writes its output back
 into `screenshots/<version>/`. The demo library shows metadata and cover art
 of real titles only; the player shows neutral public-domain frames, never
@@ -33,6 +34,9 @@ by launch arguments:
 | `-DuskScreenshotUpNext <seconds>` | Episode player shot: raises the full-screen Up Next for the next episode; every Up Next countdown stops at that many seconds |
 | `-DuskScreenshotHeroIndex <n>` | iOS/iPadOS Home hero opens on item `n` instead of the first (rotation is off in screenshot mode) |
 | `-DuskScreenshotTVInputs "wait:3500,up,panel:subtitles"` | tvOS player: synthetic Siri Remote input (`pan:<points>` leaves the play bar scrubbing) |
+| `-DuskScreenshotCaptureFile <png>` / `-DuskScreenshotCaptureAfter <s>` | Mac: after `s` seconds the app writes its main window (plus its own menus over it) to `<png>` via ScreenCaptureKit and quits (`Mac/MacScreenshotRouting.swift`) |
+| `-DuskScreenshotPlayerMenu media\|more` | Mac player: that play-bar menu opens on its own once its rows settle and stays open |
+| `-DuskScreenshotMute 1` | AVPlayer and VLCKit stay muted whatever the player's volume says (Mac captures run on the host) |
 
 Hooks: `PlexService` (plex.tv base + token), `MainTabView` (routing + sheet),
 `AppNavigationRoute.screenshotServerPriority`, `SearchView` (query),

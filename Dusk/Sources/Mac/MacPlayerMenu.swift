@@ -168,6 +168,8 @@ struct MacPlayerMenuButton: View {
     let accessibilityLabel: String
     var accessibilityValue: String = ""
     let items: () -> [MacPlayerMenuItem]
+    /// Name for `-DuskScreenshotPlayerMenu` (screenshot mode, DEBUG).
+    var screenshotName: String? = nil
 
     @Environment(\.isEnabled) private var isEnabled
     @State private var anchor = MacPlayerMenuAnchor()
@@ -184,7 +186,30 @@ struct MacPlayerMenuButton: View {
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(accessibilityValue)
         .accessibilityAddTraits(.isButton)
+        #if DEBUG
+        .task { await openForScreenshotIfRequested() }
+        #endif
     }
+
+    #if DEBUG
+    /// Opens once its rows have settled (tracks arrive after playback starts).
+    private func openForScreenshotIfRequested() async {
+        guard let screenshotName, MacScreenshotPlayerMenu.requested == screenshotName else { return }
+        var lastCount = -1
+        var stablePolls = 0
+        for _ in 0..<80 {
+            try? await Task.sleep(for: .milliseconds(500))
+            if Task.isCancelled { return }
+            let count = items().count
+            stablePolls = count > 0 && count == lastCount && isEnabled ? stablePolls + 1 : 0
+            lastCount = count
+            if stablePolls >= 4 {
+                open()
+                return
+            }
+        }
+    }
+    #endif
 
     private func open() {
         guard isEnabled, !isOpen, let view = anchor.view else { return }

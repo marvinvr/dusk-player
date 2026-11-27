@@ -152,6 +152,7 @@ struct MacRootView: View {
         .supporterPromptPresenter()
         #if DEBUG
         .task {
+            MacScreenshotCapture.startIfRequested()
             await applyMacScreenshotDestination { librariesViewModel?.libraries ?? [] }
         }
         #endif

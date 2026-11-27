@@ -1,5 +1,7 @@
 #if os(macOS) && DEBUG
+import ScreenCaptureKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Screenshot mode (`ScreenshotMode`, DEBUG only) for the Mac shell: the
 /// counterpart of `MainTabView.applyScreenshotDestination`. Opens the
@@ -77,5 +79,75 @@ enum MacScreenshotUserPicker {
         """
         return (try? JSONDecoder().decode([PlexHomeUser].self, from: Data(json.utf8))) ?? []
     }()
+}
+#endif
+
+#if os(macOS) && DEBUG
+/// Screenshot mode (DEBUG only): the Mac app captures its own main window,
+/// for the App Store screenshot tool.
+///
+/// `-DuskScreenshotCaptureFile <path.png> -DuskScreenshotCaptureAfter <s>`:
+/// after `s` seconds the main window, with any menu it has popped up, is
+/// written to `path.png` at full Retina resolution, without shadow (the tool
+/// draws its own; the corners stay transparent), and the app quits.
+/// `SCShareableContent.currentProcess` only lists this process's windows, so
+/// no Screen Recording permission is involved. Needs an unlocked screen.
+enum MacScreenshotCapture {
+    @MainActor private static var started = false
+
+    @MainActor static func startIfRequested() {
+        guard ScreenshotMode.isActive, !started,
+              let path = UserDefaults.standard.string(forKey: "DuskScreenshotCaptureFile")?.nilIfEmpty else { return }
+        started = true
+        let delay = max(UserDefaults.standard.double(forKey: "DuskScreenshotCaptureAfter"), 1)
+        Task.detached(priority: .userInitiated) {
+            try? await Task.sleep(for: .seconds(delay))
+            do {
+                try await capture(to: URL(fileURLWithPath: path))
+            } catch {
+                try? "capture failed: \(error)".write(
+                    to: URL(fileURLWithPath: path + ".error"), atomically: true, encoding: .utf8)
+            }
+            await MainActor.run { NSApp.terminate(nil) }
+        }
+    }
+
+    private static func capture(to url: URL) async throws {
+        let content = try await SCShareableContent.currentProcess
+        guard let main = content.windows
+            .filter({ $0.isOnScreen && $0.windowLayer == 0 })
+            .max(by: { $0.frame.width * $0.frame.height < $1.frame.width * $1.frame.height })
+        else { throw CaptureError.noWindow }
+        // The window's own capture already holds the menus it pops up.
+        let filter = SCContentFilter(desktopIndependentWindow: main)
+        let config = SCStreamConfiguration()
+        let scale = CGFloat(filter.pointPixelScale)
+        config.width = Int((filter.contentRect.width * scale).rounded())
+        config.height = Int((filter.contentRect.height * scale).rounded())
+        config.showsCursor = false
+        config.ignoreShadowsSingleWindow = true
+        config.captureResolution = .best
+        config.colorSpaceName = CGColorSpace.sRGB
+        try write(try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config), to: url)
+    }
+
+    private static func write(_ image: CGImage, to url: URL) throws {
+        guard let dest = CGImageDestinationCreateWithURL(url as CFURL, UTType.png.identifier as CFString, 1, nil)
+        else { throw CaptureError.write }
+        CGImageDestinationAddImage(dest, image, nil)
+        guard CGImageDestinationFinalize(dest) else { throw CaptureError.write }
+    }
+
+    private enum CaptureError: Error { case noWindow, write }
+}
+
+/// `-DuskScreenshotPlayerMenu media|more` (screenshot mode): the player's
+/// play-bar menu of that name opens on its own once it has rows and stays
+/// open (its tracking loop holds the HUD up), for the capture above.
+enum MacScreenshotPlayerMenu {
+    static var requested: String? {
+        guard ScreenshotMode.isActive else { return nil }
+        return UserDefaults.standard.string(forKey: "DuskScreenshotPlayerMenu")?.nilIfEmpty
+    }
 }
 #endif

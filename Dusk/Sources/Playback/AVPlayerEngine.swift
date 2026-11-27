@@ -382,7 +382,17 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
     #if os(macOS)
     func setVolume(_ volume: Float, muted: Bool) {
         player.volume = max(0, min(volume, 1))
-        player.isMuted = muted
+        player.isMuted = muted || Self.screenshotMuted
+    }
+
+    /// Screenshot runs stay silent on the host Mac whatever the player's own
+    /// volume says (`-DuskScreenshotMute 1`).
+    private static var screenshotMuted: Bool {
+        #if DEBUG
+        ScreenshotMode.mutesPlayback
+        #else
+        false
+        #endif
     }
     #endif
 

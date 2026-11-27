@@ -731,6 +731,9 @@ final class VLCKitEngine: NSObject, PlaybackEngine {
         guard let audio = mediaPlayer.audio else { return }
         let target = Int32((max(0, min(volume, 1)) * 100).rounded())
         if audio.volume != target { audio.volume = target }
+        #if DEBUG
+        let muted = muted || ScreenshotMode.mutesPlayback
+        #endif
         if audio.isMuted != muted { audio.isMuted = muted }
     }
     #endif
