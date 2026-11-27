@@ -1,3 +1,4 @@
+import AVFoundation
 import Foundation
 import Testing
 @testable import Dusk
@@ -211,6 +212,55 @@ struct PlaybackVideoQualityTests {
         #expect(parsed.compatibilityID == 4)
         #expect(DolbyVisionRecord(data: Data([1, 0, 0x10])) == nil)
     }
+
+    /// The headline case rests on CoreMedia handing the `dvvC` that
+    /// `DolbyVisionSignaling` adds to an `hvc1` entry back in the format
+    /// description: a real 64×64 HEVC PQ init segment, patched by the
+    /// production code, read through the engine's own extraction.
+    @MainActor
+    @Test func coreMediaHandsBackTheRemuxsDvvC() async throws {
+        let initSegment = try #require(Data(base64Encoded: Self.hevcPQInitSegment, options: .ignoreUnknownCharacters))
+        let patched = try #require(DolbyVisionSignaling.patchedInitSegment(initSegment, configuration: dolbyVision81))
+
+        let plain = try await formatDescription(of: initSegment)
+        #expect(AVPlayerEngine.dolbyVisionRecord(of: plain) == nil)
+        #expect(AVPlayerEngine.transfer(of: plain) == .pq)
+
+        let signalled = try await formatDescription(of: patched)
+        #expect(CMFormatDescriptionGetMediaSubType(signalled) == kCMVideoCodecType_HEVC)
+        let record = try #require(AVPlayerEngine.dolbyVisionRecord(of: signalled).flatMap(DolbyVisionRecord.init(data:)))
+        #expect(record.profile == 8)
+        #expect(record.level == 6)
+        #expect(record.compatibilityID == 1)
+
+        var signals = trackSignals(transfer: AVPlayerEngine.transfer(of: signalled), record: AVPlayerEngine.dolbyVisionRecord(of: signalled))
+        signals.declaredDolbyVision = dolbyVision81
+        #expect(PlaybackVideoQuality.dynamicRange(for: signals) == "Dolby Vision 8.1")
+    }
+
+    private func formatDescription(of initSegment: Data) async throws -> CMFormatDescription {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("dusk-dv-\(UUID().uuidString).mp4")
+        try initSegment.write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let track = try #require(try await AVURLAsset(url: url).loadTracks(withMediaType: .video).first)
+        return try #require(try await track.load(.formatDescriptions).first)
+    }
+
+    /// ffmpeg/libx265, one 64×64 frame, BT.2020 PQ, `-tag:v hvc1`, fMP4;
+    /// only `ftyp` + `moov` kept (an HLS init segment).
+    private static let hevcPQInitSegment = """
+        AAAAHGZ0eXBpc281AAACAGlzbzVpc282bXA0MQAAAxhtb292AAAAbG12aGQAAAAAAAAAAAAAAAAAAAPoAAAAAAABAAABAAAAAAAA
+        AAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACAAACP3Ry
+        YWsAAABcdGtoZAAAAAMAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAEAAAAAAAAA
+        AAAAAAAAAEAAAAAAQAAAAEAAAAAAAdttZGlhAAAAIG1kaGQAAAAAAAAAAAAAAAAAADAAAAAAAFXEAAAAAAAtaGRscgAAAAAAAAAA
+        dmlkZQAAAAAAAAAAAAAAAFZpZGVvSGFuZGxlcgAAAAGGbWluZgAAABR2bWhkAAAAAQAAAAAAAAAAAAAAJGRpbmYAAAAcZHJlZgAA
+        AAAAAAABAAAADHVybCAAAAABAAABRnN0YmwAAAD6c3RzZAAAAAAAAAABAAAA6mh2YzEAAAAAAAAAAQAAAAAAAAAAAAAAAAAAAAAA
+        QABAAEgAAABIAAAAAAAAAAEMTGF2YyBsaWJ4MjY1AAAAAAAAAAAAAAAAAAAAAAAAAAAY//8AAAB6aHZjQwECIAAAAJAAAAAAAB7w
+        APz9+voAAA8DoAABABhAAQwB//8CIAAAAwCQAAADAAADAB6VmAmhAAEALUIBAQIgAAADAJAAAAMAAAMAHqAggQTZZWaSTK8BahIg
+        EggAAAMACAAAAwDAQKIAAQAHRAHBcrQiQAAAAApmaWVsAQAAAAAQcGFzcAAAAAEAAAABAAAAEHN0dHMAAAAAAAAAAAAAABBzdHNj
+        AAAAAAAAAAAAAAAUc3RzegAAAAAAAAAAAAAAAAAAABBzdGNvAAAAAAAAAAAAAAAobXZleAAAACB0cmV4AAAAAAAAAAEAAAABAAAA
+        AAAAAAAAAAAAAAAAPXVkdGEAAAA1bWV0YQAAAAAAAAAhaGRscgAAAAAAAAAAbWRpcmFwcGwAAAAAAAAAAAAAAAAIaWxzdA==
+        """
 
     private let dolbyVision81 = DolbyVisionConfiguration(
         profile: 8, level: 6, blSignalCompatibilityID: 1,
