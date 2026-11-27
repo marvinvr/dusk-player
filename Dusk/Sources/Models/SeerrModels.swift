@@ -34,6 +34,9 @@ struct SeerrPublicSettings: Decodable, Sendable {
     let mediaServerType: Int
     let partialRequestsEnabled: Bool
     let enableSpecialEpisodes: Bool
+    /// Settings › General › Enable Image Caching. Seerr's `/imageproxy` is a
+    /// 404 while it is off (the default); see `SeerrImageURL`.
+    let cacheImages: Bool?
 
     var isPlexServer: Bool {
         mediaServerType == 1
@@ -53,6 +56,7 @@ struct SeerrPublicSettings: Decodable, Sendable {
         case mediaServerType
         case partialRequestsEnabled
         case enableSpecialEpisodes
+        case cacheImages
     }
 
     init(from decoder: Decoder) throws {
@@ -64,6 +68,7 @@ struct SeerrPublicSettings: Decodable, Sendable {
         mediaServerType = try container.decodeIfPresent(Int.self, forKey: .mediaServerType) ?? 1
         partialRequestsEnabled = try container.decodeIfPresent(Bool.self, forKey: .partialRequestsEnabled) ?? false
         enableSpecialEpisodes = try container.decodeIfPresent(Bool.self, forKey: .enableSpecialEpisodes) ?? false
+        cacheImages = try? container.decodeIfPresent(Bool.self, forKey: .cacheImages)
     }
 }
 

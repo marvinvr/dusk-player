@@ -47,6 +47,10 @@ final class SearchViewModel {
         )
     }
 
+    func fallbackImageURL(for item: SearchMediaResult, width: Int) -> URL? {
+        item.fallbackImageURL(seerrService: seerrService, width: width)
+    }
+
     func availabilityBadge(for item: SearchMediaResult) -> String? {
         item.availabilityBadge(using: seerrService)
     }

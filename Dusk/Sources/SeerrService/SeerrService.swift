@@ -331,28 +331,20 @@ final class SeerrService {
     }
 
     func posterURL(path: String?, width: Int = 500) -> URL? {
-        let size: String
-        switch width {
-        case ...185: size = "w185"
-        case ...342: size = "w342"
-        case ...500: size = "w500"
-        default: size = "w780"
-        }
-        return imageURL(path: path, size: size)
+        imageURLs(path: path, size: SeerrImageURL.posterSize(forWidth: width)).first
+    }
+
+    /// Tried when `posterURL` fails to load; see `SeerrImageURL`.
+    func posterFallbackURL(path: String?, width: Int = 500) -> URL? {
+        imageURLs(path: path, size: SeerrImageURL.posterSize(forWidth: width)).dropFirst().first
     }
 
     func backdropURL(path: String?, width: Int = 1280) -> URL? {
-        let size: String
-        switch width {
-        case ...300: size = "w300"
-        case ...780: size = "w780"
-        default: size = "w1280"
-        }
-        return imageURL(path: path, size: size)
+        imageURLs(path: path, size: SeerrImageURL.backdropSize(forWidth: width)).first
     }
 
     func stillURL(path: String?) -> URL? {
-        imageURL(path: path, size: "w300")
+        imageURLs(path: path, size: "w300").first
     }
 
     static func normalizedBaseURL(from value: String) throws -> URL {
@@ -444,14 +436,12 @@ final class SeerrService {
         currentUser = user
     }
 
-    private func imageURL(path: String?, size: String) -> URL? {
-        guard let baseURL = configuredBaseURL,
-              let path = path?.nilIfEmpty else {
-            return nil
-        }
-        return endpointURL(
-            baseURL: baseURL,
-            path: "imageproxy/tmdb/t/p/\(size)/\(path.trimmingCharacters(in: CharacterSet(charactersIn: "/")))"
+    private func imageURLs(path: String?, size: String) -> [URL] {
+        SeerrImageURL.candidates(
+            path: path,
+            size: size,
+            seerrBaseURL: configuredBaseURL,
+            cachesImages: publicSettings?.cacheImages
         )
     }
 

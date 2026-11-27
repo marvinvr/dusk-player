@@ -7,7 +7,8 @@ of truth for all playable media.
 ## Ownership
 
 - `SeerrService/` owns URL validation, Plex-token sign-in, cookie sessions,
-  endpoint calls, request status mapping, and Seerr image-proxy URLs.
+  endpoint calls, request status mapping, and Seerr artwork URLs
+  (`SeerrImageURL`).
 - `Models/SeerrModels.swift` mirrors only the Seerr response fields Dusk uses.
 - `Features/Settings/SeerrSettings*` owns opt-in setup.
 - `Features/Search/SearchMediaResult.swift` is the presentation union used to
@@ -99,7 +100,8 @@ the native Movies/Shows groups and deduplicated by TMDB GUID, with normalized
 title/type/year only as a fallback.
 
 External cards use the standard poster primitive with a small request-state
-badge. Their routes open dedicated request-only details: no play, download,
+badge. Search cards carry a fallback artwork URL and, when no artwork loads at
+all, a placeholder with the title (`PosterArtwork.placeholderTitle`). Their routes open dedicated request-only details: no play, download,
 watched, or context-menu actions are present. Status is resolved from Seerr's
 media, request, and per-season records and is refreshed after a request and when
 returning to the foreground.
@@ -147,8 +149,13 @@ wrong series. Seerr failures are ignored so Plex detail loading remains intact.
 - Never pass Seerr items into playback, download, offline-sync, or Plex
   watch-state code.
 - Never let Seerr availability suppress a Plex item; Plex wins deduplication.
-- Use Seerr's `/imageproxy/tmdb/...` endpoint rather than direct third-party image
-  hosts.
+- Artwork follows Seerr's own web app: `/imageproxy/tmdb/...` only when the
+  public `cacheImages` setting is on (the proxy is a 404 "Image caching is
+  disabled." otherwise, Seerr's default), else TMDB's public CDN
+  (`https://image.tmdb.org/t/p/<size><path>`). The other source stays as a
+  fallback, because the proxy also fails on Overseerr (no `/tmdb` segment), a
+  pinned self-signed certificate (the image loader does not use Seerr's pins),
+  or a forward-auth proxy (images carry no Seerr cookie).
 - Preserve reverse-proxy subpaths when building endpoints.
 
 ## Verification

@@ -14,6 +14,10 @@ struct PosterArtwork: View {
     var isDimmed: Bool = false
     /// The image is an unwatched episode's own still; see `spoilerBlur`.
     var isUnwatchedEpisodeImage: Bool = false
+    /// Written on the placeholder once there is no artwork at all (no URL, or
+    /// every URL failed), so a card is never just an empty square. Not shown
+    /// while an image is still loading.
+    var placeholderTitle: String? = nil
 
     @Environment(\.blursUnwatchedEpisodes) private var blursUnwatchedEpisodes
     #if os(macOS)
@@ -33,9 +37,13 @@ struct PosterArtwork: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             case .failure:
-                placeholder
-            default:
-                placeholder
+                missingArtworkPlaceholder
+            case .empty:
+                if imageURL == nil, fallbackImageURL == nil {
+                    missingArtworkPlaceholder
+                } else {
+                    placeholder
+                }
             }
         }
         .frame(width: width, height: imageHeight)
@@ -149,6 +157,55 @@ struct PosterArtwork: View {
                     .font(DuskFont.glyphLarge(ios: .title2))
                     .foregroundStyle(Color.duskTextSecondary)
             }
+    }
+
+    /// The plain placeholder, with the title when the caller gave one.
+    @ViewBuilder
+    private var missingArtworkPlaceholder: some View {
+        if let placeholderTitle = placeholderTitle?.nilIfEmpty {
+            artworkShape
+                .fill(Color.duskSurface)
+                .overlay {
+                    VStack(spacing: missingArtworkSpacing) {
+                        Image(systemName: isHorizontalArtwork ? "play.rectangle" : "film")
+                            .font(DuskFont.glyphLarge(ios: .title2))
+                        Text(placeholderTitle)
+                            .font(missingArtworkTitleFont)
+                            .multilineTextAlignment(.center)
+                            .lineLimit(4)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .padding(missingArtworkPadding)
+                }
+                .accessibilityHidden(true)
+        } else {
+            placeholder
+        }
+    }
+
+    private var missingArtworkTitleFont: Font {
+        #if os(tvOS)
+        .system(size: 24, weight: .semibold)
+        #else
+        .footnote.weight(.semibold)
+        #endif
+    }
+
+    private var missingArtworkSpacing: CGFloat {
+        #if os(tvOS)
+        14
+        #else
+        8
+        #endif
+    }
+
+    private var missingArtworkPadding: CGFloat {
+        #if os(tvOS)
+        20
+        #else
+        10
+        #endif
     }
 
     private var imageHeight: CGFloat {
@@ -368,6 +425,7 @@ struct PosterCard: View {
     var isUnwatchedEpisodeImage: Bool = false
     var isWatched: Bool = false
     var unwatchedCount: Int? = nil
+    var artworkPlaceholderTitle: String? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -380,7 +438,8 @@ struct PosterCard: View {
                 showsPlayOverlay: showsPlayOverlay,
                 availabilityBadge: availabilityBadge,
                 isDimmed: isDimmed,
-                isUnwatchedEpisodeImage: isUnwatchedEpisodeImage
+                isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
+                placeholderTitle: artworkPlaceholderTitle
             )
 
             PosterCardText(

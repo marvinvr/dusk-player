@@ -235,6 +235,7 @@ private extension SearchRootContent {
                                         width: Int(width * 2),
                                         height: Int(width / aspectRatio * 2)
                                     ),
+                                    fallbackImageURL: vm.fallbackImageURL(for: item, width: Int(width * 2)),
                                     title: item.title,
                                     subtitle: item.subtitle,
                                     progress: item.progress,
@@ -242,7 +243,8 @@ private extension SearchRootContent {
                                     imageAspectRatio: aspectRatio,
                                     availabilityBadge: vm.availabilityBadge(for: item),
                                     isWatched: item.isWatched,
-                                    playbackItem: item.plexItem
+                                    playbackItem: item.plexItem,
+                                    artworkPlaceholderTitle: item.title
                                 ) {
                                     if case .plex(let plexItem) = item {
                                         AddToPlaylistMenuButton(target: AddToPlaylistTarget(item: plexItem))
@@ -327,6 +329,10 @@ private extension SearchRootContent {
                                                 width: Int(activeLayout.posterWidth * 2),
                                                 height: Int(activeLayout.posterWidth / aspectRatio * 2)
                                             ),
+                                            fallbackImageURL: vm.fallbackImageURL(
+                                                for: item,
+                                                width: Int(activeLayout.posterWidth * 2)
+                                            ),
                                             title: item.title,
                                             subtitle: item.subtitle,
                                             progress: item.progress,
@@ -334,7 +340,8 @@ private extension SearchRootContent {
                                             imageAspectRatio: aspectRatio,
                                             availabilityBadge: vm.availabilityBadge(for: item),
                                             isWatched: item.isWatched,
-                                            playbackItem: item.plexItem
+                                            playbackItem: item.plexItem,
+                                            artworkPlaceholderTitle: item.title
                                         ) {
                                             if case .plex(let plexItem) = item {
                                                 AddToPlaylistMenuButton(target: AddToPlaylistTarget(item: plexItem))

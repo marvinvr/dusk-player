@@ -74,6 +74,14 @@ enum SearchMediaResult: Identifiable {
         }
     }
 
+    /// Loaded when `imageURL` fails. Seerr posters fall back between its
+    /// image proxy and TMDB's CDN; see `SeerrImageURL`.
+    @MainActor
+    func fallbackImageURL(seerrService: SeerrService, width: Int) -> URL? {
+        guard case .seerr(let item) = self else { return nil }
+        return seerrService.posterFallbackURL(path: item.posterPath, width: width)
+    }
+
     @MainActor
     func availabilityBadge(using service: SeerrService) -> String? {
         guard case .seerr(let item) = self else { return nil }

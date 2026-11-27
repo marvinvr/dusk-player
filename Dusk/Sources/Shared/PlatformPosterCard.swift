@@ -33,6 +33,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
     var isUnwatchedEpisodeImage = false
     /// The item behind `route`, when known; see `tvQuickPlay(route:item:)`.
     var playbackItem: PlexItem? = nil
+    /// See `PosterArtwork.placeholderTitle`.
+    var artworkPlaceholderTitle: String? = nil
     @ViewBuilder let contextMenuContent: () -> ContextMenuContent
     #if os(tvOS)
     @FocusState private var isFocused: Bool
@@ -55,7 +57,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                     imageAspectRatio: imageAspectRatio,
                     showsPlayOverlay: showsPlayOverlay,
                     availabilityBadge: availabilityBadge,
-                    isDimmed: isDimmed
+                    isDimmed: isDimmed,
+                    placeholderTitle: artworkPlaceholderTitle
                 )
                 .contentShape(.contextMenuPreview, artworkShape)
             }
@@ -92,7 +95,8 @@ struct PosterNavigationCard<ContextMenuContent: View>: View {
                 isDimmed: isDimmed,
                 isUnwatchedEpisodeImage: isUnwatchedEpisodeImage,
                 isWatched: isWatched,
-                unwatchedCount: unwatchedCount
+                unwatchedCount: unwatchedCount,
+                artworkPlaceholderTitle: artworkPlaceholderTitle
             )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
