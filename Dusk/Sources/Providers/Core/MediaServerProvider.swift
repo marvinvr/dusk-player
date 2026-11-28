@@ -39,6 +39,17 @@ struct ServerDescriptor: Sendable, Hashable {
     let ownerLabel: String?
 }
 
+extension ServerDescriptor {
+    /// The server software's name for user-facing copy ("removes the
+    /// playlist from Plex"), so features never name a provider.
+    var productName: String {
+        switch kind {
+        case .plex: "Plex"
+        case .jellyfin: "Jellyfin"
+        }
+    }
+}
+
 /// What a factory gets to build the provider for one server session.
 struct ServerSessionSeed: Sendable, Hashable {
     let serverID: String

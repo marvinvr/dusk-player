@@ -77,11 +77,11 @@ struct FakeProviderViewModelTests {
         let fake = FakeMediaServerProvider(serverID: serverID)
         fake.allPlaylists = [Playlist(serverID: serverID, itemID: "playlist-1", title: "Road Trip", episodeCount: 2)]
         fake.playlistEntries["playlist-1"] = [
-            PlaylistEntry(playlistItemID: 11, item: FakeMedia.item(
+            PlaylistEntry(playlistItemID: "11", item: FakeMedia.item(
                 serverID: serverID, itemID: "movie-1", type: .movie, title: "A Movie",
                 duration: 6_000_000, playCount: 1
             )),
-            PlaylistEntry(playlistItemID: 12, item: FakeMedia.item(
+            PlaylistEntry(playlistItemID: "12", item: FakeMedia.item(
                 serverID: serverID, itemID: "ep-9", type: .episode, title: "An Episode",
                 index: 9, parentIndex: 1, grandparentTitle: "Fake Show",
                 duration: 1_800_000, resumeOffsetMs: 600_000
@@ -98,7 +98,7 @@ struct FakeProviderViewModelTests {
         #expect(model.title == "Road Trip")
         #expect(model.canEdit)
         #expect(model.hasLoadedEntries)
-        #expect(model.entries.map(\.playlistItemID) == [11, 12])
+        #expect(model.entries.map(\.playlistItemID) == ["11", "12"])
         #expect(model.entries.map(\.item.title) == ["A Movie", "An Episode"])
         #expect(model.canPlay)
         #expect(model.playButtonTitle == "Resume")

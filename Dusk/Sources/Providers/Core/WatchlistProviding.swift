@@ -27,4 +27,11 @@ protocol WatchlistProviding: Sendable {
     /// The account's own Home layout, where it says where the Watchlist row
     /// goes. nil for the default layout, or when it cannot be read.
     @MainActor func homeLayout() async -> [HomeLayoutHub]?
+
+    /// The entry a server title is on the list as, for its bookmark and menu
+    /// item; nil when the account cannot list it.
+    @MainActor func entry(for item: MediaItem) -> WatchlistEntry?
+
+    /// The same, from a detail page.
+    @MainActor func entry(for details: MediaDetails) -> WatchlistEntry?
 }

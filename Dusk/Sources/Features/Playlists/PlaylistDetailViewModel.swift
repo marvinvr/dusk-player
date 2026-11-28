@@ -29,6 +29,7 @@ final class PlaylistDetailViewModel {
     var isSmart: Bool { playlist?.smart ?? false }
     var canEdit: Bool { playlist.map { !$0.smart } ?? false }
     var summary: String? { playlist?.summary }
+    var serverProductName: String { media.serverProductName(for: id.serverID) }
 
     var metadataLine: String? {
         guard let playlist else { return nil }
@@ -120,6 +121,10 @@ final class PlaylistDetailViewModel {
             try await media.removeFromPlaylist(playlist, playlistItemID: playlistItemID)
             await media.refreshPlaylist(id)
             self.playlist = media.playlists.playlist(id: id) ?? self.playlist
+            // Repeats sharing the handle went too; show what the server kept.
+            if entries.contains(where: { $0.playlistItemID == playlistItemID }) {
+                await reloadEntries()
+            }
         } catch {
             entries = previous
             actionError = "Couldn’t remove “\(entry.item.title)”. \(error.localizedDescription)"

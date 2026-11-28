@@ -6,6 +6,11 @@ import Foundation
 /// playlist on the server it came from.
 
 extension MediaService {
+    /// The name of the software a server runs ("Plex"), for copy that names it.
+    func serverProductName(for serverID: String?) -> String {
+        serverProvider(for: serverID).descriptor.productName
+    }
+
     /// The playlist facet of one server's provider.
     func playlistFacet(on serverID: String?) throws -> any PlaylistProviding {
         serverProvider(for: try resolveServerID(serverID)).playlists
@@ -46,12 +51,12 @@ extension MediaService {
         try await playlistFacet(on: playlist.serverID).add(itemIDs: ratingKeys, to: playlist.itemID)
     }
 
-    func removeFromPlaylist(_ playlist: Playlist, playlistItemID: Int) async throws {
+    func removeFromPlaylist(_ playlist: Playlist, playlistItemID: String) async throws {
         try await playlistFacet(on: playlist.serverID).removeEntry(playlistItemID, from: playlist.itemID)
     }
 
     /// Moves an entry right after `afterPlaylistItemID`, or to the top when nil.
-    func movePlaylistItem(_ playlist: Playlist, playlistItemID: Int, after afterPlaylistItemID: Int?) async throws {
+    func movePlaylistItem(_ playlist: Playlist, playlistItemID: String, after afterPlaylistItemID: String?) async throws {
         try await playlistFacet(on: playlist.serverID)
             .moveEntry(playlistItemID, after: afterPlaylistItemID, in: playlist.itemID)
     }

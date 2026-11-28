@@ -166,7 +166,7 @@ final class JellyfinAccountProvider: MediaAccountProvider {
 
     var profiles: any ProfileProviding { JellyfinProfiles(account: self) }
     var preferences: any AccountPreferencesProviding { JellyfinAccountPreferences(account: self) }
-    var watchlist: (any WatchlistProviding)? { nil }
+    var watchlist: (any WatchlistProviding)? { JellyfinWatchlist(account: self) }
     @MainActor var seerrAuth: any SeerrAuthProviding { JellyfinSeerrAuth() }
     @MainActor var session: (any AccountSession)? { self }
 

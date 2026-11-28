@@ -431,7 +431,7 @@ struct SeriesDetailView: View {
                 target: viewModel.show?.details.flatMap(AddToPlaylistTarget.init(details:))
             )
 
-            WatchlistHeroButton(entry: viewModel.show?.details.flatMap(WatchlistEntry.init(details:)))
+            WatchlistHeroButton(details: viewModel.show?.details)
         }
     }
 

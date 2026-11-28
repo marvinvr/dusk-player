@@ -30,7 +30,7 @@ enum PlexUserContentMapper {
     }
 
     static func playlistEntry(_ dto: PlexPlaylistEntryDTO, serverID: String?) -> PlaylistEntry {
-        PlaylistEntry(playlistItemID: dto.playlistItemID, item: PlexItemMapper.map(dto.item, serverID: serverID))
+        PlaylistEntry(playlistItemID: dto.playlistItemID.map(String.init), item: PlexItemMapper.map(dto.item, serverID: serverID))
     }
 
     // MARK: Extras

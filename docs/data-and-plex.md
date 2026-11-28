@@ -540,7 +540,7 @@ Jellyfin's catalog (`Providers/Jellyfin/Facets/JellyfinCatalog.swift`, J-02):
   whose `ProviderIds` match; `playbackHistory` is `DatePlayed`-sorted items
   until one predates `since` (one entry per title, not per play).
 - No Rate button: `MediaService.canRate` is false while a server's provider has
-  no `rating` facet. Collections listings and pages are J-07.
+  no `rating` facet.
 
 Jellyfin's Home rows (`Providers/Jellyfin/Facets/JellyfinHome.swift`, J-04).
 Jellyfin has no hub API, so each row is a fixed query (`JellyfinHomeRowSpec`):
@@ -580,6 +580,25 @@ Jellyfin has no hub API, so each row is a fixed query (`JellyfinHomeRowSpec`):
   resets every field it leaves out and the typed DTO does not carry them all.
   Allowed when the user's policy has `EnableUserPreferenceAccess`.
 
+Jellyfin's collections (`Providers/Jellyfin/Facets/JellyfinCatalog+Collections.swift`, J-07):
+- BoxSets are server-wide, but `/Items?parentId={library}&recursive=true&includeItemTypes=BoxSet`
+  lists the ones with a title in that library (a BoxSet of films and a show is
+  in both), paged by the server. The library's collections, the grid's
+  "has collections" probe and the filter's choices read it.
+- **`/Items` ignores `parentId` when `ids=` is given** (measured on 12.4: every
+  library "contains" every id). So the collection filter narrows a BoxSet's
+  titles to the library by each title's `/Items/{id}/Ancestors` (the
+  `CollectionFolder` id is the view id), only for the picked BoxSet.
+- The page is `/Items?parentId={boxSet}` in the server's display order
+  (year), or the picked sort.
+- A BoxSet's titles are read once per 10 minutes (six requests at a time):
+  count and noun ("5 movies"), and the poster a BoxSet without artwork
+  (Jellyfin draws none) borrows from its first title.
+- Items name no BoxSet, so "Part of" (`collections(containing:)`) reads the
+  membership index: every BoxSet with its titles, built on first use, kept in
+  memory per server and user for 10 minutes. Nothing is persisted.
+- Read-only like Plex; no channels; `collectionMode` is always `.showItems`.
+
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
 - `getLibraryItems(sectionId:start:size:sort:filters:)` /
@@ -602,13 +621,15 @@ Plex collections (`MediaService+Collections.swift`, movie and TV libraries):
   `index` is the tag id. Before `.collection` existed these decoded as `.unknown`
   and were dropped everywhere, which is why "collections" never showed up.
 - `getCollections(sectionId:start:size:)` -> `/library/sections/{id}/collections`,
-  `getCollectionItems(ratingKey:start:size:)` -> `/library/metadata/{rk}/children`
-  (the server resolves a smart collection's filter here, in the collection's sort),
+  `getCollectionItems(itemID:start:size:sort:)` -> `/library/metadata/{rk}/children`
+  (the server resolves a smart collection's filter here, in the collection's sort,
+  or `sort=` from the picked `LibrarySortOption`),
   `getCollection(ratingKey:)` -> `/library/metadata/{rk}`. The two listings return
   `MediaItemPage` (items + `totalSize`) and page with `X-Plex-Container-Start/Size`.
 - An item's `Collection` tags carry `id` (= the collection's `index`) and `tag`
-  (title), never a rating key: `DetailCollectionShelvesModel` resolves them against
-  the section's collection listing (id first, title as fallback). Smart collections
+  (title), never a rating key: `PlexCatalog.collections(containing:)` (the "Part
+  of" rows, `MediaService.collections(containing:)`) resolves them against the
+  section's collection listing (id first, title as fallback). Smart collections
   never tag their titles, so they have no "Part of" row.
 - `collectionMode(sectionId:)` reads the section's `collectionMode` pref from
   `/library/sections/{id}/prefs` (0 Disabled, 1 Hide items which are in collections,
@@ -1003,10 +1024,12 @@ Files: `Providers/Plex/PlexPlayback.swift` (requests), routed by
   engines do not use `MediaService` request headers.
 - Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
-## Plex Watchlist (plex.tv Discover)
+## Watchlist (plex.tv Discover; Jellyfin favourites)
 File: `MediaService+Watchlist.swift` (load, server matching, optimistic edits),
-routed to `WatchlistProviding` = `Providers/Plex/PlexWatchlist.swift` (the
-Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
+routed to the account's `WatchlistProviding` = `Providers/Plex/PlexWatchlist.swift`
+(the Discover and plex.tv calls) or `Providers/Jellyfin/Account/JellyfinWatchlist.swift`;
+the bookmark and menu item ask the account for a title's entry
+(`MediaService.watchlistEntry(for:)`); models `Domain/Watchlist.swift` (`WatchlistEntry`,
 `WatchlistAvailability`, `HomeLayoutHub`), shared state
 `MediaService/WatchlistStore.swift` (`media.watchlist`).
 - Account-level, on `https://discover.provider.plex.tv` (`PlexWatchlist.discoverBase`,
@@ -1026,6 +1049,14 @@ Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
 - Loads beside Home (never gating its first paint), reused for 2 min unless forced
   (pull-to-refresh, an add without a known server item). A running load is only
   joined for the same server set: one started before a server connected cannot match.
+- **Jellyfin** (decided 2026-11-28, 04 §21 row 2): the Watchlist is the active
+  user's favourite films and shows (`/Items?isFavorite=true&includeItemTypes=Movie,Series`,
+  newest in the library first: Jellyfin keeps no favourite date), and the
+  bookmark is `POST`/`DELETE /UserFavoriteItems/{id}`. Each entry carries its
+  server item (`WatchlistEntry.serverItem`), so nothing is matched; its key is
+  `jellyfin://<server>/<item>`. No availabilities, no Home layout (default
+  placement). Favourites carry no library id, so a hidden library does not hide
+  its favourites from the row.
 - Failure is quiet: `.unavailable` = no Home row, no bookmark. Discover calls never
   trigger the fresh-auth retry (a 401 there is "no Watchlist for this profile").
 - **plex.tv keeps the `experience` setting per `X-Plex-Product`.** Dusk's own copy
@@ -1070,6 +1101,25 @@ File: `MediaService+Playlists.swift` (routes, store loading), Plex requests in
   commits must match, and edits/refreshes carry the session generation (bumped
   by sign-out and profile switches) they started in.
 - `HomeHubFilter` still keeps Plex's own playlist hub off Home.
+- `PlaylistEntry.playlistItemID` is the server's entry handle as a string (Plex's
+  number as text, so its requests are unchanged); `id` adds `#n` to repeats that
+  share a handle.
+
+Jellyfin playlists (`Providers/Jellyfin/Facets/JellyfinPlaylists.swift`, J-07),
+measured on jellyfin-demo 12.4 as a non-admin user:
+- List `/Items?includeItemTypes=Playlist&recursive=true` (`ChildCount`,
+  `RunTimeTicks`, the server-drawn `Primary` mosaic), entries
+  `/Playlists/{id}/Items` paged by 200.
+- An entry's `PlaylistItemId` is its item id: repeats share it and
+  `DELETE /Playlists/{id}/Items?entryIds=` removes all of them (the detail page
+  re-reads then). Jellyfin appends repeats and expands a show or season itself;
+  Dusk expands shows and seasons to episodes (`/Items?ids=` for the kinds), drops
+  what `GET /Playlists/{id}` `ItemIds` already holds and posts the rest, so adds
+  count and skip like Plex's.
+- Move is `POST …/Items/{entry}/Move/{index}` with the final index: "after X" is
+  X's position in the current order without the moved entry, plus one.
+- Rename `POST /Playlists/{id}` `{Name}`; delete `DELETE /Items/{id}` works for
+  the owner without `EnableContentDeletion`. No smart playlists.
 
 ## Photo Libraries
 File: `MediaService+Photos.swift`, model `Domain/PhotoItem.swift`.

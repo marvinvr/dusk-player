@@ -243,6 +243,10 @@ struct FakeCatalog: CatalogProviding {
 
     func collectionMode(libraryID: String) async -> LibraryCollectionMode { .showItems }
 
+    func collections(containing itemID: String, libraryID: String?, tags: [Tag]) async throws -> [MediaItem] {
+        throw FakeProviderError.unsupported(#function)
+    }
+
     func details(itemID: String, checkFiles: Bool) async throws -> MediaDetails {
         server.record(#function)
         guard let details = server.details[itemID] else { throw FakeProviderError.notFound(itemID) }
@@ -503,11 +507,11 @@ struct FakePlaylists: PlaylistProviding {
         throw FakeProviderError.unsupported(#function)
     }
 
-    func removeEntry(_ entryID: Int, from playlistID: String) async throws {
+    func removeEntry(_ entryID: String, from playlistID: String) async throws {
         throw FakeProviderError.unsupported(#function)
     }
 
-    func moveEntry(_ entryID: Int, after afterEntryID: Int?, in playlistID: String) async throws {
+    func moveEntry(_ entryID: String, after afterEntryID: String?, in playlistID: String) async throws {
         throw FakeProviderError.unsupported(#function)
     }
 

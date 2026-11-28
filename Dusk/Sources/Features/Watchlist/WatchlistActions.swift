@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// Adds a title to the Plex Watchlist or takes it off, for the hero bookmark
-/// and the context menus. The store changes at once and is put back if
-/// plex.tv refuses (`MediaService.setWatchlisted`).
+/// Adds a title to the Watchlist or takes it off, for the hero bookmark and
+/// the context menus. The store changes at once and is put back if the
+/// account's service refuses (`MediaService.setWatchlisted`).
 @MainActor
 enum WatchlistActions {
     static func toggle(
@@ -24,21 +24,35 @@ enum WatchlistActions {
 }
 
 /// The icon-only hero action on movie and show pages (`bookmark` /
-/// `bookmark.fill`). Absent until the Watchlist is known, and for items with
-/// no Plex id (legacy agents, personal media), which Plex cannot watchlist.
+/// `bookmark.fill`). Absent until the Watchlist is known, and for titles the
+/// account cannot list (on Plex: no `plex://` id, such as legacy agents and
+/// personal media).
 struct WatchlistHeroButton: View {
     @Environment(MediaService.self) private var media
     @State private var error: String?
 
-    let entry: WatchlistEntry?
-    var match: MediaItem? = nil
+    private let entry: WatchlistEntry?
+    private let details: MediaDetails?
+
+    /// A title that is on no server (Seerr, the light Watchlist page).
+    init(entry: WatchlistEntry?) {
+        self.entry = entry
+        self.details = nil
+    }
+
+    /// A server movie or show; the account says whether it can be listed.
+    init(details: MediaDetails?) {
+        self.entry = nil
+        self.details = details
+    }
 
     var body: some View {
-        if let entry, let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
+        if let entry = entry ?? details.flatMap(media.watchlistEntry(for:)),
+           let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
             Button {
                 Task {
                     do {
-                        try await WatchlistActions.toggle(entry: entry, match: match, media: media)
+                        try await WatchlistActions.toggle(entry: entry, match: nil, media: media)
                     } catch {
                         self.error = error.localizedDescription
                     }
@@ -64,20 +78,22 @@ struct WatchlistHeroButton: View {
 struct WatchlistMenuButton: View {
     @Environment(MediaService.self) private var media
 
-    let entry: WatchlistEntry?
-    var match: MediaItem? = nil
+    private let entry: WatchlistEntry?
+    private let match: MediaItem?
 
     init(entry: WatchlistEntry?, match: MediaItem? = nil) {
         self.entry = entry
         self.match = match
     }
 
+    /// A server movie or show; the account says whether it can be listed.
     init(item: MediaItem) {
-        self.init(entry: WatchlistEntry(item: item), match: item)
+        self.init(entry: nil, match: item)
     }
 
     var body: some View {
-        if let entry, let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
+        if let entry = entry ?? match.flatMap(media.watchlistEntry(for:)),
+           let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
             Button {
                 Task { try? await WatchlistActions.toggle(entry: entry, match: match, media: media) }
             } label: {

@@ -90,7 +90,7 @@ struct PlaylistDetailView: View {
                 }
             }
         } message: {
-            Text("This removes the playlist from Plex on every device. The movies and episodes in it stay in your library.")
+            Text("This removes the playlist from \(viewModel.serverProductName) on every device. The movies and episodes in it stay in your library.")
         }
         .alert("Something went wrong", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}

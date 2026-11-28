@@ -75,8 +75,8 @@ struct PlaylistsRootContent: View {
             Button("Delete Playlist", role: .destructive) {
                 Task { await delete(playlist) }
             }
-        } message: { _ in
-            Text("This removes the playlist from Plex on every device. The movies and episodes in it stay in your library.")
+        } message: { playlist in
+            Text("This removes the playlist from \(media.serverProductName(for: playlist.serverID)) on every device. The movies and episodes in it stay in your library.")
         }
         .alert("Something went wrong", isPresented: errorBinding) {
             Button("OK", role: .cancel) {}

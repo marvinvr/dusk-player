@@ -85,20 +85,30 @@ struct Playlist: Sendable, Identifiable, Hashable {
     }
 }
 
-/// One entry of a playlist (`GET /playlists/{id}/items`): the item's normal
-/// metadata plus the `playlistItemID` every edit is keyed on. Smart playlists
-/// send no `playlistItemID` (their items cannot be edited), and the same item
-/// may appear twice in a regular one, so entries are told apart by it.
+/// One entry of a playlist: the item's normal metadata plus the
+/// `playlistItemID` every edit is keyed on (the server's handle for the
+/// entry). Smart playlists send none (their items cannot be edited).
+///
+/// The same item may appear twice in a regular playlist. Plex gives each
+/// entry its own handle; a server whose handle is shared by repeats (Jellyfin
+/// keys an entry by its item) numbers them with `occurrence`, so `id` stays
+/// unique within one listing.
 struct PlaylistEntry: Sendable, Identifiable, Hashable {
-    let playlistItemID: Int?
+    let playlistItemID: String?
     let item: MediaItem
+    /// 0 for the first entry with this handle in the listing, 1 for the next.
+    let occurrence: Int
 
     /// Unique within one playlist listing.
-    var id: String { playlistItemID.map(String.init) ?? item.id.storageKey }
+    var id: String {
+        let base = playlistItemID ?? item.id.storageKey
+        return occurrence > 0 ? "\(base)#\(occurrence)" : base
+    }
 
-    init(playlistItemID: Int?, item: MediaItem) {
+    init(playlistItemID: String?, item: MediaItem, occurrence: Int = 0) {
         self.playlistItemID = playlistItemID
         self.item = item
+        self.occurrence = occurrence
     }
 
     static func == (lhs: PlaylistEntry, rhs: PlaylistEntry) -> Bool {

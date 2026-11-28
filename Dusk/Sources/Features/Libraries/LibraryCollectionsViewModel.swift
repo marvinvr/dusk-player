@@ -7,6 +7,7 @@ import Foundation
 final class LibraryCollectionsViewModel {
     private let media: MediaService
     let library: Library
+    var serverProductName: String { media.serverProductName(for: library.serverID) }
     let pager: MediaItemPager
 
     init(library: Library, media: MediaService) {

@@ -15,17 +15,27 @@ extension MediaService {
     }
 
     /// A collection's titles, in the collection's own sort order, or in
-    /// `sort` (a Plex sort value such as `titleSort:desc`,
-    /// `LibrarySortOption.plexValue`) when given.
+    /// `sort` when given.
     func getCollectionItems(
         itemID: String,
         start: Int = 0,
         size: Int = 50,
-        sort: String? = nil,
+        sort: LibrarySortOption? = nil,
         serverID: String? = nil
     ) async throws -> MediaItemPage {
-        try await plexCatalog(on: resolveServerID(serverID))
-            .rawCollectionItems(collectionID: itemID, start: start, size: size, sort: sort)
+        try await catalog(on: resolveServerID(serverID))
+            .collectionItems(collectionID: itemID, start: start, size: size, sort: sort)
+    }
+
+    /// The collections an item is part of (its "Part of" rows). `sectionId`
+    /// and `tags` are the item's library and `MediaDetails.collections`.
+    func collections(
+        containing itemID: MediaItemID,
+        sectionId: String?,
+        tags: [Tag]
+    ) async throws -> [MediaItem] {
+        try await catalog(on: resolveServerID(itemID.serverID))
+            .collections(containing: itemID.itemID, libraryID: sectionId, tags: tags)
     }
 
     /// The collection itself (title, summary, artwork, count).

@@ -109,6 +109,29 @@ struct PlexCatalog: CatalogProviding {
         return items.first.map { PlexItemMapper.map($0, serverID: serverID) }
     }
 
+    /// An item's `Collection` tags carry the collection's tag id (the
+    /// collection item's `index`) and title, not its rating key, so the
+    /// section's collection listing is read once to find the collection items
+    /// behind them. Smart collections never tag their titles, so they are
+    /// never found here; they are still browsable from the library. Nothing
+    /// is asked while the item has no tags or the section has collections
+    /// switched off.
+    func collections(containing itemID: String, libraryID: String?, tags: [Tag]) async throws -> [MediaItem] {
+        guard let libraryID, !tags.isEmpty else { return [] }
+        guard await collectionMode(libraryID: libraryID) != .disabled else { return [] }
+        let page = try await collections(libraryID: libraryID, start: 0, size: Self.collectionScanSize)
+        return tags.compactMap { tag in
+            page.items.first { collection in
+                if let tagID = tag.id, let index = collection.index { return tagID == index }
+                return collection.title.caseInsensitiveCompare(tag.tag) == .orderedSame
+            }
+        }
+    }
+
+    /// Collections read to resolve the tags. Sections with more than this
+    /// fall back to matching the tags by title within what was read.
+    nonisolated static let collectionScanSize = 500
+
     /// The section's `collectionMode` pref. Shared users may not be allowed to
     /// read a section's prefs; anything unreadable is Plex's default.
     func collectionMode(libraryID: String) async -> LibraryCollectionMode {
@@ -617,8 +640,7 @@ extension PlexCatalog {
 }
 
 extension LibrarySortOption {
-    /// Plex's `sort` value. For the callers outside the catalog that still
-    /// send their own Plex request (collection pages).
+    /// Plex's `sort` value (`PlexCatalog.sortValue`).
     var plexValue: String { PlexCatalog.sortValue(self) }
 }
 

@@ -31,7 +31,7 @@ struct LibraryCollectionsView: View {
                 titled(FeatureEmptyStateView(
                     systemImage: "square.stack",
                     title: "No collections",
-                    message: "Collections made in Plex for \(viewModel.library.title) show up here."
+                    message: "Collections made in \(viewModel.serverProductName) for \(viewModel.library.title) show up here."
                 )
                 .padding(.horizontal, 24))
             } else {

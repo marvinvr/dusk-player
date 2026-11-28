@@ -2,9 +2,11 @@ import Foundation
 import OSLog
 
 /// The account's watchlist, routed to the account's `WatchlistProviding`
-/// (docs/jellyfin/04-architecture.md §17; Plex: `PlexWatchlist`, plex.tv
-/// Discover). Matching each title to a copy on a connected server asks each
-/// server `/library/all?guid=plex://…`.
+/// (docs/jellyfin/04-architecture.md §17; Plex: plex.tv Discover, Jellyfin:
+/// the user's favourites). A title the list names by guid is matched to a
+/// copy on a connected server by asking each server for that guid; a title
+/// the list already names on its server (`WatchlistEntry.serverItem`) is
+/// its own copy.
 ///
 /// Everything here degrades to "no Watchlist": a failure is logged by outcome
 /// only and never surfaces on Home.
@@ -26,7 +28,8 @@ extension MediaService {
     /// Loads the list, Plex's Home layout and the server matches. Joins a
     /// load already running; reuses a recent one unless `force`.
     func loadWatchlist(force: Bool = false) async {
-        guard activeAccountToken?.nilIfEmpty != nil, let profileID = activeProfileID else { return }
+        guard accountSession != nil || activeAccountToken?.nilIfEmpty != nil,
+              let profileID = activeProfileID else { return }
         let serverIDs = mergeServerIDs
         if !force, watchlist.isFresh(profileID: profileID, serverIDs: serverIDs, maxAge: Self.watchlistMaxAge) {
             return
@@ -97,7 +100,7 @@ extension MediaService {
         let now = Date()
 
         var jobs: [WatchlistMatchJob] = []
-        for entry in entries {
+        for entry in entries where entry.serverItem == nil {
             for serverID in serverIDs {
                 if let checked = watchlist.missCheckedAt["\(serverID)|\(entry.guid)"],
                    now.timeIntervalSince(checked) < Self.watchlistMissMaxAge {
@@ -134,6 +137,12 @@ extension MediaService {
 
         var matches: [String: MediaItem] = [:]
         for entry in entries {
+            if let item = entry.serverItem {
+                if let serverID = item.serverID, serverIDs.contains(serverID), !hidden.hides(item) {
+                    matches[entry.guid] = item
+                }
+                continue
+            }
             if let item = serverIDs.lazy.compactMap({ found[entry.guid]?[$0] }).first {
                 matches[entry.guid] = item
             } else if let item = previous[entry.guid], let serverID = item.serverID,
@@ -161,10 +170,22 @@ extension MediaService {
         try await catalog(on: serverID).items(matching: ExternalIDs(uris: [guid]), kind: nil, title: nil, year: nil)
     }
 
+    // MARK: - Entries
+
+    /// The entry a server title is on the Watchlist as; nil when the account
+    /// cannot list it (no bookmark).
+    func watchlistEntry(for item: MediaItem) -> WatchlistEntry? {
+        watchlistProvider?.entry(for: item)
+    }
+
+    func watchlistEntry(for details: MediaDetails) -> WatchlistEntry? {
+        watchlistProvider?.entry(for: details)
+    }
+
     // MARK: - Edits
 
     /// Adds or removes a title, optimistically: the store changes first and
-    /// is restored if plex.tv refuses. Throws that refusal for the caller's
+    /// is restored if the account's service refuses. Throws that refusal for the caller's
     /// inline error.
     func setWatchlisted(_ watchlisted: Bool, entry: WatchlistEntry, match: MediaItem? = nil) async throws {
         let snapshot = watchlist.apply(watchlisted: watchlisted, entry: entry, match: match)

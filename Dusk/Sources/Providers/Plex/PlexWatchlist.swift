@@ -118,6 +118,15 @@ struct PlexWatchlist: WatchlistProviding {
     /// `experience` setting per `X-Plex-Product` (verified: Dusk's own copy
     /// holds only the sidebar), and Plex Web's is the one where "Manage Home"
     /// lands. nil when it is the default layout or cannot be read.
+    /// Only movies and shows with a `plex://` guid (`WatchlistEntry(item:)`).
+    @MainActor func entry(for item: MediaItem) -> WatchlistEntry? {
+        WatchlistEntry(item: item)
+    }
+
+    @MainActor func entry(for details: MediaDetails) -> WatchlistEntry? {
+        WatchlistEntry(details: details)
+    }
+
     @MainActor func homeLayout() async -> [HomeLayoutHub]? {
         guard let transport,
               let token = transport.activeAccountToken?.nilIfEmpty,

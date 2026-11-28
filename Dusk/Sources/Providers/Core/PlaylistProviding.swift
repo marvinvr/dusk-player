@@ -10,10 +10,10 @@ import Foundation
 /// The methods run on the main actor, where the facade and its request routing
 /// live.
 ///
-/// Entries are still keyed by Plex's numeric `playlistItemID` and an add
-/// still answers `PlaylistAddResult`; both keep their shape until the
-/// boundary pass (05-plan P0-19) and J-07 (which turns "move after" into an
-/// index where the server wants one).
+/// Entries are keyed by the server's opaque entry handle
+/// (`PlaylistEntry.playlistItemID`). Moves are "after X"; a server that moves
+/// by position (Jellyfin) converts against its current order. An add answers
+/// how many entries it really added, so repeats the server skips can be told.
 protocol PlaylistProviding: Sendable {
     /// The server's video playlists, in its own order.
     @MainActor func playlists() async throws -> [Playlist]
@@ -31,10 +31,13 @@ protocol PlaylistProviding: Sendable {
     /// Appends items; a show or season adds its episodes.
     @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlaylistAddResult
 
-    @MainActor func removeEntry(_ entryID: Int, from playlistID: String) async throws
+    /// Removes the entry with this handle (`PlaylistEntry.playlistItemID`).
+    /// Where repeats of an item share one handle, every repeat goes.
+    @MainActor func removeEntry(_ entryID: String, from playlistID: String) async throws
 
-    /// Moves an entry right after `afterEntryID`, or to the top when nil.
-    @MainActor func moveEntry(_ entryID: Int, after afterEntryID: Int?, in playlistID: String) async throws
+    /// Moves an entry right after `afterEntryID`, or to the top when nil. A
+    /// server that moves by position works the position out itself.
+    @MainActor func moveEntry(_ entryID: String, after afterEntryID: String?, in playlistID: String) async throws
 
     @MainActor func rename(playlistID: String, to title: String) async throws
 

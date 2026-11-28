@@ -74,6 +74,12 @@ protocol CatalogProviding: Sendable {
     /// default (`.showItems`), so collections stay visible.
     func collectionMode(libraryID: String) async -> LibraryCollectionMode
 
+    /// The collections `itemID` is part of (its detail page's "Part of"
+    /// rows), in the order the item names them. `libraryID` and `tags` are
+    /// the item's library and `MediaDetails.collections`; a server whose
+    /// items name no collections looks the item up instead.
+    func collections(containing itemID: String, libraryID: String?, tags: [Tag]) async throws -> [MediaItem]
+
     // MARK: Details and children
 
     /// An item with its versions, people, ratings and collections.

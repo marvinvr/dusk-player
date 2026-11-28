@@ -6,12 +6,12 @@ import Foundation
 /// `/Items/{id}`, `/Shows/{id}/Seasons`, person pages, `/LocalTrailers` +
 /// `/SpecialFeatures` and one search request per result kind.
 ///
-/// Collections listings and pages (J-07) still answer empty; the collection
-/// *filter* works here, by BoxSet membership. Photo pages are `JellyfinPhotos`.
+/// Collections, and the collection filter's choices and members, are
+/// `JellyfinCatalog+Collections` (J-07). Photo pages are `JellyfinPhotos`.
 @MainActor
 struct JellyfinCatalog: CatalogProviding {
     let serverID: String
-    private let makeClient: @MainActor () throws -> JellyfinClient
+    let makeClient: @MainActor () throws -> JellyfinClient
     /// The views the user hides (J-11), for search, whose hits carry no library.
     private var hiddenViewIDs: @MainActor () async -> Set<String> = { [] }
 
@@ -109,17 +109,14 @@ struct JellyfinCatalog: CatalogProviding {
         Vocabulary.sortFields(for: kind)
     }
 
-    /// The fields Jellyfin can filter on; Collection only while the server
-    /// has a collection this user sees.
+    /// The fields Jellyfin can filter on; Collection only while a collection
+    /// has a title in this library.
     func filterFields(libraryID: String, includesCollection: Bool) async throws -> [LibraryFilterField] {
         let client = try makeClient()
         let kind = try await libraryKind(libraryID: libraryID, client: client)
         var offersCollection = includesCollection
         if includesCollection {
-            var boxSets = JellyfinItemQuery()
-            boxSets.recursive = true
-            boxSets.includeItemTypes = [.boxSet]
-            offersCollection = try await count(boxSets, client: client) > 0
+            offersCollection = try await libraryHasCollections(libraryID: libraryID, client: client)
         }
         return Vocabulary.filterParameters(for: kind, includesCollection: offersCollection)
             .map { Vocabulary.field($0, libraryID: libraryID, kind: kind) }
@@ -150,7 +147,7 @@ struct JellyfinCatalog: CatalogProviding {
             return try await client.send(JellyfinAPI.persons(parentID: libraryID, personTypes: [.actor]))
                 .items.compactMap(Self.choice)
         case .collection:
-            return try await collectionChoices(libraryID: libraryID, kind: source.kind, client: client)
+            return try await collectionChoices(libraryID: libraryID, client: client)
         }
     }
 
@@ -161,23 +158,6 @@ struct JellyfinCatalog: CatalogProviding {
             .compactMap { $0.name?.nilIfEmpty }
             .map { LibraryFilterChoice(value: $0, title: $0) }
     }
-
-    // MARK: - Collections (J-07)
-
-    /// Jellyfin has no channels: a video library is one grid.
-    func channelCollections(libraryID: String) async throws -> [MediaCollection] { [] }
-
-    func collections(libraryID: String, start: Int, size: Int) async throws -> MediaItemPage {
-        MediaItemPage(items: [], totalSize: 0, start: start, requestedSize: size)
-    }
-
-    func collectionItems(collectionID: String, start: Int, size: Int, sort: LibrarySortOption?) async throws -> MediaItemPage {
-        MediaItemPage(items: [], totalSize: 0, start: start, requestedSize: size)
-    }
-
-    func collection(itemID: String) async throws -> MediaItem? { nil }
-
-    func collectionMode(libraryID: String) async -> LibraryCollectionMode { .showItems }
 
     // MARK: - Details and children
 
@@ -367,8 +347,10 @@ struct JellyfinCatalog: CatalogProviding {
         return try await client.send(JellyfinAPI.items(counted)).totalRecordCount ?? 0
     }
 
-    /// The base listing, or nil when a picked collection has no titles at
-    /// all (an empty `ids=` would not narrow anything).
+    /// The base listing, or nil when a picked collection has no titles in
+    /// this library (an empty `ids=` would not narrow anything). The
+    /// collection's titles are narrowed to the library first: `/Items`
+    /// ignores `parentId` next to `ids=`.
     private func baseQuery(
         libraryID: String,
         kind: LibraryKind?,
@@ -377,45 +359,11 @@ struct JellyfinCatalog: CatalogProviding {
     ) async throws -> JellyfinItemQuery? {
         var members: [String]?
         if let collectionID = filter.choices[Vocabulary.FilterParameter.collection.rawValue] {
-            let ids = try await collectionMemberIDs(collectionID, client: client)
+            let ids = try await collectionMemberIDs(collectionID, inLibrary: libraryID, client: client)
             guard !ids.isEmpty else { return nil }
             members = ids
         }
         return Vocabulary.baseQuery(libraryID: libraryID, kind: kind, filter: filter, collectionMembers: members)
-    }
-
-    /// The ids of a BoxSet's titles, cached for the launch.
-    private func collectionMemberIDs(_ collectionID: String, client: JellyfinClient) async throws -> [String] {
-        let cacheKey = JellyfinCatalogCache.key(serverID, client, collectionID)
-        if let cached = JellyfinCatalogCache.collectionMembers[cacheKey] { return cached }
-        var query = JellyfinItemQuery()
-        query.parentID = collectionID
-        query.enableImages = false
-        let ids = try await client.send(JellyfinAPI.items(query)).items.map { JellyfinID.normalized($0.id) }
-        JellyfinCatalogCache.collectionMembers[cacheKey] = ids
-        return ids
-    }
-
-    /// The collections with at least one title in this library.
-    private func collectionChoices(libraryID: String, kind: LibraryKind?, client: JellyfinClient) async throws -> [LibraryFilterChoice] {
-        var query = JellyfinItemQuery()
-        query.recursive = true
-        query.includeItemTypes = [.boxSet]
-        query.sortBy = [.sortName]
-        let boxSets = try await client.send(JellyfinAPI.items(query)).items
-        var choices: [LibraryFilterChoice] = []
-        for boxSet in boxSets {
-            guard let title = boxSet.name?.nilIfEmpty else { continue }
-            let members = try await collectionMemberIDs(boxSet.id, client: client)
-            guard !members.isEmpty else { continue }
-            let inLibrary = Vocabulary.baseQuery(
-                libraryID: libraryID, kind: kind, filter: LibraryFilter(), collectionMembers: members
-            )
-            if try await count(inLibrary, client: client) > 0 {
-                choices.append(LibraryFilterChoice(value: JellyfinID.normalized(boxSet.id), title: title))
-            }
-        }
-        return choices
     }
 
     /// Only the resolutions the library has titles in, as Plex lists them.
@@ -472,7 +420,6 @@ struct JellyfinCatalog: CatalogProviding {
 @MainActor
 enum JellyfinCatalogCache {
     static var letters: [String: (total: Int, rows: [LibraryLetterCount])] = [:]
-    static var collectionMembers: [String: [String]] = [:]
     static var homeVideoPhotos: [String: Bool] = [:]
     static var libraryKinds: [String: LibraryKind?] = [:]
 

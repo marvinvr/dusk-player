@@ -216,7 +216,7 @@ struct ShowDetailView: View {
                     DetailRateHeroButton(model: userRating, id: id)
                 }
                 AddToPlaylistHeroButton(target: viewModel.details.flatMap(AddToPlaylistTarget.init(details:)))
-                WatchlistHeroButton(entry: viewModel.details.flatMap(WatchlistEntry.init(details:)))
+                WatchlistHeroButton(details: viewModel.details)
             }
         }
         .detailHeroActionStackFrame(isCompactPhone: usesFullWidthActionButtons)

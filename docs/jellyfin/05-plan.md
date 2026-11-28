@@ -783,6 +783,37 @@ grid / page, "Part of" membership index, watchlist on favourites (after the
 sign-off in 04 §22). **Accept:** matrix rows; a playlist created on one
 server and mirrored by hand on the other renders identically.
 
+- **As built (2026-11-28).**
+  - Playlists: `JellyfinPlaylists` (full CRUD). `PlaylistEntry.playlistItemID`
+    is a `String` handle now (Plex's number as text, requests unchanged);
+    Jellyfin keys an entry by its item, so repeats share a handle and get
+    `#n` ids. Adds expand shows/seasons and skip what is there (Plex's
+    behaviour); "move after X" becomes Jellyfin's final index; the runtime is
+    summed from the entries because the server redraws it a second after an
+    edit. Delete works for the owner without `EnableContentDeletion`.
+  - Collections: `JellyfinCatalog+Collections`. A library's BoxSets are
+    `/Items?parentId={library}&recursive&includeItemTypes=BoxSet` (server
+    paged). **`/Items` ignores `parentId` next to `ids=`**, which broke
+    J-02's collection filter (choices in every library, the filtered grid
+    showing other libraries' titles). Fixed in `JellyfinCatalog.swift`: the
+    choices use the library listing, the picked BoxSet's titles are narrowed
+    by `/Ancestors`. A BoxSet without artwork borrows its first title's
+    poster.
+  - "Part of": new catalog verb `collections(containing:libraryID:tags:)`.
+    Plex's tag matching moved verbatim from `DetailCollectionShelvesModel`
+    into `PlexCatalog`; Jellyfin reads the index. `getCollectionItems` takes a
+    `LibrarySortOption` and routes through the facet (was a raw Plex route).
+    The membership index is memory-only, not disk-cached as 04 §9 proposed.
+  - Watchlist = favourites (`JellyfinWatchlist`): entries carry their server
+    item (`WatchlistEntry.serverItem`), so the facade skips the guid lookup;
+    the bookmark and menu item ask the account for an entry
+    (`WatchlistProviding.entry(for:)`). Order is newest in the library first
+    (no favourite date exists). The load gate accepts an account session.
+  - Copy that named Plex (playlist delete, empty collections) uses
+    `ServerDescriptor.productName`.
+  - Verified against jellyfin-demo on iPhone and Apple TV simulators
+    (`~/dusk-qa/jellyfin/J-07/`) and in `JellyfinUserContentLiveTests`.
+
 ### J-08a Downloads: original, sidecars, offline — L
 
 Original file, text sidecars, snapshot envelope, offline browsing and

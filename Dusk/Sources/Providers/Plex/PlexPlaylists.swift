@@ -92,15 +92,15 @@ struct PlexPlaylists: PlaylistProviding {
         return PlaylistAddResult(added: container?.leafCountAdded ?? requested, requested: requested)
     }
 
-    @MainActor func removeEntry(_ entryID: Int, from playlistID: String) async throws {
+    @MainActor func removeEntry(_ entryID: String, from playlistID: String) async throws {
         _ = try await send(method: "DELETE", path: "/playlists/\(playlistID)/items/\(entryID)")
     }
 
-    @MainActor func moveEntry(_ entryID: Int, after afterEntryID: Int?, in playlistID: String) async throws {
+    @MainActor func moveEntry(_ entryID: String, after afterEntryID: String?, in playlistID: String) async throws {
         _ = try await send(
             method: "PUT",
             path: "/playlists/\(playlistID)/items/\(entryID)/move",
-            queryItems: afterEntryID.map { [URLQueryItem(name: "after", value: String($0))] }
+            queryItems: afterEntryID.map { [URLQueryItem(name: "after", value: $0)] }
         )
     }
 

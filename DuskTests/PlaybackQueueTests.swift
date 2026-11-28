@@ -179,7 +179,7 @@ struct PlaybackQueueTests {
             """.utf8)
         let entries = (try JSONDecoder().decode(MetadataResponse<PlexPlaylistEntryDTO>.self, from: data).MediaContainer.Metadata ?? [])
             .map { PlexUserContentMapper.playlistEntry($0, serverID: nil) }
-        #expect(entries.map(\.playlistItemID) == [10, nil])
+        #expect(entries.map(\.playlistItemID) == ["10", nil])
         #expect(entries[1].item.type == .episode)
         #expect(entries.map(\.id).count == Set(entries.map(\.id)).count)
     }

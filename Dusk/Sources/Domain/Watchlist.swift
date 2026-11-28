@@ -8,6 +8,9 @@ import Foundation
 /// The list payload carries no `Guid` array; only the metadata call
 /// (`MediaService.getWatchlistMetadata`) does, which is where the TMDB id for
 /// Seerr comes from.
+///
+/// On Jellyfin the Watchlist is the user's favourites: each entry is a server
+/// title (`serverItem`), built by the account's `WatchlistProviding`.
 struct WatchlistEntry: Hashable, Sendable, Identifiable {
     let itemID: String
     let guid: String
@@ -22,6 +25,10 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
     let duration: Int?
     let childCount: Int?
     let guids: [ItemGuid]
+    /// The server's own title, when the list is kept on that server
+    /// (Jellyfin favourites): it needs no lookup to find its copy. nil for a
+    /// plex.tv entry, which is matched to a server by its guid.
+    let serverItem: MediaItem?
 
     var id: String { guid }
 
@@ -37,7 +44,8 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
         contentRating: String? = nil,
         duration: Int? = nil,
         childCount: Int? = nil,
-        guids: [ItemGuid] = []
+        guids: [ItemGuid] = [],
+        serverItem: MediaItem? = nil
     ) {
         self.itemID = itemID
         self.guid = guid
@@ -51,6 +59,7 @@ struct WatchlistEntry: Hashable, Sendable, Identifiable {
         self.duration = duration
         self.childCount = childCount
         self.guids = guids
+        self.serverItem = serverItem
     }
 
     /// Built from a server item being added, so the Home row can show it

@@ -8,13 +8,9 @@ struct DetailCollectionShelf: Identifiable, Sendable {
     var id: MediaItemID { collection.id }
 }
 
-/// Loads the "Part of <collection>" rows of a movie or show detail page.
-///
-/// An item's `Collection` tags carry the collection's tag id (the collection
-/// item's `index`) and title, not its rating key, so the section's collection
-/// listing is read once to find the collection items behind them. Smart
-/// collections never tag their titles, so they have no row here; they are
-/// still browsable from the library.
+/// Loads the "Part of <collection>" rows of a movie or show detail page:
+/// the collections the item's server says it is part of
+/// (`MediaService.collections(containing:)`), each with its other titles.
 @MainActor
 @Observable
 final class DetailCollectionShelvesModel {
@@ -26,9 +22,6 @@ final class DetailCollectionShelvesModel {
     /// A title in more collections than this shows only the first few.
     private static let maxShelves = 3
     private static let itemsPerShelf = 20
-    /// Collections read to resolve the tags. Sections with more than this
-    /// fall back to matching the tags by title within what was read.
-    private static let collectionScanSize = 500
 
     init(media: MediaService) {
         self.media = media
@@ -39,29 +32,20 @@ final class DetailCollectionShelvesModel {
         sectionID: String?,
         tags: [Tag]
     ) async {
-        guard let sectionID, !tags.isEmpty else {
-            shelves = []
-            return
-        }
         let serverID = itemID.serverID
         let context = "\(itemID.serverID ?? "")|\(itemID.itemID)|\(tags.map(\.tag).joined(separator: ","))"
         guard context != loadedContext else { return }
 
-        guard await media.collectionMode(sectionId: sectionID, serverID: serverID) != .disabled,
-              let page = try? await media.getCollections(
-                  sectionId: sectionID,
-                  size: Self.collectionScanSize,
-                  serverID: serverID
-              ) else {
+        let matched: [MediaItem]
+        do {
+            matched = try await media.collections(containing: itemID, sectionId: sectionID, tags: tags)
+        } catch {
             if !Task.isCancelled { shelves = [] }
             return
         }
-
-        let matched = tags.compactMap { tag in
-            page.items.first { collection in
-                if let tagID = tag.id, let index = collection.index { return tagID == index }
-                return collection.title.caseInsensitiveCompare(tag.tag) == .orderedSame
-            }
+        guard !matched.isEmpty else {
+            if !Task.isCancelled { shelves = [] }
+            return
         }
 
         var loaded: [DetailCollectionShelf] = []

@@ -1,6 +1,6 @@
 import Foundation
 
-/// A Plex collection (manual or smart): its own metadata plus its titles,
+/// A collection (on Plex manual or smart): its own metadata plus its titles,
 /// paged in the collection's sort order or the sort picked for it (see
 /// `CollectionSort`). Everything is read from the
 /// collection's server.
@@ -29,7 +29,7 @@ final class CollectionDetailViewModel {
 
     @MainActor
     private final class ServerSort {
-        var value: String?
+        var value: LibrarySortOption?
     }
 
     init(id: MediaItemID, media: MediaService, sortStore: CollectionSortStore = CollectionSortStore()) {
@@ -41,7 +41,7 @@ final class CollectionDetailViewModel {
         let itemID = id.itemID
         let serverID = id.serverID
         let serverSort = ServerSort()
-        serverSort.value = selectedSort?.plexValue
+        serverSort.value = selectedSort
         self.serverSort = serverSort
         self.pager = MediaItemPager { [media] start, size in
             try await media.getCollectionItems(
@@ -197,7 +197,7 @@ final class CollectionDetailViewModel {
         itemsGeneration += 1
         let generation = itemsGeneration
         let sort = selectedSort
-        serverSort.value = sortsOnDevice ? nil : sort?.plexValue
+        serverSort.value = sortsOnDevice ? nil : sort
         await pager.reload()
         guard generation == itemsGeneration, let sort else { return }
 
