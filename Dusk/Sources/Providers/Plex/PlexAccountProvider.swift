@@ -17,6 +17,8 @@ final class PlexAccountProvider: MediaAccountProvider {
     /// The account's mutable state. Main-actor bound, observable: views read it
     /// through the facade.
     let state: PlexAccountState
+    /// The routed send every facet of this account's servers uses.
+    let router: PlexServerRouter
     let account = AccountDescriptor(id: PlexAccountProvider.accountID, kind: .plex, displayName: "Plex")
 
     /// The one Plex account an install can hold.
@@ -47,6 +49,8 @@ final class PlexAccountProvider: MediaAccountProvider {
     init(client: PlexClient) {
         self.client = client
         self.state = PlexAccountState()
+        self.router = PlexServerRouter(client: client)
+        router.account = self
     }
 
     // MARK: - Stored account
@@ -292,17 +296,23 @@ final class PlexAccountProvider: MediaAccountProvider {
 
     // MARK: - plex.tv requests
 
-    /// One plex.tv request, built and sent exactly like
-    /// `MediaService.rawPlexTVRequest` (the facade's copy, which the not yet
-    /// extracted account features still call): same headers, body encoding,
-    /// offline guard, fresh-sign-in retry and sessions.
+    /// The one plex.tv request path (the facade's `rawPlexTVRequest` and the
+    /// account facets forward here): headers, body encoding, offline guard,
+    /// fresh-sign-in retry and sessions.
+    ///
+    /// - Parameter timeoutInterval: Overrides the session's 15s request timeout
+    ///   for this call only. Use it for plex.tv requests that are a nicety rather
+    ///   than a requirement, so a LAN-only session (the server answers, the
+    ///   internet does not) cannot stall a screen behind them.
     @MainActor
     func plexTVData(
         method: String = "GET",
         path: String,
         queryItems: [URLQueryItem]? = nil,
         formBody: [String: String]? = nil,
+        jsonBody: Data? = nil,
         accountToken: String? = nil,
+        timeoutInterval: TimeInterval? = nil,
         retriesFreshAuthentication: Bool = true,
         bootstrap: Bool = false
     ) async throws -> Data {
@@ -316,6 +326,9 @@ final class PlexAccountProvider: MediaAccountProvider {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
+        if let timeoutInterval {
+            request.timeoutInterval = timeoutInterval
+        }
         client.applyHeaders(to: &request, token: accountToken ?? state.activeAccountToken)
 
         if let formBody {
@@ -323,6 +336,10 @@ final class PlexAccountProvider: MediaAccountProvider {
             var components = URLComponents()
             components.queryItems = formBody.map { URLQueryItem(name: $0.key, value: $0.value) }
             request.httpBody = components.query?.data(using: .utf8)
+        } else if let jsonBody {
+            // plex.tv's account-settings endpoint only accepts a JSON body.
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = jsonBody
         }
 
         return try await execute(

@@ -181,14 +181,12 @@ extension MediaService {
     /// then the source's own, then `liveTVServerID`), or nil when that is not
     /// a server the pool knows: an IPTV source is never routed to a server.
     ///
-    /// Built here rather than read from the session's provider because the
-    /// routing lives here (see `PlexLiveTVTransport`).
     func liveTV(for source: LiveTVProvider, serverID: String? = nil) -> (any LiveTVProviding)? {
         let targetID = serverID ?? source.serverID ?? liveTVServerID
         if let targetID = targetID?.nilIfEmpty, !pool.knownServerIDs.contains(targetID) {
             return nil
         }
-        return PlexLiveTV(serverID: targetID, transport: self)
+        return serverProvider(for: targetID).liveTV
     }
 
     /// `liveTV(for:)`, throwing for a source no server serves.
@@ -201,46 +199,11 @@ extension MediaService {
 
     /// The facet of `serverID` (nil: the highest-priority server), for
     /// discovery, before there is a source.
-    private func liveTVFacet(serverID: String?) -> any LiveTVProviding {
-        PlexLiveTV(serverID: serverID, transport: self)
-    }
-}
-
-/// The facade sends the Plex Live TV facet's requests (`PlexLiveTVTransport`).
-/// `liveTVDirectPlayURL(sessionPath:sessionIdentifier:serverID:)` is the
-/// playback facade's own (`MediaService+Streams`).
-extension MediaService: PlexLiveTVTransport {
-    /// Reads only `url` and `outcome` of the playback facade's live stream,
-    /// so it does not depend on that stream's type.
-    func liveTVTranscodeStream(
-        sessionPath: String,
-        sessionIdentifier: String,
-        transcodeSessionID: String,
-        serverID: String
-    ) async throws -> PlexLiveTVStream {
-        let stream = try await liveTVStreamURL(
-            sessionPath: sessionPath,
-            sessionIdentifier: sessionIdentifier,
-            transcodeSessionID: transcodeSessionID,
-            serverID: serverID
-        )
-        switch stream.outcome {
-        case .transcodeAvailable:
-            return .transcode(stream.url)
-        case .directPlayOnly:
-            return .directPlayOnly
-        case .failed(let message):
-            return .failed(message)
+    private func liveTVFacet(serverID: String?) throws -> any LiveTVProviding {
+        guard let liveTV = serverProvider(for: serverID).liveTV else {
+            throw PlexServiceError.noServerConnected
         }
-    }
-
-    func liveTVTokenizedURL(path: String, serverID: String) -> URL? {
-        guard let connection = pool.connection(for: serverID) else { return nil }
-        return buildURL(
-            base: connection.baseURL.absoluteString,
-            path: path,
-            queryItems: [URLQueryItem(name: "X-Plex-Token", value: connection.token)]
-        )
+        return liveTV
     }
 }
 

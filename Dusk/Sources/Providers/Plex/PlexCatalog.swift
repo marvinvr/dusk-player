@@ -565,7 +565,8 @@ private struct SectionPrefsResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
-    /// Phase 0; the facade uses `MediaService.catalog(on:)`.
-    var catalog: any CatalogProviding { PlexCatalog(serverID: descriptor.id, transport: nil) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var catalog: any CatalogProviding { plexCatalog }
+    /// The catalog with the Plex-only members the facade's raw routes use.
+    var plexCatalog: PlexCatalog { PlexCatalog(serverID: descriptor.id, transport: router) }
 }

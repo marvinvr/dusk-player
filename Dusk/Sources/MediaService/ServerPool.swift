@@ -91,6 +91,14 @@ final class ServerPool {
 
     /// The provider for a session with `server`, from the factory of the
     /// server's kind. Every server the pool knows today is a Plex server.
+    /// The provider of a server the pool knows: its live session's, or one
+    /// built from the account's record of it. nil for an id the pool has
+    /// never seen.
+    func provider(for serverID: String) -> (any MediaServerProvider)? {
+        if let provider = connection(for: serverID)?.provider { return provider }
+        return servers[serverID].flatMap(makeProvider(for:))
+    }
+
     private func makeProvider(for server: PlexServer) -> (any MediaServerProvider)? {
         providers?.factory(for: serverRegistry.kind(for: server.clientIdentifier))?.makeServerProvider(
             ServerSessionSeed(

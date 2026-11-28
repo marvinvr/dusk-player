@@ -11,17 +11,15 @@ import Foundation
 /// collection — must pass that model's own `serverID`, or the request lands on
 /// a different server's rating keys.
 extension MediaService {
-    /// The catalog facet of one server. Built here rather than read off
-    /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexServerTransport`).
+    /// The catalog facet of one server's provider.
     func catalog(on serverID: String) -> any CatalogProviding {
-        plexCatalog(on: serverID)
+        serverProvider(for: serverID).catalog
     }
 
     /// The Plex catalog itself, for the routes whose callers still pass Plex
     /// sort strings and filter parameters.
     func plexCatalog(on serverID: String) -> PlexCatalog {
-        PlexCatalog(serverID: serverID, transport: self)
+        PlexCatalog(serverID: serverID, transport: plexAccount.router)
     }
 
     func getLibraries(serverID: String? = nil) async throws -> [Library] {

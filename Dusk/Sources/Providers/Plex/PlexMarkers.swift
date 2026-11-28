@@ -58,12 +58,9 @@ struct PlexMarkers: MarkerProviding {
 }
 
 extension PlexServerProvider {
-    /// Nothing reads this yet: the facade builds the routed facet itself
-    /// (`MediaService.markerFacet(on:)`), because the routing lives there.
-    /// Without a transport it still answers `markers(for:)`, but has no
-    /// previews.
+    /// Sends through the account's routed send (`PlexServerRouter`).
     var markers: any MarkerProviding {
-        PlexMarkers(serverID: descriptor.id, transport: nil)
+        PlexMarkers(serverID: descriptor.id, transport: router)
     }
 }
 

@@ -273,9 +273,8 @@ struct PlexExperienceSettings: Sendable {
 }
 
 extension PlexAccountProvider {
-    /// Nothing reads this yet: the facade builds the routed facet itself
-    /// (`MediaService.accountPreferences`), because the routing lives there.
+    /// Sends through the account's routed send (`PlexServerRouter`).
     var preferences: any AccountPreferencesProviding {
-        PlexAccountPreferences(client: client, transport: nil)
+        PlexAccountPreferences(client: client, transport: router)
     }
 }

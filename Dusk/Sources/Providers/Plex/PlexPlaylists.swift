@@ -160,7 +160,6 @@ private struct PlaylistAddResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
-    /// Phase 0; the facade uses `MediaService.playlists(on:)`.
-    var playlists: any PlaylistProviding { PlexPlaylists(serverID: descriptor.id, transport: nil) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var playlists: any PlaylistProviding { PlexPlaylists(serverID: descriptor.id, transport: router) }
 }

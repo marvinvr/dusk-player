@@ -173,9 +173,8 @@ struct PlexWatchlist: WatchlistProviding {
 }
 
 extension PlexAccountProvider {
-    /// Nothing reads this yet: the facade builds the routed facet itself
-    /// (`MediaService.watchlistProvider`), because the routing lives there.
+    /// Sends through the account's routed send (`PlexServerRouter`).
     var watchlist: (any WatchlistProviding)? {
-        PlexWatchlist(client: client, transport: nil)
+        PlexWatchlist(client: client, transport: router)
     }
 }

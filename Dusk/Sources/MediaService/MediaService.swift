@@ -145,9 +145,6 @@ final class MediaService {
     /// (`recoverServer(serverID:)`) — nothing else may touch these.
     @ObservationIgnored var serverRecoveryTasks: [String: Task<ServerSession, Error>] = [:]
     @ObservationIgnored var serverRecoveryCooldowns: [String: Date] = [:]
-    /// One validation per restored endpoint, joined by every request that
-    /// needs it. Owned by `validateRestoredEndpoint`.
-    @ObservationIgnored var endpointValidationTasks: [String: Task<Bool, Never>] = [:]
 
     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
 
@@ -228,6 +225,8 @@ final class MediaService {
         let readsStoredSignIn = true
         #endif
         plexAccount.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
+        // The account's routed send asks this service's pool for every step.
+        plexAccount.router.recovering = self
 
         pool.configure(
             probeSession: probeSession,
@@ -365,7 +364,30 @@ final class MediaService {
     }
 }
 
-/// The facade sends the Plex server facets' requests (`PlexServerTransport`).
-/// Declared here: the protocol is `Sendable`, which must be conformed to in
-/// the class's own file.
-extension MediaService: PlexServerTransport {}
+/// The pool side of every provider's routed send (04 §8). Declared here so the
+/// conformance sits with the class.
+extension MediaService: SessionRecovering {
+    func session(for serverID: String?) -> ServerSession? {
+        pool.connection(for: serverID)
+    }
+
+    func connectionState(for serverID: String) -> ServerConnectionState {
+        pool.state(for: serverID)
+    }
+
+    func markUnauthorized(serverID: String) {
+        pool.markUnauthorized(serverID: serverID)
+    }
+
+    func markVerified(serverID: String, baseURL: URL) {
+        pool.markVerified(serverID: serverID, baseURL: baseURL)
+    }
+
+    func serverDecoder(for serverID: String?) -> JSONDecoder {
+        pool.decoder(for: serverID)
+    }
+
+    func knownServer(for serverID: String) -> PlexServer? {
+        pool.server(for: serverID)
+    }
+}

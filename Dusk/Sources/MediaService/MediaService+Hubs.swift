@@ -6,11 +6,9 @@ import Foundation
 /// takes the item's or library's `serverID`, as in `MediaService+Library`;
 /// nil means the primary server.
 extension MediaService {
-    /// The home facet of one server. Built here rather than read off
-    /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexServerTransport`).
+    /// The home facet of one server's provider.
     func home(on serverID: String) -> any HomeProviding {
-        PlexHomeRows(serverID: serverID, transport: self)
+        serverProvider(for: serverID).home
     }
 
     /// A library's hub rows: the server's most expensive read on a big

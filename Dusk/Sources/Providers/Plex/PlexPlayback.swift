@@ -817,9 +817,8 @@ extension PlaybackTraits {
 }
 
 extension PlexServerProvider {
-    /// No router yet: the provider is built by the pool, which cannot hand it
-    /// the service. Until the service wires one in (P0-16), playback routes
-    /// through `MediaService.playback(for:)`, which builds the facet with
-    /// itself as the router.
-    var playback: any PlaybackProviding { PlexPlayback(client: client, serverID: descriptor.id) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var playback: any PlaybackProviding { plexPlayback }
+    /// The playback facet with the Plex-only live-stream members.
+    var plexPlayback: PlexPlayback { PlexPlayback(client: client, serverID: routedServerID, router: router) }
 }

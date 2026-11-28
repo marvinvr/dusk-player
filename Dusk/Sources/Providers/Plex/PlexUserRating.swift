@@ -27,7 +27,6 @@ struct PlexUserRating: UserRatingProviding {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
-    /// Phase 0; the facade uses `MediaService.userRating(on:)`.
-    var rating: (any UserRatingProviding)? { PlexUserRating(serverID: descriptor.id, transport: nil) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var rating: (any UserRatingProviding)? { PlexUserRating(serverID: descriptor.id, transport: router) }
 }

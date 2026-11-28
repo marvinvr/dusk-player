@@ -418,7 +418,6 @@ protocol PlexLiveTVTransport: PlexServerTransport {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexLiveTVTransport`. Nothing reads it in Phase 0;
-    /// the facade uses `MediaService.liveTV(for:)`.
-    var liveTV: (any LiveTVProviding)? { PlexLiveTV(serverID: descriptor.id, transport: nil) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var liveTV: (any LiveTVProviding)? { PlexLiveTV(serverID: routedServerID, transport: router) }
 }

@@ -37,6 +37,6 @@ struct PlexProviderFactory: ProviderFactory {
     }
 
     func makeServerProvider(_ seed: ServerSessionSeed) -> any MediaServerProvider {
-        PlexServerProvider(client: client, seed: seed)
+        PlexServerProvider(router: account.router, seed: seed)
     }
 }

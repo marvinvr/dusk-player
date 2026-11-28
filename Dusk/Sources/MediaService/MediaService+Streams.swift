@@ -3,24 +3,16 @@ import Foundation
 /// Playback streams: routes onto the server's `PlaybackProviding` facet
 /// (docs/jellyfin/04-architecture.md §12). Every method resolves the server
 /// first; `serverID: nil` is the primary server, as everywhere in the service.
-extension MediaService: PlexPlaybackRouting {
-    func plexPlaybackSession(for serverID: String?) -> ServerSession? {
-        pool.connection(for: serverID)
-    }
-}
-
 extension MediaService {
-    /// The playback facet of `serverID`'s server.
-    ///
-    /// Built here rather than read from the session's provider because the
-    /// facet's requests must go through this service's routing and
-    /// self-healing, which the pool-built provider cannot reach yet.
+    /// The playback facet of `serverID`'s provider (nil: the primary-tracking
+    /// one, which resolves the server per request).
     func playback(for serverID: String?) -> any PlaybackProviding {
-        plexPlayback(for: serverID)
+        serverProvider(for: serverID).playback
     }
 
+    /// The Plex facet itself, for the Live TV consumers only Plex has.
     private func plexPlayback(for serverID: String?) -> PlexPlayback {
-        PlexPlayback(client: client, serverID: serverID, router: self)
+        PlexPlayback(client: client, serverID: serverID, router: plexAccount.router)
     }
 
     /// - Parameter serverID: The server holding the file. Parts are per-server

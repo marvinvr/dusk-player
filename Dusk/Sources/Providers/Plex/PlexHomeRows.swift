@@ -185,7 +185,6 @@ private struct ManagedHubResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
-    /// Phase 0; the facade uses `MediaService.home(on:)`.
-    var home: any HomeProviding { PlexHomeRows(serverID: descriptor.id, transport: nil) }
+    /// Sends through the account's routed send (`PlexServerRouter`).
+    var home: any HomeProviding { PlexHomeRows(serverID: descriptor.id, transport: router) }
 }

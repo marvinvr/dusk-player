@@ -1,16 +1,25 @@
 import Foundation
 
 /// One Plex server (docs/jellyfin/04-architecture.md §3). It knows which server
-/// it is, what the active profile may do on it, and holds the service's
-/// `PlexClient`. Each facet is a value in its own file (`PlexCatalog.swift`,
-/// …), filled in by the facet's wave-4 package.
+/// it is and what the active profile may do on it, and hands its account's
+/// routed send (`PlexServerRouter`) to every facet. Each facet is a value in
+/// its own file (`PlexCatalog.swift`, …).
+///
+/// An empty `descriptor.id` is the primary-tracking provider the facade uses
+/// for a nil server id: its facets pass nil on, so every request resolves the
+/// highest-priority server when it is sent, as it always has.
 final class PlexServerProvider: MediaServerProvider {
     let client: PlexClient
+    let router: PlexServerRouter
     let descriptor: ServerDescriptor
     let permissions: ServerPermissions
 
-    init(client: PlexClient, seed: ServerSessionSeed) {
-        self.client = client
+    /// The id the facets send to; nil for the primary-tracking provider.
+    var routedServerID: String? { descriptor.id.nilIfEmpty }
+
+    init(router: PlexServerRouter, seed: ServerSessionSeed) {
+        self.client = router.client
+        self.router = router
         self.descriptor = ServerDescriptor(
             id: seed.serverID,
             name: seed.name,

@@ -9,11 +9,9 @@ import OSLog
 /// Everything here degrades to "no Watchlist": a failure is logged by outcome
 /// only and never surfaces on Home.
 extension MediaService {
-    /// The signed-in account's watchlist facet. One Plex account until the
-    /// account layer (P0-16) and Jellyfin (J-01) add others; built here like
-    /// `accountPreferences`.
+    /// The signed-in account's watchlist facet, like `accountPreferences`.
     var watchlistProvider: (any WatchlistProviding)? {
-        PlexWatchlist(client: client, transport: self)
+        plexAccount.watchlist
     }
 
     /// How long a loaded list is reused when Home reloads.

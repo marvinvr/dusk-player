@@ -6,11 +6,9 @@ import Foundation
 /// playlist on the server it came from.
 
 extension MediaService {
-    /// The playlist facet of one server. Built here rather than read off
-    /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexServerTransport`).
+    /// The playlist facet of one server's provider.
     func playlistFacet(on serverID: String?) throws -> any PlaylistProviding {
-        PlexPlaylists(serverID: try resolveServerID(serverID), transport: self)
+        serverProvider(for: try resolveServerID(serverID)).playlists
     }
 
     /// Video playlists on one server, in the server's order (title).

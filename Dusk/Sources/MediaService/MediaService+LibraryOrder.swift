@@ -8,19 +8,11 @@ import Foundation
 /// mean "this account never customized its order" and fall back to
 /// `/library/sections` order. Only a genuine transport or auth failure sets
 /// `orderUnavailable`.
-extension MediaService: PlexAccountTransport {
-    func accountServer(for serverID: String) -> PlexServer? {
-        pool.server(for: serverID)
-    }
-}
-
 extension MediaService {
-    /// The signed-in account's preferences facet. One Plex account until the
-    /// account layer (P0-16) and Jellyfin (J-01) add others. Built here rather
-    /// than read off `plexAccount` because the routed send it needs still
-    /// lives in this facade; see `PlexAccountTransport`.
+    /// The signed-in account's preferences facet. One account until J-13
+    /// adds linked ones.
     var accountPreferences: any AccountPreferencesProviding {
-        PlexAccountPreferences(client: client, transport: self)
+        plexAccount.preferences
     }
 
     /// Cache identity of the current session. The pinned list is per account
