@@ -17,7 +17,7 @@ import UIKit
 /// screen's top-trailing safe area rather than riding inside the content block.
 struct PlayerUpNextOverlayView: View {
     let presentation: UpNextPresentation
-    let plexService: PlexService
+    let media: MediaService
     let onPlayNow: () -> Void
     let onDismiss: () -> Void
 
@@ -336,14 +336,14 @@ struct PlayerUpNextOverlayView: View {
     // MARK: - Data
 
     private var stillURL: URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.upNextStillPath),
             size: ImageSize(width: 1280, height: 720)
         )
     }
 
     private var backdropURL: URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.art ?? presentation.item.thumb ?? presentation.item.grandparentThumb),
             size: ImageSize(width: 1280, height: 720)
         )

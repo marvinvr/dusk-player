@@ -114,8 +114,8 @@ struct AV1RoutingTests {
         #expect(!StreamResolver.canCopyAV1Audio(source.parts[0].streams[1]))
     }
 
-    private func query(mode: PlexService.TranscodeDeliveryMode, capabilities: AV1PlaybackCapabilities) -> [String: String] {
-        Dictionary(uniqueKeysWithValues: PlexService().transcodeQueryItems(
+    private func query(mode: MediaService.TranscodeDeliveryMode, capabilities: AV1PlaybackCapabilities) -> [String: String] {
+        Dictionary(uniqueKeysWithValues: MediaService().transcodeQueryItems(
             itemID: "1", mediaIndex: 0, sourcePath: nil, mode: mode,
             sessionIdentifier: "session", transcodeSessionID: "transcode",
             audioStreamID: "2", subtitleStreamID: "3", token: nil, av1Capabilities: capabilities

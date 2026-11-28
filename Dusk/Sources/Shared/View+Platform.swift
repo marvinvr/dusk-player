@@ -670,7 +670,7 @@ enum DuskPosterMetrics {
 }
 
 struct DetailHeroBackdrop: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let imageURL: URL?
     let height: CGFloat
@@ -771,7 +771,7 @@ struct DetailHeroBackdrop: View {
         }
 
         do {
-            let image = try await DuskImageLoader.shared.image(for: imageURL, using: plexService)
+            let image = try await DuskImageLoader.shared.image(for: imageURL, using: media)
             guard !Task.isCancelled else { return }
 
             withAnimation(.easeInOut(duration: 0.18)) {

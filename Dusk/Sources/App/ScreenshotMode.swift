@@ -248,12 +248,12 @@ enum ScreenshotMode {
     /// libraries are known. Returns nil until then, and after it has routed once.
     @MainActor
     static func consumeDestination(
-        plexService: PlexService,
+        media: MediaService,
         libraries: [Library],
         downloadManager: DownloadManager
     ) async -> Destination? {
         guard isActive, !hasRouted, let screen,
-              plexService.pool.primary != nil,
+              media.pool.primary != nil,
               !libraries.isEmpty else { return nil }
 
         // Photo sections only join the list once counted non-empty.
@@ -264,17 +264,17 @@ enum ScreenshotMode {
         var item: MediaItemID?
         if [.playlist, .playlistPlay].contains(screen),
            let itemID = defaults.string(forKey: Key.item)?.nilIfEmpty,
-           let primary = plexService.pool.primary?.serverID {
+           let primary = media.pool.primary?.serverID {
             // A playlist is not library metadata; the demo has one server.
             item = MediaItemID(serverID: primary, itemID: itemID)
         } else if let itemID = defaults.string(forKey: Key.item)?.nilIfEmpty {
-            guard let serverID = await server(holding: itemID, plexService: plexService) else { return nil }
+            guard let serverID = await server(holding: itemID, media: media) else { return nil }
             item = MediaItemID(serverID: serverID, itemID: itemID)
         }
         hasRouted = true
 
-        await queueRequestedDownloads(plexService: plexService, downloadManager: downloadManager)
-        await seedRequestedDownloads(plexService: plexService, downloadManager: downloadManager)
+        await queueRequestedDownloads(media: media, downloadManager: downloadManager)
+        await seedRequestedDownloads(media: media, downloadManager: downloadManager)
 
         let itemType = defaults.string(forKey: Key.itemType)
             .flatMap { MediaKind(rawValue: $0) } ?? .movie
@@ -388,7 +388,7 @@ enum ScreenshotMode {
         case .addToPlaylist:
             if let item {
                 destination.routes = [.media(type: itemType, id: item)]
-                let details = try? await plexService.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
+                let details = try? await media.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
                 destination.addToPlaylist = details.flatMap(AddToPlaylistTarget.init(details:))
                     ?? AddToPlaylistTarget(id: item, type: itemType, title: "Item")
             }
@@ -397,9 +397,9 @@ enum ScreenshotMode {
     }
 
     @MainActor
-    private static func server(holding itemID: String, plexService: PlexService) async -> String? {
-        for connection in plexService.pool.connections {
-            if (try? await plexService.getMediaDetails(itemID: itemID, serverID: connection.serverID)) != nil {
+    private static func server(holding itemID: String, media: MediaService) async -> String? {
+        for connection in media.pool.connections {
+            if (try? await media.getMediaDetails(itemID: itemID, serverID: connection.serverID)) != nil {
                 return connection.serverID
             }
         }
@@ -410,7 +410,7 @@ enum ScreenshotMode {
     /// downloads from the demo server. `movie:1001@p720` asks for that
     /// conversion quality (`DownloadQuality` raw value) instead of Original.
     @MainActor
-    private static func queueRequestedDownloads(plexService: PlexService, downloadManager: DownloadManager) async {
+    private static func queueRequestedDownloads(media: MediaService, downloadManager: DownloadManager) async {
         let qualities = Dictionary(
             (defaults.string(forKey: Key.downloads) ?? "").split(separator: ",").compactMap { entry -> (String, DownloadQuality)? in
                 let parts = entry.split(separator: "@").map(String.init)
@@ -420,7 +420,7 @@ enum ScreenshotMode {
             },
             uniquingKeysWith: { first, _ in first }
         )
-        for (type, id) in await downloadEntries(Key.downloads, plexService: plexService) {
+        for (type, id) in await downloadEntries(Key.downloads, media: media) {
             guard downloadManager.record(for: id) == nil else { continue }
             await downloadManager.queueDownload(id: id, type: type, quality: qualities[id.itemID])
         }
@@ -430,20 +430,20 @@ enum ScreenshotMode {
     /// downloads (metadata and artwork from the demo server, a placeholder
     /// file), so the Downloads tab is full without waiting on URLSession.
     @MainActor
-    private static func seedRequestedDownloads(plexService: PlexService, downloadManager: DownloadManager) async {
-        for (type, id) in await downloadEntries(Key.seedDownloads, plexService: plexService) {
+    private static func seedRequestedDownloads(media: MediaService, downloadManager: DownloadManager) async {
+        for (type, id) in await downloadEntries(Key.seedDownloads, media: media) {
             await downloadManager.seedCompletedDownloadForScreenshot(id: id, type: type)
         }
     }
 
     @MainActor
-    private static func downloadEntries(_ key: String, plexService: PlexService) async -> [(MediaKind, MediaItemID)] {
+    private static func downloadEntries(_ key: String, media: MediaService) async -> [(MediaKind, MediaItemID)] {
         guard let spec = defaults.string(forKey: key)?.nilIfEmpty else { return [] }
         var entries: [(MediaKind, MediaItemID)] = []
         for entry in spec.split(separator: ",") {
             let parts = entry.split(separator: "@")[0].split(separator: ":").map(String.init)
             guard parts.count == 2, let type = MediaKind(rawValue: parts[0]),
-                  let serverID = await server(holding: parts[1], plexService: plexService) else { continue }
+                  let serverID = await server(holding: parts[1], media: media) else { continue }
             entries.append((type, MediaItemID(serverID: serverID, itemID: parts[1])))
         }
         return entries

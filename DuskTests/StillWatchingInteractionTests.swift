@@ -13,7 +13,7 @@ struct StillWatchingInteractionTests {
         "panel", "audio", "subtitles", "subtitlesOff", "marker", "chapter", "speed"
     ])
     func explicitPlaybackActionsResetToZero(action: String) throws {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let engine = InteractionPlaybackEngine()
         let marker = Marker(id: "42", type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
         let model = PlayerViewModel(engine: engine, markers: [marker])
@@ -59,7 +59,7 @@ struct StillWatchingInteractionTests {
 
     @Test(arguments: [false, true])
     func trackChangesResetBeforeLocalSelectionOrServerRestart(serverTracks: Bool) throws {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let model = PlayerViewModel(engine: InteractionPlaybackEngine())
         defer { model.cleanup() }
         model.userInteractionHandler = { playback.noteUserInteraction() }
@@ -88,7 +88,7 @@ struct StillWatchingInteractionTests {
     }
 
     @Test func automaticSeeksTrackSelectionAndStateUpdatesDoNotReset() {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let engine = InteractionPlaybackEngine()
         let marker = Marker(id: "42", type: "intro", startTimeOffset: 5_000, endTimeOffset: 20_000)
         let model = PlayerViewModel(engine: engine, markers: [marker])
@@ -119,7 +119,7 @@ struct StillWatchingInteractionTests {
         }
         preferences.continuousPlayEnabled = true
         preferences.continuousPlayPassoutProtectionEpisodeLimit = 3
-        let playback = PlaybackCoordinator(plexService: PlexService(), preferences: preferences)
+        let playback = PlaybackCoordinator(media: MediaService(), preferences: preferences)
         defer { playback.cancelUpNextCountdown() }
         let candidate = UpNextCandidate(item: PlaybackQueueItem(
             id: MediaItemID(serverID: "interaction-test", itemID: "2"), type: .episode, title: "Next"
@@ -151,7 +151,7 @@ struct StillWatchingInteractionTests {
 
     #if os(tvOS)
     @Test func remoteHUDPanelAndScrubInputResetButVisibilitySyncDoesNot() {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let model = PlayerViewModel(engine: InteractionPlaybackEngine())
         defer { model.cleanup() }
         model.userInteractionHandler = { playback.noteUserInteraction() }

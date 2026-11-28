@@ -8,7 +8,7 @@ import SwiftUI
 /// `LibraryOrderSettingsViewModel` like the order, so Plex Web and the other Plex
 /// apps hide the library too.
 struct HiddenLibrariesSettingsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @State private var viewModel: LibraryOrderSettingsViewModel?
 
     static let footerText = "Switched-off libraries are hidden here and in other Plex apps."
@@ -19,7 +19,7 @@ struct HiddenLibrariesSettingsView: View {
             .duskNavigationTitle("Hidden Libraries")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
-                let model = viewModel ?? LibraryOrderSettingsViewModel(plexService: plexService)
+                let model = viewModel ?? LibraryOrderSettingsViewModel(media: media)
                 viewModel = model
                 await model.load()
             }

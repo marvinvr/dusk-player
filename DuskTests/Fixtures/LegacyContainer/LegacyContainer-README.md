@@ -35,7 +35,7 @@ Each file is the exact bytes the named store wrote for the values in
 | `LegacyContainer-ShowTrackPreferences-off.json` | same | subtitles `.off`, no audio |
 | `LegacyContainer-PlexServerPriority.json` | defaults `PlexServerPriority` | `ServerPriorityStore.setEnabled` |
 | `LegacyContainer-PlexServerSnapshots.json` | defaults `PlexServerSnapshots` | `ServerPool.saveSnapshots` (token stripped) |
-| `LegacyContainer-PlexActiveHomeUserData.json` | defaults `PlexActiveHomeUserData` | `JSONEncoder().encode(PlexHomeUser)`, as `PlexService.persistActiveHomeUser` does (the method is private) |
+| `LegacyContainer-PlexActiveHomeUserData.json` | defaults `PlexActiveHomeUserData` | `JSONEncoder().encode(PlexHomeUser)`, as `MediaService.persistActiveHomeUser` does (the method is private) |
 | `LegacyContainer-IPTVSources.json` | defaults `IPTVSources.<profileID>` | `IPTVSourceStore.save` |
 | `LegacyContainer-IPTVSourceHeaderValues.json` | Keychain `IPTVSourceHeaderValues` | `IPTVSourceStore.setHeaderValue` (in-memory secret seam) |
 | `LegacyContainer-iptvResumePoints.json` | defaults (and iCloud KVS) `iptvResumePoints` | `IPTVResumeStore.record`: one resume point, one tombstone |

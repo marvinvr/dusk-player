@@ -127,7 +127,7 @@ private var showsShowAllTile: Bool {
 }
 
 struct MediaItemPosterCarouselSection<ContextMenuContent: View>: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let title: String
     let items: [MediaItem]
@@ -163,7 +163,7 @@ struct MediaItemPosterCarouselSection<ContextMenuContent: View>: View {
                     route: AppNavigationRoute.destination(for: item, in: playThrough),
                     imageURL: posterURL(item, imageWidth, imageHeight),
                     fallbackImageURL: item.fallbackPosterImageURL(
-                        plexService: plexService,
+                        media: media,
                         width: imageWidth,
                         height: imageHeight
                     ),
@@ -280,7 +280,7 @@ struct MediaItemActionCarouselSection<ContextMenuContent: View>: View {
 }
 
 struct MediaItemPosterGrid<ContextMenuContent: View>: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let items: [MediaItem]
     let layout: AdaptivePosterGridLayout
@@ -402,7 +402,7 @@ struct MediaItemPosterGrid<ContextMenuContent: View>: View {
             route: AppNavigationRoute.destination(for: item, in: playThrough),
             imageURL: posterURL(item, imageWidth, imageHeight),
             fallbackImageURL: item.fallbackPosterImageURL(
-                plexService: plexService,
+                media: media,
                 width: imageWidth,
                 height: imageHeight
             ),

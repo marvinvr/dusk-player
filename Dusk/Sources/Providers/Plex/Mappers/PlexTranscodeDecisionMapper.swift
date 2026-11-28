@@ -1,16 +1,16 @@
 import Foundation
 
-// `PlexTranscodeDecisionDTO` → what `PlexService+Playback` acts on.
+// `PlexTranscodeDecisionDTO` → what `MediaService+Playback` acts on.
 
 extension PlexTranscodeDecisionDTO {
-    var streamDecisions: PlexService.TranscodeStreamDecisions {
+    var streamDecisions: MediaService.TranscodeStreamDecisions {
         let media = MediaContainer.metadata?.first?.Media?.first
         let part = media?.Part?.first
         let streams = part?.Stream ?? []
         let video = streams.first { $0.kind == 1 }
         let audio = streams.first { $0.kind == 2 }
         let subtitle = streams.first { $0.kind == 3 }
-        return PlexService.TranscodeStreamDecisions(
+        return MediaService.TranscodeStreamDecisions(
             container: part?.container ?? media?.container,
             videoDecision: video?.decision,
             videoCodec: video?.codec,
@@ -31,7 +31,7 @@ extension PlexTranscodeDecisionDTO {
         return part.key?.nilIfEmpty
     }
 
-    var outcome: PlexService.TranscodeDecisionOutcome {
+    var outcome: MediaService.TranscodeDecisionOutcome {
         let general = MediaContainer.generalDecisionCode
         let transcode = MediaContainer.transcodeDecisionCode
         let mde = MediaContainer.mdeDecisionCode

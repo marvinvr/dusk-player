@@ -5,17 +5,17 @@ import Foundation
 @MainActor
 @Observable
 final class LibraryCollectionsViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     let library: Library
     let pager: MediaItemPager
 
-    init(library: Library, plexService: PlexService) {
+    init(library: Library, media: MediaService) {
         self.library = library
-        self.plexService = plexService
+        self.media = media
         let sectionID = library.key
         let serverID = library.serverID
-        self.pager = MediaItemPager { [plexService] start, size in
-            try await plexService.getCollections(
+        self.pager = MediaItemPager { [media] start, size in
+            try await media.getCollections(
                 sectionId: sectionID,
                 start: start,
                 size: size,
@@ -41,7 +41,7 @@ final class LibraryCollectionsViewModel {
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func subtitle(for item: MediaItem) -> String? {

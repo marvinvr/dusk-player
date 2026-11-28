@@ -81,11 +81,11 @@ struct PlaybackNowPlayingTests {
         let engine = NowPlayingEngine()
         engine.state = .paused
         engine.seekableTimeRange = 30...90
-        let plex = PlexService()
+        let plex = MediaService()
         defer { controller.endSession() }
         controller.beginLiveSession(
             title: "Program", channelTitle: "Channel", artworkPath: nil,
-            serverID: nil, engine: engine, plexService: plex,
+            serverID: nil, engine: engine, media: plex,
             skipBackwardInterval: 10, skipForwardInterval: 30
         )
 
@@ -153,7 +153,7 @@ struct PlaybackNowPlayingTests {
     }
 
     @Test func systemCommandsReportActivityButEngineSnapshotsDoNot() throws {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let controller = playback.nowPlayingController
         let engine = NowPlayingEngine()
         defer { controller.endSession() }
@@ -184,7 +184,7 @@ struct PlaybackNowPlayingTests {
             : #"{"ratingKey":"2","key":"/library/metadata/2","type":"movie","title":"Movie Title","year":2026,"duration":120000}"#
         let details = try JSONDecoder().decode(MediaDetails.self, from: Data(json.utf8))
         controller.beginSession(
-            details: details, engine: engine, plexService: PlexService(),
+            details: details, engine: engine, media: MediaService(),
             skipBackwardInterval: 10, skipForwardInterval: 30
         )
     }

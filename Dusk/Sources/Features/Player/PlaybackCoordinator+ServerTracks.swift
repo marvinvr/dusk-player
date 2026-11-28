@@ -35,20 +35,20 @@ extension PlaybackCoordinator {
         let playbackDecision: PlaybackDecision = isPlexServerStreamSession ? debugInfo.decision : .serverStream
         let engineType: PlaybackEngineType = isPlexServerStreamSession ? debugInfo.engine : .avPlayer
         do {
-            try await plexService.selectStreams(
+            try await media.selectStreams(
                 partID: debugInfo.part.id, audioStreamID: activeAudioStreamID,
                 subtitleStreamID: activeSubtitleStreamID ?? "0", serverID: serverID
             )
-            let result: (url: URL, outcome: PlexService.TranscodeDecisionOutcome)
+            let result: (url: URL, outcome: MediaService.TranscodeDecisionOutcome)
             if case let .transcode(preset) = debugInfo.decision {
-                result = try await plexService.transcodeURL(
+                result = try await media.transcodeURL(
                     itemID: itemID, mediaIndex: mediaIndex, preset: preset,
                     sessionIdentifier: activePlaybackSessionIdentifier ?? UUID().uuidString,
                     transcodeSessionID: sessionID, audioStreamID: activeAudioStreamID,
                     subtitleStreamID: activeSubtitleStreamID, serverID: serverID
                 )
             } else {
-                result = try await plexService.serverStreamURL(
+                result = try await media.serverStreamURL(
                     itemID: itemID, mediaIndex: mediaIndex,
                     sessionIdentifier: activePlaybackSessionIdentifier ?? UUID().uuidString,
                     transcodeSessionID: sessionID, audioStreamID: activeAudioStreamID,
@@ -78,7 +78,7 @@ extension PlaybackCoordinator {
             activateReplacementAttempt(
                 transitionLabel: reason, attemptID: UUID(), details: details, itemID: itemID,
                 media: debugInfo.media, part: debugInfo.part, playbackURL: result.url,
-                sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
+                sanitizedURL: media.sanitizedPlaybackURLString(for: result.url),
                 playbackDecision: playbackDecision, engineType: engineType, resolverReason: reason,
                 videoEnhancementRequest: .disabled, startPosition: position, shouldAutoPlay: wasPlaying
             )

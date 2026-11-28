@@ -19,11 +19,11 @@ struct PhotoBrowserView: View {
     /// another cover.
     @State private var pendingClip: PhotoItem?
 
-    init(library: Library, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
+    init(library: Library, album: PhotoAlbumRoute? = nil, media: MediaService) {
         _viewModel = State(initialValue: PhotoBrowserViewModel(
             library: library,
             album: album,
-            plexService: plexService
+            media: media
         ))
     }
 
@@ -118,7 +118,7 @@ struct PhotoBrowserView: View {
                         albumGrid(albumLayout)
                     }
 
-                    if !viewModel.media.isEmpty {
+                    if !viewModel.items.isEmpty {
                         photoGrid(photoLayout)
                     }
 
@@ -161,7 +161,7 @@ struct PhotoBrowserView: View {
             #if os(tvOS)
             if canStartSlideshow {
                 Button {
-                    openViewer(at: viewModel.media.first { $0.kind == .photo }, slideshow: true)
+                    openViewer(at: viewModel.items.first { $0.kind == .photo }, slideshow: true)
                 } label: {
                     Label("Slideshow", systemImage: "play.fill")
                         .font(DuskFont.TV.buttonLabel)
@@ -202,7 +202,7 @@ struct PhotoBrowserView: View {
 
     private func photoGrid(_ layout: AdaptivePosterGridLayout) -> some View {
         LazyVGrid(columns: layout.columns, alignment: .leading, spacing: PhotoGridMetrics.photoSpacing) {
-            ForEach(viewModel.media) { item in
+            ForEach(viewModel.items) { item in
                 PhotoTile(
                     item: item,
                     imageURL: viewModel.thumbnailURL(for: item, side: layout.posterWidth),
@@ -258,8 +258,8 @@ struct PhotoBrowserView: View {
     /// the n-th photo of the requested grid.
     private func openScreenshotViewerIfRequested() {
         guard let index = ScreenshotMode.consumePhotoViewerIndex(inAlbum: !viewModel.showsModePicker),
-              viewModel.media.indices.contains(index) else { return }
-        openViewer(at: viewModel.media[index], slideshow: ScreenshotMode.startsPhotoSlideshow)
+              viewModel.items.indices.contains(index) else { return }
+        openViewer(at: viewModel.items[index], slideshow: ScreenshotMode.startsPhotoSlideshow)
     }
     #endif
 }

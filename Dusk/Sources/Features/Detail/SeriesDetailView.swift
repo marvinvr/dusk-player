@@ -7,7 +7,7 @@ import SwiftUI
 /// keeps the season's artwork while its text follows the focused episode.
 /// Selecting an episode card plays it.
 struct SeriesDetailView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(\.scenePhase) private var scenePhase
@@ -47,7 +47,7 @@ struct SeriesDetailView: View {
     init(
         entry: SeriesDetailViewModel.Entry,
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -56,7 +56,7 @@ struct SeriesDetailView: View {
         _viewModel = State(initialValue: SeriesDetailViewModel(
             entry: entry,
             id: id,
-            plexService: plexService,
+            media: media,
             seerrService: seerrService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -191,7 +191,7 @@ struct SeriesDetailView: View {
                             itemID: show.id,
                             sectionID: show.libraryID,
                             tags: show.collections,
-                            plexService: plexService
+                            media: media
                         )
                     }
 
@@ -614,7 +614,7 @@ struct SeriesDetailView: View {
                 DetailCastSection(
                     roles: roles,
                     serverID: season.serverID,
-                    plexService: plexService,
+                    media: media,
                     title: "Episode Cast"
                 )
                 .transition(.opacity)

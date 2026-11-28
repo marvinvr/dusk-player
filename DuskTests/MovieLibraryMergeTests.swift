@@ -149,7 +149,7 @@ struct MovieLibraryMergeTests {
         let stub = SelectionStub.Scope()
         let serverID = "movie-copies-\(UUID().uuidString)"
         let host = stub.host("movie-copies", .ok(serverID))
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: [
             "name": "Copies", "clientIdentifier": serverID, "connections": [],
         ]))
@@ -163,7 +163,7 @@ struct MovieLibraryMergeTests {
         let hd = try item(fields("hd"), server: serverID)
         let uhd = try item(fields("uhd", section: 2), server: serverID)
         service.registerAlternates(MediaItemMerge.alternates(in: [[hd, uhd]]))
-        let resolver = PlaybackSourceResolver(plexService: service)
+        let resolver = PlaybackSourceResolver(media: service)
         #expect(resolver.resolve(for: hd.id).identifiers == [hd.id, uhd.id])
         #expect(resolver.resolve(for: uhd.id, restrictToItemServer: true).identifiers == [uhd.id])
         for watched in [true, false] {

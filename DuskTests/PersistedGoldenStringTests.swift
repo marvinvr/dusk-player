@@ -265,18 +265,18 @@ struct PersistedGoldenStringTests {
     // MARK: - Account and server keys
 
     @Test func accountDefaultsAndKeychainNames() {
-        #expect(PlexService.keychainTokenKey == "PlexAuthToken")
-        #expect(PlexService.keychainActiveHomeTokenKey == "PlexActiveHomeUserToken")
-        #expect(PlexService.keychainServerTokenKey == "PlexServerAuthToken")
-        #expect(PlexService.defaultsClientIDKey == "PlexClientIdentifier")
-        #expect(PlexService.defaultsPrimaryProfileIDKey == "PlexPrimaryProfileID")
-        #expect(PlexService.defaultsActiveHomeUserDataKey == "PlexActiveHomeUserData")
-        #expect(PlexService.defaultsAutomaticHomeSignInKey == "PlexAutomaticallySignInHomeUser")
-        #expect(PlexService.defaultsHomeMigrationCompletedKey == "PlexHomeMigrationCompleted")
-        #expect(PlexService.defaultsServerIDKey == "PlexServerID")
-        #expect(PlexService.defaultsServerURLKey == "PlexServerURL")
-        #expect(PlexService.defaultsServerDataKey == "PlexServerData")
-        #expect(PlexService.defaultsLastGoodConnectionURIKey == "PlexLastGoodConnectionURI")
+        #expect(MediaService.keychainTokenKey == "PlexAuthToken")
+        #expect(MediaService.keychainActiveHomeTokenKey == "PlexActiveHomeUserToken")
+        #expect(MediaService.keychainServerTokenKey == "PlexServerAuthToken")
+        #expect(MediaService.defaultsClientIDKey == "PlexClientIdentifier")
+        #expect(MediaService.defaultsPrimaryProfileIDKey == "PlexPrimaryProfileID")
+        #expect(MediaService.defaultsActiveHomeUserDataKey == "PlexActiveHomeUserData")
+        #expect(MediaService.defaultsAutomaticHomeSignInKey == "PlexAutomaticallySignInHomeUser")
+        #expect(MediaService.defaultsHomeMigrationCompletedKey == "PlexHomeMigrationCompleted")
+        #expect(MediaService.defaultsServerIDKey == "PlexServerID")
+        #expect(MediaService.defaultsServerURLKey == "PlexServerURL")
+        #expect(MediaService.defaultsServerDataKey == "PlexServerData")
+        #expect(MediaService.defaultsLastGoodConnectionURIKey == "PlexLastGoodConnectionURI")
     }
 
     @Test func serverKeys() throws {
@@ -330,7 +330,7 @@ struct PersistedGoldenStringTests {
     }
 
     @Test func activeProfileIDPrecedence() throws {
-        let service = PlexService()
+        let service = MediaService()
         defer { invalidate(service) }
         service.primaryAccountToken = "owner-token"
         service.activeAccountToken = "owner-token"
@@ -384,9 +384,9 @@ struct PersistedGoldenStringTests {
     ])
     func primaryAccountProfileID(_ example: PrimaryProfileCase) async throws {
         let keys = [
-            PlexService.defaultsPrimaryProfileIDKey,
-            PlexService.defaultsActiveHomeUserDataKey,
-            PlexService.defaultsHomeMigrationCompletedKey,
+            MediaService.defaultsPrimaryProfileIDKey,
+            MediaService.defaultsActiveHomeUserDataKey,
+            MediaService.defaultsHomeMigrationCompletedKey,
         ]
         let rememberedHomeToken = KeychainHelper.load(key: "PlexActiveHomeUserToken")
         defer {
@@ -399,7 +399,7 @@ struct PersistedGoldenStringTests {
                 "/api/v2/user": Data(example.account.utf8),
                 "/api/v2/home/users": Data(example.homeUsers.utf8),
             ]
-            let service = PlexService(urlProtocolClasses: [ProfileBootstrapStub.self])
+            let service = MediaService(urlProtocolClasses: [ProfileBootstrapStub.self])
             defer { invalidate(service) }
             service.primaryAccountToken = "golden-owner-token"
             service.activeAccountToken = "golden-owner-token"
@@ -414,7 +414,7 @@ struct PersistedGoldenStringTests {
         }
     }
 
-    private func invalidate(_ service: PlexService) {
+    private func invalidate(_ service: MediaService) {
         service.session.invalidateAndCancel()
         service.slowQuerySession.invalidateAndCancel()
         service.probeSession.invalidateAndCancel()

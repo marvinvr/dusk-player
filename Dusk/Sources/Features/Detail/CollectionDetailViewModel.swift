@@ -7,7 +7,7 @@ import Foundation
 @MainActor
 @Observable
 final class CollectionDetailViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     private let sortStore: CollectionSortStore
     let id: MediaItemID
     let pager: MediaItemPager
@@ -32,9 +32,9 @@ final class CollectionDetailViewModel {
         var value: String?
     }
 
-    init(id: MediaItemID, plexService: PlexService, sortStore: CollectionSortStore = CollectionSortStore()) {
+    init(id: MediaItemID, media: MediaService, sortStore: CollectionSortStore = CollectionSortStore()) {
         self.id = id
-        self.plexService = plexService
+        self.media = media
         self.sortStore = sortStore
         let selectedSort = sortStore.sort(for: id)
         self.selectedSort = selectedSort
@@ -43,8 +43,8 @@ final class CollectionDetailViewModel {
         let serverSort = ServerSort()
         serverSort.value = selectedSort?.plexValue
         self.serverSort = serverSort
-        self.pager = MediaItemPager { [plexService] start, size in
-            try await plexService.getCollectionItems(
+        self.pager = MediaItemPager { [media] start, size in
+            try await media.getCollectionItems(
                 itemID: itemID,
                 start: start,
                 size: size,
@@ -166,7 +166,7 @@ final class CollectionDetailViewModel {
 
         async let items: Void = loadItems()
         do {
-            collection = try await plexService.getCollection(itemID: id.itemID, serverID: serverID)
+            collection = try await media.getCollection(itemID: id.itemID, serverID: serverID)
         } catch {
             if !Task.isCancelled {
                 self.error = error.localizedDescription
@@ -215,18 +215,18 @@ final class CollectionDetailViewModel {
     }
 
     func setWatched(_ watched: Bool, for item: MediaItem) async {
-        try? await plexService.setWatchedAcrossServers(watched, id: item.id)
+        try? await media.setWatchedAcrossServers(watched, id: item.id)
         await loadItems()
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
         // A collection without its own background borrows its first title's.
         let path = collection?.art ?? items.first(where: { $0.art != nil })?.art ?? collection?.thumb
-        return plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
+        return media.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func subtitle(for item: MediaItem) -> String? {

@@ -66,14 +66,14 @@ enum SearchMediaResult: Identifiable {
 
     @MainActor
     func imageURL(
-        plexService: PlexService,
+        media: MediaService,
         seerrService: SeerrService,
         width: Int,
         height: Int
     ) -> URL? {
         switch self {
         case .plex(let item):
-            item.posterImageURL(plexService: plexService, width: width, height: height)
+            item.posterImageURL(media: media, width: width, height: height)
         case .seerr(let item):
             seerrService.posterURL(path: item.posterPath, width: width)
         }

@@ -10,9 +10,14 @@ Dusk/Sources
   App/                 App entry, dependency injection, tabs, routes, server connect pass
   Analytics/           Anonymous event + error vocabulary and fire-and-forget reporting
   Domain/              App-facing media models; Plex payloads decode in Providers/Plex/DTO/
-  Providers/           Core/ server registry; Plex/ DTOs (wire shapes) and Mappers/
-                       (DTO → domain); Jellyfin/ client and DTOs (not wired in yet)
-  PlexService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
+  Providers/
+    Core/              Provider and facet protocols (one file per facet), ProviderRegistry,
+                       server registry, request types; declarations, wave 4 fills them in
+    Plex/              PlexClient (sessions, headers, sending), provider shells and one
+                       empty facet per file, transport security, DTO/ and Mappers/
+    Jellyfin/          Client and DTOs (not wired in yet)
+  MediaService/        The facade: Plex auth, the multi-server session pool, request
+                       routing and self-healing, API calls, images, playback + subtitle URLs
     MultiServer/       Cross-server merging (continue watching, hubs, search),
                        same-server library copies, the alternates index, and library server labelling
   SeerrService/        Optional Seerr auth sessions, API calls, and request state
@@ -56,7 +61,7 @@ libdovi (`dolby_vision`) with its frozen C header. It is built into
 `DuskApp` constructs the shared long-lived services and injects them into the
 SwiftUI environment:
 
-- `PlexService`
+- `MediaService`
 - `SeerrService`
 - `PlaybackCoordinator`
 - `DownloadManager`
@@ -75,7 +80,7 @@ otherwise              -> MainTabView
 ```
 
 Connecting happens *underneath* the shell. `ServerConnectionCoordinator`
-(`App/`) runs `plexService.connectAllServers()` on first mount, on a profile
+(`App/`) runs `media.connectAllServers()` on first mount, on a profile
 switch, on return to the foreground, and on a network-path change, and publishes
 itself in the environment so any screen can offer a retry (`refresh()`). Servers
 appear as they answer; a server that never does is a per-screen note, never a
@@ -114,13 +119,13 @@ primitive:
 - `PlexItemPresentation`: common poster URL/subtitle/progress/title helpers and
   the shared season/show hero artwork fallback (`SeriesBackdropArtwork`).
 - `FeatureStateViews`: loading, empty, and error states.
-- `DuskAsyncImage`: image loading through `PlexService`.
+- `DuskAsyncImage`: image loading through `MediaService`.
 - `RecommendationCore`: scoring and deterministic randomization helpers shared
   by home/library recommendation engines.
-- `PlexService+ServerIdentity`: the stable server binding persisted state uses
+- `MediaService+ServerIdentity`: the stable server binding persisted state uses
   (`seerrBindingServerID`), plus known-server checks and the one-time mapping of
   pre-multi-server base-URL identifiers onto machine identifiers.
-- `PlexService+WatchedFanOut`: `setWatchedAcrossServers`, the one place an
+- `MediaService+WatchedFanOut`: `setWatchedAcrossServers`, the one place an
   explicit watched/unwatched action reaches every server holding the content.
 
 Do not create feature-local copies of these patterns unless the behavior is
@@ -145,7 +150,7 @@ Home:
   account's library order, keyed on `Library.id` (never the bare section key,
   which aliases across servers). Home has no user-editable row layout.
 - Home merges every connected server: `HubMerge`, `ContinueWatchingMerge` and
-  `PlexService.streamAcrossServers` republish the screen as each server answers.
+  `MediaService.streamAcrossServers` republish the screen as each server answers.
 
 Live TV:
 
@@ -154,7 +159,7 @@ Live TV:
   channels, and owns the selected date's guide.
 - `LiveTVView` renders current, past, and future schedule metadata. Only an
   airing program starts playback; arbitrary past guide entries are not recordings.
-- `PlexService+LiveTV` owns provider/channel/grid/tune endpoints. Their
+- `MediaService+LiveTV` owns provider/channel/grid/tune endpoints. Their
   response shapes are `Providers/Plex/DTO/PlexLiveTVDTO.swift`, mapped onto
   the `Live*` domain types (`Domain/LiveTV.swift`, no decoding) by
   `Providers/Plex/Mappers/PlexLiveTVMapper.swift`.
@@ -163,7 +168,7 @@ Libraries:
 
 - `LibrariesViewModel` exposes the available Plex libraries (movie, show, video
   and photo sections; `Library.libraryType` classifies "Other Videos" sections).
-  Its `libraries` is a read-through of `PlexService.libraryOrder.orderedSections`,
+  Its `libraries` is a read-through of `MediaService.libraryOrder.orderedSections`,
   so every library list follows the order stored on the Plex account — which now
   spans every connected server; it loads through `ensureLibraryOrderLoaded(force:)`
   and never stores its own copy. Video sections stay out of it until counted
@@ -182,7 +187,7 @@ Libraries:
   row on movie/show detail pages, `DetailExtrasShelf` the "Extras" row on movie/show/
   season/episode pages; `Shared/MediaItemPager` pages plain listings.
 - Photo libraries live in `Features/Photos`: `PhotoBrowserViewModel` (paged
-  albums/timeline queries over `PlexService+Photos`, `PhotoItem`),
+  albums/timeline queries over `MediaService+Photos`, `PhotoItem`),
   `PhotoBrowserView` (grid, also the album route) and `PhotoViewerView` (full-screen
   viewer, iOS zoom, tvOS slideshow). See `docs/ui-features.md` → "Photos".
 - `LibraryRecommendationsViewModel` takes one *or several* libraries of the same
@@ -267,17 +272,17 @@ Settings:
   your libraries across servers on every platform. A server name is appended to
   a row only when another library of the same type has the same title. That order is an account-level
   Plex setting, not a Dusk preference: the view model edits a working copy, then
-  writes through `PlexService.reorderLibraries(_:)` after a 1s debounce. iOS uses
+  writes through `MediaService.reorderLibraries(_:)` after a 1s debounce. iOS uses
   `EditButton` + `onMove`; tvOS uses position menus (`docs/ui-features.md`).
 - `HiddenLibrariesSettingsView` (Settings › Libraries › Hidden Libraries) is the
   one place to hide a library: a switch per library, grouped by server. It reuses
   `LibraryOrderSettingsViewModel.setHidden`, which writes `pinnedSources[].isHidden`.
 - `HiddenHomeRowsSettingsView` (Settings › Home › Hidden Rows) switches Plex's
-  per-library Home flag (`PlexService+HomeRows.swift`); Home's Hide Row uses the
+  per-library Home flag (`MediaService+HomeRows.swift`); Home's Hide Row uses the
   same write.
-- `PlexService/LibraryOrderStore` is the single source of that order, and of which
-  libraries are hidden, for the whole app; `PlexService+LibraryOrder.swift` owns the
-  plex.tv read/write. `PlexService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
+- `MediaService/LibraryOrderStore` is the single source of that order, and of which
+  libraries are hidden, for the whole app; `MediaService+LibraryOrder.swift` owns the
+  plex.tv read/write. `MediaService/HiddenLibraryFilter` (`libraryOrder.hiddenLibraryFilter`,
   or `loadedHiddenLibraryFilter()` to wait for the load) drops hidden libraries' items
   wherever libraries mix: Home merge, `search`, `getHubItems`, `getPersonMedia`,
   `HomeRecommendationEngine` (visible sections), `SiriTitleCatalog`. Its `.home` /
@@ -286,9 +291,9 @@ Settings:
 
 Playlists:
 
-- `PlexService.playlists` (`PlaylistStore`) is the one copy of the account's
-  video playlists; `PlexService+Playlists` loads and edits them.
-- `PlexService.pinnedPlaylists` (`PinnedPlaylistStore`) holds the per-profile
+- `MediaService.playlists` (`PlaylistStore`) is the one copy of the account's
+  video playlists; `MediaService+Playlists` loads and edits them.
+- `MediaService.pinnedPlaylists` (`PinnedPlaylistStore`) holds the per-profile
   playlists pinned to Home; Home renders them with `HomePinnedPlaylistShelf`.
 - `PlaylistsView`, `PlaylistDetailView`/`PlaylistDetailViewModel`,
   `PlaylistActions` and `AddToPlaylist.swift` (target, presenter, menu/hero
@@ -300,8 +305,8 @@ Playlists:
 
 Watchlist:
 
-- `PlexService.watchlist` (`WatchlistStore`) is the account's Plex Watchlist and its
-  server matches; `PlexService+Watchlist` loads/edits it (plex.tv Discover).
+- `MediaService.watchlist` (`WatchlistStore`) is the account's Plex Watchlist and its
+  server matches; `MediaService+Watchlist` loads/edits it (plex.tv Discover).
 - Home's row is `Home/HomeWatchlistShelf` placed by `HomeWatchlistPlacement`;
   `Features/Watchlist` has the bookmark/menu actions and the off-server page.
   See `docs/ui-features.md` → "Watchlist".
@@ -339,23 +344,23 @@ Supporter:
 
 ## Where New Code Goes
 
-- New multi-server session behavior: `PlexService/ServerPool.swift` (sessions) or
+- New multi-server session behavior: `MediaService/ServerPool.swift` (sessions) or
   `ServerPriorityStore.swift` (order/enabled); *when* to connect belongs in
   `App/ServerConnectionCoordinator.swift`.
-- New cross-server merge: `PlexService/MultiServer/`, keyed on `ContentKey`.
+- New cross-server merge: `MediaService/MultiServer/`, keyed on `ContentKey`.
   Take per-server lists in priority order, stay a pure function of them, and
   return a single list verbatim so single-server installs are untouched.
 - New "the servers are the problem" empty state: `Shared/ServerAvailabilityViews.swift`
   (`ServerAvailabilityStateView`, `ServerOutageNote`), driven by `pool.availability`.
-- New Plex endpoint: matching `PlexService+*.swift` file — e.g.
-  `PlexService+Subtitles.swift` owns the server-side OpenSubtitles search,
+- New Plex endpoint: matching `MediaService+*.swift` file — e.g.
+  `MediaService+Subtitles.swift` owns the server-side OpenSubtitles search,
   sidecar download, sidecar stream URL, and the `canDownloadSubtitles` gate.
 - New Home row type: `HomeViewModel` plus `HomeHubFilter`/`HomeHubArrangement`.
   Home's row sequence is fixed in `HomeIOSView`/`HomeTVView`; keep the two shells
   in step instead of reintroducing a user-editable row layout.
-- New account-level Plex setting: `PlexService+LibraryOrder.swift` for the
+- New account-level Plex setting: `MediaService+LibraryOrder.swift` for the
   read/write and `LibraryOrderStore` for the shared state, not `UserPreferences`.
-- New Seerr endpoint: `SeerrService/`, without widening `PlexService` or adding
+- New Seerr endpoint: `SeerrService/`, without widening `MediaService` or adding
   a generic provider protocol.
 - New Plex response shape: a DTO in `Providers/Plex/DTO/`, with optional fields
   where Plex varies by media type, mapped in `Providers/Plex/Mappers/`.
@@ -390,11 +395,11 @@ piece has a clear name and owner.
 
 - Views do not call Plex directly unless they are small account/setup views;
   feature views should go through `@Observable` view models.
-- `PlexService` is intentionally Plex-specific. Seerr is an optional request
+- `MediaService` is intentionally Plex-specific. Seerr is an optional request
   companion, not a playback provider; do not add a generic provider protocol.
 - Every enabled server is connected at once and their content is merged. There is
   no "selected server": anything that reaches a server resolves that server's
-  `PlexServerConnection` from `PlexService.pool` by the item's `serverID`. One
+  `ServerSession` from `MediaService.pool` by the item's `serverID`. One
   server failing (offline, 401, disabled) must never take the others down.
 - Rating keys and section keys collide across servers. Identity is `MediaItemID`
   (serverID + ratingKey); cross-server sameness is `ContentKey`.

@@ -1,17 +1,17 @@
 # Dusk Plex Data Layer
 
 Agent-facing map for Dusk's Plex data layer. Plex is the only media/playback
-backend; views call view models, view models call `PlexService`, and
-`PlexService` is the Plex network boundary. The optional Seerr request companion
+backend; views call view models, view models call `MediaService`, and
+`MediaService` is the Plex network boundary. The optional Seerr request companion
 has a separate boundary documented in `docs/seerr-integration.md`.
 
 ## Responsibilities
-- `PlexService/` owns auth, discovery, request helpers, endpoints, playback
+- `MediaService/` owns auth, discovery, request helpers, endpoints, playback
   reporting, direct-play/transcode URLs, and image helpers.
 - `Domain/` owns the app's models plus app-level playback models. Plex response
   shapes are DTOs in `Providers/Plex/DTO/`, turned into domain values by
   `Providers/Plex/Mappers/`.
-- `PlexService` is `@MainActor @Observable` and is injected from `DuskApp`.
+- `MediaService` is `@MainActor @Observable` and is injected from `DuskApp`.
 - Plex is the source of truth. Do not persist metadata except for explicit
   offline/download support.
 - No generic provider abstraction. Seerr is not a media provider. Add focused
@@ -25,15 +25,19 @@ parallel, and their content is merged. Server selection exists only as an
 per server, both in Settings -> Server Priority.
 
 Files: `ServerPool.swift` (live sessions), `ServerPriorityStore.swift` (order +
-enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
+enabled flags), `ServerSession.swift` (one session), `ServerProbe.swift`
 (connection candidates, ranking and selection), `ServerAvailability.swift` (aggregate state + UI wording).
 
-- `PlexServerConnection` is one live session: `serverID` (machine identifier),
+- `ServerSession` is one live session: `serverID` (machine identifier),
   `name`, `owned`, `sourceTitle`, `baseURL`, `token`, winning `connection`, plus
   `isLocal` / `isRemote` / `isRelay`. Everything that talks to a server resolves
   one of these first, so a request, an image URL, or a playback decision can
   never land on a different server than the item it belongs to.
-- `ServerPool` (`plexService.pool`) holds `states: [String: ServerConnectionState]`
+- The pool also stores the server's `provider` on each session it records,
+  built by the provider's factory from `MediaService.providers`
+  (`ProviderRegistry`, `Providers/Core/`). Nothing routes through it yet; the
+  provider is not part of the session's `==`/`hash`.
+- `ServerPool` (`media.pool`) holds `states: [String: ServerConnectionState]`
   (`idle`/`connecting`/`connected`/`unauthorized`/`offline(reason)`/`disabled`),
   the discovered `servers`, `connections` (connected, in priority order),
   `primary`, and `decoder(for:)`. `connectAll` probes up to four servers at a
@@ -59,7 +63,7 @@ enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
   session restored from the last launch must not keep claiming it is connected.
 - `pool.generation` is the session counter. `clear()` bumps it, and any probe
   that started earlier is discarded when it lands. Together with
-  `PlexService.serverSessionToken` (profile + generation, captured before
+  `MediaService.serverSessionToken` (profile + generation, captured before
   `discoverServers()` and re-checked after) this is what stops a connect pass
   from a previous Plex Home member re-registering that member's servers — and
   re-saving their tokens — into the session that replaced it.
@@ -68,14 +72,14 @@ enabled flags), `PlexServerConnection.swift` (one session), `ServerProbe.swift`
   Seerr link and Live TV — and for a call site that has no item in hand. It is
   **not** "the current server": anything holding an item, library, hub or
   download record must pass that value's `serverID` instead. There are no
-  single-server compatibility shims on `PlexService`.
-- `ServerPriorityStore` (`plexService.serverPriority`) persists an ordered
+  single-server compatibility shims on `MediaService`.
+- `ServerPriorityStore` (`media.serverPriority`) persists an ordered
   `[{machineIdentifier, isEnabled}]` in UserDefaults (`PlexServerPriority`). It
   is additive: `reconcile(discovered:)` appends unknown servers enabled at the
   end and never drops a server that simply did not answer this time; only
   sign-out prunes it. Every mutation bumps `revision`, which merged screens
   (Home, Libraries, Search) observe to know they must reload.
-- `PlexService.serverContentRevision` is the `.task(id:)` key for merged
+- `MediaService.serverContentRevision` is the `.task(id:)` key for merged
   screens: it changes when a server connects or drops, when the order or an
   enabled flag changes, or when the profile changes. Key a merged load on it
   rather than on a single server identifier.
@@ -111,7 +115,7 @@ Tokens and persisted state:
     account has seen, in priority order. Only `pool.connectAll` rewrites it, so
     a disabled server keeps its snapshot and costs no round-trip when it is
     turned back on.
-- `PlexService.init` restores a session for every *enabled* snapshot that has a
+- `MediaService.init` restores a session for every *enabled* snapshot that has a
   token and a remembered endpoint the token may travel to right now
   (`ServerPool.restorableBaseURL`), so Home/Libraries/Search have content
   immediately; `ServerConnectionCoordinator`'s pass then verifies and refreshes
@@ -163,7 +167,7 @@ Flow:
 6. `discoverServers()` fetches `/api/v2/resources` as the active identity with
    HTTPS/relay and keeps
    resources whose `provides` contains `server` **or** whose `product` is
-   "Plex Media Server" (`PlexService.isMediaServerResource`): plex.tv listed
+   "Plex Media Server" (`MediaService.isMediaServerResource`): plex.tv listed
    the owner's main server as `provides: "controller"` on 2026-11-10 and Dusk
    silently dropped it — the real cause behind "can't reach my server" that
    the #36 transport fixes were guessing at.
@@ -208,7 +212,7 @@ reach his server on build 76):
   it. `::`/`fe80:` are dropped; Docker-bridge 172.17–31 addresses are kept.
   Duplicates (`https://h` vs `https://h:443`) collapse.
 - **Probe** (concurrent, per-candidate timeout LAN 5 s / tailnet 8 s / remote
-  10 s / relay 12 s, on `PlexService.probeSession`, which never waits for
+  10 s / relay 12 s, on `MediaService.probeSession`, which never waits for
   connectivity): `GET /identity` must return the expected `machineIdentifier`
   (JSON or XML) — a different server, captive portal or recycled address never
   wins — then `GET /library/sections` must accept the token. A candidate that
@@ -219,7 +223,7 @@ reach his server on build 76):
   HTTP, owner's rule) → LAN, then tailnet / private name, then remote → a
   Docker-bridge LAN address after other LAN ones. Locality comes from the
   candidate URL's host as well as plex.tv's `local` flag. Tailscale is **not**
-  local for `PlexServerConnection.isLocal` (Plex treats it as remote).
+  local for `ServerSession.isLocal` (Plex treats it as remote).
 - **Commit**: as soon as no still-running candidate has a strictly better rank,
   or `ConnectionSelector.defaultGrace` (1.5 s) after the first success. A hung
   LAN / Docker address therefore costs at most the grace window, never a
@@ -256,7 +260,7 @@ reach his server on build 76):
   crash log (swiftlang/swift#93208). Debug builds are unaffected, so simulator
   runs do not reproduce it. Use `Result.capturing` or `try?` and return a named
   struct. `TaskGroupChildShapeTests` fails on a `catch` in an `addTask` closure.
-- Locality is read off the connection: `PlexServerConnection.isLocal` /
+- Locality is read off the connection: `ServerSession.isLocal` /
   `isRemote` / `isRelay`.
 - Fresh auth has a propagation retry window; missing server tokens or 401s may
   become `.authenticationPending`.
@@ -293,7 +297,7 @@ reach his server on build 76):
 Remote streaming (Plex Pass / Remote Watch Pass): since 2025 Plex only streams
 personal video outside the server's network when the owner has Plex Pass or the
 viewer has Plex Pass or a Remote Watch Pass; local playback stays free. **Dusk
-never gates this itself** (`PlexService+RemotePlayback.swift`). It used to, from
+never gates this itself** (`MediaService+RemotePlayback.swift`). It used to, from
 the account's `subscription.active` and the connection's `local` flag, and that
 blocked people at home (a public/plex.direct address that is really NAT
 loopback, an unflagged LAN address) and people who had the pass (Remote Watch
@@ -316,15 +320,19 @@ runs and Plex decides:
   home.
 
 ## Request And Decode Helpers
-File: `PlexService+Networking.swift`.
+Files: `MediaService+Networking.swift` (routing and self-healing) and
+`Providers/Plex/PlexClient.swift` (the four `URLSession`s, `X-Plex-*` headers,
+sending one attempt and mapping its status, URL and decode helpers). The
+facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
+`executeRequest` forward to the client; the routing below stays in the facade.
 - Use `plexTVRequest<T>` for `plex.tv` JSON.
 - Use `rawServerRequest` for server calls. It takes an optional `serverID:`,
-  resolves that server's `PlexServerConnection` from the pool (nil = the
+  resolves that server's `ServerSession` from the pool (nil = the
   primary), applies **that server's** token, recovers auth, re-probes the
   endpoint, and returns `Data`.
 - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
 - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
-- Use `fetchHubs(...)` for `MediaContainer.Hub`.
+- Use `fetchHomeRows(...)` (`MediaService+Hubs.swift`) for `MediaContainer.Hub`.
 - The fetch helpers decode through `pool.decoder(for: serverID)`. A DTO carries
   no server id: pass the resolved server id to its mapper, which stamps it. Items
   still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
@@ -363,10 +371,10 @@ Pitfalls:
   and multiple person id shapes are normal.
 - Do not log token-bearing URLs. Use sanitized playback URL logging where it
   exists.
-- Be intentional about cache policy; `PlexService` uses `AppImageCache.shared`.
+- Be intentional about cache policy; `MediaService` uses `AppImageCache.shared`.
 
 ## Library, Search, Hubs, And Detail Endpoints
-File: `PlexService+Library.swift`.
+File: `MediaService+Library.swift`.
 
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
@@ -381,7 +389,7 @@ Library:
   collection's items with `getLibraryItems(filters: ["collection": key])`.
   This filter view is what video libraries use for their channel rows.
 
-Plex collections (`PlexService+Collections.swift`, movie and TV libraries):
+Plex collections (`MediaService+Collections.swift`, movie and TV libraries):
 - A collection is a metadata item of `type: "collection"` (`MediaKind.collection`);
   `subtype` says what it holds, `smart` ("1"/"0") whether a saved filter fills it,
   `index` is the tag id. Before `.collection` existed these decoded as `.unknown`
@@ -410,7 +418,7 @@ letters that have titles; "#" for digits/symbols) and honours the same filters a
 `/all` (type, unwatched, genre, collection). Cheap (<1 s on 60k titles); cumulative
 sizes are exact offsets into `/all?sort=titleSort` (verified on plex-demo Stress Movies).
 
-Extras (`PlexService+Extras.swift`, `Domain/Extra.swift`):
+Extras (`MediaService+Extras.swift`, `Domain/Extra.swift`):
 - `getExtras(ratingKey:)` -> `/library/metadata/{rk}/extras` for a movie, show,
   season, or episode. Rows are `type: "clip"` items with a numeric `extraType`
   (1 trailer, 2 deleted scene, 3 interview, 4 music video, 5 behind the scenes,
@@ -443,7 +451,7 @@ Hubs and search:
 - `search(query:)` -> `/hubs/search` with `limit=10`, no collections, and GUIDs,
   wrapped as `[SearchSection]`.
 
-Account library order (`PlexService+LibraryOrder.swift`, `LibraryOrderStore`) —
+Account library order (`MediaService+LibraryOrder.swift`, `LibraryOrderStore`) —
 the user's library order is **not** a PMS setting. It lives on plex.tv, per Plex
 account, in the `experience` user setting. Order, pinning, and hiding are all the
 same array: `sidebarSettings.pinnedSources`. Array position is the order.
@@ -532,7 +540,7 @@ Detail and hierarchy:
 - `getMediaDetailsPayload` and `getChildrenPayload` return raw data for
   `PlexMetadataCache` and downloads. Keep their endpoint semantics stable.
 
-Subtitle search and download (`PlexService+Subtitles.swift`):
+Subtitle search and download (`MediaService+Subtitles.swift`):
 - Plex Media Server proxies OpenSubtitles, so Dusk needs no OpenSubtitles
   account, API key, or rate limiting of its own.
 - `searchSubtitles(ratingKey:languageCode:hearingImpaired:forced:)` ->
@@ -559,13 +567,15 @@ Subtitle search and download (`PlexService+Subtitles.swift`):
   hide the entry point instead of surfacing a 403.
 
 Where to edit:
-- Browse/library/detail endpoints: `PlexService+Library.swift`.
-- Cast/person endpoints: `PlexService+People.swift`; account/history endpoints:
-  `PlexService+History.swift`.
-- Playback progress/watch state/direct play/transcode URLs:
-  `PlexService+Playback.swift`.
-- Subtitle search/download endpoints: `PlexService+Subtitles.swift`.
-- Account-level plex.tv settings (library order): `PlexService+LibraryOrder.swift`,
+- Browse/library/detail endpoints: `MediaService+Library.swift`.
+- Cast/person endpoints: `MediaService+People.swift`; account/history endpoints:
+  `MediaService+History.swift`.
+- Direct play/transcode/remux URLs and stream selection:
+  `MediaService+Streams.swift`; playback progress and watch state:
+  `MediaService+WatchState.swift`.
+- Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`.
+- Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
+- Account-level plex.tv settings (library order): `MediaService+LibraryOrder.swift`,
   with the shared state in `LibraryOrderStore.swift`.
 - New response shapes: a DTO in `Dusk/Sources/Providers/Plex/DTO/` plus its
   mapping in `Providers/Plex/Mappers/`; the domain type gets a memberwise
@@ -573,7 +583,7 @@ Where to edit:
 
 ## Live TV And Guide Endpoints
 
-Files: `PlexService+LiveTV.swift`, `Domain/LiveTV.swift` (the `Live*` models,
+Files: `MediaService+LiveTV.swift`, `Domain/LiveTV.swift` (the `Live*` models,
 memberwise only), `Providers/Plex/DTO/PlexLiveTVDTO.swift` (every Live TV
 response shape and its lenient decoding) and
 `Providers/Plex/Mappers/PlexLiveTVMapper.swift` (DTO → `Live*`, including the
@@ -691,7 +701,7 @@ id/time fallbacks, tune media and the server id on `LiveTVProvider`).
   that an arbitrary past guide item is playable.
 
 ## Playback URL Handling
-File: `PlexService+Playback.swift`.
+File: `MediaService+Streams.swift`.
 - Direct play uses `{connection.baseURL}{part.key}` — the connection of the
   server the item came from — plus `X-Plex-Token` in the URL
   query because AVPlayer/VLCKit load the URL directly.
@@ -705,14 +715,14 @@ File: `PlexService+Playback.swift`.
 - Decision code `1001` means transcode available, `1000` means direct-play only,
   and codes `>= 2000` are treated as failures.
 - Transcode start URLs also carry `X-Plex-Token` in the query because playback
-  engines do not use `PlexService` request headers.
+  engines do not use `MediaService` request headers.
 - Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
 ## Plex Watchlist (plex.tv Discover)
-File: `PlexService+Watchlist.swift`, models `Domain/Watchlist.swift`
+File: `MediaService+Watchlist.swift`, models `Domain/Watchlist.swift`
 (`WatchlistEntry`, `PlexWatchlistAvailability`, `PlexHomeHubSetting`), shared
-state `PlexService/WatchlistStore.swift` (`plexService.watchlist`).
-- Account-level, on `https://discover.provider.plex.tv` (`PlexService.discoverBase`,
+state `MediaService/WatchlistStore.swift` (`media.watchlist`).
+- Account-level, on `https://discover.provider.plex.tv` (`MediaService.discoverBase`,
   the mock's `/discover` prefix in screenshot mode), with the active profile's token.
   Verified on a real account 2026-10-25: `GET /library/sections/watchlist/all?sort=watchlistedAt:desc`
   (paged, `totalSize`), `PUT /actions/addToWatchlist|removeFromWatchlist?ratingKey=`
@@ -744,12 +754,12 @@ state `PlexService/WatchlistStore.swift` (`plexService.watchlist`).
   (all three, 1/0, as Plex Web sends them) sets them. `GET /hubs` rows usually lack
   `librarySectionID`, and their identifier is kind + section + variant
   (`movie.curated.2.1`), so the trailing number is NOT the section
-  (`PlexManagedHub.matches`). Owner-only. See `PlexService+HomeRows.swift`.
+  (`PlexManagedHub.matches`). Owner-only. See `MediaService+HomeRows.swift`.
 
 ## Playlists
-File: `PlexService+Playlists.swift`, models `Domain/Playlist.swift`
+File: `MediaService+Playlists.swift`, models `Domain/Playlist.swift`
 (`Playlist`, `PlaylistEntry`, `PlexPlaylistAddResult`), shared state
-`PlexService/PlaylistStore.swift` (`plexService.playlists`).
+`MediaService/PlaylistStore.swift` (`media.playlists`).
 - A playlist belongs to one server and to the signed-in (Home) user. Every call
   routes to the playlist's server; an item can only be added to a playlist on
   its own server (`server://{machineID}/com.plexapp.plugins.library/library/metadata/{rk,rk}`).
@@ -771,7 +781,7 @@ File: `PlexService+Playlists.swift`, models `Domain/Playlist.swift`
 - `HomeHubFilter` still keeps Plex's own playlist hub off Home.
 
 ## Photo Libraries
-File: `PlexService+Photos.swift`, model `Domain/PhotoItem.swift`.
+File: `MediaService+Photos.swift`, model `Domain/PhotoItem.swift`.
 - Photo sections are decoded as `PhotoItem`, never `MediaItem` (which keeps
   `type: "photo"` as `.unknown`, and that is what keeps photos off Home, Search and the
   detail routes). In JSON an album and a photo are both `type: "photo"` under
@@ -792,8 +802,8 @@ File: `PlexService+Photos.swift`, model `Domain/PhotoItem.swift`.
   against a real PMS from Dusk.
 
 ## Image URL And Data Handling
-File: `PlexService+Images.swift`.
-- Call `plexService.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
+File: `MediaService+Images.swift`.
+- Call `media.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
   helpers. An `ArtworkRef` is the server id plus an opaque locator (for Plex the
   server-relative path); `MediaItem.artwork` is an `ArtworkSet`, and the poster/
   landscape fallback order lives on it (`preferredPoster(for:)`, …). A ref keeps
@@ -811,7 +821,7 @@ File: `PlexService+Images.swift`.
 - `imageData(for:)` authenticates URLs matching a connected server's
   scheme/host/defaulted port; other URLs are fetched as plain binary requests.
 - `DuskAsyncImage` uses `DuskImageLoader`, delegating to
-  `plexService.imageData(for:)`.
+  `media.imageData(for:)`.
 - `AppImageCache.shared` is the shared URL cache and can be cleared in settings.
 - Image cache entries have a max TTL of 3 days. Older URL cache responses are
   discarded on read and reloaded on demand.
@@ -894,11 +904,11 @@ always carries the server.
     badge.
 
 ## Merging Rules
-`PlexService/MultiServer/` merges what the connected servers return. Fan-outs use
+`MediaService/MultiServer/` merges what the connected servers return. Fan-outs use
 a `TaskGroup`, a server that fails contributes `[]`, and results are grouped by
 `ContentKey`.
 
-Entry points on `PlexService` (`PlexService+MultiServer.swift`):
+Entry points on `MediaService` (`MediaService+MultiServer.swift`):
 `mergeServerIDs` (connected servers in priority order),
 `fanOutAcrossServers` (all answers, priority-ordered, once they all land),
 `streamAcrossServers` (each answer the moment it lands, carrying its `rank`),
@@ -923,7 +933,7 @@ use the merged entries. Movie representatives carry watched state first, then
 the greatest progress fraction (offset/duration); equal progress keeps source
 order. This also governs movie Continue Watching representatives.
 
-- `ContentAlternatesIndex` (`plexService.alternates`) is the side table the merges
+- `ContentAlternatesIndex` (`media.alternates`) is the side table the merges
   fill and playback reads: `register(_:for:)` records that these `MediaItemID`s are
   the same content, `instances(of:)` returns every known copy. It accumulates for
   the whole session and is cleared by `tearDownServerSessions()` (sign-out, Plex Home switch),
@@ -932,7 +942,7 @@ order. This also governs movie Continue Watching representatives.
   including multiple libraries on the same server (so dismissing from Continue
   Watching and watched fan-out reach the hidden library copy too). A later registration bridging two keys joins their known copies.
   `MediaItemMerge.alternates(in:)`/`combine(_:_:)` retain the same identities.
-- `PlexService.movieCopies(for:)` discovers movies with per-title
+- `MediaService.movieCopies(for:)` discovers movies with per-title
   `/library/all?guid=…&includeGuids=1` lookups, filtered against strong aliases,
   edition and hidden-library rules, then loads each copy's details. It also
   works from an unmerged library grid. The detail version picker keeps each
@@ -1034,7 +1044,7 @@ order. This also governs movie Continue Watching representatives.
   responses.
 
 ## Extension Points
-- Prefer same-type `PlexService` extensions by concern.
+- Prefer same-type `MediaService` extensions by concern.
 - Add new Plex envelopes near `MetadataResponse`, `DirectoryResponse`,
   `StreamResponse`, or `HubResponse`.
 - For offline/download-only metadata, expose raw payload helpers deliberately.

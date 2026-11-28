@@ -126,7 +126,7 @@ struct DuskApp: App {
     #endif
     @Environment(\.scenePhase) private var scenePhase
 
-    @State private var plexService: PlexService
+    @State private var media: MediaService
     @State private var seerrService: SeerrService
     @State private var traktService: TraktService
     @State private var iptvService: IPTVService
@@ -148,26 +148,26 @@ struct DuskApp: App {
 
     init() {
         AppImageCache.configureSharedCache()
-        let service = PlexService()
-        let seerr = SeerrService(plexService: service)
+        let service = MediaService()
+        let seerr = SeerrService(media: service)
         let prefs = UserPreferences()
         let analyticsClient = AnalyticsClient(preferences: prefs)
-        let downloads = DownloadManager(plexService: service, preferences: prefs)
-        let playbackSync = OfflinePlaybackSyncManager(plexService: service)
+        let downloads = DownloadManager(media: service, preferences: prefs)
+        let playbackSync = OfflinePlaybackSyncManager(media: service)
         downloads.effectiveWatchedState = { [weak playbackSync] serverID, itemID, fallback in
             playbackSync?.effectiveWatched(serverID: serverID, itemID: itemID, fallback: fallback) ?? fallback
         }
         #if os(iOS)
         SmartDownloadBackgroundRefill.register(downloadManager: downloads)
         #endif
-        _plexService = State(initialValue: service)
+        _media = State(initialValue: service)
         _seerrService = State(initialValue: seerr)
         _downloadManager = State(initialValue: downloads)
         _offlinePlaybackSyncManager = State(initialValue: playbackSync)
         _analytics = State(initialValue: analyticsClient)
         _supporterStore = State(initialValue: SupporterStore(analytics: analyticsClient))
         let coordinator = PlaybackCoordinator(
-            plexService: service,
+            media: service,
             preferences: prefs,
             downloadManager: downloads,
             offlinePlaybackSyncManager: playbackSync
@@ -175,13 +175,13 @@ struct DuskApp: App {
         ErrorReporter.client = analyticsClient
         ErrorReporter.playbackProfile = { [weak coordinator] in coordinator?.errorReportingProfile }
         ErrorReporter.playbackServerVersion = { [weak coordinator] in coordinator?.errorReportingServerVersion }
-        let trakt = TraktService(plexService: service)
+        let trakt = TraktService(media: service)
         coordinator.traktService = trakt
         _traktService = State(initialValue: trakt)
-        _iptvService = State(initialValue: IPTVService(plexService: service))
+        _iptvService = State(initialValue: IPTVService(media: service))
         _playbackCoordinator = State(initialValue: coordinator)
         // Siri's intents run in this process and reach the app through it.
-        let siri = SiriPlaybackService(plexService: service, playback: coordinator)
+        let siri = SiriPlaybackService(media: service, playback: coordinator)
         AppDependencyManager.shared.add(dependency: siri)
         _userPreferences = State(initialValue: prefs)
         #if !os(macOS)
@@ -209,7 +209,7 @@ struct DuskApp: App {
             MacCommands(
                 router: macRouter,
                 connections: macConnections,
-                plexService: plexService,
+                media: media,
                 playback: playbackCoordinator
             )
             MacPlayerCommands()
@@ -229,7 +229,7 @@ struct DuskApp: App {
     /// Mac's Settings scene gets the same set as the main window.
     private func sharedEnvironment<Content: View>(_ content: Content) -> some View {
         content
-            .environment(plexService)
+            .environment(media)
             .environment(seerrService)
             .environment(traktService)
             .environment(iptvService)
@@ -288,7 +288,7 @@ struct DuskApp: App {
             .task(
                 id: offlineContextID
             ) {
-                guard plexService.homeBootstrapCompleted else {
+                guard media.homeBootstrapCompleted else {
                     offlinePlaybackSyncManager.stopAutomaticSync()
                     return
                 }
@@ -296,7 +296,7 @@ struct DuskApp: App {
                 downloadManager.activateProfile()
                 offlinePlaybackSyncManager.activateProfile()
 
-                guard plexService.isSessionReady else {
+                guard media.isSessionReady else {
                     offlinePlaybackSyncManager.stopAutomaticSync()
                     return
                 }
@@ -323,7 +323,7 @@ struct DuskApp: App {
                 }
 
                 if newPhase == .active,
-                   plexService.isSessionReady {
+                   media.isSessionReady {
                     offlinePlaybackSyncManager.startAutomaticSync()
                     Task {
                         await offlinePlaybackSyncManager.syncPendingActions(force: true)
@@ -347,9 +347,9 @@ private extension DuskApp {
     /// context only changes when that binding or the profile does.
     var seerrContextID: String {
         [
-            plexService.activeProfileID ?? "none",
-            plexService.seerrBindingServerID ?? "none",
-            String(plexService.isAuthenticated),
+            media.activeProfileID ?? "none",
+            media.seerrBindingServerID ?? "none",
+            String(media.isAuthenticated),
         ].joined(separator: ":")
     }
 
@@ -357,10 +357,10 @@ private extension DuskApp {
     /// re-arm it, so the connected count is part of the identity.
     var offlineContextID: String {
         [
-            String(plexService.homeBootstrapCompleted),
-            plexService.activeProfileID ?? "none",
-            plexService.pool.primary?.serverID ?? "none",
-            String(plexService.pool.connections.count),
+            String(media.homeBootstrapCompleted),
+            media.activeProfileID ?? "none",
+            media.pool.primary?.serverID ?? "none",
+            String(media.pool.connections.count),
         ].joined(separator: ":")
     }
 

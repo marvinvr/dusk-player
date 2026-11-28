@@ -12,7 +12,7 @@ private let iptvLogger = Logger(
 @MainActor
 @Observable
 final class IPTVService {
-    private let plexService: PlexService
+    private let media: MediaService
     private let store: IPTVSourceStore
     private let loader: IPTVSourceLoader
 
@@ -28,11 +28,11 @@ final class IPTVService {
     private var reloadRequested = false
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         store: IPTVSourceStore = IPTVSourceStore(),
         loader: IPTVSourceLoader = IPTVSourceLoader()
     ) {
-        self.plexService = plexService
+        self.media = media
         self.store = store
         self.loader = loader
         syncProfile()
@@ -43,7 +43,7 @@ final class IPTVService {
     /// Re-reads the sources when the Plex Home profile changed. Cheap; called
     /// before every load and when Settings opens.
     func syncProfile() {
-        let current = plexService.activeProfileID ?? Self.noProfileID
+        let current = media.activeProfileID ?? Self.noProfileID
         guard current != profileID else { return }
         profileID = current
         sources = store.sources(profileID: current)

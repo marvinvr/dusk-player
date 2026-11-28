@@ -117,7 +117,7 @@ struct PlayerIntroAutoSkipTests {
     @Test func countdownExpiryWithAutoSkipOnStillSkips() async throws {
         let harness = makeHarness(mode: .always, skipOnHandler: true)
         defer { harness.restore() }
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.continuousPlayEpisodeRunCount = 3
         harness.viewModel.userInteractionHandler = { playback.noteUserInteraction() }
 

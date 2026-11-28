@@ -14,7 +14,7 @@ If `AGENTS.local.md` exists, read it immediately after this file. It contains ch
 
 - **Hybrid playback engine**: AVPlayer for MP4/MOV with standard codecs, VLCKit for everything else (MKV, DTS, PGS subs, etc.). Both conform to `PlaybackEngine` protocol. `StreamResolver` picks which engine to use based on stream metadata.
 - **Plex is the source of truth**: App is stateless beyond auth token (Keychain) and user preferences (UserDefaults). All metadata, watch state, and library data is fetched from Plex.
-- **No premature abstraction**: No `MediaProvider` protocol. Plex-specific code is fine. Keep it in `PlexService` but don't abstract until a second backend exists.
+- **No premature abstraction**: No `MediaProvider` protocol. Plex-specific code is fine. Keep it in `MediaService` but don't abstract until a second backend exists.
 - **SwiftUI, multi-platform**: iOS/iPadOS and tvOS are project targets. Share as much UI as possible, use `#if os(tvOS)` for platform differences.
 - **VLCKit is vendored, fetched not committed**: No CocoaPods. Pinned stable-line `MobileVLCKit.xcframework` (iOS) and `TVVLCKit.xcframework` (tvOS) binaries — Dusk's own build of VLCKit 3.7.3 with ffmpeg's TrueHD/MLP decoders re-enabled (`ci_scripts/build_vlckit.sh`, a deliberate Dolby-licensing decision; see `docs/playback.md` → "Dolby TrueHD decoding"), arm64 only, hosted as release assets in the PRIVATE repo `marvinvr/dusk-vlckit` (needs `gh` access; without it the installer falls back to VideoLAN's stock 3.7.3 and TrueHD goes through Plex) — are downloaded into `Frameworks/` by `ci_scripts/install_vlckit.sh` and linked dynamically for LGPL compliance. The `.xcframework` binaries are git-ignored (~140 MB); CI fetches them automatically via `ci_scripts/ci_post_clone.sh`, and you must run the script once locally after cloning. Only the license and `Frameworks/VLCKit-VERSION.txt` are tracked.
 - **Direct play first**: Playback starts with direct play unless the resolver flags the media as locally unplayable (e.g. Dolby Vision profile 5), a local download is used, or the file qualifies for the Dolby Atmos / spatial-audio or HDR remux (a lossless Plex copy into HLS for AVPlayer — Atmos, HDR10/HDR10+/HLG, real Dolby Vision 8.1/8.4, and Dolby Vision 7 converted to 8.1 on device through a loopback proxy (`DolbyVision7HLSProxy` + DuskDovi; a failed conversion retries the same remux unconverted as its HDR10 base layer) — only accepted when Plex confirms video and audio are copied; see `docs/playback.md`). When an online direct-play attempt fails, the coordinator automatically falls back to a Plex server stream (HLS with `directStream=1`, video copied without re-encoding when possible). Manual transcoding remains a per-session player Quality action and must never become an automatic startup *quality* default.
@@ -22,7 +22,7 @@ If `AGENTS.local.md` exists, read it immediately after this file. It contains ch
 ## Code Style
 
 - SwiftUI views backed by `@Observable` ViewModels
-- ViewModels call `PlexService`, views never touch the network directly
+- ViewModels call `MediaService`, views never touch the network directly
 - Async/await throughout, no Combine unless wrapping VLCKit callbacks
 - Minimal dependencies: VLCKit plus DuskDovi (`Native/DuskDovi`, a small Rust wrapper over quietvoid's MIT `dolby_vision` crate for Dolby Vision 7 → 8.1 conversion) are the only third-party code. New crates need a license entry in `Dusk/Resources/ThirdPartyNotices.txt`
 

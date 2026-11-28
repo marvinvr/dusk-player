@@ -4,7 +4,7 @@ import Foundation
 ///
 /// This is intentionally tokenless. Switching users returns a short-lived
 /// response containing an account token, but that token is handled directly by
-/// `PlexService` and is never retained in a model that can reach the UI.
+/// `MediaService` and is never retained in a model that can reach the UI.
 struct PlexHomeUser: Codable, Sendable, Identifiable, Equatable {
     let id: Int
     let uuid: String?

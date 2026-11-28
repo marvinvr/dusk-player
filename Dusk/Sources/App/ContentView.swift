@@ -8,7 +8,7 @@ import SwiftUI
 /// The user never waits for the slowest server, and a server that never answers
 /// is a per-screen note or the iOS Downloads fallback rather than a wall.
 struct ContentView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.scenePhase) private var scenePhase
     #if os(macOS)
@@ -25,14 +25,14 @@ struct ContentView: View {
 
     var body: some View {
         Group {
-            if !plexService.isAuthenticated {
+            if !media.isAuthenticated {
                 SignInView()
-            } else if !plexService.homeBootstrapCompleted {
+            } else if !media.homeBootstrapCompleted {
                 homeBootstrapView
-            } else if plexService.needsHomeUserSelection {
+            } else if media.needsHomeUserSelection {
                 HomeUserPickerView(
-                    users: plexService.homeUsers,
-                    rememberSelection: plexService.automaticHomeSignIn,
+                    users: media.homeUsers,
+                    rememberSelection: media.automaticHomeSignIn,
                     onSignOut: {
                         signOut()
                     }
@@ -40,10 +40,10 @@ struct ContentView: View {
             } else {
                 #if os(macOS)
                 MacRootView()
-                    .id(plexService.activeProfileID)
+                    .id(media.activeProfileID)
                 #else
                 MainTabView()
-                    .id(plexService.activeProfileID)
+                    .id(media.activeProfileID)
                 #endif
             }
         }
@@ -57,17 +57,17 @@ struct ContentView: View {
         .onChange(of: revealsWithoutHome, initial: true) { _, reveals in
             if reveals { launchSplash.contentIsReady() }
         }
-        .animation(.default, value: plexService.isAuthenticated)
-        .animation(.default, value: plexService.homeBootstrapCompleted)
-        .animation(.default, value: plexService.needsHomeUserSelection)
+        .animation(.default, value: media.isAuthenticated)
+        .animation(.default, value: media.homeBootstrapCompleted)
+        .animation(.default, value: media.needsHomeUserSelection)
         .background(Color.duskBackground.ignoresSafeArea())
         .duskSuppressTVOSButtonChrome()
-        .task(id: plexService.isAuthenticated) {
+        .task(id: media.isAuthenticated) {
             await bootstrapHomeIfNeeded()
         }
         .task(id: serverConnectionTaskID) {
-            connections.start(plexService: plexService)
-            await connections.connectIfNeeded(session: plexService.activeProfileID)
+            connections.start(media: media)
+            await connections.connectIfNeeded(session: media.activeProfileID)
         }
         .task(id: offlineRecoveryTaskID) {
             // A server may return without the system network path changing.
@@ -84,7 +84,7 @@ struct ContentView: View {
             await playback.retryPendingSharePlayActivityIfPossible()
         }
         .onChange(of: connections.isNetworkAvailable) { _, available in
-            if !available, !plexService.homeBootstrapCompleted {
+            if !available, !media.homeBootstrapCompleted {
                 homeBootstrapError = URLError(.notConnectedToInternet).localizedDescription
             } else if available, homeBootstrapError != nil {
                 Task { await bootstrapHomeIfNeeded(force: true) }
@@ -117,21 +117,21 @@ struct ContentView: View {
     /// The screens that are complete the moment they mount, so the launch
     /// splash can leave without waiting for Home (which reports itself).
     private var revealsWithoutHome: Bool {
-        if !plexService.isAuthenticated { return true }
-        if !plexService.homeBootstrapCompleted {
+        if !media.isAuthenticated { return true }
+        if !media.homeBootstrapCompleted {
             return homeBootstrapError != nil || connections.lastError != nil
         }
-        return plexService.needsHomeUserSelection
+        return media.needsHomeUserSelection
     }
 
     /// Re-runs the connect pass whenever the session identity changes: sign-in,
     /// the end of Home bootstrap, and every profile switch.
     private var serverConnectionTaskID: ServerConnectionTaskID {
         ServerConnectionTaskID(
-            isAuthenticated: plexService.isAuthenticated,
-            homeBootstrapCompleted: plexService.homeBootstrapCompleted,
-            needsHomeUserSelection: plexService.needsHomeUserSelection,
-            profileID: plexService.activeProfileID
+            isAuthenticated: media.isAuthenticated,
+            homeBootstrapCompleted: media.homeBootstrapCompleted,
+            needsHomeUserSelection: media.needsHomeUserSelection,
+            profileID: media.activeProfileID
         )
     }
 
@@ -144,10 +144,10 @@ struct ContentView: View {
     /// server may well be the last one to answer.
     private var sharePlayReadinessTaskID: SharePlayReadinessTaskID {
         SharePlayReadinessTaskID(
-            isAuthenticated: plexService.isAuthenticated,
-            homeBootstrapCompleted: plexService.homeBootstrapCompleted,
-            needsHomeUserSelection: plexService.needsHomeUserSelection,
-            servers: plexService.serverContentRevision
+            isAuthenticated: media.isAuthenticated,
+            homeBootstrapCompleted: media.homeBootstrapCompleted,
+            needsHomeUserSelection: media.needsHomeUserSelection,
+            servers: media.serverContentRevision
         )
     }
 
@@ -287,20 +287,20 @@ struct ContentView: View {
     }
 
     private func bootstrapHomeIfNeeded(force: Bool = false) async {
-        guard plexService.isAuthenticated else {
+        guard media.isAuthenticated else {
             homeBootstrapError = nil
             isBootstrappingHome = false
             return
         }
 
-        guard force || !plexService.homeBootstrapCompleted else { return }
+        guard force || !media.homeBootstrapCompleted else { return }
         guard !isBootstrappingHome else { return }
 
         isBootstrappingHome = true
         homeBootstrapError = nil
 
         do {
-            try await plexService.bootstrapHomeSession()
+            try await media.bootstrapHomeSession()
         } catch {
             homeBootstrapError = error.localizedDescription
         }
@@ -313,7 +313,7 @@ struct ContentView: View {
         isBootstrappingHome = false
         // Sign-out clears the pool and the stored priority order in the
         // service; the coordinator only has to forget that it ever ran.
-        plexService.signOut()
+        media.signOut()
     }
 }
 

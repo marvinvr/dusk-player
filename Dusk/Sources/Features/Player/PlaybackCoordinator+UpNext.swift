@@ -470,7 +470,7 @@ extension PlaybackCoordinator {
             var resolved: AdjacentEpisodes?
             var isOnlineEpisodeLookup = false
             if !usesLocalDownload {
-                resolved = try? await self.plexService.getAdjacentEpisodes(around: details)
+                resolved = try? await self.media.getAdjacentEpisodes(around: details)
                 isOnlineEpisodeLookup = resolved != nil
             }
             if resolved == nil {
@@ -576,7 +576,7 @@ extension PlaybackCoordinator {
     }
 
     func nextEpisode(after episode: MediaDetails) async -> Episode? {
-        if let nextEpisode = try? await plexService.getNextEpisode(after: episode) {
+        if let nextEpisode = try? await media.getNextEpisode(after: episode) {
             return nextEpisode
         }
 
@@ -593,7 +593,7 @@ extension PlaybackCoordinator {
     /// downloaded (which plays with no server at all).
     func isQueueItemPlayable(_ item: PlaybackQueueItem) -> Bool {
         if downloadManager?.isPlayableOffline(id: item.id) == true { return true }
-        return plexService.pool.connection(for: item.serverID) != nil
+        return media.pool.connection(for: item.serverID) != nil
     }
 
     /// Moves the queue onto the item an Up Next start is about to play, so the

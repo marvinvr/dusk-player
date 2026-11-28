@@ -5,7 +5,7 @@ import SwiftUI
 /// collection scoping, so paging, the sort/genre menus, and the 16:9 video
 /// grid layout are all shared with the library browse screen.
 struct LibraryCollectionItemsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let library: Library
     let collection: MediaCollection
@@ -13,7 +13,7 @@ struct LibraryCollectionItemsView: View {
     var body: some View {
         LibraryItemsView(
             library: library,
-            plexService: plexService,
+            media: media,
             collection: collection
         )
     }

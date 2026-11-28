@@ -23,8 +23,8 @@ struct PlaylistDetailView: View {
     @State private var editMode: EditMode = .inactive
     #endif
 
-    init(id: MediaItemID, plexService: PlexService) {
-        _viewModel = State(initialValue: PlaylistDetailViewModel(id: id, plexService: plexService))
+    init(id: MediaItemID, media: MediaService) {
+        _viewModel = State(initialValue: PlaylistDetailViewModel(id: id, media: media))
     }
 
     var body: some View {
@@ -443,13 +443,13 @@ struct PlaylistDetailView: View {
 /// "Pin to Home" / "Unpin from Home" for a playlist's menus: a pinned
 /// playlist gets its own row near the top of Home (`HomePinnedPlaylistShelf`).
 struct PinPlaylistToHomeButton: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     let playlist: Playlist
 
     var body: some View {
-        let isPinned = plexService.isPlaylistPinned(playlist.id)
+        let isPinned = media.isPlaylistPinned(playlist.id)
         Button {
-            plexService.setPlaylistPinned(!isPinned, id: playlist.id, title: playlist.title)
+            media.setPlaylistPinned(!isPinned, id: playlist.id, title: playlist.title)
         } label: {
             Label(isPinned ? "Unpin from Home" : "Pin to Home", systemImage: isPinned ? "pin.slash" : "pin")
         }

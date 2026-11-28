@@ -5,7 +5,7 @@ import UIKit
 
 #if !os(tvOS)
 struct SettingsIOSView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(SeerrService.self) private var seerrService
     @Environment(TraktService.self) private var traktService
     @Environment(IPTVService.self) private var iptvService
@@ -66,7 +66,7 @@ struct SettingsIOSView: View {
             }
             .listRowBackground(Color.duskSurface)
 
-            if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+            if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
                 Section {
                     HStack(spacing: 16) {
                         PlexHomeUserAvatar(user: activeUser, size: 48)
@@ -282,7 +282,7 @@ struct SettingsIOSView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Sign Out", role: .destructive) {
-                        plexService.signOut()
+                        media.signOut()
                     }
                     Button("Cancel", role: .cancel) {}
                 }
@@ -379,7 +379,7 @@ struct SettingsIOSView: View {
 
                     Spacer()
 
-                    Text(SettingsSupport.hiddenLibrariesSummary(plexService))
+                    Text(SettingsSupport.hiddenLibrariesSummary(media))
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -393,7 +393,7 @@ struct SettingsIOSView: View {
 
                     Spacer()
 
-                    Text(SettingsSupport.serverPrioritySummary(plexService))
+                    Text(SettingsSupport.serverPrioritySummary(media))
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -420,7 +420,7 @@ struct SettingsIOSView: View {
                     Text("Pinned Playlists")
                         .foregroundStyle(Color.duskTextPrimary)
                     Spacer()
-                    Text(SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count))
+                    Text(SettingsSupport.pinnedPlaylistsSummary(media.pinnedPlaylistPins.count))
                         .foregroundStyle(Color.duskTextSecondary)
                 }
             }
@@ -808,8 +808,8 @@ struct SettingsIOSView: View {
 
     private var automaticHomeSignInBinding: Binding<Bool> {
         Binding(
-            get: { plexService.automaticHomeSignIn },
-            set: { plexService.automaticHomeSignIn = $0 }
+            get: { media.automaticHomeSignIn },
+            set: { media.automaticHomeSignIn = $0 }
         )
     }
 

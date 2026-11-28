@@ -10,10 +10,10 @@ struct LibraryCollectionsView: View {
     private let gridSpacing: CGFloat = DuskPosterMetrics.gridSpacing
     private let gridRowSpacing: CGFloat = DuskPosterMetrics.gridRowSpacing
 
-    init(library: Library, plexService: PlexService) {
+    init(library: Library, media: MediaService) {
         _viewModel = State(initialValue: LibraryCollectionsViewModel(
             library: library,
-            plexService: plexService
+            media: media
         ))
     }
 

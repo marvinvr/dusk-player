@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 @Observable
 final class MovieDetailViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the movie. Every request this model makes goes
@@ -30,12 +30,12 @@ final class MovieDetailViewModel {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         self.id = id
-        self.plexService = plexService
+        self.media = media
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
     }
@@ -55,9 +55,9 @@ final class MovieDetailViewModel {
         }
 
         do {
-            let fetched = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
+            let fetched = try await media.getMediaDetails(itemID: itemID, serverID: serverID)
             details = fetched
-            copies = await plexService.movieCopies(for: fetched)
+            copies = await media.movieCopies(for: fetched)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -83,7 +83,7 @@ final class MovieDetailViewModel {
         }
 
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 targetWatched,
                 id: MediaItemID(serverID: serverID, itemID: itemID)
             )
@@ -160,17 +160,17 @@ final class MovieDetailViewModel {
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.art), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.art), size: ImageSize(width: width, height: height))
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     /// The route's server wins; the download record and the primary server are
@@ -178,7 +178,7 @@ final class MovieDetailViewModel {
     var serverID: String? {
         id.serverID
             ?? downloadManager?.serverID(for: id)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
     }
 }
 
@@ -189,19 +189,19 @@ extension MovieDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
+        media.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
         details?.media.contains { !$0.parts.isEmpty } == true
     }
 
-    /// Builds the flow's view model so the view never reaches for `PlexService`.
+    /// Builds the flow's view model so the view never reaches for `MediaService`.
     /// Re-reading the item afterwards is what surfaces the new subtitle stream in
     /// the media info; the next playback session mounts it on its own.
     func makeSubtitleSearchViewModel(preferredLanguageCode: String?) -> SubtitleSearchViewModel {
         SubtitleSearchViewModel(
-            plexService: plexService,
+            media: media,
             itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode

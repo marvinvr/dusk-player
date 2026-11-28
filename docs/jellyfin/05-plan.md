@@ -235,7 +235,10 @@ type a memberwise initialiser. Decode call sites in the service change from
 
 Each package does the same three things for its area: fill in the facet
 protocol, move the Plex implementation into `Providers/Plex/Plex<Facet>.swift`
-behind it, and turn the facade methods into routes. Feature files change only
+behind it, and turn the facade methods into routes. P0-06 created both files
+of every facet, one facet per file (table below), so no two packages share a
+facet file. The DTO and mapper files from P0-05 are mapped further down; one
+of them is shared. Feature files change only
 where a Plex concept leaked into them (listed per package). All accept on
 G1 – G5 plus G2/G3; those marked ◆ also on G6.
 
@@ -243,22 +246,81 @@ G1 – G5 plus G2/G3; those marked ◆ also on G6.
 | --- | --- | --- | --- |
 | P0-07 L | Catalog | `MediaService+Library`, `+Collections`, `+People`, `+Extras`, `+Photos`, `+Ratings`, search; `Features/Libraries/LibraryItemsViewModel.swift` (`plexKey` → provider mapping), `LibraryFilters*`, `LibraryLetterIndex*` | `LibrarySort` / `LibraryFilter` / `FilterCatalog` / `SortCatalog` become neutral; Plex returns today's lists. Photo timeline grouping moves to the client here (the one allowed internal change; G3 must still match) |
 | P0-08 S | Images | `MediaService+Images` | provider resolves `ArtworkRef`; IPTV image provider |
-| P0-09 XL R ◆ | Playback streams | `MediaService+Streams`, `+RemotePlayback`, `+PlayQueue`, `+Subtitles` (sidecar URL only); `Features/Player/PlaybackCoordinator+Session.swift`, `+SpatialAudio`, `+ServerTracks`, `+Prerolls`, `PlaybackSourceResolver`; `Playback/RemuxHLSLoader.swift`, `PlaybackEngineFactory`, both engines' credential validation | `TranscodeDeliveryMode` → `StreamIntent`; decisions → `StreamDecisions`; `confirm` hook wired (no-op for Plex); loader takes `PlaybackTraits`. Existing `HDRVideoRemuxTests`, `PlaybackFallbackTests`, `TrueHDAudioRoutingTests`, `AV1RoutingTests`, `HEV1RoutingTests`, `DolbyVision7*` must pass untouched in meaning. G6 additionally plays the DV 7 and TrueHD titles |
+| P0-09 XL R ◆ | Playback streams | `MediaService+Streams`, `+RemotePlayback`, `+PlayQueue`, `+Subtitles` (sidecar URL only; nobody else edits the file); `Features/Player/PlaybackCoordinator+Session.swift`, `+SpatialAudio`, `+ServerTracks`, `+Prerolls`, `PlaybackSourceResolver`, `PlaybackPresentationModels.swift`; `Playback/RemuxHLSLoader.swift`, `PlaybackEngineFactory`, both engines' credential validation; `Providers/Plex/PlexTransportSecurity.swift` | `TranscodeDeliveryMode` → `StreamIntent`; decisions → `StreamDecisions`; `confirm` hook wired (no-op for Plex); loader takes `PlaybackTraits`. Existing `HDRVideoRemuxTests`, `PlaybackFallbackTests`, `TrueHDAudioRoutingTests`, `AV1RoutingTests`, `HEV1RoutingTests`, `DolbyVision7*` must pass untouched in meaning. G6 additionally plays the DV 7 and TrueHD titles |
 | P0-10 M ◆ | User data | `MediaService+WatchState`, `Shared/MediaService+WatchedFanOut.swift`, `Features/Player/PlaybackCoordinator+Timeline.swift`, `Downloads/OfflinePlaybackSync*` | `PlaybackReport`; 90 % rule stays in the coordinator behind the trait |
 | P0-11 S | Markers, previews | `Features/Player/PlayerViewModel+Presentation.swift` (marker ids), scrub preview loading in `PlayerView.swift` | `ScrubPreviewSource` protocol; BIF implementation |
-| P0-12 M R | Home rows | `MediaService+HomeRows`, hub fetching; `Features/Home/HomeHubFilter.swift`, `HomeHubArrangement.swift`, `HomeViewModel.swift`; `MultiServer/HubMerge.swift` | string heuristics move verbatim into the Plex mapper; add fixture tests from captured `/hubs` payloads **before** moving them |
+| P0-12 M R | Home rows | `MediaService+HomeRows`, `+Hubs` (hub fetching, split out of `+Library` in P0-06; `search` there still calls its `fetchHomeRows`); `Features/Home/HomeHubFilter.swift`, `HomeHubArrangement.swift`, `HomeViewModel.swift`; `MultiServer/HubMerge.swift` | string heuristics move verbatim into the Plex mapper; add fixture tests from captured `/hubs` payloads **before** moving them |
 | P0-13 S | Playlists | `MediaService+Playlists`, `PlaylistStore` | library-URI building becomes Plex-private |
-| P0-14 M | Live TV | `MediaService+LiveTV`, `Features/LiveTV/LiveTVViewModel.swift`; `LivePlaybackContext` in `Features/Player/PlaybackPresentationModels.swift` | channel matcher and device sections become Plex-private; `isIPTV` routing branches removed |
+| P0-14 M | Live TV | `MediaService+LiveTV`, `Features/LiveTV/LiveTVViewModel.swift`, `LiveTVView.swift`; `LivePlaybackContext` in `Domain/LiveTV.swift`; the Live TV / IPTV section of `Features/Player/PlaybackCoordinator.swift`, `PlaybackCoordinator+IPTVResume.swift` | channel matcher and device sections become Plex-private; `isIPTV` routing branches removed |
 | P0-15 L R ◆ | Downloads | `MediaService+Downloads`, `Downloads/DownloadManager.swift`, `DownloadModels.swift`, `PlexDownloadQueue.swift` (moves to `Providers/Plex`), `PlexMetadataCache.swift` → `MetadataSnapshotCache.swift` | `MetadataSnapshotKey` must hash to today's file names; `provider` tag added; G4 is the main check |
-| P0-16 L R ◆ | Accounts | `MediaService.swift`, `+Auth`, `+Home` (profiles), `+Servers`, `ServerPool.swift`, `ServerProbe.swift`, `App/ContentView.swift`, `App/ServerConnectionCoordinator.swift`, `Features/Account/*`, `Features/Settings/ServerPriority*`, `ConnectionDiagnosticsView.swift` | `AccountStore`, `StoredAccount` read from the existing Keychain accounts, `SessionState`, `SignInFlow` host with the Plex flow as its only entry, neutral `Profile`. The only package allowed to edit `MediaService.swift` |
+| P0-16 L R ◆ | Accounts | `MediaService.swift`, `+Auth`, `+Home` (profiles), `+Servers`, `ServerPool.swift`, `ServerProbe.swift`, `ServerSession.swift`, the provider files below, `App/ContentView.swift`, `App/ServerConnectionCoordinator.swift`, `Features/Account/*`, `Features/Settings/ServerPriority*`, `ConnectionDiagnosticsView.swift` | `AccountStore`, `StoredAccount` read from the existing Keychain accounts, `SessionState`, `SignInFlow` host with the Plex flow as its only entry, neutral `Profile`. The only package allowed to edit `MediaService.swift` |
 | P0-17 M | Account features | `MediaService+LibraryOrder`, `+LanguageDefaults`, `+Watchlist`, `LibraryOrderStore`, `HiddenLibraryFilter`, `WatchlistStore`, the matching settings view models | `AccountPreferencesProviding`, `WatchlistProviding` |
 | P0-18 M | Peripherals | `SeerrService/*` (`SeerrAuthProviding`), `TraktService/TraktHistoryMapper.swift`, `TopShelf/*`, `Siri/*`, `Features/Player/DuskWatchTogetherActivity.swift`, `Analytics/*` (wording only) | frozen identifiers per 04 §18; no analytics property yet |
+
+Facet files (each created by P0-06 as an empty protocol and an empty Plex
+value that `PlexServerProvider` / `PlexAccountProvider` return):
+
+| Package | `Providers/Core/` | `Providers/Plex/` |
+| --- | --- | --- |
+| P0-07 | `CatalogProviding`, `UserRatingProviding` | `PlexCatalog`, `PlexUserRating` |
+| P0-08 | `ImageProviding` | `PlexImages` |
+| P0-09 | `PlaybackProviding` (with the §12 request types), `PlaybackTraits`, `CredentialTransportPolicy` | `PlexPlayback` |
+| P0-10 | `UserDataProviding` (with `PlaybackReport`) | `PlexUserData` |
+| P0-11 | `MarkerProviding` (with `ScrubPreviewSource`) | `PlexMarkers` |
+| P0-12 | `HomeProviding` | `PlexHomeRows` |
+| P0-13 | `PlaylistProviding` | `PlexPlaylists` |
+| P0-14 | `LiveTVProviding` | `PlexLiveTV` |
+| P0-15 | `DownloadProviding` | `PlexDownloads` |
+| P0-16 | `MediaServerProvider`, `MediaAccountProvider`, `ProviderRegistry`, `ServerPermissions`, `ProfileProviding`, `SignInFlow` | `PlexServerProvider`, `PlexAccountProvider`, `PlexProviderFactory`, `PlexProfiles`, `PlexClient` |
+| P0-17 | `AccountPreferencesProviding`, `WatchlistProviding` | `PlexAccountPreferences`, `PlexWatchlist` |
+| P0-18 | `SeerrAuthProviding` | `PlexSeerrAuth` |
+| none yet | `SubtitleSearchProviding` | `PlexSubtitleSearch` |
+
+P0-16 also adds what P0-06 left out of the provider protocols because it needs
+the account layer: `MediaServerProvider.permissions`, `MediaAccountProvider`'s
+`account`, `servers()`, `probe(_:)` and `signOut()`, and `ProviderFactory`'s
+`makeSignInFlow()` and `restoreAccount(from:)`.
+
+DTOs and mappers (P0-05): each DTO file belongs to the package of its family:
+`PlexItemDTO`, `PlexMediaDetailsDTO`, `PlexSeasonEpisodeDTO`, `PlexLibraryDTO`,
+`PlexExtraDTO`, `PlexPhotoDTO`, `PlexRatingDTO` → P0-07; `PlexHubDTO`,
+`PlexManagedHubDTO` → P0-12; `PlexMediaVersionDTO`, `PlexTranscodeDecisionDTO`
+→ P0-09; `PlexMarkerDTO` → P0-11; `PlexPlaylistDTO` → P0-13; `PlexLiveTVDTO` →
+P0-14; `PlexWatchlistDTO` → P0-17; `PlexSubtitleSearchDTO`,
+`PlexPlaybackHistoryDTO` → none yet. Mappers: `PlexItemMapper` → P0-07,
+`PlexMediaVersionMapper` and `PlexTranscodeDecisionMapper` → P0-09,
+`PlexLiveTVMapper` → P0-14. `PlexItemDecodingBridge` is edited by nobody: each
+package switches its own remaining direct decodes to the DTOs, and the bridge
+is deleted once none is left.
+
+Shared files P0-06 could not split without changing code:
+
+- `Mappers/PlexUserContentMapper.swift` maps playlists (P0-13), extras and
+  photos (P0-07), watchlist (P0-17), managed hubs (P0-12), subtitle search and
+  history. A package edits only its own `MARK` section, or moves that section
+  into a `Mappers/Plex<Area>Mapper.swift` of its own.
+- `PlexItemMapper.map(_: PlexHubDTO, …)` is P0-12's hub mapping inside
+  P0-07's file. P0-12 moves it into its own `Mappers/PlexHubMapper.swift`
+  (together with the hub heuristics) and touches nothing else in the file.
+- `Features/Player/PlaybackCoordinator.swift` holds the stored state of every
+  coordinator extension (Swift extensions cannot), next to P0-14's Live TV /
+  IPTV section. A package that needs new coordinator state adds only its
+  stored properties there.
+
+Owned by no wave-4 package: `MediaService+Networking` (routing and
+self-healing), `+History`, `MultiServer/MediaService+MultiServer.swift` (its
+hub and search streams call the facade methods P0-07 and P0-12 route, so it
+should not need an edit), `+MovieCopies`, `Shared/MediaService+ServerIdentity.swift`,
+`PlaybackCoordinator+AudioOffset`, `+ShowTracks`, `+UpNext`.
 
 Overlap to watch: P0-09 and P0-10 both read the coordinator's session state
 (different files; the shared type `PlaybackAttemptContext` belongs to P0-09).
 P0-12 and P0-17 both touch Home's watchlist placement (P0-17 owns
 `HomeWatchlist*`). P0-15 and P0-10 share `OfflinePlaybackSyncManager`
-(P0-10 owns it).
+(P0-10 owns it). P0-14's "`isIPTV` routing branches removed" includes the
+timeline guard in `PlaybackCoordinator+Timeline.swift`, which is P0-10's file:
+P0-10 removes it when it routes reports (an IPTV session has no user-data
+provider).
 
 ### P0-19 Boundary, fake provider, docs, gate — M
 

@@ -22,7 +22,7 @@ final class ShowDetailViewModel {
         }
     }
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let seerrService: SeerrService?
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
@@ -38,7 +38,7 @@ final class ShowDetailViewModel {
     var serverID: String? {
         id.serverID
             ?? downloadManager?.serverID(for: id)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
     }
 
     private(set) var details: MediaDetails?
@@ -55,14 +55,14 @@ final class ShowDetailViewModel {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
     ) {
         self.id = id
-        self.plexService = plexService
+        self.media = media
         self.seerrService = seerrService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -92,7 +92,7 @@ final class ShowDetailViewModel {
 
     func markSeason(_ season: Season, watched: Bool) async {
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 watched,
                 id: MediaItemID(serverID: season.serverID ?? serverID, itemID: season.itemID)
             )
@@ -113,7 +113,7 @@ final class ShowDetailViewModel {
     func toggleWatched() async {
         let target = !isWatched
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 target,
                 id: MediaItemID(serverID: serverID, itemID: itemID)
             )
@@ -166,23 +166,23 @@ final class ShowDetailViewModel {
 
     func backdropURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.art), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.art), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     func seasonPosterURL(_ season: Season, width: Int, height: Int) -> URL? {
         let path = season.thumb ?? season.parentThumb ?? season.art
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(
+            ?? media.imageURL(
                 for: ArtworkRef(serverID: season.serverID ?? serverID, path: path),
                 size: ImageSize(width: width, height: height)
             )
@@ -364,11 +364,11 @@ final class ShowDetailViewModel {
         // Context-menu navigation can create transient view/task lifetimes here.
         // Keeping these requests sequential avoids the async-let runtime abort seen in TestFlight.
         do {
-            let loadedDetails = try await plexService.getMediaDetails(
+            let loadedDetails = try await media.getMediaDetails(
                 itemID: itemID,
                 serverID: serverID
             )
-            let loadedSeasons = try await plexService.getSeasons(
+            let loadedSeasons = try await media.getSeasons(
                 showKey: itemID,
                 serverID: serverID
             )
@@ -432,7 +432,7 @@ final class ShowDetailViewModel {
         }
 
         do {
-            let episodes = try await plexService.getEpisodes(
+            let episodes = try await media.getEpisodes(
                 seasonKey: season.itemID,
                 serverID: season.serverID ?? serverID
             )
@@ -462,7 +462,7 @@ final class ShowDetailViewModel {
         }
 
         do {
-            nextEpisodeDetails = try await plexService.getMediaDetails(
+            nextEpisodeDetails = try await media.getMediaDetails(
                 itemID: nextEpisode.itemID,
                 serverID: nextEpisode.serverID ?? serverID
             )

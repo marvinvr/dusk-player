@@ -7,7 +7,7 @@ import SwiftUI
 /// is "channel · upload date · duration", and a 16:9 "More from this channel"
 /// carousel replaces the movie extras.
 struct VideoDetailView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
@@ -23,7 +23,7 @@ struct VideoDetailView: View {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         playThrough: PlaybackListContext? = nil
@@ -31,7 +31,7 @@ struct VideoDetailView: View {
         self.playThrough = playThrough
         _viewModel = State(initialValue: VideoDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager
         ))
@@ -322,7 +322,7 @@ struct VideoDetailView: View {
                 showAllRoute: viewModel.channelShowAllRoute,
                 subtitle: { $0.standardPosterSubtitle },
                 posterURL: { item, width, height in
-                    item.posterImageURL(plexService: plexService, width: width, height: height)
+                    item.posterImageURL(media: media, width: width, height: height)
                 },
                 progress: { $0.posterProgress }
             )

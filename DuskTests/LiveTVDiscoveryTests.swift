@@ -77,7 +77,7 @@ struct LiveTVDiscoveryTests {
         }
     }
 
-    // MARK: - Through PlexService and the view model
+    // MARK: - Through MediaService and the view model
 
     @Test func slowFirstProvidersAnswerStillShowsLiveTV() async throws {
         let stub = StubServers()
@@ -178,8 +178,8 @@ struct LiveTVDiscoveryTests {
         // Above the shared session's budget, so it runs on `slowQuerySession`
         // (its own connections) and cannot queue behind Home's slow reads.
         let request = try #require(stub.requests(dvr, "/media/providers").first)
-        #expect(request.timeoutInterval == PlexService.liveTVDiscoveryTimeout)
-        #expect(PlexService.liveTVDiscoveryTimeout > PlexService.requestResourceTimeout)
+        #expect(request.timeoutInterval == MediaService.liveTVDiscoveryTimeout)
+        #expect(MediaService.liveTVDiscoveryTimeout > MediaService.requestResourceTimeout)
     }
 
     @Test func anUnreachableServerDoesNotHoldLiveTVBack() async throws {
@@ -215,8 +215,8 @@ struct LiveTVDiscoveryTests {
     private func makeViewModel(
         _ stub: StubServers,
         servers: [StubServers.Server]
-    ) -> (PlexService, LiveTVViewModel) {
-        let service = PlexService(urlProtocolClasses: [StubURLProtocol.self])
+    ) -> (MediaService, LiveTVViewModel) {
+        let service = MediaService(urlProtocolClasses: [StubURLProtocol.self])
         // The test host restores its own last-launch sessions; only the stub
         // servers may take part.
         for serverID in service.pool.connections.map(\.serverID) {
@@ -230,7 +230,7 @@ struct LiveTVDiscoveryTests {
                 connection: nil
             )
         }
-        return (service, LiveTVViewModel(plexService: service, discoveryRetryDelay: .milliseconds(10)))
+        return (service, LiveTVViewModel(media: service, discoveryRetryDelay: .milliseconds(10)))
     }
 }
 
@@ -297,7 +297,7 @@ private final class StubServers {
         StubURLProtocol.requests(host: server.baseURL.host!).filter { $0.url?.path == path }
     }
 
-    func tearDown(_ service: PlexService) {
+    func tearDown(_ service: MediaService) {
         for host in hosts {
             StubURLProtocol.remove(host: host)
             ServerPool.forget(serverID: host.replacingOccurrences(of: ".invalid", with: ""))

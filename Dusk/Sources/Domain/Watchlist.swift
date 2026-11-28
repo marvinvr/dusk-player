@@ -6,7 +6,7 @@ import Foundation
 /// (`plex://movie/<itemID>`), and the artwork URLs are absolute CDN links.
 ///
 /// The list payload carries no `Guid` array; only the metadata call
-/// (`PlexService.getWatchlistMetadata`) does, which is where the TMDB id for
+/// (`MediaService.getWatchlistMetadata`) does, which is where the TMDB id for
 /// Seerr comes from.
 struct WatchlistEntry: Hashable, Sendable, Identifiable {
     let itemID: String

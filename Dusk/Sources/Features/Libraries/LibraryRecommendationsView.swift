@@ -7,7 +7,7 @@ import UIKit
 
 struct LibraryRecommendationsView: View {
     @Environment(PlaybackCoordinator.self) private var playback
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(\.scenePhase) private var scenePhase
     @State private var viewModel: LibraryRecommendationsViewModel
 
@@ -28,12 +28,12 @@ struct LibraryRecommendationsView: View {
 
     init(
         library: Library,
-        plexService: PlexService,
+        media: MediaService,
         navigationTitle: String
     ) {
         self.init(
             libraries: [library],
-            plexService: plexService,
+            media: media,
             navigationTitle: navigationTitle,
             browseTargets: [],
             libraryListDestination: nil,
@@ -43,7 +43,7 @@ struct LibraryRecommendationsView: View {
 
     init(
         libraries: [Library],
-        plexService: PlexService,
+        media: MediaService,
         navigationTitle: String,
         browseTargets: [LibraryBrowseTarget],
         libraryListDestination: LibraryTypeListDestination?,
@@ -55,7 +55,7 @@ struct LibraryRecommendationsView: View {
         self.libraryListDestination = libraryListDestination
         _viewModel = State(initialValue: LibraryRecommendationsViewModel(
             libraries: libraries,
-            plexService: plexService
+            media: media
         ))
     }
 

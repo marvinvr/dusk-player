@@ -131,7 +131,7 @@ struct MacSettingsSheet<Content: View>: View {
 
 private struct MacGeneralSettingsPane: View {
     @Environment(UserPreferences.self) private var preferences
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     var body: some View {
         @Bindable var preferences = preferences
@@ -176,7 +176,7 @@ private struct MacGeneralSettingsPane: View {
                 }
                 MacSettingsSheetRow(
                     title: "Pinned Playlists",
-                    summary: Self.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count)
+                    summary: Self.pinnedPlaylistsSummary(media.pinnedPlaylistPins.count)
                 ) {
                     PinnedPlaylistsSettingsView()
                 }
@@ -344,7 +344,7 @@ private struct MacPlaybackSettingsPane: View {
 
 private struct MacLibrariesSettingsPane: View {
     @Environment(UserPreferences.self) private var preferences
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(IPTVService.self) private var iptvService
 
     var body: some View {
@@ -362,7 +362,7 @@ private struct MacLibrariesSettingsPane: View {
                 MacSettingsSheetRow(
                     title: "Hidden Libraries",
                     summary: Self.join(
-                        SettingsSupport.hiddenLibrariesSummary(plexService),
+                        SettingsSupport.hiddenLibrariesSummary(media),
                         "Removed from Dusk completely, including Home and Search."
                     )
                 ) {
@@ -371,7 +371,7 @@ private struct MacLibrariesSettingsPane: View {
                 MacSettingsSheetRow(
                     title: "Server Priority",
                     summary: Self.join(
-                        SettingsSupport.serverPrioritySummary(plexService),
+                        SettingsSupport.serverPrioritySummary(media),
                         "Which server plays a title that is on more than one."
                     )
                 ) {
@@ -540,7 +540,7 @@ private struct MacIntegrationsSettingsPane: View {
 // MARK: - Account
 
 private struct MacAccountSettingsPane: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.openURL) private var openURL
     @State private var showsHomeUserPicker = false
@@ -551,7 +551,7 @@ private struct MacAccountSettingsPane: View {
 
         MacSettingsPane(height: 460) {
             Section {
-                MacPlexAccountRow(user: plexService.currentUser)
+                MacPlexAccountRow(user: media.currentUser)
                 LabeledContent {
                     Button("Manage in Browser…") {
                         openURL(SettingsSupport.plexAccountURL)
@@ -570,7 +570,7 @@ private struct MacAccountSettingsPane: View {
                 }
             }
 
-            if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+            if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
                 Section {
                     LabeledContent {
                         Button("Switch User…") { showsHomeUserPicker = true }
@@ -615,12 +615,12 @@ private struct MacAccountSettingsPane: View {
         }
         .task {
             // The identity row; cached after the first load.
-            _ = try? await plexService.getCurrentUser()
+            _ = try? await media.getCurrentUser()
         }
         .sheet(isPresented: homeUserPickerPresented) {
             HomeUserPickerView(
-                users: plexService.homeUsers,
-                rememberSelection: plexService.automaticHomeSignIn,
+                users: media.homeUsers,
+                rememberSelection: media.automaticHomeSignIn,
                 onComplete: { showsHomeUserPicker = false },
                 onCancel: { showsHomeUserPicker = false }
             )
@@ -628,7 +628,7 @@ private struct MacAccountSettingsPane: View {
         }
         .confirmationDialog("Sign out of Plex?", isPresented: $confirmsSignOut, titleVisibility: .visible) {
             Button("Sign Out", role: .destructive) {
-                plexService.signOut()
+                media.signOut()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
@@ -638,15 +638,15 @@ private struct MacAccountSettingsPane: View {
 
     private var homeUserPickerPresented: Binding<Bool> {
         Binding(
-            get: { showsHomeUserPicker && plexService.homeUsers.count > 1 },
+            get: { showsHomeUserPicker && media.homeUsers.count > 1 },
             set: { showsHomeUserPicker = $0 }
         )
     }
 
     private var automaticHomeSignInBinding: Binding<Bool> {
         Binding(
-            get: { plexService.automaticHomeSignIn },
-            set: { plexService.automaticHomeSignIn = $0 }
+            get: { media.automaticHomeSignIn },
+            set: { media.automaticHomeSignIn = $0 }
         )
     }
 }

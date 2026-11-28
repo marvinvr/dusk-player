@@ -141,7 +141,7 @@ struct ServerAvailabilityStateView: View {
 /// make a two-server account feel broken every time the laptop sleeps.
 struct ServerOutageNote: View {
     @Environment(ServerConnectionCoordinator.self) private var connections
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     /// Explicit list, or nil to read the pool's current one. Screens that
     /// already hold an availability value pass it; the rest just drop the note
@@ -153,7 +153,7 @@ struct ServerOutageNote: View {
     }
 
     private var offlineServerNames: [String] {
-        explicitOfflineServerNames ?? plexService.pool.availability.offlineServerNames
+        explicitOfflineServerNames ?? media.pool.availability.offlineServerNames
     }
 
     var body: some View {

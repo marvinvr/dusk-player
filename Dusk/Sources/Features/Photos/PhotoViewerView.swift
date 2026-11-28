@@ -11,7 +11,7 @@ import UIKit
 /// A clip is shown as its frame with a play button; playing it closes the
 /// viewer and hands the clip back, because the player cannot present over it.
 struct PhotoViewerView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(\.dismiss) private var dismiss
 
     let viewModel: PhotoBrowserViewModel
@@ -49,11 +49,11 @@ struct PhotoViewerView: View {
     }
 
     private var currentIndex: Int? {
-        viewModel.media.firstIndex { $0.id == currentID }
+        viewModel.items.firstIndex { $0.id == currentID }
     }
 
     private var currentItem: PhotoItem? {
-        currentIndex.map { viewModel.media[$0] }
+        currentIndex.map { viewModel.items[$0] }
     }
 
     var body: some View {
@@ -87,7 +87,7 @@ struct PhotoViewerView: View {
     private var pages: some View {
         ScrollView(.horizontal) {
             LazyHStack(spacing: 0) {
-                ForEach(viewModel.media) { item in
+                ForEach(viewModel.items) { item in
                     page(for: item)
                         .containerRelativeFrame([.horizontal, .vertical])
                 }
@@ -313,8 +313,8 @@ struct PhotoViewerView: View {
 
     /// "12 of 340", against the loaded list while more is still to come.
     private var positionLabel: String? {
-        guard let currentIndex, viewModel.media.count > 1 else { return nil }
-        let total = viewModel.hasMore ? "\(viewModel.media.count)+" : "\(viewModel.media.count)"
+        guard let currentIndex, viewModel.items.count > 1 else { return nil }
+        let total = viewModel.hasMore ? "\(viewModel.items.count)+" : "\(viewModel.items.count)"
         return "\(currentIndex + 1) of \(total)"
     }
 
@@ -339,20 +339,20 @@ struct PhotoViewerView: View {
     private func step(by offset: Int) {
         guard let currentIndex else { return }
         let target = currentIndex + offset
-        guard viewModel.media.indices.contains(target) else { return }
+        guard viewModel.items.indices.contains(target) else { return }
         #if os(iOS)
         withAnimation(.snappy) {
-            currentID = viewModel.media[target].id
+            currentID = viewModel.items[target].id
         }
         #else
-        currentID = viewModel.media[target].id
+        currentID = viewModel.items[target].id
         #endif
     }
 
     private func pageDidChange() {
         guard let currentIndex else { return }
         // Keep a page ahead of the viewer; the grid behind it pages the same way.
-        if viewModel.hasMore, currentIndex >= viewModel.media.count - 10 {
+        if viewModel.hasMore, currentIndex >= viewModel.items.count - 10 {
             Task { await viewModel.loadMore() }
         }
         prefetch(around: currentIndex)
@@ -361,14 +361,14 @@ struct PhotoViewerView: View {
     /// Warms the neighbours so a swipe or slideshow step lands on a loaded image.
     private func prefetch(around index: Int) {
         let urls = [index - 1, index + 1, index + 2]
-            .filter { viewModel.media.indices.contains($0) }
-            .map { viewModel.media[$0] }
+            .filter { viewModel.items.indices.contains($0) }
+            .map { viewModel.items[$0] }
             .filter { !$0.isClip }
             .compactMap { displayURL(for: $0) }
-        let plexService = plexService
+        let media = media
         Task {
             for url in urls {
-                _ = try? await DuskImageLoader.shared.image(for: url, using: plexService)
+                _ = try? await DuskImageLoader.shared.image(for: url, using: media)
             }
         }
     }
@@ -397,7 +397,7 @@ struct PhotoViewerView: View {
     /// Moves to the next photo, skipping clips. False at the end of the library.
     private func advanceSlideshow() -> Bool {
         guard let currentIndex else { return false }
-        guard let next = viewModel.media[(currentIndex + 1)...].first(where: { !$0.isClip }) else {
+        guard let next = viewModel.items[(currentIndex + 1)...].first(where: { !$0.isClip }) else {
             return false
         }
         currentID = next.id
@@ -440,9 +440,9 @@ struct PhotoViewerView: View {
         #endif
         let side = Int(max(bounds.width, bounds.height).rounded(.up))
         #if os(tvOS)
-        return plexService.photoDisplayURL(for: item, width: side, height: Int(bounds.height.rounded(.up)))
+        return media.photoDisplayURL(for: item, width: side, height: Int(bounds.height.rounded(.up)))
         #else
-        return plexService.photoDisplayURL(for: item, width: side, height: side)
+        return media.photoDisplayURL(for: item, width: side, height: side)
         #endif
     }
 }
@@ -450,7 +450,7 @@ struct PhotoViewerView: View {
 /// A fitted image that shows the (usually cached) grid thumbnail until the
 /// full-size image arrives.
 private struct PhotoFitImage: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let thumbnailURL: URL?
     let displayURL: URL?
@@ -473,7 +473,7 @@ private struct PhotoFitImage: View {
             await PhotoImageLoading.load(
                 thumbnailURL: thumbnailURL,
                 displayURL: displayURL,
-                plexService: plexService
+                media: media
             ) { image = $0 }
         }
     }
@@ -484,16 +484,16 @@ private enum PhotoImageLoading {
     static func load(
         thumbnailURL: URL?,
         displayURL: URL?,
-        plexService: PlexService,
+        media: MediaService,
         update: (PlatformImage) -> Void
     ) async {
         if let thumbnailURL,
-           let thumbnail = try? await DuskImageLoader.shared.image(for: thumbnailURL, using: plexService),
+           let thumbnail = try? await DuskImageLoader.shared.image(for: thumbnailURL, using: media),
            !Task.isCancelled {
             update(thumbnail)
         }
         if let displayURL,
-           let full = try? await DuskImageLoader.shared.image(for: displayURL, using: plexService),
+           let full = try? await DuskImageLoader.shared.image(for: displayURL, using: media),
            !Task.isCancelled {
             update(full)
         }
@@ -507,7 +507,7 @@ private enum PhotoImageLoading {
 /// photo and the single tap that toggles the chrome all have to cooperate,
 /// which `UIScrollView` and its recognizers already do natively.
 private struct PhotoZoomPage: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let thumbnailURL: URL?
     let displayURL: URL?
@@ -528,7 +528,7 @@ private struct PhotoZoomPage: View {
             await PhotoImageLoading.load(
                 thumbnailURL: thumbnailURL,
                 displayURL: displayURL,
-                plexService: plexService
+                media: media
             ) { image = $0 }
         }
     }

@@ -8,7 +8,7 @@ final class OfflinePlaybackSyncManager {
     private static let syncAttemptInterval: TimeInterval = 60
     private static let retryLoopInterval: Duration = .seconds(60)
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let store: OfflinePlaybackSyncStore
 
     private(set) var storedActions: [OfflinePlaybackSyncAction] = []
@@ -21,10 +21,10 @@ final class OfflinePlaybackSyncManager {
     @ObservationIgnored private var retryLoopTask: Task<Void, Never>?
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         store: OfflinePlaybackSyncStore = OfflinePlaybackSyncStore()
     ) {
-        self.plexService = plexService
+        self.media = media
         self.store = store
         storedActions = store.loadSnapshot().actions
         startNetworkMonitoring()
@@ -36,7 +36,7 @@ final class OfflinePlaybackSyncManager {
     }
 
     var actions: [OfflinePlaybackSyncAction] {
-        storedActions.filter { $0.accountProfileID == plexService.activeProfileID }
+        storedActions.filter { $0.accountProfileID == media.activeProfileID }
     }
 
     var pendingSyncCount: Int {
@@ -77,7 +77,7 @@ final class OfflinePlaybackSyncManager {
     }
 
     func deleteAllLocalState() {
-        let activeProfileID = plexService.activeProfileID
+        let activeProfileID = media.activeProfileID
         storedActions.removeAll { $0.accountProfileID == activeProfileID }
         persist()
     }
@@ -98,12 +98,12 @@ final class OfflinePlaybackSyncManager {
         await syncPendingActions(force: true)
     }
 
-    /// Refreshes profile-scoped state after PlexService has installed the new
+    /// Refreshes profile-scoped state after MediaService has installed the new
     /// identity. Legacy adoption must only be requested for the original
     /// pre-Plex-Home account.
     func activateProfile() {
-        if plexService.shouldAdoptLegacyProfileData,
-           let primaryProfileID = plexService.primaryProfileID?.nilIfEmpty {
+        if media.shouldAdoptLegacyProfileData,
+           let primaryProfileID = media.primaryProfileID?.nilIfEmpty {
             var changed = false
             for index in storedActions.indices where storedActions[index].accountProfileID == nil {
                 storedActions[index].accountProfileID = primaryProfileID
@@ -147,8 +147,8 @@ final class OfflinePlaybackSyncManager {
         guard !isSyncing else { return }
         guard force || !isPreparingProfileSwitch else { return }
         guard force || isNetworkAvailable else { return }
-        guard plexService.isSessionReady else { return }
-        guard let activeProfileID = plexService.activeProfileID?.nilIfEmpty else { return }
+        guard media.isSessionReady else { return }
+        guard let activeProfileID = media.activeProfileID?.nilIfEmpty else { return }
 
         rekeyLegacyServerIdentifiers()
 
@@ -161,7 +161,7 @@ final class OfflinePlaybackSyncManager {
             .filter { action in
                 action.needsSync &&
                     action.accountProfileID == activeProfileID &&
-                    plexService.pool.connection(for: action.serverID) != nil &&
+                    media.pool.connection(for: action.serverID) != nil &&
                     (force || shouldAttemptSync(action, now: now))
             }
             .sorted { $0.updatedAt < $1.updatedAt }
@@ -215,7 +215,7 @@ final class OfflinePlaybackSyncManager {
     private func sync(_ action: OfflinePlaybackSyncAction) async throws {
         switch action.kind {
         case .progress:
-            try await plexService.submitTimeline(
+            try await media.submitTimeline(
                 itemID: action.itemID,
                 state: playbackState(for: action.plexState),
                 timeMs: action.viewOffsetMs ?? 0,
@@ -223,12 +223,12 @@ final class OfflinePlaybackSyncManager {
                 serverID: action.serverID
             )
             if action.shouldMarkWatched {
-                try await plexService.scrobble(itemID: action.itemID, serverID: action.serverID)
+                try await media.scrobble(itemID: action.itemID, serverID: action.serverID)
             }
         case .watched:
-            try await plexService.scrobble(itemID: action.itemID, serverID: action.serverID)
+            try await media.scrobble(itemID: action.itemID, serverID: action.serverID)
         case .unwatched:
-            try await plexService.unscrobble(itemID: action.itemID, serverID: action.serverID)
+            try await media.unscrobble(itemID: action.itemID, serverID: action.serverID)
         }
     }
 
@@ -241,8 +241,8 @@ final class OfflinePlaybackSyncManager {
         var changed = false
         for index in storedActions.indices {
             let legacyServerID = storedActions[index].serverID
-            guard !plexService.isKnownServerID(legacyServerID),
-                  let resolved = plexService.serverID(forLegacyConnectionURI: legacyServerID),
+            guard !media.isKnownServerID(legacyServerID),
+                  let resolved = media.serverID(forLegacyConnectionURI: legacyServerID),
                   resolved != legacyServerID else {
                 continue
             }
@@ -256,7 +256,7 @@ final class OfflinePlaybackSyncManager {
     private func action(serverID: String?, itemID: String) -> OfflinePlaybackSyncAction? {
         guard let serverID = serverID?.nilIfEmpty else { return nil }
         let globalKey = DownloadedMediaRecord.globalKey(
-            accountProfileID: plexService.activeProfileID,
+            accountProfileID: media.activeProfileID,
             serverID: serverID,
             itemID: itemID
         )
@@ -273,8 +273,8 @@ final class OfflinePlaybackSyncManager {
         plexState: String?
     ) {
         guard !isPreparingProfileSwitch,
-              plexService.isSessionReady,
-              let activeProfileID = plexService.activeProfileID?.nilIfEmpty else {
+              media.isSessionReady,
+              let activeProfileID = media.activeProfileID?.nilIfEmpty else {
             return
         }
         let globalKey = DownloadedMediaRecord.globalKey(
@@ -311,7 +311,7 @@ final class OfflinePlaybackSyncManager {
     }
 
     private func markSynced(_ action: OfflinePlaybackSyncAction) {
-        guard action.accountProfileID == plexService.activeProfileID,
+        guard action.accountProfileID == media.activeProfileID,
               let index = storedActions.firstIndex(where: { $0.globalKey == action.globalKey }) else {
             return
         }
@@ -330,7 +330,7 @@ final class OfflinePlaybackSyncManager {
     }
 
     private func markAttemptFailed(_ action: OfflinePlaybackSyncAction) {
-        guard action.accountProfileID == plexService.activeProfileID,
+        guard action.accountProfileID == media.activeProfileID,
               let index = storedActions.firstIndex(where: { $0.globalKey == action.globalKey }) else {
             return
         }

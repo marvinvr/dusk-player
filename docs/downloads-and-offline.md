@@ -75,7 +75,7 @@ their own preset, and a partial show/season retry inherits the scope's saved
 choice. A failed download's explicit retry resets its server job and recovery
 budget while preserving source media/part IDs and quality. Pause keeps the job.
 
-`PlexService+Downloads` owns the Download Queue API (PMS 1.41.9+). Each record
+`MediaService+Downloads` owns the Download Queue API (PMS 1.41.9+). Each record
 persists a unique client identifier before creating its user/client-scoped
 queue. The queue ID is saved before add; listing that dedicated queue recovers
 an add whose response was lost. Every operation uses captured server credentials
@@ -154,7 +154,7 @@ Records and pending sync actions written before servers were identified by
 machine identifier can carry the server's base URL in `serverID`. Those match no
 connection and would wait forever, so `DownloadManager` and
 `OfflinePlaybackSyncManager` re-key them once
-(`plexService.serverID(forLegacyConnectionURI:)`, which matches the URL against
+(`media.serverID(forLegacyConnectionURI:)`, which matches the URL against
 each known server's endpoints); the record's cached metadata directory moves
 with it (`DownloadFileStore.relocateMetadata`). An address that resolves to no
 known server is left untouched — the record stays listed and its file stays
@@ -290,7 +290,7 @@ details, and sibling seasons; shows cache show details, seasons, and every
 season's episodes.
 
 Artwork is separate: `DownloadManager.cacheArtwork` fetches image bytes through
-`PlexService` and stores hashed jpgs. Detail view models call
+`MediaService` and stores hashed jpgs. Detail view models call
 `localArtworkURL(for:)` first, then fall back to Plex image URLs.
 
 Pitfall: cached metadata is profile- and server-scoped. Use the active profile
@@ -363,7 +363,7 @@ sync. Finalization records stopped progress; crossing 90 percent queues a
 watched/scrobble effect. Detail watch/unwatch actions also queue locally when
 using cached data or a local file.
 
-Sync considers actions for `plexService.activeProfileID`, and routes each action
+Sync considers actions for `media.activeProfileID`, and routes each action
 to **its own** server: a pending action is syncable when that server is
 currently connected (`pool.connection(for:)`), and actions for servers that are
 offline or disabled simply wait. It starts

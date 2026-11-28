@@ -11,8 +11,8 @@ struct WatchlistItemDetailView: View {
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: WatchlistItemDetailViewModel
 
-    init(entry: WatchlistEntry, plexService: PlexService) {
-        _viewModel = State(initialValue: WatchlistItemDetailViewModel(entry: entry, plexService: plexService))
+    init(entry: WatchlistEntry, media: MediaService) {
+        _viewModel = State(initialValue: WatchlistItemDetailViewModel(entry: entry, media: media))
     }
 
     var body: some View {
@@ -48,11 +48,11 @@ final class WatchlistItemDetailViewModel {
     private(set) var hasLoaded = false
     var actionError: String?
 
-    private let plexService: PlexService
+    private let media: MediaService
 
-    init(entry: WatchlistEntry, plexService: PlexService) {
+    init(entry: WatchlistEntry, media: MediaService) {
         self.entry = entry
-        self.plexService = plexService
+        self.media = media
     }
 
     /// The list entry is enough to show the page; full metadata (TMDB id,
@@ -60,8 +60,8 @@ final class WatchlistItemDetailViewModel {
     func load() async {
         guard !hasLoaded else { return }
         let itemID = entry.itemID
-        async let metadata = try? plexService.getWatchlistMetadata(itemID: itemID)
-        async let availabilities = try? plexService.getWatchlistAvailabilities(itemID: itemID)
+        async let metadata = try? media.getWatchlistMetadata(itemID: itemID)
+        async let availabilities = try? media.getWatchlistAvailabilities(itemID: itemID)
         if let details = await metadata {
             entry = details
         }
@@ -74,12 +74,12 @@ final class WatchlistItemDetailViewModel {
     }
 
     var isWatchlisted: Bool? {
-        plexService.watchlist.contains(guid: entry.guid)
+        media.watchlist.contains(guid: entry.guid)
     }
 
     func toggleWatchlist() async {
         do {
-            try await WatchlistActions.toggle(entry: entry, match: nil, plexService: plexService)
+            try await WatchlistActions.toggle(entry: entry, match: nil, media: media)
         } catch {
             actionError = error.localizedDescription
         }

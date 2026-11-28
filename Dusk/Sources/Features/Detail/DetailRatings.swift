@@ -14,11 +14,11 @@ final class DetailUserRatingModel {
     }
 
     /// - Parameter stars: 1–5, or nil to clear.
-    func rate(_ stars: Int?, id: MediaItemID, plexService: PlexService) async {
+    func rate(_ stars: Int?, id: MediaItemID, media: MediaService) async {
         let previous = value
         value = stars.map { Double($0 * 2) }
         do {
-            try await plexService.setUserRating(stars.map { $0 * 2 }, id: id)
+            try await media.setUserRating(stars.map { $0 * 2 }, id: id)
         } catch {
             value = previous
             self.error = error.localizedDescription
@@ -125,7 +125,7 @@ private struct DetailUserStars: View {
 /// The hero's Rate action: an icon-only secondary that opens a menu of star
 /// ratings (and Clear). The icon fills once the title is rated.
 struct DetailRateHeroButton: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let model: DetailUserRatingModel
     let id: MediaItemID
@@ -135,7 +135,7 @@ struct DetailRateHeroButton: View {
             Section("Your Rating") {
                 ForEach((1...5).reversed(), id: \.self) { stars in
                     Button {
-                        Task { await model.rate(stars, id: id, plexService: plexService) }
+                        Task { await model.rate(stars, id: id, media: media) }
                     } label: {
                         let title = stars == 1 ? "1 Star" : "\(stars) Stars"
                         if currentStars == stars {
@@ -148,7 +148,7 @@ struct DetailRateHeroButton: View {
             }
             if model.value != nil {
                 Button("Clear Rating", role: .destructive) {
-                    Task { await model.rate(nil, id: id, plexService: plexService) }
+                    Task { await model.rate(nil, id: id, media: media) }
                 }
             }
         } label: {

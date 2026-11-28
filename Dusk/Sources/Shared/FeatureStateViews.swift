@@ -44,7 +44,7 @@ struct FeatureEmptyStateView: View {
 }
 
 struct FeatureErrorView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let message: String
     let retryTitle: String
@@ -92,7 +92,7 @@ struct FeatureErrorView: View {
                 }
                 FeaturePrimaryButton(title: requiresSignIn ? "Sign In" : macRetryTitle) {
                     if requiresSignIn {
-                        AuthenticationFailure.beginReauthentication(plexService: plexService)
+                        AuthenticationFailure.beginReauthentication(media: media)
                     } else {
                         retryAction()
                     }
@@ -117,7 +117,7 @@ struct FeatureErrorView: View {
 
             FeaturePrimaryButton(title: requiresSignIn ? "Sign In" : retryTitle) {
                 if requiresSignIn {
-                    AuthenticationFailure.beginReauthentication(plexService: plexService)
+                    AuthenticationFailure.beginReauthentication(media: media)
                 } else {
                     retryAction()
                 }
@@ -227,10 +227,10 @@ enum AuthenticationFailure {
 
     @MainActor
     static func beginReauthentication(
-        plexService: PlexService,
+        media: MediaService,
         playback: PlaybackCoordinator? = nil
     ) {
         playback?.onPlayerDismissed()
-        plexService.signOut()
+        media.signOut()
     }
 }

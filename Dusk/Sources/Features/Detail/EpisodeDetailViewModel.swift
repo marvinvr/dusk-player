@@ -4,7 +4,7 @@ import Foundation
 @MainActor
 @Observable
 final class EpisodeDetailViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the episode; every request goes to its server.
@@ -22,12 +22,12 @@ final class EpisodeDetailViewModel {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         self.id = id
-        self.plexService = plexService
+        self.media = media
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
     }
@@ -57,7 +57,7 @@ final class EpisodeDetailViewModel {
         }
 
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 targetWatched,
                 id: MediaItemID(serverID: serverID, itemID: details.itemID)
             )
@@ -125,13 +125,13 @@ final class EpisodeDetailViewModel {
     func backdropURL(width: Int, height: Int) -> URL? {
         let path = SeriesBackdropArtwork.path(season: seasonDetails, show: showDetails, episode: details)
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         let path = details?.parentThumb ?? details?.grandparentThumb ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     /// The show's title logo (clear-logo art) inherited onto the episode metadata.
@@ -139,7 +139,7 @@ final class EpisodeDetailViewModel {
     /// didn't attach a clear logo, in which case the hero falls back to text.
     func showTitleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     private func reload() async {
@@ -152,7 +152,7 @@ final class EpisodeDetailViewModel {
         }
 
         do {
-            details = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
+            details = try await media.getMediaDetails(itemID: itemID, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -168,7 +168,7 @@ final class EpisodeDetailViewModel {
         guard details != nil else { return }
         if let seasonID {
             seasonDetails = downloadManager?.cachedMediaDetails(for: seasonID) ?? seasonDetails
-            if !isUsingCachedData, let season = try? await plexService.getMediaDetails(
+            if !isUsingCachedData, let season = try? await media.getMediaDetails(
                 itemID: seasonID.itemID, serverID: serverID
             ) {
                 seasonDetails = season
@@ -178,7 +178,7 @@ final class EpisodeDetailViewModel {
         // server; a missing/inaccessible parent must never fail the page.
         guard seasonDetails?.art?.nilIfEmpty == nil, let showID else { return }
         showDetails = downloadManager?.cachedMediaDetails(for: showID) ?? showDetails
-        if !isUsingCachedData, let show = try? await plexService.getMediaDetails(
+        if !isUsingCachedData, let show = try? await media.getMediaDetails(
             itemID: showID.itemID, serverID: serverID
         ) {
             showDetails = show
@@ -195,7 +195,7 @@ final class EpisodeDetailViewModel {
     var serverID: String? {
         id.serverID
             ?? downloadManager?.serverID(for: id)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
     }
 }
 
@@ -206,19 +206,19 @@ extension EpisodeDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
+        media.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
         details?.media.contains { !$0.parts.isEmpty } == true
     }
 
-    /// Builds the flow's view model so the view never reaches for `PlexService`.
+    /// Builds the flow's view model so the view never reaches for `MediaService`.
     /// Re-reading the item afterwards is what surfaces the new subtitle stream in
     /// the media info; the next playback session mounts it on its own.
     func makeSubtitleSearchViewModel(preferredLanguageCode: String?) -> SubtitleSearchViewModel {
         SubtitleSearchViewModel(
-            plexService: plexService,
+            media: media,
             itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode

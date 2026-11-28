@@ -179,7 +179,7 @@ private struct PlayerSpeedBoostOverlayView: View {
 }
 
 struct PlayerView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     var body: some View {
@@ -243,7 +243,7 @@ struct PlayerView: View {
             if AuthenticationFailure.requiresReauthentication(message: message) {
                 Button("Sign In") {
                     AuthenticationFailure.beginReauthentication(
-                        plexService: plexService,
+                        media: media,
                         playback: playback
                     )
                 }
@@ -323,7 +323,7 @@ struct PlayerView: View {
 ///   halves equally flexible, so the split stays on the safe area's center in
 ///   every orientation, at every HUD state, and without measuring the HUD.
 private struct PlayerAirPlayRemoteBackground: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let details: MediaDetails?
     let routeName: String?
@@ -413,7 +413,7 @@ private struct PlayerAirPlayRemoteBackground: View {
             Group {
                 if let posterPath = placeholder?.posterPath {
                     PosterArtwork(
-                        imageURL: plexService.imageURL(
+                        imageURL: media.imageURL(
                             for: ArtworkRef(serverID: placeholder?.serverID, path: posterPath),
                             size: ImageSize(width: Int(width), height: Int(width * 1.5))
                         ),
@@ -510,7 +510,7 @@ private struct PlayerAirPlayRemoteBackground: View {
     }
 
     private var backdropURL: URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: placeholder?.serverID, path: placeholder?.backdropPath),
             size: ImageSize(width: 1280, height: 720)
         )
@@ -529,7 +529,7 @@ private struct PlayerAirPlayRemoteBackground: View {
 #endif
 
 private struct PlayerSessionView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.dismiss) private var dismiss
@@ -647,7 +647,7 @@ private struct PlayerSessionView: View {
             if let upNextPresentation = playback.upNextPresentation {
                 PlayerUpNextOverlayView(
                     presentation: upNextPresentation,
-                    plexService: plexService,
+                    media: media,
                     onPlayNow: { playback.playUpNextNow() },
                     onDismiss: { dismiss() }
                 )
@@ -698,7 +698,7 @@ private struct PlayerSessionView: View {
                    viewModel.playbackError == nil {
                     PlayerUpNextPosterView(
                         presentation: poster,
-                        plexService: plexService,
+                        media: media,
                         controlsVisible: viewModel.showControls,
                         isSelected: isTVBottomTrailingControlSelected,
                         onPlayNow: { playback.playUpNextPosterNow() },
@@ -1033,7 +1033,7 @@ private struct PlayerSessionView: View {
     private var subtitleSearchView: some View {
         if let itemID = playback.itemID {
             SubtitleSearchView(
-                plexService: plexService,
+                media: media,
                 itemID: itemID,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
@@ -1302,7 +1302,7 @@ private struct PlayerSessionView: View {
                     if error.requiresReauthentication {
                         viewModel.cleanup()
                         AuthenticationFailure.beginReauthentication(
-                            plexService: plexService,
+                            media: media,
                             playback: playback
                         )
                     } else {
@@ -1325,7 +1325,7 @@ private struct PlayerSessionView: View {
         scrubPreviewSource = nil
         guard let partID else { return }
 
-        let source = await plexService.scrubPreviewSource(
+        let source = await media.scrubPreviewSource(
             forPartID: partID,
             serverID: playback.activePlaybackServerID
         )

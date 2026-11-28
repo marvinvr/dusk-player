@@ -263,12 +263,12 @@ struct ConnectionSelectionTests {
 
     /// The owner's main server, as plex.tv listed it on 2026-11-10.
     @Test func aMediaServerListedAsControllerIsStillAServer() {
-        #expect(PlexService.isMediaServerResource(["provides": "controller", "product": "Plex Media Server"]))
-        #expect(PlexService.isMediaServerResource(["provides": "server"]))
-        #expect(PlexService.isMediaServerResource(["provides": "client,server,player"]))
-        #expect(!PlexService.isMediaServerResource(["provides": "client,player,pubsub-player", "product": "Plex for iOS"]))
-        #expect(!PlexService.isMediaServerResource(["provides": "controller", "product": "Plexamp"]))
-        #expect(!PlexService.isMediaServerResource([:]))
+        #expect(MediaService.isMediaServerResource(["provides": "controller", "product": "Plex Media Server"]))
+        #expect(MediaService.isMediaServerResource(["provides": "server"]))
+        #expect(MediaService.isMediaServerResource(["provides": "client,server,player"]))
+        #expect(!MediaService.isMediaServerResource(["provides": "client,player,pubsub-player", "product": "Plex for iOS"]))
+        #expect(!MediaService.isMediaServerResource(["provides": "controller", "product": "Plexamp"]))
+        #expect(!MediaService.isMediaServerResource([:]))
     }
 
     /// A resources response shaped exactly like plex.tv's on 2026-11-10 while
@@ -296,7 +296,7 @@ struct ConnectionSelectionTests {
         ]
         """
         let resources = try #require(JSONSerialization.jsonObject(with: Data(fixture.utf8)) as? [[String: Any]])
-        let kept = resources.filter(PlexService.isMediaServerResource)
+        let kept = resources.filter(MediaService.isMediaServerResource)
         #expect(kept.compactMap { $0["name"] as? String } == ["Netflix++", "plex-demo"])
 
         let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: kept[0]))
@@ -309,7 +309,7 @@ struct ConnectionSelectionTests {
 
     @Test func theChosenConnectionIsPersistedAndRestoredFirst() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "persist-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         let good = stub.host("good", .ok(id))
@@ -334,7 +334,7 @@ struct ConnectionSelectionTests {
     /// retries there — without plex.tv, which is unreachable in this test.
     @Test func aDeadRestoredEndpointFailsOverOnTheFirstRequest() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "failover-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         service.activeAccountToken = "account-token"
@@ -360,7 +360,7 @@ struct ConnectionSelectionTests {
     /// the first request must not sit out the 15 s request timeout on it.
     @Test func aBlackholedRestoredEndpointIsValidatedAndReplacedQuickly() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "restored-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         service.activeAccountToken = "account-token"
@@ -379,14 +379,14 @@ struct ConnectionSelectionTests {
 
         let started = Date()
         _ = try await service.rawServerRequest(path: "/library/sections", serverID: id)
-        #expect(Date().timeIntervalSince(started) < PlexService.restoredEndpointValidationTimeout + 3)
+        #expect(Date().timeIntervalSince(started) < MediaService.restoredEndpointValidationTimeout + 3)
         #expect(service.pool.connection(for: id)?.baseURL.host == alive)
         #expect(service.pool.connection(for: id)?.isVerified == true)
     }
 
     @Test func aHealthyRestoredEndpointIsKeptAndMarkedVerified() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "restored-ok-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         let home = stub.host("home", .ok(id))
@@ -404,7 +404,7 @@ struct ConnectionSelectionTests {
     /// dead, the HTTPS reverse proxy alive.
     @Test func awayFromHomeTheRemoteHTTPSProxyWins() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "away-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         let proxy = stub.host("proxy", .ok(id, delay: 0.05))
@@ -424,7 +424,7 @@ struct ConnectionSelectionTests {
 
     @Test func atHomeTheSameServerStillPrefersHTTPS() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "home-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         let proxy = stub.host("proxy", .ok(id, delay: 0.03))
@@ -441,7 +441,7 @@ struct ConnectionSelectionTests {
 
     @Test func onlyHTTPWorksSoHTTPIsUsed() async throws {
         let stub = SelectionStub.Scope()
-        let service = PlexService(urlProtocolClasses: [SelectionStub.self])
+        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
         let id = "http-only-\(UUID().uuidString.lowercased())"
         defer { tearDown(service, id) }
         let host = stub.host("httponly", .ok(id))
@@ -496,7 +496,7 @@ struct ConnectionSelectionTests {
         return try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: object))
     }
 
-    private func tearDown(_ service: PlexService, _ id: String) {
+    private func tearDown(_ service: MediaService, _ id: String) {
         ServerPool.forget(serverID: id)
         service.session.invalidateAndCancel()
         service.slowQuerySession.invalidateAndCancel()

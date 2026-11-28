@@ -7,7 +7,7 @@ final class SeerrService {
     private static let defaultsServerIDKey = "SeerrPlexServerID"
     private static let trustDefaultsKey = "SeerrTrustedCertificates"
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let sessionDelegate: SeerrURLSessionDelegate
     private let session: URLSession
     private let decoder: JSONDecoder
@@ -21,8 +21,8 @@ final class SeerrService {
     private(set) var isConnecting = false
     private(set) var lastConnectionError: String?
 
-    init(plexService: PlexService) {
-        self.plexService = plexService
+    init(media: MediaService) {
+        self.media = media
         self.sessionDelegate = SeerrURLSessionDelegate()
 
         let configuration = URLSessionConfiguration.ephemeral
@@ -66,12 +66,12 @@ final class SeerrService {
     }
 
     /// Seerr belongs to one Plex server. The binding is the account's
-    /// highest-priority enabled server (`plexService.seerrBindingServerID`),
+    /// highest-priority enabled server (`media.seerrBindingServerID`),
     /// which is stable across launches and outages — unlike the pool's primary
     /// connection, which is nil until a server answers and moves to the next
     /// server whenever the top one is offline.
     var isAvailableForCurrentContext: Bool {
-        isConnected && plexService.activeProfileID != nil
+        isConnected && media.activeProfileID != nil
     }
 
     var connectionSubtitle: String {
@@ -92,7 +92,7 @@ final class SeerrService {
         publicSettings = nil
         lastConnectionError = nil
 
-        guard plexService.isAuthenticated else {
+        guard media.isAuthenticated else {
             storedSessions = []
             SeerrCredentialStore.removeAll()
             return
@@ -110,9 +110,9 @@ final class SeerrService {
 
     func connect(serverURLString: String) async throws {
         guard !isConnecting else { return }
-        guard let profileID = plexService.activeProfileID,
-              let serverID = plexService.seerrBindingServerID,
-              let plexToken = plexService.activeAccountToken else {
+        guard let profileID = media.activeProfileID,
+              let serverID = media.seerrBindingServerID,
+              let plexToken = media.activeAccountToken else {
             throw SeerrServiceError.notConnected
         }
 
@@ -418,7 +418,7 @@ final class SeerrService {
         baseURL: URL,
         stored: inout SeerrStoredSession
     ) async throws {
-        guard let plexToken = plexService.activeAccountToken else {
+        guard let plexToken = media.activeAccountToken else {
             throw SeerrServiceError.notConnected
         }
         stored.cookies.removeValue(forKey: "connect.sid")
@@ -454,7 +454,7 @@ final class SeerrService {
     /// again for no reason.
     private var currentStoredSession: SeerrStoredSession? {
         guard let baseURL = configuredBaseURL?.absoluteString,
-              let profileID = plexService.activeProfileID else {
+              let profileID = media.activeProfileID else {
             return nil
         }
         #if DEBUG
@@ -464,7 +464,7 @@ final class SeerrService {
             return SeerrStoredSession(
                 baseURL: baseURL,
                 profileID: profileID,
-                serverID: plexService.seerrBindingServerID ?? "",
+                serverID: media.seerrBindingServerID ?? "",
                 cookies: ["connect.sid": "dusk-screenshot"]
             )
         }
@@ -472,17 +472,17 @@ final class SeerrService {
         let sessions = storedSessions.filter {
             $0.baseURL == baseURL && $0.profileID == profileID
         }
-        if let bindingServerID = plexService.seerrBindingServerID,
+        if let bindingServerID = media.seerrBindingServerID,
            let bound = sessions.first(where: { $0.serverID == bindingServerID }) {
             return bound
         }
-        return sessions.first { plexService.isKnownServerID($0.serverID) }
+        return sessions.first { media.isKnownServerID($0.serverID) }
     }
 
     /// Whether a stored session still belongs to this account's servers.
     private func isUsableSession(_ session: SeerrStoredSession) -> Bool {
-        session.serverID == plexService.seerrBindingServerID
-            || plexService.isKnownServerID(session.serverID)
+        session.serverID == media.seerrBindingServerID
+            || media.isKnownServerID(session.serverID)
     }
 
     /// Sessions written before servers were identified by machine identifier
@@ -490,8 +490,8 @@ final class SeerrService {
     /// again. Re-key them once, where the URL still points at a known server.
     private func rekeyLegacyServerIdentifiers() {
         if let legacy = configuredPlexServerID,
-           !plexService.isKnownServerID(legacy),
-           let resolved = plexService.serverID(forLegacyConnectionURI: legacy) {
+           !media.isKnownServerID(legacy),
+           let resolved = media.serverID(forLegacyConnectionURI: legacy) {
             configuredPlexServerID = resolved
             persistConfiguration()
         }
@@ -499,8 +499,8 @@ final class SeerrService {
         var changed = false
         for index in storedSessions.indices {
             let serverID = storedSessions[index].serverID
-            guard !plexService.isKnownServerID(serverID),
-                  let resolved = plexService.serverID(forLegacyConnectionURI: serverID),
+            guard !media.isKnownServerID(serverID),
+                  let resolved = media.serverID(forLegacyConnectionURI: serverID),
                   resolved != serverID else {
                 continue
             }

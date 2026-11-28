@@ -10,7 +10,7 @@ final class VideoDetailViewModel {
     private static let channelRowFetchSize = 13
     private static let channelRowItemLimit = 12
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
     /// Server-scoped identity of the clip; every request goes to its server.
@@ -34,12 +34,12 @@ final class VideoDetailViewModel {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
         self.id = id
-        self.plexService = plexService
+        self.media = media
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
     }
@@ -59,7 +59,7 @@ final class VideoDetailViewModel {
         }
 
         do {
-            details = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
+            details = try await media.getMediaDetails(itemID: itemID, serverID: serverID)
             isUsingCachedData = false
         } catch {
             if details == nil {
@@ -87,11 +87,11 @@ final class VideoDetailViewModel {
         }
 
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 targetWatched,
                 id: MediaItemID(serverID: serverID, itemID: itemID)
             )
-            self.details = try await plexService.getMediaDetails(itemID: itemID, serverID: serverID)
+            self.details = try await media.getMediaDetails(itemID: itemID, serverID: serverID)
         } catch {
             if isPlayableOffline {
                 offlinePlaybackSyncManager?.recordWatchState(
@@ -169,7 +169,7 @@ final class VideoDetailViewModel {
         // A clip's `art` is rare; its `thumb` (16:9 frame grab) works as backdrop.
         let path = details?.art ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
+            ?? media.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     /// The route's server wins; the download record and the primary server are
@@ -177,7 +177,7 @@ final class VideoDetailViewModel {
     var serverID: String? {
         id.serverID
             ?? downloadManager?.serverID(for: id)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
     }
 
     // MARK: - Channel Row
@@ -211,7 +211,7 @@ final class VideoDetailViewModel {
             // The channel row lives entirely on the clip's own server: its
             // section id, collection tag, and rating keys all belong to it.
             let serverID = self.serverID
-            let collections = try await plexService.getLibraryCollections(
+            let collections = try await media.getLibraryCollections(
                 sectionId: sectionID,
                 serverID: serverID
             )
@@ -225,7 +225,7 @@ final class VideoDetailViewModel {
                 return
             }
 
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: sectionID,
                 size: Self.channelRowFetchSize,
                 sort: "originallyAvailableAt:desc",
@@ -235,7 +235,7 @@ final class VideoDetailViewModel {
 
             // The library is only needed for the "Show all" route; failing to
             // resolve it must not hide the row itself.
-            let library = (try? await plexService.getLibraries(serverID: serverID))?
+            let library = (try? await media.getLibraries(serverID: serverID))?
                 .first { $0.key == sectionID }
 
             guard !Task.isCancelled else { return }
@@ -262,19 +262,19 @@ extension VideoDetailViewModel {
     /// owner (and non-restricted Home users) write sidecar files, and there has
     /// to be a real part on disk to write next to.
     var canDownloadSubtitles: Bool {
-        plexService.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
+        media.canDownloadSubtitles(serverID: serverID) && !isUsingCachedData && hasPlayablePart
     }
 
     private var hasPlayablePart: Bool {
         details?.media.contains { !$0.parts.isEmpty } == true
     }
 
-    /// Builds the flow's view model so the view never reaches for `PlexService`.
+    /// Builds the flow's view model so the view never reaches for `MediaService`.
     /// Re-reading the item afterwards is what surfaces the new subtitle stream in
     /// the media info; the next playback session mounts it on its own.
     func makeSubtitleSearchViewModel(preferredLanguageCode: String?) -> SubtitleSearchViewModel {
         SubtitleSearchViewModel(
-            plexService: plexService,
+            media: media,
             itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode

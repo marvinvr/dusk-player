@@ -19,7 +19,7 @@ import SwiftUI
 /// than being squeezed into the text column.
 struct PlayerUpNextPosterView: View {
     let presentation: UpNextPosterPresentation
-    let plexService: PlexService
+    let media: MediaService
     let controlsVisible: Bool
     /// tvOS only: the card is "selected" while `PlayerTVHUDController` routes
     /// Select to it (HUD hidden, or moved onto with Up from the action row). It is deliberately
@@ -430,7 +430,7 @@ struct PlayerUpNextPosterView: View {
     // MARK: - Data
 
     private var thumbnailURL: URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.upNextStillPath),
             size: ImageSize(width: 640, height: 360)
         )

@@ -172,7 +172,7 @@ extension PlaybackCoordinator {
         // snapshot, so comparing its selection after On → Off → On skips
         // necessary updates. Zero explicitly clears Plex's subtitle choice.
         do {
-            try await plexService.selectStreams(
+            try await self.media.selectStreams(
                 partID: part.id,
                 audioStreamID: audioStreamID,
                 subtitleStreamID: subtitleStreamID ?? "0",
@@ -203,7 +203,7 @@ extension PlaybackCoordinator {
 
         let transcodeSessionID = UUID().uuidString
         do {
-            let result = try await plexService.spatialAudioRemuxURL(
+            let result = try await self.media.spatialAudioRemuxURL(
                 itemID: itemID,
                 mediaIndex: mediaIndex,
                 sessionIdentifier: sessionIdentifier,
@@ -364,7 +364,7 @@ extension PlaybackCoordinator {
             transitionLabel: "retrying HDR through a Plex server remux",
             attemptID: UUID(), details: details, itemID: itemID,
             media: media, part: part, playbackURL: remux.url,
-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
+            sanitizedURL: self.media.sanitizedPlaybackURLString(for: remux.url),
             playbackDecision: .spatialAudio, engineType: .avPlayer,
             resolverReason: "HDR remux failed (\(failureDescription)); \(remux.reason)",
             videoEnhancementRequest: .disabled, startPosition: resumePosition,
@@ -384,7 +384,7 @@ extension PlaybackCoordinator {
             let convertsAudio = stage == .convertedAudio
             let sessionID = UUID().uuidString
             do {
-                let result = try await plexService.spatialAudioRemuxURL(
+                let result = try await self.media.spatialAudioRemuxURL(
                     itemID: itemID, mediaIndex: mediaIndex,
                     sessionIdentifier: sessionIdentifier, transcodeSessionID: sessionID,
                     audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
@@ -538,7 +538,7 @@ extension PlaybackCoordinator {
             media: media,
             part: part,
             playbackURL: remux.url,
-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
+            sanitizedURL: self.media.sanitizedPlaybackURLString(for: remux.url),
             playbackDecision: .spatialAudio,
             engineType: .avPlayer,
             resolverReason: remux.reason,
@@ -619,7 +619,7 @@ extension PlaybackCoordinator {
             media: media,
             part: part,
             playbackURL: remux.url,
-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
+            sanitizedURL: self.media.sanitizedPlaybackURLString(for: remux.url),
             playbackDecision: .spatialAudio,
             engineType: .avPlayer,
             resolverReason: remux.reason,
@@ -666,7 +666,7 @@ extension PlaybackCoordinator {
             }
             return
         }
-        guard let directPlayURL = plexService.directPlayURL(for: part, serverID: activePlaybackServerID) else {
+        guard let directPlayURL = self.media.directPlayURL(for: part, serverID: activePlaybackServerID) else {
             return
         }
         let resolverDecision = StreamResolver.evaluateForDirectPlayback(
@@ -719,7 +719,7 @@ extension PlaybackCoordinator {
             media: media,
             part: part,
             playbackURL: directPlayURL,
-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: directPlayURL),
+            sanitizedURL: self.media.sanitizedPlaybackURLString(for: directPlayURL),
             playbackDecision: .directPlay,
             engineType: resolverDecision.engine,
             resolverReason: "\(reason) (\(resolverDecision.reason))",

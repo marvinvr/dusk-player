@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct SettingsTVView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(SeerrService.self) private var seerrService
     @Environment(TraktService.self) private var traktService
     @Environment(IPTVService.self) private var iptvService
@@ -36,7 +36,7 @@ struct SettingsTVView: View {
                     }
                 }
 
-                if plexService.homeUsers.count > 1, let activeUser = plexService.activeHomeUser {
+                if media.homeUsers.count > 1, let activeUser = media.activeHomeUser {
                     TVSettingsSection(
                         title: "Plex Home",
                         footer: "When off, Dusk asks who’s watching at launch."
@@ -185,7 +185,7 @@ struct SettingsTVView: View {
                         titleVisibility: .visible
                     ) {
                         Button("Sign Out", role: .destructive) {
-                            plexService.signOut()
+                            media.signOut()
                         }
                         Button("Cancel", role: .cancel) {}
                     }
@@ -244,7 +244,7 @@ struct SettingsTVView: View {
 
             TVSettingsNavigationRow(
                 title: "Hidden Libraries",
-                detail: SettingsSupport.hiddenLibrariesSummary(plexService)
+                detail: SettingsSupport.hiddenLibrariesSummary(media)
             ) {
                 HiddenLibrariesSettingsView()
             }
@@ -253,7 +253,7 @@ struct SettingsTVView: View {
 
             TVSettingsNavigationRow(
                 title: "Server Priority",
-                detail: SettingsSupport.serverPrioritySummary(plexService)
+                detail: SettingsSupport.serverPrioritySummary(media)
             ) {
                 ServerPrioritySettingsView()
             }
@@ -273,7 +273,7 @@ struct SettingsTVView: View {
 
             TVSettingsNavigationRow(
                 title: "Pinned Playlists",
-                detail: SettingsSupport.pinnedPlaylistsSummary(plexService.pinnedPlaylistPins.count)
+                detail: SettingsSupport.pinnedPlaylistsSummary(media.pinnedPlaylistPins.count)
             ) {
                 PinnedPlaylistsSettingsView()
             }
@@ -504,8 +504,8 @@ struct SettingsTVView: View {
 
     private var automaticHomeSignInBinding: Binding<Bool> {
         Binding(
-            get: { plexService.automaticHomeSignIn },
-            set: { plexService.automaticHomeSignIn = $0 }
+            get: { media.automaticHomeSignIn },
+            set: { media.automaticHomeSignIn = $0 }
         )
     }
 }

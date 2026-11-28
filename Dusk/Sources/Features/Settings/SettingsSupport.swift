@@ -92,24 +92,24 @@ enum SettingsSupport {
     /// Counts only libraries Dusk can show; a music library hidden in Plex Web
     /// is not something this screen lists.
     @MainActor
-    static func hiddenLibrariesSummary(_ plexService: PlexService) -> String {
-        let hidden = plexService.libraryOrder.hiddenSectionIdentities
-        let count = plexService.libraryOrder.sections.filter {
+    static func hiddenLibrariesSummary(_ media: MediaService) -> String {
+        let hidden = media.libraryOrder.hiddenSectionIdentities
+        let count = media.libraryOrder.sections.filter {
             $0.libraryType != nil && hidden.contains($0.id)
         }.count
         return count == 0 ? "None" : "\(count) Hidden"
     }
 
     @MainActor
-    static func serverPrioritySummary(_ plexService: PlexService) -> String {
-        let servers = plexService.pool.servers
+    static func serverPrioritySummary(_ media: MediaService) -> String {
+        let servers = media.pool.servers
         guard !servers.isEmpty else { return "" }
 
         if servers.count == 1, let name = servers.values.first?.name.nilIfEmpty {
             return name
         }
 
-        let enabled = servers.keys.filter { plexService.serverPriority.isEnabled($0) }.count
+        let enabled = servers.keys.filter { media.serverPriority.isEnabled($0) }.count
         return enabled == servers.count ? "\(servers.count) Servers" : "\(enabled) of \(servers.count)"
     }
 

@@ -8,7 +8,7 @@ import SwiftUI
 /// phase. A `nil` placeholder degrades to the shared bare spinner (e.g.
 /// programmatic playback with no known metadata).
 struct PlayerLoadingView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     let placeholder: PlaybackPlaceholder?
@@ -188,7 +188,7 @@ struct PlayerLoadingView: View {
     }
 
     private func channelLogoURL(for path: String?) -> URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: placeholder?.serverID, path: path),
             size: ImageSize(width: Int(channelTileSize * 2), height: Int(channelTileSize * 2))
         )
@@ -212,7 +212,7 @@ struct PlayerLoadingView: View {
 
     private var posterURL: URL? {
         guard let path = placeholder?.posterPath else { return nil }
-        return plexService.imageURL(
+        return media.imageURL(
             for: ArtworkRef(serverID: placeholder?.serverID, path: path),
             size: ImageSize(width: Int(posterWidth), height: Int(posterWidth * 1.5))
         )
@@ -220,7 +220,7 @@ struct PlayerLoadingView: View {
 
     private var backdropURL: URL? {
         guard let path = placeholder?.backdropPath else { return nil }
-        return plexService.imageURL(
+        return media.imageURL(
             for: ArtworkRef(serverID: placeholder?.serverID, path: path),
             size: ImageSize(width: 1280, height: 720)
         )

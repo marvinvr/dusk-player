@@ -119,7 +119,7 @@ final class AddToPlaylistViewModel {
     }
 
     let target: AddToPlaylistTarget
-    private let plexService: PlexService
+    private let media: MediaService
 
     private(set) var episodeCount: Int?
     private(set) var isWorking = false
@@ -129,18 +129,18 @@ final class AddToPlaylistViewModel {
     /// A show/season add waiting for "Add 24 episodes?".
     var pendingConfirmation: PendingAdd?
 
-    init(target: AddToPlaylistTarget, plexService: PlexService) {
+    init(target: AddToPlaylistTarget, media: MediaService) {
         self.target = target
-        self.plexService = plexService
+        self.media = media
         self.episodeCount = target.episodeCount
     }
 
     var playlists: [Playlist] {
-        plexService.playlists.editablePlaylists(serverID: target.id.serverID)
+        media.playlists.editablePlaylists(serverID: target.id.serverID)
     }
 
     var isLoading: Bool {
-        plexService.playlists.state == .loading && playlists.isEmpty
+        media.playlists.state == .loading && playlists.isEmpty
     }
 
     var countQuestion: String {
@@ -149,9 +149,9 @@ final class AddToPlaylistViewModel {
     }
 
     func load() async {
-        await plexService.loadPlaylists()
+        await media.loadPlaylists()
         if target.expandsToEpisodes, episodeCount == nil {
-            episodeCount = try? await plexService.getMediaDetails(
+            episodeCount = try? await media.getMediaDetails(
                 itemID: target.id.itemID,
                 serverID: target.id.serverID
             ).episodeCount
@@ -182,19 +182,19 @@ final class AddToPlaylistViewModel {
         do {
             switch add {
             case .existing(let playlist):
-                let result = try await plexService.addToPlaylist(playlist, ratingKeys: [target.id.itemID])
-                await plexService.refreshPlaylist(playlist.id)
+                let result = try await media.addToPlaylist(playlist, ratingKeys: [target.id.itemID])
+                await media.refreshPlaylist(playlist.id)
                 confirmation = Self.confirmation(for: result, playlistTitle: playlist.title)
             case .new(let title):
                 let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
-                let session = plexService.playlists.sessionGeneration
-                let playlist = try await plexService.createPlaylist(
+                let session = media.playlists.sessionGeneration
+                let playlist = try await media.createPlaylist(
                     title: trimmed,
                     ratingKeys: [target.id.itemID],
                     serverID: serverID
                 )
-                plexService.playlists.upsert(playlist, sessionGeneration: session)
+                media.playlists.upsert(playlist, sessionGeneration: session)
                 confirmation = "Added to “\(playlist.title)”"
             }
         } catch {
@@ -227,8 +227,8 @@ struct AddToPlaylistSheet: View {
     @State private var isNaming = false
     @State private var newTitle = ""
 
-    init(target: AddToPlaylistTarget, plexService: PlexService) {
-        _viewModel = State(initialValue: AddToPlaylistViewModel(target: target, plexService: plexService))
+    init(target: AddToPlaylistTarget, media: MediaService) {
+        _viewModel = State(initialValue: AddToPlaylistViewModel(target: target, media: media))
     }
 
     /// Nothing more to pick once an add is running or done.

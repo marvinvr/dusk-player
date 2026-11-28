@@ -13,7 +13,7 @@ import SwiftUI
 /// with a focus-driven pick-up**: see the warning at the top of
 /// `LibraryOrderSettingsView`.
 struct ServerPrioritySettingsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(ServerConnectionCoordinator.self) private var connections
     @State private var viewModel: ServerPrioritySettingsViewModel?
 
@@ -24,7 +24,7 @@ struct ServerPrioritySettingsView: View {
             .duskNavigationBarTitleDisplayModeInline()
             .task {
                 let model = viewModel ?? ServerPrioritySettingsViewModel(
-                    plexService: plexService,
+                    media: media,
                     connections: connections
                 )
                 viewModel = model

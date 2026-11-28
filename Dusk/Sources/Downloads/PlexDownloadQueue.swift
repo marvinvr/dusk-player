@@ -6,7 +6,7 @@ import Foundation
 /// a lost create/add response can be recovered without duplicating conversion.
 struct PlexDownloadQueueContext: Sendable {
     let profileID: String
-    let connection: PlexServerConnection
+    let connection: ServerSession
     let headers: [String: String]
 }
 
@@ -79,7 +79,7 @@ struct PlexDownloadDecision: Sendable {
 }
 
 /// Pure response parsing shared by preparation and its protocol regression
-/// fixtures. Network and active-profile validation remain in PlexService.
+/// fixtures. Network and active-profile validation remain in MediaService.
 enum PlexDownloadQueueResponse {
     static func decision(_ data: Data) throws -> PlexDownloadDecision {
         let metadata = try elements(data, named: "Metadata")

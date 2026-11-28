@@ -420,7 +420,7 @@ struct LegacyContainerTests {
     @Test func activeHomeUserDecodesAtLaunch() throws {
         let fixture = try LegacyFixture.data("LegacyContainer-PlexActiveHomeUserData.json")
         let user = LegacyFixture.withStandardDefault("PlexActiveHomeUserData", set: fixture) {
-            let service = PlexService()
+            let service = MediaService()
             defer {
                 service.session.invalidateAndCancel()
                 service.slowQuerySession.invalidateAndCancel()

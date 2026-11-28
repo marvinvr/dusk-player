@@ -17,7 +17,7 @@ private struct LiveTVGuideDayFetch: Sendable {
 @MainActor
 @Observable
 final class LiveTVViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     /// The user's IPTV sources, shown after the Plex channels.
     private let iptvService: IPTVService?
 
@@ -100,11 +100,11 @@ final class LiveTVViewModel {
     private let discoveryRetryDelay: Duration
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         iptvService: IPTVService? = nil,
         discoveryRetryDelay: Duration = .seconds(2)
     ) {
-        self.plexService = plexService
+        self.media = media
         self.iptvService = iptvService
         self.discoveryRetryDelay = discoveryRetryDelay
     }
@@ -135,11 +135,11 @@ final class LiveTVViewModel {
     /// server that briefly drops out while it reconnects, must not take the
     /// tab away under the user.
     private func discoverOnce() async -> LiveTVDiscovery {
-        let profileID = plexService.serverContentRevision.profileID
-        let result = await plexService.discoverLiveTVProvider()
+        let profileID = media.serverContentRevision.profileID
+        let result = await media.discoverLiveTVProvider()
         if case .found(let found) = result,
            provider == nil,
-           profileID == plexService.serverContentRevision.profileID {
+           profileID == media.serverContentRevision.profileID {
             provider = found
             discoveredProfileID = profileID
         }
@@ -149,7 +149,7 @@ final class LiveTVViewModel {
     /// A different Plex Home member sees different servers and DVRs.
     private func resetIfProfileChanged() {
         guard provider != nil,
-              discoveredProfileID != plexService.serverContentRevision.profileID else { return }
+              discoveredProfileID != media.serverContentRevision.profileID else { return }
         provider = nil
         channels = []
         devices = []
@@ -250,12 +250,12 @@ final class LiveTVViewModel {
             }
 
             if channels.isEmpty || refreshChannels {
-                channels = try await plexService.getLiveTVChannels(provider: provider)
+                channels = try await media.getLiveTVChannels(provider: provider)
             }
             // Only groups the guide: a failure must not cost the channels,
             // and is asked again on the next load.
             if !hasLoadedDevices || refreshChannels,
-               let found = try? await plexService.getLiveTVDevices(provider: provider) {
+               let found = try? await media.getLiveTVDevices(provider: provider) {
                 devices = found
                 hasLoadedDevices = true
             }
@@ -319,13 +319,13 @@ final class LiveTVViewModel {
     /// Each of `days` as one ranged grid request, a few at a time. Days that
     /// failed are missing from the answer; only all of them failing throws.
     private func fetchAirings(provider: LiveTVProvider, days: [Date]) async throws -> [Date: [LiveProgram]] {
-        let plexService = plexService
+        let media = media
         let windows = days.map { LiveTVGuideWindow(start: $0, end: Self.day(1, after: $0)) }
         let results = await withTaskGroup(of: LiveTVGuideDayFetch.self) { group in
             for window in windows {
                 group.addTask {
                     let outcome = await Result.capturing {
-                        try await plexService.getLiveTVGuideAirings(provider: provider, window: window)
+                        try await media.getLiveTVGuideAirings(provider: provider, window: window)
                     }
                     return LiveTVGuideDayFetch(day: window.start, outcome: outcome)
                 }
@@ -350,7 +350,7 @@ final class LiveTVViewModel {
     /// The old way, for a server whose grid ignores the time range: one
     /// `date=` request per channel and day.
     private func fetchPerChannelGuide(provider: LiveTVProvider, days: [Date], now: Date) async throws {
-        let fetched = try await plexService.getLiveTVGuide(provider: provider, channels: channels, dates: days)
+        let fetched = try await media.getLiveTVGuide(provider: provider, channels: channels, dates: days)
         plexAirings = [Calendar.current.startOfDay(for: now): fetched.guides.flatMap(\.programs)]
         loadedAt = now
         farLoadedAt = nil
@@ -397,14 +397,14 @@ final class LiveTVViewModel {
         }
         guard !pending.isEmpty else { return }
         let batch = Array(pending.prefix(Self.recordingLookupLimit))
-        let plexService = plexService
+        let media = media
         let results = await withTaskGroup(of: LiveTVRecordingLookup.self) { group in
             var iterator = batch.makeIterator()
             func addNext() {
                 guard let program = iterator.next(), let guid = program.guid else { return }
                 group.addTask {
                     let outcome = await Result.capturing {
-                        try await plexService.liveTVRecording(for: program, provider: provider)
+                        try await media.liveTVRecording(for: program, provider: provider)
                     }
                     return LiveTVRecordingLookup(guid: guid, outcome: outcome)
                 }
@@ -471,9 +471,9 @@ final class LiveTVViewModel {
         do {
             guard let provider = try await resolveProvider() else { return }
             if channels.isEmpty {
-                channels = try await plexService.getLiveTVChannels(provider: provider)
+                channels = try await media.getLiveTVChannels(provider: provider)
             }
-            nowPlayingLineup = try await plexService.getLiveTVNowPlaying(
+            nowPlayingLineup = try await media.getLiveTVNowPlaying(
                 provider: provider,
                 channels: channels
             )
@@ -492,17 +492,17 @@ final class LiveTVViewModel {
     /// asked of the DVR's server.
     func imageURL(for lineup: LiveTVLineup) -> (String?, Int, Int) -> URL? {
         guard lineup.provider.isIPTV else { return imageURL(for:width:height:) }
-        let plexService = plexService
+        let media = media
         return { path, width, height in
-            plexService.imageURL(for: ArtworkRef(serverID: IPTVImages.serverID, path: path), size: ImageSize(width: width, height: height))
+            media.imageURL(for: ArtworkRef(serverID: IPTVImages.serverID, path: path), size: ImageSize(width: width, height: height))
         }
     }
 
     func imageURL(for path: String?, width: Int, height: Int) -> URL? {
         // Explicit because `imageURL` falls back to the primary server, while
         // the DVR may live on another one.
-        plexService.imageURL(
-            for: ArtworkRef(serverID: provider?.serverID ?? plexService.liveTVServerID, path: path),
+        media.imageURL(
+            for: ArtworkRef(serverID: provider?.serverID ?? media.liveTVServerID, path: path),
             size: ImageSize(width: width, height: height)
         )
     }

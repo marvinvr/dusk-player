@@ -14,7 +14,7 @@ import SwiftUI
 /// handler when the focus engine has no candidate, and the tab bar sits above
 /// this screen).
 struct LibraryOrderSettingsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @State private var viewModel: LibraryOrderSettingsViewModel?
 
     var body: some View {
@@ -23,7 +23,7 @@ struct LibraryOrderSettingsView: View {
             .duskNavigationTitle("Library Order")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
-                let model = viewModel ?? LibraryOrderSettingsViewModel(plexService: plexService)
+                let model = viewModel ?? LibraryOrderSettingsViewModel(media: media)
                 viewModel = model
                 await model.load()
             }

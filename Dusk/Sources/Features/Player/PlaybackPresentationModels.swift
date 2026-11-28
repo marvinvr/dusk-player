@@ -18,7 +18,7 @@ struct PlaybackAttemptContext: Sendable {
 /// The little we know about an item at the instant the user presses Play,
 /// used to fill the loading screen before `getMediaDetails` returns. Carries
 /// relative Plex art paths rather than resolved URLs so the loading view can
-/// size them itself via `PlexService.imageURL(for:size:)`.
+/// size them itself via `MediaService.imageURL(for:size:)`.
 struct PlaybackPlaceholder: Sendable {
     /// How the loading screen leads. Library items lead with their poster;
     /// Live TV leads with the channel, whose logo is the one image that is
@@ -417,7 +417,7 @@ enum PlaybackDecision: Sendable, Equatable {
     /// Dolby Atmos / spatial-audio delivery: Plex remuxes (copies) a file only
     /// VLCKit could direct play into fMP4 HLS for AVPlayer, which is what
     /// renders Atmos over HDMI and spatial audio on AirPods. Original quality;
-    /// see `PlexService.TranscodeDeliveryMode.spatialAudioRemux`.
+    /// see `MediaService.TranscodeDeliveryMode.spatialAudioRemux`.
     case spatialAudio
 }
 
@@ -727,7 +727,7 @@ struct PlaybackAdjacentEpisodes: Sendable {
     var previous: Neighbour?
     var next: Neighbour?
     /// True when the show's online episode lookup answered, so `next` is the
-    /// same episode `PlexService.getNextEpisode` would return and Up Next can
+    /// same episode `MediaService.getNextEpisode` would return and Up Next can
     /// use it without asking the server again. False for the downloaded-only
     /// fallback (offline, or a failed lookup) and for queue sessions.
     var isOnlineEpisodeLookup = false

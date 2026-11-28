@@ -20,10 +20,10 @@ struct HomeHubItemsView: View {
         isVideoHub ? 16.0 / 9.0 : 2.0 / 3.0
     }
 
-    init(hub: HomeRow, plexService: PlexService) {
+    init(hub: HomeRow, media: MediaService) {
         _viewModel = State(initialValue: HomeHubItemsViewModel(
             hub: hub,
-            plexService: plexService
+            media: media
         ))
     }
 

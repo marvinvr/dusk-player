@@ -174,18 +174,18 @@ extension MediaItem {
     /// Artwork always comes from the item's own server: a merged row mixes
     /// items from several servers, and the paths are only valid on theirs.
     @MainActor
-    func posterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredPoster, size: ImageSize(width: width, height: height))
+    func posterImageURL(media: MediaService, width: Int, height: Int) -> URL? {
+        media.imageURL(for: preferredPoster, size: ImageSize(width: width, height: height))
     }
 
     @MainActor
-    func fallbackPosterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: fallbackPoster, size: ImageSize(width: width, height: height))
+    func fallbackPosterImageURL(media: MediaService, width: Int, height: Int) -> URL? {
+        media.imageURL(for: fallbackPoster, size: ImageSize(width: width, height: height))
     }
 
     @MainActor
-    func landscapeImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredLandscape, size: ImageSize(width: width, height: height))
+    func landscapeImageURL(media: MediaService, width: Int, height: Int) -> URL? {
+        media.imageURL(for: preferredLandscape, size: ImageSize(width: width, height: height))
     }
 }
 

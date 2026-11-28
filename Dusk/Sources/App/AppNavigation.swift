@@ -95,7 +95,7 @@ private struct DuoInnerDisplayDetailLayout: ViewModifier {
 #endif
 
 struct AppNavigationDestinationView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
     @Environment(SeerrService.self) private var seerrService
@@ -118,37 +118,37 @@ struct AppNavigationDestinationView: View {
             SearchRootContent()
         case .library(let library):
             if library.libraryType == .photo {
-                PhotoBrowserView(library: library, plexService: plexService)
+                PhotoBrowserView(library: library, media: media)
             } else {
-                LibraryItemsView(library: library, plexService: plexService)
+                LibraryItemsView(library: library, media: media)
             }
         case .photoAlbum(let album):
-            PhotoBrowserView(library: album.library, album: album, plexService: plexService)
+            PhotoBrowserView(library: album.library, album: album, media: media)
         case .libraryGenre(let library, let genre):
             LibraryItemsView(
                 library: library,
-                plexService: plexService,
+                media: media,
                 initialGenre: genre
             )
         case .libraryCollection(let library, let collection):
             LibraryCollectionItemsView(library: library, collection: collection)
         case .libraryCollections(let library):
-            LibraryCollectionsView(library: library, plexService: plexService)
+            LibraryCollectionsView(library: library, media: media)
         case .libraryRecommendations(let library):
             LibraryRecommendationsView(
                 library: library,
-                plexService: plexService,
+                media: media,
                 navigationTitle: library.title
             )
         case .hub(let hub):
-            HomeHubItemsView(hub: hub, plexService: plexService)
+            HomeHubItemsView(hub: hub, media: media)
         case .playlist(let id):
-            PlaylistDetailView(id: id, plexService: plexService)
+            PlaylistDetailView(id: id, media: media)
         case let .media(type, id):
             MediaDetailDestinationView(
                 type: type,
                 id: id,
-                plexService: plexService,
+                media: media,
                 seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
@@ -157,7 +157,7 @@ struct AppNavigationDestinationView: View {
             MediaDetailDestinationView(
                 type: type,
                 id: id,
-                plexService: plexService,
+                media: media,
                 seerrService: seerrService,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -166,14 +166,14 @@ struct AppNavigationDestinationView: View {
         case let .video(id):
             VideoDetailView(
                 id: id,
-                plexService: plexService,
+                media: media,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
         case let .videoInList(id, list):
             VideoDetailView(
                 id: id,
-                plexService: plexService,
+                media: media,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 playThrough: list
@@ -181,7 +181,7 @@ struct AppNavigationDestinationView: View {
         case let .movieInList(id, list):
             MovieDetailView(
                 id: id,
-                plexService: plexService,
+                media: media,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                 playThrough: list
@@ -189,12 +189,12 @@ struct AppNavigationDestinationView: View {
         case let .downloadedVideo(id):
             VideoDetailView(
                 id: id,
-                plexService: plexService,
+                media: media,
                 downloadManager: downloadManager,
                 offlinePlaybackSyncManager: offlinePlaybackSyncManager
             )
         case let .person(person, serverID):
-            ActorDetailView(person: person, serverID: serverID, plexService: plexService)
+            ActorDetailView(person: person, serverID: serverID, media: media)
         case let .seerrMedia(type, id):
             SeerrMediaDetailView(mediaType: type, mediaID: id, service: seerrService)
         case let .seerrSeason(tvID, seasonNumber):
@@ -204,7 +204,7 @@ struct AppNavigationDestinationView: View {
                 service: seerrService
             )
         case let .watchlistItem(entry):
-            WatchlistItemDetailView(entry: entry, plexService: plexService)
+            WatchlistItemDetailView(entry: entry, media: media)
         case .libraryOrder:
             LibraryOrderSettingsView()
         #if DEBUG

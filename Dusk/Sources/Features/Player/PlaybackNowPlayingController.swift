@@ -56,7 +56,7 @@ final class PlaybackNowPlayingController {
     func beginSession(
         details: MediaDetails,
         engine: any PlaybackEngine,
-        plexService: PlexService,
+        media: MediaService,
         skipBackwardInterval: TimeInterval,
         skipForwardInterval: TimeInterval
     ) {
@@ -80,7 +80,7 @@ final class PlaybackNowPlayingController {
         #endif
         configureRemoteCommands()
         publishInitialMetadata(for: details)
-        loadArtwork(for: details, using: plexService)
+        loadArtwork(for: details, using: media)
         startSnapshotUpdates()
     }
 
@@ -90,7 +90,7 @@ final class PlaybackNowPlayingController {
         artworkPath: String?,
         serverID: String?,
         engine: any PlaybackEngine,
-        plexService: PlexService,
+        media: MediaService,
         skipBackwardInterval: TimeInterval,
         skipForwardInterval: TimeInterval,
         isLive: Bool = true
@@ -119,7 +119,7 @@ final class PlaybackNowPlayingController {
         ]
         publishNowPlayingInfo()
         MPNowPlayingInfoCenter.default().playbackState = .paused
-        loadLiveArtwork(path: artworkPath, serverID: serverID, using: plexService)
+        loadLiveArtwork(path: artworkPath, serverID: serverID, using: media)
         startSnapshotUpdates()
     }
 
@@ -467,12 +467,12 @@ private extension PlaybackNowPlayingController {
         }
     }
 
-    func loadArtwork(for details: MediaDetails, using plexService: PlexService) {
+    func loadArtwork(for details: MediaDetails, using media: MediaService) {
         // Lock screen and Control Centre. An episode still is a screenshot;
         // the show poster reads cleaner there (#57). Movies keep their poster.
         let artworkPath = nowPlayingArtworkPath(for: details)
 
-        guard let artworkURL = plexService.imageURL(
+        guard let artworkURL = media.imageURL(
             for: ArtworkRef(serverID: details.serverID, path: artworkPath),
             size: ImageSize(width: 640, height: 640)
         ) else {
@@ -480,11 +480,11 @@ private extension PlaybackNowPlayingController {
         }
 
         let artworkSessionID = sessionID
-        artworkTask = Task { @MainActor [weak self, weak plexService] in
-            guard let self, let plexService else { return }
+        artworkTask = Task { @MainActor [weak self, weak media] in
+            guard let self, let media else { return }
 
             do {
-                let image = try await DuskImageLoader.shared.image(for: artworkURL, using: plexService)
+                let image = try await DuskImageLoader.shared.image(for: artworkURL, using: media)
                 guard !Task.isCancelled, self.sessionID == artworkSessionID else { return }
 
                 guard let imageData = image.jpegData(compressionQuality: 0.9) else { return }
@@ -497,17 +497,17 @@ private extension PlaybackNowPlayingController {
         }
     }
 
-    func loadLiveArtwork(path: String?, serverID: String?, using plexService: PlexService) {
-        guard let artworkURL = plexService.imageURL(
+    func loadLiveArtwork(path: String?, serverID: String?, using media: MediaService) {
+        guard let artworkURL = media.imageURL(
             for: ArtworkRef(serverID: serverID, path: path),
             size: ImageSize(width: 640, height: 360)
         ) else {
             return
         }
         let artworkSessionID = sessionID
-        artworkTask = Task { @MainActor [weak self, weak plexService] in
-            guard let self, let plexService else { return }
-            guard let image = try? await DuskImageLoader.shared.image(for: artworkURL, using: plexService),
+        artworkTask = Task { @MainActor [weak self, weak media] in
+            guard let self, let media else { return }
+            guard let image = try? await DuskImageLoader.shared.image(for: artworkURL, using: media),
                   !Task.isCancelled,
                   self.sessionID == artworkSessionID,
                   let imageData = image.jpegData(compressionQuality: 0.9) else { return }

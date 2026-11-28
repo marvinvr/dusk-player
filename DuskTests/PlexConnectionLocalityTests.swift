@@ -116,7 +116,7 @@ struct PlexConnectionLocalityTests {
     }
 
     @Test func unknownLocalityIsNeitherLocalNorRemote() {
-        let restored = PlexServerConnection(
+        let restored = ServerSession(
             serverID: "m", name: "Home", owned: true, sourceTitle: nil,
             baseURL: URL(string: "http://192.168.1.10:32400")!, token: "t", connection: nil
         )

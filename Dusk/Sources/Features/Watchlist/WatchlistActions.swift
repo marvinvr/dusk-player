@@ -2,16 +2,16 @@ import SwiftUI
 
 /// Adds a title to the Plex Watchlist or takes it off, for the hero bookmark
 /// and the context menus. The store changes at once and is put back if
-/// plex.tv refuses (`PlexService.setWatchlisted`).
+/// plex.tv refuses (`MediaService.setWatchlisted`).
 @MainActor
 enum WatchlistActions {
     static func toggle(
         entry: WatchlistEntry,
         match: MediaItem?,
-        plexService: PlexService
+        media: MediaService
     ) async throws {
-        let isWatchlisted = plexService.watchlist.contains(guid: entry.guid) ?? false
-        try await plexService.setWatchlisted(!isWatchlisted, entry: entry, match: match)
+        let isWatchlisted = media.watchlist.contains(guid: entry.guid) ?? false
+        try await media.setWatchlisted(!isWatchlisted, entry: entry, match: match)
     }
 
     static func menuTitle(isWatchlisted: Bool) -> String {
@@ -27,18 +27,18 @@ enum WatchlistActions {
 /// `bookmark.fill`). Absent until the Watchlist is known, and for items with
 /// no Plex id (legacy agents, personal media), which Plex cannot watchlist.
 struct WatchlistHeroButton: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @State private var error: String?
 
     let entry: WatchlistEntry?
     var match: MediaItem? = nil
 
     var body: some View {
-        if let entry, let isWatchlisted = plexService.watchlist.contains(guid: entry.guid) {
+        if let entry, let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
             Button {
                 Task {
                     do {
-                        try await WatchlistActions.toggle(entry: entry, match: match, plexService: plexService)
+                        try await WatchlistActions.toggle(entry: entry, match: match, media: media)
                     } catch {
                         self.error = error.localizedDescription
                     }
@@ -62,7 +62,7 @@ struct WatchlistHeroButton: View {
 
 /// The context-menu entry for a watchlist entry or a server movie/show.
 struct WatchlistMenuButton: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let entry: WatchlistEntry?
     var match: MediaItem? = nil
@@ -77,9 +77,9 @@ struct WatchlistMenuButton: View {
     }
 
     var body: some View {
-        if let entry, let isWatchlisted = plexService.watchlist.contains(guid: entry.guid) {
+        if let entry, let isWatchlisted = media.watchlist.contains(guid: entry.guid) {
             Button {
-                Task { try? await WatchlistActions.toggle(entry: entry, match: match, plexService: plexService) }
+                Task { try? await WatchlistActions.toggle(entry: entry, match: match, media: media) }
             } label: {
                 Label(
                     WatchlistActions.menuTitle(isWatchlisted: isWatchlisted),

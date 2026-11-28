@@ -1,0 +1,2168 @@
+diff --git a/Dusk/Sources/MediaService/MediaService+Hubs.swift b/Dusk/Sources/MediaService/MediaService+Hubs.swift
+new file mode 100644
+index 0000000..38edbdb
+--- /dev/null
++++ b/Dusk/Sources/MediaService/MediaService+Hubs.swift
+@@ -0,0 +1,111 @@
++import Foundation
++
++/// Hub rows: Home, Continue Watching, a library's hubs and a hub's items.
++/// The Plex calls behind `HomeProviding` (docs/jellyfin/04-architecture.md §11).
++/// Every endpoint takes the item's or library's `serverID`, as in
++/// `MediaService+Library`.
++extension MediaService {
++    /// A library's hub rows. On a library of tens of thousands of titles this
++    /// is the server's most expensive read (10s on a 43k-movie test server,
++    /// far longer on slower hardware), so it gets more than the usual 30s.
++    func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
++        try await fetchHomeRows(
++            path: "/hubs/sections/\(sectionId)",
++            queryItems: [
++                URLQueryItem(name: "count", value: String(count)),
++                URLQueryItem(name: "includeGuids", value: "1"),
++            ],
++            timeoutInterval: 90,
++            serverID: serverID
++        )
++    }
++
++    /// A library's promoted rows: Continue Watching, On Deck and Recently
++    /// Added, the top of `getLibraryHubs` at a fraction of its cost (0.5s
++    /// against 10s on the same server), so a big library paints before its
++    /// full hub rows are in.
++    func getLibraryPromotedHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
++        let hubs = try await fetchHomeRows(
++            path: "/hubs/promoted",
++            queryItems: [
++                URLQueryItem(name: "contentDirectoryID", value: sectionId),
++                URLQueryItem(name: "count", value: String(count)),
++                URLQueryItem(name: "includeGuids", value: "1"),
++            ],
++            serverID: serverID
++        )
++        // Continue Watching and On Deck are account-wide rows; keep this
++        // library's titles.
++        return hubs.map { hub in
++            hub.replacingItems(hub.items.filter { $0.libraryID == nil || $0.libraryID == sectionId })
++        }
++    }
++
++    /// `includeGuids=1` so merging across servers can match the same title by
++    /// its global Plex guid instead of falling back to title/year heuristics.
++    func getHubs(serverID: String? = nil) async throws -> [HomeRow] {
++        try await fetchHomeRows(
++            path: "/hubs",
++            queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
++            serverID: serverID
++        )
++    }
++
++    func getContinueWatching(serverID: String? = nil) async throws -> [MediaItem] {
++        let hubs = try await fetchHomeRows(
++            path: "/hubs/continueWatching",
++            queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
++            serverID: serverID
++        )
++        return hubs.flatMap(\.items)
++    }
++
++    /// `includeGuids=1` for the same reason `getHubs` sends it: these items
++    /// replace the row's own on "Show All", and without their guids the merge
++    /// would fall back to title/year heuristics for the expanded row alone.
++    func getHubItems(
++        hubKey: String,
++        start: Int = 0,
++        size: Int? = nil,
++        serverID: String? = nil
++    ) async throws -> [MediaItem] {
++        var queryItems: [URLQueryItem] = [URLQueryItem(name: "includeGuids", value: "1")]
++
++        if start > 0 || size != nil {
++            queryItems.append(URLQueryItem(name: "X-Plex-Container-Start", value: String(start)))
++        }
++
++        if let size {
++            queryItems.append(URLQueryItem(name: "X-Plex-Container-Size", value: String(size)))
++        }
++
++        let targetID = try resolveServerID(serverID)
++        let data = try await rawServerRequest(
++            path: hubKey,
++            queryItems: queryItems,
++            serverID: targetID
++        )
++        let response = try decodeJSON(PlexHubItemsResponseDTO.self, from: data, serverID: targetID)
++        let items = ((response.MediaContainer.Metadata ?? []) + (response.MediaContainer.Directory ?? []))
++            .map { PlexItemMapper.map($0, serverID: targetID) }
++        return await loadedHiddenLibraryFilter().filtering(items)
++    }
++
++    /// `MediaContainer.Hub` rows, mapped onto the server they came from.
++    func fetchHomeRows(
++        path: String,
++        queryItems: [URLQueryItem]? = nil,
++        timeoutInterval: TimeInterval? = nil,
++        serverID: String? = nil
++    ) async throws -> [HomeRow] {
++        let targetID = try resolveServerID(serverID)
++        let data = try await rawServerRequest(
++            path: path,
++            queryItems: queryItems,
++            timeoutInterval: timeoutInterval,
++            serverID: targetID
++        )
++        let response = try decodeJSON(PlexHubResponseDTO.self, from: data, serverID: targetID)
++        return (response.MediaContainer.Hub ?? []).map { PlexItemMapper.map($0, serverID: targetID) }
++    }
++}
+diff --git a/Dusk/Sources/MediaService/MediaService+Library.swift b/Dusk/Sources/MediaService/MediaService+Library.swift
+index 4e13e66..ff0cabf 100644
+--- a/Dusk/Sources/MediaService/MediaService+Library.swift
++++ b/Dusk/Sources/MediaService/MediaService+Library.swift
+@@ -108,42 +108,6 @@ extension MediaService {
+         return values.compactMap { MediaCollection(filterValue: $0, serverID: targetID) }
+     }
+ 
+-    /// A library's hub rows. On a library of tens of thousands of titles this
+-    /// is the server's most expensive read (10s on a 43k-movie test server,
+-    /// far longer on slower hardware), so it gets more than the usual 30s.
+-    func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
+-        try await fetchHomeRows(
+-            path: "/hubs/sections/\(sectionId)",
+-            queryItems: [
+-                URLQueryItem(name: "count", value: String(count)),
+-                URLQueryItem(name: "includeGuids", value: "1"),
+-            ],
+-            timeoutInterval: 90,
+-            serverID: serverID
+-        )
+-    }
+-
+-    /// A library's promoted rows: Continue Watching, On Deck and Recently
+-    /// Added, the top of `getLibraryHubs` at a fraction of its cost (0.5s
+-    /// against 10s on the same server), so a big library paints before its
+-    /// full hub rows are in.
+-    func getLibraryPromotedHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
+-        let hubs = try await fetchHomeRows(
+-            path: "/hubs/promoted",
+-            queryItems: [
+-                URLQueryItem(name: "contentDirectoryID", value: sectionId),
+-                URLQueryItem(name: "count", value: String(count)),
+-                URLQueryItem(name: "includeGuids", value: "1"),
+-            ],
+-            serverID: serverID
+-        )
+-        // Continue Watching and On Deck are account-wide rows; keep this
+-        // library's titles.
+-        return hubs.map { hub in
+-            hub.replacingItems(hub.items.filter { $0.libraryID == nil || $0.libraryID == sectionId })
+-        }
+-    }
+-
+     func getSeasons(showKey: String, serverID: String? = nil) async throws -> [Season] {
+         let targetID = try resolveServerID(serverID)
+         let seasons: [PlexSeasonDTO] = try await fetchMetadata(
+@@ -253,56 +217,6 @@ extension MediaService {
+         return adjacent
+     }
+ 
+-    /// `includeGuids=1` so merging across servers can match the same title by
+-    /// its global Plex guid instead of falling back to title/year heuristics.
+-    func getHubs(serverID: String? = nil) async throws -> [HomeRow] {
+-        try await fetchHomeRows(
+-            path: "/hubs",
+-            queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
+-            serverID: serverID
+-        )
+-    }
+-
+-    func getContinueWatching(serverID: String? = nil) async throws -> [MediaItem] {
+-        let hubs = try await fetchHomeRows(
+-            path: "/hubs/continueWatching",
+-            queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
+-            serverID: serverID
+-        )
+-        return hubs.flatMap(\.items)
+-    }
+-
+-    /// `includeGuids=1` for the same reason `getHubs` sends it: these items
+-    /// replace the row's own on "Show All", and without their guids the merge
+-    /// would fall back to title/year heuristics for the expanded row alone.
+-    func getHubItems(
+-        hubKey: String,
+-        start: Int = 0,
+-        size: Int? = nil,
+-        serverID: String? = nil
+-    ) async throws -> [MediaItem] {
+-        var queryItems: [URLQueryItem] = [URLQueryItem(name: "includeGuids", value: "1")]
+-
+-        if start > 0 || size != nil {
+-            queryItems.append(URLQueryItem(name: "X-Plex-Container-Start", value: String(start)))
+-        }
+-
+-        if let size {
+-            queryItems.append(URLQueryItem(name: "X-Plex-Container-Size", value: String(size)))
+-        }
+-
+-        let targetID = try resolveServerID(serverID)
+-        let data = try await rawServerRequest(
+-            path: hubKey,
+-            queryItems: queryItems,
+-            serverID: targetID
+-        )
+-        let response = try decodeJSON(PlexHubItemsResponseDTO.self, from: data, serverID: targetID)
+-        let items = ((response.MediaContainer.Metadata ?? []) + (response.MediaContainer.Directory ?? []))
+-            .map { PlexItemMapper.map($0, serverID: targetID) }
+-        return await loadedHiddenLibraryFilter().filtering(items)
+-    }
+-
+     /// Hidden libraries' titles never come back, nor those of libraries the
+     /// server excludes from global search: search feeds both the Search screen
+     /// and Siri.
+@@ -380,22 +294,4 @@ extension MediaService {
+         let episodes: [PlexEpisodeDTO] = try await fetchMetadata(path: path, serverID: targetID)
+         return episodes.map { PlexItemMapper.map($0, serverID: targetID) }
+     }
+-
+-    /// `MediaContainer.Hub` rows, mapped onto the server they came from.
+-    private func fetchHomeRows(
+-        path: String,
+-        queryItems: [URLQueryItem]? = nil,
+-        timeoutInterval: TimeInterval? = nil,
+-        serverID: String? = nil
+-    ) async throws -> [HomeRow] {
+-        let targetID = try resolveServerID(serverID)
+-        let data = try await rawServerRequest(
+-            path: path,
+-            queryItems: queryItems,
+-            timeoutInterval: timeoutInterval,
+-            serverID: targetID
+-        )
+-        let response = try decodeJSON(PlexHubResponseDTO.self, from: data, serverID: targetID)
+-        return (response.MediaContainer.Hub ?? []).map { PlexItemMapper.map($0, serverID: targetID) }
+-    }
+ }
+diff --git a/Dusk/Sources/MediaService/MediaService+Networking.swift b/Dusk/Sources/MediaService/MediaService+Networking.swift
+index 9ebc202..5c723f0 100644
+--- a/Dusk/Sources/MediaService/MediaService+Networking.swift
++++ b/Dusk/Sources/MediaService/MediaService+Networking.swift
+@@ -1,41 +1,17 @@
+ import Foundation
+ import OSLog
+-#if canImport(UIKit)
+-import UIKit
+-#endif
+-#if os(macOS)
+-import SystemConfiguration
+-#endif
+ 
++/// Request routing and self-healing. Which server a request goes to, the token
++/// refresh and re-selecting a failing server's connection live here; sending
++/// one attempt, the headers and the URL/decode helpers are `PlexClient`'s.
+ extension MediaService {
+-    var basePlexHeaders: [String: String] {
+-        [
+-            "Accept": "application/json",
+-            "X-Plex-Client-Identifier": clientIdentifier,
+-            "X-Plex-Product": "Dusk",
+-            "X-Plex-Version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
+-        ]
+-    }
+-
+-    /// Every Plex header except the token. `ServerPool` is handed this once so a
+-    /// connection probe is byte-for-byte what a real request would be.
+-    var plexRequestHeaders: [String: String] {
+-        var headers = basePlexHeaders
+-
+-        #if os(tvOS)
+-        headers["X-Plex-Platform"] = "tvOS"
+-        headers["X-Plex-Device-Name"] = "Apple TV"
+-        #elseif os(macOS)
+-        headers["X-Plex-Platform"] = "macOS"
+-        headers["X-Plex-Device"] = "Mac"
+-        headers["X-Plex-Device-Name"] = Self.macDeviceName
+-        #elseif canImport(UIKit)
+-        headers["X-Plex-Platform"] = "iOS"
+-        headers["X-Plex-Device-Name"] = UIDevice.current.name
+-        #endif
+-
+-        return headers
+-    }
++    var clientIdentifier: String { client.clientIdentifier }
++    var session: URLSession { client.session }
++    var slowQuerySession: URLSession { client.slowQuerySession }
++    var probeSession: URLSession { client.probeSession }
++    var bootstrapSession: URLSession { client.bootstrapSession }
++    var basePlexHeaders: [String: String] { client.basePlexHeaders }
++    var plexRequestHeaders: [String: String] { client.plexRequestHeaders }
+ 
+     func plexTVRequest<T: Decodable>(
+         method: String = "GET",
+@@ -349,69 +325,20 @@ extension MediaService {
+         return response.MediaContainer.Directory ?? []
+     }
+ 
+-    func fetchHubs(
+-        path: String,
+-        queryItems: [URLQueryItem]? = nil,
+-        timeoutInterval: TimeInterval? = nil,
+-        serverID: String? = nil
+-    ) async throws -> [HomeRow] {
+-        let targetID = try resolveServerID(serverID)
+-        let data = try await rawServerRequest(
+-            path: path,
+-            queryItems: queryItems,
+-            timeoutInterval: timeoutInterval,
+-            serverID: targetID
+-        )
+-        let response = try decodeJSON(HubResponse.self, from: data, serverID: targetID)
+-        return response.MediaContainer.Hub ?? []
+-    }
+-
+     func applyHeaders(to request: inout URLRequest, token: String?) {
+-        var headers = plexRequestHeaders
+-
+-        if let token {
+-            headers["X-Plex-Token"] = token
+-        }
+-
+-        for (key, value) in headers {
+-            request.setValue(value, forHTTPHeaderField: key)
+-        }
++        client.applyHeaders(to: &request, token: token)
+     }
+ 
++    /// One request through `client`, retried once when a 401 arrives right
++    /// after a fresh sign-in (`retryAfterFreshAuthentication`).
+     func executeRequest(
+         _ request: URLRequest,
+         retriesFreshAuthentication: Bool = true,
+         using session: URLSession? = nil
+     ) async throws -> Data {
+-        do {
+-            try PlexTransportSecurity.validate(request)
+-        } catch {
+-            throw PlexServiceError.invalidURL
+-        }
++        try client.validate(request)
+         let operation: () async throws -> Data = {
+-            let data: Data
+-            let response: URLResponse
+-
+-            do {
+-                (data, response) = try await (session ?? self.session).data(for: request)
+-            } catch let error as URLError where error.code == .timedOut {
+-                throw PlexServiceError.requestTimedOut
+-            } catch {
+-                throw PlexServiceError.networkError(error.localizedDescription)
+-            }
+-
+-            guard let http = response as? HTTPURLResponse else {
+-                throw PlexServiceError.networkError("Invalid response")
+-            }
+-
+-            switch http.statusCode {
+-            case 200...299:
+-                return data
+-            case 401:
+-                throw PlexServiceError.unauthorized
+-            default:
+-                throw PlexServiceError.httpError(statusCode: http.statusCode)
+-            }
++            try await self.client.send(request, using: session)
+         }
+ 
+         if retriesFreshAuthentication {
+@@ -424,23 +351,11 @@ extension MediaService {
+     /// every model — including nested ones — records which server it came from.
+     /// Pass `serverID: nil` only for account-level (plex.tv) payloads.
+     func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String? = nil) throws -> T {
+-        do {
+-            return try pool.decoder(for: serverID).decode(type, from: data)
+-        } catch {
+-            throw PlexServiceError.decodingError(String(describing: error))
+-        }
++        try client.decode(type, from: data, using: pool.decoder(for: serverID))
+     }
+ 
+     func buildURL(base: String, path: String, queryItems: [URLQueryItem]? = nil) -> URL? {
+-        let base = base.hasSuffix("/") ? String(base.dropLast()) : base
+-        let path = path.hasPrefix("/") ? path : "/\(path)"
+-        guard var components = URLComponents(string: base + path) else { return nil }
+-        if let queryItems, !queryItems.isEmpty {
+-            let queryNames = Set(queryItems.map(\.name))
+-            let existingItems = (components.queryItems ?? []).filter { !queryNames.contains($0.name) }
+-            components.queryItems = existingItems + queryItems
+-        }
+-        return PlexTransportSecurity.authenticatedURL(components.url)
++        client.buildURL(base: base, path: path, queryItems: queryItems)
+     }
+ }
+ 
+@@ -477,40 +392,3 @@ struct StreamResponse<T: Decodable>: Decodable {
+         let Stream: [T]?
+     }
+ }
+-
+-struct HubResponse: Decodable {
+-    let MediaContainer: Container
+-
+-    struct Container: Decodable {
+-        let size: Int?
+-        let totalSize: Int?
+-        let offset: Int?
+-        let Hub: [HomeRow]?
+-    }
+-}
+-
+-struct HubItemsResponse: Decodable {
+-    let MediaContainer: Container
+-
+-    struct Container: Decodable {
+-        let size: Int?
+-        let totalSize: Int?
+-        let offset: Int?
+-        let Metadata: [MediaItem]?
+-        let Directory: [MediaItem]?
+-    }
+-}
+-
+-#if os(macOS)
+-extension MediaService {
+-    /// The Mac's user-facing name (System Settings › General › Sharing), the
+-    /// counterpart of `UIDevice.current.name`. Read once: the configuration
+-    /// store is cheap, but the headers are built for every request.
+-    static let macDeviceName: String = {
+-        if let name = SCDynamicStoreCopyComputerName(nil, nil) as String?, !name.isEmpty {
+-            return name
+-        }
+-        return "Mac"
+-    }()
+-}
+-#endif
+diff --git a/Dusk/Sources/MediaService/MediaService+Playback.swift b/Dusk/Sources/MediaService/MediaService+Streams.swift
+similarity index 90%
+rename from Dusk/Sources/MediaService/MediaService+Playback.swift
+rename to Dusk/Sources/MediaService/MediaService+Streams.swift
+index abd697c..cffe29f 100644
+--- a/Dusk/Sources/MediaService/MediaService+Playback.swift
++++ b/Dusk/Sources/MediaService/MediaService+Streams.swift
+@@ -108,115 +108,6 @@ extension MediaService {
+         }
+     }
+ 
+-    /// - Parameter serverID: The server the item is being played from. Progress
+-    ///   goes to that server only — never fanned out — because a rating key
+-    ///   means something different on every other server.
+-    func reportTimeline(
+-        itemID: String,
+-        key: String? = nil,
+-        state: PlaybackState,
+-        timeMs: Int,
+-        durationMs: Int,
+-        sessionIdentifier: String? = nil,
+-        serverID: String? = nil
+-    ) async {
+-        try? await submitTimeline(
+-            itemID: itemID,
+-            key: key,
+-            state: state,
+-            timeMs: timeMs,
+-            durationMs: durationMs,
+-            sessionIdentifier: sessionIdentifier,
+-            serverID: serverID
+-        )
+-    }
+-
+-    func submitTimeline(
+-        itemID: String,
+-        key: String? = nil,
+-        state: PlaybackState,
+-        timeMs: Int,
+-        durationMs: Int,
+-        sessionIdentifier: String? = nil,
+-        serverID: String? = nil
+-    ) async throws {
+-        let stateString: String
+-        switch state {
+-        case .playing:
+-            stateString = "playing"
+-        case .paused:
+-            stateString = "paused"
+-        case .loading:
+-            // The engine is opening or refilling its buffer. Plex expects
+-            // "buffering" here so the server keeps the session (and any
+-            // transcoder) alive instead of timing it out.
+-            stateString = "buffering"
+-        default:
+-            stateString = "stopped"
+-        }
+-
+-        var queryItems: [URLQueryItem] = [
+-            URLQueryItem(name: "ratingKey", value: itemID),
+-            URLQueryItem(name: "key", value: key ?? "/library/metadata/\(itemID)"),
+-            URLQueryItem(name: "state", value: stateString),
+-            URLQueryItem(name: "time", value: String(timeMs)),
+-            URLQueryItem(name: "duration", value: String(durationMs)),
+-        ]
+-        if let sessionIdentifier {
+-            queryItems.append(URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier))
+-        }
+-
+-        _ = try await rawServerRequest(
+-            path: "/:/timeline",
+-            queryItems: queryItems,
+-            serverID: serverID
+-        )
+-    }
+-
+-    func scrobble(itemID: String, serverID: String? = nil) async throws {
+-        _ = try await rawServerRequest(
+-            path: "/:/scrobble",
+-            queryItems: [
+-                URLQueryItem(name: "key", value: itemID),
+-                URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
+-            ],
+-            serverID: serverID
+-        )
+-    }
+-
+-    func unscrobble(itemID: String, serverID: String? = nil) async throws {
+-        _ = try await rawServerRequest(
+-            path: "/:/unscrobble",
+-            queryItems: [
+-                URLQueryItem(name: "key", value: itemID),
+-                URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
+-            ],
+-            serverID: serverID
+-        )
+-    }
+-
+-    func setWatched(_ watched: Bool, itemID: String, serverID: String? = nil) async throws {
+-        if watched {
+-            try await scrobble(itemID: itemID, serverID: serverID)
+-        } else {
+-            try await unscrobble(itemID: itemID, serverID: serverID)
+-        }
+-    }
+-
+-    /// Hides an item from the server-wide "Continue Watching" hub without
+-    /// changing its watch state, mirroring Plex's "Remove from Continue
+-    /// Watching" action.
+-    func removeFromContinueWatching(itemID: String, serverID: String? = nil) async throws {
+-        _ = try await rawServerRequest(
+-            method: "PUT",
+-            path: "/actions/removeFromContinueWatching",
+-            queryItems: [
+-                URLQueryItem(name: "ratingKey", value: itemID),
+-            ],
+-            serverID: serverID
+-        )
+-    }
+-
+     /// - Parameter serverID: The server holding the file. Parts are per-server
+     ///   paths, so playing one from the wrong base URL either 404s or, worse,
+     ///   streams a different title that happens to share the key.
+diff --git a/Dusk/Sources/MediaService/MediaService+WatchState.swift b/Dusk/Sources/MediaService/MediaService+WatchState.swift
+new file mode 100644
+index 0000000..c6cca3f
+--- /dev/null
++++ b/Dusk/Sources/MediaService/MediaService+WatchState.swift
+@@ -0,0 +1,114 @@
++import Foundation
++
++/// Progress reports and watched state. The Plex calls behind `UserDataProviding`
++/// (docs/jellyfin/04-architecture.md §12.5).
++extension MediaService {
++    /// - Parameter serverID: The server the item is being played from. Progress
++    ///   goes to that server only — never fanned out — because a rating key
++    ///   means something different on every other server.
++    func reportTimeline(
++        itemID: String,
++        key: String? = nil,
++        state: PlaybackState,
++        timeMs: Int,
++        durationMs: Int,
++        sessionIdentifier: String? = nil,
++        serverID: String? = nil
++    ) async {
++        try? await submitTimeline(
++            itemID: itemID,
++            key: key,
++            state: state,
++            timeMs: timeMs,
++            durationMs: durationMs,
++            sessionIdentifier: sessionIdentifier,
++            serverID: serverID
++        )
++    }
++
++    func submitTimeline(
++        itemID: String,
++        key: String? = nil,
++        state: PlaybackState,
++        timeMs: Int,
++        durationMs: Int,
++        sessionIdentifier: String? = nil,
++        serverID: String? = nil
++    ) async throws {
++        let stateString: String
++        switch state {
++        case .playing:
++            stateString = "playing"
++        case .paused:
++            stateString = "paused"
++        case .loading:
++            // The engine is opening or refilling its buffer. Plex expects
++            // "buffering" here so the server keeps the session (and any
++            // transcoder) alive instead of timing it out.
++            stateString = "buffering"
++        default:
++            stateString = "stopped"
++        }
++
++        var queryItems: [URLQueryItem] = [
++            URLQueryItem(name: "ratingKey", value: itemID),
++            URLQueryItem(name: "key", value: key ?? "/library/metadata/\(itemID)"),
++            URLQueryItem(name: "state", value: stateString),
++            URLQueryItem(name: "time", value: String(timeMs)),
++            URLQueryItem(name: "duration", value: String(durationMs)),
++        ]
++        if let sessionIdentifier {
++            queryItems.append(URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier))
++        }
++
++        _ = try await rawServerRequest(
++            path: "/:/timeline",
++            queryItems: queryItems,
++            serverID: serverID
++        )
++    }
++
++    func scrobble(itemID: String, serverID: String? = nil) async throws {
++        _ = try await rawServerRequest(
++            path: "/:/scrobble",
++            queryItems: [
++                URLQueryItem(name: "key", value: itemID),
++                URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
++            ],
++            serverID: serverID
++        )
++    }
++
++    func unscrobble(itemID: String, serverID: String? = nil) async throws {
++        _ = try await rawServerRequest(
++            path: "/:/unscrobble",
++            queryItems: [
++                URLQueryItem(name: "key", value: itemID),
++                URLQueryItem(name: "identifier", value: "com.plexapp.plugins.library"),
++            ],
++            serverID: serverID
++        )
++    }
++
++    func setWatched(_ watched: Bool, itemID: String, serverID: String? = nil) async throws {
++        if watched {
++            try await scrobble(itemID: itemID, serverID: serverID)
++        } else {
++            try await unscrobble(itemID: itemID, serverID: serverID)
++        }
++    }
++
++    /// Hides an item from the server-wide "Continue Watching" hub without
++    /// changing its watch state, mirroring Plex's "Remove from Continue
++    /// Watching" action.
++    func removeFromContinueWatching(itemID: String, serverID: String? = nil) async throws {
++        _ = try await rawServerRequest(
++            method: "PUT",
++            path: "/actions/removeFromContinueWatching",
++            queryItems: [
++                URLQueryItem(name: "ratingKey", value: itemID),
++            ],
++            serverID: serverID
++        )
++    }
++}
+diff --git a/Dusk/Sources/MediaService/MediaService.swift b/Dusk/Sources/MediaService/MediaService.swift
+index bfe13d8..98d242a 100644
+--- a/Dusk/Sources/MediaService/MediaService.swift
++++ b/Dusk/Sources/MediaService/MediaService.swift
+@@ -99,17 +99,13 @@ final class MediaService {
+ 
+     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
+ 
+-    let clientIdentifier: String
+-    let session: URLSession
+-    /// For the few server reads allowed to outlast `session`'s 30s budget
+-    /// (`rawServerRequest(timeoutInterval:)` above `requestResourceTimeout`).
+-    /// Separate so every other call keeps failing fast on a dead endpoint.
+-    let slowQuerySession: URLSession
+-    /// Connection selection only: never waits for connectivity, so a dead
+-    /// candidate fails inside its own timeout instead of hanging the race.
+-    let probeSession: URLSession
+-    /// Launch/account discovery must never wait for a route or a long resource timeout.
+-    let bootstrapSession: URLSession
++    /// The Plex account's provider. A shell for now (P0-16 moves the account
++    /// work into it); it owns `client`, the request core every Plex call uses.
++    let plexAccount: PlexAccountProvider
++    /// The provider factories. The pool builds each session's server provider
++    /// with them.
++    let providers: ProviderRegistry
++    var client: PlexClient { plexAccount.client }
+     var bootstrapNetworkAvailable = true
+     let decoder: JSONDecoder
+     let encoder: JSONEncoder
+@@ -148,42 +144,15 @@ final class MediaService {
+     static let serverRecoveryCooldown: TimeInterval = 30
+     static let authenticationPropagationRetryWindow: TimeInterval = 20
+     static let authenticationPropagationRetryAttempts = 20
+-    /// The shared session's whole-request budget.
+-    static let bootstrapTimeout: TimeInterval = 3
+-    static let requestResourceTimeout: TimeInterval = 30
++    /// The shared session's whole-request budget (`PlexClient.session`).
++    static let requestResourceTimeout: TimeInterval = PlexClient.requestResourceTimeout
+ 
+-    /// - Parameter urlProtocolClasses: Tests only: serves both sessions' requests.
++    /// - Parameter urlProtocolClasses: Tests only: serves every session's requests.
+     init(urlProtocolClasses: [AnyClass]? = nil) {
+-        let config = URLSessionConfiguration.default
+-        config.urlCache = AppImageCache.shared
+-        config.waitsForConnectivity = true
+-        config.timeoutIntervalForRequest = 15
+-        config.timeoutIntervalForResource = Self.requestResourceTimeout
+-        let slowQueryConfig = URLSessionConfiguration.default
+-        slowQueryConfig.waitsForConnectivity = true
+-        slowQueryConfig.timeoutIntervalForResource = 120
+-        let probeConfig = URLSessionConfiguration.ephemeral
+-        probeConfig.waitsForConnectivity = false
+-        probeConfig.timeoutIntervalForResource = 15
+-        probeConfig.urlCache = nil
+-        let bootstrapConfig = URLSessionConfiguration.ephemeral
+-        bootstrapConfig.waitsForConnectivity = false
+-        bootstrapConfig.timeoutIntervalForRequest = Self.bootstrapTimeout
+-        bootstrapConfig.timeoutIntervalForResource = Self.bootstrapTimeout
+-        bootstrapConfig.urlCache = nil
+-        if let urlProtocolClasses {
+-            config.protocolClasses = urlProtocolClasses
+-            slowQueryConfig.protocolClasses = urlProtocolClasses
+-            probeConfig.protocolClasses = urlProtocolClasses
+-            bootstrapConfig.protocolClasses = urlProtocolClasses
+-        }
+-        self.session = URLSession(configuration: config, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+-        self.slowQuerySession = URLSession(configuration: slowQueryConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+-        self.probeSession = URLSession(configuration: probeConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+-        self.bootstrapSession = URLSession(configuration: bootstrapConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
+         self.decoder = JSONDecoder()
+         self.encoder = JSONEncoder()
+ 
++        let clientIdentifier: String
+         if let stored = UserDefaults.standard.string(forKey: Self.defaultsClientIDKey) {
+             clientIdentifier = stored
+         } else {
+@@ -191,6 +160,9 @@ final class MediaService {
+             UserDefaults.standard.set(id, forKey: Self.defaultsClientIDKey)
+             clientIdentifier = id
+         }
++        let client = PlexClient(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
++        self.plexAccount = PlexAccountProvider(client: client)
++        self.providers = ProviderRegistry([PlexProviderFactory(client: client)])
+ 
+         #if DEBUG
+         let readsStoredSignIn = !ScreenshotMode.startsSignedOut
+@@ -240,7 +212,7 @@ final class MediaService {
+             activeAccountToken = primaryAccountToken
+         }
+ 
+-        pool.configure(probeSession: probeSession, baseHeaders: plexRequestHeaders)
++        pool.configure(probeSession: probeSession, baseHeaders: plexRequestHeaders, providers: providers)
+         // `-DuskScreenshotSignedOut` never touches the Keychain: the stored
+         // server tokens are real sign-ins too.
+         if readsStoredSignIn {
+diff --git a/Dusk/Sources/MediaService/ServerPool.swift b/Dusk/Sources/MediaService/ServerPool.swift
+index 810a537..01c61a4 100644
+--- a/Dusk/Sources/MediaService/ServerPool.swift
++++ b/Dusk/Sources/MediaService/ServerPool.swift
+@@ -64,12 +64,29 @@ final class ServerPool {
+     /// first call that passes one. `commit` re-reads it because a server can be
+     /// turned off while its probe is still in flight.
+     @ObservationIgnored private var priorityStore: ServerPriorityStore?
++    /// Builds the provider stored on each recorded session.
++    @ObservationIgnored private var providers: ProviderRegistry?
+ 
+     /// Injected by `MediaService` at init. The headers carry no credential; the
+     /// per-server token is added when a request is built.
+-    func configure(probeSession: URLSession, baseHeaders: [String: String]) {
++    func configure(probeSession: URLSession, baseHeaders: [String: String], providers: ProviderRegistry) {
+         self.probeSession = probeSession
+         self.baseHeaders = baseHeaders
++        self.providers = providers
++    }
++
++    /// The provider for a session with `server`. Every server the pool knows
++    /// today is a Plex server.
++    private func makeProvider(for server: PlexServer) -> (any MediaServerProvider)? {
++        providers?.factory(for: .plex)?.makeServerProvider(
++            ServerSessionSeed(
++                serverID: server.clientIdentifier,
++                name: server.name,
++                version: server.productVersion,
++                owned: server.owned,
++                sourceTitle: server.sourceTitle
++            )
++        )
+     }
+ 
+     /// Probes every candidate of every known server to completion and records
+@@ -316,7 +333,8 @@ final class ServerPool {
+                 baseURL: baseURL,
+                 token: token,
+                 connection: connection,
+-                isVerified: verified
++                isVerified: verified,
++                provider: makeProvider(for: server)
+             )
+         )
+         Self.saveToken(token, serverID: serverID)
+@@ -675,7 +693,8 @@ final class ServerPool {
+                     sourceTitle: server.sourceTitle,
+                     baseURL: baseURL,
+                     token: token,
+-                    connection: connection
++                    connection: connection,
++                    provider: makeProvider(for: server)
+                 )
+             )
+         case .unauthorized:
+diff --git a/Dusk/Sources/MediaService/ServerSession.swift b/Dusk/Sources/MediaService/ServerSession.swift
+index 5cee7c4..c2ad0a0 100644
+--- a/Dusk/Sources/MediaService/ServerSession.swift
++++ b/Dusk/Sources/MediaService/ServerSession.swift
+@@ -1,6 +1,7 @@
+ import Foundation
+ 
+-/// A live session with one Plex server: where to reach it and with which token.
++/// A live session with one server: where to reach it, with which token, and the
++/// provider that speaks to it.
+ ///
+ /// Everything that talks to a server routes through one of these, so a request,
+ /// an image URL, or a playback decision can never silently land on a different
+@@ -26,6 +27,11 @@ struct ServerSession: Sendable, Hashable, Identifiable {
+     /// a quick `/identity` check on it passes; see
+     /// `MediaService.validateRestoredEndpoint`. Probed sessions are verified.
+     var isVerified = true
++    /// The server's provider, built by the pool when it records the session.
++    /// Nothing routes through it yet (wave 4 does); nil only for a session
++    /// built outside the pool, such as in a test. Not part of `==`/`hash`, so
++    /// a re-recorded session compares exactly as it did before providers.
++    var provider: (any MediaServerProvider)? = nil
+ 
+     /// True only when we positively know the session runs over the LAN.
+     var isLocal: Bool {
+@@ -44,4 +50,26 @@ struct ServerSession: Sendable, Hashable, Identifiable {
+         guard let connection else { return false }
+         return !connection.isOnLocalNetwork
+     }
++
++    static func == (lhs: ServerSession, rhs: ServerSession) -> Bool {
++        lhs.serverID == rhs.serverID
++            && lhs.name == rhs.name
++            && lhs.owned == rhs.owned
++            && lhs.sourceTitle == rhs.sourceTitle
++            && lhs.baseURL == rhs.baseURL
++            && lhs.token == rhs.token
++            && lhs.connection == rhs.connection
++            && lhs.isVerified == rhs.isVerified
++    }
++
++    func hash(into hasher: inout Hasher) {
++        hasher.combine(serverID)
++        hasher.combine(name)
++        hasher.combine(owned)
++        hasher.combine(sourceTitle)
++        hasher.combine(baseURL)
++        hasher.combine(token)
++        hasher.combine(connection)
++        hasher.combine(isVerified)
++    }
+ }
+diff --git a/Dusk/Sources/Providers/Core/AccountPreferencesProviding.swift b/Dusk/Sources/Providers/Core/AccountPreferencesProviding.swift
+new file mode 100644
+index 0000000..0fd297d
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/AccountPreferencesProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Account-level settings: library order, hidden libraries, language defaults
++/// (docs/jellyfin/04-architecture.md §13, §17). Empty until P0-17.
++protocol AccountPreferencesProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/CatalogProviding.swift b/Dusk/Sources/Providers/Core/CatalogProviding.swift
+new file mode 100644
+index 0000000..a227b92
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/CatalogProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Libraries, browse, details, children, people, extras, search, collections
++/// and photos (docs/jellyfin/04-architecture.md §9). Empty until P0-07.
++protocol CatalogProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/CredentialTransportPolicy.swift b/Dusk/Sources/Providers/Core/CredentialTransportPolicy.swift
+new file mode 100644
+index 0000000..e1b2e7e
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/CredentialTransportPolicy.swift
+@@ -0,0 +1,14 @@
++import Foundation
++
++/// Where a provider's credential may travel (docs/jellyfin/04-architecture.md §8),
++/// one policy per provider: which requests carry a secret (`X-Plex-Token`,
++/// `ApiKey`), whether a URL may carry one over plain HTTP, and which redirects
++/// keep it. Plex's rules are `PlexTransportSecurity`; the engines move onto the
++/// policy attached to a stream with the playback facet (P0-09).
++protocol CredentialTransportPolicy: Sendable {
++    func allowsCredential(in url: URL) -> Bool
++    func carriesCredential(_ request: URLRequest) -> Bool
++    /// Throws when `request` would send a credential where it must not go.
++    func validate(_ request: URLRequest) throws
++    func allowsRedirect(_ request: URLRequest, original: URLRequest?) -> Bool
++}
+diff --git a/Dusk/Sources/Providers/Core/DownloadProviding.swift b/Dusk/Sources/Providers/Core/DownloadProviding.swift
+new file mode 100644
+index 0000000..5f6e5f5
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/DownloadProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Original and converted downloads, sidecars and the metadata snapshot
++/// (docs/jellyfin/04-architecture.md §15). Empty until P0-15.
++protocol DownloadProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/HomeProviding.swift b/Dusk/Sources/Providers/Core/HomeProviding.swift
+new file mode 100644
+index 0000000..951e24a
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/HomeProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Home rows and library hubs, Continue Watching, dismiss and hide
++/// (docs/jellyfin/04-architecture.md §11). Empty until P0-12.
++protocol HomeProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/ImageProviding.swift b/Dusk/Sources/Providers/Core/ImageProviding.swift
+new file mode 100644
+index 0000000..42e7ff5
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/ImageProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Turns an `ArtworkRef` into an image request (docs/jellyfin/04-architecture.md
++/// §10). Empty until P0-08.
++protocol ImageProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/LiveTVProviding.swift b/Dusk/Sources/Providers/Core/LiveTVProviding.swift
+new file mode 100644
+index 0000000..e3a62eb
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/LiveTVProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Channels, guide and tuning (docs/jellyfin/04-architecture.md §14). Empty
++/// until P0-14.
++protocol LiveTVProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/MarkerProviding.swift b/Dusk/Sources/Providers/Core/MarkerProviding.swift
+new file mode 100644
+index 0000000..ba3ffbf
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/MarkerProviding.swift
+@@ -0,0 +1,12 @@
++import CoreGraphics
++import Foundation
++
++/// Skip markers and scrub previews (docs/jellyfin/04-architecture.md §12.6).
++/// Empty until P0-11.
++protocol MarkerProviding: Sendable {}
++
++/// Preview frames for the scrubber: Plex's BIF file, Jellyfin's trickplay
++/// sheets, or frames generated on the device.
++protocol ScrubPreviewSource: Sendable {
++    func frame(at time: TimeInterval) async -> CGImage?
++}
+diff --git a/Dusk/Sources/Providers/Core/MediaAccountProvider.swift b/Dusk/Sources/Providers/Core/MediaAccountProvider.swift
+new file mode 100644
+index 0000000..868f2e7
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/MediaAccountProvider.swift
+@@ -0,0 +1,21 @@
++import Foundation
++
++/// One signed-in account, whatever it signs in to (docs/jellyfin/04-architecture.md
++/// §3, §7). The facets start empty like `MediaServerProvider`'s.
++///
++/// Still in the facade until the account layer (P0-16) moves them here:
++/// `account` (`AccountDescriptor`), server discovery (`servers()`), connection
++/// probing (`probe(_:)`) and `signOut()`.
++protocol MediaAccountProvider: AnyObject, Sendable {
++    var profiles: any ProfileProviding { get }
++    var preferences: any AccountPreferencesProviding { get }
++    var watchlist: (any WatchlistProviding)? { get }
++    var seerrAuth: any SeerrAuthProviding { get }
++}
++
++/// Who an account is.
++struct AccountDescriptor: Sendable, Hashable {
++    let id: String
++    let kind: ProviderKind
++    let displayName: String
++}
+diff --git a/Dusk/Sources/Providers/Core/MediaServerProvider.swift b/Dusk/Sources/Providers/Core/MediaServerProvider.swift
+new file mode 100644
+index 0000000..e99325b
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/MediaServerProvider.swift
+@@ -0,0 +1,49 @@
++import Foundation
++
++/// One server, whatever runs it (docs/jellyfin/04-architecture.md §3). The
++/// provider's `ProviderFactory` builds one per session and the pool stores it on
++/// that `ServerSession`.
++///
++/// Each facet starts as an empty protocol. A wave-4 package fills in its facet,
++/// moves the Plex code behind it and makes the facade route to it (05-plan.md
++/// §4); until then the facade still talks to Plex directly and nothing reads
++/// these properties. `permissions` (`ServerPermissions`) joins with the account
++/// layer (P0-16), because Plex's answers depend on the active profile.
++protocol MediaServerProvider: AnyObject, Sendable {
++    var descriptor: ServerDescriptor { get }
++
++    // Required: both platforms can do these.
++    var catalog: any CatalogProviding { get }
++    var home: any HomeProviding { get }
++    var playback: any PlaybackProviding { get }
++    var userData: any UserDataProviding { get }
++    var markers: any MarkerProviding { get }
++    var images: any ImageProviding { get }
++    var playlists: any PlaylistProviding { get }
++    var downloads: any DownloadProviding { get }
++
++    // Optional: nil means the platform or this server does not have it.
++    var liveTV: (any LiveTVProviding)? { get }
++    var subtitleSearch: (any SubtitleSearchProviding)? { get }
++    var rating: (any UserRatingProviding)? { get }
++}
++
++/// Who a server is: id, name, provider, version and owner.
++struct ServerDescriptor: Sendable, Hashable {
++    let id: String
++    let name: String
++    let kind: ProviderKind
++    let version: String?
++    /// The owner's name for a server shared with the account ("Shared by X");
++    /// nil for one the account owns.
++    let ownerLabel: String?
++}
++
++/// What a factory gets to build the provider for one server session.
++struct ServerSessionSeed: Sendable, Hashable {
++    let serverID: String
++    let name: String
++    let version: String?
++    let owned: Bool
++    let sourceTitle: String?
++}
+diff --git a/Dusk/Sources/Providers/Core/PlaybackProviding.swift b/Dusk/Sources/Providers/Core/PlaybackProviding.swift
+new file mode 100644
+index 0000000..ca6511d
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/PlaybackProviding.swift
+@@ -0,0 +1,130 @@
++import Foundation
++
++/// Direct-play URLs, server streams, sidecars and pre-rolls
++/// (docs/jellyfin/04-architecture.md §12). Empty until P0-09, which also
++/// settles the request types below; nothing uses them yet.
++protocol PlaybackProviding: Sendable {}
++
++/// One server-stream request: which file and tracks, and what the stream is for.
++struct ServerStreamRequest: Sendable {
++    let item: MediaItemID
++    let version: MediaVersion
++    let part: MediaPart
++    let intent: StreamIntent
++    let audioStreamID: String?
++    let subtitle: SubtitleRequest
++    let startOffsetMs: Int?
++    let device: DeviceVideoCapabilities
++}
++
++/// What a server stream is for. The neutral form of `TranscodeDeliveryMode`.
++enum StreamIntent: Sendable {
++    /// Video and audio copied (Atmos, HDR, Dolby Vision, Dolby Vision 7 input).
++    case losslessRemux
++    /// Video copied, audio converted (TrueHD to E-AC-3 and the like).
++    case convertedAudioRemux(target: AudioTarget)
++    /// Today's direct-stream fallback after a failed direct play.
++    case videoCopyFallback
++    /// A manual quality choice; never an automatic default.
++    case quality(PlaybackQualityPreset)
++    case av1Fallback
++    case airPlay
++    case live(LiveTuneContext)
++}
++
++/// The audio a converted-audio stream produces.
++struct AudioTarget: Sendable, Hashable {
++    let codec: String
++    let channels: Int?
++}
++
++/// The channel a live stream plays.
++struct LiveTuneContext: Sendable, Hashable {
++    let channelID: String
++}
++
++/// What this playback attempt may show.
++struct DeviceVideoCapabilities: Sendable, Hashable {
++    let supportsHDR: Bool
++    let dolbyVisionProfiles: Set<Int>
++    let decodesAV1: Bool
++    let maxAudioChannels: Int
++}
++
++enum SubtitleRequest: Sendable, Hashable {
++    case none
++    case stream(id: String, delivery: SubtitleDelivery)
++}
++
++enum SubtitleDelivery: Sendable, Hashable {
++    case inManifest
++    case external
++    case burnIn
++}
++
++/// How a sidecar subtitle is fetched: as stored (VLCKit) or as WebVTT for
++/// Dusk's own overlay.
++enum SubtitleFormat: Sendable, Hashable {
++    case original
++    case webVTT
++}
++
++/// A started server stream.
++struct ServerStream: Sendable {
++    /// `.proven`: the server said what it copies. `.predicted`: the request made
++    /// anything else impossible, and `confirm` checks it after the first frame.
++    enum Proof: Sendable, Hashable {
++        case proven
++        case predicted
++    }
++
++    let url: URL
++    let sessionID: String
++    let playMethod: PlayMethod
++    let decisions: StreamDecisions
++    let proof: Proof
++    let credentialPolicy: any CredentialTransportPolicy
++}
++
++enum PlayMethod: Sendable, Hashable {
++    case directPlay
++    case directStream
++    case transcode
++}
++
++/// What the server does with each track of a stream.
++struct StreamDecisions: Sendable, Hashable {
++    enum Video: Sendable, Hashable {
++        case copy
++        case transcode
++    }
++
++    enum Audio: Sendable, Hashable {
++        case copy
++        case convert(codec: String, channels: Int?)
++    }
++
++    let video: Video
++    let audio: Audio
++    let subtitle: SubtitleDelivery?
++    let container: String?
++}
++
++/// Whether a direct-play URL may be used from where the device is.
++enum PlaybackAccess: Sendable, Hashable {
++    case allowed
++    /// The server refuses remote direct play (Plex's remote-refusal probe).
++    case refusedRemotely
++}
++
++/// The tracks a stream should start with.
++struct TrackSelection: Sendable, Hashable {
++    let audioStreamID: String?
++    let subtitleStreamID: String?
++}
++
++/// What to put back after a stream that needed the server's track choice changed.
++struct TrackSelectionRestore: Sendable, Hashable {
++    let item: MediaItemID
++    let previous: TrackSelection
++}
+diff --git a/Dusk/Sources/Providers/Core/PlaybackTraits.swift b/Dusk/Sources/Providers/Core/PlaybackTraits.swift
+new file mode 100644
+index 0000000..bf47811
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/PlaybackTraits.swift
+@@ -0,0 +1,17 @@
++import Foundation
++
++/// What a provider's HLS output needs from Dusk (docs/jellyfin/04-architecture.md
++/// §12.3). `RemuxHLSLoader` runs its init-segment patches and variant filter
++/// only when these ask for them.
++struct PlaybackTraits: Sendable, Hashable {
++    /// Plex: the 13-byte `dec3` box loses the Atmos signalling.
++    let remuxNeedsAtmosSignalingPatch: Bool
++    /// Plex: the remux carries no `dvcC`/`dvvC` boxes.
++    let remuxNeedsDolbyVisionBoxes: Bool
++    /// Jellyfin: the master playlist also lists a tone-mapped variant.
++    let remuxNeedsVariantFilter: Bool
++    /// Jellyfin marks an item played from the stopped report.
++    let serverAppliesWatchedThreshold: Bool
++    /// Jellyfin remembers the reported tracks as the item's choice.
++    let persistsTrackChoiceFromReports: Bool
++}
+diff --git a/Dusk/Sources/Providers/Core/PlaylistProviding.swift b/Dusk/Sources/Providers/Core/PlaylistProviding.swift
+new file mode 100644
+index 0000000..256db0e
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/PlaylistProviding.swift
+@@ -0,0 +1,4 @@
++import Foundation
++
++/// Playlist reads and edits. Empty until P0-13.
++protocol PlaylistProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/ProfileProviding.swift b/Dusk/Sources/Providers/Core/ProfileProviding.swift
+new file mode 100644
+index 0000000..d354ccb
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/ProfileProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Profiles on an account: list, switch, current (docs/jellyfin/04-architecture.md
++/// §7.3). Empty until P0-16.
++protocol ProfileProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/ProviderRegistry.swift b/Dusk/Sources/Providers/Core/ProviderRegistry.swift
+new file mode 100644
+index 0000000..7e70043
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/ProviderRegistry.swift
+@@ -0,0 +1,25 @@
++import Foundation
++
++/// Builds one provider's objects (docs/jellyfin/04-architecture.md §3).
++/// `makeSignInFlow()` and `restoreAccount(from:)` join with the account layer
++/// (P0-16), which brings `SignInFlow`'s host and `StoredAccount`.
++protocol ProviderFactory: Sendable {
++    var kind: ProviderKind { get }
++    func makeServerProvider(_ seed: ServerSessionSeed) -> any MediaServerProvider
++}
++
++/// The provider factories of this build, by kind. A fixed table, built once
++/// per `MediaService` because a factory carries that service's client. There is
++/// no "current provider": the pool holds sessions of every kind at the same
++/// time. Plex is the only entry until Jellyfin's factory lands (J-01).
++struct ProviderRegistry: Sendable {
++    private let factories: [ProviderKind: any ProviderFactory]
++
++    init(_ factories: [any ProviderFactory]) {
++        self.factories = Dictionary(uniqueKeysWithValues: factories.map { ($0.kind, $0) })
++    }
++
++    func factory(for kind: ProviderKind) -> (any ProviderFactory)? {
++        factories[kind]
++    }
++}
+diff --git a/Dusk/Sources/Providers/Core/SeerrAuthProviding.swift b/Dusk/Sources/Providers/Core/SeerrAuthProviding.swift
+new file mode 100644
+index 0000000..5268a9d
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/SeerrAuthProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// How an account signs in to Seerr (docs/jellyfin/04-architecture.md §16).
++/// Empty until P0-18.
++protocol SeerrAuthProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/ServerPermissions.swift b/Dusk/Sources/Providers/Core/ServerPermissions.swift
+new file mode 100644
+index 0000000..4efaaef
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/ServerPermissions.swift
+@@ -0,0 +1,14 @@
++import Foundation
++
++/// What the signed-in user may do on one server (docs/jellyfin/04-architecture.md
++/// §3): the neutral form of Plex's `owned` flag and restricted Home profiles, and
++/// of Jellyfin's `User.Policy`. A view checks these instead of a provider kind.
++struct ServerPermissions: Sendable, Hashable {
++    var canManageHomeRows: Bool
++    var canInstallSubtitles: Bool
++    var canDownload: Bool
++    var canPlay: Bool
++    var canEditPlaylists: Bool
++    /// "Shared by X"; nil for a server the account owns.
++    var ownerLabel: String?
++}
+diff --git a/Dusk/Sources/Providers/Core/SignInFlow.swift b/Dusk/Sources/Providers/Core/SignInFlow.swift
+new file mode 100644
+index 0000000..4aeb01f
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/SignInFlow.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// One provider's sign-in screens (docs/jellyfin/04-architecture.md §7.2).
++/// Empty until P0-16 builds the host.
++protocol SignInFlow: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/SubtitleSearchProviding.swift b/Dusk/Sources/Providers/Core/SubtitleSearchProviding.swift
+new file mode 100644
+index 0000000..46fef65
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/SubtitleSearchProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// Searching for subtitles and installing one on the server
++/// (docs/jellyfin/04-architecture.md §13). Empty until a package takes it.
++protocol SubtitleSearchProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/UserDataProviding.swift b/Dusk/Sources/Providers/Core/UserDataProviding.swift
+new file mode 100644
+index 0000000..9e9a6ea
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/UserDataProviding.swift
+@@ -0,0 +1,27 @@
++import Foundation
++
++/// Progress reports, watched state and favourites
++/// (docs/jellyfin/04-architecture.md §12.5). Empty until P0-10, which also
++/// settles `PlaybackReport`.
++protocol UserDataProviding: Sendable {}
++
++/// One playback report.
++struct PlaybackReport: Sendable {
++    enum State: Sendable, Hashable {
++        case started
++        case progress
++        case paused
++        case buffering
++        case stopped
++    }
++
++    let item: MediaItemID
++    let sessionID: String
++    let versionID: String?
++    let state: State
++    let positionMs: Int
++    let durationMs: Int?
++    let playMethod: PlayMethod
++    let audioStreamID: String?
++    let subtitleStreamID: String?
++}
+diff --git a/Dusk/Sources/Providers/Core/UserRatingProviding.swift b/Dusk/Sources/Providers/Core/UserRatingProviding.swift
+new file mode 100644
+index 0000000..4493703
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/UserRatingProviding.swift
+@@ -0,0 +1,4 @@
++import Foundation
++
++/// The user's own numeric rating of an item (Plex only). Empty until P0-07.
++protocol UserRatingProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Core/WatchlistProviding.swift b/Dusk/Sources/Providers/Core/WatchlistProviding.swift
+new file mode 100644
+index 0000000..d27510b
+--- /dev/null
++++ b/Dusk/Sources/Providers/Core/WatchlistProviding.swift
+@@ -0,0 +1,5 @@
++import Foundation
++
++/// The account's watchlist (docs/jellyfin/04-architecture.md §17). Empty until
++/// P0-17.
++protocol WatchlistProviding: Sendable {}
+diff --git a/Dusk/Sources/Providers/Plex/PlexAccountPreferences.swift b/Dusk/Sources/Providers/Plex/PlexAccountPreferences.swift
+new file mode 100644
+index 0000000..fda1527
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexAccountPreferences.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `AccountPreferencesProviding`. Empty until P0-17 moves the Plex calls here.
++struct PlexAccountPreferences: AccountPreferencesProviding {
++    let client: PlexClient
++}
++
++extension PlexAccountProvider {
++    var preferences: any AccountPreferencesProviding { PlexAccountPreferences(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexAccountProvider.swift b/Dusk/Sources/Providers/Plex/PlexAccountProvider.swift
+new file mode 100644
+index 0000000..63d20f0
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexAccountProvider.swift
+@@ -0,0 +1,13 @@
++import Foundation
++
++/// The signed-in plex.tv account (docs/jellyfin/04-architecture.md §3, §7). A
++/// shell for now that owns the service's `PlexClient`; sign-in, discovery,
++/// probing and sign-out stay in the facade until the account layer (P0-16).
++/// Each facet is an empty value in its own file.
++final class PlexAccountProvider: MediaAccountProvider {
++    let client: PlexClient
++
++    init(client: PlexClient) {
++        self.client = client
++    }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexCatalog.swift b/Dusk/Sources/Providers/Plex/PlexCatalog.swift
+new file mode 100644
+index 0000000..69bd7b9
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexCatalog.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `CatalogProviding`. Empty until P0-07 moves the Plex calls here.
++struct PlexCatalog: CatalogProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var catalog: any CatalogProviding { PlexCatalog(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexClient.swift b/Dusk/Sources/Providers/Plex/PlexClient.swift
+new file mode 100644
+index 0000000..4d3a99a
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexClient.swift
+@@ -0,0 +1,185 @@
++import Foundation
++#if canImport(UIKit)
++import UIKit
++#endif
++#if os(macOS)
++import SystemConfiguration
++#endif
++
++/// Plex's request core (docs/jellyfin/04-architecture.md §8): the four
++/// `URLSession`s, the `X-Plex-*` headers, sending one request and mapping its
++/// status, and the URL and decode helpers. One per `MediaService`, owned by its
++/// Plex providers.
++///
++/// It does not route or heal. Which server a request goes to, the token
++/// refresh and re-selecting a failing server's connection stay in
++/// `MediaService+Networking`, which calls in here for each attempt.
++@MainActor
++final class PlexClient {
++    let clientIdentifier: String
++    let session: URLSession
++    /// For the few server reads allowed to outlast `session`'s 30s budget
++    /// (`rawServerRequest(timeoutInterval:)` above `requestResourceTimeout`).
++    /// Separate so every other call keeps failing fast on a dead endpoint.
++    let slowQuerySession: URLSession
++    /// Connection selection only: never waits for connectivity, so a dead
++    /// candidate fails inside its own timeout instead of hanging the race.
++    let probeSession: URLSession
++    /// Launch/account discovery must never wait for a route or a long resource timeout.
++    let bootstrapSession: URLSession
++
++    /// The shared session's whole-request budget.
++    static let bootstrapTimeout: TimeInterval = 3
++    static let requestResourceTimeout: TimeInterval = 30
++
++    /// - Parameter urlProtocolClasses: Tests only: serves every session's requests.
++    init(clientIdentifier: String, urlProtocolClasses: [AnyClass]? = nil) {
++        let config = URLSessionConfiguration.default
++        config.urlCache = AppImageCache.shared
++        config.waitsForConnectivity = true
++        config.timeoutIntervalForRequest = 15
++        config.timeoutIntervalForResource = Self.requestResourceTimeout
++        let slowQueryConfig = URLSessionConfiguration.default
++        slowQueryConfig.waitsForConnectivity = true
++        slowQueryConfig.timeoutIntervalForResource = 120
++        let probeConfig = URLSessionConfiguration.ephemeral
++        probeConfig.waitsForConnectivity = false
++        probeConfig.timeoutIntervalForResource = 15
++        probeConfig.urlCache = nil
++        let bootstrapConfig = URLSessionConfiguration.ephemeral
++        bootstrapConfig.waitsForConnectivity = false
++        bootstrapConfig.timeoutIntervalForRequest = Self.bootstrapTimeout
++        bootstrapConfig.timeoutIntervalForResource = Self.bootstrapTimeout
++        bootstrapConfig.urlCache = nil
++        if let urlProtocolClasses {
++            config.protocolClasses = urlProtocolClasses
++            slowQueryConfig.protocolClasses = urlProtocolClasses
++            probeConfig.protocolClasses = urlProtocolClasses
++            bootstrapConfig.protocolClasses = urlProtocolClasses
++        }
++        self.session = URLSession(configuration: config, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
++        self.slowQuerySession = URLSession(configuration: slowQueryConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
++        self.probeSession = URLSession(configuration: probeConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
++        self.bootstrapSession = URLSession(configuration: bootstrapConfig, delegate: PlexTransportSessionDelegate(), delegateQueue: nil)
++        self.clientIdentifier = clientIdentifier
++    }
++
++    // MARK: - Headers
++
++    var basePlexHeaders: [String: String] {
++        [
++            "Accept": "application/json",
++            "X-Plex-Client-Identifier": clientIdentifier,
++            "X-Plex-Product": "Dusk",
++            "X-Plex-Version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
++        ]
++    }
++
++    /// Every Plex header except the token. `ServerPool` is handed this once so a
++    /// connection probe is byte-for-byte what a real request would be.
++    var plexRequestHeaders: [String: String] {
++        var headers = basePlexHeaders
++
++        #if os(tvOS)
++        headers["X-Plex-Platform"] = "tvOS"
++        headers["X-Plex-Device-Name"] = "Apple TV"
++        #elseif os(macOS)
++        headers["X-Plex-Platform"] = "macOS"
++        headers["X-Plex-Device"] = "Mac"
++        headers["X-Plex-Device-Name"] = Self.macDeviceName
++        #elseif canImport(UIKit)
++        headers["X-Plex-Platform"] = "iOS"
++        headers["X-Plex-Device-Name"] = UIDevice.current.name
++        #endif
++
++        return headers
++    }
++
++    func applyHeaders(to request: inout URLRequest, token: String?) {
++        var headers = plexRequestHeaders
++
++        if let token {
++            headers["X-Plex-Token"] = token
++        }
++
++        for (key, value) in headers {
++            request.setValue(value, forHTTPHeaderField: key)
++        }
++    }
++
++    // MARK: - Sending
++
++    /// Refuses a request that would send the token where it must not go.
++    func validate(_ request: URLRequest) throws {
++        do {
++            try PlexTransportSecurity.validate(request)
++        } catch {
++            throw PlexServiceError.invalidURL
++        }
++    }
++
++    /// Sends `request` once and maps the outcome onto `PlexServiceError`.
++    /// `session` nil means the shared one.
++    func send(_ request: URLRequest, using session: URLSession? = nil) async throws -> Data {
++        let data: Data
++        let response: URLResponse
++
++        do {
++            (data, response) = try await (session ?? self.session).data(for: request)
++        } catch let error as URLError where error.code == .timedOut {
++            throw PlexServiceError.requestTimedOut
++        } catch {
++            throw PlexServiceError.networkError(error.localizedDescription)
++        }
++
++        guard let http = response as? HTTPURLResponse else {
++            throw PlexServiceError.networkError("Invalid response")
++        }
++
++        switch http.statusCode {
++        case 200...299:
++            return data
++        case 401:
++            throw PlexServiceError.unauthorized
++        default:
++            throw PlexServiceError.httpError(statusCode: http.statusCode)
++        }
++    }
++
++    // MARK: - Helpers
++
++    /// Decodes a payload with `decoder`, mapping a failure onto `PlexServiceError`.
++    func decode<T: Decodable>(_ type: T.Type, from data: Data, using decoder: JSONDecoder) throws -> T {
++        do {
++            return try decoder.decode(type, from: data)
++        } catch {
++            throw PlexServiceError.decodingError(String(describing: error))
++        }
++    }
++
++    func buildURL(base: String, path: String, queryItems: [URLQueryItem]? = nil) -> URL? {
++        let base = base.hasSuffix("/") ? String(base.dropLast()) : base
++        let path = path.hasPrefix("/") ? path : "/\(path)"
++        guard var components = URLComponents(string: base + path) else { return nil }
++        if let queryItems, !queryItems.isEmpty {
++            let queryNames = Set(queryItems.map(\.name))
++            let existingItems = (components.queryItems ?? []).filter { !queryNames.contains($0.name) }
++            components.queryItems = existingItems + queryItems
++        }
++        return PlexTransportSecurity.authenticatedURL(components.url)
++    }
++}
++
++#if os(macOS)
++extension PlexClient {
++    /// The Mac's user-facing name (System Settings › General › Sharing), the
++    /// counterpart of `UIDevice.current.name`. Read once: the configuration
++    /// store is cheap, but the headers are built for every request.
++    static let macDeviceName: String = {
++        if let name = SCDynamicStoreCopyComputerName(nil, nil) as String?, !name.isEmpty {
++            return name
++        }
++        return "Mac"
++    }()
++}
++#endif
+diff --git a/Dusk/Sources/Providers/Plex/PlexDownloads.swift b/Dusk/Sources/Providers/Plex/PlexDownloads.swift
+new file mode 100644
+index 0000000..27097d9
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexDownloads.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `DownloadProviding`. Empty until P0-15 moves the Plex calls here.
++struct PlexDownloads: DownloadProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var downloads: any DownloadProviding { PlexDownloads(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexHomeRows.swift b/Dusk/Sources/Providers/Plex/PlexHomeRows.swift
+new file mode 100644
+index 0000000..240bebc
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexHomeRows.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `HomeProviding`. Empty until P0-12 moves the Plex calls here.
++struct PlexHomeRows: HomeProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var home: any HomeProviding { PlexHomeRows(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexImages.swift b/Dusk/Sources/Providers/Plex/PlexImages.swift
+new file mode 100644
+index 0000000..81eb485
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexImages.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `ImageProviding`. Empty until P0-08 moves the Plex calls here.
++struct PlexImages: ImageProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var images: any ImageProviding { PlexImages(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexLiveTV.swift b/Dusk/Sources/Providers/Plex/PlexLiveTV.swift
+new file mode 100644
+index 0000000..bc5bc64
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexLiveTV.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `LiveTVProviding`. Empty until P0-14 moves the Plex calls here.
++struct PlexLiveTV: LiveTVProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var liveTV: (any LiveTVProviding)? { PlexLiveTV(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexMarkers.swift b/Dusk/Sources/Providers/Plex/PlexMarkers.swift
+new file mode 100644
+index 0000000..f9844f6
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexMarkers.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `MarkerProviding`. Empty until P0-11 moves the Plex calls here.
++struct PlexMarkers: MarkerProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var markers: any MarkerProviding { PlexMarkers(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexPlayback.swift b/Dusk/Sources/Providers/Plex/PlexPlayback.swift
+new file mode 100644
+index 0000000..df12a64
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexPlayback.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `PlaybackProviding`. Empty until P0-09 moves the Plex calls here.
++struct PlexPlayback: PlaybackProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var playback: any PlaybackProviding { PlexPlayback(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexPlaylists.swift b/Dusk/Sources/Providers/Plex/PlexPlaylists.swift
+new file mode 100644
+index 0000000..fff2e8d
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexPlaylists.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `PlaylistProviding`. Empty until P0-13 moves the Plex calls here.
++struct PlexPlaylists: PlaylistProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var playlists: any PlaylistProviding { PlexPlaylists(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexProfiles.swift b/Dusk/Sources/Providers/Plex/PlexProfiles.swift
+new file mode 100644
+index 0000000..5d61c1a
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexProfiles.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `ProfileProviding`. Empty until P0-16 moves the Plex calls here.
++struct PlexProfiles: ProfileProviding {
++    let client: PlexClient
++}
++
++extension PlexAccountProvider {
++    var profiles: any ProfileProviding { PlexProfiles(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexProviderFactory.swift b/Dusk/Sources/Providers/Plex/PlexProviderFactory.swift
+new file mode 100644
+index 0000000..a057212
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexProviderFactory.swift
+@@ -0,0 +1,13 @@
++import Foundation
++
++/// Builds Plex's providers. Carries the service's `PlexClient`, so every server
++/// provider shares its sessions and headers.
++struct PlexProviderFactory: ProviderFactory {
++    let client: PlexClient
++
++    var kind: ProviderKind { .plex }
++
++    func makeServerProvider(_ seed: ServerSessionSeed) -> any MediaServerProvider {
++        PlexServerProvider(client: client, seed: seed)
++    }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexSeerrAuth.swift b/Dusk/Sources/Providers/Plex/PlexSeerrAuth.swift
+new file mode 100644
+index 0000000..0e66c24
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexSeerrAuth.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `SeerrAuthProviding`. Empty until P0-18 moves the Plex calls here.
++struct PlexSeerrAuth: SeerrAuthProviding {
++    let client: PlexClient
++}
++
++extension PlexAccountProvider {
++    var seerrAuth: any SeerrAuthProviding { PlexSeerrAuth(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexServerProvider.swift b/Dusk/Sources/Providers/Plex/PlexServerProvider.swift
+new file mode 100644
+index 0000000..2912687
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexServerProvider.swift
+@@ -0,0 +1,21 @@
++import Foundation
++
++/// One Plex server (docs/jellyfin/04-architecture.md §3). A shell for now: it
++/// knows which server it is and holds the service's `PlexClient`. Each facet
++/// is an empty value in its own file (`PlexCatalog.swift`, …), which the
++/// facet's wave-4 package fills in.
++final class PlexServerProvider: MediaServerProvider {
++    let client: PlexClient
++    let descriptor: ServerDescriptor
++
++    init(client: PlexClient, seed: ServerSessionSeed) {
++        self.client = client
++        self.descriptor = ServerDescriptor(
++            id: seed.serverID,
++            name: seed.name,
++            kind: .plex,
++            version: seed.version,
++            ownerLabel: seed.owned ? nil : seed.sourceTitle
++        )
++    }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexSubtitleSearch.swift b/Dusk/Sources/Providers/Plex/PlexSubtitleSearch.swift
+new file mode 100644
+index 0000000..8ebe36c
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexSubtitleSearch.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `SubtitleSearchProviding`. Empty until a package moves the Plex calls here.
++struct PlexSubtitleSearch: SubtitleSearchProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var subtitleSearch: (any SubtitleSearchProviding)? { PlexSubtitleSearch(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexUserData.swift b/Dusk/Sources/Providers/Plex/PlexUserData.swift
+new file mode 100644
+index 0000000..ac2e7e1
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexUserData.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `UserDataProviding`. Empty until P0-10 moves the Plex calls here.
++struct PlexUserData: UserDataProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var userData: any UserDataProviding { PlexUserData(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexUserRating.swift b/Dusk/Sources/Providers/Plex/PlexUserRating.swift
+new file mode 100644
+index 0000000..7d74421
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexUserRating.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `UserRatingProviding`. Empty until P0-07 moves the Plex calls here.
++struct PlexUserRating: UserRatingProviding {
++    let client: PlexClient
++}
++
++extension PlexServerProvider {
++    var rating: (any UserRatingProviding)? { PlexUserRating(client: client) }
++}
+diff --git a/Dusk/Sources/Providers/Plex/PlexWatchlist.swift b/Dusk/Sources/Providers/Plex/PlexWatchlist.swift
+new file mode 100644
+index 0000000..26dbaf3
+--- /dev/null
++++ b/Dusk/Sources/Providers/Plex/PlexWatchlist.swift
+@@ -0,0 +1,10 @@
++import Foundation
++
++/// Plex's `WatchlistProviding`. Empty until P0-17 moves the Plex calls here.
++struct PlexWatchlist: WatchlistProviding {
++    let client: PlexClient
++}
++
++extension PlexAccountProvider {
++    var watchlist: (any WatchlistProviding)? { PlexWatchlist(client: client) }
++}
+diff --git a/DuskTests/Fixtures/LegacyContainer/LegacyContainer-README.md b/DuskTests/Fixtures/LegacyContainer/LegacyContainer-README.md
+index 07d8000..24b2a2c 100644
+--- a/DuskTests/Fixtures/LegacyContainer/LegacyContainer-README.md
++++ b/DuskTests/Fixtures/LegacyContainer/LegacyContainer-README.md
+@@ -35,7 +35,7 @@ Each file is the exact bytes the named store wrote for the values in
+ | `LegacyContainer-ShowTrackPreferences-off.json` | same | subtitles `.off`, no audio |
+ | `LegacyContainer-PlexServerPriority.json` | defaults `PlexServerPriority` | `ServerPriorityStore.setEnabled` |
+ | `LegacyContainer-PlexServerSnapshots.json` | defaults `PlexServerSnapshots` | `ServerPool.saveSnapshots` (token stripped) |
+-| `LegacyContainer-PlexActiveHomeUserData.json` | defaults `PlexActiveHomeUserData` | `JSONEncoder().encode(PlexHomeUser)`, as `PlexService.persistActiveHomeUser` does (the method is private) |
++| `LegacyContainer-PlexActiveHomeUserData.json` | defaults `PlexActiveHomeUserData` | `JSONEncoder().encode(PlexHomeUser)`, as `MediaService.persistActiveHomeUser` does (the method is private) |
+ | `LegacyContainer-IPTVSources.json` | defaults `IPTVSources.<profileID>` | `IPTVSourceStore.save` |
+ | `LegacyContainer-IPTVSourceHeaderValues.json` | Keychain `IPTVSourceHeaderValues` | `IPTVSourceStore.setHeaderValue` (in-memory secret seam) |
+ | `LegacyContainer-iptvResumePoints.json` | defaults (and iCloud KVS) `iptvResumePoints` | `IPTVResumeStore.record`: one resume point, one tombstone |
+diff --git a/DuskTests/ProviderRegistryTests.swift b/DuskTests/ProviderRegistryTests.swift
+new file mode 100644
+index 0000000..533871b
+--- /dev/null
++++ b/DuskTests/ProviderRegistryTests.swift
+@@ -0,0 +1,59 @@
++import Foundation
++import Testing
++@testable import Dusk
++
++/// P0-06: the pool stores a provider on every session it records. Nothing
++/// routes through it yet, so these only pin what it is built from.
++@Suite("Provider registry")
++@MainActor
++struct ProviderRegistryTests {
++    @Test func recordedSessionsCarryTheirServersPlexProvider() throws {
++        // Every request is intercepted; adopting a session sends none.
++        let serverID = "provider-registry-\(UUID().uuidString)"
++        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
++        let server = try JSONDecoder().decode(PlexServer.self, from: JSONSerialization.data(withJSONObject: [
++            "name": "Shared", "clientIdentifier": serverID, "owned": false,
++            "sourceTitle": "Alex", "productVersion": "1.40.0", "connections": [],
++        ]))
++        defer {
++            ServerPool.forget(serverID: serverID)
++            service.session.invalidateAndCancel()
++            service.slowQuerySession.invalidateAndCancel()
++            service.probeSession.invalidateAndCancel()
++            service.bootstrapSession.invalidateAndCancel()
++        }
++        service.pool.adopt(server: server, baseURL: URL(string: "https://provider.invalid")!, token: "test-token", connection: nil)
++
++        let session = try #require(service.pool.connection(for: serverID))
++        let provider = try #require(session.provider as? PlexServerProvider)
++        #expect(provider.descriptor == ServerDescriptor(
++            id: serverID, name: "Shared", kind: .plex, version: "1.40.0", ownerLabel: "Alex"
++        ))
++        #expect(provider.client === service.client)
++        #expect(service.providers.factory(for: .plex) != nil)
++        #expect(service.providers.factory(for: .jellyfin) == nil)
++    }
++
++    @Test func theProviderIsNotPartOfSessionEquality() {
++        let service = MediaService(urlProtocolClasses: [SelectionStub.self])
++        defer {
++            service.session.invalidateAndCancel()
++            service.slowQuerySession.invalidateAndCancel()
++            service.probeSession.invalidateAndCancel()
++            service.bootstrapSession.invalidateAndCancel()
++        }
++        let bare = ServerSession(
++            serverID: "m", name: "Home", owned: true, sourceTitle: nil,
++            baseURL: URL(string: "https://home.invalid")!, token: "t", connection: nil
++        )
++        var withProvider = bare
++        withProvider.provider = PlexProviderFactory(client: service.client).makeServerProvider(
++            ServerSessionSeed(serverID: "m", name: "Home", version: nil, owned: true, sourceTitle: nil)
++        )
++        #expect(bare == withProvider)
++        #expect(bare.hashValue == withProvider.hashValue)
++        var moved = withProvider
++        moved.isVerified = false
++        #expect(moved != withProvider)
++    }
++}
+diff --git a/docs/codebase-map.md b/docs/codebase-map.md
+index 19f637b..54a03d1 100644
+--- a/docs/codebase-map.md
++++ b/docs/codebase-map.md
+@@ -10,9 +10,14 @@ Dusk/Sources
+   App/                 App entry, dependency injection, tabs, routes, server connect pass
+   Analytics/           Anonymous event + error vocabulary and fire-and-forget reporting
+   Domain/              App-facing media models; Plex payloads decode in Providers/Plex/DTO/
+-  Providers/           Core/ server registry; Plex/ DTOs (wire shapes) and Mappers/
+-                       (DTO → domain); Jellyfin/ client and DTOs (not wired in yet)
+-  MediaService/         Plex auth, the multi-server session pool, API calls, images, playback + subtitle URLs
++  Providers/
++    Core/              Provider and facet protocols (one file per facet), ProviderRegistry,
++                       server registry, request types; declarations, wave 4 fills them in
++    Plex/              PlexClient (sessions, headers, sending), provider shells and one
++                       empty facet per file, transport security, DTO/ and Mappers/
++    Jellyfin/          Client and DTOs (not wired in yet)
++  MediaService/        The facade: Plex auth, the multi-server session pool, request
++                       routing and self-healing, API calls, images, playback + subtitle URLs
+     MultiServer/       Cross-server merging (continue watching, hubs, search),
+                        same-server library copies, the alternates index, and library server labelling
+   SeerrService/        Optional Seerr auth sessions, API calls, and request state
+diff --git a/docs/data-and-plex.md b/docs/data-and-plex.md
+index b9e8c12..d550d94 100644
+--- a/docs/data-and-plex.md
++++ b/docs/data-and-plex.md
+@@ -33,6 +33,10 @@ enabled flags), `ServerSession.swift` (one session), `ServerProbe.swift`
+   `isLocal` / `isRemote` / `isRelay`. Everything that talks to a server resolves
+   one of these first, so a request, an image URL, or a playback decision can
+   never land on a different server than the item it belongs to.
++- The pool also stores the server's `provider` on each session it records,
++  built by the provider's factory from `MediaService.providers`
++  (`ProviderRegistry`, `Providers/Core/`). Nothing routes through it yet; the
++  provider is not part of the session's `==`/`hash`.
+ - `ServerPool` (`media.pool`) holds `states: [String: ServerConnectionState]`
+   (`idle`/`connecting`/`connected`/`unauthorized`/`offline(reason)`/`disabled`),
+   the discovered `servers`, `connections` (connected, in priority order),
+@@ -316,7 +320,11 @@ runs and Plex decides:
+   home.
+ 
+ ## Request And Decode Helpers
+-File: `MediaService+Networking.swift`.
++Files: `MediaService+Networking.swift` (routing and self-healing) and
++`Providers/Plex/PlexClient.swift` (the four `URLSession`s, `X-Plex-*` headers,
++sending one attempt and mapping its status, URL and decode helpers). The
++facade's `session`, `applyHeaders`, `buildURL`, `decodeJSON` and
++`executeRequest` forward to the client; the routing below stays in the facade.
+ - Use `plexTVRequest<T>` for `plex.tv` JSON.
+ - Use `rawServerRequest` for server calls. It takes an optional `serverID:`,
+   resolves that server's `ServerSession` from the pool (nil = the
+@@ -324,7 +332,7 @@ File: `MediaService+Networking.swift`.
+   endpoint, and returns `Data`.
+ - Use `fetchMetadata<T>` for `MediaContainer.Metadata`.
+ - Use `fetchDirectories<T>` for `MediaContainer.Directory`.
+-- Use `fetchHubs(...)` for `MediaContainer.Hub`.
++- Use `fetchHomeRows(...)` (`MediaService+Hubs.swift`) for `MediaContainer.Hub`.
+ - The fetch helpers decode through `pool.decoder(for: serverID)`. A DTO carries
+   no server id: pass the resolved server id to its mapper, which stamps it. Items
+   still decoded as domain types (the transitional `PlexItemDecodingBridge`) get
+@@ -562,8 +570,10 @@ Where to edit:
+ - Browse/library/detail endpoints: `MediaService+Library.swift`.
+ - Cast/person endpoints: `MediaService+People.swift`; account/history endpoints:
+   `MediaService+History.swift`.
+-- Playback progress/watch state/direct play/transcode URLs:
+-  `MediaService+Playback.swift`.
++- Direct play/transcode/remux URLs and stream selection:
++  `MediaService+Streams.swift`; playback progress and watch state:
++  `MediaService+WatchState.swift`.
++- Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`.
+ - Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
+ - Account-level plex.tv settings (library order): `MediaService+LibraryOrder.swift`,
+   with the shared state in `LibraryOrderStore.swift`.
+@@ -691,7 +701,7 @@ id/time fallbacks, tune media and the server id on `LiveTVProvider`).
+   that an arbitrary past guide item is playable.
+ 
+ ## Playback URL Handling
+-File: `MediaService+Playback.swift`.
++File: `MediaService+Streams.swift`.
+ - Direct play uses `{connection.baseURL}{part.key}` — the connection of the
+   server the item came from — plus `X-Plex-Token` in the URL
+   query because AVPlayer/VLCKit load the URL directly.
+diff --git a/docs/jellyfin/05-plan.md b/docs/jellyfin/05-plan.md
+index b0a19dd..ef7b331 100644
+--- a/docs/jellyfin/05-plan.md
++++ b/docs/jellyfin/05-plan.md
+@@ -235,7 +235,10 @@ type a memberwise initialiser. Decode call sites in the service change from
+ 
+ Each package does the same three things for its area: fill in the facet
+ protocol, move the Plex implementation into `Providers/Plex/Plex<Facet>.swift`
+-behind it, and turn the facade methods into routes. Feature files change only
++behind it, and turn the facade methods into routes. P0-06 created both files
++of every facet, one facet per file (table below), so no two packages share a
++facet file. The DTO and mapper files from P0-05 are mapped further down; one
++of them is shared. Feature files change only
+ where a Plex concept leaked into them (listed per package). All accept on
+ G1 – G5 plus G2/G3; those marked ◆ also on G6.
+ 
+@@ -243,22 +246,81 @@ G1 – G5 plus G2/G3; those marked ◆ also on G6.
+ | --- | --- | --- | --- |
+ | P0-07 L | Catalog | `MediaService+Library`, `+Collections`, `+People`, `+Extras`, `+Photos`, `+Ratings`, search; `Features/Libraries/LibraryItemsViewModel.swift` (`plexKey` → provider mapping), `LibraryFilters*`, `LibraryLetterIndex*` | `LibrarySort` / `LibraryFilter` / `FilterCatalog` / `SortCatalog` become neutral; Plex returns today's lists. Photo timeline grouping moves to the client here (the one allowed internal change; G3 must still match) |
+ | P0-08 S | Images | `MediaService+Images` | provider resolves `ArtworkRef`; IPTV image provider |
+-| P0-09 XL R ◆ | Playback streams | `MediaService+Streams`, `+RemotePlayback`, `+PlayQueue`, `+Subtitles` (sidecar URL only); `Features/Player/PlaybackCoordinator+Session.swift`, `+SpatialAudio`, `+ServerTracks`, `+Prerolls`, `PlaybackSourceResolver`; `Playback/RemuxHLSLoader.swift`, `PlaybackEngineFactory`, both engines' credential validation | `TranscodeDeliveryMode` → `StreamIntent`; decisions → `StreamDecisions`; `confirm` hook wired (no-op for Plex); loader takes `PlaybackTraits`. Existing `HDRVideoRemuxTests`, `PlaybackFallbackTests`, `TrueHDAudioRoutingTests`, `AV1RoutingTests`, `HEV1RoutingTests`, `DolbyVision7*` must pass untouched in meaning. G6 additionally plays the DV 7 and TrueHD titles |
++| P0-09 XL R ◆ | Playback streams | `MediaService+Streams`, `+RemotePlayback`, `+PlayQueue`, `+Subtitles` (sidecar URL only; nobody else edits the file); `Features/Player/PlaybackCoordinator+Session.swift`, `+SpatialAudio`, `+ServerTracks`, `+Prerolls`, `PlaybackSourceResolver`, `PlaybackPresentationModels.swift`; `Playback/RemuxHLSLoader.swift`, `PlaybackEngineFactory`, both engines' credential validation; `Providers/Plex/PlexTransportSecurity.swift` | `TranscodeDeliveryMode` → `StreamIntent`; decisions → `StreamDecisions`; `confirm` hook wired (no-op for Plex); loader takes `PlaybackTraits`. Existing `HDRVideoRemuxTests`, `PlaybackFallbackTests`, `TrueHDAudioRoutingTests`, `AV1RoutingTests`, `HEV1RoutingTests`, `DolbyVision7*` must pass untouched in meaning. G6 additionally plays the DV 7 and TrueHD titles |
+ | P0-10 M ◆ | User data | `MediaService+WatchState`, `Shared/MediaService+WatchedFanOut.swift`, `Features/Player/PlaybackCoordinator+Timeline.swift`, `Downloads/OfflinePlaybackSync*` | `PlaybackReport`; 90 % rule stays in the coordinator behind the trait |
+ | P0-11 S | Markers, previews | `Features/Player/PlayerViewModel+Presentation.swift` (marker ids), scrub preview loading in `PlayerView.swift` | `ScrubPreviewSource` protocol; BIF implementation |
+-| P0-12 M R | Home rows | `MediaService+HomeRows`, hub fetching; `Features/Home/HomeHubFilter.swift`, `HomeHubArrangement.swift`, `HomeViewModel.swift`; `MultiServer/HubMerge.swift` | string heuristics move verbatim into the Plex mapper; add fixture tests from captured `/hubs` payloads **before** moving them |
++| P0-12 M R | Home rows | `MediaService+HomeRows`, `+Hubs` (hub fetching, split out of `+Library` in P0-06; `search` there still calls its `fetchHomeRows`); `Features/Home/HomeHubFilter.swift`, `HomeHubArrangement.swift`, `HomeViewModel.swift`; `MultiServer/HubMerge.swift` | string heuristics move verbatim into the Plex mapper; add fixture tests from captured `/hubs` payloads **before** moving them |
+ | P0-13 S | Playlists | `MediaService+Playlists`, `PlaylistStore` | library-URI building becomes Plex-private |
+-| P0-14 M | Live TV | `MediaService+LiveTV`, `Features/LiveTV/LiveTVViewModel.swift`; `LivePlaybackContext` in `Features/Player/PlaybackPresentationModels.swift` | channel matcher and device sections become Plex-private; `isIPTV` routing branches removed |
++| P0-14 M | Live TV | `MediaService+LiveTV`, `Features/LiveTV/LiveTVViewModel.swift`, `LiveTVView.swift`; `LivePlaybackContext` in `Domain/LiveTV.swift`; the Live TV / IPTV section of `Features/Player/PlaybackCoordinator.swift`, `PlaybackCoordinator+IPTVResume.swift` | channel matcher and device sections become Plex-private; `isIPTV` routing branches removed |
+ | P0-15 L R ◆ | Downloads | `MediaService+Downloads`, `Downloads/DownloadManager.swift`, `DownloadModels.swift`, `PlexDownloadQueue.swift` (moves to `Providers/Plex`), `PlexMetadataCache.swift` → `MetadataSnapshotCache.swift` | `MetadataSnapshotKey` must hash to today's file names; `provider` tag added; G4 is the main check |
+-| P0-16 L R ◆ | Accounts | `MediaService.swift`, `+Auth`, `+Home` (profiles), `+Servers`, `ServerPool.swift`, `ServerProbe.swift`, `App/ContentView.swift`, `App/ServerConnectionCoordinator.swift`, `Features/Account/*`, `Features/Settings/ServerPriority*`, `ConnectionDiagnosticsView.swift` | `AccountStore`, `StoredAccount` read from the existing Keychain accounts, `SessionState`, `SignInFlow` host with the Plex flow as its only entry, neutral `Profile`. The only package allowed to edit `MediaService.swift` |
++| P0-16 L R ◆ | Accounts | `MediaService.swift`, `+Auth`, `+Home` (profiles), `+Servers`, `ServerPool.swift`, `ServerProbe.swift`, `ServerSession.swift`, the provider files below, `App/ContentView.swift`, `App/ServerConnectionCoordinator.swift`, `Features/Account/*`, `Features/Settings/ServerPriority*`, `ConnectionDiagnosticsView.swift` | `AccountStore`, `StoredAccount` read from the existing Keychain accounts, `SessionState`, `SignInFlow` host with the Plex flow as its only entry, neutral `Profile`. The only package allowed to edit `MediaService.swift` |
+ | P0-17 M | Account features | `MediaService+LibraryOrder`, `+LanguageDefaults`, `+Watchlist`, `LibraryOrderStore`, `HiddenLibraryFilter`, `WatchlistStore`, the matching settings view models | `AccountPreferencesProviding`, `WatchlistProviding` |
+ | P0-18 M | Peripherals | `SeerrService/*` (`SeerrAuthProviding`), `TraktService/TraktHistoryMapper.swift`, `TopShelf/*`, `Siri/*`, `Features/Player/DuskWatchTogetherActivity.swift`, `Analytics/*` (wording only) | frozen identifiers per 04 §18; no analytics property yet |
+ 
++Facet files (each created by P0-06 as an empty protocol and an empty Plex
++value that `PlexServerProvider` / `PlexAccountProvider` return):
++
++| Package | `Providers/Core/` | `Providers/Plex/` |
++| --- | --- | --- |
++| P0-07 | `CatalogProviding`, `UserRatingProviding` | `PlexCatalog`, `PlexUserRating` |
++| P0-08 | `ImageProviding` | `PlexImages` |
++| P0-09 | `PlaybackProviding` (with the §12 request types), `PlaybackTraits`, `CredentialTransportPolicy` | `PlexPlayback` |
++| P0-10 | `UserDataProviding` (with `PlaybackReport`) | `PlexUserData` |
++| P0-11 | `MarkerProviding` (with `ScrubPreviewSource`) | `PlexMarkers` |
++| P0-12 | `HomeProviding` | `PlexHomeRows` |
++| P0-13 | `PlaylistProviding` | `PlexPlaylists` |
++| P0-14 | `LiveTVProviding` | `PlexLiveTV` |
++| P0-15 | `DownloadProviding` | `PlexDownloads` |
++| P0-16 | `MediaServerProvider`, `MediaAccountProvider`, `ProviderRegistry`, `ServerPermissions`, `ProfileProviding`, `SignInFlow` | `PlexServerProvider`, `PlexAccountProvider`, `PlexProviderFactory`, `PlexProfiles`, `PlexClient` |
++| P0-17 | `AccountPreferencesProviding`, `WatchlistProviding` | `PlexAccountPreferences`, `PlexWatchlist` |
++| P0-18 | `SeerrAuthProviding` | `PlexSeerrAuth` |
++| none yet | `SubtitleSearchProviding` | `PlexSubtitleSearch` |
++
++P0-16 also adds what P0-06 left out of the provider protocols because it needs
++the account layer: `MediaServerProvider.permissions`, `MediaAccountProvider`'s
++`account`, `servers()`, `probe(_:)` and `signOut()`, and `ProviderFactory`'s
++`makeSignInFlow()` and `restoreAccount(from:)`.
++
++DTOs and mappers (P0-05): each DTO file belongs to the package of its family:
++`PlexItemDTO`, `PlexMediaDetailsDTO`, `PlexSeasonEpisodeDTO`, `PlexLibraryDTO`,
++`PlexExtraDTO`, `PlexPhotoDTO`, `PlexRatingDTO` → P0-07; `PlexHubDTO`,
++`PlexManagedHubDTO` → P0-12; `PlexMediaVersionDTO`, `PlexTranscodeDecisionDTO`
++→ P0-09; `PlexMarkerDTO` → P0-11; `PlexPlaylistDTO` → P0-13; `PlexLiveTVDTO` →
++P0-14; `PlexWatchlistDTO` → P0-17; `PlexSubtitleSearchDTO`,
++`PlexPlaybackHistoryDTO` → none yet. Mappers: `PlexItemMapper` → P0-07,
++`PlexMediaVersionMapper` and `PlexTranscodeDecisionMapper` → P0-09,
++`PlexLiveTVMapper` → P0-14. `PlexItemDecodingBridge` is edited by nobody: each
++package switches its own remaining direct decodes to the DTOs, and the bridge
++is deleted once none is left.
++
++Shared files P0-06 could not split without changing code:
++
++- `Mappers/PlexUserContentMapper.swift` maps playlists (P0-13), extras and
++  photos (P0-07), watchlist (P0-17), managed hubs (P0-12), subtitle search and
++  history. A package edits only its own `MARK` section, or moves that section
++  into a `Mappers/Plex<Area>Mapper.swift` of its own.
++- `PlexItemMapper.map(_: PlexHubDTO, …)` is P0-12's hub mapping inside
++  P0-07's file. P0-12 moves it into its own `Mappers/PlexHubMapper.swift`
++  (together with the hub heuristics) and touches nothing else in the file.
++- `Features/Player/PlaybackCoordinator.swift` holds the stored state of every
++  coordinator extension (Swift extensions cannot), next to P0-14's Live TV /
++  IPTV section. A package that needs new coordinator state adds only its
++  stored properties there.
++
++Owned by no wave-4 package: `MediaService+Networking` (routing and
++self-healing), `+History`, `MultiServer/MediaService+MultiServer.swift` (its
++hub and search streams call the facade methods P0-07 and P0-12 route, so it
++should not need an edit), `+MovieCopies`, `Shared/MediaService+ServerIdentity.swift`,
++`PlaybackCoordinator+AudioOffset`, `+ShowTracks`, `+UpNext`.
++
+ Overlap to watch: P0-09 and P0-10 both read the coordinator's session state
+ (different files; the shared type `PlaybackAttemptContext` belongs to P0-09).
+ P0-12 and P0-17 both touch Home's watchlist placement (P0-17 owns
+ `HomeWatchlist*`). P0-15 and P0-10 share `OfflinePlaybackSyncManager`
+-(P0-10 owns it).
++(P0-10 owns it). P0-14's "`isIPTV` routing branches removed" includes the
++timeline guard in `PlaybackCoordinator+Timeline.swift`, which is P0-10's file:
++P0-10 removes it when it routes reports (an IPTV session has no user-data
++provider).
+ 
+ ### P0-19 Boundary, fake provider, docs, gate — M
+ 
+diff --git a/docs/playback.md b/docs/playback.md
+index 9454b25..eab0444 100644
+--- a/docs/playback.md
++++ b/docs/playback.md
+@@ -2980,11 +2980,12 @@ Plex clients do. There is no app setting: the server decides.
+   `Playback/DuskVLCRawVideoOutput.*`.
+ - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
+   platform `VLCKitRenderer*.swift` files.
+-- Plex playback calls: `MediaService+Playback.swift`; metadata shape/fetching:
++- Plex playback calls: `MediaService+Streams.swift` (URLs, decisions) and
++  `MediaService+WatchState.swift` (timeline, watched); metadata shape/fetching:
+   `MediaService+Library.swift` and `MediaDetails.swift`.
+ - Dolby Atmos / spatial audio, HDR and Dolby Vision remux: eligibility in
+   `StreamResolver` (`spatialAudioRemuxBlocker`, `hdrVideoRemuxBlocker`,
+-  `dolbyVisionRemuxBlocker`), Plex request in `MediaService+Playback.swift`,
++  `dolbyVisionRemuxBlocker`), Plex request in `MediaService+Streams.swift`,
+   session logic in `PlaybackCoordinator+SpatialAudio.swift`, Atmos and Dolby
+   Vision init-segment/playlist fixes in `Playback/RemuxHLSLoader.swift`
+   (tests: `DuskTests/HDRVideoRemuxTests.swift`); segment keyframe repair in

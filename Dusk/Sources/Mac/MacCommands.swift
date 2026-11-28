@@ -16,7 +16,7 @@ import SwiftUI
 struct MacCommands: Commands {
     let router: MacShellRouter
     let connections: ServerConnectionCoordinator
-    let plexService: PlexService
+    let media: MediaService
     let playback: PlaybackCoordinator
 
     @Environment(\.openWindow) private var openWindow
@@ -32,7 +32,7 @@ struct MacCommands: Commands {
         }
 
         CommandGroup(after: .appSettings) {
-            if plexService.hasPlexHome {
+            if media.hasPlexHome {
                 Button("Switch User…") {
                     showMainWindow()
                     router.isHomeUserPickerPresented = true

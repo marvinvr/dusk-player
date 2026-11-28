@@ -505,6 +505,6 @@ struct PlexLiveTuneResult: Sendable {
     let media: MediaVersion
     let part: MediaPart
     /// Playing the live session's own HLS (the tuner stream, copied), not a
-    /// Plex transcode. See `PlexService.liveTVDirectPlayURL`.
+    /// Plex transcode. See `MediaService.liveTVDirectPlayURL`.
     var isDirectPlay = false
 }

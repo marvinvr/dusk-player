@@ -8,7 +8,7 @@ import Foundation
 @Observable
 final class PlaylistDetailViewModel {
     let id: MediaItemID
-    private let plexService: PlexService
+    private let media: MediaService
 
     private(set) var playlist: Playlist?
     private(set) var entries: [PlaylistEntry] = []
@@ -17,13 +17,13 @@ final class PlaylistDetailViewModel {
     /// An edit that failed; shown as an alert.
     var actionError: String?
 
-    init(id: MediaItemID, plexService: PlexService) {
+    init(id: MediaItemID, media: MediaService) {
         self.id = id
-        self.plexService = plexService
-        self.playlist = plexService.playlists.playlist(id: id)
+        self.media = media
+        self.playlist = media.playlists.playlist(id: id)
     }
 
-    private var actions: PlaylistActions { PlaylistActions(plexService: plexService) }
+    private var actions: PlaylistActions { PlaylistActions(media: media) }
 
     var title: String { playlist?.title ?? "" }
     var isSmart: Bool { playlist?.smart ?? false }
@@ -32,8 +32,8 @@ final class PlaylistDetailViewModel {
 
     var metadataLine: String? {
         guard let playlist else { return nil }
-        let serverName = plexService.playlists.spansMultipleServers
-            ? playlist.serverID.map(plexService.pool.displayName(for:))
+        let serverName = media.playlists.spansMultipleServers
+            ? playlist.serverID.map(media.pool.displayName(for:))
             : nil
         return PlaylistActions.metadataLine(
             for: playlist,
@@ -50,7 +50,7 @@ final class PlaylistDetailViewModel {
     func load() async {
         if playlist == nil {
             do {
-                playlist = try await plexService.getPlaylist(itemID: id.itemID, serverID: id.serverID)
+                playlist = try await media.getPlaylist(itemID: id.itemID, serverID: id.serverID)
                 if playlist == nil {
                     error = "This playlist no longer exists."
                     return
@@ -65,8 +65,8 @@ final class PlaylistDetailViewModel {
 
     /// After playback or a return to the foreground: watch state moved on.
     func refresh() async {
-        await plexService.refreshPlaylist(id)
-        if let stored = plexService.playlists.playlist(id: id) {
+        await media.refreshPlaylist(id)
+        if let stored = media.playlists.playlist(id: id) {
             playlist = stored
         }
         await reloadEntries()
@@ -74,7 +74,7 @@ final class PlaylistDetailViewModel {
 
     private func reloadEntries() async {
         do {
-            entries = try await plexService.getPlaylistEntries(itemID: id.itemID, serverID: id.serverID)
+            entries = try await media.getPlaylistEntries(itemID: id.itemID, serverID: id.serverID)
             hasLoadedEntries = true
             error = nil
         } catch {
@@ -117,9 +117,9 @@ final class PlaylistDetailViewModel {
         let previous = entries
         entries.remove(at: index)
         do {
-            try await plexService.removeFromPlaylist(playlist, playlistItemID: playlistItemID)
-            await plexService.refreshPlaylist(id)
-            self.playlist = plexService.playlists.playlist(id: id) ?? self.playlist
+            try await media.removeFromPlaylist(playlist, playlistItemID: playlistItemID)
+            await media.refreshPlaylist(id)
+            self.playlist = media.playlists.playlist(id: id) ?? self.playlist
         } catch {
             entries = previous
             actionError = "Couldn’t remove “\(entry.item.title)”. \(error.localizedDescription)"
@@ -150,9 +150,9 @@ final class PlaylistDetailViewModel {
                     guard let playlistItemID = entry.playlistItemID,
                           let index = reordered.firstIndex(of: entry) else { continue }
                     let after = index > 0 ? reordered[index - 1].playlistItemID : nil
-                    try await plexService.movePlaylistItem(playlist, playlistItemID: playlistItemID, after: after)
+                    try await media.movePlaylistItem(playlist, playlistItemID: playlistItemID, after: after)
                 }
-                await plexService.refreshPlaylist(id)
+                await media.refreshPlaylist(id)
             } catch {
                 entries = previous
                 actionError = "Couldn’t reorder the playlist. \(error.localizedDescription)"
@@ -183,7 +183,7 @@ final class PlaylistDetailViewModel {
 
     func setWatched(_ watched: Bool, for entry: PlaylistEntry) async {
         do {
-            try await plexService.setWatchedAcrossServers(watched, id: entry.item.id)
+            try await media.setWatchedAcrossServers(watched, id: entry.item.id)
         } catch {
             actionError = error.localizedDescription
         }
@@ -193,17 +193,17 @@ final class PlaylistDetailViewModel {
     // MARK: - Presentation
 
     func thumbnailURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.landscapeImageURL(plexService: plexService, width: width, height: height)
+        item.landscapeImageURL(media: media, width: width, height: height)
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
         if let first = entries.first?.item {
             let path = first.type == .episode ? (first.grandparentArt ?? first.art) : first.art
-            if let url = plexService.imageURL(for: ArtworkRef(serverID: first.serverID, path: path ?? first.thumb), size: ImageSize(width: width, height: height)) {
+            if let url = media.imageURL(for: ArtworkRef(serverID: first.serverID, path: path ?? first.thumb), size: ImageSize(width: width, height: height)) {
                 return url
             }
         }
-        return plexService.imageURL(for: ArtworkRef(serverID: id.serverID, path: playlist?.artworkPath), size: ImageSize(width: width, height: height))
+        return media.imageURL(for: ArtworkRef(serverID: id.serverID, path: playlist?.artworkPath), size: ImageSize(width: width, height: height))
     }
 
     /// `The Bear · S2 E6` for an episode, the year for a movie, the clip line

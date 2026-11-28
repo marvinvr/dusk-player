@@ -9,7 +9,7 @@ private let recommendationLogger = Logger(
 @MainActor
 struct LibraryRecommendationEngine {
     let library: Library
-    let plexService: PlexService
+    let media: MediaService
     var calendar: Calendar = .autoupdatingCurrent
     var nowProvider: @Sendable () -> Date = Date.init
 
@@ -44,7 +44,7 @@ struct LibraryRecommendationEngine {
         let availableGenres = try await LibraryGenreSupport.loadGenreOptions(
             sectionId: library.key,
             serverID: library.serverID,
-            plexService: plexService
+            media: media
         )
 
         let candidateGenres = availableGenres.filter { $0.value != nil }
@@ -63,8 +63,8 @@ struct LibraryRecommendationEngine {
             )
         }
 
-        let currentUser = try? await plexService.getCurrentUser()
-        var history = try await plexService.getPlaybackHistory(
+        let currentUser = try? await media.getCurrentUser()
+        var history = try await media.getPlaybackHistory(
             accountId: currentUser?.id,
             librarySectionId: library.key,
             viewedSince: viewedSince,
@@ -74,7 +74,7 @@ struct LibraryRecommendationEngine {
         // Some Plex servers under-serve account-scoped history. Fall back to
         // section-scoped history so recommendations still appear.
         if history.isEmpty, currentUser != nil {
-            history = (try? await plexService.getPlaybackHistory(
+            history = (try? await media.getPlaybackHistory(
                 accountId: nil,
                 librarySectionId: library.key,
                 viewedSince: viewedSince,
@@ -200,7 +200,7 @@ struct LibraryRecommendationEngine {
     private func signalGenres(
         for signals: [RecommendationTasteSignal]
     ) async -> [String: [Tag]] {
-        let service = plexService
+        let service = media
         let scored = Array(signals.prefix(RecommendationGenreScoring.maxSignals))
 
         return await withTaskGroup(of: (String, [Tag]?).self) { group in
@@ -292,7 +292,7 @@ struct LibraryRecommendationEngine {
         var watchedFallbackItems: [MediaItem] = []
 
         for page in 0..<maxPagesToInspect {
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
@@ -366,7 +366,7 @@ struct LibraryRecommendationEngine {
         itemsPerShelf: Int
     ) async throws -> [MediaItem] {
         let filters = ["genre": genreValue]
-        let totalCount = try await plexService.getLibraryItemCount(
+        let totalCount = try await media.getLibraryItemCount(
             sectionId: library.key,
             filters: filters,
             serverID: library.serverID
@@ -389,7 +389,7 @@ struct LibraryRecommendationEngine {
 
         for page in shuffledPageOrder {
             let start = page * pageSize
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: start,
                 size: pageSize,
@@ -417,7 +417,7 @@ struct LibraryRecommendationEngine {
         for genre: LibraryGenreOption,
         itemsPerShelf: Int
     ) async throws -> [MediaItem] {
-        let totalCount = try await plexService.getLibraryItemCount(
+        let totalCount = try await media.getLibraryItemCount(
             sectionId: library.key,
             serverID: library.serverID
         )
@@ -438,7 +438,7 @@ struct LibraryRecommendationEngine {
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
@@ -518,7 +518,7 @@ struct LibraryRecommendationEngine {
             return true
         }
 
-        guard let details = try? await plexService.getMediaDetails(
+        guard let details = try? await media.getMediaDetails(
             itemID: item.itemID,
             serverID: item.serverID
         ), let genres = details.genres else {

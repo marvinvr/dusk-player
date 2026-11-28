@@ -248,7 +248,7 @@ struct VideoEnhancementSubtitleTests {
 
         for isDownload in [false, true] {
             for initialState: PlaybackState in [.playing, .paused] {
-                let playback = PlaybackCoordinator(plexService: PlexService(), preferences: preferences)
+                let playback = PlaybackCoordinator(media: MediaService(), preferences: preferences)
                 defer { playback.cancelDirectPlayFallbackWatch(); playback.engine?.stop() }
                 let oldEngine = SubtitleHandoffEngine(state: initialState)
                 playback.engine = oldEngine

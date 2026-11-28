@@ -493,7 +493,7 @@ struct UpNextResolutionTests {
     }
 
     private func makeEpisodeSession() throws -> (PlaybackCoordinator, MediaDetails) {
-        let service = PlexService(urlProtocolClasses: [UpNextStubProtocol.self])
+        let service = MediaService(urlProtocolClasses: [UpNextStubProtocol.self])
         for connected in service.pool.connections.map(\.serverID) {
             service.pool.markOffline(serverID: connected, reason: "Not part of this test")
         }
@@ -506,7 +506,7 @@ struct UpNextResolutionTests {
             token: "token",
             connection: nil
         )
-        let playback = PlaybackCoordinator(plexService: service)
+        let playback = PlaybackCoordinator(media: service)
         let json = Data("""
             {"ratingKey":"101","key":"/library/metadata/101","type":"episode","title":"One",
              "index":1,"parentIndex":1,"parentRatingKey":"100","grandparentRatingKey":"99"}

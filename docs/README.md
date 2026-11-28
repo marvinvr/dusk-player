@@ -30,7 +30,7 @@ that owns the behavior you are changing.
 - `codebase-map.md`: source layout, ownership boundaries, and where new code goes.
 - `product-and-scope.md`: product intent, platform targets, non-goals, and
   long-lived project constraints.
-- `data-and-plex.md`: `PlexService`, Plex models, requests, images, and API shape.
+- `data-and-plex.md`: `MediaService`, Plex models, requests, images, and API shape.
 - `seerr-integration.md`: optional Plex-token Seerr connection, merged search,
   request-only detail flows, and missing-season enrichment.
 - `iptv.md`: IPTV sources (M3U + XMLTV) in the Live TV guide, AVPlayer-only

@@ -146,7 +146,7 @@ struct PersistedPreferenceGoldenTests {
         try await LegacyFixture.preservingStandardDefaults(["SeerrBaseURL", "SeerrPlexServerID"]) {
             UserDefaults.standard.set("https://seerr.example.test", forKey: "SeerrBaseURL")
             UserDefaults.standard.set("golden-server", forKey: "SeerrPlexServerID")
-            let seerr = SeerrService(plexService: PlexService())
+            let seerr = SeerrService(media: MediaService())
             #expect(seerr.configuredBaseURL == URL(string: "https://seerr.example.test"))
             #expect(seerr.configuredPlexServerID == "golden-server")
         }

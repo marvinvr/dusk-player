@@ -42,11 +42,11 @@ final class TopShelfPublisher {
     private var publishedSignature: [String]?
     private var writeTask: Task<Void, Never>?
 
-    func publish(continueWatching: [MediaItem], recentlyAdded: [Row], plexService: PlexService) {
+    func publish(continueWatching: [MediaItem], recentlyAdded: [Row], media: MediaService) {
         let sections = Self.sections(
             continueWatching: continueWatching,
             recentlyAdded: recentlyAdded,
-            plexService: plexService
+            media: media
         )
         let signature = sections.flatMap { section in
             ["# \(section.title)"] + section.entries.map(\.signature)
@@ -61,7 +61,7 @@ final class TopShelfPublisher {
         writeTask?.cancel()
         // Detached: file I/O and the spoiler blur stay off the main actor.
         writeTask = Task.detached(priority: .utility) {
-            await Self.write(sections, plexService: plexService)
+            await Self.write(sections, media: media)
         }
     }
 
@@ -84,7 +84,7 @@ final class TopShelfPublisher {
     private static func sections(
         continueWatching: [MediaItem],
         recentlyAdded: [Row],
-        plexService: PlexService
+        media: MediaService
     ) -> [Section] {
         var seen: Set<String> = []
         var sections: [Section] = []
@@ -93,7 +93,7 @@ final class TopShelfPublisher {
             var entries: [Entry] = []
             for item in items where entries.count < itemLimit {
                 guard !seen.contains(item.id.storageKey),
-                      let entry = Entry(item: item, plexService: plexService) else { continue }
+                      let entry = Entry(item: item, media: media) else { continue }
                 seen.insert(item.id.storageKey)
                 entries.append(entry)
             }
@@ -113,7 +113,7 @@ final class TopShelfPublisher {
         return sections
     }
 
-    private nonisolated static func write(_ sections: [Section], plexService: PlexService) async {
+    private nonisolated static func write(_ sections: [Section], media: MediaService) async {
         guard let imagesDirectory = TopShelfStore.imagesDirectory,
               let snapshotURL = TopShelfStore.snapshotURL else {
             topShelfLogger.error("App Group container unavailable; Top Shelf not updated")
@@ -139,7 +139,7 @@ final class TopShelfPublisher {
             }
 
             do {
-                var data = try await artwork(for: entry, plexService: plexService)
+                var data = try await artwork(for: entry, media: media)
                 guard !Task.isCancelled else { return }
                 if entry.blursImage {
                     guard let blurred = spoilerBlurred(data) else { continue }
@@ -177,12 +177,12 @@ final class TopShelfPublisher {
 
     /// The tile's artwork, or the show's poster for a season whose own poster
     /// Plex lists but cannot serve (same stand-in as Home's poster cards).
-    private nonisolated static func artwork(for entry: Entry, plexService: PlexService) async throws -> Data {
+    private nonisolated static func artwork(for entry: Entry, media: MediaService) async throws -> Data {
         do {
-            return try await plexService.imageData(for: entry.imageURL)
+            return try await media.imageData(for: entry.imageURL)
         } catch {
             guard !Task.isCancelled, let fallbackImageURL = entry.fallbackImageURL else { throw error }
-            return try await plexService.imageData(for: fallbackImageURL)
+            return try await media.imageData(for: fallbackImageURL)
         }
     }
 
@@ -222,14 +222,14 @@ private extension TopShelfPublisher {
         var imageFileName: String { item.imageFileName }
 
         @MainActor
-        init?(item: MediaItem, plexService: PlexService) {
+        init?(item: MediaItem, media: MediaService) {
             // The focused tile in points, poster or 16:9. `imageURL` scales for
             // the screen, and Plex never upscales.
             let (imagePath, width, height) = item.isClip
                 ? (item.preferredLandscape?.locator, 640, 360)
                 : (item.preferredPoster?.locator, 380, 570)
             guard let imagePath,
-                  let imageURL = plexService.imageURL(
+                  let imageURL = media.imageURL(
                       for: ArtworkRef(serverID: item.serverID, path: imagePath),
                       size: ImageSize(width: width, height: height)
                   ),
@@ -264,7 +264,7 @@ private extension TopShelfPublisher {
                 displayURL: displayURL
             )
             self.imageURL = imageURL
-            self.fallbackImageURL = plexService.imageURL(
+            self.fallbackImageURL = media.imageURL(
                 for: item.fallbackPoster,
                 size: ImageSize(width: width, height: height)
             )

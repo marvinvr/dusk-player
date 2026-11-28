@@ -4,12 +4,12 @@ import SwiftUI
 /// profile, in Home order. iOS removes with swipe or Edit (and reorders);
 /// tvOS removes by selecting a row.
 struct PinnedPlaylistsSettingsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(\.dismiss) private var dismiss
 
     static let emptyText = "Choose Pin to Home on a playlist to show it on Home."
 
-    private var pins: [PinnedPlaylistStore.Pin] { plexService.pinnedPlaylistPins }
+    private var pins: [PinnedPlaylistStore.Pin] { media.pinnedPlaylistPins }
 
     var body: some View {
         content
@@ -105,10 +105,10 @@ struct PinnedPlaylistsSettingsView: View {
                     offsets.map { pins[$0] }.forEach(unpin)
                 }
                 .onMove { source, destination in
-                    plexService.pinnedPlaylists.move(
+                    media.pinnedPlaylists.move(
                         fromOffsets: source,
                         toOffset: destination,
-                        profileID: plexService.activeProfileID
+                        profileID: media.activeProfileID
                     )
                 }
             } footer: {
@@ -125,12 +125,12 @@ struct PinnedPlaylistsSettingsView: View {
     private func serverName(for pin: PinnedPlaylistStore.Pin) -> String? {
         let servers = Set(pins.compactMap(\.id.serverID))
         guard servers.count > 1, let serverID = pin.id.serverID else { return nil }
-        return plexService.pool.displayName(for: serverID)
+        return media.pool.displayName(for: serverID)
     }
 
     private func unpin(_ pin: PinnedPlaylistStore.Pin) {
         withAnimation {
-            plexService.setPlaylistPinned(false, id: pin.id, title: pin.title)
+            media.setPlaylistPinned(false, id: pin.id, title: pin.title)
         }
         #if os(tvOS)
         // Unpinning the last one returns to Settings rather than leaving

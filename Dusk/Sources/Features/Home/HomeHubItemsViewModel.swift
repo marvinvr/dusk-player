@@ -5,15 +5,15 @@ import Foundation
 final class HomeHubItemsViewModel {
     let hub: HomeRow
 
-    private let plexService: PlexService
+    private let media: MediaService
 
     private(set) var items: [MediaItem] = []
     private(set) var isLoading = false
     private(set) var error: String?
 
-    init(hub: HomeRow, plexService: PlexService) {
+    init(hub: HomeRow, media: MediaService) {
         self.hub = hub
-        self.plexService = plexService
+        self.media = media
     }
 
     var navigationTitle: String {
@@ -34,13 +34,13 @@ final class HomeHubItemsViewModel {
 
         // A source that fails contributes nothing rather than failing the page:
         // one unreachable server must not hide the other's half of the row.
-        let merged = await plexService.mergedHubItems(for: hub)
-        plexService.registerAlternates(merged.alternates)
+        let merged = await media.mergedHubItems(for: hub)
+        media.registerAlternates(merged.alternates)
         // A global row (Home's Recently Added, Continue Watching) keeps out the
         // libraries the server excludes from Home, as on Home itself. A
         // library's own row (also opened here) keeps all its titles.
         if hub.resolvedLibrarySectionID == nil {
-            items = await plexService.loadedHiddenLibraryFilter(for: .home).filtering(merged.items)
+            items = await media.loadedHiddenLibraryFilter(for: .home).filtering(merged.items)
         } else {
             items = merged.items
         }
@@ -50,7 +50,7 @@ final class HomeHubItemsViewModel {
 
     func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
-            try await plexService.setWatchedAcrossServers(watched, id: item.id)
+            try await media.setWatchedAcrossServers(watched, id: item.id)
             await reloadItems()
         } catch {
             self.error = error.localizedDescription
@@ -58,7 +58,7 @@ final class HomeHubItemsViewModel {
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func progress(for item: MediaItem) -> Double? {

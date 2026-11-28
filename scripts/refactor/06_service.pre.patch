@@ -1,0 +1,747 @@
+diff --git a/Dusk/Sources/Downloads/DownloadManager.swift b/Dusk/Sources/Downloads/DownloadManager.swift
+index 556892f..f8da86d 100644
+--- a/Dusk/Sources/Downloads/DownloadManager.swift
++++ b/Dusk/Sources/Downloads/DownloadManager.swift
+@@ -1596,12 +1596,12 @@ final class DownloadManager {
+                 // metadata must be durable before URLSession takes ownership.
+                 try fileStore.saveSnapshot(currentSnapshot)
+             } else {
+-                guard let connection = plexService.pool.connection(for: record.serverID),
+-                      let sourceURL = plexService.directPlayURL(for: part, serverID: record.serverID) else {
++                guard let connection = self.plexService.pool.connection(for: record.serverID),
++                      let sourceURL = self.plexService.directPlayURL(for: part, serverID: record.serverID) else {
+                     throw PlexServiceError.invalidURL
+                 }
+                 request = URLRequest(url: sourceURL)
+-                plexService.applyHeaders(to: &request, token: connection.token)
++                self.plexService.applyHeaders(to: &request, token: connection.token)
+                 transferPart = part
+             }
+             try checkPreparation(record)
+@@ -1917,7 +1917,7 @@ final class DownloadManager {
+                 $0.plexDownloadItemID = nil
+                 $0.queueClientIdentifier = nil
+             }
+-            if record.accountProfileID == plexService.activeProfileID, plexService.isSessionReady {
++            if record.accountProfileID == self.plexService.activeProfileID, self.plexService.isSessionReady {
+                 await cacheArtwork(for: details, serverID: record.serverID)
+                 await cacheExternalSubtitles(globalKey: globalKey, details: details)
+             }
+diff --git a/Dusk/Sources/Features/Photos/PhotoBrowserView.swift b/Dusk/Sources/Features/Photos/PhotoBrowserView.swift
+index 5a151b4..bc7ca23 100644
+--- a/Dusk/Sources/Features/Photos/PhotoBrowserView.swift
++++ b/Dusk/Sources/Features/Photos/PhotoBrowserView.swift
+@@ -118,7 +118,7 @@ struct PhotoBrowserView: View {
+                         albumGrid(albumLayout)
+                     }
+ 
+-                    if !viewModel.media.isEmpty {
++                    if !viewModel.items.isEmpty {
+                         photoGrid(photoLayout)
+                     }
+ 
+@@ -161,7 +161,7 @@ struct PhotoBrowserView: View {
+             #if os(tvOS)
+             if canStartSlideshow {
+                 Button {
+-                    openViewer(at: viewModel.media.first { $0.kind == .photo }, slideshow: true)
++                    openViewer(at: viewModel.items.first { $0.kind == .photo }, slideshow: true)
+                 } label: {
+                     Label("Slideshow", systemImage: "play.fill")
+                         .font(DuskFont.TV.buttonLabel)
+@@ -202,7 +202,7 @@ struct PhotoBrowserView: View {
+ 
+     private func photoGrid(_ layout: AdaptivePosterGridLayout) -> some View {
+         LazyVGrid(columns: layout.columns, alignment: .leading, spacing: PhotoGridMetrics.photoSpacing) {
+-            ForEach(viewModel.media) { item in
++            ForEach(viewModel.items) { item in
+                 PhotoTile(
+                     item: item,
+                     imageURL: viewModel.thumbnailURL(for: item, side: layout.posterWidth),
+@@ -258,8 +258,8 @@ struct PhotoBrowserView: View {
+     /// the n-th photo of the requested grid.
+     private func openScreenshotViewerIfRequested() {
+         guard let index = ScreenshotMode.consumePhotoViewerIndex(inAlbum: !viewModel.showsModePicker),
+-              viewModel.media.indices.contains(index) else { return }
+-        openViewer(at: viewModel.media[index], slideshow: ScreenshotMode.startsPhotoSlideshow)
++              viewModel.items.indices.contains(index) else { return }
++        openViewer(at: viewModel.items[index], slideshow: ScreenshotMode.startsPhotoSlideshow)
+     }
+     #endif
+ }
+diff --git a/Dusk/Sources/Features/Photos/PhotoBrowserViewModel.swift b/Dusk/Sources/Features/Photos/PhotoBrowserViewModel.swift
+index 54e846e..5b89b85 100644
+--- a/Dusk/Sources/Features/Photos/PhotoBrowserViewModel.swift
++++ b/Dusk/Sources/Features/Photos/PhotoBrowserViewModel.swift
+@@ -32,7 +32,7 @@ final class PhotoBrowserViewModel {
+     private(set) var mode: PhotoBrowseMode
+     private(set) var albums: [PhotoItem] = []
+     /// Photos and clips, in grid order. The viewer pages through this list.
+-    private(set) var media: [PhotoItem] = []
++    private(set) var items: [PhotoItem] = []
+     private(set) var isLoading = false
+     private(set) var isLoadingMore = false
+     private(set) var error: String?
+@@ -71,7 +71,7 @@ final class PhotoBrowserViewModel {
+     }
+ 
+     var isEmpty: Bool {
+-        albums.isEmpty && media.isEmpty
++        albums.isEmpty && items.isEmpty
+     }
+ 
+     var emptyStateTitle: String {
+@@ -80,7 +80,7 @@ final class PhotoBrowserViewModel {
+ 
+     /// Photos only; clips are skipped by the slideshow.
+     var hasPhotos: Bool {
+-        media.contains { $0.kind == .photo }
++        items.contains { $0.kind == .photo }
+     }
+ 
+     func loadIfNeeded() async {
+@@ -102,7 +102,7 @@ final class PhotoBrowserViewModel {
+         stageIndex = 0
+         stageOffset = 0
+         albums = []
+-        media = []
++        items = []
+         error = nil
+         isLoading = true
+         defer {
+@@ -115,7 +115,7 @@ final class PhotoBrowserViewModel {
+             // sub-albums come back in one page also shows its first photos.
+             repeat {
+                 try await loadNextPage(generation: currentGeneration, size: firstPageSize)
+-            } while currentGeneration == generation && hasMore && media.isEmpty && albums.count < firstPageSize
++            } while currentGeneration == generation && hasMore && items.isEmpty && albums.count < firstPageSize
+         } catch {
+             guard currentGeneration == generation else { return }
+             self.error = error.localizedDescription
+@@ -125,7 +125,7 @@ final class PhotoBrowserViewModel {
+     /// Called as cells appear; only the tail of the list being filled counts.
+     func loadMoreIfNeeded(currentItem: PhotoItem) async {
+         guard hasMore, !isLoading, !isLoadingMore else { return }
+-        let tail = media.isEmpty ? albums.suffix(30) : media.suffix(60)
++        let tail = items.isEmpty ? albums.suffix(30) : items.suffix(60)
+         guard tail.contains(where: { $0.id == currentItem.id }) else { return }
+         await loadMore()
+     }
+@@ -180,7 +180,7 @@ final class PhotoBrowserViewModel {
+         if case .albums = query {
+             albums.append(contentsOf: page.items.filter(\.isAlbum))
+         } else {
+-            media.append(contentsOf: page.items.filter { !$0.isAlbum })
++            items.append(contentsOf: page.items.filter { !$0.isAlbum })
+         }
+ 
+         stageOffset += size
+diff --git a/Dusk/Sources/Features/Photos/PhotoViewerView.swift b/Dusk/Sources/Features/Photos/PhotoViewerView.swift
+index e9e14fd..16447d4 100644
+--- a/Dusk/Sources/Features/Photos/PhotoViewerView.swift
++++ b/Dusk/Sources/Features/Photos/PhotoViewerView.swift
+@@ -49,11 +49,11 @@ struct PhotoViewerView: View {
+     }
+ 
+     private var currentIndex: Int? {
+-        viewModel.media.firstIndex { $0.id == currentID }
++        viewModel.items.firstIndex { $0.id == currentID }
+     }
+ 
+     private var currentItem: PhotoItem? {
+-        currentIndex.map { viewModel.media[$0] }
++        currentIndex.map { viewModel.items[$0] }
+     }
+ 
+     var body: some View {
+@@ -87,7 +87,7 @@ struct PhotoViewerView: View {
+     private var pages: some View {
+         ScrollView(.horizontal) {
+             LazyHStack(spacing: 0) {
+-                ForEach(viewModel.media) { item in
++                ForEach(viewModel.items) { item in
+                     page(for: item)
+                         .containerRelativeFrame([.horizontal, .vertical])
+                 }
+@@ -313,8 +313,8 @@ struct PhotoViewerView: View {
+ 
+     /// "12 of 340", against the loaded list while more is still to come.
+     private var positionLabel: String? {
+-        guard let currentIndex, viewModel.media.count > 1 else { return nil }
+-        let total = viewModel.hasMore ? "\(viewModel.media.count)+" : "\(viewModel.media.count)"
++        guard let currentIndex, viewModel.items.count > 1 else { return nil }
++        let total = viewModel.hasMore ? "\(viewModel.items.count)+" : "\(viewModel.items.count)"
+         return "\(currentIndex + 1) of \(total)"
+     }
+ 
+@@ -339,20 +339,20 @@ struct PhotoViewerView: View {
+     private func step(by offset: Int) {
+         guard let currentIndex else { return }
+         let target = currentIndex + offset
+-        guard viewModel.media.indices.contains(target) else { return }
++        guard viewModel.items.indices.contains(target) else { return }
+         #if os(iOS)
+         withAnimation(.snappy) {
+-            currentID = viewModel.media[target].id
++            currentID = viewModel.items[target].id
+         }
+         #else
+-        currentID = viewModel.media[target].id
++        currentID = viewModel.items[target].id
+         #endif
+     }
+ 
+     private func pageDidChange() {
+         guard let currentIndex else { return }
+         // Keep a page ahead of the viewer; the grid behind it pages the same way.
+-        if viewModel.hasMore, currentIndex >= viewModel.media.count - 10 {
++        if viewModel.hasMore, currentIndex >= viewModel.items.count - 10 {
+             Task { await viewModel.loadMore() }
+         }
+         prefetch(around: currentIndex)
+@@ -361,8 +361,8 @@ struct PhotoViewerView: View {
+     /// Warms the neighbours so a swipe or slideshow step lands on a loaded image.
+     private func prefetch(around index: Int) {
+         let urls = [index - 1, index + 1, index + 2]
+-            .filter { viewModel.media.indices.contains($0) }
+-            .map { viewModel.media[$0] }
++            .filter { viewModel.items.indices.contains($0) }
++            .map { viewModel.items[$0] }
+             .filter { !$0.isClip }
+             .compactMap { displayURL(for: $0) }
+         let plexService = plexService
+@@ -397,7 +397,7 @@ struct PhotoViewerView: View {
+     /// Moves to the next photo, skipping clips. False at the end of the library.
+     private func advanceSlideshow() -> Bool {
+         guard let currentIndex else { return false }
+-        guard let next = viewModel.media[(currentIndex + 1)...].first(where: { !$0.isClip }) else {
++        guard let next = viewModel.items[(currentIndex + 1)...].first(where: { !$0.isClip }) else {
+             return false
+         }
+         currentID = next.id
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
+index 59faa39..1a920db 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Prerolls.swift
+@@ -59,10 +59,10 @@ extension PlaybackCoordinator {
+         // Videos libraries are `movie` + `subtype == "clip"`; those are not films.
+         guard details.type == .movie, details.subtype != "clip", !isSharePlayActive else { return false }
+ 
+-        let profileSession = plexService.serverSessionToken
++        let profileSession = self.plexService.serverSessionToken
+         let queue: [MediaDetails]
+         do {
+-            queue = try await plexService.cinemaPrerolls(forMovieRatingKey: details.itemID, serverID: serverID)
++            queue = try await self.plexService.cinemaPrerolls(forMovieRatingKey: details.itemID, serverID: serverID)
+         } catch {
+             // Pre-rolls are never worth failing (or delaying) the movie over.
+             prerollLogger.notice(
+@@ -72,7 +72,7 @@ extension PlaybackCoordinator {
+         }
+         guard !Task.isCancelled,
+               currentPlaybackAttemptID == attemptID,
+-              profileSession == plexService.serverSessionToken else { return false }
++              profileSession == self.plexService.serverSessionToken else { return false }
+ 
+         let items = queue.compactMap { prerollItem(for: $0, serverID: serverID) }
+         guard !items.isEmpty else { return false }
+@@ -108,7 +108,7 @@ extension PlaybackCoordinator {
+                 preferredMaxResolution: preferences.maxResolution
+               ) ?? details.media.first,
+               let part = media.firstAvailablePart,
+-              let url = plexService.directPlayURL(for: part, serverID: serverID) else {
++              let url = self.plexService.directPlayURL(for: part, serverID: serverID) else {
+             prerollLogger.error("Skipping pre-roll ratingKey \(details.itemID, privacy: .public): no playable part")
+             return nil
+         }
+@@ -152,7 +152,7 @@ extension PlaybackCoordinator {
+                 resolverReason: "Plex pre-roll",
+                 mediaID: item.media.id,
+                 partID: item.part.id,
+-                sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: item.url)
++                sanitizedPlaybackURL: self.plexService.sanitizedPlaybackURLString(for: item.url)
+             ),
+             locality: sourceLocality(for: item.url, serverID: preroll.serverID)
+         )
+@@ -160,7 +160,7 @@ extension PlaybackCoordinator {
+         nowPlayingController.beginSession(
+             details: item.details,
+             engine: newEngine,
+-            plexService: plexService,
++            plexService: self.plexService,
+             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+             skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+         )
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+index 8968f0a..a2a6ed7 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+@@ -51,7 +51,7 @@ extension PlaybackCoordinator {
+         attemptID: UUID
+     ) async -> Bool {
+         let isPlayableOffline = downloadManager?.isPlayableOffline(id: id) == true
+-        let resolution = PlaybackSourceResolver(plexService: plexService).resolve(
++        let resolution = PlaybackSourceResolver(plexService: self.plexService).resolve(
+             for: id,
+             // An explicitly chosen media version only exists on its own server.
+             restrictToItemServer: restrictToItemServer || selectedMediaID != nil,
+@@ -98,7 +98,7 @@ extension PlaybackCoordinator {
+             // network change the session has not caught up with); Plex then
+             // judges the stream remote. Re-race once and retry over the LAN.
+             if case .refusedRemotely = outcome,
+-               await plexService.reconnectOverLocalNetwork(serverID: candidate.serverID) {
++               await self.plexService.reconnectOverLocalNetwork(serverID: candidate.serverID) {
+                 guard !Task.isCancelled, currentPlaybackAttemptID == attemptID else { return false }
+                 playbackSessionLogger.notice(
+                     "Plex refused \(candidate.storageKey, privacy: .public) as remote playback; retrying over the local network"
+@@ -179,7 +179,7 @@ extension PlaybackCoordinator {
+     ) async -> PlaybackSessionOutcome {
+         let itemID = id.itemID
+         let itemServerID = id.serverID
+-        let profileSession = plexService.serverSessionToken
++        let profileSession = self.plexService.serverSessionToken
+         loadError = nil
+         qualitySwitchError = nil
+         cancelUpNextCountdown()
+@@ -230,7 +230,7 @@ extension PlaybackCoordinator {
+ 
+             // A newer attempt or a dismissal can supersede this one during the
+             // metadata fetch; bail before building any playback state.
+-            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else { return .superseded }
++            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == self.plexService.serverSessionToken else { return .superseded }
+ 
+             airPlayController.refreshRoute(notify: false)
+             let wantsAirPlay = airPlayController.isAirPlayRouteSelected
+@@ -243,10 +243,10 @@ extension PlaybackCoordinator {
+             // this item also has a completed local download.
+             let localURL = (wantsAirPlay || suppressLocalDownload) ? nil : downloadedURL
+             if allowsMovieCopySelection, localURL == nil, !details.movieContentKeys.isEmpty {
+-                let copies = await plexService.movieCopies(for: details, includeOtherServers: false, checkFiles: true)
++                let copies = await self.plexService.movieCopies(for: details, includeOtherServers: false, checkFiles: true)
+                     .filter { $0.serverID == details.serverID }
+                 guard !Task.isCancelled, currentPlaybackAttemptID == attemptID,
+-                      profileSession == plexService.serverSessionToken else { return .superseded }
++                      profileSession == self.plexService.serverSessionToken else { return .superseded }
+                 movieResumeSource = MoviePlaybackVersion.mostAdvancedCopy(in: copies)
+                 if let version = MoviePlaybackVersion.preferred(
+                     in: copies, maxResolution: preferences.maxResolution, preference: preferences.preferredVersion
+@@ -287,7 +287,7 @@ extension PlaybackCoordinator {
+                 ) {
+                     return .started
+                 }
+-                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else { return .superseded }
++                guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == self.plexService.serverSessionToken else { return .superseded }
+             }
+             let localMediaVersion = localURL.flatMap { _ in
+                 downloadManager?.downloadedMediaVersion(
+@@ -341,13 +341,13 @@ extension PlaybackCoordinator {
+                    forceAVPlayer: preferences.forceAVPlayer,
+                    forceVLCKit: preferences.forceVLCKit
+                ),
+-               let probeURL = localURL ?? plexService.directPlayURL(for: part, serverID: itemServerID),
++               let probeURL = localURL ?? self.plexService.directPlayURL(for: part, serverID: itemServerID),
+                let sampleEntry = await HEVCSampleEntryProbe.sampleEntry(
+                    of: probeURL,
+                    cacheKey: localURL.map { "file:\($0.path)" } ?? "\(itemServerID ?? "-")/\(part.id)/\(part.key)"
+                ) {
+                 guard !Task.isCancelled, currentPlaybackAttemptID == attemptID,
+-                      profileSession == plexService.serverSessionToken else { return .superseded }
++                      profileSession == self.plexService.serverSessionToken else { return .superseded }
+                 let stamped = details.stampingVideoSampleEntry(sampleEntry, mediaID: media.id, partID: part.id)
+                 if let stampedMedia = stamped.media.first(where: { $0.id == media.id }),
+                    let stampedPart = stampedMedia.parts.first(where: { $0.id == part.id }) {
+@@ -362,7 +362,7 @@ extension PlaybackCoordinator {
+             // unstamped item. Everything the session reports goes here only.
+             let serverID = itemServerID
+                 ?? downloadManager?.serverID(for: id)
+-                ?? plexService.pool.primary?.serverID
++                ?? self.plexService.pool.primary?.serverID
+             let showScope = ShowTrackPreferenceStore.Scope(
+                 profileID: profileSession.profileID, serverID: serverID, details: details
+             )
+@@ -417,22 +417,22 @@ extension PlaybackCoordinator {
+                 playbackDecision = .localDownload
+                 usesLocalDownload = true
+             } else {
+-                if wantsAirPlay, plexService.pool.connection(for: itemServerID) == nil {
++                if wantsAirPlay, self.plexService.pool.connection(for: itemServerID) == nil {
+                     return .hardFailure("Connect to the matching Plex server to AirPlay this item.")
+                 }
+ 
+-                guard let directPlayURL = plexService.directPlayURL(for: part, serverID: itemServerID) else {
++                guard let directPlayURL = self.plexService.directPlayURL(for: part, serverID: itemServerID) else {
+                     playbackSessionLogger.error(
+                         "Playback attempt failed before engine selection for ratingKey \(itemID, privacy: .public): could not construct direct play URL for media \(media.id, privacy: .public), part \(part.id, privacy: .public)"
+                     )
+                     return .hardFailure("Could not construct playback URL.")
+                 }
+                 playbackURL = directPlayURL
+-                sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
++                sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: directPlayURL)
+                 playbackDecision = .directPlay
+                 usesLocalDownload = false
+                 if !wantsAirPlay {
+-                    try await plexService.checkRemoteDirectPlayAccess(directPlayURL, serverID: itemServerID)
++                    try await self.plexService.checkRemoteDirectPlayAccess(directPlayURL, serverID: itemServerID)
+                 }
+ 
+                 if wantsAirPlay {
+@@ -443,7 +443,7 @@ extension PlaybackCoordinator {
+                         preferredLanguage: preferences.defaultAudioLanguage
+                     )
+                     let subtitleStreamID = startupSubtitleID
+-                    let result = try await plexService.airPlayStreamURL(
++                    let result = try await self.plexService.airPlayStreamURL(
+                         itemID: itemID,
+                         mediaIndex: mediaIndex,
+                         sessionIdentifier: sessionIdentifier,
+@@ -458,7 +458,7 @@ extension PlaybackCoordinator {
+                     }
+ 
+                     playbackURL = result.url
+-                    sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
++                    sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: result.url)
+                     playbackDecision = .airPlay
+                     transcodeSessionID = airPlaySessionID
+                     engineType = .avPlayer
+@@ -499,7 +499,7 @@ extension PlaybackCoordinator {
+                     )
+                     if let dolbyVisionRemux {
+                         playbackURL = dolbyVisionRemux.url
+-                        sanitizedURL = plexService.sanitizedPlaybackURLString(for: dolbyVisionRemux.url)
++                        sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: dolbyVisionRemux.url)
+                         playbackDecision = .spatialAudio
+                         transcodeSessionID = dolbyVisionRemux.transcodeSessionID
+                         hdrRemuxFallback = dolbyVisionRemux.fallback
+@@ -518,7 +518,7 @@ extension PlaybackCoordinator {
+                     } else {
+                         let serverStreamSessionID = UUID().uuidString
+                         do {
+-                            let result = try await plexService.serverStreamURL(
++                            let result = try await self.plexService.serverStreamURL(
+                                 itemID: itemID,
+                                 mediaIndex: mediaIndex,
+                                 sessionIdentifier: sessionIdentifier,
+@@ -530,7 +530,7 @@ extension PlaybackCoordinator {
+                             )
+                             if case .transcodeAvailable = result.outcome {
+                                 playbackURL = result.url
+-                                sanitizedURL = plexService.sanitizedPlaybackURLString(for: result.url)
++                                sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: result.url)
+                                 playbackDecision = .serverStream
+                                 transcodeSessionID = serverStreamSessionID
+                                 engineType = !StreamResolver.containsAV1(media) && preferences.forceVLCKit ? .vlcKit : .avPlayer
+@@ -588,7 +588,7 @@ extension PlaybackCoordinator {
+                     )
+                     if let remux {
+                         playbackURL = remux.url
+-                        sanitizedURL = plexService.sanitizedPlaybackURLString(for: remux.url)
++                        sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: remux.url)
+                         playbackDecision = .spatialAudio
+                         transcodeSessionID = remux.transcodeSessionID
+                         hdrRemuxFallback = remux.fallback
+@@ -602,7 +602,7 @@ extension PlaybackCoordinator {
+             // The attempt may have been superseded while resolving the stream
+             // (metadata fetch or server-stream decision). Abort and release any
+             // transcode session we started so it doesn't linger on the server.
+-            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else {
++            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == self.plexService.serverSessionToken else {
+                 if let transcodeSessionID {
+                     stopTranscodeSessionInBackground(transcodeSessionID, serverID: itemServerID)
+                 }
+@@ -835,7 +835,7 @@ extension PlaybackCoordinator {
+             nowPlayingController.beginSession(
+                 details: details,
+                 engine: newEngine,
+-                plexService: plexService,
++                plexService: self.plexService,
+                 skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+                 skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+             )
+@@ -855,12 +855,12 @@ extension PlaybackCoordinator {
+             return .started
+         } catch {
+             // Don't surface an error for a superseded/dismissed attempt.
+-            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == plexService.serverSessionToken else { return .superseded }
++            guard !Task.isCancelled, currentPlaybackAttemptID == attemptID, profileSession == self.plexService.serverSessionToken else { return .superseded }
+             lastStartFailureError = error
+             playbackSessionLogger.error(
+                 "Playback attempt failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+             )
+-            if didFetchDetails, plexService.isRemotePlaybackRefusal(error, serverID: itemServerID) {
++            if didFetchDetails, self.plexService.isRemotePlaybackRefusal(error, serverID: itemServerID) {
+                 return .refusedRemotely
+             }
+             return .hardFailure(error.localizedDescription)
+@@ -923,7 +923,7 @@ extension PlaybackCoordinator {
+         deadline: Duration?
+     ) async throws -> MediaDetails {
+         guard let deadline else {
+-            return try await plexService.getMediaDetails(
++            return try await self.plexService.getMediaDetails(
+                 itemID: itemID,
+                 checkFiles: true,
+                 serverID: serverID
+@@ -998,7 +998,7 @@ extension PlaybackCoordinator {
+             let videoEnhancementRequest: VideoEnhancementRequest
+ 
+             if preset.isOriginal {
+-                guard let directPlayURL = plexService.directPlayURL(
++                guard let directPlayURL = self.plexService.directPlayURL(
+                     for: part,
+                     serverID: activePlaybackServerID
+                 ) else {
+@@ -1015,7 +1015,7 @@ extension PlaybackCoordinator {
+                     forceVLCKit: preferences.forceVLCKit
+                 )
+                 playbackURL = directPlayURL
+-                sanitizedURL = plexService.sanitizedPlaybackURLString(for: directPlayURL)
++                sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: directPlayURL)
+                 playbackDecision = .directPlay
+                 engineType = resolverDecision.engine
+                 resolverReason = resolverDecision.reason
+@@ -1048,7 +1048,7 @@ extension PlaybackCoordinator {
+                 activePlaybackSessionIdentifier = playbackSessionID
+                 let newTranscodeSessionID = UUID().uuidString
+ 
+-                let result = try await plexService.transcodeURL(
++                let result = try await self.plexService.transcodeURL(
+                     itemID: itemID,
+                     mediaIndex: mediaIndex,
+                     preset: preset,
+@@ -1082,7 +1082,7 @@ extension PlaybackCoordinator {
+                     return
+                 }
+ 
+-                sanitizedURL = plexService.sanitizedPlaybackURLString(for: playbackURL)
++                sanitizedURL = self.plexService.sanitizedPlaybackURLString(for: playbackURL)
+                 playbackDecision = .transcode(preset)
+                 engineType = preferences.forceVLCKit ? .vlcKit : .avPlayer
+                 resolverReason = audioStreamID != nil
+@@ -1236,7 +1236,7 @@ extension PlaybackCoordinator {
+             return
+         }
+ 
+-        guard plexService.pool.connection(for: activePlaybackServerID) != nil else {
++        guard self.plexService.pool.connection(for: activePlaybackServerID) != nil else {
+             engine?.pause()
+             presentQualitySwitchError("Connect to the matching Plex server to AirPlay this item.")
+             return
+@@ -1264,7 +1264,7 @@ extension PlaybackCoordinator {
+         let expectedPresentationID = playerPresentationID
+ 
+         do {
+-            let result = try await plexService.airPlayStreamURL(
++            let result = try await self.plexService.airPlayStreamURL(
+                 itemID: itemID,
+                 mediaIndex: mediaIndex,
+                 sessionIdentifier: playbackSessionID,
+@@ -1305,7 +1305,7 @@ extension PlaybackCoordinator {
+                 media: details.media[mediaIndex],
+                 part: part,
+                 playbackURL: result.url,
+-                sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
++                sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: result.url),
+                 playbackDecision: .airPlay,
+                 engineType: .avPlayer,
+                 resolverReason: isTrackChange
+@@ -1492,7 +1492,7 @@ extension PlaybackCoordinator {
+         nowPlayingController.beginSession(
+             details: details,
+             engine: newEngine,
+-            plexService: plexService,
++            plexService: self.plexService,
+             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
+             skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
+         )
+@@ -1582,7 +1582,7 @@ extension PlaybackCoordinator {
+            ) {
+             return localURL
+         }
+-        return plexService.externalSubtitleURL(for: stream, serverID: activePlaybackServerID)
++        return self.plexService.externalSubtitleURL(for: stream, serverID: activePlaybackServerID)
+     }
+ 
+     /// Re-reads the playing item after Plex installed a sidecar subtitle, so
+@@ -1748,7 +1748,7 @@ extension PlaybackCoordinator {
+ 
+             let details: MediaDetails
+             do {
+-                details = try await plexService.getMediaDetails(itemID: itemID, serverID: activePlaybackServerID)
++                details = try await self.plexService.getMediaDetails(itemID: itemID, serverID: activePlaybackServerID)
+             } catch {
+                 guard let latest else { throw error }
+                 return latest
+@@ -1783,7 +1783,7 @@ extension PlaybackCoordinator {
+     /// when it cannot be fetched quickly.
+     private func sidecarDigest(of stream: MediaStream) async -> Data? {
+         guard let key = stream.key?.nilIfEmpty else { return nil }
+-        let data = try? await plexService.rawServerRequest(
++        let data = try? await self.plexService.rawServerRequest(
+             path: key.hasPrefix("/") ? key : "/\(key)",
+             timeoutInterval: 4,
+             serverID: activePlaybackServerID
+@@ -1867,7 +1867,7 @@ extension PlaybackCoordinator {
+     /// at start and after seeks — from this.
+     func sourceLocality(for url: URL, serverID: String?) -> PlaybackSourceLocality {
+         if url.isFileURL { return .localFile }
+-        let connection = plexService.pool.connection(for: serverID)
++        let connection = self.plexService.pool.connection(for: serverID)
+         return connection?.isLocal == true ? .localNetwork : .remoteNetwork
+     }
+ 
+@@ -2059,7 +2059,7 @@ extension PlaybackCoordinator {
+         let expectedPresentationID = playerPresentationID
+ 
+         do {
+-            let result = try await plexService.serverStreamURL(
++            let result = try await self.plexService.serverStreamURL(
+                 itemID: itemID,
+                 mediaIndex: mediaIndex,
+                 sessionIdentifier: playbackSessionID,
+@@ -2099,7 +2099,7 @@ extension PlaybackCoordinator {
+                 media: media,
+                 part: part,
+                 playbackURL: result.url,
+-                sanitizedURL: plexService.sanitizedPlaybackURLString(for: result.url),
++                sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: result.url),
+                 playbackDecision: .serverStream,
+                 engineType: preferences.forceVLCKit ? .vlcKit : .avPlayer,
+                 resolverReason: "Direct play failed (\(failureDescription)); automatic server-stream fallback",
+@@ -2111,7 +2111,7 @@ extension PlaybackCoordinator {
+                 "Server-stream fallback failed for ratingKey \(itemID, privacy: .public): \(error.localizedDescription, privacy: .public); leaving the error surface in place"
+             )
+             ErrorReporter.report(.engineFallbackFailed, reason: .serverStreamRequestFailed, error: error)
+-            if plexService.isRemotePlaybackRefusal(error, serverID: activePlaybackServerID) {
++            if self.plexService.isRemotePlaybackRefusal(error, serverID: activePlaybackServerID) {
+                 await recoverFromRemotePlaybackRefusal(
+                     details: details,
+                     itemID: itemID,
+@@ -2139,14 +2139,14 @@ extension PlaybackCoordinator {
+         expectedPresentationID: UUID
+     ) async {
+         let serverID = activePlaybackServerID
+-        let isLocalNow = await plexService.reconnectOverLocalNetwork(serverID: serverID)
++        let isLocalNow = await self.plexService.reconnectOverLocalNetwork(serverID: serverID)
+         guard !didFinalizeCurrentSession,
+               playerPresentationID == expectedPresentationID,
+               self.itemID == itemID else {
+             return
+         }
+ 
+-        if isLocalNow, let directPlayURL = plexService.directPlayURL(for: part, serverID: serverID) {
++        if isLocalNow, let directPlayURL = self.plexService.directPlayURL(for: part, serverID: serverID) {
+             ErrorReporter.report(.engineFallback, reason: .remoteRefusalToLocal)
+             activateReplacementAttempt(
+                 transitionLabel: "retrying direct play over the local network after Plex refused remote playback",
+@@ -2156,7 +2156,7 @@ extension PlaybackCoordinator {
+                 media: media,
+                 part: part,
+                 playbackURL: directPlayURL,
+-                sanitizedURL: plexService.sanitizedPlaybackURLString(for: directPlayURL),
++                sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: directPlayURL),
+                 playbackDecision: .directPlay,
+                 engineType: debugInfo.engine,
+                 resolverReason: "Plex refused remote playback; direct play over the local network",
+@@ -2178,7 +2178,7 @@ extension PlaybackCoordinator {
+     /// hygiene; `PlexService` logs failures instead of throwing.
+     func stopTranscodeSessionInBackground(_ transcodeSessionID: String, serverID: String?) {
+         Task {
+-            await plexService.stopTranscodeSession(
++            await self.plexService.stopTranscodeSession(
+                 transcodeSessionID: transcodeSessionID,
+                 serverID: serverID
+             )
+@@ -2277,7 +2277,7 @@ extension PlaybackCoordinator {
+                 } else {
+                     let serverID = activePlaybackServerID
+                     Task {
+-                        try? await plexService.scrobble(itemID: itemID, serverID: serverID)
++                        try? await self.plexService.scrobble(itemID: itemID, serverID: serverID)
+                     }
+                 }
+             }
+@@ -2436,6 +2436,6 @@ extension PlaybackCoordinator {
+     /// `productVersion`); `ErrorReporter` keeps only `major.minor.patch`.
+     var errorReportingServerVersion: String? {
+         guard let serverID = activePlaybackServerID?.nilIfEmpty else { return nil }
+-        return plexService.pool.server(for: serverID)?.productVersion
++        return self.plexService.pool.server(for: serverID)?.productVersion
+     }
+ }
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+index 34c417a..45c71f7 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+@@ -172,7 +172,7 @@ extension PlaybackCoordinator {
+         // snapshot, so comparing its selection after On → Off → On skips
+         // necessary updates. Zero explicitly clears Plex's subtitle choice.
+         do {
+-            try await plexService.selectStreams(
++            try await self.plexService.selectStreams(
+                 partID: part.id,
+                 audioStreamID: audioStreamID,
+                 subtitleStreamID: subtitleStreamID ?? "0",
+@@ -203,7 +203,7 @@ extension PlaybackCoordinator {
+ 
+         let transcodeSessionID = UUID().uuidString
+         do {
+-            let result = try await plexService.spatialAudioRemuxURL(
++            let result = try await self.plexService.spatialAudioRemuxURL(
+                 itemID: itemID,
+                 mediaIndex: mediaIndex,
+                 sessionIdentifier: sessionIdentifier,
+@@ -364,7 +364,7 @@ extension PlaybackCoordinator {
+             transitionLabel: "retrying HDR through a Plex server remux",
+             attemptID: UUID(), details: details, itemID: itemID,
+             media: media, part: part, playbackURL: remux.url,
+-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
++            sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: remux.url),
+             playbackDecision: .spatialAudio, engineType: .avPlayer,
+             resolverReason: "HDR remux failed (\(failureDescription)); \(remux.reason)",
+             videoEnhancementRequest: .disabled, startPosition: resumePosition,
+@@ -384,7 +384,7 @@ extension PlaybackCoordinator {
+             let convertsAudio = stage == .convertedAudio
+             let sessionID = UUID().uuidString
+             do {
+-                let result = try await plexService.spatialAudioRemuxURL(
++                let result = try await self.plexService.spatialAudioRemuxURL(
+                     itemID: itemID, mediaIndex: mediaIndex,
+                     sessionIdentifier: sessionIdentifier, transcodeSessionID: sessionID,
+                     audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
+@@ -538,7 +538,7 @@ extension PlaybackCoordinator {
+             media: media,
+             part: part,
+             playbackURL: remux.url,
+-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
++            sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: remux.url),
+             playbackDecision: .spatialAudio,
+             engineType: .avPlayer,
+             resolverReason: remux.reason,
+@@ -619,7 +619,7 @@ extension PlaybackCoordinator {
+             media: media,
+             part: part,
+             playbackURL: remux.url,
+-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: remux.url),
++            sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: remux.url),
+             playbackDecision: .spatialAudio,
+             engineType: .avPlayer,
+             resolverReason: remux.reason,
+@@ -666,7 +666,7 @@ extension PlaybackCoordinator {
+             }
+             return
+         }
+-        guard let directPlayURL = plexService.directPlayURL(for: part, serverID: activePlaybackServerID) else {
++        guard let directPlayURL = self.plexService.directPlayURL(for: part, serverID: activePlaybackServerID) else {
+             return
+         }
+         let resolverDecision = StreamResolver.evaluateForDirectPlayback(
+@@ -719,7 +719,7 @@ extension PlaybackCoordinator {
+             media: media,
+             part: part,
+             playbackURL: directPlayURL,
+-            sanitizedURL: plexService.sanitizedPlaybackURLString(for: directPlayURL),
++            sanitizedURL: self.plexService.sanitizedPlaybackURLString(for: directPlayURL),
+             playbackDecision: .directPlay,
+             engineType: resolverDecision.engine,
+             resolverReason: "\(reason) (\(resolverDecision.reason))",

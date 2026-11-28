@@ -42,13 +42,13 @@ struct LibraryItemsView: View {
 
     init(
         library: Library,
-        plexService: PlexService,
+        media: MediaService,
         collection: MediaCollection? = nil,
         initialGenre: LibraryGenreOption? = nil
     ) {
         _viewModel = State(initialValue: LibraryItemsViewModel(
             library: library,
-            plexService: plexService,
+            media: media,
             collection: collection,
             initialGenre: initialGenre
         ))

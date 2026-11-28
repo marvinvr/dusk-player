@@ -6,7 +6,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 ## App And Navigation Shell
 
 - `DuskApp` creates the long-lived app services and injects them into the SwiftUI
-  environment: `PlexService`, `PlaybackCoordinator`, `DownloadManager`,
+  environment: `MediaService`, `PlaybackCoordinator`, `DownloadManager`,
   `OfflinePlaybackSyncManager`, `SeerrService`, and `UserPreferences`.
 - App-wide color scheme comes from `UserPreferences.appearanceMode`. There is no
   root `.tint`: the global `AccentColor` asset is the label colour, so system
@@ -236,7 +236,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Use `PlexItemPresentation` helpers for standard poster subtitles, continue-watching
   labels, poster progress, and image URL selection.
 - Use `DuskAsyncImage` for Plex artwork. It integrates app image caching and can route
-  Plex image requests through `PlexService` when needed.
+  Plex image requests through `MediaService` when needed.
 - Use `DetailHeroBackdrop` with `DuskHeroBackdropOverlay` for full-bleed hero artwork,
   and always apply `duskHeroBackdropBottomFade()` to the backdrop + overlay stack.
   The overlay owns the shared top and leading scrims; the bottom fade into the page
@@ -406,7 +406,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   pull-to-refresh look like content jumping between servers. The merge (`HubMerge`, `ContinueWatchingMerge`) is a
   pure function of the per-server answers in priority order, so each publish refines the
   same list. With one server both merges return their input verbatim. Every merge
-  registers its findings in `plexService.alternates` for playback fallback.
+  registers its findings in `media.alternates` for playback fallback.
 - Initial load, tab return, scene activation, player dismissal and pull-to-refresh all
   go through the **same** `load()`. It bumps `loadGeneration`, supersedes the previous
   load, and runs the work in an unstructured task the view model owns, awaiting only its
@@ -420,7 +420,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   server's previous answer (`lastPayloads`, dropped when the server leaves the pool or
   the Plex Home profile changes), so a timeout during a refresh cannot make one server's
   rows blink out and back.
-- Home reloads on `plexService.serverContentRevision` (`.task(id:)`), never on a single
+- Home reloads on `media.serverContentRevision` (`.task(id:)`), never on a single
   server identifier: the tab shell mounts before anything is connected.
 - Home never labels a row with the server it came from — with every server merged into
   one screen that is noise. The only server wording is `ServerOutageNote`, a quiet line
@@ -434,7 +434,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   sections would share a block. It is a pure permutation — global rows first, then one
   block per library in library order, then rows whose section is unknown. `libraryOrder`
   must be built from *every* section, including music and photo, or the blocks drift.
-- Recently Added hubs are expanded through `PlexService.mergedHubItems(for:size:)`,
+- Recently Added hubs are expanded through `MediaService.mergedHubItems(for:size:)`,
   which pages **each contributing server's** hub key and re-merges, so shelf limits are
   intentional and "Show all" (`.hub`) shows the whole merged row rather than the
   primary server's share of it. `HomeRow.isPageable` / `hasMoreOnAnySource` /
@@ -763,10 +763,10 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   tvOS tab bar sits above this screen, so a row moved down but not up.
 - Writes are debounced 1s and coalesced, so walking a library through six slots is one
   account write, not six. `onDisappear` flushes a debounce that is still counting down.
-- A failed write reverts the list to `PlexService.libraryOrder.orderedSections` and
+- A failed write reverts the list to `MediaService.libraryOrder.orderedSections` and
   shows an inline message; showing the rejected order would lie about what the other
   Plex apps will do. A failed load shows `FeatureErrorView` with Retry.
-- The order is read and written through `PlexService`; the view model never talks to
+- The order is read and written through `MediaService`; the view model never talks to
   plex.tv itself. Entries for disabled servers, cloud providers, and servers whose
   sections failed to load are carried through untouched — never write an order for a
   server Dusk could not read. Storage format and traps: `docs/data-and-plex.md`.
@@ -779,7 +779,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   built like Hidden Libraries. This is how Plex's automatic rows (the seasonal
   "Oh, The Horror!" = `movie.curated`, collections, …) leave Home.
 - Storage is Plex's own Manage Recommendations "Home" flag (`promotedToOwnHome`,
-  `PlexService+HomeRows.swift`), saved on the server: `GET /hubs` drops the row for
+  `MediaService+HomeRows.swift`), saved on the server: `GET /hubs` drops the row for
   Dusk, Plex Web and every Plex app alike, so Home needs no filter. Nothing is
   stored in Dusk.
 - Only owners can change it (shared servers and restricted profiles never see the
@@ -799,7 +799,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - A hidden library is gone everywhere: tabs and library lists (`visibleSections`),
   Home rows and its items in global rows / Continue Watching / hero / Top Shelf
   (`HomeViewModel.mergedScreen`), personalized shelves, "Show All" and Recently Added
-  paging (`getHubItems`), search and Siri search (`PlexService.search`), a person's
+  paging (`getHubItems`), search and Siri search (`MediaService.search`), a person's
   titles, and the Siri title catalog (rebuilt when the hidden set changes). Matching
   is `"<serverID>|<librarySectionID>"` via `HiddenLibraryFilter`; an item without a
   section id is kept.
@@ -811,7 +811,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   itself — it stays in tabs/library lists and browses normally, like Plex Web. ≥ 1
   keeps its titles out of Home (rows, global rows, Continue Watching, hero, Top Shelf,
   personalized shelves, Recently Added expansion, a global row's "Show All"); 2 also
-  out of `PlexService.search` (Search, Siri search, a person's search-based page) and
+  out of `MediaService.search` (Search, Siri search, a person's search-based page) and
   the Siri title catalog. `HiddenLibraryFilter.Scope` (`.everywhere` / `.home` /
   `.search`) picks which; `libraryOrder.hiddenLibraryFilter(for:)` builds it.
 - Not filtered: downloads already on the device, and Seerr results.
@@ -839,7 +839,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `TVTopShelfContentProvider.topShelfContentDidChange()`. The extension only
   reads that snapshot (`TopShelfSnapshot.swift` is compiled into both). No
   snapshot → the static Top Shelf image.
-- `PlexService.tearDownServerSessions` clears the snapshot (sign-out, Plex Home
+- `MediaService.tearDownServerSessions` clears the snapshot (sign-out, Plex Home
   switch): the shelf must never show another identity's items.
 - Deep links: `dusk://play?server=…&item=…&type=…[&clip=1]` resumes,
   `dusk://open?…` opens the detail page on Home. `DuskApp` hands the URL to
@@ -855,7 +855,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 ## Libraries
 
 - `LibrariesViewModel` groups Plex libraries by `LibraryKind`. Its `libraries`
-  reads through `PlexService.libraryOrder.orderedSections`, which now spans **every
+  reads through `MediaService.libraryOrder.orderedSections`, which now spans **every
   connected server** in the account's cross-server order, not raw `/library/sections`
   order. Libraries are never merged into virtual ones: two servers' "Movies" sections
   hold different files and page independently, so they stay two rows.
@@ -863,7 +863,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   the same title (`ServerLabeling`, shared with the Library Order settings screen). A
   single-server account never sees one.
 - `MainTabView` reuses a single `LibrariesViewModel` to decide tabs and feed library
-  screens, and reloads it on `plexService.serverContentRevision` because the available
+  screens, and reloads it on `media.serverContentRevision` because the available
   tabs derive from the merged library list. Avoid each tab independently discovering
   libraries.
 - `LibrariesView` is the direct Movies/Shows/Videos/Photos tab wrapper (Photos: see
@@ -1224,12 +1224,12 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   video detail. iOS/iPadOS put it in the Play button's `.contextMenu`
   next to Play Version; tvOS gets a `captions.bubble` icon button in the hero action
   row, because context menus are awkward there. It is gated on
-  `<Model>.canDownloadSubtitles` — `PlexService.canDownloadSubtitles(serverID:)` (owner of
+  `<Model>.canDownloadSubtitles` — `MediaService.canDownloadSubtitles(serverID:)` (owner of
   *that item's* server,
   non-restricted Home user; anything else would 403) plus a real playable part and
   no cached/offline metadata. The detail models own the flow
   (`makeSubtitleSearchViewModel(preferredLanguageCode:)`), so the views never touch
-  `PlexService`; a successful install re-reads the item so the new stream shows up in
+  `MediaService`; a successful install re-reads the item so the new stream shows up in
   media info, and the next playback session mounts it. Presentation goes through
   `detailSubtitleSearchPresentation(isPresented:viewModel:)` (sheet on iOS, full-screen
   cover on tvOS).
@@ -1318,7 +1318,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - A Plex DVR with more than one tuner device (e.g. an HDHomeRun and a Threadfin
   or ErsatzTV emulation) gets one Plex section per device, headed by the device
   name, exactly like IPTV sources: `LiveTVViewModel` reads `/livetv/dvrs/{id}`
-  with the channels (`PlexService.getLiveTVDevices`, best effort), and
+  with the channels (`MediaService.getLiveTVDevices`, best effort), and
   `LiveTVLineup.groupedByDevice` splits the lineup by
   `ChannelMapping.channelKey` (= `Channel.id`); unmapped channels keep a last
   section under the provider title, one device stays the single `plex` section.
@@ -1365,7 +1365,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 
 - A data-driven destination like Live TV: `LibraryKind.playlists` joins the
   tab list (so Settings › Navigation Tabs orders and hides it) only while
-  `PlexService.playlists` (`PlaylistStore`) holds a video playlist on a
+  `MediaService.playlists` (`PlaylistStore`) holds a video playlist on a
   connected server. `MainTabView` loads the store per `serverContentRevision`;
   creating the first playlist from Add to Playlist brings the tab in. iPhone
   folds it into More under the five-tab rule; tvOS puts it before Search.
@@ -1402,7 +1402,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   it and skips episodes already in the playlist, and the confirmation says so.
 - Pin to Home: playlist cards (context menu) and the playlist page's More
   menu toggle **Pin to Home / Unpin from Home** (`PinPlaylistToHomeButton`).
-  `PlexService.pinnedPlaylists` (`PinnedPlaylistStore`) keeps the pins in
+  `MediaService.pinnedPlaylists` (`PinnedPlaylistStore`) keeps the pins in
   UserDefaults per Plex profile (`PinnedHomePlaylists.v1.<profileID>`), each
   with its server-scoped id and last title; deleting a playlist unpins it,
   renaming updates the title. Home (`HomeViewModel.refreshPinnedPlaylists`, run
@@ -1435,11 +1435,11 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   All-clip result groups render 16:9.
 - Search is debounced in the view model with a cancellable `Task`; views only bind the
   query and render grouped results.
-- Search is **fanned out to every connected server** (`PlexService.streamSearch`) and the
+- Search is **fanned out to every connected server** (`MediaService.streamSearch`) and the
   merged groups are republished as each server answers (`SearchMerge`), so results stream
   in instead of waiting for the slowest server. Groups are matched on their type, items
   deduplicated by content key and round-robin interleaved in priority order, and the
-  copies registered in `plexService.alternates`. It is an error **only** when every
+  copies registered in `media.alternates`. It is an error **only** when every
   server failed and there is nothing to show; one unreachable server shows
   `ServerOutageNote` above the results. A server connecting or dropping re-runs the
   current query (`.task(id: serverContentRevision)`).
@@ -1484,7 +1484,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   back where the user placed it.
 - `UserPreferences` is `@Observable`, environment-injected, and backed by `UserDefaults`.
   Add new device-local user-facing preferences there with a key, default loading, and
-  persistence. A setting Plex already models for the account belongs in `PlexService`
+  persistence. A setting Plex already models for the account belongs in `MediaService`
   instead, like library order.
 - `forceAVPlayer` and `forceVLCKit` are mutually exclusive in `UserPreferences`; do not
   bypass those setters.
@@ -1514,7 +1514,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   `UserPreferences.storedSubtitleSettings` maps the legacy keys
   (`subtitleForcedOnly` stays readable for that only).
 - Values the viewer never set in Dusk follow the Plex account's language
-  settings (`PlexService.fetchAccountLanguageDefaults`, `profile` of
+  settings (`MediaService.fetchAccountLanguageDefaults`, `profile` of
   `/api/v2/user`, fetched in `MainTabView` per profile). They are cached under
   `plexAccount*` keys and applied through
   `UserPreferences.applyPlexAccountLanguageDefaults`, which never writes the
@@ -1561,7 +1561,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   future sessions transcoded.
 - "Download Subtitles" also lives in the in-player gear menu (iOS item below
   Subtitle Size, tvOS button beside the Subtitles menu), behind
-  `PlayerControlsContext.canDownloadSubtitles` — `PlexService.canDownloadSubtitles(serverID:)`
+  `PlayerControlsContext.canDownloadSubtitles` — `MediaService.canDownloadSubtitles(serverID:)`
   and not Live TV. It opens `SubtitleSearchView` (sheet on iOS with
   `[.medium, .large]` detents, full-screen cover on tvOS) via
   `PlayerViewModel.showSubtitleSearch`, which must stay in both controls auto-hide
@@ -1699,7 +1699,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Preserve progress indicators on posters and rows where watch state exists.
 - Do not duplicate formatting logic in views. Add to `MediaTextFormatter` or an existing
   presentation helper.
-- Do not make views call `PlexService` directly unless the file is already a small bridge
+- Do not make views call `MediaService` directly unless the file is already a small bridge
   around image URL construction. Feature data loading belongs in `@Observable` view models.
 
 ## Safe Change Checklist
@@ -1710,7 +1710,7 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
 - Keep edits scoped; other agents may be working in nearby files.
 - Reuse `AppNavigationRoute` and `.duskAppNavigationDestinations()` for navigation.
 - Reuse shared poster/grid/carousel/state/formatting helpers before adding new UI.
-- Keep Plex API calls in view models or `PlexService`, not view bodies.
+- Keep Plex API calls in view models or `MediaService`, not view bodies.
 - Preserve refresh-on-player-dismiss behavior on screens showing watch state.
 - Preserve offline fallback paths and pending sync recording on downloaded media flows.
 - Check tvOS focus and iOS compact layout when touching shared view code.

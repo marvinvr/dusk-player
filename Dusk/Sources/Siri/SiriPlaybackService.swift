@@ -25,15 +25,15 @@ final class SiriPlaybackService {
     private static let otherServersGrace: Duration = .milliseconds(1500)
     private static let maxEntityResults = 10
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let playback: PlaybackCoordinator
 
     /// Titles found by a picker search that are not in the catalog, so the
     /// entity Siri hands back to an intent by identifier can be rebuilt.
     private(set) var recentlyMatched: [String: PlexTitleEntity] = [:]
 
-    init(plexService: PlexService, playback: PlaybackCoordinator) {
-        self.plexService = plexService
+    init(media: MediaService, playback: PlaybackCoordinator) {
+        self.media = media
         self.playback = playback
     }
 
@@ -54,7 +54,7 @@ final class SiriPlaybackService {
     func entities(matching text: String) async -> [SiriTitleCandidate] {
         let query = SiriTitleQuery(text)
         guard !query.text.isEmpty else { return [] }
-        let candidates = plexService.isSessionReady && plexService.pool.availability.isReady
+        let candidates = media.isSessionReady && media.pool.availability.isReady
             ? await candidates(for: query)
             : catalogCandidates(connectedOnly: false)
         return SiriTitleMatcher.rank(query, among: candidates)
@@ -81,11 +81,11 @@ final class SiriPlaybackService {
 
         // A title Siri learned earlier may live on a server that is not
         // connected right now; another server may well have it.
-        guard plexService.pool.connection(for: candidate.id.serverID) != nil else {
+        guard media.pool.connection(for: candidate.id.serverID) != nil else {
             let query = SiriTitleQuery(candidate.title)
             let alternatives = await candidates(for: query).filter { $0.kind == candidate.kind }
             guard let replacement = SiriTitleMatcher.rank(query, among: alternatives).first?.candidate,
-                  plexService.pool.connection(for: replacement.id.serverID) != nil else {
+                  media.pool.connection(for: replacement.id.serverID) != nil else {
                 return "The server with \(candidate.title) isn’t reachable right now."
             }
             return await play(replacement)
@@ -102,7 +102,7 @@ final class SiriPlaybackService {
     private func playMovie(_ candidate: SiriTitleCandidate) async -> String {
         let details: MediaDetails
         do {
-            details = try await plexService.getMediaDetails(
+            details = try await media.getMediaDetails(
                 itemID: candidate.id.itemID,
                 serverID: candidate.id.serverID
             )
@@ -124,7 +124,7 @@ final class SiriPlaybackService {
     private func playNextEpisode(of show: SiriTitleCandidate) async -> String {
         let episodes: [Episode]
         do {
-            episodes = try await plexService.getAllEpisodes(
+            episodes = try await media.getAllEpisodes(
                 showKey: show.id.itemID,
                 serverID: show.id.serverID
             )
@@ -191,19 +191,19 @@ final class SiriPlaybackService {
         var readySince: ContinuousClock.Instant?
 
         while true {
-            guard plexService.isAuthenticated else {
+            guard media.isAuthenticated else {
                 return "Sign in to Plex in Dusk first."
             }
-            if plexService.homeBootstrapCompleted, plexService.needsHomeUserSelection {
+            if media.homeBootstrapCompleted, media.needsHomeUserSelection {
                 return "Choose your Plex profile in Dusk first."
             }
 
-            if plexService.isSessionReady {
-                switch plexService.pool.availability {
+            if media.isSessionReady {
+                switch media.pool.availability {
                 case .ready:
                     let since = readySince ?? clock.now
                     readySince = since
-                    if !plexService.pool.isConnecting || clock.now >= since + Self.otherServersGrace {
+                    if !media.pool.isConnecting || clock.now >= since + Self.otherServersGrace {
                         return nil
                     }
                 case .allDisabled:
@@ -216,7 +216,7 @@ final class SiriPlaybackService {
             }
 
             guard clock.now < deadline else {
-                return plexService.pool.availability.isReady
+                return media.pool.availability.isReady
                     ? nil
                     : "Dusk can’t reach your Plex server right now."
             }
@@ -232,7 +232,7 @@ final class SiriPlaybackService {
     /// already knows.
     private func candidates(for query: SiriTitleQuery) async -> [SiriTitleCandidate] {
         let terms = query.searchTerms
-        let perServer = await plexService.fanOutAcrossServers { service, serverID in
+        let perServer = await media.fanOutAcrossServers { service, serverID in
             await withTaskGroup(of: (Int, [MediaItem]).self) { group in
                 for (index, term) in terms.enumerated() {
                     group.addTask {
@@ -256,7 +256,7 @@ final class SiriPlaybackService {
             return [SearchSection(title: "Siri", type: "siri", items: items)]
         }
         let merged = SearchMerge.merge(lists)
-        plexService.registerAlternates(merged.alternates)
+        media.registerAlternates(merged.alternates)
 
         let searched = merged.groups.flatMap(\.items).compactMap(Self.candidate(for:))
         return searched + catalogCandidates(connectedOnly: true)
@@ -264,7 +264,7 @@ final class SiriPlaybackService {
 
     private func catalogCandidates(connectedOnly: Bool) -> [SiriTitleCandidate] {
         SiriTitleCatalog.shared.entries
-            .filter { !connectedOnly || plexService.pool.connection(for: $0.id.serverID) != nil }
+            .filter { !connectedOnly || media.pool.connection(for: $0.id.serverID) != nil }
             .map(SiriTitleCandidate.init(entry:))
     }
 

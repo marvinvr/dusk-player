@@ -2,7 +2,7 @@
 import SwiftUI
 
 struct ShowDetailView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -18,7 +18,7 @@ struct ShowDetailView: View {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -26,7 +26,7 @@ struct ShowDetailView: View {
     ) {
         _viewModel = State(initialValue: ShowDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             seerrService: seerrService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -109,14 +109,14 @@ struct ShowDetailView: View {
                         itemID: details.id,
                         sectionID: details.libraryID,
                         tags: details.collections,
-                        plexService: plexService
+                        media: media
                     )
 
                     if let roles = details.roles, !roles.isEmpty {
                         DetailCastSection(
                             roles: roles,
                             serverID: viewModel.serverID,
-                            plexService: plexService
+                            media: media
                         )
                             .padding(.top, detailSectionSpacing)
                             .padding(.bottom, 56)

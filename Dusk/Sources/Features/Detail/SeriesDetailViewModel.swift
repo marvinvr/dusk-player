@@ -17,7 +17,7 @@ final class SeriesDetailViewModel {
         case episode
     }
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let seerrService: SeerrService?
     private let downloadManager: DownloadManager?
     private let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
@@ -42,7 +42,7 @@ final class SeriesDetailViewModel {
     init(
         entry: Entry,
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         seerrService: SeerrService? = nil,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
@@ -50,7 +50,7 @@ final class SeriesDetailViewModel {
     ) {
         self.entry = entry
         self.entryID = id
-        self.plexService = plexService
+        self.media = media
         self.seerrService = seerrService
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -61,7 +61,7 @@ final class SeriesDetailViewModel {
     private var serverID: String? {
         entryID.serverID
             ?? downloadManager?.serverID(for: entryID)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
     }
 
     var isSwitchingSeason: Bool {
@@ -183,7 +183,7 @@ final class SeriesDetailViewModel {
         selectedSeasonKey = id.itemID
         let model = SeasonDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
             prefersOfflineAvailability: prefersOfflineAvailability
@@ -216,7 +216,7 @@ final class SeriesDetailViewModel {
     private func makeShowModel(id: MediaItemID) -> ShowDetailViewModel {
         ShowDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             seerrService: seerrService,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
@@ -245,14 +245,14 @@ final class SeriesDetailViewModel {
     static func playTarget(
         entry: Entry,
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager?,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager?,
         prefersOfflineAvailability: Bool
     ) async -> Episode? {
         let serverID = id.serverID
             ?? downloadManager?.serverID(for: id)
-            ?? plexService.pool.primary?.serverID
+            ?? media.pool.primary?.serverID
         let seasonID: MediaItemID
         switch entry {
         case .episode:
@@ -265,7 +265,7 @@ final class SeriesDetailViewModel {
             var seasons: [Season]
             var isCached = false
             do {
-                seasons = try await plexService.getSeasons(showKey: id.itemID, serverID: serverID)
+                seasons = try await media.getSeasons(showKey: id.itemID, serverID: serverID)
             } catch {
                 seasons = downloadManager?.cachedSeasons(show: id) ?? []
                 isCached = true
@@ -280,7 +280,7 @@ final class SeriesDetailViewModel {
 
         let season = SeasonDetailViewModel(
             id: seasonID,
-            plexService: plexService,
+            media: media,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
             prefersOfflineAvailability: prefersOfflineAvailability
@@ -295,7 +295,7 @@ final class SeriesDetailViewModel {
 
     private func entryEpisodeDetails() async -> MediaDetails? {
         do {
-            return try await plexService.getMediaDetails(
+            return try await media.getMediaDetails(
                 itemID: entryID.itemID,
                 serverID: serverID
             )

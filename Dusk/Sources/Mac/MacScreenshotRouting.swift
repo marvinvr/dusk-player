@@ -13,7 +13,7 @@ extension MacRootView {
         guard ScreenshotMode.isActive else { return }
         for _ in 0..<80 {
             if let destination = await ScreenshotMode.consumeDestination(
-                plexService: plexService,
+                media: media,
                 libraries: libraries(),
                 downloadManager: downloadManager
             ) {
@@ -24,7 +24,7 @@ extension MacRootView {
                     routes.removeFirst()
                 }
                 if tab == .playlists {
-                    await plexService.loadPlaylists()
+                    await media.loadPlaylists()
                 }
                 if tab == .settings || tab == .more {
                     tab = .home
@@ -37,9 +37,9 @@ extension MacRootView {
                     addToPlaylist.present(target)
                 }
                 if let playlistID = destination.playlistID,
-                   let playlist = try? await plexService.getPlaylist(itemID: playlistID.itemID, serverID: playlistID.serverID),
-                   let entries = try? await plexService.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID),
-                   let queue = PlaylistActions(plexService: plexService).queue(
+                   let playlist = try? await media.getPlaylist(itemID: playlistID.itemID, serverID: playlistID.serverID),
+                   let entries = try? await media.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID),
+                   let queue = PlaylistActions(media: media).queue(
                        for: playlist,
                        entries: entries,
                        startIndex: destination.playlistStart

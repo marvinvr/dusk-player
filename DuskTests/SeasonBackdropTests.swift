@@ -15,7 +15,7 @@ struct SeasonBackdropTests {
         ("orphan", ""),
     ])
     func backdropWhileBrowsing(scenario: String, expectedPath: String) async throws {
-        let service = PlexService(urlProtocolClasses: [SeasonBackdropStub.self])
+        let service = MediaService(urlProtocolClasses: [SeasonBackdropStub.self])
         let serverID = "backdrop-\(UUID().uuidString)"
         let baseURL = try #require(URL(string: "https://\(scenario).backdrop.test"))
         let serverData = try JSONSerialization.data(withJSONObject: [
@@ -31,7 +31,7 @@ struct SeasonBackdropTests {
             ServerPool.forget(serverID: serverID)
         }
         let model = SeasonDetailViewModel(
-            id: MediaItemID(serverID: serverID, itemID: "season"), plexService: service
+            id: MediaItemID(serverID: serverID, itemID: "season"), media: service
         )
         await model.load()
         #expect(model.error == nil)
@@ -57,7 +57,7 @@ struct SeasonBackdropTests {
         // Separate season pages load their own show fallback.
         #expect(model.backdropURL(width: 1920, height: 540) == original)
         for (index, episode) in model.episodes.enumerated() {
-            let detail = EpisodeDetailViewModel(id: episode.id, plexService: service)
+            let detail = EpisodeDetailViewModel(id: episode.id, media: service)
             await detail.load()
             #expect(detail.error == nil)
             let backdrop = detail.backdropURL(width: 1920, height: 540)

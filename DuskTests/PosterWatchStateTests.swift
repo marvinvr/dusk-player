@@ -79,7 +79,7 @@ struct ContinueWatchingMenuTests {
             onSelectRoute: { _ in },
             onRemoveFromContinueWatching: {}
         )
-        .actions(playlistPresenter: nil, playback: PlaybackCoordinator(plexService: PlexService()))
+        .actions(playlistPresenter: nil, playback: PlaybackCoordinator(media: MediaService()))
         .map(\.title)
     }
 

@@ -5,11 +5,11 @@ import SwiftUI
 /// it comes back.
 ///
 /// The switch is Plex's own "Home" column of Manage Recommendations
-/// (`PlexService+HomeRows`), so it is saved on the server and Plex Web and the
+/// (`MediaService+HomeRows`), so it is saved on the server and Plex Web and the
 /// other Plex apps follow it. Only owned servers are listed: Plex lets nobody
 /// else change them.
 struct HiddenHomeRowsSettingsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @State private var viewModel: HiddenHomeRowsSettingsViewModel?
 
     static let footerText = "Other Plex apps hide these rows too."
@@ -21,7 +21,7 @@ struct HiddenHomeRowsSettingsView: View {
             .duskNavigationTitle("Hidden Rows")
             .duskNavigationBarTitleDisplayModeInline()
             .task {
-                let model = viewModel ?? HiddenHomeRowsSettingsViewModel(plexService: plexService)
+                let model = viewModel ?? HiddenHomeRowsSettingsViewModel(media: media)
                 viewModel = model
                 await model.load()
             }
@@ -165,10 +165,10 @@ final class HiddenHomeRowsSettingsViewModel {
     private(set) var error: String?
     private(set) var saveError: String?
 
-    private let plexService: PlexService
+    private let media: MediaService
 
-    init(plexService: PlexService) {
-        self.plexService = plexService
+    init(media: MediaService) {
+        self.media = media
     }
 
     func load() async {
@@ -178,19 +178,19 @@ final class HiddenHomeRowsSettingsViewModel {
         defer { isLoading = false }
 
         do {
-            _ = try await plexService.ensureLibraryOrderLoaded()
+            _ = try await media.ensureLibraryOrderLoaded()
         } catch {
             self.error = Self.loadErrorMessage
             return
         }
 
-        let libraries = plexService.libraryOrder.visibleSections.filter { library in
+        let libraries = media.libraryOrder.visibleSections.filter { library in
             guard let serverID = library.serverID,
-                  plexService.canManageHomeRows(serverID: serverID) else { return false }
+                  media.canManageHomeRows(serverID: serverID) else { return false }
             return [.movie, .show, .video].contains(library.libraryType)
         }
-        let labels = ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
-        let service = plexService
+        let labels = ServerLabeling.serverLabels(for: libraries, pool: media.pool)
+        let service = media
 
         var loaded: [String: [PlexManagedHub]] = [:]
         var failed = false
@@ -233,7 +233,7 @@ final class HiddenHomeRowsSettingsViewModel {
         saveError = nil
         replace(previous.withOwnHome(onHome), in: group)
         do {
-            try await plexService.setManagedHub(
+            try await media.setManagedHub(
                 previous.withOwnHome(onHome),
                 sectionId: group.library.key,
                 serverID: serverID

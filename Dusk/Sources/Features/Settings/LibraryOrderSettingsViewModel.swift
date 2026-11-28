@@ -10,7 +10,7 @@ import SwiftUI
 /// The list is the user's working copy: every move mutates it immediately so the
 /// UI stays responsive, and the write to Plex is debounced so walking a library
 /// through six slots is one account write, not six. The order lives on the Plex
-/// account (`PlexService.reorderLibraries`), so it is shared with every other
+/// account (`MediaService.reorderLibraries`), so it is shared with every other
 /// Plex client signed in as the same user.
 @MainActor
 @Observable
@@ -23,7 +23,7 @@ final class LibraryOrderSettingsViewModel {
     /// How long an edit sits before it is pushed to the Plex account.
     private static let writeDebounce: Duration = .seconds(1)
 
-    private let plexService: PlexService
+    private let media: MediaService
 
     /// Working order. Every section of the connected server, unfiltered: music
     /// and photo libraries are not browsable in Dusk but they occupy a slot in
@@ -49,8 +49,8 @@ final class LibraryOrderSettingsViewModel {
     /// Chained so two flushes cannot overlap on the wire.
     @ObservationIgnored private var writeTask: Task<Void, Never>?
 
-    init(plexService: PlexService) {
-        self.plexService = plexService
+    init(media: MediaService) {
+        self.media = media
     }
 
     func load() async {
@@ -61,7 +61,7 @@ final class LibraryOrderSettingsViewModel {
         do {
             // `force` because the settings screen is the one place that must show
             // the account's current order rather than whatever was cached at launch.
-            _ = try await plexService.ensureLibraryOrderLoaded(force: true)
+            _ = try await media.ensureLibraryOrderLoaded(force: true)
             resetToStoredState()
             serverLabels = makeServerLabels(for: libraries)
         } catch {
@@ -78,7 +78,7 @@ final class LibraryOrderSettingsViewModel {
     }
 
     private func makeServerLabels(for libraries: [Library]) -> [String: String] {
-        ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
+        ServerLabeling.serverLabels(for: libraries, pool: media.pool)
     }
 
     /// The libraries Dusk shows, in order. Moves and positions refer to this
@@ -96,14 +96,14 @@ final class LibraryOrderSettingsViewModel {
     /// order. Deliberately not the account order, so a switch never moves.
     var hideableLibrariesByServer: [LibraryServerGroup] {
         var groups: [LibraryServerGroup] = []
-        for library in plexService.libraryOrder.sections where library.libraryType != nil {
+        for library in media.libraryOrder.sections where library.libraryType != nil {
             let serverID = library.serverID ?? ""
             if groups.last?.serverID == serverID {
                 groups[groups.count - 1].libraries.append(library)
             } else {
                 groups.append(LibraryServerGroup(
                     serverID: serverID,
-                    serverName: plexService.pool.displayName(for: serverID),
+                    serverName: media.pool.displayName(for: serverID),
                     libraries: [library]
                 ))
             }
@@ -118,8 +118,8 @@ final class LibraryOrderSettingsViewModel {
     /// Hidden libraries listed after the visible ones, mirroring how the
     /// account stores them.
     private func resetToStoredState() {
-        let hidden = plexService.libraryOrder.hiddenSectionIdentities
-        let ordered = plexService.libraryOrder.orderedSections
+        let hidden = media.libraryOrder.hiddenSectionIdentities
+        let ordered = media.libraryOrder.orderedSections
         libraries = ordered.filter { !hidden.contains($0.id) } + ordered.filter { hidden.contains($0.id) }
         hiddenIDs = hidden
     }
@@ -202,7 +202,7 @@ final class LibraryOrderSettingsViewModel {
     private func write(_ order: [Library], hidden: Set<String>) async {
         isSaving = true
         do {
-            try await plexService.reorderLibraries(order, hidden: hidden)
+            try await media.reorderLibraries(order, hidden: hidden)
             saveError = nil
         } catch {
             saveError = Self.saveErrorMessage

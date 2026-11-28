@@ -377,7 +377,7 @@ struct RemuxVariantCodecsTests {
             { "id": 3, "streamType": 2, "codec": "ac3", "channels": 6 }
         ] }
         """.utf8))
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.activeAudioStreamID = "2"
         playback.remuxAudioConversion = RemuxAudioConversion(audioStreamID: "2")
         #expect(playback.remuxVariantCodecs(in: part) == "hvc1.2.4.L153.b0,ec-3")

@@ -74,7 +74,7 @@ struct OfflineFallbackTests {
     }
 
     @Test @MainActor func bootstrapFailsFastWithoutARoute() async {
-        let service = PlexService(urlProtocolClasses: [OfflineBootstrapStub.self])
+        let service = MediaService(urlProtocolClasses: [OfflineBootstrapStub.self])
         defer {
             service.session.invalidateAndCancel()
             service.slowQuerySession.invalidateAndCancel()
@@ -96,7 +96,7 @@ struct OfflineFallbackTests {
 
     #if os(iOS)
     @Test @MainActor func offlineBootstrapRestoresTheProfileWithoutCompletingMigration() async throws {
-        let service = PlexService(urlProtocolClasses: [OfflineBootstrapStub.self])
+        let service = MediaService(urlProtocolClasses: [OfflineBootstrapStub.self])
         defer {
             service.session.invalidateAndCancel()
             service.slowQuerySession.invalidateAndCancel()
@@ -108,21 +108,21 @@ struct OfflineFallbackTests {
         service.primaryProfileID = "offline-owner"
         service.activeHomeUser = nil
         let defaults = UserDefaults.standard
-        let automaticSignIn = defaults.object(forKey: PlexService.defaultsAutomaticHomeSignInKey)
+        let automaticSignIn = defaults.object(forKey: MediaService.defaultsAutomaticHomeSignInKey)
         service.automaticHomeSignIn = true
         defer {
             if let automaticSignIn {
-                defaults.set(automaticSignIn, forKey: PlexService.defaultsAutomaticHomeSignInKey)
+                defaults.set(automaticSignIn, forKey: MediaService.defaultsAutomaticHomeSignInKey)
             } else {
-                defaults.removeObject(forKey: PlexService.defaultsAutomaticHomeSignInKey)
+                defaults.removeObject(forKey: MediaService.defaultsAutomaticHomeSignInKey)
             }
         }
-        let migration = UserDefaults.standard.object(forKey: PlexService.defaultsHomeMigrationCompletedKey) as? Bool
+        let migration = UserDefaults.standard.object(forKey: MediaService.defaultsHomeMigrationCompletedKey) as? Bool
         try await service.bootstrapHomeSession()
         #expect(service.isSessionReady)
         #expect(service.isUsingOfflineHomeSession)
         #expect(service.activeProfileID == "offline-owner")
-        #expect(UserDefaults.standard.object(forKey: PlexService.defaultsHomeMigrationCompletedKey) as? Bool == migration)
+        #expect(UserDefaults.standard.object(forKey: MediaService.defaultsHomeMigrationCompletedKey) as? Bool == migration)
     }
     #endif
 

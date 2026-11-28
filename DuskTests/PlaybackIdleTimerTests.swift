@@ -11,7 +11,7 @@ struct PlaybackIdleTimerTests {
     @Test func pauseStopErrorAndLoadingReleaseSleepUntilPlaybackResumes() {
         let previousValue = UIApplication.shared.isIdleTimerDisabled
         defer { UIApplication.shared.isIdleTimerDisabled = previousValue }
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.showPlayer = true
 
         for state: PlaybackState in [.paused, .stopped, .error, .idle, .loading] {
@@ -32,7 +32,7 @@ struct PlaybackIdleTimerTests {
     @Test func repeatedSnapshotRepairsAnIndependentVLCKitWrite() {
         let previousValue = UIApplication.shared.isIdleTimerDisabled
         defer { UIApplication.shared.isIdleTimerDisabled = previousValue }
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.showPlayer = true
         playback.noteActivePlaybackState(.paused)
 
@@ -51,7 +51,7 @@ struct PlaybackIdleTimerTests {
     @Test func finalizedEpisodeIgnoresLatePlayingSnapshots() {
         let previousValue = UIApplication.shared.isIdleTimerDisabled
         defer { UIApplication.shared.isIdleTimerDisabled = previousValue }
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.showPlayer = true
         playback.noteActivePlaybackState(.playing)
 
@@ -73,7 +73,7 @@ struct PlaybackIdleTimerTests {
     @Test func upNextWaitingCountdownAndFailureAllowSleep() throws {
         let previousValue = UIApplication.shared.isIdleTimerDisabled
         defer { UIApplication.shared.isIdleTimerDisabled = previousValue }
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.showPlayer = true
         let episode = try JSONDecoder().decode(
             Episode.self,

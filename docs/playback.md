@@ -2,7 +2,7 @@
 Operational notes for changing Dusk playback without crossing layer boundaries.
 
 ## Boundaries
-- `PlexService/` owns Plex endpoints, direct-play/transcode URL construction,
+- `MediaService/` owns Plex endpoints, direct-play/transcode URL construction,
   timeline, scrobble, and watch-state calls.
 - `Playback/` owns engine selection and concrete AVPlayer/VLCKit engines.
 - `Features/Player/` owns session orchestration and UI. It should depend on
@@ -31,12 +31,12 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
    button, tvOS Menu → `dismissFailedPlayback`), which supersedes the in-flight
    attempt so a slow/hung load never pins the user on a spinner.
 2. `startPlaybackSession` gets `MediaDetails` from completed-download cache
-   when playable, otherwise from `plexService.getMediaDetails(checkFiles: true)`
+   when playable, otherwise from `media.getMediaDetails(checkFiles: true)`
    so each part carries accurate `accessible`/`exists` flags.
 3. The coordinator chooses a `MediaVersion` version, then its first *available*
    part (`MediaVersion.firstAvailablePart`).
 4. If a matching completed download exists, playback uses the local file URL.
-   Otherwise `PlexService.directPlayURL(for:)` builds
+   Otherwise `MediaService.directPlayURL(for:)` builds
    `{connection.baseURL}{part.key}` from the connection of the item's own server
    and adds that server's `X-Plex-Token` when available.
 5. `StreamResolver.evaluate` records the intended engine, a human-readable
@@ -71,7 +71,7 @@ Operational notes for changing Dusk playback without crossing layer boundaries.
 ## Live TV Play Flow
 
 - `PlaybackCoordinator.playLiveTV` presents the same cancellable loading cover
-  and asks `PlexService.tuneLiveTV` for a DVR session. The tuned session path
+  and asks `MediaService.tuneLiveTV` for a DVR session. The tuned session path
   goes through Plex's universal HLS endpoint with direct stream enabled; it is
   not validated as a library file. `StreamResolver.evaluateLiveTV` ignores the
   source-file container because Plex already packaged HLS, while retaining
@@ -188,7 +188,7 @@ so the whole live HUD is derived from one instant.
   stream as remote gets one LAN re-race and retry, and only then the Plex Pass /
   Remote Watch Pass explanation (see `data-and-plex.md` → Remote streaming).
 - Strong movie alternates include other libraries on the same server. Automatic
-  startup discovers same-server copies with `PlexService.movieCopies`, applies
+  startup discovers same-server copies with `MediaService.movieCopies`, applies
   `StreamResolver.selectMediaVersion` to their combined Media versions, and starts
   the owning item. A failed preferred copy can retry the requested copy before
   leaving the server. Exact Play Version and SharePlay choices stay on the
@@ -224,15 +224,15 @@ so the whole live HUD is derived from one instant.
   scrobbles go **only** to the server the session is actually playing from —
   never fanned out to the pool, which would corrupt watch state on the others.
   An explicit "Mark as Watched/Unwatched" is the deliberate exception: see
-  `PlexService.setWatchedAcrossServers`.
+  `MediaService.setWatchedAcrossServers`.
 - The Plex Pass message is shown when *every* candidate is restricted, and also
   when the walk exhausted a list that ended in restricted candidates — the
   missing entitlement is a more useful answer than the first server's error.
 
 ### Watch State Across Servers
 
-- `PlexService.setWatchedAcrossServers(_:id:)`
-  (`Shared/PlexService+WatchedFanOut.swift`) marks an item watched/unwatched on
+- `MediaService.setWatchedAcrossServers(_:id:)`
+  (`Shared/MediaService+WatchedFanOut.swift`) marks an item watched/unwatched on
   the requested instance **and** on every connected server holding a known
   alternate of the same content. Detail screens and item context menus use it.
 - The requested instance decides the result (its error is thrown and surfaced);
@@ -254,7 +254,7 @@ so the whole live HUD is derived from one instant.
   the server rung is entered only on resolver `requiresServerTranscode` or an
   actual direct-play failure. The ladder stays **within one server**; moving to
   another server is the candidate walk above, not a rung.
-- `PlexService.serverStreamURL` drives the fallback rung via
+- `MediaService.serverStreamURL` drives the fallback rung via
   `TranscodeDeliveryMode.directStreamFallback` (no bitrate caps, `directPlay=0`,
   `directStream=1`, `directStreamAudio=1`); manual Quality keeps
   `.manualTranscode` semantics (forced re-encode at the chosen bitrate).
@@ -384,7 +384,7 @@ so the whole live HUD is derived from one instant.
   best-effort syncs direct-play choices and resolved episodes through the existing
   `selectStreams` PUT. The existing remux PUT remains mandatory before HLS
   creation (including On → Off → On). All PUTs share a serialized queue in
-  `PlexService`; local downloads skip server writes. Per-show preferences are
+  `MediaService`; local downloads skip server writes. Per-show preferences are
   device-local; another client can observe the per-part Plex selection, but
   there is no Dusk per-show sync across devices.
 - tvOS's existing enhanced-SDR/embedded-subtitle routing receives the resolved
@@ -429,7 +429,7 @@ so the whole live HUD is derived from one instant.
   refuses it on an SDR display (`AVErrorNoCompatibleAlternatesForExternalDisplay`,
   e.g. every simulator) and rejects it with CoreMedia -12927 if the attribute
   is removed. VLCKit keeps those files.
-- Delivery (`PlexService.spatialAudioRemuxURL`, mode `.spatialAudioRemux`):
+- Delivery (`MediaService.spatialAudioRemuxURL`, mode `.spatialAudioRemux`):
   HLS with an fMP4 target first (`container=mp4&videoCodec=hevc,h264&audioCodec=eac3,ac3,aac`;
   AAC is last so audio Plex has to convert still lands on E-AC-3)
   — HEVC in MPEG-TS HLS plays audio-only on AVPlayer — plus a WebVTT subtitle
@@ -897,7 +897,7 @@ so the whole live HUD is derived from one instant.
   way.
 - Local output remains direct-play first. When an AirPlay route is selected for
   a direct-play or downloaded source, the coordinator snapshots position/state
-  and asks `PlexService.airPlayStreamURL` for uncapped HLS. Plex may direct-stream
+  and asks `MediaService.airPlayStreamURL` for uncapped HLS. Plex may direct-stream
   compatible tracks but has an H.264/AAC target for receiver-incompatible media;
   Dusk then swaps to AVPlayer without finalizing timeline/scrobble state.
 - Manual transcodes, automatic server streams, and Live TV are already HLS and
@@ -990,7 +990,7 @@ so the whole live HUD is derived from one instant.
   original media version so the menu only offers presets below its resolution
   and bitrate.
 - `PlaybackCoordinator.switchQuality(to:)` snapshots the current engine time,
-  asks `PlexService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
+  asks `MediaService.transcodeURL(...)` for `/video/:/transcode/universal/decision`
   and `/video/:/transcode/universal/start.m3u8`, swaps the engine/source, and
   resumes from the same position without finalizing or scrobbling the session.
 - What is playing right now is `PlaybackEngine.currentVideoQuality`, shown as
@@ -1331,7 +1331,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
 ### External (sidecar) subtitles
 - Plex sidecars (`MediaStream.key != nil`, `/library/streams/{id}`) come either
   from the library itself or from the OpenSubtitles download the server performs
-  (`PlexService+Subtitles.swift`). `PlexService.externalSubtitleURL(for:)` turns
+  (`MediaService+Subtitles.swift`). `MediaService.externalSubtitleURL(for:)` turns
   one into a token-bearing URL.
 - VLCKit mounts them: `attachExternalSubtitle(_:select:)` queues the URL and
   `addPlaybackSlave(_:type:enforce:)` adds it. libvlc returns 0 on success, not
@@ -2707,7 +2707,7 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   - Neighbours are resolved once per item at session commit
     (`refreshAdjacentEpisodesIfNeeded` → `adjacentEpisodes`); a Quality switch
     or delivery fallback of the same item keeps them. Online uses
-    `PlexService.getAdjacentEpisodes` (current season fetched once for both
+    `MediaService.getAdjacentEpisodes` (current season fetched once for both
     sides; Previous never steps from a regular season into Specials), download
     sessions and failed online lookups use
     `DownloadManager.cachedAdjacentDownloadedEpisodes` (downloaded neighbours
@@ -2857,7 +2857,7 @@ Dusk plays the pre-roll videos a server owner set up in Plex (Settings →
 Extras → "Cinema Trailer pre-roll video") in front of a movie, the way official
 Plex clients do. There is no app setting: the server decides.
 
-- Request: `PlexService.cinemaPrerolls` creates a play queue
+- Request: `MediaService.cinemaPrerolls` creates a play queue
   (`POST /playQueues?type=video&uri=server://<machineID>/com.plexapp.plugins.library/library/metadata/<ratingKey>&extrasPrefixCount=0&repeat=0&own=1`).
   The server puts its extras in front of the movie; everything ahead of the
   movie's rating key that is a `clip` plays, in order. Comma vs. semicolon in
@@ -2964,7 +2964,7 @@ Plex clients do. There is no app setting: the server decides.
 - Engine choice: `Playback/StreamResolver.swift`.
 - Engine contract: `Playback/PlaybackEngine.swift`, both engines,
   `PlayerViewModel`.
-- External subtitles: `PlexService+Subtitles.swift`, `attachExternalSubtitle` in
+- External subtitles: `MediaService+Subtitles.swift`, `attachExternalSubtitle` in
   `VLCKitEngine`, `attachExternalSubtitlesIfNeeded`/`mergeSubtitleMetadata` in
   `PlayerViewModel+TrackSelection`, and
   `refreshSubtitleStreamsAfterDownload`/`switchToVLCKitForExternalSubtitle` in
@@ -2980,11 +2980,12 @@ Plex clients do. There is no app setting: the server decides.
   `Playback/DuskVLCRawVideoOutput.*`.
 - Concrete playback: `AVPlayerEngine.swift`, `VLCKitEngine.swift`, and the
   platform `VLCKitRenderer*.swift` files.
-- Plex playback calls: `PlexService+Playback.swift`; metadata shape/fetching:
-  `PlexService+Library.swift` and `MediaDetails.swift`.
+- Plex playback calls: `MediaService+Streams.swift` (URLs, decisions) and
+  `MediaService+WatchState.swift` (timeline, watched); metadata shape/fetching:
+  `MediaService+Library.swift` and `MediaDetails.swift`.
 - Dolby Atmos / spatial audio, HDR and Dolby Vision remux: eligibility in
   `StreamResolver` (`spatialAudioRemuxBlocker`, `hdrVideoRemuxBlocker`,
-  `dolbyVisionRemuxBlocker`), Plex request in `PlexService+Playback.swift`,
+  `dolbyVisionRemuxBlocker`), Plex request in `MediaService+Streams.swift`,
   session logic in `PlaybackCoordinator+SpatialAudio.swift`, Atmos and Dolby
   Vision init-segment/playlist fixes in `Playback/RemuxHLSLoader.swift`
   (tests: `DuskTests/HDRVideoRemuxTests.swift`); segment keyframe repair in
@@ -3003,7 +3004,7 @@ Plex clients do. There is no app setting: the server decides.
   where the simulator resets them, and run on device.
 - Session orchestration: `PlaybackCoordinator+Session.swift`; timeline:
   `PlaybackCoordinator+Timeline.swift`; Up Next: `PlaybackCoordinator+UpNext.swift`.
-- Cinema pre-rolls: `PlexService+PlayQueue.swift`, `PlaybackCoordinator+Prerolls.swift`,
+- Cinema pre-rolls: `MediaService+PlayQueue.swift`, `PlaybackCoordinator+Prerolls.swift`,
   `PlayerPrerollView.swift`, gate in `startPlaybackSession`.
 - Display mode matching (tvOS): `Features/Player/DisplayModeMatcher.swift`,
   applied and reset from `PlaybackCoordinator+Session.swift`.

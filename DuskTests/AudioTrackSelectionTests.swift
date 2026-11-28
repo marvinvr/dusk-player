@@ -65,7 +65,7 @@ struct AudioTrackSelectionTests {
     }
 
     @Test func movieChoiceSurvivesAReplacementPlayerWithoutAShowPreference() throws {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.activeAudioStreamID = "12"
         playback.rememberShowTrackChoice(type: .audio, streamID: "12")
         #expect(playback.activeShowTrackScope == nil)

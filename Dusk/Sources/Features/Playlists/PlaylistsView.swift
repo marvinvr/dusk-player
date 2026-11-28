@@ -15,7 +15,7 @@ struct PlaylistsView: View {
 }
 
 struct PlaylistsRootContent: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @State private var renaming: Playlist?
     @State private var renameText = ""
@@ -24,8 +24,8 @@ struct PlaylistsRootContent: View {
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.gridHorizontalPadding
 
-    private var store: PlaylistStore { plexService.playlists }
-    private var actions: PlaylistActions { PlaylistActions(plexService: plexService) }
+    private var store: PlaylistStore { media.playlists }
+    private var actions: PlaylistActions { PlaylistActions(media: media) }
 
     var body: some View {
         ZStack {
@@ -37,7 +37,7 @@ struct PlaylistsRootContent: View {
                     FeatureLoadingView()
                 case .failed(let message):
                     FeatureErrorView(message: message) {
-                        Task { await plexService.loadPlaylists(force: true) }
+                        Task { await media.loadPlaylists(force: true) }
                     }
                 case .loaded:
                     FeatureEmptyStateView(
@@ -54,7 +54,7 @@ struct PlaylistsRootContent: View {
         .duskNavigationTitle("Playlists")
         .duskNavigationBarTitleDisplayModeLarge()
         .task {
-            await plexService.loadPlaylists()
+            await media.loadPlaylists()
         }
         // `presenting:` hands the playlist to the button: dismissing the alert
         // clears `renaming`/`deleting` before the button's action runs.
@@ -110,7 +110,7 @@ struct PlaylistsRootContent: View {
             .scrollClipDisabled()
             #endif
             .refreshable {
-                await plexService.loadPlaylists(force: true)
+                await media.loadPlaylists(force: true)
             }
         }
     }
@@ -119,7 +119,7 @@ struct PlaylistsRootContent: View {
         let side = Int(width.rounded(.up))
         return PosterNavigationCard(
             route: .playlist(id: playlist.id),
-            imageURL: plexService.imageURL(
+            imageURL: media.imageURL(
                 for: ArtworkRef(serverID: playlist.serverID, path: playlist.artworkPath),
                 size: ImageSize(width: side, height: side)
             ),
@@ -169,7 +169,7 @@ struct PlaylistsRootContent: View {
             parts.append("Smart")
         }
         if store.spansMultipleServers, let serverID = playlist.serverID {
-            parts.append(plexService.pool.displayName(for: serverID))
+            parts.append(media.pool.displayName(for: serverID))
         }
         return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }

@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 struct HomeView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.scenePhase) private var scenePhase
@@ -65,9 +65,9 @@ struct HomeView: View {
             // Keyed on the merged-content revision: Home has to reload when a
             // server connects or drops, when priority changes, and when the
             // profile changes — the tab shell mounts before any of that.
-            .task(id: plexService.serverContentRevision) {
+            .task(id: media.serverContentRevision) {
                 let newViewModel = viewModel ?? HomeViewModel(
-                    plexService: plexService,
+                    media: media,
                     personalizedShelvesEnabled: preferences.personalizedShelvesEnabled
                 )
                 viewModel = newViewModel
@@ -77,11 +77,11 @@ struct HomeView: View {
             // Hiding or showing a library (Settings › Libraries › Hidden
             // Libraries, or the server's Visibility setting) changes what Home
             // may show.
-            .onChange(of: plexService.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs) { _, _ in
+            .onChange(of: media.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs) { _, _ in
                 viewModel?.hiddenLibrariesDidChange()
             }
             // Pinning or unpinning a playlist (its page, Home, Settings › Home).
-            .onChange(of: plexService.pinnedPlaylistPins.map(\.id)) { _, _ in
+            .onChange(of: media.pinnedPlaylistPins.map(\.id)) { _, _ in
                 viewModel?.refreshPinnedPlaylists()
             }
             .onChange(of: preferences.personalizedShelvesEnabled) { _, enabled in
@@ -181,7 +181,7 @@ struct HomeView: View {
     }
 
     private var availability: ServerAvailability {
-        plexService.pool.availability
+        media.pool.availability
     }
 
     private var recentlyAddedInlineItemLimit: Int {

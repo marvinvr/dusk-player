@@ -74,7 +74,7 @@ enum TVQuickPlayTarget {
 }
 
 private struct TVQuickPlayModifier: ViewModifier {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
@@ -109,7 +109,7 @@ private struct TVQuickPlayModifier: ViewModifier {
                 guard let episode = await SeriesDetailViewModel.playTarget(
                     entry: entry,
                     id: id,
-                    plexService: plexService,
+                    media: media,
                     downloadManager: downloadManager,
                     offlinePlaybackSyncManager: offlinePlaybackSyncManager,
                     prefersOfflineAvailability: prefersOfflineAvailability

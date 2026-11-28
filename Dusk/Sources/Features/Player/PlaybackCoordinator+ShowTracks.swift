@@ -16,7 +16,7 @@ extension PlaybackCoordinator {
         guard activeLiveTVContext == nil,
               activeItemDetails?.type == .episode,
               let scope = activeShowTrackScope,
-              scope.profileID == plexService.activeProfileID,
+              scope.profileID == media.activeProfileID,
               let part = debugInfo?.part else { return }
         var remembered = showTrackPreferenceStore.preferences(for: scope) ?? ShowTrackPreferences()
         if type == .subtitle, streamID == nil {
@@ -59,7 +59,7 @@ extension PlaybackCoordinator {
         guard activeLiveTVContext == nil,
               activeItemDetails?.type == .episode,
               let scope = activeShowTrackScope,
-              scope.profileID == plexService.activeProfileID,
+              scope.profileID == media.activeProfileID,
               let part = debugInfo?.part,
               let remembered = showTrackPreferenceStore.preferences(for: scope),
               remembered.hasMatch(in: part) else { return nil }
@@ -105,7 +105,7 @@ extension PlaybackCoordinator {
     }
 
     func syncShowStreamsToPlex(partID: String, audioStreamID: String?, subtitleStreamID: String?, serverID: String?) {
-        let write = plexService.enqueueStreamSelection(
+        let write = media.enqueueStreamSelection(
             partID: partID,
             audioStreamID: audioStreamID,
             subtitleStreamID: subtitleStreamID,

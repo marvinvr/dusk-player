@@ -59,7 +59,7 @@ final class LibraryRecommendationsViewModel {
     private(set) var hasLoadedOnce = false
     private(set) var error: String?
 
-    private let plexService: PlexService
+    private let media: MediaService
 
     /// Bumped by every load. A load that is overtaken — a second server
     /// connects, or the user marks something watched mid-load — must not
@@ -70,16 +70,16 @@ final class LibraryRecommendationsViewModel {
     /// See `load(maxRecentlyAddedItems:)`.
     private var loadTask: Task<Void, Never>?
 
-    convenience init(library: Library, plexService: PlexService) {
-        self.init(libraries: [library], plexService: plexService)
+    convenience init(library: Library, media: MediaService) {
+        self.init(libraries: [library], media: media)
     }
 
-    init(libraries: [Library], plexService: PlexService) {
+    init(libraries: [Library], media: MediaService) {
         precondition(!libraries.isEmpty, "A recommendations screen needs at least one library")
         self.libraries = libraries
-        self.plexService = plexService
+        self.media = media
 
-        if let snapshot = LibraryRecommendationsSnapshot.cached(for: libraries, profileID: plexService.activeProfileID) {
+        if let snapshot = LibraryRecommendationsSnapshot.cached(for: libraries, profileID: media.activeProfileID) {
             restore(snapshot)
         }
     }
@@ -296,7 +296,7 @@ final class LibraryRecommendationsViewModel {
     /// collection arrives as an ordinary hub of its titles), so it is built
     /// from the section's collection listing — one small, cheap query each.
     private func loadCollectionShelves() async -> [LibraryCollectionShelf] {
-        let service = plexService
+        let service = media
         let limit = Self.collectionRowLimit
         let results = await loadPerLibrary { library -> LibraryCollectionShelf? in
             guard await service.collectionMode(sectionId: library.key, serverID: library.serverID) != .disabled,
@@ -316,7 +316,7 @@ final class LibraryRecommendationsViewModel {
     /// ("Collections · Movies · Cabin", not "Movies Collections" twice).
     func title(for shelf: LibraryCollectionShelf) -> String {
         guard isMultiLibrary else { return "Collections" }
-        let labels = ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
+        let labels = ServerLabeling.serverLabels(for: libraries, pool: media.pool)
         return "Collections · \(ServerLabeling.displayTitle(for: shelf.library, labels: labels))"
     }
 
@@ -361,7 +361,7 @@ final class LibraryRecommendationsViewModel {
     /// each routed to its own server. A library that fails contributes nothing
     /// rather than failing the screen.
     private func fetchLibraryHubs(promotedOnly: Bool = false) async -> [[HomeRow]] {
-        let service = plexService
+        let service = media
         let count = hubFetchCount
         let libraries = self.libraries
 
@@ -420,10 +420,10 @@ final class LibraryRecommendationsViewModel {
     }
 
     private func loadPersonalizedShelves() async -> LibraryRecommendationLoadResult {
-        let service = plexService
+        let service = media
         let itemsPerShelf = maxRecentlyAddedItems
         let results = await loadPerLibrary { library in
-            let engine = LibraryRecommendationEngine(library: library, plexService: service)
+            let engine = LibraryRecommendationEngine(library: library, media: service)
             return (try? await engine.loadResult(itemsPerShelf: itemsPerShelf)) ?? .empty
         }
         return LibraryRecommendationLoadResult.merging(results)
@@ -433,9 +433,9 @@ final class LibraryRecommendationsViewModel {
         channelShelves: [LibraryChannelRow],
         rediscoverItems: [MediaItem]
     ) {
-        let service = plexService
+        let service = media
         let results = await loadPerLibrary { library in
-            (library, await LibraryVideoShelfLoader(library: library, plexService: service).load())
+            (library, await LibraryVideoShelfLoader(library: library, media: service).load())
         }
 
         let channelRows = results.flatMap { library, result in
@@ -453,7 +453,7 @@ final class LibraryRecommendationsViewModel {
         // One list per library here, not per server: merging rows of two
         // libraries of the same type is exactly what a type tab is for.
         let merged = HubMerge.merge(filtered, mode: .libraryType)
-        plexService.registerAlternates(merged.alternates)
+        media.registerAlternates(merged.alternates)
 
         let expandedHubs = await expandedRecentlyAddedHubs(from: merged.hubs)
 
@@ -478,7 +478,7 @@ final class LibraryRecommendationsViewModel {
                 continueWatchingTitle: continueWatchingTitle
             ),
             for: libraries,
-            profileID: plexService.activeProfileID
+            profileID: media.activeProfileID
         )
     }
 
@@ -503,7 +503,7 @@ final class LibraryRecommendationsViewModel {
 
     func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
-            try await plexService.setWatchedAcrossServers(watched, id: item.id)
+            try await media.setWatchedAcrossServers(watched, id: item.id)
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -511,11 +511,11 @@ final class LibraryRecommendationsViewModel {
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func landscapeImageURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.landscapeImageURL(plexService: plexService, width: width, height: height)
+        item.landscapeImageURL(media: media, width: width, height: height)
     }
 
     func progress(for item: MediaItem) -> Double? {
@@ -610,7 +610,7 @@ final class LibraryRecommendationsViewModel {
                 continue
             }
 
-            let merged = await plexService.mergedHubItems(
+            let merged = await media.mergedHubItems(
                 for: hub,
                 size: maxRecentlyAddedItems
             )
@@ -619,7 +619,7 @@ final class LibraryRecommendationsViewModel {
                 continue
             }
 
-            plexService.registerAlternates(merged.alternates)
+            media.registerAlternates(merged.alternates)
             expandedHubs.append(hub.replacingItems(merged.items))
         }
 

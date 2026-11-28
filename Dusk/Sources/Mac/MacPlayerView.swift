@@ -14,7 +14,7 @@ import SwiftUI
 /// through the Playback menu (`MacPlayerCommands`) and, as a fallback when the
 /// menu is not routed, `onKeyPress` on the player itself.
 struct MacPlayerView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     @State private var commandTarget = MacPlayerCommandTarget()
@@ -89,7 +89,7 @@ struct MacPlayerView: View {
                         primary: AuthenticationFailure.requiresReauthentication(message: message)
                             ? MacPlayerErrorCard.Action(title: "Sign In") {
                                 AuthenticationFailure.beginReauthentication(
-                                    plexService: plexService,
+                                    media: media,
                                     playback: playback
                                 )
                             }
@@ -211,7 +211,7 @@ struct MacPlayerView: View {
 /// Mac HUD. Wires the view model to the coordinator exactly like the iOS/tvOS
 /// `PlayerSessionView` does; keep the two in step when either changes.
 private struct MacPlayerSessionView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(UserPreferences.self) private var preferences
     @Environment(\.scenePhase) private var scenePhase
@@ -281,7 +281,7 @@ private struct MacPlayerSessionView: View {
             if let upNextPresentation = playback.upNextPresentation {
                 PlayerUpNextOverlayView(
                     presentation: upNextPresentation,
-                    plexService: plexService,
+                    media: media,
                     onPlayNow: { playback.playUpNextNow() },
                     onDismiss: dismissPlayer
                 )
@@ -311,7 +311,7 @@ private struct MacPlayerSessionView: View {
                 if let poster = playback.upNextPoster, viewModel.playbackError == nil {
                     PlayerUpNextPosterView(
                         presentation: poster,
-                        plexService: plexService,
+                        media: media,
                         controlsVisible: viewModel.showControls,
                         onPlayNow: { playback.playUpNextPosterNow() },
                         onDismiss: { playback.dismissUpNextPoster(userInitiated: true) },
@@ -469,7 +469,7 @@ private struct MacPlayerSessionView: View {
     private var subtitleSearchView: some View {
         if let itemID = playback.itemID {
             SubtitleSearchView(
-                plexService: plexService,
+                media: media,
                 itemID: itemID,
                 serverID: playback.activePlaybackServerID,
                 preferredLanguageCode: preferences.defaultSubtitleLanguage,
@@ -559,7 +559,7 @@ private struct MacPlayerSessionView: View {
             return MacPlayerErrorCard.Action(title: "Sign In") {
                 viewModel.cleanup()
                 AuthenticationFailure.beginReauthentication(
-                    plexService: plexService,
+                    media: media,
                     playback: playback
                 )
             }
@@ -612,7 +612,7 @@ private struct MacPlayerSessionView: View {
         scrubPreviewSource = nil
         guard let partID else { return }
 
-        let source = await plexService.scrubPreviewSource(
+        let source = await media.scrubPreviewSource(
             forPartID: partID,
             serverID: playback.activePlaybackServerID
         )

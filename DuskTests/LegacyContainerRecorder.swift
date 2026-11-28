@@ -256,8 +256,8 @@ struct LegacyContainerRecorder {
 
     @Test func recordActiveHomeUser() throws {
         let user = try JSONDecoder().decode(PlexHomeUser.self, from: Data(V.homeUserJSON.utf8))
-        // `PlexService.persistActiveHomeUser` writes `encoder.encode(user)` with
-        // a plain `JSONEncoder()` (`PlexService.encoder`).
+        // `MediaService.persistActiveHomeUser` writes `encoder.encode(user)` with
+        // a plain `JSONEncoder()` (`MediaService.encoder`).
         try LegacyFixture.record(try JSONEncoder().encode(user), as: "LegacyContainer-PlexActiveHomeUserData.json")
     }
 

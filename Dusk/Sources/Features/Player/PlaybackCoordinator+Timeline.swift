@@ -28,7 +28,7 @@ extension PlaybackCoordinator {
         transcodePingTickCounter = 0
         let serverID = activePlaybackServerID
         Task {
-            await plexService.pingTranscodeSession(
+            await media.pingTranscodeSession(
                 transcodeSessionID: transcodeSessionID,
                 serverID: serverID
             )
@@ -101,7 +101,7 @@ extension PlaybackCoordinator {
             } else {
                 let serverID = activePlaybackServerID
                 Task {
-                    try? await plexService.scrobble(itemID: itemID, serverID: serverID)
+                    try? await media.scrobble(itemID: itemID, serverID: serverID)
                 }
             }
         }
@@ -142,7 +142,7 @@ extension PlaybackCoordinator {
             // state on every other server.
             let serverID = activePlaybackServerID
             Task {
-                await plexService.reportTimeline(
+                await media.reportTimeline(
                     itemID: itemID,
                     key: timelineKey,
                     state: state,

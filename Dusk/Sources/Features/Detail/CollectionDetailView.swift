@@ -14,8 +14,8 @@ struct CollectionDetailView: View {
 
     private let horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
 
-    init(id: MediaItemID, plexService: PlexService) {
-        _viewModel = State(initialValue: CollectionDetailViewModel(id: id, plexService: plexService))
+    init(id: MediaItemID, media: MediaService) {
+        _viewModel = State(initialValue: CollectionDetailViewModel(id: id, media: media))
     }
 
     var body: some View {

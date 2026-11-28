@@ -176,7 +176,7 @@ struct IPTVSourceLineup: Hashable, Sendable {
 
 enum IPTVImages {
     /// Sentinel "server" for IPTV artwork. Logos and programme icons are
-    /// absolute URLs on arbitrary hosts; `PlexService.imageURL` returns them
+    /// absolute URLs on arbitrary hosts; `MediaService.imageURL` returns them
     /// untouched for this server ID instead of routing them through a Plex
     /// photo transcoder, which may not even be connected.
     static let serverID = "dusk.iptv"

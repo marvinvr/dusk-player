@@ -10,7 +10,7 @@ enum DuskAsyncImagePhase {
 }
 
 struct DuskAsyncImage<Content: View>: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let url: URL?
     /// Tried once when `url` fails, before the phase becomes `.failure`.
@@ -36,13 +36,13 @@ struct DuskAsyncImage<Content: View>: View {
         phase = .empty
 
         do {
-            let image = try await DuskImageLoader.shared.image(for: url, using: plexService)
+            let image = try await DuskImageLoader.shared.image(for: url, using: media)
             guard !Task.isCancelled else { return }
             phase = .success(Image(platformImage: image))
         } catch {
             guard !Task.isCancelled else { return }
             if let fallbackURL, fallbackURL != url,
-               let image = try? await DuskImageLoader.shared.image(for: fallbackURL, using: plexService) {
+               let image = try? await DuskImageLoader.shared.image(for: fallbackURL, using: media) {
                 guard !Task.isCancelled else { return }
                 phase = .success(Image(platformImage: image))
                 return
@@ -72,7 +72,7 @@ actor DuskImageLoader {
         memoryCache.countLimit = 512
     }
 
-    func image(for url: URL, using plexService: PlexService? = nil) async throws -> PlatformImage {
+    func image(for url: URL, using media: MediaService? = nil) async throws -> PlatformImage {
         try PlexTransportSecurity.validate(URLRequest(url: url))
         let cacheKey = url as NSURL
         if let cachedImage = memoryCache.object(forKey: cacheKey) {
@@ -111,8 +111,8 @@ actor DuskImageLoader {
             }
 
             let data: Data
-            if let plexService {
-                data = try await plexService.imageData(for: url)
+            if let media {
+                data = try await media.imageData(for: url)
             } else {
                 let (fetchedData, response) = try await session.data(for: request)
 

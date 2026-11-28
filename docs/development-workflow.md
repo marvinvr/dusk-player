@@ -44,7 +44,7 @@ Dusk/Sources
   Features/Settings/   iOS/tvOS settings shells and shared settings state
   Domain/              Plex and playback model types
   Playback/            PlaybackEngine, AVPlayer, VLCKit, StreamResolver
-  PlexService/         Plex auth, servers, library, history, playback, network
+  MediaService/         Plex auth, servers, library, history, playback, network
   Shared/              Reusable UI, formatting, presentation helpers
   TopShelf/            tvOS Top Shelf snapshot, publisher, deep links
 DuskTopShelf/          tvOS Top Shelf extension (reads the App Group snapshot only)
@@ -53,7 +53,7 @@ DuskTopShelf/          tvOS Top Shelf extension (reads the App Group snapshot on
 ## Where New Files Go
 
 - App entry, theme, and navigation shell code: `Dusk/Sources/App/`.
-- New Plex endpoints: the matching `PlexService+*.swift` concern file.
+- New Plex endpoints: the matching `MediaService+*.swift` concern file.
 - Plex response and app-facing media types: `Dusk/Sources/Domain/`.
 - Playback engine details: `Dusk/Sources/Playback/`.
 - Player UI, overlays, sheets, and coordinator behavior: `Features/Player/`.
@@ -68,7 +68,7 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 ## Architectural Guardrails
 
 - Plex is the only backend. Do not add provider abstractions without a real second backend.
-- Views do not call the network directly. SwiftUI views talk to `@Observable` view models; view models call `PlexService`.
+- Views do not call the network directly. SwiftUI views talk to `@Observable` view models; view models call `MediaService`.
 - Use async/await. Avoid Combine except when wrapping callback APIs.
 - Keep AVPlayer/VLCKit specifics in `Playback/` behind `PlaybackEngine`.
 - Keep engine-agnostic player UI in `Features/Player/`.
@@ -352,7 +352,7 @@ builds against each other, not against absolute numbers.
   (`DuskTopShelf/Info.plist`).
 - Building iOS simulator without `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES`.
 - Treating `Dusk.xcodeproj` as hand-authored.
-- Adding view-level networking instead of using view models and `PlexService`.
+- Adding view-level networking instead of using view models and `MediaService`.
 - Reintroducing broad backend abstractions while Plex is the only backend.
 - Duplicating formatting, state views, posters, or grids instead of checking `Shared/`.
 - Putting AVPlayer/VLCKit-specific behavior into generic player UI.

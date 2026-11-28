@@ -12,7 +12,7 @@ import SwiftUI
 /// The modes are this view's state, so a detail page pushed from any of them
 /// comes back to the same mode.
 struct MacLibraryBrowser: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
 
     let libraryType: LibraryKind
     let libraries: [Library]
@@ -114,7 +114,7 @@ struct MacLibraryBrowser: View {
         case .recommended:
             LibraryRecommendationsView(
                 libraries: libraries,
-                plexService: plexService,
+                media: media,
                 navigationTitle: libraryType.tabTitle,
                 browseTargets: libraries.map {
                     LibraryBrowseTarget(library: $0, title: viewModel.displayTitle(for: $0))
@@ -124,10 +124,10 @@ struct MacLibraryBrowser: View {
             )
             .id(libraries.map(\.id).joined(separator: "|"))
         case .library:
-            LibraryItemsView(library: selectedLibrary, plexService: plexService)
+            LibraryItemsView(library: selectedLibrary, media: media)
                 .id(selectedLibrary.id)
         case .collections:
-            LibraryCollectionsView(library: selectedLibrary, plexService: plexService)
+            LibraryCollectionsView(library: selectedLibrary, media: media)
                 .id(selectedLibrary.id)
         }
     }
@@ -148,8 +148,8 @@ struct MacLibraryBrowser: View {
             collectionsAvailable[library.id] = false
             return
         }
-        async let mode = plexService.collectionMode(sectionId: library.key, serverID: library.serverID)
-        async let firstPage = try? plexService.getCollections(
+        async let mode = media.collectionMode(sectionId: library.key, serverID: library.serverID)
+        async let firstPage = try? media.getCollections(
             sectionId: library.key,
             size: 1,
             serverID: library.serverID

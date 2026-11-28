@@ -28,7 +28,7 @@ struct HomePinnedPlaylistRow: Identifiable, Equatable {
 }
 
 struct HomePinnedPlaylistShelf: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     let row: HomePinnedPlaylistRow
@@ -74,7 +74,7 @@ struct HomePinnedPlaylistShelf: View {
             }
 
             Button {
-                plexService.setPlaylistPinned(false, id: row.id, title: row.title)
+                media.setPlaylistPinned(false, id: row.id, title: row.title)
             } label: {
                 Label("Unpin from Home", systemImage: "pin.slash")
             }

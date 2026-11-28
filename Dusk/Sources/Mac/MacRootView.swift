@@ -20,7 +20,7 @@ import SwiftUI
 ///   included, while `PlaybackCoordinator.showPlayer` is true; it runs the iOS
 ///   cover's `onDismiss` teardown itself when it unmounts.
 struct MacRootView: View {
-    @Environment(PlexService.self) var plexService
+    @Environment(MediaService.self) var media
     @Environment(PlaybackCoordinator.self) var playback
     @Environment(DownloadManager.self) var downloadManager
     @Environment(UserPreferences.self) private var preferences
@@ -63,12 +63,12 @@ struct MacRootView: View {
         .toolbar(playback.showPlayer ? .hidden : .automatic, for: .windowToolbar)
         .environment(addToPlaylist)
         .duskPopUp(item: $bindableAddToPlaylist.target) { target in
-            AddToPlaylistSheet(target: target, plexService: plexService)
+            AddToPlaylistSheet(target: target, media: media)
         }
         .sheet(isPresented: homeUserPickerPresented) {
             HomeUserPickerView(
-                users: plexService.homeUsers,
-                rememberSelection: plexService.automaticHomeSignIn,
+                users: media.homeUsers,
+                rememberSelection: media.automaticHomeSignIn,
                 onComplete: { router.isHomeUserPickerPresented = false },
                 onCancel: { router.isHomeUserPickerPresented = false }
             )
@@ -86,12 +86,12 @@ struct MacRootView: View {
         #endif
         .alert("Sign out of Plex?", isPresented: $bindableRouter.isSignOutConfirmationPresented) {
             Button("Sign Out", role: .destructive) {
-                plexService.signOut()
+                media.signOut()
             }
             Button("Cancel", role: .cancel) {}
         }
         .onAppear {
-            router.shellDidAppear(session: plexService.activeProfileID)
+            router.shellDidAppear(session: media.activeProfileID)
             router.updateDestinations(destinations)
         }
         .onDisappear {
@@ -113,41 +113,41 @@ struct MacRootView: View {
         // Which destinations exist depends on the merged library list, so the
         // shell reloads it whenever the set of connected servers changes: it
         // mounts before the first server is connected.
-        .task(id: plexService.serverContentRevision) {
+        .task(id: media.serverContentRevision) {
             if librariesViewModel == nil {
-                librariesViewModel = LibrariesViewModel(plexService: plexService)
+                librariesViewModel = LibrariesViewModel(media: media)
             }
             await librariesViewModel?.loadLibraries()
         }
         // Live TV discovery on its own task, as in `MainTabView`.
-        .task(id: plexService.serverContentRevision) {
+        .task(id: media.serverContentRevision) {
             if liveTVViewModel == nil {
-                liveTVViewModel = LiveTVViewModel(plexService: plexService, iptvService: iptvService)
+                liveTVViewModel = LiveTVViewModel(media: media, iptvService: iptvService)
             }
             iptvService.syncProfile()
             await liveTVViewModel?.discover()
         }
         // Playlists bring their destination in only when the account has one.
-        .task(id: plexService.serverContentRevision) {
-            await plexService.loadPlaylists()
+        .task(id: media.serverContentRevision) {
+            await media.loadPlaylists()
         }
         // The shell remounts per Plex Home profile, so each profile's account
         // languages become the Audio & Subtitles defaults.
         .task {
-            if let accountDefaults = await plexService.fetchAccountLanguageDefaults() {
+            if let accountDefaults = await media.fetchAccountLanguageDefaults() {
                 preferences.applyPlexAccountLanguageDefaults(accountDefaults)
             }
         }
         // Teaches Siri the recently watched and added titles; see `MainTabView`.
         .task(id: MacSiriCatalogRefreshTrigger(
-            revision: plexService.serverContentRevision,
+            revision: media.serverContentRevision,
             isActive: scenePhase == .active,
-            hiddenLibraryIDs: plexService.libraryOrder.hiddenSectionIdentities
+            hiddenLibraryIDs: media.libraryOrder.hiddenSectionIdentities
         )) {
             guard scenePhase == .active else { return }
             try? await Task.sleep(for: .seconds(5))
             guard !Task.isCancelled else { return }
-            await SiriTitleCatalog.shared.refreshIfNeeded(plexService: plexService)
+            await SiriTitleCatalog.shared.refreshIfNeeded(media: media)
         }
         .supporterPromptPresenter()
         #if DEBUG
@@ -291,7 +291,7 @@ struct MacRootView: View {
         if liveTVViewModel?.isAvailable == true {
             types.append(.liveTV)
         }
-        if plexService.playlists.hasPlaylists {
+        if media.playlists.hasPlaylists {
             types.append(.playlists)
         }
         return types
@@ -307,12 +307,12 @@ struct MacRootView: View {
         if let liveTVViewModel {
             return liveTVViewModel
         }
-        return LiveTVViewModel(plexService: plexService, iptvService: iptvService)
+        return LiveTVViewModel(media: media, iptvService: iptvService)
     }
 
     private var homeUserPickerPresented: Binding<Bool> {
         Binding(
-            get: { router.isHomeUserPickerPresented && plexService.hasPlexHome },
+            get: { router.isHomeUserPickerPresented && media.hasPlexHome },
             set: { router.isHomeUserPickerPresented = $0 }
         )
     }

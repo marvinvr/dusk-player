@@ -109,7 +109,7 @@ struct PlexTransportSecurityTests {
     }
 
     @Test func publicHTTPEndpointsBuildAuthenticatedURLs() throws {
-        let service = PlexService(urlProtocolClasses: [TransportStubProtocol.self])
+        let service = MediaService(urlProtocolClasses: [TransportStubProtocol.self])
         defer { service.session.invalidateAndCancel(); service.slowQuerySession.invalidateAndCancel() }
         let id = "transport-test-\(UUID())"
         defer { ServerPool.forget(serverID: id) }

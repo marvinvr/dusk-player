@@ -4,7 +4,7 @@ import SwiftUI
 
 /// The main tab shell shown once the Plex profile is ready, online or offline.
 struct MainTabView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(ServerConnectionCoordinator.self) private var connections
     @Environment(LaunchSplashState.self) private var launchSplash
     @Environment(PlaybackCoordinator.self) private var playback
@@ -49,7 +49,7 @@ struct MainTabView: View {
                 launchSplash.contentIsReady()
             }
             .duskPopUp(item: $bindableAddToPlaylist.target) { target in
-                AddToPlaylistSheet(target: target, plexService: plexService)
+                AddToPlaylistSheet(target: target, media: media)
             }
             #if os(tvOS)
             .environment(playVersion)
@@ -60,30 +60,30 @@ struct MainTabView: View {
             // Which tabs exist depends on the merged library list, so the shell
             // reloads it whenever the set of connected servers changes: it
             // mounts before the first server is connected.
-            .task(id: plexService.serverContentRevision) {
+            .task(id: media.serverContentRevision) {
                 if librariesViewModel == nil {
-                    librariesViewModel = LibrariesViewModel(plexService: plexService)
+                    librariesViewModel = LibrariesViewModel(media: media)
                 }
                 await librariesViewModel?.loadLibraries()
             }
             // Live TV discovery on its own task: behind the library load, a
             // slow section count or library order held the tab back, and a
             // server connecting mid-load cancelled it before it ever ran.
-            .task(id: plexService.serverContentRevision) {
+            .task(id: media.serverContentRevision) {
                 if liveTVViewModel == nil {
-                    liveTVViewModel = LiveTVViewModel(plexService: plexService, iptvService: iptvService)
+                    liveTVViewModel = LiveTVViewModel(media: media, iptvService: iptvService)
                 }
                 iptvService.syncProfile()
                 await liveTVViewModel?.discover()
             }
             // Playlists bring their tab in only when the account has one.
-            .task(id: plexService.serverContentRevision) {
-                await plexService.loadPlaylists()
+            .task(id: media.serverContentRevision) {
+                await media.loadPlaylists()
             }
             // The shell remounts per Plex Home profile, so each profile's
             // account languages become the Audio & Subtitles defaults.
             .task {
-                if let accountDefaults = await plexService.fetchAccountLanguageDefaults() {
+                if let accountDefaults = await media.fetchAccountLanguageDefaults() {
                     preferences.applyPlexAccountLanguageDefaults(accountDefaults)
                 }
             }
@@ -92,14 +92,14 @@ struct MainTabView: View {
             // whenever a library is hidden or shown. Waits a moment so it never
             // competes with Home's first paint.
             .task(id: SiriCatalogRefreshTrigger(
-                revision: plexService.serverContentRevision,
+                revision: media.serverContentRevision,
                 isActive: scenePhase == .active,
-                hiddenLibraryIDs: plexService.libraryOrder.hiddenSectionIdentities
+                hiddenLibraryIDs: media.libraryOrder.hiddenSectionIdentities
             )) {
                 guard scenePhase == .active else { return }
                 try? await Task.sleep(for: .seconds(5))
                 guard !Task.isCancelled else { return }
-                await SiriTitleCatalog.shared.refreshIfNeeded(plexService: plexService)
+                await SiriTitleCatalog.shared.refreshIfNeeded(media: media)
             }
             .onChange(of: availableTabs) { _, newTabs in
                 guard !newTabs.contains(selectedTab) else { return }
@@ -135,7 +135,7 @@ struct MainTabView: View {
                 playback.onPlayerDismissed()
             }) {
                 PlayerView()
-                    .environment(plexService)
+                    .environment(media)
                     .environment(playback)
                     .environment(playback.preferences)
             }
@@ -143,7 +143,7 @@ struct MainTabView: View {
             .supporterPromptPresenter()
             #endif
             #if DEBUG
-            .task(id: plexService.serverContentRevision) {
+            .task(id: media.serverContentRevision) {
                 await applyScreenshotDestination()
             }
             .modifier(ScreenshotSheetPresenter())
@@ -151,7 +151,7 @@ struct MainTabView: View {
             #if os(tvOS)
             // Re-checked whenever a server connects: a cold launch from the
             // Top Shelf delivers the link before the item's server is up.
-            .task(id: TopShelfLinkAttempt(link: topShelfLinks.pending, revision: plexService.serverContentRevision)) {
+            .task(id: TopShelfLinkAttempt(link: topShelfLinks.pending, revision: media.serverContentRevision)) {
                 await openPendingTopShelfLink()
             }
             #endif
@@ -221,7 +221,7 @@ struct MainTabView: View {
             topShelfLinks.pending = nil
             return
         }
-        guard plexService.pool.connection(for: link.id.serverID) != nil else { return }
+        guard media.pool.connection(for: link.id.serverID) != nil else { return }
         topShelfLinks.pending = nil
 
         switch link.action {
@@ -231,7 +231,7 @@ struct MainTabView: View {
             }
             homePath = NavigationPath([link.route])
         case .play:
-            let details = try? await plexService.getMediaDetails(
+            let details = try? await media.getMediaDetails(
                 itemID: link.id.itemID,
                 serverID: link.id.serverID
             )
@@ -349,7 +349,7 @@ struct MainTabView: View {
         if liveTVViewModel?.isAvailable == true {
             types.append(.liveTV)
         }
-        if plexService.playlists.hasPlaylists {
+        if media.playlists.hasPlaylists {
             types.append(.playlists)
         }
         return types
@@ -416,7 +416,7 @@ struct MainTabView: View {
         if let liveTVViewModel {
             return liveTVViewModel
         }
-        let viewModel = LiveTVViewModel(plexService: plexService, iptvService: iptvService)
+        let viewModel = LiveTVViewModel(media: media, iptvService: iptvService)
         return viewModel
     }
 
@@ -520,12 +520,12 @@ private extension MainTabView {
         guard ScreenshotMode.isActive else { return }
         for _ in 0..<60 {
             if let destination = await ScreenshotMode.consumeDestination(
-                plexService: plexService,
+                media: media,
                 libraries: librariesViewModel?.libraries ?? [],
                 downloadManager: downloadManager
             ) {
                 if destination.tab == .playlists {
-                    await plexService.loadPlaylists()
+                    await media.loadPlaylists()
                 }
                 if selectedTab != destination.tab {
                     selectedTab = destination.tab
@@ -538,9 +538,9 @@ private extension MainTabView {
                     addToPlaylist.present(target)
                 }
                 if let playlistID = destination.playlistID,
-                   let playlist = try? await plexService.getPlaylist(itemID: playlistID.itemID, serverID: playlistID.serverID),
-                   let entries = try? await plexService.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID),
-                   let queue = PlaylistActions(plexService: plexService).queue(
+                   let playlist = try? await media.getPlaylist(itemID: playlistID.itemID, serverID: playlistID.serverID),
+                   let entries = try? await media.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID),
+                   let queue = PlaylistActions(media: media).queue(
                        for: playlist,
                        entries: entries,
                        startIndex: destination.playlistStart
@@ -571,8 +571,8 @@ private extension MainTabView {
     /// guide's Watch Live on a row without a programme.
     func playScreenshotPlexLiveChannel(_ index: Int) async {
         for _ in 0..<40 {
-            if case let .found(provider) = await plexService.discoverLiveTVProvider(),
-               let channels = try? await plexService.getLiveTVChannels(provider: provider),
+            if case let .found(provider) = await media.discoverLiveTVProvider(),
+               let channels = try? await media.getLiveTVChannels(provider: provider),
                !channels.isEmpty {
                 let channel = channels[min(max(index, 0), channels.count - 1)]
                 let lineup = LiveTVLineup(provider: provider, channels: channels, programs: [])

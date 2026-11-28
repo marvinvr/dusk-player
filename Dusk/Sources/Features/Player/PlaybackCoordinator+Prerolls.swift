@@ -59,10 +59,10 @@ extension PlaybackCoordinator {
         // Videos libraries are `movie` + `subtype == "clip"`; those are not films.
         guard details.type == .movie, details.subtype != "clip", !isSharePlayActive else { return false }
 
-        let profileSession = plexService.serverSessionToken
+        let profileSession = self.media.serverSessionToken
         let queue: [MediaDetails]
         do {
-            queue = try await plexService.cinemaPrerolls(forMovieRatingKey: details.itemID, serverID: serverID)
+            queue = try await self.media.cinemaPrerolls(forMovieRatingKey: details.itemID, serverID: serverID)
         } catch {
             // Pre-rolls are never worth failing (or delaying) the movie over.
             prerollLogger.notice(
@@ -72,7 +72,7 @@ extension PlaybackCoordinator {
         }
         guard !Task.isCancelled,
               currentPlaybackAttemptID == attemptID,
-              profileSession == plexService.serverSessionToken else { return false }
+              profileSession == self.media.serverSessionToken else { return false }
 
         let items = queue.compactMap { prerollItem(for: $0, serverID: serverID) }
         guard !items.isEmpty else { return false }
@@ -108,7 +108,7 @@ extension PlaybackCoordinator {
                 preferredMaxResolution: preferences.maxResolution
               ) ?? details.media.first,
               let part = media.firstAvailablePart,
-              let url = plexService.directPlayURL(for: part, serverID: serverID) else {
+              let url = self.media.directPlayURL(for: part, serverID: serverID) else {
             prerollLogger.error("Skipping pre-roll ratingKey \(details.itemID, privacy: .public): no playable part")
             return nil
         }
@@ -152,7 +152,7 @@ extension PlaybackCoordinator {
                 resolverReason: "Plex pre-roll",
                 mediaID: item.media.id,
                 partID: item.part.id,
-                sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: item.url)
+                sanitizedPlaybackURL: self.media.sanitizedPlaybackURLString(for: item.url)
             ),
             locality: sourceLocality(for: item.url, serverID: preroll.serverID)
         )
@@ -160,7 +160,7 @@ extension PlaybackCoordinator {
         nowPlayingController.beginSession(
             details: item.details,
             engine: newEngine,
-            plexService: plexService,
+            media: self.media,
             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
             skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
         )

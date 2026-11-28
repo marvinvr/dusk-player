@@ -62,7 +62,7 @@ XMLTV works.
   scrobble, Trakt, Up Next, markers, quality, offline sync, SharePlay, or debug
   info. The schedule refresh re-derives the current program from the lineup but
   never fetches a Plex grid for IPTV.
-- **Images**: IPTV art paths are absolute URLs; `PlexService.imageURL` returns
+- **Images**: IPTV art paths are absolute URLs; `MediaService.imageURL` returns
   them untouched for `serverID == IPTVImages.serverID` (never through a Plex
   photo transcoder). The IPTV provider, placeholder and Now Playing all carry
   that sentinel.

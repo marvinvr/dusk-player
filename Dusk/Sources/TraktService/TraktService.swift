@@ -40,7 +40,7 @@ final class TraktService {
     private(set) var signInState: SignInState = .idle
     private(set) var accounts: [String: TraktTokens]
 
-    @ObservationIgnored private let plexService: PlexService
+    @ObservationIgnored private let media: MediaService
     @ObservationIgnored private let requests: TraktRequestBuilder
     @ObservationIgnored private let session: URLSession
     @ObservationIgnored private let queue: TraktHistoryQueue
@@ -54,12 +54,12 @@ final class TraktService {
     #endif
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         configuration: TraktConfiguration = .current,
         session: URLSession = .shared,
         queue: TraktHistoryQueue = TraktHistoryQueue()
     ) {
-        self.plexService = plexService
+        self.media = media
         self.configuration = configuration
         self.session = session
         self.queue = queue
@@ -80,7 +80,7 @@ final class TraktService {
     var isAvailable: Bool { configuration.isConfigured }
 
     var activeAccount: TraktTokens? {
-        plexService.activeProfileID.flatMap { accounts[$0] }
+        media.activeProfileID.flatMap { accounts[$0] }
     }
 
     var isConnected: Bool { activeAccount != nil }
@@ -94,7 +94,7 @@ final class TraktService {
     // MARK: - Sign in
 
     func startSignIn() {
-        guard isAvailable, let profileID = plexService.activeProfileID else { return }
+        guard isAvailable, let profileID = media.activeProfileID else { return }
         cancelRunningSignIn()
         #if !os(tvOS)
         guard let authorization = TraktAuthorization(configuration: configuration) else {
@@ -298,7 +298,7 @@ final class TraktService {
     }
 
     func disconnect() {
-        guard let profileID = plexService.activeProfileID, let tokens = accounts.removeValue(forKey: profileID) else { return }
+        guard let profileID = media.activeProfileID, let tokens = accounts.removeValue(forKey: profileID) else { return }
         TraktCredentialStore.save(accounts)
         pending.removeAll { $0.profileID == profileID }
         queue.save(pending)
@@ -325,7 +325,7 @@ final class TraktService {
     /// mark or a finished stop). Never throws, never blocks.
     func recordFinished(type: MediaKind, guid: String?, externalIDs: ExternalIDs, at date: Date = .now) {
         guard isAvailable,
-              let profileID = plexService.activeProfileID,
+              let profileID = media.activeProfileID,
               accounts[profileID] != nil else { return }
         guard let entry = TraktHistoryMapper.entry(
             type: type, guid: guid, externalIDs: externalIDs, watchedAt: date, profileID: profileID

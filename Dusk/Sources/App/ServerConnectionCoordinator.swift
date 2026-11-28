@@ -29,7 +29,7 @@ final class ServerConnectionCoordinator {
     private(set) var hasCompletedFirstPass = false
     private var lastPassHadNoConnection = false
 
-    private var plexService: PlexService?
+    private var media: MediaService?
     @ObservationIgnored private var sessionID: String?
     @ObservationIgnored private var lastPassFinishedAt: Date?
     /// The running pass and the session it belongs to. A pass is only ever
@@ -55,29 +55,29 @@ final class ServerConnectionCoordinator {
     }
 
     var showsOfflineDownloads: Bool {
-        guard let plexService else { return false }
+        guard let media else { return false }
         return OfflineFallback.showsDownloads(
             downloadsSupported: DownloadsFeature.isVisible,
-            sessionReady: plexService.isSessionReady,
+            sessionReady: media.isSessionReady,
             networkAvailable: isNetworkAvailable,
-            awaitingHomeValidation: plexService.isUsingOfflineHomeSession
-                && !plexService.pool.connections.contains(where: \.isVerified),
-            availability: plexService.pool.availability,
+            awaitingHomeValidation: media.isUsingOfflineHomeSession
+                && !media.pool.connections.contains(where: \.isVerified),
+            availability: media.pool.availability,
             hasCompletedPass: hasCompletedFirstPass,
             connectionFailed: lastError != nil || lastPassHadNoConnection
         )
     }
 
     var needsRecovery: Bool {
-        plexService?.isUsingOfflineHomeSession == true || showsOfflineDownloads
+        media?.isUsingOfflineHomeSession == true || showsOfflineDownloads
     }
 
     // MARK: - Lifecycle
 
     /// Binds the coordinator to the service and starts watching the network.
     /// Idempotent: the shell calls it every time the session context changes.
-    func start(plexService: PlexService) {
-        self.plexService = plexService
+    func start(media: MediaService) {
+        self.media = media
         guard networkMonitor == nil else { return }
 
         let monitor = NWPathMonitor()
@@ -137,7 +137,7 @@ final class ServerConnectionCoordinator {
             guard needsAnotherPass else { return }
         }
 
-        guard let plexService, plexService.isSessionReady else { return }
+        guard let media, media.isSessionReady else { return }
         guard isNetworkAvailable else {
             lastError = URLError(.notConnectedToInternet).localizedDescription
             hasCompletedFirstPass = true
@@ -150,11 +150,11 @@ final class ServerConnectionCoordinator {
         isConnecting = true
         let pass = Task { () -> String? in
             do {
-                if plexService.isUsingOfflineHomeSession {
-                    try await plexService.bootstrapHomeSession()
+                if media.isUsingOfflineHomeSession {
+                    try await media.bootstrapHomeSession()
                 }
-                guard !Task.isCancelled, plexService.isSessionReady else { return nil }
-                try await plexService.connectAllServers(trigger: trigger)
+                guard !Task.isCancelled, media.isSessionReady else { return nil }
+                try await media.connectAllServers(trigger: trigger)
                 return nil
             } catch {
                 return error.localizedDescription
@@ -170,7 +170,7 @@ final class ServerConnectionCoordinator {
         activePass = nil
         activePassSession = nil
         lastError = failure
-        lastPassHadNoConnection = !plexService.pool.availability.isReady
+        lastPassHadNoConnection = !media.pool.availability.isReady
         lastPassFinishedAt = .now
         hasCompletedFirstPass = true
         isConnecting = false
@@ -191,10 +191,10 @@ final class ServerConnectionCoordinator {
     }
 
     private var isStale: Bool {
-        guard let plexService, plexService.isSessionReady else { return false }
+        guard let media, media.isSessionReady else { return false }
         guard hasCompletedFirstPass, let lastPassFinishedAt else { return true }
         // Nothing usable is always worth another try, however recent the pass.
-        guard plexService.pool.availability.isReady else { return true }
+        guard media.pool.availability.isReady else { return true }
         return Date().timeIntervalSince(lastPassFinishedAt) >= Self.refreshInterval
     }
 
@@ -212,12 +212,12 @@ final class ServerConnectionCoordinator {
 
         isNetworkAvailable = isAvailable
         networkSignature = signature
-        plexService?.bootstrapNetworkAvailable = isAvailable
+        media?.bootstrapNetworkAvailable = isAvailable
 
         // Airplane mode should expose the remembered profile's downloads
         // immediately, even while a short account request is finishing.
-        if !isAvailable, let plexService, !plexService.homeBootstrapCompleted {
-            plexService.restoreOfflineHomeSession()
+        if !isAvailable, let media, !media.homeBootstrapCompleted {
+            media.restoreOfflineHomeSession()
         }
 
         guard hasObservedNetworkPath else {

@@ -1,0 +1,798 @@
+import Foundation
+import OSLog
+#if canImport(UIKit)
+import UIKit
+#endif
+
+private let plexPlaybackLogger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "Dusk",
+    category: "PlexPlayback"
+)
+
+extension MediaService {
+    enum TranscodeDecisionOutcome: Sendable {
+        case transcodeAvailable
+        case directPlayOnly
+        case failed(String?)
+    }
+
+    /// How the server should deliver an HLS session.
+    enum TranscodeDeliveryMode: Sendable {
+        /// User-selected quality preset: full server transcode with hard
+        /// bitrate/resolution caps (directPlay=0, directStream=0).
+        case manualTranscode(PlaybackQualityPreset)
+        /// Automatic delivery-ladder rung below direct play: the server copies
+        /// the original tracks into HLS when the profile allows
+        /// (directStream=1, directStreamAudio=1) and only re-encodes what it
+        /// must. No bitrate/resolution caps are applied.
+        case directStreamFallback
+        /// Decoder-driven AV1 fallback; no quality or resolution cap.
+        case av1Transcode
+        /// User-selected AirPlay route: package the original as HLS for native
+        /// AVPlayer external playback. Plex may copy compatible tracks, but the
+        /// H.264/AAC target lets it convert receiver-incompatible containers,
+        /// video, audio, and burned subtitles without imposing a quality cap.
+        case airPlay
+        /// Dolby Atmos / spatial-audio delivery for files only VLCKit could
+        /// direct play (MKV & co.): Plex copies the original video and Dolby
+        /// audio into fragmented-MP4 HLS so AVPlayer — the engine that feeds
+        /// Atmos to HDMI and spatial audio to AirPods — can render them. Text
+        /// subtitles ride along as WebVTT segments. Only accepted when Plex
+        /// confirms both tracks are copied (`TranscodeStreamDecisions`).
+        /// With `convertsAudio`, the video is still copied but Plex converts
+        /// the selected audio stream to E-AC-3 surround. The profile allows
+        /// 7.1; current Plex versions may still cap conversion at 5.1.
+        case spatialAudioRemux(convertsAudio: Bool)
+
+        var logLabel: String {
+            switch self {
+            case let .manualTranscode(preset): "manual transcode (\(preset.displayName))"
+            case .directStreamFallback: "server direct-stream"
+            case .av1Transcode: "AV1 decoder fallback transcode"
+            case .airPlay: "AirPlay stream"
+            case let .spatialAudioRemux(convertsAudio):
+                convertsAudio ? "video remux with audio conversion" : "Atmos/spatial audio remux"
+            }
+        }
+    }
+
+    /// What Plex's decision said it will do with each track of a session.
+    struct TranscodeStreamDecisions: Sendable {
+        var container: String?
+        var videoDecision: String?
+        var videoCodec: String?
+        var audioDecision: String?
+        var audioCodec: String?
+        var audioChannels: Int? = nil
+        var audioProfile: String? = nil
+        var subtitleDecision: String?
+        var subtitleLocation: String?
+
+        /// Video and audio are both copied bit-for-bit, and any subtitle is
+        /// delivered as its own text segments rather than burned in.
+        var isLosslessRemux: Bool {
+            audioDecision == "copy" && isVideoCopyRemux
+        }
+
+        /// The video is copied bit-for-bit and any subtitle is delivered as
+        /// text segments or explicitly ignored; the audio may be converted.
+        /// Plex can retain an ignored embedded subtitle in an Off decision.
+        var isVideoCopyRemux: Bool {
+            videoDecision == "copy"
+                && (audioDecision == "copy" || audioDecision == "transcode")
+                && (subtitleDecision == nil || subtitleDecision == "ignore" || subtitleLocation == "segments-subs")
+        }
+
+        /// Refuse incompatible audio/container decisions before AVPlayer is
+        /// loaded. A multichannel source must remain surround, not stereo AAC.
+        func isConvertedAudioRemux(sourceChannels: Int?) -> Bool {
+            isVideoCopyRemux
+                && container?.lowercased() == "mp4"
+                && ["hevc", "h264", "av1"].contains(videoCodec?.lowercased() ?? "")
+                && audioDecision == "transcode"
+                && audioCodec?.lowercased() == "eac3"
+                && ((sourceChannels ?? 0) < 6 || audioChannels == 6 || audioChannels == 8)
+        }
+
+        /// Only output metadata can authorize restoring JOC after conversion.
+        /// TrueHD Atmos on the input does not make a plain DD+ encode Atmos.
+        var hasDolbyAtmosAudio: Bool {
+            let profile = audioProfile?.lowercased() ?? ""
+            return audioCodec?.lowercased() == "eac3"
+                && (profile.contains("atmos") || profile.contains("joc"))
+                && !profile.contains("truehd")
+        }
+
+        var logDescription: String {
+            "container=\(container ?? "?") video=\(videoCodec ?? "?")/\(videoDecision ?? "?") audio=\(audioCodec ?? "?")/\(audioDecision ?? "?") channels=\(audioChannels.map(String.init) ?? "?") profile=\(audioProfile ?? "?") subtitle=\(subtitleDecision ?? "none")/\(subtitleLocation ?? "-")"
+        }
+    }
+
+    /// - Parameter serverID: The server holding the file. Parts are per-server
+    ///   paths, so playing one from the wrong base URL either 404s or, worse,
+    ///   streams a different title that happens to share the key.
+    func directPlayURL(for part: MediaPart, serverID: String? = nil) -> URL? {
+        guard let connection = pool.connection(for: serverID) else {
+            plexPlaybackLogger.error(
+                "Failed to build direct play URL for part \(part.id, privacy: .public): missing server base URL"
+            )
+            return nil
+        }
+        let baseURL = connection.baseURL
+        let urlString = baseURL.absoluteString.hasSuffix("/")
+            ? String(baseURL.absoluteString.dropLast()) + part.key
+            : baseURL.absoluteString + part.key
+        guard var components = URLComponents(string: urlString) else {
+            plexPlaybackLogger.error(
+                "Failed to build direct play URL for part \(part.id, privacy: .public): invalid URL string \(urlString, privacy: .private(mask: .hash))"
+            )
+            return nil
+        }
+        var items = components.queryItems ?? []
+        items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
+        components.queryItems = items.isEmpty ? nil : items
+        guard let url = PlexTransportSecurity.authenticatedURL(components.url) else {
+            plexPlaybackLogger.error(
+                "Failed to finalize direct play URL for part \(part.id, privacy: .public)"
+            )
+            return nil
+        }
+
+        plexPlaybackLogger.debug(
+            "Constructed direct play URL for part \(part.id, privacy: .public): \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+        )
+        return url
+    }
+
+    func transcodeURL(
+        itemID: String,
+        mediaIndex: Int,
+        preset: PlaybackQualityPreset,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String? = nil,
+        subtitleStreamID: String? = nil,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        guard !preset.isOriginal else {
+            throw PlexServiceError.invalidURL
+        }
+
+        return try await transcodeLadderURL(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            mode: .manualTranscode(preset),
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+    }
+
+    /// Server-stream ladder rung: asks Plex for an HLS session with
+    /// direct-stream enabled, so the server remuxes (copies) the original
+    /// video/audio into HLS whenever the profile allows and only re-encodes
+    /// what it must. Used when direct play fails or is known to be
+    /// unrenderable locally; no bitrate or resolution caps are applied.
+    func serverStreamURL(
+        itemID: String,
+        mediaIndex: Int,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String? = nil,
+        subtitleStreamID: String? = nil,
+        forceVideoTranscode: Bool = false,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        try await transcodeLadderURL(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            mode: forceVideoTranscode ? .av1Transcode : .directStreamFallback,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+    }
+
+    /// Prepares an AirPlay-safe Plex HLS stream. This is an intentional output
+    /// route decision rather than an automatic quality default: local playback
+    /// remains direct-play first, while an explicitly selected AirPlay receiver
+    /// gets an AVPlayer-compatible stream with no bitrate or resolution cap.
+    func airPlayStreamURL(
+        itemID: String,
+        mediaIndex: Int,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String? = nil,
+        subtitleStreamID: String? = nil,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        try await transcodeLadderURL(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            mode: .airPlay,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+    }
+
+    /// Asks Plex for an fMP4 HLS remux, optionally converting audio to E-AC-3
+    /// (see `TranscodeDeliveryMode.spatialAudioRemux`). Plex
+    /// picks the session's subtitle from the part's server-side selection, so
+    /// the caller sets that first (`selectStreams(partID:...)`). Returns the
+    /// per-track decisions so the caller validates copy/conversion and codecs
+    /// before loading the stream.
+    func spatialAudioRemuxURL(
+        itemID: String,
+        mediaIndex: Int,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        convertsAudio: Bool = false,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
+        try await transcodeLadderSession(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            mode: .spatialAudioRemux(convertsAudio: convertsAudio),
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+    }
+
+    /// Records the viewer's audio/subtitle choice on the Plex part — the same
+    /// call Plex's own clients make on a track change. The universal
+    /// transcoder takes a session's subtitle from this selection (the
+    /// `subtitleStreamID` query item alone is ignored for segmented text
+    /// subtitles). `subtitleStreamID: 0` clears the subtitle selection.
+    func selectStreams(
+        partID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        serverID: String? = nil
+    ) async throws {
+        try await enqueueStreamSelection(
+            partID: partID, audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID, serverID: serverID
+        ).value
+        try Task.checkCancellation()
+    }
+
+    /// Enqueue synchronously so quick picker changes and remux rebuilds share
+    /// one write order. A late PUT must never undo a newer subtitle On/Off.
+    func enqueueStreamSelection(
+        partID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        serverID: String?
+    ) -> Task<Void, Error> {
+        let previous = streamSelectionWriteTask
+        let session = serverSessionToken
+        let task = Task { @MainActor [weak self] in
+            _ = try? await previous?.value
+            guard let self, session == self.serverSessionToken else { throw CancellationError() }
+            var queryItems = [URLQueryItem(name: "allParts", value: "1")]
+            if let audioStreamID {
+                queryItems.append(URLQueryItem(name: "audioStreamID", value: String(audioStreamID)))
+            }
+            if let subtitleStreamID {
+                queryItems.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
+            }
+            _ = try await self.rawServerRequest(
+                method: "PUT",
+                path: "/library/parts/\(partID)",
+                queryItems: queryItems,
+                serverID: serverID
+            )
+        }
+        streamSelectionWriteTask = task
+        return task
+    }
+
+    /// Starts a Plex HLS consumer for an already-tuned Live TV session.
+    /// Live session paths are virtual resources, so they must go through the
+    /// universal endpoint rather than direct-play URL validation for files.
+    func liveTVStreamURL(
+        sessionPath: String,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        serverID: String? = nil
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        try await transcodeLadderURL(
+            itemID: sessionPath,
+            mediaIndex: 0,
+            sourcePath: sessionPath,
+            mode: .directStreamFallback,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: nil,
+            subtitleStreamID: nil,
+            serverID: serverID
+        )
+    }
+
+    /// Live TV direct play: the live session's own HLS (the tuner stream as
+    /// the grabber copies it into 1 s MPEG-TS segments), with no second
+    /// transcoder in between. Plex answers a `directPlay=1` decision for the
+    /// session with the consumer's playlist,
+    /// `/livetv/sessions/{uuid}/{sessionIdentifier}/index.m3u8`, and only
+    /// serves that playlist once the decision registered the consumer, so
+    /// `sessionIdentifier` must be the one the tune was sent with.
+    ///
+    /// Why not the transcoder: Live TV media has no bitrate, which Plex reads
+    /// as 2147483647 kbps. On any connection Plex counts as remote (Plex
+    /// behind a reverse proxy, Tailscale) that "exceeds" the WAN upload
+    /// limit, so Plex rewrites the request to a 1280x720 quality-99
+    /// re-encode with direct stream disabled — every live channel at 720p,
+    /// whatever `directStream`/bitrate Dusk asks for. Direct play is not
+    /// bitrate-limited that way. Nil when Plex does not answer with a direct
+    /// play of the live session; the caller then transcodes.
+    func liveTVDirectPlayURL(
+        sessionPath: String,
+        sessionIdentifier: String,
+        serverID: String
+    ) async -> URL? {
+        guard let connection = pool.connection(for: serverID) else { return nil }
+        var queryItems = transcodeQueryItems(
+            itemID: sessionPath,
+            mediaIndex: 0,
+            sourcePath: sessionPath,
+            mode: .directStreamFallback,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: sessionIdentifier,
+            audioStreamID: nil,
+            subtitleStreamID: nil,
+            token: connection.token
+        )
+        if let index = queryItems.firstIndex(where: { $0.name == "directPlay" }) {
+            queryItems[index].value = "1"
+        }
+        do {
+            let data = try await rawServerRequest(
+                path: "/video/:/transcode/universal/decision",
+                queryItems: queryItems,
+                serverID: serverID
+            )
+            let decision = try decodeJSON(PlexTranscodeDecisionDTO.self, from: data)
+            guard let key = decision.directPlayPartKey,
+                  key.hasPrefix("\(sessionPath)/"),
+                  let url = Self.liveTVDirectPlayURL(
+                    baseURL: connection.baseURL,
+                    partKey: key,
+                    token: connection.token
+                  ) else {
+                plexPlaybackLogger.notice(
+                    "Live TV direct play declined for \(sessionPath, privacy: .public): \(decision.MediaContainer.mdeDecisionText ?? decision.MediaContainer.generalDecisionText ?? "no direct play part", privacy: .public)"
+                )
+                return nil
+            }
+            plexPlaybackLogger.notice(
+                "Constructed Live TV direct play URL: \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+            )
+            return url
+        } catch {
+            plexPlaybackLogger.error(
+                "Live TV direct play decision failed for \(sessionPath, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+            return nil
+        }
+    }
+
+    /// The decision's part key on the server, with the token, minus
+    /// `X-Plex-Incomplete-Segments` (Plex adds it to the key): on a cold tune
+    /// it opens the playlist with one `#EXTINF:0` segment that AVPlayer never
+    /// gets past (see `transcodeQueryItems`).
+    static func liveTVDirectPlayURL(baseURL: URL, partKey: String, token: String?) -> URL? {
+        guard var components = URLComponents(string: baseURL.absoluteString + partKey) else { return nil }
+        var items = (components.queryItems ?? []).filter {
+            $0.name != "X-Plex-Incomplete-Segments" && $0.name != "X-Plex-Token"
+        }
+        if let token {
+            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+        components.queryItems = items.isEmpty ? nil : items
+        return components.url
+    }
+
+    /// Plex session hygiene: tells the server to reap the transcoder for a
+    /// finished session so it stops burning CPU/disk on the server. Errors are
+    /// logged, never thrown — this call is best-effort by design.
+    func stopTranscodeSession(transcodeSessionID: String, serverID: String? = nil) async {
+        do {
+            _ = try await rawServerRequest(
+                path: "/video/:/transcode/universal/stop",
+                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)],
+                serverID: serverID
+            )
+            plexPlaybackLogger.notice(
+                "Stopped transcode session \(transcodeSessionID, privacy: .public)"
+            )
+        } catch {
+            plexPlaybackLogger.error(
+                "Failed to stop transcode session \(transcodeSessionID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    /// Keep-alive for an active transcode session; Plex reaps transcoders it
+    /// has not heard from. Errors are logged, never thrown.
+    func pingTranscodeSession(transcodeSessionID: String, serverID: String? = nil) async {
+        do {
+            _ = try await rawServerRequest(
+                path: "/video/:/transcode/universal/ping",
+                queryItems: [URLQueryItem(name: "session", value: transcodeSessionID)],
+                serverID: serverID
+            )
+            plexPlaybackLogger.debug(
+                "Pinged transcode session \(transcodeSessionID, privacy: .public)"
+            )
+        } catch {
+            plexPlaybackLogger.error(
+                "Failed to ping transcode session \(transcodeSessionID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
+    }
+
+    func sanitizedPlaybackURLString(for url: URL) -> String {
+        Self.sanitizedPlaybackURLString(for: url)
+    }
+}
+
+private extension MediaService {
+    /// Shared decision + start.m3u8 flow for both delivery modes: asks
+    /// `/video/:/transcode/universal/decision` whether the server can deliver
+    /// the session, then builds the matching `start.m3u8` URL.
+    func transcodeLadderURL(
+        itemID: String,
+        mediaIndex: Int,
+        sourcePath: String? = nil,
+        mode: TranscodeDeliveryMode,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        serverID: String?
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome) {
+        let session = try await transcodeLadderSession(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            sourcePath: sourcePath,
+            mode: mode,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            serverID: serverID
+        )
+        return (session.url, session.outcome)
+    }
+
+    func transcodeLadderSession(
+        itemID: String,
+        mediaIndex: Int,
+        sourcePath: String? = nil,
+        mode: TranscodeDeliveryMode,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        serverID: String?
+    ) async throws -> (url: URL, outcome: TranscodeDecisionOutcome, streams: TranscodeStreamDecisions) {
+        let targetID = try resolveServerID(serverID)
+        guard let connection = pool.connection(for: targetID) else {
+            throw PlexServiceError.noServerConnected
+        }
+        let baseURL = connection.baseURL
+
+        let queryItems = transcodeQueryItems(
+            itemID: itemID,
+            mediaIndex: mediaIndex,
+            sourcePath: sourcePath,
+            mode: mode,
+            sessionIdentifier: sessionIdentifier,
+            transcodeSessionID: transcodeSessionID,
+            audioStreamID: audioStreamID,
+            subtitleStreamID: subtitleStreamID,
+            token: connection.token
+        )
+
+        let decisionData = try await rawServerRequest(
+            path: "/video/:/transcode/universal/decision",
+            queryItems: queryItems,
+            serverID: targetID
+        )
+        let decision = try decodeJSON(PlexTranscodeDecisionDTO.self, from: decisionData)
+        let outcome = decision.outcome
+        let streams = decision.streamDecisions
+        if case .av1Transcode = mode {
+            guard streams.videoDecision == "transcode",
+                  ["h264", "hevc"].contains(streams.videoCodec?.lowercased() ?? ""),
+                  ["mp4", "mpegts"].contains(streams.container?.lowercased() ?? "") else {
+                return (baseURL, .failed("Plex could not convert AV1 to a supported video codec."), streams)
+            }
+        }
+
+        guard case .transcodeAvailable = outcome else {
+            return (baseURL, outcome, streams)
+        }
+
+        guard let url = buildURL(
+            base: baseURL.absoluteString,
+            path: "/video/:/transcode/universal/start.m3u8",
+            queryItems: queryItems
+        ) else {
+            throw PlexServiceError.invalidURL
+        }
+
+        plexPlaybackLogger.notice(
+            "Constructed \(mode.logLabel, privacy: .public) URL for ratingKey \(itemID, privacy: .public), mediaIndex \(mediaIndex, privacy: .public) [\(streams.logDescription, privacy: .public)]: \(Self.sanitizedPlaybackURLString(for: url), privacy: .public)"
+        )
+
+        return (url, outcome, streams)
+    }
+}
+
+extension MediaService {
+    /// Pure request construction, shared by decision/start and codec-policy tests.
+    func transcodeQueryItems(
+        itemID: String,
+        mediaIndex: Int,
+        sourcePath: String?,
+        mode: TranscodeDeliveryMode,
+        sessionIdentifier: String,
+        transcodeSessionID: String,
+        audioStreamID: String?,
+        subtitleStreamID: String?,
+        token: String?,
+        av1Capabilities: AV1PlaybackCapabilities = .current
+    ) -> [URLQueryItem] {
+        let clientProfileExtra = transcodeClientProfileExtra(for: mode, av1Capabilities: av1Capabilities)
+        let resolvedSourcePath = sourcePath ?? "/library/metadata/\(itemID)"
+        let isLiveTVSource = resolvedSourcePath.hasPrefix("/livetv/sessions/")
+
+        // Manual transcodes force a full re-encode; the direct-stream fallback
+        // lets the server copy the original tracks into HLS when it can.
+        let allowsDirectStream: Bool
+        switch mode {
+        case .manualTranscode, .av1Transcode: allowsDirectStream = false
+        case .directStreamFallback, .airPlay, .spatialAudioRemux: allowsDirectStream = true
+        }
+        // Converting audio: with direct-stream audio on, Plex ignores the
+        // requested stream and substitutes a copyable sibling (TrueHD 7.1 →
+        // the AC-3 5.1 track) instead of converting the one asked for.
+        let allowsDirectStreamAudio: Bool
+        if case let .spatialAudioRemux(convertsAudio) = mode {
+            allowsDirectStreamAudio = !convertsAudio
+        } else {
+            allowsDirectStreamAudio = allowsDirectStream
+        }
+
+        var items: [URLQueryItem] = [
+            URLQueryItem(name: "hasMDE", value: "1"),
+            URLQueryItem(name: "path", value: resolvedSourcePath),
+            URLQueryItem(name: "mediaIndex", value: String(mediaIndex)),
+            URLQueryItem(name: "partIndex", value: "0"),
+            URLQueryItem(name: "protocol", value: "hls"),
+            URLQueryItem(name: "fastSeek", value: "1"),
+            URLQueryItem(name: "directPlay", value: "0"),
+            URLQueryItem(name: "directStream", value: allowsDirectStream ? "1" : "0"),
+            URLQueryItem(name: "directStreamAudio", value: allowsDirectStreamAudio ? "1" : "0"),
+            URLQueryItem(name: "subtitleSize", value: "100"),
+            URLQueryItem(name: "audioBoost", value: "100"),
+            URLQueryItem(name: "location", value: "lan"),
+            URLQueryItem(name: "addDebugOverlay", value: "0"),
+            URLQueryItem(name: "autoAdjustQuality", value: "0"),
+            URLQueryItem(name: "mediaBufferSize", value: "102400"),
+            URLQueryItem(name: "session", value: transcodeSessionID),
+            URLQueryItem(name: "transcodeSessionId", value: transcodeSessionID),
+            URLQueryItem(name: "copyts", value: isLiveTVSource ? "0" : "1"),
+            URLQueryItem(name: "Accept-Language", value: "en"),
+            URLQueryItem(name: "X-Plex-Session-Identifier", value: sessionIdentifier),
+            URLQueryItem(name: "X-Plex-Client-Profile-Extra", value: clientProfileExtra),
+            URLQueryItem(name: "X-Plex-Client-Profile-Name", value: "Generic"),
+            URLQueryItem(name: "X-Plex-Features", value: "external-media,indirect-media"),
+            URLQueryItem(name: "X-Plex-Language", value: "en"),
+            URLQueryItem(name: "X-Plex-Product", value: "Dusk"),
+            URLQueryItem(
+                name: "X-Plex-Version",
+                value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+            ),
+            URLQueryItem(name: "X-Plex-Client-Identifier", value: clientIdentifier),
+            URLQueryItem(name: "X-Plex-Platform", value: Self.transcodeClientPlatform),
+            URLQueryItem(name: "X-Plex-Platform-Version", value: Self.transcodeClientPlatformVersion),
+            URLQueryItem(name: "X-Plex-Device", value: Self.transcodeClientDevice),
+        ]
+
+        if isLiveTVSource {
+            items.append(URLQueryItem(name: "offset", value: "-1"))
+        } else {
+            // Never for Live TV. With it, a freshly tuned channel's first
+            // media playlist is a single `#EXTINF:0.000000` segment (the one
+            // still being written). AVPlayer takes that playlist, then never
+            // reloads it, never requests a segment and never fails: an
+            // endless spinner (TestFlight, Threadfin channels; reproduced in
+            // the simulator against a cold tune). Without it Plex holds the
+            // first playlist until whole segments exist, like the Plex app.
+            items.append(URLQueryItem(name: "X-Plex-Incomplete-Segments", value: "1"))
+        }
+
+        if case .spatialAudioRemux = mode {
+            // Text subtitles become WebVTT segments (the part's server-side
+            // selection decides which); burning one in would force a video
+            // re-encode, which the remux refuses anyway.
+            if let subtitleStreamID {
+                items.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
+                items.append(URLQueryItem(name: "subtitles", value: "auto"))
+            } else {
+                items.append(URLQueryItem(name: "subtitles", value: "none"))
+            }
+        } else if let subtitleStreamID {
+            items.append(URLQueryItem(name: "subtitleStreamID", value: String(subtitleStreamID)))
+            items.append(URLQueryItem(name: "subtitles", value: "burn"))
+        } else {
+            items.append(URLQueryItem(name: "subtitles", value: "none"))
+        }
+
+        if case let .manualTranscode(preset) = mode {
+            if let bitrate = preset.videoBitrateKbps {
+                items.append(URLQueryItem(name: "maxVideoBitrate", value: String(bitrate)))
+                items.append(URLQueryItem(name: "videoBitrate", value: String(bitrate)))
+            }
+            if let resolution = preset.videoResolution {
+                items.append(URLQueryItem(name: "videoResolution", value: resolution))
+            }
+            if let quality = preset.videoQuality {
+                items.append(URLQueryItem(name: "videoQuality", value: String(quality)))
+            }
+        }
+        if let audioStreamID {
+            items.append(URLQueryItem(name: "audioStreamID", value: String(audioStreamID)))
+        }
+        if let token {
+            items.append(URLQueryItem(name: "X-Plex-Token", value: token))
+        }
+
+        return items
+    }
+}
+
+private extension MediaService {
+    func transcodeClientProfileExtra(for mode: TranscodeDeliveryMode, av1Capabilities: AV1PlaybackCapabilities) -> String {
+        var clauses: [String] = []
+        let convertsAudio: Bool
+        if case let .spatialAudioRemux(conversion) = mode {
+            convertsAudio = conversion
+        } else {
+            convertsAudio = false
+        }
+        if case .spatialAudioRemux = mode {
+            // Listed first so Plex prefers it: fragmented MP4 is the only HLS
+            // container AVPlayer plays HEVC from (HEVC in MPEG-TS comes out
+            // audio-only). Copy-remuxes accept E-AC-3/AC-3/AAC; converted
+            // audio must be E-AC-3. The WebVTT subtitle target turns text
+            // subtitles into HLS subtitle segments.
+            let audioCodecs = convertsAudio ? "eac3" : (av1Capabilities.hardwareDecode ? "eac3,ac3,aac,flac,alac,mp3" : "eac3,ac3,aac")
+            let videoCodecs = av1Capabilities.hardwareDecode ? "hevc,h264,av1" : "hevc,h264"
+            clauses.append(
+                "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=\(videoCodecs)&audioCodec=\(audioCodecs))"
+            )
+            clauses.append(
+                "add-transcode-target(type=subtitleProfile&context=streaming&protocol=hls&container=webvtt&subtitleCodec=webvtt)"
+            )
+        }
+        if case .av1Transcode = mode {
+            clauses.append("add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mp4&videoCodec=hevc,h264&audioCodec=eac3,ac3,aac)")
+        }
+        if case let .manualTranscode(preset) = mode, let bitrate = preset.videoBitrateKbps {
+            clauses.append(
+                "add-limitation(scope=videoCodec&scopeName=*&type=upperBound&name=video.bitrate&value=\(bitrate)&replace=true)"
+            )
+        }
+        // Plex's HEVC transcoder can choose HEVC HLS from this profile, but the
+        // current Generic/mpegts target is not reliable with AVPlayer on Apple
+        // platforms and can produce audio-only playback.
+        if !convertsAudio {
+            clauses.append(
+                "add-transcode-target(type=videoProfile&context=streaming&protocol=hls&container=mpegts&videoCodec=h264&audioCodec=aac)"
+            )
+        }
+
+        // Surround survival on the server-side rungs. With only the Generic
+        // profile's lone AAC target declared, Plex downmixes every 5.1/7.1
+        // source to 2-channel AAC — which is what the direct-stream fallback
+        // and every TrueHD title (undecodable in stock VLCKit, so routed
+        // through the server before Dusk's own build decoded it) had been
+        // getting. AC-3/E-AC-3 in
+        // HLS/mpegts is decoded natively by AVPlayer on tvOS and iOS, so
+        // offering them keeps discrete channels intact instead of handing the
+        // player a pre-folded stereo mix.
+        //
+        // Deliberately NOT applied to `.airPlay`: that rung targets whatever
+        // receiver the user picked, which is not necessarily AC-3 capable, and
+        // its current behaviour is known-good. Deliberately no `aac` channel
+        // limitation either — capping it would fight Plex's own decision
+        // engine rather than simply widening what we accept.
+        let allowsSurroundAudioTargets: Bool
+        switch mode {
+        case .manualTranscode, .directStreamFallback, .spatialAudioRemux, .av1Transcode: allowsSurroundAudioTargets = true
+        case .airPlay: allowsSurroundAudioTargets = false
+        }
+        if allowsSurroundAudioTargets {
+            clauses.append(
+                "add-transcode-target-audio-codec(type=videoProfile&context=streaming&protocol=hls&audioCodec=eac3)"
+            )
+            if !convertsAudio {
+                clauses.append(
+                    "add-transcode-target-audio-codec(type=videoProfile&context=streaming&protocol=hls&audioCodec=ac3)"
+                )
+            }
+            let maxEAC3Channels = convertsAudio ? 8 : 6
+            clauses.append(
+                "add-limitation(scope=videoAudioCodec&scopeName=eac3&type=upperBound&name=audio.channels&value=\(maxEAC3Channels)&replace=true)"
+            )
+            clauses.append(
+                "add-limitation(scope=videoAudioCodec&scopeName=ac3&type=upperBound&name=audio.channels&value=6&replace=true)"
+            )
+        }
+        return clauses.joined(separator: "+")
+    }
+
+    // MARK: - Honest client identity
+
+    static var transcodeClientPlatform: String {
+        #if os(tvOS)
+        "tvOS"
+        #elseif os(macOS)
+        "macOS"
+        #else
+        "iOS"
+        #endif
+    }
+
+    @MainActor
+    static var transcodeClientPlatformVersion: String {
+        #if canImport(UIKit)
+        UIDevice.current.systemVersion
+        #else
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        return "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+        #endif
+    }
+
+    @MainActor
+    static var transcodeClientDevice: String {
+        #if canImport(UIKit)
+        UIDevice.current.model
+        #else
+        "Mac"
+        #endif
+    }
+
+    static func sanitizedPlaybackURLString(for url: URL) -> String {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url.absoluteString
+        }
+
+        if let queryItems = components.queryItems, !queryItems.isEmpty {
+            let sanitizedItems = queryItems.compactMap { item -> URLQueryItem? in
+                guard item.name.caseInsensitiveCompare("X-Plex-Token") != .orderedSame else {
+                    return URLQueryItem(name: item.name, value: "<redacted>")
+                }
+                return item
+            }
+            components.queryItems = sanitizedItems.isEmpty ? nil : sanitizedItems
+        }
+
+        return components.string ?? url.absoluteString
+    }
+}

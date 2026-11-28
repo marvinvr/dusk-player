@@ -76,12 +76,12 @@ final class SiriTitleCatalog {
     }
 
     /// Rebuilds the catalog from the connected servers unless it is fresh.
-    func refreshIfNeeded(plexService: PlexService, now: Date = .now) async {
-        guard plexService.isSessionReady,
-              let profileID = plexService.activeProfileID,
-              !plexService.pool.connections.isEmpty else { return }
+    func refreshIfNeeded(media: MediaService, now: Date = .now) async {
+        guard media.isSessionReady,
+              let profileID = media.activeProfileID,
+              !media.pool.connections.isEmpty else { return }
 
-        let hiddenLibraries = await plexService.loadedHiddenLibraryFilter(for: .search)
+        let hiddenLibraries = await media.loadedHiddenLibraryFilter(for: .search)
         let hiddenLibrariesChanged = (stored?.hiddenLibraryIDs ?? []) != hiddenLibraries.hiddenLibraryIDs
 
         if let stored,
@@ -97,11 +97,11 @@ final class SiriTitleCatalog {
         }
 
         let task = Task { @MainActor in
-            let entries = await Self.fetchEntries(plexService: plexService, hiddenLibraries: hiddenLibraries)
+            let entries = await Self.fetchEntries(media: media, hiddenLibraries: hiddenLibraries)
             // An empty answer normally means the servers did not answer; after
             // a hide it can also mean every library is hidden now.
             guard !Task.isCancelled,
-                  plexService.activeProfileID == profileID,
+                  media.activeProfileID == profileID,
                   !entries.isEmpty || hiddenLibrariesChanged else { return }
 
             let previous = self.stored?.profileID == profileID ? self.entries : []
@@ -136,10 +136,10 @@ final class SiriTitleCatalog {
     /// Recently watched first (most recent at the top, across servers), then
     /// recently added, one copy per title.
     private static func fetchEntries(
-        plexService: PlexService,
+        media: MediaService,
         hiddenLibraries: HiddenLibraryFilter
     ) async -> [SiriCatalogEntry] {
-        let perServer = await plexService.fanOutAcrossServers { service, serverID in
+        let perServer = await media.fanOutAcrossServers { service, serverID in
             await recentItems(service: service, serverID: serverID, hiddenLibraries: hiddenLibraries)
         }
 
@@ -161,7 +161,7 @@ final class SiriTitleCatalog {
     }
 
     private static func recentItems(
-        service: PlexService,
+        service: MediaService,
         serverID: String,
         hiddenLibraries: HiddenLibraryFilter
     ) async -> (watched: [MediaItem], added: [MediaItem]) {

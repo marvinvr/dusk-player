@@ -16,14 +16,14 @@ struct SeasonDetailView: View {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         prefersOfflineAvailability: Bool = false
     ) {
         _viewModel = State(initialValue: SeasonDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager,
             prefersOfflineAvailability: prefersOfflineAvailability

@@ -8,12 +8,12 @@ import UIKit
 /// a support tool ("tell me what your phone sees"), reached from the bottom of
 /// Server Priority. URLs never carry the token.
 struct ConnectionDiagnosticsView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(ServerConnectionCoordinator.self) private var connections
     @State private var isTesting = false
     @State private var didCopy = false
 
-    private var pool: ServerPool { plexService.pool }
+    private var pool: ServerPool { media.pool }
 
     private var serverIDs: [String] {
         pool.priorityOrderedIdentifiers.filter { pool.state(for: $0) != .disabled }

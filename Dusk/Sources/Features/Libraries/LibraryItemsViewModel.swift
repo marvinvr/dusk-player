@@ -176,7 +176,7 @@ private struct LibraryItemsQuery: Hashable {
 @MainActor
 @Observable
 final class LibraryItemsViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     let library: Library
     /// When set, every fetch is scoped to this collection (used for the
     /// per-channel grids of video libraries).
@@ -243,14 +243,14 @@ final class LibraryItemsViewModel {
 
     init(
         library: Library,
-        plexService: PlexService,
+        media: MediaService,
         collection: MediaCollection? = nil,
         initialGenre: LibraryGenreOption? = nil,
         unwatchedFilterStore: LibraryUnwatchedFilterStore = LibraryUnwatchedFilterStore(),
         sortStore: LibrarySortStore = LibrarySortStore()
     ) {
         self.library = library
-        self.plexService = plexService
+        self.media = media
         self.collection = collection
         self.preferredInitialGenre = initialGenre
         self.selectedGenre = initialGenre ?? .all
@@ -456,7 +456,7 @@ final class LibraryItemsViewModel {
               query.genreValue.map(serverGenreValues.contains) ?? true
         else { return }
 
-        guard let characters = try? await plexService.getLibraryFirstCharacters(
+        guard let characters = try? await media.getLibraryFirstCharacters(
             sectionId: library.key,
             filters: serverFilters(for: query, includingGenre: true),
             serverID: serverID
@@ -510,7 +510,7 @@ final class LibraryItemsViewModel {
     func filterValues(for field: LibraryFilterField) async -> [LibraryFilterChoice] {
         guard case .values(let path) = field.kind else { return [] }
         if let cached = filterValueCache[field.parameter] { return cached }
-        guard let values = try? await plexService.getLibraryFilterValues(path: path, serverID: serverID) else {
+        guard let values = try? await media.getLibraryFilterValues(path: path, serverID: serverID) else {
             return []
         }
         let choices = values.map(LibraryFilterChoice.init)
@@ -520,7 +520,7 @@ final class LibraryItemsViewModel {
 
     func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
-            try await plexService.setWatchedAcrossServers(
+            try await media.setWatchedAcrossServers(
                 watched,
                 id: MediaItemID(serverID: item.serverID ?? serverID, itemID: item.itemID)
             )
@@ -561,7 +561,7 @@ final class LibraryItemsViewModel {
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func progress(for item: MediaItem) -> Double? {
@@ -623,8 +623,8 @@ final class LibraryItemsViewModel {
     private func loadCollectionInfoIfNeeded() async {
         guard supportsCollections, !hasLoadedCollectionInfo else { return }
 
-        async let mode = plexService.collectionMode(sectionId: library.key, serverID: serverID)
-        async let firstCollection = try? plexService.getCollections(
+        async let mode = media.collectionMode(sectionId: library.key, serverID: serverID)
+        async let firstCollection = try? media.getCollections(
             sectionId: library.key,
             size: 1,
             serverID: serverID
@@ -643,7 +643,7 @@ final class LibraryItemsViewModel {
         query: LibraryItemsQuery
     ) async throws -> LibraryItemsPage {
         let size = requestedSize ?? (start == 0 ? firstPageSize : pageSize)
-        let items = try await plexService.getLibraryItems(
+        let items = try await media.getLibraryItems(
             sectionId: library.key,
             start: start,
             size: size,
@@ -669,7 +669,7 @@ final class LibraryItemsViewModel {
         var offset = scanOffset
 
         for _ in 0..<maxLocalScanPagesPerLoad {
-            let fetchedItems = try await plexService.getLibraryItems(
+            let fetchedItems = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: offset,
                 size: localScanPageSize,
@@ -698,7 +698,7 @@ final class LibraryItemsViewModel {
         guard !hasLoadedBrowseOptions else { return }
         hasLoadedBrowseOptions = true
 
-        async let filterFields = try? plexService.getLibraryFilters(sectionId: library.key, serverID: serverID)
+        async let filterFields = try? media.getLibraryFilters(sectionId: library.key, serverID: serverID)
         await loadGenreOptions()
         // A video library's collections are its channels, browsed through
         // their own rows; a collection grid is one already.
@@ -713,7 +713,7 @@ final class LibraryItemsViewModel {
             var loadedGenres = try await LibraryGenreSupport.loadGenreOptions(
                 sectionId: library.key,
                 serverID: serverID,
-                plexService: plexService
+                media: media
             )
             serverGenreValues = Set(loadedGenres.compactMap(\.value))
 

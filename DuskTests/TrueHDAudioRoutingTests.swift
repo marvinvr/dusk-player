@@ -172,7 +172,7 @@ struct TrueHDAudioRoutingTests {
     }
 
     @Test func convertedRequestCopiesVideoAndRequiresDDPlus() {
-        let service = PlexService()
+        let service = MediaService()
         let items = service.transcodeQueryItems(
             itemID: "1", mediaIndex: 0, sourcePath: nil,
             mode: .spatialAudioRemux(convertsAudio: true),
@@ -196,7 +196,7 @@ struct TrueHDAudioRoutingTests {
 
     @Test(arguments: [6, 8])
     func convertedDecisionRequiresCompatibleSurround(channels: Int) {
-        var decision = PlexService.TranscodeStreamDecisions(
+        var decision = MediaService.TranscodeStreamDecisions(
             container: "mp4", videoDecision: "copy", videoCodec: "hevc",
             audioDecision: "transcode", audioCodec: "eac3", audioChannels: channels
         )
@@ -222,7 +222,7 @@ struct TrueHDAudioRoutingTests {
     @Test func ignoredSubtitleDoesNotInvalidateVideoCopyRemux() {
         // PMS can retain the previously selected embedded SRT in its Off
         // decision as ignore/embedded. It is not being burned into the video.
-        var decision = PlexService.TranscodeStreamDecisions(
+        var decision = MediaService.TranscodeStreamDecisions(
             container: "mp4", videoDecision: "copy", videoCodec: "hevc",
             audioDecision: "copy", audioCodec: "eac3",
             subtitleDecision: "ignore", subtitleLocation: "embedded"
@@ -240,12 +240,12 @@ struct TrueHDAudioRoutingTests {
     }
 
     @Test func convertedAudioRestoresOnlyConfirmedJOC() throws {
-        var decision = PlexService.TranscodeStreamDecisions(
+        var decision = MediaService.TranscodeStreamDecisions(
             container: "mp4", videoDecision: "copy", videoCodec: "hevc",
             audioDecision: "transcode", audioCodec: "eac3", audioChannels: 6
         )
         let media = try makeMedia(video: dv7Video, audio: trueHDOnlyAudio)
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         playback.activeAudioStreamID = "2"
         for (profile, expectsAtmos) in [
             (nil, false), ("dolby digital plus", false),

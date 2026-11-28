@@ -10,7 +10,7 @@ final class DetailExtrasModel {
 
     /// - Parameter delay: waited before the request, so a row that follows
     ///   focus (the tvOS episode row) does not fetch for every card zapped past.
-    func load(itemID: MediaItemID?, plexService: PlexService, delay: Duration = .zero) async {
+    func load(itemID: MediaItemID?, media: MediaService, delay: Duration = .zero) async {
         guard itemID != loadedID else { return }
         // Another title's extras must not linger while this one's load.
         loadedID = nil
@@ -24,7 +24,7 @@ final class DetailExtrasModel {
 
         // Offline or unreachable: no row, same as a title without extras, and
         // the next appearance asks again.
-        guard let loaded = try? await plexService.getExtras(
+        guard let loaded = try? await media.getExtras(
             itemID: itemID.itemID,
             serverID: itemID.serverID
         ), !Task.isCancelled else { return }
@@ -70,7 +70,7 @@ final class DetailExtrasModel {
 /// deleted scenes, … Selecting one plays it through the normal clip path. The
 /// row is absent when the title has no extras.
 struct DetailExtrasShelf: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     let itemID: MediaItemID?
@@ -116,7 +116,7 @@ struct DetailExtrasShelf: View {
                     horizontalPadding: DuskPosterMetrics.detailHorizontalPadding,
                     subtitle: { model.subtitle(for: $0) },
                     posterURL: { item, width, height in
-                        item.posterImageURL(plexService: plexService, width: width, height: height)
+                        item.posterImageURL(media: media, width: width, height: height)
                     },
                     progress: { $0.posterProgress }
                 ) { _ in
@@ -130,7 +130,7 @@ struct DetailExtrasShelf: View {
             }
         }
         .task(id: itemID) {
-            await model.load(itemID: itemID, plexService: plexService, delay: loadDelay)
+            await model.load(itemID: itemID, media: media, delay: loadDelay)
         }
     }
 

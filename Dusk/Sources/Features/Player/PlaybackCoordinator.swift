@@ -153,7 +153,7 @@ final class PlaybackCoordinator {
     /// then does the engine need its post-background render refresh.
     @ObservationIgnored var playerSceneWasBackgrounded = false
 
-    let plexService: PlexService
+    let media: MediaService
     let preferences: UserPreferences
     let downloadManager: DownloadManager?
     let offlinePlaybackSyncManager: OfflinePlaybackSyncManager?
@@ -244,12 +244,12 @@ final class PlaybackCoordinator {
     @ObservationIgnored nonisolated(unsafe) var liveTVScheduleRefreshTask: Task<Void, Never>?
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         preferences: UserPreferences = UserPreferences(),
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil
     ) {
-        self.plexService = plexService
+        self.media = media
         self.preferences = preferences
         self.downloadManager = downloadManager
         self.offlinePlaybackSyncManager = offlinePlaybackSyncManager
@@ -265,8 +265,8 @@ final class PlaybackCoordinator {
         }
         sharePlayController.playbackCoordinator = self
         sharePlayController.startListening()
-        queueItemLookup = { [plexService] item in
-            try await plexService.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
+        queueItemLookup = { [media] item in
+            try await media.getMediaDetails(itemID: item.itemID, serverID: item.serverID)
         }
     }
 
@@ -480,7 +480,7 @@ final class PlaybackCoordinator {
         )
 
         do {
-            let tune = try await plexService.tuneLiveTV(
+            let tune = try await media.tuneLiveTV(
                 provider: lineup.provider,
                 channel: channel,
                 allowsDirectPlay: allowsDirectPlay
@@ -519,7 +519,7 @@ final class PlaybackCoordinator {
                 resolverReason: resolverReason,
                 mediaID: tune.media.id,
                 partID: tune.part.id,
-                sanitizedPlaybackURL: plexService.sanitizedPlaybackURLString(for: tune.playbackURL)
+                sanitizedPlaybackURL: media.sanitizedPlaybackURLString(for: tune.playbackURL)
             )
             let liveContext = LivePlaybackContext(
                 lineup: lineup,
@@ -568,7 +568,7 @@ final class PlaybackCoordinator {
                 artworkPath: program?.preferredLandscapePath ?? channel.thumb,
                 serverID: tune.serverID,
                 engine: newEngine,
-                plexService: plexService,
+                media: media,
                 skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
                 skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval
             )
@@ -719,7 +719,7 @@ final class PlaybackCoordinator {
             artworkPath: program?.preferredLandscapePath ?? channel.thumb,
             serverID: IPTVImages.serverID,
             engine: newEngine,
-            plexService: plexService,
+            media: media,
             skipBackwardInterval: preferences.playerDoubleTapBackwardInterval.timeInterval,
             skipForwardInterval: preferences.playerDoubleTapForwardInterval.timeInterval,
             isLive: !isCatchUp
@@ -842,7 +842,7 @@ final class PlaybackCoordinator {
         channel: LiveChannel,
         date: Date
     ) async -> [LiveProgram] {
-        let lineup = try? await plexService.getLiveTVGuide(
+        let lineup = try? await media.getLiveTVGuide(
             provider: provider,
             channels: [channel],
             date: date
@@ -1110,9 +1110,9 @@ final class PlaybackCoordinator {
         _ activity: DuskWatchTogetherActivity
     ) async -> SharePlayPlaybackPreparation {
         guard !Task.isCancelled else { return .cancelled }
-        guard plexService.isAuthenticated,
-              plexService.homeBootstrapCompleted,
-              !plexService.needsHomeUserSelection else {
+        guard media.isAuthenticated,
+              media.homeBootstrapCompleted,
+              !media.needsHomeUserSelection else {
             return .waitingForAccount("Sign in to Plex to join this SharePlay activity.")
         }
 
@@ -1120,7 +1120,7 @@ final class PlaybackCoordinator {
         // Joining a SharePlay session must never move the invitee's session
         // onto another server: with every enabled server connected in
         // parallel, either they already have it or they genuinely don't.
-        guard plexService.pool.connection(for: activity.serverIdentifier) != nil else {
+        guard media.pool.connection(for: activity.serverIdentifier) != nil else {
             guard !Task.isCancelled else { return .cancelled }
             return .failed("This Plex account doesn’t have access to the server hosting \(activity.title).")
         }

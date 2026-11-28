@@ -1625,7 +1625,7 @@ struct ActorCreditCard: View {
     /// The server this credit was read from; the person's page and avatar both
     /// have to be fetched from it, because person ids are per-server tag ids.
     let serverID: String?
-    let plexService: PlexService
+    let media: MediaService
     #if os(tvOS)
     @FocusState private var isFocused: Bool
     #endif
@@ -1672,7 +1672,7 @@ struct ActorCreditCard: View {
 
         Group {
             if let thumbPath = person.thumb {
-                DuskAsyncImage(url: plexService.imageURL(for: ArtworkRef(serverID: serverID, path: thumbPath), size: ImageSize(width: imageSize, height: imageSize))) { phase in
+                DuskAsyncImage(url: media.imageURL(for: ArtworkRef(serverID: serverID, path: thumbPath), size: ImageSize(width: imageSize, height: imageSize))) { phase in
                     switch phase {
                     case .success(let image):
                         image
@@ -1731,7 +1731,7 @@ struct DetailCastSection: View {
     let roles: [Person]
     /// The server the item's metadata came from; its cast lives there too.
     let serverID: String?
-    let plexService: PlexService
+    let media: MediaService
     var title = "Cast"
     var horizontalPadding: CGFloat = DuskPosterMetrics.detailHorizontalPadding
     var maxVisibleRoles = 20
@@ -1759,7 +1759,7 @@ struct DetailCastSection: View {
                         ActorCreditCard(
                             person: PlexPersonReference(role: role),
                             serverID: serverID,
-                            plexService: plexService
+                            media: media
                         )
                     }
                 }

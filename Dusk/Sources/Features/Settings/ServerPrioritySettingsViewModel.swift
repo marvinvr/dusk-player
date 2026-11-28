@@ -24,23 +24,23 @@ final class ServerPrioritySettingsViewModel {
         let tone: ConnectionStatusTone
     }
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let connections: ServerConnectionCoordinator
 
     /// Servers whose session is being (re-)established from this screen, so the
     /// row can say "Connecting…" the instant the switch is flipped.
     private var pendingServerIDs: Set<String> = []
 
-    init(plexService: PlexService, connections: ServerConnectionCoordinator) {
-        self.plexService = plexService
+    init(media: MediaService, connections: ServerConnectionCoordinator) {
+        self.media = media
         self.connections = connections
     }
 
     // MARK: - Reading
 
     var rows: [Row] {
-        let pool = plexService.pool
-        let priority = plexService.serverPriority
+        let pool = media.pool
+        let priority = media.serverPriority
 
         // The stored order decides the list; servers the store has not ranked
         // yet (discovered seconds ago) follow in the pool's own order.
@@ -73,7 +73,7 @@ final class ServerPrioritySettingsViewModel {
     /// True until the first connect pass has produced a server list, so the
     /// screen can show a spinner instead of claiming the account has none.
     var isLoading: Bool {
-        plexService.pool.servers.isEmpty && !connections.hasCompletedFirstPass
+        media.pool.servers.isEmpty && !connections.hasCompletedFirstPass
     }
 
     var isRefreshing: Bool {
@@ -103,7 +103,7 @@ final class ServerPrioritySettingsViewModel {
     // MARK: - Loading
 
     func load() async {
-        await connections.connectIfNeeded(session: plexService.activeProfileID)
+        await connections.connectIfNeeded(session: media.activeProfileID)
     }
 
     /// Explicit retry: re-discovers the account's servers and re-probes every
@@ -120,7 +120,7 @@ final class ServerPrioritySettingsViewModel {
     func move(fromOffsets offsets: IndexSet, toOffset destination: Int) {
         var identifiers = rows.map(\.id)
         identifiers.move(fromOffsets: offsets, toOffset: destination)
-        plexService.serverPriority.reorder(visible: identifiers)
+        media.serverPriority.reorder(visible: identifiers)
     }
 
     /// tvOS position menus: move one server to an absolute slot.
@@ -133,16 +133,16 @@ final class ServerPrioritySettingsViewModel {
 
         let moved = identifiers.remove(at: current)
         identifiers.insert(moved, at: target)
-        plexService.serverPriority.reorder(visible: identifiers)
+        media.serverPriority.reorder(visible: identifiers)
     }
 
     func setEnabled(_ isEnabled: Bool, for serverID: String) {
-        plexService.serverPriority.setEnabled(isEnabled, for: serverID)
+        media.serverPriority.setEnabled(isEnabled, for: serverID)
 
         guard isEnabled else {
             // Dropping the session is what makes the rest of the app forget the
             // server; the priority flag alone only stops the next connect pass.
-            plexService.pool.markDisabled(serverID: serverID)
+            media.pool.markDisabled(serverID: serverID)
             return
         }
 
@@ -156,12 +156,12 @@ final class ServerPrioritySettingsViewModel {
         defer { pendingServerIDs.remove(serverID) }
 
         do {
-            try await plexService.reconnectServer(serverID: serverID)
+            try await media.reconnectServer(serverID: serverID)
         } catch {
             // Discovery can fail before the pool ever hears about this server,
             // which would leave the row reading "Disabled" under an on switch.
-            if plexService.pool.state(for: serverID) == .disabled {
-                plexService.pool.markOffline(
+            if media.pool.state(for: serverID) == .disabled {
+                media.pool.markOffline(
                     serverID: serverID,
                     reason: error.localizedDescription
                 )

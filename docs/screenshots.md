@@ -18,7 +18,7 @@ by launch arguments:
 | Argument | Effect |
 | --- | --- |
 | `-DuskScreenshotMode YES` | Signs in with a fake account token (Keychain untouched); hero rotation off |
-| `-DuskScreenshotPlexTV <url>` | Replaces `https://plex.tv` (`PlexService.plexTVBase`) |
+| `-DuskScreenshotPlexTV <url>` | Replaces `https://plex.tv` (`MediaService.plexTVBase`) |
 | `-DuskScreenshotScreen <name>` | `home`, `movies`, `shows`, `library`, `collections`, `detail`, `search`, `player`, `downloads`, `settings`, `serverPriority`, `connectionDiagnostics`, `hiddenLibraries`, `trakt`, `supporter`, `icons`, `playlists`, `playlist`, `playlistPlay`, `addToPlaylist`, `seerrSeason` |
 | `-DuskScreenshotPlaylistStart <n>` | `playlistPlay` (with `-DuskScreenshotItem <playlist rk>`): plays the playlist from item `n`; `addToPlaylist` opens the item's page with the Add to Playlist sheet |
 | `-DuskScreenshotItem <ratingKey>` / `-DuskScreenshotItemType <type>` | Item for `detail`/`player`; type also picks the `library` tab |
@@ -38,7 +38,7 @@ by launch arguments:
 | `-DuskScreenshotPlayerMenu media\|more` | Mac player: that play-bar menu opens on its own once its rows settle and stays open |
 | `-DuskScreenshotMute 1` | AVPlayer and VLCKit stay muted whatever the player's volume says (Mac captures run on the host) |
 
-Hooks: `PlexService` (plex.tv base + token), `MainTabView` (routing + sheet),
+Hooks: `MediaService` (plex.tv base + token), `MainTabView` (routing + sheet),
 `AppNavigationRoute.screenshotServerPriority`, `SearchView` (query),
 `PlayerViewModel` (HUD auto-hide), `PlaybackCoordinator.playForScreenshot`
 (exact start, forced Up Next), `PlaybackCoordinator+UpNext` (frozen

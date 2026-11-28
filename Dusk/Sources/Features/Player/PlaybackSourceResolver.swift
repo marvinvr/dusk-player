@@ -24,7 +24,7 @@ struct PlaybackSourceResolver {
         var isEmpty: Bool { identifiers.isEmpty }
     }
 
-    let plexService: PlexService
+    let media: MediaService
 
     /// - Parameters:
     ///   - restrictToItemServer: explicit choices (a specific media version, a
@@ -41,7 +41,7 @@ struct PlaybackSourceResolver {
     ) -> Resolution {
         let instances = restrictToItemServer
             ? [id]
-            : plexService.alternates.instances(of: id)
+            : media.alternates.instances(of: id)
         let requested = normalizedRequestedID(id)
 
         var seen = Set<MediaItemID>()
@@ -49,8 +49,8 @@ struct PlaybackSourceResolver {
 
         for instance in orderedByPriority(normalized(instances, requestedBy: id)) {
             guard let serverID = instance.serverID,
-                  plexService.serverPriority.isEnabled(serverID),
-                  plexService.pool.connection(for: serverID) != nil,
+                  media.serverPriority.isEnabled(serverID),
+                  media.pool.connection(for: serverID) != nil,
                   seen.insert(instance).inserted else {
                 continue
             }
@@ -72,7 +72,7 @@ struct PlaybackSourceResolver {
         if !normalized.contains(id) {
             normalized.append(id)
         }
-        guard id.serverID == nil, let primaryID = plexService.pool.primary?.serverID else {
+        guard id.serverID == nil, let primaryID = media.pool.primary?.serverID else {
             return normalized
         }
         return normalized.map { instance in
@@ -85,7 +85,7 @@ struct PlaybackSourceResolver {
     /// The requested id as it appears after `normalized` has filled in a
     /// missing server.
     private func normalizedRequestedID(_ id: MediaItemID) -> MediaItemID {
-        guard id.serverID == nil, let primaryID = plexService.pool.primary?.serverID else {
+        guard id.serverID == nil, let primaryID = media.pool.primary?.serverID else {
             return id
         }
         return MediaItemID(serverID: primaryID, itemID: id.itemID)
@@ -105,6 +105,6 @@ struct PlaybackSourceResolver {
 
     private func rank(of id: MediaItemID) -> Int {
         guard let serverID = id.serverID else { return Int.max }
-        return plexService.serverPriority.rank(of: serverID)
+        return media.serverPriority.rank(of: serverID)
     }
 }

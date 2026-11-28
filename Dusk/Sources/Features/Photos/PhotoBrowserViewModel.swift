@@ -25,14 +25,14 @@ enum PhotoBrowseMode: String, CaseIterable, Identifiable {
 @MainActor
 @Observable
 final class PhotoBrowserViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     let library: Library
     let album: PhotoAlbumRoute?
 
     private(set) var mode: PhotoBrowseMode
     private(set) var albums: [PhotoItem] = []
     /// Photos and clips, in grid order. The viewer pages through this list.
-    private(set) var media: [PhotoItem] = []
+    private(set) var items: [PhotoItem] = []
     private(set) var isLoading = false
     private(set) var isLoadingMore = false
     private(set) var error: String?
@@ -47,10 +47,10 @@ final class PhotoBrowserViewModel {
     private let firstPageSize = 60
     private let pageSize = 150
 
-    init(library: Library, album: PhotoAlbumRoute? = nil, plexService: PlexService) {
+    init(library: Library, album: PhotoAlbumRoute? = nil, media: MediaService) {
         self.library = library
         self.album = album
-        self.plexService = plexService
+        self.media = media
         mode = album == nil
             ? UserDefaults.standard.string(forKey: Self.modeKey(for: library))
                 .flatMap(PhotoBrowseMode.init(rawValue:)) ?? .albums
@@ -71,7 +71,7 @@ final class PhotoBrowserViewModel {
     }
 
     var isEmpty: Bool {
-        albums.isEmpty && media.isEmpty
+        albums.isEmpty && items.isEmpty
     }
 
     var emptyStateTitle: String {
@@ -80,7 +80,7 @@ final class PhotoBrowserViewModel {
 
     /// Photos only; clips are skipped by the slideshow.
     var hasPhotos: Bool {
-        media.contains { $0.kind == .photo }
+        items.contains { $0.kind == .photo }
     }
 
     func loadIfNeeded() async {
@@ -102,7 +102,7 @@ final class PhotoBrowserViewModel {
         stageIndex = 0
         stageOffset = 0
         albums = []
-        media = []
+        items = []
         error = nil
         isLoading = true
         defer {
@@ -115,7 +115,7 @@ final class PhotoBrowserViewModel {
             // sub-albums come back in one page also shows its first photos.
             repeat {
                 try await loadNextPage(generation: currentGeneration, size: firstPageSize)
-            } while currentGeneration == generation && hasMore && media.isEmpty && albums.count < firstPageSize
+            } while currentGeneration == generation && hasMore && items.isEmpty && albums.count < firstPageSize
         } catch {
             guard currentGeneration == generation else { return }
             self.error = error.localizedDescription
@@ -125,7 +125,7 @@ final class PhotoBrowserViewModel {
     /// Called as cells appear; only the tail of the list being filled counts.
     func loadMoreIfNeeded(currentItem: PhotoItem) async {
         guard hasMore, !isLoading, !isLoadingMore else { return }
-        let tail = media.isEmpty ? albums.suffix(30) : media.suffix(60)
+        let tail = items.isEmpty ? albums.suffix(30) : items.suffix(60)
         guard tail.contains(where: { $0.id == currentItem.id }) else { return }
         await loadMore()
     }
@@ -146,7 +146,7 @@ final class PhotoBrowserViewModel {
     }
 
     func thumbnailURL(for item: PhotoItem, side: CGFloat) -> URL? {
-        plexService.photoThumbnailURL(for: item, side: Int(side.rounded(.up)))
+        media.photoThumbnailURL(for: item, side: Int(side.rounded(.up)))
     }
 
     func route(for albumItem: PhotoItem) -> AppNavigationRoute {
@@ -168,7 +168,7 @@ final class PhotoBrowserViewModel {
     private func loadNextPage(generation currentGeneration: Int, size: Int) async throws {
         guard hasMore else { return }
         let query = stages[stageIndex]
-        let page = try await plexService.getPhotoItems(
+        let page = try await media.getPhotoItems(
             sectionId: library.key,
             query: query,
             start: stageOffset,
@@ -180,7 +180,7 @@ final class PhotoBrowserViewModel {
         if case .albums = query {
             albums.append(contentsOf: page.items.filter(\.isAlbum))
         } else {
-            media.append(contentsOf: page.items.filter { !$0.isAlbum })
+            items.append(contentsOf: page.items.filter { !$0.isAlbum })
         }
 
         stageOffset += size

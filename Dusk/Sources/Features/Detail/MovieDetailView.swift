@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct MovieDetailView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(PlaybackCoordinator.self) private var playback
     @Environment(\.horizontalSizeClass) private var sizeClass
@@ -20,7 +20,7 @@ struct MovieDetailView: View {
 
     init(
         id: MediaItemID,
-        plexService: PlexService,
+        media: MediaService,
         downloadManager: DownloadManager? = nil,
         offlinePlaybackSyncManager: OfflinePlaybackSyncManager? = nil,
         playThrough: PlaybackListContext? = nil
@@ -28,7 +28,7 @@ struct MovieDetailView: View {
         self.playThrough = playThrough
         _viewModel = State(initialValue: MovieDetailViewModel(
             id: id,
-            plexService: plexService,
+            media: media,
             downloadManager: downloadManager,
             offlinePlaybackSyncManager: offlinePlaybackSyncManager
         ))
@@ -114,7 +114,7 @@ struct MovieDetailView: View {
                         DetailCastSection(
                             roles: roles,
                             serverID: viewModel.serverID,
-                            plexService: plexService
+                            media: media
                         )
                             .padding(.top, detailSectionSpacing)
                     }
@@ -122,7 +122,7 @@ struct MovieDetailView: View {
                         itemID: details.id,
                         sectionID: details.libraryID,
                         tags: details.collections,
-                        plexService: plexService
+                        media: media
                     )
                     #if os(macOS)
                     DetailMacMediaSection(media: details.media.first)

@@ -2,10 +2,10 @@ import Foundation
 
 /// The playlist-level actions both the Playlists grid (context menu) and the
 /// playlist page offer: build a play queue, rename, delete. Every edit goes to
-/// the playlist's own server first and only then into `PlexService.playlists`.
+/// the playlist's own server first and only then into `MediaService.playlists`.
 @MainActor
 struct PlaylistActions {
-    let plexService: PlexService
+    let media: MediaService
 
     /// The queue for a whole playlist: in order from `startIndex`, or
     /// shuffled once for the session.
@@ -19,7 +19,7 @@ struct PlaylistActions {
 
     /// Fetches the entries first (the grid has none loaded).
     func queue(for playlist: Playlist, shuffled: Bool) async throws -> (queue: PlaybackQueue?, entries: [PlaylistEntry]) {
-        let entries = try await plexService.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID)
+        let entries = try await media.getPlaylistEntries(itemID: playlist.itemID, serverID: playlist.serverID)
         let start = shuffled ? 0 : PlaylistActions.resumeIndex(in: entries) ?? 0
         return (queue(for: playlist, entries: entries, startIndex: start, shuffled: shuffled), entries)
     }
@@ -27,19 +27,19 @@ struct PlaylistActions {
     func rename(_ playlist: Playlist, to title: String) async throws -> Playlist {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, trimmed != playlist.title else { return playlist }
-        let session = plexService.playlists.sessionGeneration
-        try await plexService.renamePlaylist(playlist, to: trimmed)
+        let session = media.playlists.sessionGeneration
+        try await media.renamePlaylist(playlist, to: trimmed)
         let renamed = playlist.renamed(trimmed)
-        plexService.playlists.upsert(renamed, sessionGeneration: session)
-        plexService.pinnedPlaylists.updateTitle(trimmed, for: playlist.id, profileID: plexService.activeProfileID)
+        media.playlists.upsert(renamed, sessionGeneration: session)
+        media.pinnedPlaylists.updateTitle(trimmed, for: playlist.id, profileID: media.activeProfileID)
         return renamed
     }
 
     func delete(_ playlist: Playlist) async throws {
-        let session = plexService.playlists.sessionGeneration
-        try await plexService.deletePlaylist(playlist)
-        plexService.playlists.remove(playlist.id, sessionGeneration: session)
-        plexService.setPlaylistPinned(false, id: playlist.id, title: playlist.title)
+        let session = media.playlists.sessionGeneration
+        try await media.deletePlaylist(playlist)
+        media.playlists.remove(playlist.id, sessionGeneration: session)
+        media.setPlaylistPinned(false, id: playlist.id, title: playlist.title)
     }
 
     /// Where Play / Resume starts: the first item that is not fully watched

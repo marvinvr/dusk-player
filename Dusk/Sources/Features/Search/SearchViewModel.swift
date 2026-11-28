@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 @Observable
 final class SearchViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     private let seerrService: SeerrService
 
     var query = ""
@@ -14,8 +14,8 @@ final class SearchViewModel {
 
     private var searchTask: Task<Void, Never>?
 
-    init(plexService: PlexService, seerrService: SeerrService) {
-        self.plexService = plexService
+    init(media: MediaService, seerrService: SeerrService) {
+        self.media = media
         self.seerrService = seerrService
     }
 
@@ -40,7 +40,7 @@ final class SearchViewModel {
 
     func imageURL(for item: SearchMediaResult, width: Int, height: Int) -> URL? {
         item.imageURL(
-            plexService: plexService,
+            media: media,
             seerrService: seerrService,
             width: width,
             height: height
@@ -71,13 +71,13 @@ final class SearchViewModel {
         }
         defer { seerrTask.cancel() }
 
-        let serverIDs = plexService.mergeServerIDs
+        let serverIDs = media.mergeServerIDs
         var resultsByServer = [[SearchSection]](repeating: [], count: serverIDs.count)
         var failureCount = 0
         var firstFailure: (any Error)?
         var plexGroups: [SearchSection] = []
 
-        for await result in plexService.streamSearch(query: query) {
+        for await result in media.streamSearch(query: query) {
             guard !Task.isCancelled else { return }
 
             switch result.value {
@@ -89,7 +89,7 @@ final class SearchViewModel {
             }
 
             let merged = SearchMerge.merge(resultsByServer)
-            plexService.registerAlternates(merged.alternates)
+            media.registerAlternates(merged.alternates)
             plexGroups = merged.groups
             results = Self.makeGroups(plexGroups: plexGroups, seerrItems: [])
             hasSearched = true

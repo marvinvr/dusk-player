@@ -1,0 +1,12 @@
+# P0-06 service skeleton renames (docs/jellyfin/05-plan.md P0-06, 04 §2). `Old New`, whole words.
+#
+# Deferred on purpose:
+#   PlexServiceError -> stays: its NSError domain "Dusk.PlexServiceError" is sent
+#                       in analytics error reports (see 01_types.table).
+#   PlexTransportSecurity -> CredentialTransportPolicy is a new Core protocol;
+#                       the Plex type keeps its name and moves to Providers/Plex.
+
+PlexService                 MediaService
+plexService                 media
+PlexServerConnection        ServerSession
+_plexService                _media

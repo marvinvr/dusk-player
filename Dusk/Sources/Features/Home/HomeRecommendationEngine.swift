@@ -8,7 +8,7 @@ private let homeRecommendationLogger = Logger(
 
 @MainActor
 struct HomeRecommendationEngine {
-    let plexService: PlexService
+    let media: MediaService
     var calendar: Calendar = .autoupdatingCurrent
     var nowProvider: @Sendable () -> Date = Date.init
 
@@ -23,9 +23,9 @@ struct HomeRecommendationEngine {
         // minus the hidden ones and the ones the server excludes from Home.
         // Shelves therefore span servers: a genre the user likes pulls from
         // wherever those titles happen to live.
-        try await plexService.ensureLibraryOrderLoaded()
-        let homeHidden = plexService.libraryOrder.hiddenLibraryFilter(for: .home)
-        let libraries = plexService.libraryOrder.visibleSections.filter { !homeHidden.hides($0) }
+        try await media.ensureLibraryOrderLoaded()
+        let homeHidden = media.libraryOrder.hiddenLibraryFilter(for: .home)
+        let libraries = media.libraryOrder.visibleSections.filter { !homeHidden.hides($0) }
         let movieLibraries = libraries.filter { $0.libraryType == .movie }
         let showLibraries = libraries.filter { $0.libraryType == .show }
 
@@ -33,7 +33,7 @@ struct HomeRecommendationEngine {
             return []
         }
 
-        let currentUser = try? await plexService.getCurrentUser()
+        let currentUser = try? await media.getCurrentUser()
         let currentUserID = currentUser?.id
 
         async let movieShelvesTask = loadShelves(
@@ -134,7 +134,7 @@ struct HomeRecommendationEngine {
             if let genres = try? await LibraryGenreSupport.loadGenreOptions(
                 sectionId: library.key,
                 serverID: library.serverID,
-                plexService: plexService
+                media: media
             ) {
                 genresByLibrary[library.id] = genres
             }
@@ -151,7 +151,7 @@ struct HomeRecommendationEngine {
         var entries: [PlaybackHistoryEntry] = []
 
         for library in libraries {
-            var history = (try? await plexService.getPlaybackHistory(
+            var history = (try? await media.getPlaybackHistory(
                 accountId: currentUserID,
                 librarySectionId: library.key,
                 viewedSince: viewedSince,
@@ -159,7 +159,7 @@ struct HomeRecommendationEngine {
             )) ?? []
 
             if history.isEmpty, currentUserID != nil {
-                history = (try? await plexService.getPlaybackHistory(
+                history = (try? await media.getPlaybackHistory(
                     accountId: nil,
                     librarySectionId: library.key,
                     viewedSince: viewedSince,
@@ -178,7 +178,7 @@ struct HomeRecommendationEngine {
     ) async -> [RecommendationScoredGenre] {
         let signals = collapsedSignals(from: history)
         return await RecommendationGenreScoring.scoreGenres(from: signals) { signal in
-            guard let details = try? await plexService.getMediaDetails(
+            guard let details = try? await media.getMediaDetails(
                 itemID: signal.itemID,
                 serverID: signal.serverID
             ) else {
@@ -272,7 +272,7 @@ struct HomeRecommendationEngine {
         var watchedFallbackItems: [MediaItem] = []
 
         for page in 0..<maxPagesToInspect {
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
@@ -403,7 +403,7 @@ struct HomeRecommendationEngine {
         libraryType: LibraryKind
     ) async throws -> [MediaItem] {
         let filters = ["genre": genreValue]
-        let totalCount = try await plexService.getLibraryItemCount(
+        let totalCount = try await media.getLibraryItemCount(
             sectionId: library.key,
             filters: filters,
             serverID: library.serverID
@@ -425,7 +425,7 @@ struct HomeRecommendationEngine {
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
@@ -457,7 +457,7 @@ struct HomeRecommendationEngine {
         itemsPerShelf: Int,
         libraryType: LibraryKind
     ) async throws -> [MediaItem] {
-        let totalCount = try await plexService.getLibraryItemCount(
+        let totalCount = try await media.getLibraryItemCount(
             sectionId: library.key,
             serverID: library.serverID
         )
@@ -477,7 +477,7 @@ struct HomeRecommendationEngine {
         let desiredPoolSize = max(itemsPerShelf * 3, 24)
 
         for page in shuffledPageOrder {
-            let items = try await plexService.getLibraryItems(
+            let items = try await media.getLibraryItems(
                 sectionId: library.key,
                 start: page * pageSize,
                 size: pageSize,
@@ -598,7 +598,7 @@ struct HomeRecommendationEngine {
             return true
         }
 
-        guard let details = try? await plexService.getMediaDetails(
+        guard let details = try? await media.getMediaDetails(
             itemID: item.itemID,
             serverID: item.serverID
         ), let genres = details.genres else {

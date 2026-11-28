@@ -18,7 +18,7 @@ private struct LibraryItemCountCheck: Sendable {
 @MainActor
 @Observable
 final class LibrariesViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
 
     /// Read-through of the shared library-order store so every browsable list
     /// follows the order stored on the Plex account. Music sections occupy
@@ -28,7 +28,7 @@ final class LibrariesViewModel {
     /// So are "Other Videos" and photo sections until they are known to hold
     /// something: an empty one would otherwise put a tab in front of everyone.
     var libraries: [Library] {
-        plexService.libraryOrder.visibleSections.filter { library in
+        media.libraryOrder.visibleSections.filter { library in
             guard let type = library.libraryType else { return false }
             return !Self.countedTypes.contains(type) || libraryHasItems[library.id] == true
         }
@@ -41,7 +41,7 @@ final class LibrariesViewModel {
     /// Any browsable section, counted or not, so an uncounted video section
     /// does not read as "nothing loaded yet".
     private var hasBrowsableSections: Bool {
-        plexService.libraryOrder.orderedSections.contains { $0.libraryType != nil }
+        media.libraryOrder.orderedSections.contains { $0.libraryType != nil }
     }
 
     /// Whether each counted section (`Library.id`) holds any items.
@@ -63,8 +63,8 @@ final class LibrariesViewModel {
     /// that connected a moment later would never appear.
     @ObservationIgnored private var needsReload = false
 
-    init(plexService: PlexService) {
-        self.plexService = plexService
+    init(media: MediaService) {
+        self.media = media
     }
 
     var availableLibraryTypes: [LibraryKind] {
@@ -107,7 +107,7 @@ final class LibrariesViewModel {
             error = nil
 
             do {
-                _ = try await plexService.ensureLibraryOrderLoaded(force: shouldForce)
+                _ = try await media.ensureLibraryOrderLoaded(force: shouldForce)
                 loadedRevision = revision
                 error = nil
             } catch {
@@ -126,7 +126,7 @@ final class LibrariesViewModel {
     /// Counts the video and photo sections not yet known to have items, so
     /// empty ones stay hidden and get another look on the next load.
     private func countLibraryItems() async {
-        let uncounted = plexService.libraryOrder.orderedSections.filter {
+        let uncounted = media.libraryOrder.orderedSections.filter {
             guard let type = $0.libraryType else { return false }
             return Self.countedTypes.contains(type) && libraryHasItems[$0.id] != true
         }
@@ -134,8 +134,8 @@ final class LibrariesViewModel {
 
         await withTaskGroup(of: LibraryItemCountCheck.self) { group in
             for library in uncounted {
-                group.addTask { [plexService] in
-                    let count = try? await plexService.getLibraryItemCount(
+                group.addTask { [media] in
+                    let count = try? await media.getLibraryItemCount(
                         sectionId: library.key,
                         serverID: library.serverID
                     )
@@ -162,7 +162,7 @@ final class LibrariesViewModel {
 
     /// Composite artwork lives on the library's own server.
     func artURL(for library: Library, width: Int, height: Int) -> URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: library.serverID, path: library.composite ?? library.art ?? library.thumb),
             size: ImageSize(width: width, height: height)
         )
@@ -178,14 +178,14 @@ final class LibrariesViewModel {
     /// library and a "Movies" video library are told apart by their type, and
     /// the same label has to appear wherever the library is listed.
     var serverLabels: [String: String] {
-        ServerLabeling.serverLabels(for: libraries, pool: plexService.pool)
+        ServerLabeling.serverLabels(for: libraries, pool: media.pool)
     }
 
     var availability: ServerAvailability {
-        plexService.pool.availability
+        media.pool.availability
     }
 
     var serverContentRevision: ServerContentRevision {
-        plexService.serverContentRevision
+        media.serverContentRevision
     }
 }

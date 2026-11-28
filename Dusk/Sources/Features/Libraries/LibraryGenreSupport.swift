@@ -6,9 +6,9 @@ enum LibraryGenreSupport {
     static func loadGenreOptions(
         sectionId: String,
         serverID: String? = nil,
-        plexService: PlexService
+        media: MediaService
     ) async throws -> [LibraryGenreOption] {
-        let filters = try await plexService.getLibraryFilters(
+        let filters = try await media.getLibraryFilters(
             sectionId: sectionId,
             serverID: serverID
         )
@@ -19,7 +19,7 @@ enum LibraryGenreSupport {
             return [.all]
         }
 
-        let values = try await plexService.getLibraryFilterValues(
+        let values = try await media.getLibraryFilterValues(
             path: genreFilter.key,
             serverID: serverID
         )

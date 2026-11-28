@@ -137,7 +137,7 @@ final class PlayerViewModel {
     var hasReappliedAutomaticSubtitleSelectionForExternalTracks = false
     var hasUserSelectedSubtitleTrack = false
     /// Builds the token-bearing URL for a Plex sidecar subtitle stream. Set by
-    /// `PlayerView` from the coordinator's `PlexService`; nil in previews, where
+    /// `PlayerView` from the coordinator's `MediaService`; nil in previews, where
     /// external streams then simply stay out of the picker.
     @ObservationIgnored var externalSubtitleURLProvider: (@MainActor (MediaStream) -> URL?)?
     /// Asks the coordinator to restart this session on VLCKit so a Plex sidecar

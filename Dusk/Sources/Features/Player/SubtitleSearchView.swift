@@ -12,7 +12,7 @@ struct SubtitleSearchView: View {
     #endif
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         itemID: String,
         serverID: String?,
         preferredLanguageCode: String?,
@@ -21,7 +21,7 @@ struct SubtitleSearchView: View {
         onDismiss: @escaping () -> Void
     ) {
         _viewModel = State(initialValue: SubtitleSearchViewModel(
-            plexService: plexService,
+            media: media,
             itemID: itemID,
             serverID: serverID,
             preferredLanguageCode: preferredLanguageCode,
@@ -32,7 +32,7 @@ struct SubtitleSearchView: View {
     }
 
     /// For callers that build the view model themselves (detail screens route
-    /// through their own view model so the view stays off `PlexService`).
+    /// through their own view model so the view stays off `MediaService`).
     init(viewModel: SubtitleSearchViewModel, onDismiss: @escaping () -> Void) {
         _viewModel = State(initialValue: viewModel)
         self.onDismiss = onDismiss

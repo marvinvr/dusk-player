@@ -4,7 +4,7 @@ import Foundation
 /// providers (OpenSubtitles), then ask it to install the chosen result as a
 /// sidecar next to the media file.
 ///
-/// Views never touch `PlexService` themselves. Whoever presents the flow passes
+/// Views never touch `MediaService` themselves. Whoever presents the flow passes
 /// an `onDownloaded` completion — the player refreshes the live session's
 /// subtitle streams, detail screens re-read their media details.
 @MainActor
@@ -23,7 +23,7 @@ final class SubtitleSearchViewModel {
         case downloaded
     }
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let onDownloaded: (SubtitleSearchResult) async -> Void
     /// Runs just before the download is requested, so the player can note
     /// what the sidecar looked like and later tell when Plex replaced it.
@@ -42,14 +42,14 @@ final class SubtitleSearchViewModel {
     private var searchGeneration = 0
 
     init(
-        plexService: PlexService,
+        media: MediaService,
         itemID: String,
         serverID: String? = nil,
         preferredLanguageCode: String?,
         onWillDownload: @escaping (SubtitleSearchResult) async -> Void = { _ in },
         onDownloaded: @escaping (SubtitleSearchResult) async -> Void
     ) {
-        self.plexService = plexService
+        self.media = media
         self.onWillDownload = onWillDownload
         self.itemID = itemID
         self.serverID = serverID
@@ -90,7 +90,7 @@ final class SubtitleSearchViewModel {
 
         do {
             // Server order is the match ranking (best first). Never re-sort it.
-            let found = try await plexService.searchSubtitles(
+            let found = try await media.searchSubtitles(
                 itemID: itemID,
                 languageCode: language.code,
                 hearingImpaired: hearingImpaired,
@@ -119,7 +119,7 @@ final class SubtitleSearchViewModel {
         phase = .downloading(result.id)
         await onWillDownload(result)
         do {
-            try await plexService.downloadSubtitle(
+            try await media.downloadSubtitle(
                 itemID: itemID,
                 result: result,
                 serverID: serverID

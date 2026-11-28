@@ -30,7 +30,7 @@ struct LibrariesView: View {
 }
 
 struct LibrariesRootContent: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     let libraryType: LibraryKind
     let viewModel: LibrariesViewModel
     /// The enclosing stack's path, for the iOS Browse menu's pushes (see
@@ -72,7 +72,7 @@ struct LibrariesRootContent: View {
             // Photo libraries have no recommendations: one opens straight on
             // its albums, several on the list of them.
             if libraries.count == 1 {
-                PhotoBrowserView(library: libraries[0], plexService: plexService)
+                PhotoBrowserView(library: libraries[0], media: media)
                     .id(libraries[0].id)
             } else {
                 LibraryTypeListView(libraryType: libraryType, viewModel: viewModel)
@@ -94,7 +94,7 @@ struct LibrariesRootContent: View {
             // the toolbar opens the list.
             LibraryRecommendationsView(
                 libraries: libraries,
-                plexService: plexService,
+                media: media,
                 navigationTitle: libraryType.tabTitle,
                 browseTargets: libraries.map {
                     LibraryBrowseTarget(library: $0, title: viewModel.displayTitle(for: $0))

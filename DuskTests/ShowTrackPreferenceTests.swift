@@ -209,14 +209,14 @@ struct ShowTrackPreferenceTests {
                 {"id":11,"streamType":2,"languageCode":"eng","codec":"aac","channels":2},
                 {"id":12,"streamType":3,"languageCode":"eng","codec":"srt","hearingImpaired":true}
                 """#)
-            let service = PlexService()
+            let service = MediaService()
             service.activeHomeUser = nil
             service.currentUser = nil
             service.primaryProfileID = "profile"
             service.primaryAccountToken = "test"
             service.activeAccountToken = "test"
             service.homeSelectionRequested = false
-            let playback = PlaybackCoordinator(plexService: service)
+            let playback = PlaybackCoordinator(media: service)
             playback.showTrackPreferenceStore = store
             playback.activeShowTrackScope = scope(details)
             playback.activeItemDetails = details
@@ -326,7 +326,7 @@ struct ShowTrackPreferenceTests {
                 {"id":11,"streamType":2,"languageCode":"eng","codec":"aac","channels":2},
                 {"id":12,"streamType":3,"languageCode":"eng","codec":"srt","selected":true}
                 """#)
-            let playback = PlaybackCoordinator(plexService: PlexService())
+            let playback = PlaybackCoordinator(media: MediaService())
             playback.showTrackPreferenceStore = store
             playback.activePlaybackUsesLocalDownload = true // No network side effects.
             playback.automaticServerSelectionRestore = ServerStreamSelectionRestore(

@@ -4,7 +4,7 @@ import CoreImage.CIFilterBuiltins
 #endif
 
 struct SignInView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(\.openURL) private var openURL
     @State private var linkPinCode: String?
     @State private var isSigningIn = false
@@ -460,17 +460,17 @@ struct SignInView: View {
 
         do {
             #if os(tvOS)
-            let linkPin = try await plexService.generatePin()
+            let linkPin = try await media.generatePin()
             linkPinCode = linkPin.code
             startPolling(primaryPinID: linkPin.id)
             #else
             // Plex uses a longer-lived "strong" PIN for browser approval, but
             // plex.tv/link expects the short code flow, so we keep both active.
-            let browserPin = try await plexService.generatePin(strong: true)
-            let linkPin = try? await plexService.generatePin()
+            let browserPin = try await media.generatePin(strong: true)
+            let linkPin = try? await media.generatePin()
             linkPinCode = linkPin?.code
 
-            guard let url = plexService.authURL(for: browserPin) else {
+            guard let url = media.authURL(for: browserPin) else {
                 throw PlexServiceError.invalidURL
             }
 
@@ -507,8 +507,8 @@ struct SignInView: View {
                 try? await Task.sleep(for: .seconds(1))
                 guard !Task.isCancelled else { return }
 
-                if let token = try? await plexService.checkPin(primaryPinID) {
-                    plexService.setAuthToken(token)
+                if let token = try? await media.checkPin(primaryPinID) {
+                    media.setAuthToken(token)
                     isSigningIn = false
                     linkPinCode = nil
                     authURL = nil
@@ -517,8 +517,8 @@ struct SignInView: View {
 
                 if attempt >= fallbackActivationAttempt,
                    let fallbackPinID,
-                   let token = try? await plexService.checkPin(fallbackPinID) {
-                        plexService.setAuthToken(token)
+                   let token = try? await media.checkPin(fallbackPinID) {
+                        media.setAuthToken(token)
                         isSigningIn = false
                         linkPinCode = nil
                         authURL = nil

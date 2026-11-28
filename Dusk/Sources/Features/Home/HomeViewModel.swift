@@ -52,7 +52,7 @@ private enum HomeLoadEvent: Sendable {
 /// Both of Home's requests to one server, run concurrently. The server is only
 /// counted as failed when neither of them came back.
 private func loadHomePayload(
-    _ service: PlexService,
+    _ service: MediaService,
     _ serverID: String
 ) async -> HomeServerPayload {
     async let hubs = loadHomeHubs(service, serverID)
@@ -77,7 +77,7 @@ private func loadHomePayload(
 }
 
 private func loadHomeHubs(
-    _ service: PlexService,
+    _ service: MediaService,
     _ serverID: String
 ) async -> Result<[HomeRow], any Error> {
     do {
@@ -88,7 +88,7 @@ private func loadHomeHubs(
 }
 
 private func loadHomeContinueWatching(
-    _ service: PlexService,
+    _ service: MediaService,
     _ serverID: String
 ) async -> Result<[MediaItem], any Error> {
     do {
@@ -135,13 +135,13 @@ final class HomeViewModel {
     private var publishedHiddenLibraryIDs: Set<String> = []
     private var personalizedShelvesEnabled: Bool
 
-    private let plexService: PlexService
+    private let media: MediaService
     private let recommendationEngine: HomeRecommendationEngine
 
-    init(plexService: PlexService, personalizedShelvesEnabled: Bool = true) {
-        self.plexService = plexService
+    init(media: MediaService, personalizedShelvesEnabled: Bool = true) {
+        self.media = media
         self.personalizedShelvesEnabled = personalizedShelvesEnabled
-        self.recommendationEngine = HomeRecommendationEngine(plexService: plexService)
+        self.recommendationEngine = HomeRecommendationEngine(media: media)
     }
 
     /// Apply Settings immediately, including while recommendation requests are
@@ -172,7 +172,7 @@ final class HomeViewModel {
     /// load filters with whatever the account says once it settles.
     func hiddenLibrariesDidChange() {
         guard hasLoadedContent,
-              plexService.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs
+              media.libraryOrder.hiddenLibraryFilter(for: .home).hiddenLibraryIDs
                 != publishedHiddenLibraryIDs else { return }
         Task { await load() }
     }
@@ -251,7 +251,7 @@ final class HomeViewModel {
             }
         }
 
-        let serverIDs = plexService.mergeServerIDs
+        let serverIDs = media.mergeServerIDs
         guard !serverIDs.isEmpty else {
             // The pool is only ever empty before the first connect pass or
             // after a sign-out / Plex Home switch, so anything still on screen
@@ -267,7 +267,7 @@ final class HomeViewModel {
         // Whatever a server that has left the pool contributed goes with it;
         // only a server still in the pool, for the profile that fetched it, may
         // keep its last answer.
-        let profileID = plexService.activeProfileID
+        let profileID = media.activeProfileID
         if profileID != lastPayloadsProfileID {
             lastPayloads = [:]
             lastPayloadsProfileID = profileID
@@ -289,7 +289,7 @@ final class HomeViewModel {
         // One loop reacts to everything the first paint depends on: each
         // server's answer, the library order, and the gate's deadline.
         let (events, eventSink) = AsyncStream.makeStream(of: HomeLoadEvent.self)
-        let service = plexService
+        let service = media
         let answers = service.streamAcrossServers(loadHomePayload)
         let answersTask = Task {
             for await result in answers {
@@ -450,7 +450,7 @@ final class HomeViewModel {
     /// out to. When one connects, the content revision changes and a new load
     /// replaces this one; until then the first paint may wait for it.
     private func serversStillConnecting(excluding loadServerIDs: Set<String>) -> Set<String> {
-        let pool = plexService.pool
+        let pool = media.pool
         return pool.knownServerIDs.filter { serverID in
             guard !loadServerIDs.contains(serverID), pool.isEnabled(serverID) else { return false }
             switch pool.state(for: serverID) {
@@ -493,7 +493,7 @@ final class HomeViewModel {
         // the server's Visibility setting, leave Home completely: their rows,
         // and their titles in global rows and Continue Watching (and so the
         // hero and the Top Shelf).
-        let hiddenLibraries = plexService.libraryOrder.hiddenLibraryFilter(for: .home)
+        let hiddenLibraries = media.libraryOrder.hiddenLibraryFilter(for: .home)
         publishedHiddenLibraryIDs = hiddenLibraries.hiddenLibraryIDs
         for payload in payloads {
             hubsByServer.append(
@@ -507,22 +507,22 @@ final class HomeViewModel {
         let mergedHubs = HubMerge.merge(hubsByServer)
         let collapsedHubs = HubMerge.collapsingRepeatedTitles(mergedHubs.hubs)
         let mergedContinueWatching = ContinueWatchingMerge.merge(continueWatchingByServer)
-        plexService.registerAlternates(mergedHubs.alternates)
-        plexService.registerAlternates(collapsedHubs.alternates)
-        plexService.registerAlternates(mergedContinueWatching.alternates)
+        media.registerAlternates(mergedHubs.alternates)
+        media.registerAlternates(collapsedHubs.alternates)
+        media.registerAlternates(mergedContinueWatching.alternates)
 
         return (
             HomeHubArrangement.arrange(
                 hubs: collapsedHubs.hubs,
                 libraryOrder: libraryOrderIdentities(),
-                libraries: plexService.libraryOrder.sections
+                libraries: media.libraryOrder.sections
             ),
             mergedContinueWatching.items
         )
     }
 
     private func libraryOrderIdentities() -> [String] {
-        plexService.libraryOrder.orderedSectionIdentities
+        media.libraryOrder.orderedSectionIdentities
     }
 
     private func publish(
@@ -562,7 +562,7 @@ final class HomeViewModel {
             recentlyAdded: hubs.filter(isRecentlyAddedHub).map { hub in
                 TopShelfPublisher.Row(title: hub.title, items: inlineItems(in: hub, maxRecentlyAddedItems: .max))
             },
-            plexService: plexService
+            media: media
         )
     }
     #endif
@@ -572,24 +572,24 @@ final class HomeViewModel {
     /// The Watchlist row's titles. Empty unless plex.tv answered with some:
     /// a failed or missing Watchlist is no row, never an error or a spinner.
     var watchlistEntries: [WatchlistEntry] {
-        plexService.watchlist.isLoaded ? plexService.watchlist.entries : []
+        media.watchlist.isLoaded ? media.watchlist.entries : []
     }
 
     /// Where the row goes among `hubs` (`HomeWatchlistPlacement`); nil when
     /// there is no row.
     var watchlistIndex: Int? {
         guard !watchlistEntries.isEmpty else { return nil }
-        return HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: plexService.watchlist.homeHubs)
+        return HomeWatchlistPlacement.index(in: hubs, plexHomeHubs: media.watchlist.homeHubs)
     }
 
     func watchlistMatch(for entry: WatchlistEntry) -> MediaItem? {
-        plexService.watchlist.match(for: entry)
+        media.watchlist.match(for: entry)
     }
 
     /// Runs beside Home's own load and never holds its first paint: the row
     /// folds in whenever plex.tv answers. `force` is pull-to-refresh.
     func refreshWatchlist(force: Bool = false) {
-        let service = plexService
+        let service = media
         Task { await service.loadWatchlist(force: force) }
     }
 
@@ -601,7 +601,7 @@ final class HomeViewModel {
     /// or empty has no row (the pin stays until removed in Settings).
     func refreshPinnedPlaylists() {
         pinnedPlaylistsTask?.cancel()
-        let service = plexService
+        let service = media
         let profileID = service.activeProfileID
         let pins = service.pinnedPlaylistPins
         let previous = Dictionary(pinnedPlaylistRows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
@@ -640,7 +640,7 @@ final class HomeViewModel {
 
     func setWatched(_ watched: Bool, for item: MediaItem) async {
         do {
-            try await plexService.setWatchedAcrossServers(watched, id: item.id)
+            try await media.setWatchedAcrossServers(watched, id: item.id)
             await load()
         } catch {
             self.error = error.localizedDescription
@@ -660,10 +660,10 @@ final class HomeViewModel {
         // that copy, so every connected copy is dismissed — otherwise the title
         // reappears from another server on the next load.
         var failure: (any Error)?
-        for target in plexService.alternates.instances(of: removedID)
-        where plexService.pool.connection(for: target.serverID) != nil {
+        for target in media.alternates.instances(of: removedID)
+        where media.pool.connection(for: target.serverID) != nil {
             do {
-                try await plexService.removeFromContinueWatching(
+                try await media.removeFromContinueWatching(
                     itemID: target.itemID,
                     serverID: target.serverID
                 )
@@ -681,11 +681,11 @@ final class HomeViewModel {
     }
 
     func canHideRow(_ hub: HomeRow) -> Bool {
-        plexService.canHideHomeRow(hub)
+        media.canHideHomeRow(hub)
     }
 
     /// Takes the row off the owner's Home on every server it comes from
-    /// (`PlexService+HomeRows`). Settings › Home › Hidden Rows brings it back.
+    /// (`MediaService+HomeRows`). Settings › Home › Hidden Rows brings it back.
     func hideRow(_ hub: HomeRow) async {
         let rowID = hub.id
         withAnimation(.easeInOut(duration: 0.3)) {
@@ -693,9 +693,9 @@ final class HomeViewModel {
         }
 
         var failure: (any Error)?
-        for row in await plexService.managedHomeRows(for: hub) {
+        for row in await media.managedHomeRows(for: hub) {
             do {
-                try await plexService.setManagedHub(
+                try await media.setManagedHub(
                     row.hub.withOwnHome(false),
                     sectionId: row.sectionID,
                     serverID: row.serverID
@@ -713,15 +713,15 @@ final class HomeViewModel {
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func fallbackPosterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.fallbackPosterImageURL(plexService: plexService, width: width, height: height)
+        item.fallbackPosterImageURL(media: media, width: width, height: height)
     }
 
     func landscapeImageURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.landscapeImageURL(plexService: plexService, width: width, height: height)
+        item.landscapeImageURL(media: media, width: width, height: height)
     }
 
     func progress(for item: MediaItem) -> Double? {
@@ -764,14 +764,14 @@ final class HomeViewModel {
     }
 
     func heroBackgroundURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: item.serverID, path: heroBackgroundPath(for: item)),
             size: ImageSize(width: width, height: height)
         )
     }
 
     func heroTitleLogoURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        plexService.imageURL(
+        media.imageURL(
             for: ArtworkRef(serverID: item.serverID, path: item.clearLogo),
             size: ImageSize(width: width, height: height)
         )
@@ -982,18 +982,18 @@ final class HomeViewModel {
                 continue
             }
 
-            let merged = await plexService.mergedHubItems(
+            let merged = await media.mergedHubItems(
                 for: hub,
                 size: maxRecentlyAddedItems
             )
             // The paged items have not been through `mergedScreen`'s filter.
-            let items = plexService.libraryOrder.hiddenLibraryFilter(for: .home).filtering(merged.items)
+            let items = media.libraryOrder.hiddenLibraryFilter(for: .home).filtering(merged.items)
             guard !items.isEmpty else {
                 expandedHubs.append(hub)
                 continue
             }
 
-            plexService.registerAlternates(merged.alternates)
+            media.registerAlternates(merged.alternates)
             expandedHubs.append(hub.replacingItems(items))
         }
 

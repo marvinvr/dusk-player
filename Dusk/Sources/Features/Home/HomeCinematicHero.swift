@@ -202,7 +202,7 @@ struct HomeCinematicHero: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(PlaybackCoordinator.self) private var playback
 
     let items: [MediaItem]
@@ -1606,7 +1606,7 @@ struct HomeCinematicHero: View {
         await withTaskGroup(of: HeroImageLoad.self) { group in
             for (itemID, url) in backdropRequests {
                 group.addTask {
-                    var image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
+                    var image = try? await DuskImageLoader.shared.image(for: url, using: media)
                     #if os(tvOS)
                     // Decode the full-screen backdrop here, off the main
                     // thread. Left lazy, it decodes on the first frame of
@@ -1656,7 +1656,7 @@ struct HomeCinematicHero: View {
         await withTaskGroup(of: HeroImageLoad.self) { group in
             for (itemID, url) in titleRequests {
                 group.addTask {
-                    let image = try? await DuskImageLoader.shared.image(for: url, using: plexService)
+                    let image = try? await DuskImageLoader.shared.image(for: url, using: media)
                     return HeroImageLoad(itemID: itemID, image: image)
                 }
             }

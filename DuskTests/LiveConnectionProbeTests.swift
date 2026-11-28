@@ -30,7 +30,7 @@ struct LiveConnectionProbeTests {
     @Test func selectEveryServer() async throws {
         let token = try String(contentsOfFile: try #require(Self.tokenFile), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        let service = PlexService()
+        let service = MediaService()
         service.activeAccountToken = token
         let servers = try await service.discoverServers()
         var touched: [String] = []

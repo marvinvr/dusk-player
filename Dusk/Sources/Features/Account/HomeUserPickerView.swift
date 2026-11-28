@@ -6,7 +6,7 @@ import SwiftUI
 /// receives the PIN for the switch request and persists the resulting profile
 /// token only when `rememberSelection` is enabled.
 struct HomeUserPickerView: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(DownloadManager.self) private var downloadManager
     @Environment(OfflinePlaybackSyncManager.self) private var offlinePlaybackSyncManager
 
@@ -142,7 +142,7 @@ struct HomeUserPickerView: View {
                         ForEach(users, id: \.stableProfileID) { user in
                             MacHomeUserCard(
                                 user: user,
-                                isCurrent: user.stableProfileID == plexService.activeProfileID,
+                                isCurrent: user.stableProfileID == media.activeProfileID,
                                 isSwitching: switchingProfileID == user.stableProfileID,
                                 isDisabled: switchingProfileID != nil
                             ) {
@@ -216,7 +216,7 @@ struct HomeUserPickerView: View {
                         HomeUserCard(
                             user: user,
                             avatarSize: 88,
-                            isCurrent: user.stableProfileID == plexService.activeProfileID,
+                            isCurrent: user.stableProfileID == media.activeProfileID,
                             isSwitching: switchingProfileID == user.stableProfileID,
                             isDisabled: switchingProfileID != nil
                         ) {
@@ -256,7 +256,7 @@ struct HomeUserPickerView: View {
                         HomeUserCard(
                             user: user,
                             avatarSize: 142,
-                            isCurrent: user.stableProfileID == plexService.activeProfileID,
+                            isCurrent: user.stableProfileID == media.activeProfileID,
                             isSwitching: switchingProfileID == user.stableProfileID,
                             isDisabled: switchingProfileID != nil,
                             profileFocus: $focusedProfileID
@@ -432,7 +432,7 @@ struct HomeUserPickerView: View {
             await offlinePlaybackSyncManager.prepareForProfileSwitch()
 
             do {
-                try await plexService.switchHomeUser(
+                try await media.switchHomeUser(
                     user,
                     pin: pin?.nilIfEmpty,
                     remember: rememberSelection

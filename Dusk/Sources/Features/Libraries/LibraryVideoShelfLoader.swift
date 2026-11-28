@@ -21,7 +21,7 @@ struct LibraryVideoShelfResult: Sendable {
 @MainActor
 struct LibraryVideoShelfLoader {
     let library: Library
-    let plexService: PlexService
+    let media: MediaService
     var calendar: Calendar = .autoupdatingCurrent
     var nowProvider: @Sendable () -> Date = Date.init
 
@@ -47,7 +47,7 @@ struct LibraryVideoShelfLoader {
     /// hubs already cover the same content.
     private func loadChannelShelves() async -> [LibraryVideoChannelShelf] {
         let serverID = library.serverID
-        guard let collections = try? await plexService.getLibraryCollections(
+        guard let collections = try? await media.getLibraryCollections(
             sectionId: library.key,
             serverID: serverID
         ), collections.count > 1 else {
@@ -57,7 +57,7 @@ struct LibraryVideoShelfLoader {
         let selectedCollections = Array(collections.prefix(Self.maxChannelShelves))
         let sectionId = library.key
         let itemsPerShelf = Self.itemsPerChannelShelf
-        let service = plexService
+        let service = media
 
         let loadedShelves = await withTaskGroup(
             of: (Int, LibraryVideoChannelShelf?).self
@@ -108,14 +108,14 @@ struct LibraryVideoShelfLoader {
         let seed = randomizer.dailySeed(for: "rediscover")
 
         let pageSize = Self.rediscoverCandidatePageSize
-        let totalCount = (try? await plexService.getLibraryItemCount(
+        let totalCount = (try? await media.getLibraryItemCount(
             sectionId: library.key,
             serverID: library.serverID
         )) ?? 0
         let maxOffset = max(0, totalCount - pageSize)
         let offset = maxOffset > 0 ? Int(seed % UInt64(maxOffset + 1)) : 0
 
-        let candidates = (try? await plexService.getLibraryItems(
+        let candidates = (try? await media.getLibraryItems(
             sectionId: library.key,
             start: offset,
             size: pageSize,

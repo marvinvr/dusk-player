@@ -4,7 +4,7 @@ import Foundation
 /// round-trip.
 ///
 /// This exists because the Plex account-level `experience` setting is a single
-/// JSON blob that Dusk must rewrite in full (see `PlexService+LibraryOrder`).
+/// JSON blob that Dusk must rewrite in full (see `MediaService+LibraryOrder`).
 /// Decoding it into a strict `Codable` struct would silently drop every key we
 /// do not model — `homeSettings`, `reminders`, `autoPinnedProviders`,
 /// `schemaVersion`, other Plex clients' future additions — and the next write

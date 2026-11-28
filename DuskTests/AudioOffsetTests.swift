@@ -78,7 +78,7 @@ struct AudioOffsetPolicyTests {
 @MainActor
 struct AudioOffsetCoordinatorTests {
     private func playback(engine: PlaybackEngineType, hdr: Bool, fake: AudioDelayRecordingEngine) throws -> PlaybackCoordinator {
-        let playback = PlaybackCoordinator(plexService: PlexService())
+        let playback = PlaybackCoordinator(media: MediaService())
         let video = hdr
             ? #"{"id":3,"streamType":1,"codec":"hevc","bitDepth":10,"colorTrc":"smpte2084"}"#
             : #"{"id":3,"streamType":1,"codec":"h264","bitDepth":8,"colorTrc":"bt709"}"#

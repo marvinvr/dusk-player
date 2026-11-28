@@ -19,7 +19,7 @@ struct SearchView: View {
 /// The search screen without its own `NavigationStack`, usable both as the
 /// tvOS Search tab root and as an iPhone/iPad toolbar destination.
 struct SearchRootContent: View {
-    @Environment(PlexService.self) private var plexService
+    @Environment(MediaService.self) private var media
     @Environment(SeerrService.self) private var seerrService
     @State private var viewModel: SearchViewModel?
     @State private var isSearchPresented = false
@@ -49,7 +49,7 @@ struct SearchRootContent: View {
         .onAppear {
             if viewModel == nil {
                 viewModel = SearchViewModel(
-                    plexService: plexService,
+                    media: media,
                     seerrService: seerrService
                 )
                 #if DEBUG && os(macOS)
@@ -84,7 +84,7 @@ struct SearchRootContent: View {
             }
             // A server connecting or dropping changes what "search" even means,
             // so the current query is run again against the new set.
-            .task(id: plexService.serverContentRevision) {
+            .task(id: media.serverContentRevision) {
                 guard vm.hasSearched else { return }
                 vm.searchDebounced()
             }
@@ -173,7 +173,7 @@ private extension SearchRootContent {
         _ vm: SearchViewModel,
         @ViewBuilder content: () -> Content
     ) -> some View {
-        let availability = plexService.pool.availability
+        let availability = media.pool.availability
 
         if vm.results.isEmpty, !availability.isReady {
             // Nothing can be searched yet, and the reason is the servers.
@@ -214,7 +214,7 @@ private extension SearchRootContent {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: DuskPosterMetrics.pageSectionSpacing) {
                     ServerOutageNote(
-                        offlineServerNames: plexService.pool.availability.offlineServerNames
+                        offlineServerNames: media.pool.availability.offlineServerNames
                     )
                     .padding(.horizontal, DuskPosterMetrics.carouselHorizontalPadding)
 
@@ -300,7 +300,7 @@ private extension SearchRootContent {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 28) {
                         ServerOutageNote(
-                            offlineServerNames: plexService.pool.availability.offlineServerNames
+                            offlineServerNames: media.pool.availability.offlineServerNames
                         )
                         .padding(.horizontal, DuskPosterMetrics.gridHorizontalPadding)
 

@@ -3,7 +3,7 @@ import Foundation
 @MainActor
 @Observable
 final class ActorDetailViewModel {
-    private let plexService: PlexService
+    private let media: MediaService
     /// The server the credit was read from. Person ids are per-server tag ids,
     /// so the filmography has to be fetched from the same server; nil falls
     /// back to the primary one.
@@ -14,10 +14,10 @@ final class ActorDetailViewModel {
     private(set) var isLoading = false
     private(set) var error: String?
 
-    init(person: PlexPersonReference, serverID: String? = nil, plexService: PlexService) {
+    init(person: PlexPersonReference, serverID: String? = nil, media: MediaService) {
         self.person = person
         self.serverID = serverID
-        self.plexService = plexService
+        self.media = media
     }
 
     func load() async {
@@ -27,8 +27,8 @@ final class ActorDetailViewModel {
 
         do {
             if let personID = person.personID {
-                async let personRequest = plexService.getPerson(personID: personID, serverID: serverID)
-                async let mediaRequest = plexService.getPersonMedia(personID: personID, serverID: serverID)
+                async let personRequest = media.getPerson(personID: personID, serverID: serverID)
+                async let mediaRequest = media.getPersonMedia(personID: personID, serverID: serverID)
                 let (loadedPerson, loadedMedia) = try await (personRequest, mediaRequest)
                 mergePersonDetails(loadedPerson)
                 filmography = sortFilmography(loadedMedia)
@@ -63,11 +63,11 @@ final class ActorDetailViewModel {
     }
 
     func personImageURL(size: Int) -> URL? {
-        plexService.imageURL(for: ArtworkRef(serverID: serverID, path: person.thumb), size: ImageSize(width: size, height: size))
+        media.imageURL(for: ArtworkRef(serverID: serverID, path: person.thumb), size: ImageSize(width: size, height: size))
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
-        item.posterImageURL(plexService: plexService, width: width, height: height)
+        item.posterImageURL(media: media, width: width, height: height)
     }
 
     func subtitle(for item: MediaItem) -> String? {
@@ -84,7 +84,7 @@ final class ActorDetailViewModel {
     }
 
     private func fallbackFilmography() async throws -> [MediaItem] {
-        let results = try await plexService.search(query: person.name, serverID: serverID)
+        let results = try await media.search(query: person.name, serverID: serverID)
         let supportedItems = results
             .flatMap(\.items)
             .filter { $0.type == .movie || $0.type == .show }

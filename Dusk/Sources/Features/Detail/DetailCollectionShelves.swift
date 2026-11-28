@@ -20,7 +20,7 @@ struct DetailCollectionShelf: Identifiable, Sendable {
 final class DetailCollectionShelvesModel {
     private(set) var shelves: [DetailCollectionShelf] = []
 
-    @ObservationIgnored private let plexService: PlexService
+    @ObservationIgnored private let media: MediaService
     @ObservationIgnored private var loadedContext: String?
 
     /// A title in more collections than this shows only the first few.
@@ -30,8 +30,8 @@ final class DetailCollectionShelvesModel {
     /// fall back to matching the tags by title within what was read.
     private static let collectionScanSize = 500
 
-    init(plexService: PlexService) {
-        self.plexService = plexService
+    init(media: MediaService) {
+        self.media = media
     }
 
     func load(
@@ -47,8 +47,8 @@ final class DetailCollectionShelvesModel {
         let context = "\(itemID.serverID ?? "")|\(itemID.itemID)|\(tags.map(\.tag).joined(separator: ","))"
         guard context != loadedContext else { return }
 
-        guard await plexService.collectionMode(sectionId: sectionID, serverID: serverID) != .disabled,
-              let page = try? await plexService.getCollections(
+        guard await media.collectionMode(sectionId: sectionID, serverID: serverID) != .disabled,
+              let page = try? await media.getCollections(
                   sectionId: sectionID,
                   size: Self.collectionScanSize,
                   serverID: serverID
@@ -66,7 +66,7 @@ final class DetailCollectionShelvesModel {
 
         var loaded: [DetailCollectionShelf] = []
         for collection in matched.prefix(Self.maxShelves) {
-            guard let items = try? await plexService.getCollectionItems(
+            guard let items = try? await media.getCollectionItems(
                 itemID: collection.itemID,
                 size: Self.itemsPerShelf + 1,
                 serverID: serverID
@@ -89,16 +89,16 @@ struct DetailCollectionShelves: View {
     let itemID: MediaItemID
     let sectionID: String?
     let tags: [Tag]
-    private let plexService: PlexService
+    private let media: MediaService
 
     @State private var model: DetailCollectionShelvesModel
 
-    init(itemID: MediaItemID, sectionID: String?, tags: [Tag]?, plexService: PlexService) {
+    init(itemID: MediaItemID, sectionID: String?, tags: [Tag]?, media: MediaService) {
         self.itemID = itemID
         self.sectionID = sectionID
         self.tags = tags ?? []
-        self.plexService = plexService
-        _model = State(initialValue: DetailCollectionShelvesModel(plexService: plexService))
+        self.media = media
+        _model = State(initialValue: DetailCollectionShelvesModel(media: media))
     }
 
     var body: some View {
@@ -111,7 +111,7 @@ struct DetailCollectionShelves: View {
                     showAllRoute: .media(type: .collection, id: shelf.collection.id),
                     subtitle: { $0.standardPosterSubtitle },
                     posterURL: { item, width, height in
-                        item.posterImageURL(plexService: plexService, width: width, height: height)
+                        item.posterImageURL(media: media, width: width, height: height)
                     },
                     progress: { $0.posterProgress }
                 )
