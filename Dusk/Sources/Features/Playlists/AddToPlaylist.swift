@@ -25,7 +25,7 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
             id: item.id,
             type: item.type,
             title: item.type == .season ? [item.parentTitle, item.title].compactMap { $0 }.joined(separator: " · ") : item.title,
-            episodeCount: item.leafCount
+            episodeCount: item.episodeCount
         )
     }
 
@@ -35,7 +35,7 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
             id: details.id,
             type: details.type,
             title: details.title,
-            episodeCount: details.type == .show || details.type == .season ? details.leafCount : nil
+            episodeCount: details.type == .show || details.type == .season ? details.episodeCount : nil
         )
     }
 
@@ -48,7 +48,7 @@ struct AddToPlaylistTarget: Identifiable, Sendable, Hashable {
             id: season.id,
             type: .season,
             title: [season.parentTitle, season.title].compactMap { $0 }.joined(separator: " · "),
-            episodeCount: season.leafCount
+            episodeCount: season.episodeCount
         )
     }
 
@@ -154,7 +154,7 @@ final class AddToPlaylistViewModel {
             episodeCount = try? await plexService.getMediaDetails(
                 itemID: target.id.itemID,
                 serverID: target.id.serverID
-            ).leafCount
+            ).episodeCount
         }
     }
 
@@ -242,7 +242,7 @@ struct AddToPlaylistSheet: View {
     }
 
     private func countText(_ playlist: Playlist) -> String? {
-        playlist.leafCount.map { $0 == 1 ? "1 item" : "\($0) items" }
+        playlist.episodeCount.map { $0 == 1 ? "1 item" : "\($0) items" }
     }
 
     var body: some View {

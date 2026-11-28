@@ -254,7 +254,7 @@ extension PlaybackCoordinator {
                     let outcome = await startPlaybackSession(
                         id: version.details.id,
                         startPositionOverride: startPositionOverride,
-                        resumeOffsetMilliseconds: movieResumeSource?.viewOffset ?? resumeOffsetMilliseconds,
+                        resumeOffsetMilliseconds: movieResumeSource?.resumeOffsetMs ?? resumeOffsetMilliseconds,
                         resumeOffsetDurationMilliseconds: movieResumeSource?.duration ?? resumeOffsetDurationMilliseconds,
                         carriesRequestedOffset: movieResumeSource?.id == version.details.id,
                         selectedMediaID: version.media.id,
@@ -480,7 +480,7 @@ extension PlaybackCoordinator {
                     // without it rather than lose Dolby Vision.
                     let requestedSubtitleID = StreamResolver.containsAV1(media) ? startupSubtitleID : remuxSubtitleID
                     let subtitleStreamID = requestedSubtitleID.flatMap { id -> String? in
-                        guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
+                        guard let stream = part.streams.first(where: { $0.kind == .subtitle && $0.id == id }) else {
                             return nil
                         }
                         return StreamResolver.containsAV1(media) || StreamResolver.canRideRemux(subtitle: stream) ? id : nil
@@ -632,16 +632,16 @@ extension PlaybackCoordinator {
             default:
                 break
             }
-            // Hub/list responses can carry the current Plex viewOffset even when
+            // Hub/list responses can carry the current Plex resumeOffsetMs even when
             // the item-detail response omits it. Keep that initiating offset as
             // a fallback so tapping a visible "Resume" item cannot silently
             // become playback from zero. Merged movies carry their most advanced
             // offset across matching runtimes; other sessions prefer the copy's
             // own detail offset. The explicit startPositionOverride used by
             // "Play From Start" wins below.
-            let detailViewOffset = details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
+            let detailViewOffset = details.resumeOffsetMs.flatMap { $0 > 0 ? $0 : nil }
             let initiatingViewOffset = carriedResumeOffsetMs(
-                movieResumeSource?.viewOffset ?? resumeOffsetMilliseconds,
+                movieResumeSource?.resumeOffsetMs ?? resumeOffsetMilliseconds,
                 referenceDurationMs: movieResumeSource?.duration ?? resumeOffsetDurationMilliseconds,
                 candidateDurationMs: details.duration,
                 carriesRequestedOffset: movieResumeSource.map { $0.id == details.id } ?? carriesRequestedOffset
@@ -782,7 +782,7 @@ extension PlaybackCoordinator {
                 // never has to switch (and restart the audio output) mid-start.
                 rememberedAudio.flatMap { stream -> Int? in
                     guard !PlayerViewModel.isLocallyUndecodableAudioCodec(stream.codec) else { return nil }
-                    return part.streams.filter { $0.streamType == .audio }.firstIndex { $0.id == stream.id }
+                    return part.streams.filter { $0.kind == .audio }.firstIndex { $0.id == stream.id }
                 } ?? PlayerViewModel.preferredAudioStreamPosition(
                     inPart: part,
                     preferredLanguage: preferences.defaultAudioLanguage
@@ -792,9 +792,9 @@ extension PlaybackCoordinator {
                 nil
             }
             let audioStreamSummary = part.streams
-                .filter { $0.streamType == .audio }
+                .filter { $0.kind == .audio }
                 .map { stream in
-                    "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isSelected ?? false)]"
+                    "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isServerSelected ?? false)]"
                 }
                 .joined(separator: " ")
             let preferredLanguageLabel = preferences.defaultAudioLanguage
@@ -875,7 +875,7 @@ extension PlaybackCoordinator {
         resumeOffsetDurationMilliseconds: Int?,
         carriesRequestedOffset: Bool
     ) -> Bool {
-        (details.viewOffset ?? 0) > 0 || carriedResumeOffsetMs(
+        (details.resumeOffsetMs ?? 0) > 0 || carriedResumeOffsetMs(
             resumeOffsetMilliseconds,
             referenceDurationMs: resumeOffsetDurationMilliseconds,
             candidateDurationMs: details.duration,
@@ -889,7 +889,7 @@ extension PlaybackCoordinator {
     /// server's copy is a different file — a different cut, a different edition,
     /// or a whole other title behind a weak content key — so it only inherits
     /// the position when both copies run for (very nearly) the same length.
-    /// Otherwise the fallback server's own `viewOffset` decides where to start.
+    /// Otherwise the fallback server's own `resumeOffsetMs` decides where to start.
     private func carriedResumeOffsetMs(
         _ resumeOffsetMilliseconds: Int?,
         referenceDurationMs: Int?,
@@ -1128,8 +1128,8 @@ extension PlaybackCoordinator {
             return
         }
 
-        let audioStreams = debugInfo.part.streams.filter { $0.streamType == .audio }
-        let fallbackStream = audioStreams.first { $0.isSelected ?? false }
+        let audioStreams = debugInfo.part.streams.filter { $0.kind == .audio }
+        let fallbackStream = audioStreams.first { $0.isServerSelected ?? false }
             ?? audioStreams.first { $0.isDefault ?? false }
             ?? audioStreams.first
         let streamID = track?.plexStreamID ?? fallbackStream?.id
@@ -1433,7 +1433,7 @@ extension PlaybackCoordinator {
         // Engine swaps belong to the same item. A manual pick must also be
         // the new engine's startup choice, before automatic selection runs.
         let manualAudio = part.streams.first {
-            $0.streamType == .audio && $0.id == manuallySelectedAudioStreamID
+            $0.kind == .audio && $0.id == manuallySelectedAudioStreamID
         }
         if let manualAudio, !usesServerTrackSelection {
             pendingExplicitTrackSelection = ExplicitTrackSelection(
@@ -1442,7 +1442,7 @@ extension PlaybackCoordinator {
         }
         let preferredAudioTrackPosition: Int? = switch playbackDecision {
         case .directPlay, .localDownload:
-            audioTrackPositionOverride ?? part.streams.filter { $0.streamType == .audio }
+            audioTrackPositionOverride ?? part.streams.filter { $0.kind == .audio }
                 .firstIndex { $0.id == manualAudio?.id }
                 ?? PlayerViewModel.preferredAudioStreamPosition(
                 inPart: part,
@@ -1531,7 +1531,7 @@ extension PlaybackCoordinator {
         )
         guard decision.usesEnhancedSubtitleRenderer else { return }
 
-        let audioStreams = debugInfo.part.streams.filter { $0.streamType == .audio }
+        let audioStreams = debugInfo.part.streams.filter { $0.kind == .audio }
         let audioPosition = audioStreams.firstIndex { $0.id == activeAudioStreamID }
         pendingExplicitTrackSelection = ExplicitTrackSelection(
             audioStreamID: activeAudioStreamID,
@@ -1612,7 +1612,7 @@ extension PlaybackCoordinator {
 
         let expectedPresentationID = playerPresentationID
         let previousSubtitleStreamIDs = Set(
-            debugInfo.part.streams.filter { $0.streamType == .subtitle }.map(\.id)
+            debugInfo.part.streams.filter { $0.kind == .subtitle }.map(\.id)
         )
 
         let details: MediaDetails
@@ -1665,7 +1665,7 @@ extension PlaybackCoordinator {
             sanitizedPlaybackURL: debugInfo.sanitizedPlaybackURL
         )
 
-        let subtitleStreams = part.streams.filter { $0.streamType == .subtitle }
+        let subtitleStreams = part.streams.filter { $0.kind == .subtitle }
         let addedStreamID = selectingStreamID
             ?? subtitleStreams.first(where: { $0.key != nil && !previousSubtitleStreamIDs.contains($0.id) })?.id
             ?? subtitleStreams.first(where: { !previousSubtitleStreamIDs.contains($0.id) })?.id

@@ -15,7 +15,7 @@ struct PlaybackQueueTests {
             parentIndex: type == .episode ? 1 : nil,
             grandparentTitle: type == .episode ? "Show" : nil,
             duration: 60_000,
-            viewOffset: offset,
+            resumeOffsetMs: offset,
             isWatched: watched
         )
     }

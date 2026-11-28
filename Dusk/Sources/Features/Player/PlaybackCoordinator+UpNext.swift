@@ -256,7 +256,7 @@ extension PlaybackCoordinator {
         let didStart = await runPlaybackAttempt(
             id: poster.item.id,
             startPositionOverride: nil,
-            resumeOffsetMilliseconds: poster.queueIndex == nil ? poster.item.viewOffset : poster.item.queueResumeFallbackOffset,
+            resumeOffsetMilliseconds: poster.queueIndex == nil ? poster.item.resumeOffsetMs : poster.item.queueResumeFallbackOffset,
             resumeOffsetDurationMilliseconds: poster.item.duration,
             selectedMediaID: nil,
             attemptID: attemptID
@@ -522,7 +522,7 @@ extension PlaybackCoordinator {
             } else {
                 await play(
                     id: item.id,
-                    resumeOffsetMilliseconds: item.viewOffset,
+                    resumeOffsetMilliseconds: item.resumeOffsetMs,
                     resumeOffsetDurationMilliseconds: item.duration,
                     placeholder: PlaybackPlaceholder(queueItem: item)
                 )
@@ -791,7 +791,7 @@ extension PlaybackCoordinator {
         let didStart = await runPlaybackAttempt(
             id: presentation.item.id,
             startPositionOverride: nil,
-            resumeOffsetMilliseconds: presentation.queueIndex == nil ? presentation.item.viewOffset : presentation.item.queueResumeFallbackOffset,
+            resumeOffsetMilliseconds: presentation.queueIndex == nil ? presentation.item.resumeOffsetMs : presentation.item.queueResumeFallbackOffset,
             resumeOffsetDurationMilliseconds: presentation.item.duration,
             selectedMediaID: nil,
             attemptID: attemptID

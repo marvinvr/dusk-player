@@ -545,7 +545,7 @@ Subtitle search and download (`PlexService+Subtitles.swift`):
   round-trip routinely exceeds the session's 15s request default. 30s is also the
   session's `timeoutIntervalForResource`, so it is the practical ceiling.
 - `externalSubtitleURL(for:)` builds the item's server base URL + `stream.key` +
-  `X-Plex-Token` for sidecar streams (`streamType == .subtitle` with a non-nil `key`) so the
+  `X-Plex-Token` for sidecar streams (`kind == .subtitle` with a non-nil `key`) so the
   engine can attach them via VLCKit `addPlaybackSlave`. Server token, never the
   account token; log only through `sanitizedPlaybackURLString`.
 - `canDownloadSubtitles(serverID:)` gates the affordance per server: an owned
@@ -834,14 +834,25 @@ always carries the server.
   one (`Domain/MediaIDCoding.swift`), so `downloads.json` and the
   converted-media blob are unchanged. Order ids with `mediaIDPrecedes`, never
   `<` on the strings.
+- More neutral names over unchanged Plex keys: `resumeOffsetMs` (`viewOffset`),
+  `playCount` (`viewCount`), `lastPlayedAt` (`lastViewedAt`), `episodeCount` /
+  `watchedEpisodeCount` (`leafCount` / `viewedLeafCount`), `MediaStream.kind`
+  (`streamType`, `StreamKind` keeps Plex's 1/2/3), `isServerSelected`
+  (`selected`), `colorTransfer` (`colorTrc`). The four DOVI fields are
+  `dolbyVision: DolbyVisionInfo?`, each still optional on its own.
+- External ids are read through `ExternalIDs` (`item.externalIDs`): every
+  `<namespace>://<value>` in server order; each caller keeps its own rule
+  (first, first numeric, first that looks like an imdb id).
 - `Providers/Core/ServerRegistry.swift`: which provider a `serverID` belongs
   to; a server with no record is Plex. Lookup only, nothing stored yet.
 - `Domain/ContentKey.swift` is the *cross-server* identity used for merging:
-  the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
-  the `guids` array namespaced by type, else `type|normalizedTitle|year`
+  the scalar `guid` when it starts with `plex://` (`.native`), else tmdb > imdb >
+  tvdb from the external ids namespaced by type, else `type|normalizedTitle|year`
   (seasons: show|season, episodes: show|season|episode), else `.instance(id)` —
   this one copy and nothing else. It answers "is this the same title as that one,
   on another server" — never use it as a storage key or a request parameter.
+  `contentAliases` lists every strong key a copy carries (native plus each
+  external id); nothing reads it yet, it is for providers without a native id.
   - Namespaces are **per type**, not collapsed: a show, its season and its
     episode routinely carry the same tvdb id and must never merge. Clips
     ("Other Videos", which report `type == "movie"` with `subtype == "clip"`)

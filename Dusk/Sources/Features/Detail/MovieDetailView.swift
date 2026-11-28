@@ -260,7 +260,7 @@ struct MovieDetailView: View {
             Task {
                 await playback.play(
                     id: viewModel.resumeDetails?.id ?? details.id,
-                    resumeOffsetMilliseconds: viewModel.resumeDetails?.viewOffset,
+                    resumeOffsetMilliseconds: viewModel.resumeDetails?.resumeOffsetMs,
                     resumeOffsetDurationMilliseconds: viewModel.resumeDetails?.duration,
                     placeholder: PlaybackPlaceholder(details: details),
                     queue: playThrough?.queue(startingAt: details.id)
@@ -297,7 +297,7 @@ struct MovieDetailView: View {
                         await playback.playVersion(
                             id: version.details.id,
                             mediaID: version.media.id,
-                            resumeOffsetMilliseconds: version.details.viewOffset,
+                            resumeOffsetMilliseconds: version.details.resumeOffsetMs,
                             placeholder: PlaybackPlaceholder(details: details)
                         )
                     }

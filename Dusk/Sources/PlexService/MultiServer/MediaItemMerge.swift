@@ -154,19 +154,19 @@ enum MediaItemMerge {
     }
 
     static func isMoreAdvanced(_ item: MediaItem, than other: MediaItem) -> Bool {
-        let watched = (item.viewCount ?? 0) > 0
-        let otherWatched = (other.viewCount ?? 0) > 0
+        let watched = (item.playCount ?? 0) > 0
+        let otherWatched = (other.playCount ?? 0) > 0
         if watched != otherWatched { return watched }
-        let progress = Double(item.viewOffset ?? 0) / Double(max(item.duration ?? 1, 1))
-        let otherProgress = Double(other.viewOffset ?? 0) / Double(max(other.duration ?? 1, 1))
+        let progress = Double(item.resumeOffsetMs ?? 0) / Double(max(item.duration ?? 1, 1))
+        let otherProgress = Double(other.resumeOffsetMs ?? 0) / Double(max(other.duration ?? 1, 1))
         return progress > otherProgress
     }
 
     /// Most recently played first, then furthest along.
     static func isMoreRecentlyWatched(_ item: MediaItem, than other: MediaItem) -> Bool {
-        let lastViewedAt = item.lastViewedAt ?? 0
-        let otherLastViewedAt = other.lastViewedAt ?? 0
-        if lastViewedAt != otherLastViewedAt { return lastViewedAt > otherLastViewedAt }
-        return (item.viewOffset ?? 0) > (other.viewOffset ?? 0)
+        let lastPlayedAt = item.lastPlayedAt ?? 0
+        let otherLastViewedAt = other.lastPlayedAt ?? 0
+        if lastPlayedAt != otherLastViewedAt { return lastPlayedAt > otherLastViewedAt }
+        return (item.resumeOffsetMs ?? 0) > (other.resumeOffsetMs ?? 0)
     }
 }

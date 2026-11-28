@@ -100,7 +100,7 @@ final class SeasonDetailViewModel {
         if !episodes.isEmpty {
             return episodes.allSatisfy { isWatched($0) }
         }
-        guard let viewed = details?.viewedLeafCount, let total = details?.leafCount, total > 0 else {
+        guard let viewed = details?.watchedEpisodeCount, let total = details?.episodeCount, total > 0 else {
             return false
         }
         return viewed >= total
@@ -170,7 +170,7 @@ final class SeasonDetailViewModel {
     var episodeCountText: String? {
         let count = isUsingCachedData
             ? displayEpisodes.count
-            : (details?.leafCount ?? details?.childCount ?? episodes.count)
+            : (details?.episodeCount ?? details?.childCount ?? episodes.count)
         return MediaTextFormatter.episodeCount(count)
     }
 
@@ -178,13 +178,13 @@ final class SeasonDetailViewModel {
         _ = offlineStateVersion
         let viewedCount = isUsingCachedData || offlinePlaybackSyncManager != nil
             ? episodes.filter { isWatched($0) }.count
-            : (details?.viewedLeafCount ?? episodes.filter(\.isWatched).count)
+            : (details?.watchedEpisodeCount ?? episodes.filter(\.isWatched).count)
         #if os(macOS)
         // Same rule as the show page's season cards: the unwatched count,
         // only while the season is partly watched.
         let total = isUsingCachedData
             ? displayEpisodes.count
-            : (details?.leafCount ?? details?.childCount ?? episodes.count)
+            : (details?.episodeCount ?? details?.childCount ?? episodes.count)
         let unwatched = total - viewedCount
         guard viewedCount > 0, unwatched > 0 else { return nil }
         return "\(unwatched) unwatched"
@@ -270,7 +270,7 @@ final class SeasonDetailViewModel {
     var offlineBannerText: String? {
         guard showsOfflineAvailability else { return nil }
         let downloadedCount = downloadManager?.downloadedEpisodeCount(season: id) ?? 0
-        let total = max(details?.leafCount ?? episodes.count, downloadedCount)
+        let total = max(details?.episodeCount ?? episodes.count, downloadedCount)
         let episodeLabel = total == 1 ? "episode" : "episodes"
         return "\(downloadedCount) of \(total) \(episodeLabel) downloaded and available offline."
     }
@@ -447,8 +447,8 @@ final class SeasonDetailViewModel {
         offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID(for: episode),
             itemID: episode.itemID,
-            fallback: episode.viewOffset
-        ) ?? episode.viewOffset
+            fallback: episode.resumeOffsetMs
+        ) ?? episode.resumeOffsetMs
     }
 
     /// An episode decoded from this season's server is already stamped with it;

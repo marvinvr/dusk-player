@@ -81,7 +81,7 @@ struct HEV1RoutingTests {
     @Test func remuxBlocker() throws {
         let media = try makeMedia(codecID: "hev1", subtitleCodec: "pgs")
         #expect(StreamResolver.hev1RemuxBlocker(media: media, subtitleStream: nil) == nil)
-        let pgs = media.parts[0].streams.first { $0.streamType == .subtitle }
+        let pgs = media.parts[0].streams.first { $0.kind == .subtitle }
         #expect(StreamResolver.hev1RemuxBlocker(media: media, subtitleStream: pgs)?.contains("subtitle") == true)
         #expect(StreamResolver.hev1RemuxBlocker(media: try makeMedia(codecID: "hvc1"), subtitleStream: nil) != nil)
     }

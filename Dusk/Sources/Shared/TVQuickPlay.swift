@@ -96,7 +96,7 @@ private struct TVQuickPlayModifier: ViewModifier {
             Task {
                 await playback.play(
                     id: id,
-                    resumeOffsetMilliseconds: matchingItem?.viewOffset,
+                    resumeOffsetMilliseconds: matchingItem?.resumeOffsetMs,
                     resumeOffsetDurationMilliseconds: matchingItem?.duration,
                     placeholder: matchingItem.map(PlaybackPlaceholder.init(item:)),
                     queue: list?.queue(startingAt: id)
@@ -117,7 +117,7 @@ private struct TVQuickPlayModifier: ViewModifier {
                 // As the series page's episode Play button does.
                 await playback.play(
                     id: episode.id,
-                    resumeOffsetMilliseconds: episode.viewOffset,
+                    resumeOffsetMilliseconds: episode.resumeOffsetMs,
                     resumeOffsetDurationMilliseconds: episode.duration,
                     placeholder: PlaybackPlaceholder(episode: episode)
                 )

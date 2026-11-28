@@ -425,7 +425,7 @@ struct PersistedGoldenStringTests {
 
     @Test func siriEntityIDForm() {
         let entry = SiriCatalogEntry(
-            id: MediaItemID(serverID: "srv-a", itemID: "1001"), kind: .movie, title: "Arrival", year: 2016, lastViewedAt: nil
+            id: MediaItemID(serverID: "srv-a", itemID: "1001"), kind: .movie, title: "Arrival", year: 2016, lastPlayedAt: nil
         )
         let entity = PlexTitleEntity(entry)
         #expect(entity.id == "srv-a|1001")

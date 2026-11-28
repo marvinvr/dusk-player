@@ -61,7 +61,7 @@ struct PlaylistActions {
     /// `12 items · 18 h 20 min`, then `7 watched` and `Smart` where they apply.
     static func metadataLine(for playlist: Playlist, entries: [PlaylistEntry]?, serverName: String?) -> String? {
         var parts: [String] = []
-        let count = entries?.count ?? playlist.leafCount
+        let count = entries?.count ?? playlist.episodeCount
         if let count {
             parts.append(count == 1 ? "1 item" : "\(count) items")
         }

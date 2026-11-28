@@ -30,11 +30,11 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
         descriptive = PlayerViewModel.containsDescriptiveAudioMarker(title)
         codec = stream.codec?.lowercased()
         channels = stream.channels
-        external = stream.streamType == .subtitle ? isExternal : nil
+        external = stream.kind == .subtitle ? isExternal : nil
     }
 
     @MainActor
-    func match(in streams: [MediaStream], type: PlexStreamType) -> MediaStream? {
+    func match(in streams: [MediaStream], type: StreamKind) -> MediaStream? {
         // Language and purpose are requirements. Codec/channels only break ties;
         // never substitute forced subtitles or commentary for a normal track.
         //
@@ -45,7 +45,7 @@ struct ShowTrackDescriptor: Codable, Equatable, Sendable {
         // (same SDH flag first).
         let relaxesHearingImpaired = type == .subtitle && external == true
         let candidates = streams.filter { stream in
-            guard stream.streamType == type, let candidate = Self(stream: stream) else { return false }
+            guard stream.kind == type, let candidate = Self(stream: stream) else { return false }
             return language == candidate.language && forced == candidate.forced
                 && (relaxesHearingImpaired || hearingImpaired == candidate.hearingImpaired)
                 && commentary == candidate.commentary && descriptive == candidate.descriptive
@@ -82,9 +82,9 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     @MainActor
     static func hasHDRVideo(in part: MediaPart) -> Bool {
         part.streams.contains {
-            $0.streamType == .video && ($0.isHDRVideo || StreamResolver.hdrTransfer(of: $0) != nil ||
-                $0.doviPresent == true || $0.doviProfile != nil ||
-                $0.doviBLCompatID != nil || $0.doviLevel != nil)
+            $0.kind == .video && ($0.isHDRVideo || StreamResolver.hdrTransfer(of: $0) != nil ||
+                $0.dolbyVision?.present == true || $0.dolbyVision?.profile != nil ||
+                $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil)
         }
     }
 
@@ -97,7 +97,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     @MainActor
     static func remuxSubtitleStreamID(_ streamID: String?, in part: MediaPart) -> String? {
         guard hasHDRVideo(in: part), let streamID,
-              let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == streamID }),
+              let stream = part.streams.first(where: { $0.kind == .subtitle && $0.id == streamID }),
               !StreamResolver.canRideRemux(subtitle: stream) else { return streamID }
         return textSubtitleFallback(for: stream, in: part)?.id
     }
@@ -110,7 +110,7 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
     static func textSubtitleFallback(for stream: MediaStream, in part: MediaPart) -> MediaStream? {
         guard let wanted = ShowTrackDescriptor(stream: stream) else { return nil }
         let candidates = part.streams.compactMap { candidate -> (stream: MediaStream, descriptor: ShowTrackDescriptor)? in
-            guard candidate.streamType == .subtitle, candidate.id != stream.id,
+            guard candidate.kind == .subtitle, candidate.id != stream.id,
                   StreamResolver.canRideRemux(subtitle: candidate),
                   let descriptor = ShowTrackDescriptor(stream: candidate),
                   descriptor.language == wanted.language,

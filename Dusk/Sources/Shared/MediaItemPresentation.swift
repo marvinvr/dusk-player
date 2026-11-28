@@ -19,7 +19,7 @@ enum SeriesBackdropArtwork {
 
 extension MediaItem {
     var posterProgress: Double? {
-        MediaTextFormatter.progress(durationMs: duration, offsetMs: viewOffset)
+        MediaTextFormatter.progress(durationMs: duration, offsetMs: resumeOffsetMs)
     }
 
     /// The quiet checkmark under a poster card: a played movie, episode or

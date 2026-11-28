@@ -918,7 +918,7 @@ struct DetailMacMediaSection: View {
         let streams = part?.streams ?? []
         var cells: [Cell] = []
 
-        let video = streams.first { $0.streamType == .video }
+        let video = streams.first { $0.kind == .video }
         let videoLines = [
             resolutionLine(media: media, stream: video),
             [media.videoCodec.map(videoCodec), video?.frameRate.map(frameRate)]
@@ -927,7 +927,7 @@ struct DetailMacMediaSection: View {
         ].compactMap { $0 }.filter { !$0.isEmpty }
         if !videoLines.isEmpty { cells.append(Cell(label: "Video", lines: videoLines)) }
 
-        let audio = streams.filter { $0.streamType == .audio }.map(trackTitle)
+        let audio = streams.filter { $0.kind == .audio }.map(trackTitle)
         let audioLines = audio.isEmpty
             ? [[media.audioCodec.map(audioCodec), media.audioChannels.map(channels)].compactMap { $0 }.joined(separator: " ")]
             : audio
@@ -935,7 +935,7 @@ struct DetailMacMediaSection: View {
             cells.append(Cell(label: "Audio", lines: lines))
         }
 
-        if let lines = capped(streams.filter { $0.streamType == .subtitle }.map(trackTitle)) {
+        if let lines = capped(streams.filter { $0.kind == .subtitle }.map(trackTitle)) {
             cells.append(Cell(label: "Subtitles", lines: lines))
         }
 
@@ -979,8 +979,8 @@ struct DetailMacMediaSection: View {
     }
 
     private static func dynamicRange(_ stream: MediaStream) -> String? {
-        if stream.doviPresent == true { return "Dolby Vision" }
-        switch stream.colorTrc?.lowercased() {
+        if stream.dolbyVision?.present == true { return "Dolby Vision" }
+        switch stream.colorTransfer?.lowercased() {
         case "smpte2084": return "HDR10"
         case "arib-std-b67": return "HLG"
         default: return nil

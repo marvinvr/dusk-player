@@ -40,6 +40,6 @@ struct PlexMediaPartDecodingTests {
         let part = try JSONDecoder().decode(MediaPart.self, from: Data(json.utf8))
 
         #expect(part.streams.map(\.id) == ["175569", "175568", "175571"])
-        #expect(part.streams.map(\.streamType) == [.video, .audio, .subtitle])
+        #expect(part.streams.map(\.kind) == [.video, .audio, .subtitle])
     }
 }

@@ -85,14 +85,14 @@ extension PlayerViewModel {
     func syncTrackLists() {
         if usesServerTrackSelection {
             audioTracks = sourcePart?.streams
-                .filter { $0.streamType == .audio }
+                .filter { $0.kind == .audio }
                 .map(AudioTrack.init(stream:)) ?? []
             subtitleTracks = sourcePart?.streams
-                .filter { $0.streamType == .subtitle }
+                .filter { $0.kind == .subtitle }
                 .map(SubtitleTrack.init(stream:)) ?? []
             selectedAudioTrackID = serverSelectedAudioStreamID.flatMap { Int($0) }
                 ?? audioTracks.first(where: { track in
-                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isSelected ?? false
+                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isServerSelected ?? false
                 })?.id
                 ?? audioTracks.first?.id
             selectedSubtitleTrackID = serverSelectedSubtitleStreamID.flatMap { Int($0) }
@@ -258,7 +258,7 @@ extension PlayerViewModel {
             return
         }
         externalSubtitleStreams = (sourcePart?.streams ?? [])
-            .filter { $0.streamType == .subtitle && $0.key != nil }
+            .filter { $0.kind == .subtitle && $0.key != nil }
             .compactMap { stream in
                 guard var url = externalSubtitleURLProvider(stream) else { return nil }
                 if !url.isFileURL, let revision = externalSubtitleURLRevisions[stream.id] {
@@ -355,8 +355,8 @@ extension PlayerViewModel {
     /// first track. Automatic re-ranking without a configured language stays
     /// inside this group, so it may swap codecs but never the spoken language.
     func defaultAudioAnchorLanguageCode() -> String? {
-        let audioStreams = sourcePart?.streams.filter { $0.streamType == .audio } ?? []
-        if let anchor = audioStreams.first(where: { $0.isSelected ?? false })
+        let audioStreams = sourcePart?.streams.filter { $0.kind == .audio } ?? []
+        if let anchor = audioStreams.first(where: { $0.isServerSelected ?? false })
             ?? audioStreams.first(where: { $0.isDefault ?? false })
             ?? audioStreams.first {
             return Self.normalizedLanguageCode(anchor.languageCode ?? anchor.languageTag)
@@ -405,7 +405,7 @@ extension PlayerViewModel {
         }
 
         if let sourceStream = sourcePart?.streams.first(where: {
-            $0.streamType == .audio && ($0.isSelected ?? false)
+            $0.kind == .audio && ($0.isServerSelected ?? false)
         }), let matchedTrack = bestMatchingAudioTrack(for: sourceStream) {
             return matchedTrack.id
         }
@@ -449,7 +449,7 @@ extension PlayerViewModel {
     }
 
     func mergeAudioMetadata(into engineTracks: [AudioTrack]) -> [AudioTrack] {
-        let sourceStreams = sourcePart?.streams.filter { $0.streamType == .audio } ?? []
+        let sourceStreams = sourcePart?.streams.filter { $0.kind == .audio } ?? []
         guard !sourceStreams.isEmpty else { return engineTracks }
 
         var remaining = Array(sourceStreams.enumerated())
@@ -497,7 +497,7 @@ extension PlayerViewModel {
     /// picking one restarts the session on VLCKit.
     func mergeSubtitleMetadata(into engineTracks: [SubtitleTrack]) -> [SubtitleTrack] {
         let embeddedStreams = sourcePart?.streams.filter {
-            $0.streamType == .subtitle && $0.key == nil
+            $0.kind == .subtitle && $0.key == nil
         } ?? []
 
         var remaining = Array(embeddedStreams.enumerated())
@@ -698,13 +698,13 @@ extension PlayerViewModel {
 
     func audioSelectionScore(for track: AudioTrack, originalIndex: Int) -> Int {
         let isPlexSelected = sourcePart?.streams.contains(where: {
-            $0.streamType == .audio &&
-                ($0.isSelected ?? false) &&
+            $0.kind == .audio &&
+                ($0.isServerSelected ?? false) &&
                 scoreAudioMatch(track: track, stream: $0) >= 5
         }) == true
 
         let isPlexDefault = sourcePart?.streams.contains(where: {
-            $0.streamType == .audio &&
+            $0.kind == .audio &&
                 ($0.isDefault ?? false) &&
                 scoreAudioMatch(track: track, stream: $0) >= 5
         }) == true
@@ -779,7 +779,7 @@ extension PlayerViewModel {
         decodesTrueHD: Bool = VLCKitBuildInfo.decodesTrueHD
     ) -> Int? {
         guard let part else { return nil }
-        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        let audioStreams = part.streams.filter { $0.kind == .audio }
         guard audioStreams.count > 1 else { return nil }
 
         let preferredLanguage = normalizedLanguageCode(rawPreferredLanguage)
@@ -787,7 +787,7 @@ extension PlayerViewModel {
         if let preferredLanguage {
             scopeLanguage = preferredLanguage
         } else {
-            let anchor = audioStreams.first(where: { $0.isSelected ?? false })
+            let anchor = audioStreams.first(where: { $0.isServerSelected ?? false })
                 ?? audioStreams.first(where: { $0.isDefault ?? false })
                 ?? audioStreams.first
             scopeLanguage = normalizedLanguageCode(anchor?.languageCode ?? anchor?.languageTag)
@@ -810,13 +810,13 @@ extension PlayerViewModel {
                 let lhsScore = audioSelectionScore(
                     for: AudioTrack(stream: lhs.element),
                     originalIndex: lhs.offset,
-                    isPlexSelected: lhs.element.isSelected ?? false,
+                    isPlexSelected: lhs.element.isServerSelected ?? false,
                     isPlexDefault: lhs.element.isDefault ?? false
                 )
                 let rhsScore = audioSelectionScore(
                     for: AudioTrack(stream: rhs.element),
                     originalIndex: rhs.offset,
-                    isPlexSelected: rhs.element.isSelected ?? false,
+                    isPlexSelected: rhs.element.isServerSelected ?? false,
                     isPlexDefault: rhs.element.isDefault ?? false
                 )
 
@@ -838,7 +838,7 @@ extension PlayerViewModel {
         decodesTrueHD: Bool = VLCKitBuildInfo.decodesTrueHD
     ) -> MediaStream? {
         guard let part else { return nil }
-        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        let audioStreams = part.streams.filter { $0.kind == .audio }
         if let position = preferredAudioStreamPosition(
             inPart: part,
             preferredLanguage: preferredLanguage,
@@ -846,7 +846,7 @@ extension PlayerViewModel {
         ), audioStreams.indices.contains(position) {
             return audioStreams[position]
         }
-        return audioStreams.first(where: { $0.isSelected ?? false })
+        return audioStreams.first(where: { $0.isServerSelected ?? false })
             ?? audioStreams.first(where: { $0.isDefault ?? false })
             ?? audioStreams.first
     }
@@ -875,7 +875,7 @@ extension PlayerViewModel {
         preferredLanguage: String?
     ) -> String? {
         guard let part else { return nil }
-        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        let audioStreams = part.streams.filter { $0.kind == .audio }
         if let position = preferredAudioStreamPosition(
             inPart: part,
             preferredLanguage: preferredLanguage,
@@ -883,7 +883,7 @@ extension PlayerViewModel {
         ), audioStreams.indices.contains(position) {
             return audioStreams[position].id
         }
-        return audioStreams.first(where: { $0.isSelected ?? false })?.id
+        return audioStreams.first(where: { $0.isServerSelected ?? false })?.id
             ?? audioStreams.first(where: { $0.isDefault ?? false })?.id
             ?? audioStreams.first?.id
     }
@@ -899,7 +899,7 @@ extension PlayerViewModel {
         preferredLanguage: String?
     ) -> Int? {
         guard let part else { return nil }
-        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        let audioStreams = part.streams.filter { $0.kind == .audio }
         guard !audioStreams.isEmpty else { return nil }
 
         // Same pick VLCKit is preselected onto, so the route opens for the
@@ -930,7 +930,7 @@ extension PlayerViewModel {
     ) -> String? {
         guard let part else { return nil }
         let tracks = part.streams
-            .filter { $0.streamType == .subtitle }
+            .filter { $0.kind == .subtitle }
             .map(SubtitleTrack.init(stream:))
         let startupAudio = audioStream
             ?? preferredLocalAudioStream(inPart: part, preferredLanguage: policy.audioLanguage)
@@ -944,8 +944,8 @@ extension PlayerViewModel {
     /// The stream of `type` the server marks `selected` for this part: a
     /// choice saved by any Plex client (or a bulk tool such as PASTA), else
     /// Plex's own pick from the account language settings.
-    static func serverSelectedStreamID(of type: PlexStreamType, inPart part: MediaPart?) -> String? {
-        part?.streams.first { $0.streamType == type && ($0.isSelected ?? false) }?.id
+    static func serverSelectedStreamID(of type: StreamKind, inPart part: MediaPart?) -> String? {
+        part?.streams.first { $0.kind == type && ($0.isServerSelected ?? false) }?.id
     }
 
     func scoreSubtitleMatch(track: SubtitleTrack, stream: MediaStream) -> Int {

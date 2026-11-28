@@ -90,7 +90,7 @@ struct HDRVideoRemuxRoutingTests {
         return StreamResolver.hdrVideoRemuxBlocker(
             media: media,
             decision: StreamResolver.evaluate(media: media),
-            audioStream: streams.first { $0.streamType == .audio },
+            audioStream: streams.first { $0.kind == .audio },
             subtitleStream: subtitleID.flatMap { id in streams.first { $0.id == id } },
             displaySupportsHDR: displaySupportsHDR
         )
@@ -217,7 +217,7 @@ struct HDRPictureFirstRoutingTests {
         hdrVideoRemuxEnabled: Bool = true
     ) -> Route {
         let streams = media.parts[0].streams
-        let audio = streams.first { $0.streamType == .audio }
+        let audio = streams.first { $0.kind == .audio }
         let subtitle = subtitleID.flatMap { id in streams.first { $0.id == id } }
         let decision = StreamResolver.evaluate(media: media)
         if StreamResolver.isDolbyVisionProfile5(media) {

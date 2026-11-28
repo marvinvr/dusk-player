@@ -294,11 +294,11 @@ struct RealLegacyContainerTests {
         #expect(catalog.entries.filter { $0.kind == .movie }.count == 96)
         #expect(catalog.entries.first == SiriCatalogEntry(
             id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", itemID: "1281"),
-            kind: .show, title: "River Golden 80", year: 2010, lastViewedAt: 1_795_809_247
+            kind: .show, title: "River Golden 80", year: 2010, lastPlayedAt: 1_795_809_247
         ))
         #expect(catalog.entries.last == SiriCatalogEntry(
             id: MediaItemID(serverID: "bigplexserver000000000000000000000000001", itemID: "1298"),
-            kind: .show, title: "Secret Northern 0", year: 1998, lastViewedAt: nil
+            kind: .show, title: "Secret Northern 0", year: 1998, lastPlayedAt: nil
         ))
         #expect(catalog.entries.allSatisfy { $0.id.serverID == "bigplexserver000000000000000000000000001" })
         #expect(PlexTitleEntity(catalog.entries[0]).id == "bigplexserver000000000000000000000000001|1281")

@@ -111,7 +111,7 @@ extension PlaybackCoordinator {
     /// `TraktService` only queues, so playback never waits on or sees Trakt.
     func reportFinishedToTrakt() {
         guard let traktService, let details = activeItemDetails, details.itemID == itemID else { return }
-        traktService.recordFinished(type: details.type, guid: details.guid, guids: details.guids)
+        traktService.recordFinished(type: details.type, guid: details.guid, externalIDs: details.externalIDs)
     }
 
     func reportTimelineOrQueueOfflineSync(

@@ -928,12 +928,16 @@ private struct PlexTranscodeDecisionResponse: Decodable {
     }
 
     struct PlannedStream: Decodable {
-        let streamType: Int?
+        let kind: Int?
         let codec: String?
         let decision: String?
         let location: String?
         let channels: Int?
         let profile: String?
+
+        enum CodingKeys: String, CodingKey {
+            case kind = "streamType", codec, decision, location, channels, profile
+        }
     }
 
     struct Container: Decodable {
@@ -985,9 +989,9 @@ private struct PlexTranscodeDecisionResponse: Decodable {
         let media = MediaContainer.metadata?.first?.Media?.first
         let part = media?.Part?.first
         let streams = part?.Stream ?? []
-        let video = streams.first { $0.streamType == 1 }
-        let audio = streams.first { $0.streamType == 2 }
-        let subtitle = streams.first { $0.streamType == 3 }
+        let video = streams.first { $0.kind == 1 }
+        let audio = streams.first { $0.kind == 2 }
+        let subtitle = streams.first { $0.kind == 3 }
         return PlexService.TranscodeStreamDecisions(
             container: part?.container ?? media?.container,
             videoDecision: video?.decision,

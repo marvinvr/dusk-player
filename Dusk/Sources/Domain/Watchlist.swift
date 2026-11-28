@@ -96,7 +96,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
     }
 
     var tmdbID: Int? {
-        guids.lazy.compactMap { $0.value(for: "tmdb").flatMap(Int.init) }.first
+        externalIDs.values(for: "tmdb").lazy.compactMap(Int.init).first
     }
 
     func posterURL(width: Int) -> URL? {

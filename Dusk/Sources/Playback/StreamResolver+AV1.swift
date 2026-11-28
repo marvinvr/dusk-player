@@ -42,7 +42,7 @@ struct AV1PlaybackCapabilities: Sendable {
 extension StreamResolver {
     static func containsAV1(_ media: MediaVersion) -> Bool {
         isAV1Codec(media.videoCodec) || media.parts.flatMap(\.streams).contains {
-            $0.streamType == .video && isAV1Codec($0.codec)
+            $0.kind == .video && isAV1Codec($0.codec)
         }
     }
 
@@ -52,20 +52,20 @@ extension StreamResolver {
 
     static func av1Decision(for media: MediaVersion, capabilities: AV1PlaybackCapabilities) -> Decision? {
         guard containsAV1(media) else { return nil }
-        let videos = media.parts.flatMap(\.streams).filter { $0.streamType == .video }
+        let videos = media.parts.flatMap(\.streams).filter { $0.kind == .video }
         let hasHDR = videos.contains {
-            let tags = [$0.colorSpace, $0.colorPrimaries, $0.colorTrc, $0.profile].compactMap { $0?.lowercased() }
+            let tags = [$0.colorSpace, $0.colorPrimaries, $0.colorTransfer, $0.profile].compactMap { $0?.lowercased() }
             let hdrTags = tags.contains { tag in
                 ["2020", "pq", "hlg", "hdr", "dovi", "dolby"].contains { tag.contains($0) }
             }
             let knownSDR = ["bt709", "smpte170m", "smpte240m", "gamma22", "gamma28", "iec61966-2-1"]
-                .contains($0.colorTrc?.lowercased() ?? "")
-            return hdrTags || hdrTransfer(of: $0) != nil || $0.doviPresent == true ||
-                $0.doviProfile != nil || $0.doviBLCompatID != nil || $0.doviLevel != nil ||
+                .contains($0.colorTransfer?.lowercased() ?? "")
+            return hdrTags || hdrTransfer(of: $0) != nil || $0.dolbyVision?.present == true ||
+                $0.dolbyVision?.profile != nil || $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil ||
                 (($0.bitDepth ?? 8) > 8 && !knownSDR)
         }
         let supportedProfile = videos.allSatisfy {
-            ($0.bitDepth ?? 8) <= 10 && $0.doviPresent != true && $0.doviProfile == nil && $0.doviBLCompatID == nil && $0.doviLevel == nil &&
+            ($0.bitDepth ?? 8) <= 10 && $0.dolbyVision?.present != true && $0.dolbyVision?.profile == nil && $0.dolbyVision?.blCompatID == nil && $0.dolbyVision?.level == nil &&
                 ($0.chromaSubsampling == nil || ["4:2:0", "420"].contains($0.chromaSubsampling!))
         }
         if capabilities.hardwareDecode && supportedProfile {
@@ -96,10 +96,10 @@ extension StreamResolver {
 
     private static func localAV1ContainerDecision(_ media: MediaVersion) -> Bool {
         guard ["mp4", "mov", "m4v"].contains(media.container?.lowercased() ?? "") else { return false }
-        let audio = media.parts.flatMap(\.streams).filter { $0.streamType == .audio }
+        let audio = media.parts.flatMap(\.streams).filter { $0.kind == .audio }
         let audioCodecs = audio.isEmpty ? [media.audioCodec].compactMap { $0 } : audio.map { $0.codec ?? media.audioCodec ?? "" }
         return audioCodecs.allSatisfy { ["aac", "ac3", "eac3", "alac", "mp3", "flac"].contains($0.lowercased()) } &&
-            media.parts.flatMap(\.streams).filter { $0.streamType == .subtitle }.allSatisfy {
+            media.parts.flatMap(\.streams).filter { $0.kind == .subtitle }.allSatisfy {
                 ["tx3g", "mov_text"].contains($0.codec?.lowercased() ?? "")
             }
     }
@@ -110,9 +110,9 @@ extension StreamResolver {
 
     static func canRemuxAV1(_ media: MediaVersion, capabilities: AV1PlaybackCapabilities = .current) -> Bool {
         containsAV1(media) && capabilities.hardwareDecode &&
-            media.parts.flatMap(\.streams).filter { $0.streamType == .video }.allSatisfy {
+            media.parts.flatMap(\.streams).filter { $0.kind == .video }.allSatisfy {
                 isAV1Codec($0.codec ?? media.videoCodec) && ($0.bitDepth ?? 8) <= 10 &&
-                    $0.doviPresent != true && $0.doviProfile == nil && $0.doviBLCompatID == nil && $0.doviLevel == nil &&
+                    $0.dolbyVision?.present != true && $0.dolbyVision?.profile == nil && $0.dolbyVision?.blCompatID == nil && $0.dolbyVision?.level == nil &&
                     ($0.chromaSubsampling == nil || ["4:2:0", "420"].contains($0.chromaSubsampling!))
             }
     }

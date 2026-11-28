@@ -373,16 +373,16 @@ struct PlaybackDebugInfo: Sendable {
     }
 
     private var selectedVideoStream: MediaStream? {
-        part.streams.first { $0.streamType == .video }
+        part.streams.first { $0.kind == .video }
     }
 
     private var selectedAudioStream: MediaStream? {
-        part.streams.first { $0.streamType == .audio && ($0.isSelected ?? false) }
-            ?? part.streams.first { $0.streamType == .audio }
+        part.streams.first { $0.kind == .audio && ($0.isServerSelected ?? false) }
+            ?? part.streams.first { $0.kind == .audio }
     }
 
     private var selectedSubtitleStream: MediaStream? {
-        part.streams.first { $0.streamType == .subtitle && ($0.isSelected ?? false) }
+        part.streams.first { $0.kind == .subtitle && ($0.isServerSelected ?? false) }
     }
 
     private static func formatBitrateKbps(_ value: Int) -> String {
@@ -556,7 +556,7 @@ enum PlaybackQualityPreset: String, CaseIterable, Identifiable, Sendable {
     ]
 
     static func displayOrder(forOriginalMedia media: MediaVersion) -> [PlaybackQualityPreset] {
-        let videoStreams = media.parts.flatMap { $0.streams }.filter { $0.streamType == .video }
+        let videoStreams = media.parts.flatMap { $0.streams }.filter { $0.kind == .video }
         let originalHeight = media.height
             ?? videoStreams.compactMap(\.height).first
             ?? height(fromVideoResolution: media.videoResolution)

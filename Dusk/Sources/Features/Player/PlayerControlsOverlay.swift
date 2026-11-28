@@ -120,7 +120,7 @@ struct PlayerControlsOverlay: View {
     private var blursSummary: Bool {
         guard !viewModel.isLiveTV, let mediaDetails else { return false }
         return UserPreferences.blursSummary(
-            isUnwatchedEpisode: mediaDetails.type == .episode && (mediaDetails.viewCount ?? 0) == 0,
+            isUnwatchedEpisode: mediaDetails.type == .episode && (mediaDetails.playCount ?? 0) == 0,
             hidesSpoilers: preferences.blursUnwatchedEpisodes
         )
     }

@@ -39,9 +39,9 @@ struct Episode: Codable, Sendable, Identifiable {
 
     // Playback / watch state
     let duration: Int?
-    let viewCount: Int?
-    let viewOffset: Int?
-    let lastViewedAt: Int?
+    let playCount: Int?
+    let resumeOffsetMs: Int?
+    let lastPlayedAt: Int?
 
     // Timestamps
     let addedAt: Int?
@@ -54,7 +54,7 @@ struct Episode: Codable, Sendable, Identifiable {
         case grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
         case summary, contentRating, originallyAvailableAt, year
         case thumb, art
-        case duration, viewCount, viewOffset, lastViewedAt
+        case duration, playCount = "viewCount", resumeOffsetMs = "viewOffset", lastPlayedAt = "lastViewedAt"
         case addedAt, updatedAt
     }
 
@@ -78,9 +78,9 @@ struct Episode: Codable, Sendable, Identifiable {
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
-        viewOffset = try container.decodeIfPresent(Int.self, forKey: .viewOffset)
-        lastViewedAt = try container.decodeIfPresent(Int.self, forKey: .lastViewedAt)
+        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
+        resumeOffsetMs = try container.decodeIfPresent(Int.self, forKey: .resumeOffsetMs)
+        lastPlayedAt = try container.decodeIfPresent(Int.self, forKey: .lastPlayedAt)
         addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
         updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
     }
@@ -88,12 +88,12 @@ struct Episode: Codable, Sendable, Identifiable {
 
 extension Episode {
     var isWatched: Bool {
-        guard let count = viewCount else { return false }
+        guard let count = playCount else { return false }
         return count > 0
     }
 
     var isPartiallyWatched: Bool {
-        guard let offset = viewOffset, offset > 0 else { return false }
+        guard let offset = resumeOffsetMs, offset > 0 else { return false }
         return true
     }
 

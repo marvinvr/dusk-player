@@ -822,7 +822,7 @@ final class HomeViewModel {
     func heroProgressLabel(for item: MediaItem) -> String? {
         guard let duration = item.duration, duration > 0 else { return nil }
 
-        if let offset = item.viewOffset, offset > 0 {
+        if let offset = item.resumeOffsetMs, offset > 0 {
             let resume = MediaTextFormatter.playbackDuration(milliseconds: offset)
             let remaining = MediaTextFormatter.playbackDuration(
                 milliseconds: max(duration - offset, 0)
@@ -842,7 +842,7 @@ final class HomeViewModel {
     }
 
     func heroPrimaryActionTitle(for item: MediaItem) -> String {
-        if let offset = item.viewOffset,
+        if let offset = item.resumeOffsetMs,
            offset > 0,
            let resumeText = MediaTextFormatter.playbackDuration(milliseconds: offset) {
             return "Resume from \(resumeText)"
@@ -1056,7 +1056,7 @@ final class HomeViewModel {
     private func heroDurationText(for item: MediaItem) -> String? {
         guard let duration = item.duration, duration > 0 else { return nil }
 
-        if let offset = item.viewOffset, offset > 0 {
+        if let offset = item.resumeOffsetMs, offset > 0 {
             let remaining = max(duration - offset, 0)
             guard let remainingText = MediaTextFormatter.playbackDuration(milliseconds: remaining) else {
                 return nil

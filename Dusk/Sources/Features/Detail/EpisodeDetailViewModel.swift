@@ -186,8 +186,8 @@ final class EpisodeDetailViewModel {
     }
 
     private func isWatched(_ details: MediaDetails) -> Bool {
-        guard let viewCount = details.viewCount else { return false }
-        return viewCount > 0
+        guard let playCount = details.playCount else { return false }
+        return playCount > 0
     }
 
     /// The route's server wins; the download record and the primary server are

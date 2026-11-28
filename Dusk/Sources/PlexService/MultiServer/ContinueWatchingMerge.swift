@@ -47,8 +47,8 @@ enum ContinueWatchingMerge {
             .compactMap { representatives[$0] }
             .enumerated()
             .sorted { lhs, rhs in
-                let left = lhs.element.item.lastViewedAt ?? 0
-                let right = rhs.element.item.lastViewedAt ?? 0
+                let left = lhs.element.item.lastPlayedAt ?? 0
+                let right = rhs.element.item.lastPlayedAt ?? 0
                 if left != right { return left > right }
                 return lhs.offset < rhs.offset
             }
@@ -67,12 +67,12 @@ enum ContinueWatchingMerge {
             if !item.movieContentKeys.isEmpty, !other.item.movieContentKeys.isEmpty {
                 return MediaItemMerge.isMoreAdvanced(item, than: other.item)
             }
-            let lastViewedAt = item.lastViewedAt ?? 0
-            let otherLastViewedAt = other.item.lastViewedAt ?? 0
-            if lastViewedAt != otherLastViewedAt { return lastViewedAt > otherLastViewedAt }
+            let lastPlayedAt = item.lastPlayedAt ?? 0
+            let otherLastViewedAt = other.item.lastPlayedAt ?? 0
+            if lastPlayedAt != otherLastViewedAt { return lastPlayedAt > otherLastViewedAt }
 
-            let offset = item.viewOffset ?? 0
-            let otherOffset = other.item.viewOffset ?? 0
+            let offset = item.resumeOffsetMs ?? 0
+            let otherOffset = other.item.resumeOffsetMs ?? 0
             if offset != otherOffset { return offset > otherOffset }
 
             return rank < other.rank

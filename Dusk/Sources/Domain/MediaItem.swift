@@ -41,9 +41,9 @@ struct MediaItem: Decodable, Sendable, Identifiable {
 
     // Playback / watch state
     let duration: Int?
-    let viewCount: Int?
-    let viewOffset: Int?
-    let lastViewedAt: Int?
+    let playCount: Int?
+    let resumeOffsetMs: Int?
+    let lastPlayedAt: Int?
 
     // Timestamps
     let addedAt: Int?
@@ -61,8 +61,8 @@ struct MediaItem: Decodable, Sendable, Identifiable {
     let grandparentArt: String?
 
     // Counts (for shows/seasons)
-    let leafCount: Int?
-    let viewedLeafCount: Int?
+    let episodeCount: Int?
+    let watchedEpisodeCount: Int?
     let childCount: Int?
 
     /// Collections only: whether Plex fills it from a saved filter instead of
@@ -84,12 +84,12 @@ struct MediaItem: Decodable, Sendable, Identifiable {
         case summary, studio, contentRating, year, originallyAvailableAt
         case thumb, art, banner, clearLogo
         case rating, audienceRating
-        case duration, viewCount, viewOffset, lastViewedAt
+        case duration, playCount = "viewCount", resumeOffsetMs = "viewOffset", lastPlayedAt = "lastViewedAt"
         case addedAt, updatedAt
         case index, parentIndex
         case parentID = "parentRatingKey", parentTitle, parentThumb
         case grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb, grandparentArt
-        case leafCount, viewedLeafCount, childCount, smart
+        case episodeCount = "leafCount", watchedEpisodeCount = "viewedLeafCount", childCount, smart
         case genres = "Genre"
         case directors = "Director"
         case writers = "Writer"
@@ -129,9 +129,9 @@ struct MediaItem: Decodable, Sendable, Identifiable {
         audienceRating = try container.decodeIfPresent(Double.self, forKey: .audienceRating)
 
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
-        viewOffset = try container.decodeIfPresent(Int.self, forKey: .viewOffset)
-        lastViewedAt = try container.decodeIfPresent(Int.self, forKey: .lastViewedAt)
+        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
+        resumeOffsetMs = try container.decodeIfPresent(Int.self, forKey: .resumeOffsetMs)
+        lastPlayedAt = try container.decodeIfPresent(Int.self, forKey: .lastPlayedAt)
 
         addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
         updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
@@ -146,8 +146,8 @@ struct MediaItem: Decodable, Sendable, Identifiable {
         grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
         grandparentArt = try container.decodeIfPresent(String.self, forKey: .grandparentArt)
 
-        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
-        viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
+        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
+        watchedEpisodeCount = try container.decodeIfPresent(Int.self, forKey: .watchedEpisodeCount)
         childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
         smart = container.decodeLenientBoolIfPresent(forKey: .smart)
 
@@ -171,8 +171,8 @@ extension MediaItem {
 extension MediaItem: Hashable {
     static func == (lhs: MediaItem, rhs: MediaItem) -> Bool {
         lhs.id == rhs.id &&
-        lhs.viewOffset == rhs.viewOffset &&
-        lhs.viewCount == rhs.viewCount &&
+        lhs.resumeOffsetMs == rhs.resumeOffsetMs &&
+        lhs.playCount == rhs.playCount &&
         lhs.duration == rhs.duration
     }
 
@@ -220,20 +220,20 @@ extension MediaItem {
 
     /// Whether the item has been partially watched.
     var isPartiallyWatched: Bool {
-        guard let offset = viewOffset, offset > 0 else { return false }
+        guard let offset = resumeOffsetMs, offset > 0 else { return false }
         return true
     }
 
     /// Whether the item has been fully watched. Shows and seasons count as
-    /// watched only when every episode is (`viewCount` on a container is a
+    /// watched only when every episode is (`playCount` on a container is a
     /// play count and turns positive after one episode, see #88).
     var isWatched: Bool {
         switch type {
         case .show, .season:
-            guard let leafCount, leafCount > 0, let viewedLeafCount else { return false }
-            return viewedLeafCount >= leafCount
+            guard let episodeCount, episodeCount > 0, let watchedEpisodeCount else { return false }
+            return watchedEpisodeCount >= episodeCount
         default:
-            guard let count = viewCount else { return false }
+            guard let count = playCount else { return false }
             return count > 0
         }
     }
@@ -316,14 +316,21 @@ struct Tag: Codable, Sendable, Hashable {
     }
 }
 
+/// One entry of Plex's `Guid` array (`tmdb://603`). Read through `ExternalIDs`.
 struct PlexGuid: Codable, Sendable, Hashable {
     let id: String
+}
 
-    func value(for provider: String) -> String? {
-        let prefix = "\(provider)://"
-        guard id.lowercased().hasPrefix(prefix) else { return nil }
-        return String(id.dropFirst(prefix.count)).nilIfEmpty
-    }
+extension MediaItem {
+    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
+}
+
+extension MediaDetails {
+    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
+}
+
+extension WatchlistEntry {
+    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
 }
 
 /// A cast/crew member with role information.

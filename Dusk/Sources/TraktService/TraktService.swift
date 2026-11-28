@@ -323,12 +323,12 @@ final class TraktService {
 
     /// Called once per playback session when Plex scrobbles it (the 90 %
     /// mark or a finished stop). Never throws, never blocks.
-    func recordFinished(type: MediaKind, guid: String?, guids: [PlexGuid], at date: Date = .now) {
+    func recordFinished(type: MediaKind, guid: String?, externalIDs: ExternalIDs, at date: Date = .now) {
         guard isAvailable,
               let profileID = plexService.activeProfileID,
               accounts[profileID] != nil else { return }
         guard let entry = TraktHistoryMapper.entry(
-            type: type, guid: guid, guids: guids, watchedAt: date, profileID: profileID
+            type: type, guid: guid, externalIDs: externalIDs, watchedAt: date, profileID: profileID
         ) else {
             traktLogger.info("Finished \(type.rawValue, privacy: .public) has no Trakt-matchable id; skipped")
             return

@@ -115,7 +115,7 @@ struct VideoEnhancementRequest: Sendable, Equatable {
         media: MediaVersion,
         part: MediaPart
     ) -> VideoEnhancementRequest {
-        let videoStream = part.streams.first { $0.streamType == .video }
+        let videoStream = part.streams.first { $0.kind == .video }
         let width = media.width ?? videoStream?.width
         let height = media.height ?? videoStream?.height
         let frameRate = videoStream?.frameRate
@@ -224,7 +224,7 @@ extension MediaStream {
             colorSpace,
             colorRange,
             colorPrimaries,
-            colorTrc,
+            colorTransfer,
             profile,
         ]
             .compactMap { $0?.lowercased() }

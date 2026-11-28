@@ -193,8 +193,8 @@ enum MediaTextFormatter {
     /// ("4K · Dolby Vision", "1080p"). SDR goes unsaid.
     static func playbackVersionTitle(_ media: MediaVersion) -> String {
         var parts = [playbackVersionResolution(media)].compactMap { $0 }
-        if let video = media.parts.flatMap(\.streams).first(where: { $0.streamType == .video }) {
-            if video.doviPresent == true || video.doviProfile != nil {
+        if let video = media.parts.flatMap(\.streams).first(where: { $0.kind == .video }) {
+            if video.dolbyVision?.present == true || video.dolbyVision?.profile != nil {
                 parts.append("Dolby Vision")
             } else if StreamResolver.hdrTransfer(of: video) != nil {
                 parts.append(StreamResolver.hdrVideoLabel(for: media))

@@ -27,7 +27,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
     let grandparentThumb: String?
 
     let duration: Int?
-    let viewOffset: Int?
+    let resumeOffsetMs: Int?
     let isWatched: Bool
 
     var serverID: String? { id.serverID }
@@ -48,7 +48,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
         art: String? = nil,
         grandparentThumb: String? = nil,
         duration: Int? = nil,
-        viewOffset: Int? = nil,
+        resumeOffsetMs: Int? = nil,
         isWatched: Bool = false
     ) {
         self.id = id
@@ -65,7 +65,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
         self.art = art
         self.grandparentThumb = grandparentThumb
         self.duration = duration
-        self.viewOffset = viewOffset
+        self.resumeOffsetMs = resumeOffsetMs
         self.isWatched = isWatched
     }
 
@@ -83,7 +83,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
             art: episode.art,
             grandparentThumb: episode.grandparentThumb,
             duration: episode.duration,
-            viewOffset: episode.viewOffset,
+            resumeOffsetMs: episode.resumeOffsetMs,
             isWatched: episode.isWatched
         )
     }
@@ -104,8 +104,8 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
             art: item.art,
             grandparentThumb: item.grandparentThumb,
             duration: item.duration,
-            viewOffset: item.viewOffset,
-            isWatched: (item.viewCount ?? 0) > 0
+            resumeOffsetMs: item.resumeOffsetMs,
+            isWatched: (item.playCount ?? 0) > 0
         )
     }
 
@@ -126,8 +126,8 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
             art: details.art,
             grandparentThumb: details.grandparentThumb,
             duration: details.duration,
-            viewOffset: details.viewOffset,
-            isWatched: (details.viewCount ?? 0) > 0
+            resumeOffsetMs: details.resumeOffsetMs,
+            isWatched: (details.playCount ?? 0) > 0
         )
     }
 
@@ -141,7 +141,7 @@ struct PlaybackQueueItem: Sendable, Identifiable, Equatable {
     /// fallback, so a stale offset in the list can never resume it near its
     /// end.
     var queueResumeFallbackOffset: Int? {
-        isWatched ? nil : viewOffset
+        isWatched ? nil : resumeOffsetMs
     }
 
     /// The 16:9 still Up Next shows: an episode's own frame, a movie's

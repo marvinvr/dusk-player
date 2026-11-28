@@ -374,16 +374,16 @@ struct EpisodeDetailView: View {
             Task {
                 await playback.play(
                     id: details.id,
-                    resumeOffsetMilliseconds: details.viewOffset,
+                    resumeOffsetMilliseconds: details.resumeOffsetMs,
                     resumeOffsetDurationMilliseconds: details.duration,
                     placeholder: PlaybackPlaceholder(details: details)
                 )
             }
         } label: {
             DetailHeroPrimaryActionButtonLabel(
-                // The button resumes from viewOffset, so say so like movie
+                // The button resumes from resumeOffsetMs, so say so like movie
                 // detail and the Home hero do.
-                title: details.viewOffset.flatMap { $0 > 0 ? $0 : nil }
+                title: details.resumeOffsetMs.flatMap { $0 > 0 ? $0 : nil }
                     .flatMap { MediaTextFormatter.playbackDuration(milliseconds: $0) }
                     .map { "Resume from \($0)" } ?? "Play Episode",
                 systemImage: "play.fill",
@@ -394,7 +394,7 @@ struct EpisodeDetailView: View {
         .disabled(viewModel.isUsingCachedData && !viewModel.isPlayableOffline)
         .contextMenu {
             // The button resumes; long-press / right-click starts over (#83).
-            if (details.viewOffset ?? 0) > 0,
+            if (details.resumeOffsetMs ?? 0) > 0,
                !viewModel.isUsingCachedData || viewModel.isPlayableOffline {
                 Button {
                     Task {
@@ -414,7 +414,7 @@ struct EpisodeDetailView: View {
                         await playback.playVersion(
                             id: details.id,
                             mediaID: version.id,
-                            resumeOffsetMilliseconds: details.viewOffset,
+                            resumeOffsetMilliseconds: details.resumeOffsetMs,
                             placeholder: PlaybackPlaceholder(details: details)
                         )
                     }

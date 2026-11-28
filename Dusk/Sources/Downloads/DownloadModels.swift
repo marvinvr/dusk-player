@@ -210,7 +210,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// file and would mislabel the MKV's own tracks; sidecars can still mount.
     func convertedMediaVersion(sourcePart: MediaPart?) -> (media: MediaVersion, part: MediaPart)? {
         guard let media = convertedMedia, let converted = media.parts.first else { return nil }
-        let sidecars = sourcePart?.streams.filter { $0.streamType == .subtitle && $0.key != nil } ?? []
+        let sidecars = sourcePart?.streams.filter { $0.kind == .subtitle && $0.key != nil } ?? []
         let part = MediaPart(
             id: converted.id, key: converted.key, file: converted.file, size: converted.size,
             container: converted.container, duration: converted.duration,
@@ -299,7 +299,7 @@ struct DownloadedMediaRecord: Codable, Sendable, Identifiable, Hashable {
     /// codecs are left on the server.
     static func offlineSubtitleStreams(in sourcePart: MediaPart?) -> [MediaStream] {
         (sourcePart?.streams ?? []).filter {
-            $0.streamType == .subtitle && $0.key?.nilIfEmpty != nil
+            $0.kind == .subtitle && $0.key?.nilIfEmpty != nil
                 && SubtitleTextDecoder.fileExtension(for: $0.codec) != nil
         }
     }

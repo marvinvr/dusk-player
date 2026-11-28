@@ -25,8 +25,8 @@ struct Season: Codable, Sendable, Identifiable {
     let art: String?
 
     // Episode counts
-    let leafCount: Int?
-    let viewedLeafCount: Int?
+    let episodeCount: Int?
+    let watchedEpisodeCount: Int?
 
     // Timestamps
     let addedAt: Int?
@@ -36,7 +36,7 @@ struct Season: Codable, Sendable, Identifiable {
         case itemID = "ratingKey", key, title, index
         case parentID = "parentRatingKey", parentTitle, parentThumb
         case thumb, art
-        case leafCount, viewedLeafCount
+        case episodeCount = "leafCount", watchedEpisodeCount = "viewedLeafCount"
         case addedAt, updatedAt
     }
 
@@ -52,8 +52,8 @@ struct Season: Codable, Sendable, Identifiable {
         parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
-        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
-        viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
+        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
+        watchedEpisodeCount = try container.decodeIfPresent(Int.self, forKey: .watchedEpisodeCount)
         addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
         updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
     }
@@ -61,20 +61,20 @@ struct Season: Codable, Sendable, Identifiable {
 
 extension Season {
     var isPartiallyWatched: Bool {
-        guard let total = leafCount, let viewed = viewedLeafCount else { return false }
+        guard let total = episodeCount, let viewed = watchedEpisodeCount else { return false }
         return total > 0 && viewed > 0 && viewed < total
     }
 
     /// Episodes still to watch in a partially watched season; nil for a season
     /// that is unwatched or fully watched (those get no badge / a checkmark).
     var unwatchedEpisodeCount: Int? {
-        guard isPartiallyWatched, let total = leafCount, let viewed = viewedLeafCount else { return nil }
+        guard isPartiallyWatched, let total = episodeCount, let viewed = watchedEpisodeCount else { return nil }
         return total - viewed
     }
 
     /// Whether all episodes in this season have been watched.
     var isFullyWatched: Bool {
-        guard let total = leafCount, let viewed = viewedLeafCount else { return false }
+        guard let total = episodeCount, let viewed = watchedEpisodeCount else { return false }
         return total > 0 && viewed >= total
     }
 }

@@ -113,11 +113,11 @@ final class SiriPlaybackService {
 
         startPlayback(
             id: candidate.id,
-            resumeOffset: details.viewOffset,
+            resumeOffset: details.resumeOffsetMs,
             duration: details.duration,
             placeholder: PlaybackPlaceholder(details: details)
         )
-        let isResuming = (details.viewOffset ?? 0) > 0
+        let isResuming = (details.resumeOffsetMs ?? 0) > 0
         return "\(isResuming ? "Resuming" : "Playing") \(details.title)."
     }
 
@@ -138,9 +138,9 @@ final class SiriPlaybackService {
                 id: episode.id,
                 season: episode.parentIndex,
                 index: episode.index,
-                isWatched: (episode.viewCount ?? 0) > 0,
-                isInProgress: (episode.viewOffset ?? 0) > 0,
-                lastViewedAt: episode.lastViewedAt
+                isWatched: (episode.playCount ?? 0) > 0,
+                isInProgress: (episode.resumeOffsetMs ?? 0) > 0,
+                lastPlayedAt: episode.lastPlayedAt
             )
         }
         guard let pick = SiriNextEpisodePicker.pick(from: states),
@@ -150,7 +150,7 @@ final class SiriPlaybackService {
 
         startPlayback(
             id: episode.id,
-            resumeOffset: episode.viewOffset,
+            resumeOffset: episode.resumeOffsetMs,
             duration: episode.duration,
             placeholder: PlaybackPlaceholder(episode: episode)
         )
@@ -284,8 +284,8 @@ final class SiriPlaybackService {
         case .movie:
             isInProgress = item.isPartiallyWatched
         case .show:
-            let viewed = item.viewedLeafCount ?? 0
-            isInProgress = viewed > 0 && viewed < (item.leafCount ?? 0)
+            let viewed = item.watchedEpisodeCount ?? 0
+            isInProgress = viewed > 0 && viewed < (item.episodeCount ?? 0)
         }
         return SiriTitleCandidate(
             id: item.id,
@@ -293,7 +293,7 @@ final class SiriPlaybackService {
             title: item.title,
             year: item.year,
             isInProgress: isInProgress,
-            lastViewedAt: item.lastViewedAt
+            lastPlayedAt: item.lastPlayedAt
         )
     }
 }
@@ -305,7 +305,7 @@ extension SiriTitleCandidate {
             kind: entry.kind,
             title: entry.title,
             year: entry.year,
-            lastViewedAt: entry.lastViewedAt
+            lastPlayedAt: entry.lastPlayedAt
         )
     }
 

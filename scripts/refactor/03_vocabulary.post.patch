@@ -1,0 +1,1027 @@
+diff --git a/Dusk/Sources/Analytics/AnalyticsErrorReport.swift b/Dusk/Sources/Analytics/AnalyticsErrorReport.swift
+index 0128bd6..ae6d632 100644
+--- a/Dusk/Sources/Analytics/AnalyticsErrorReport.swift
++++ b/Dusk/Sources/Analytics/AnalyticsErrorReport.swift
+@@ -416,8 +416,8 @@ enum AnalyticsErrorSanitizer {
+     /// integers, so only those digits make it into the string.
+     static func hdr(of stream: MediaStream?) -> String? {
+         guard let stream else { return nil }
+-        if let profile = stream.doviProfile, (0...10).contains(profile) {
+-            if let compat = stream.doviBLCompatID, (0...10).contains(compat) {
++        if let profile = stream.dolbyVision?.profile, (0...10).contains(profile) {
++            if let compat = stream.dolbyVision?.blCompatID, (0...10).contains(compat) {
+                 return "dv\(profile).\(compat)"
+             }
+             return "dv\(profile)"
+diff --git a/Dusk/Sources/Domain/ContentKey.swift b/Dusk/Sources/Domain/ContentKey.swift
+index 4869554..b9552d4 100644
+--- a/Dusk/Sources/Domain/ContentKey.swift
++++ b/Dusk/Sources/Domain/ContentKey.swift
+@@ -29,8 +29,8 @@ import Foundation
+ /// key is good enough to collapse a row on screen, never good enough to send
+ /// playback to another server — see `ContentAlternatesIndex`.
+ enum ContentKey: Hashable, Sendable {
+-    /// Plex's own global metadata id (`plex://movie/5d776...`).
+-    case plex(String)
++    /// The provider's own global metadata id (Plex: `plex://movie/5d776...`).
++    case native(String)
+     /// `provider:namespace:id`, e.g. tmdb for a movie.
+     case external(provider: String, namespace: String, id: String)
+     /// Title/year (or show/season/episode) fallback.
+@@ -44,7 +44,7 @@ enum ContentKey: Hashable, Sendable {
+     /// is genuinely the same thing.
+     var isStrong: Bool {
+         switch self {
+-        case .plex, .external: true
++        case .native, .external: true
+         case .heuristic, .instance: false
+         }
+     }
+@@ -60,7 +60,7 @@ extension ContentKey {
+     ///   - guid: the scalar `guid` field; only used when it is a `plex://` id.
+     ///     Legacy agent guids (`com.plexapp.agents.imdb://…`) and `local://`
+     ///     are ignored because they are not comparable across servers.
+-    ///   - guids: the `Guid` array, which carries the external ids.
++    ///   - externalIDs: the item's external ids (Plex's `Guid` array).
+     ///   - episode: show title plus season/episode numbers when the item is an
+     ///     episode or a season, so the heuristic can key on the show rather than
+     ///     the title — "Season 1" is the title of every show's first season.
+@@ -74,7 +74,7 @@ extension ContentKey {
+     ///     the heuristic would say nothing, so unrelated items can never merge.
+     static func resolve(
+         guid: String?,
+-        guids: [PlexGuid],
++        externalIDs: ExternalIDs,
+         type: MediaKind,
+         title: String,
+         year: Int?,
+@@ -85,15 +85,15 @@ extension ContentKey {
+     ) -> ContentKey {
+         let editionSuffix = edition.map(normalized).flatMap(\.nilIfEmpty).map { "|edition:\($0)" } ?? ""
+         if let plexGUID = guid?.nilIfEmpty, plexGUID.lowercased().hasPrefix("plex://") {
+-            return .plex(plexGUID.lowercased() + editionSuffix)
++            return .native(plexGUID.lowercased() + editionSuffix)
+         }
+ 
+         let namespace = isClip ? "clip" : type.rawValue
+         // Some agents send an external URI as the scalar guid rather than in
+         // Guid[]. Provider-prefixed IDs are equally strong in either location.
+-        let externalGuids = guids + [guid.map { PlexGuid(id: $0) }].compactMap { $0 }
++        let externalGuids = externalIDs.appending([guid].compactMap { $0 })
+         for provider in externalProviders {
+-            if let value = externalGuids.lazy.compactMap({ $0.value(for: provider) }).first {
++            if let value = externalGuids.first(provider) {
+                 return .external(provider: provider, namespace: namespace, id: value.lowercased() + editionSuffix)
+             }
+         }
+@@ -153,7 +153,7 @@ extension ContentKey {
+     init(item: MediaItem) {
+         self = Self.resolve(
+             guid: item.guid,
+-            guids: item.guids,
++            externalIDs: item.externalIDs,
+             type: item.type,
+             title: item.title,
+             year: item.year,
+@@ -175,7 +175,7 @@ extension ContentKey {
+     init(details: MediaDetails) {
+         self = Self.resolve(
+             guid: details.guid,
+-            guids: details.guids,
++            externalIDs: details.externalIDs,
+             type: details.type,
+             title: details.title,
+             year: details.year,
+@@ -215,11 +215,47 @@ extension ContentKey {
+ extension MediaItem {
+     /// Cross-server content identity. See `ContentKey`.
+     var contentKey: ContentKey { ContentKey(item: self) }
++
++    /// Every strong key this copy carries. See `ContentKey.aliases`.
++    var contentAliases: Set<ContentKey> {
++        ContentKey.aliases(guid: guid, externalIDs: externalIDs, type: type,
++                           edition: editionTitle, isClip: isClip, identity: id)
++    }
+ }
+ 
+ extension MediaDetails {
+     /// Cross-server content identity. See `ContentKey`.
+     var contentKey: ContentKey { ContentKey(details: self) }
++
++    /// Every strong key this copy carries. See `ContentKey.aliases`.
++    var contentAliases: Set<ContentKey> {
++        ContentKey.aliases(guid: guid, externalIDs: externalIDs, type: type,
++                           edition: editionTitle, isClip: isClip, identity: id)
++    }
++}
++
++extension ContentKey {
++    /// Every strong key a copy carries: its primary key when that is strong,
++    /// plus one key per native or external id (docs/jellyfin/04-architecture.md
++    /// §6.2). The merge layer can use these to re-key a copy whose provider has
++    /// no native global id onto the key of a copy that has one. Nothing reads
++    /// them yet: with Plex alone every copy already has its primary key, so
++    /// merging is unchanged.
++    static func aliases(
++        guid: String?, externalIDs: ExternalIDs, type: MediaKind,
++        edition: String?, isClip: Bool, identity: MediaItemID
++    ) -> Set<ContentKey> {
++        var keys = Set<ContentKey>()
++        let primary = resolve(guid: guid, externalIDs: externalIDs, type: type, title: "", year: nil,
++                              edition: edition, isClip: isClip, identity: identity)
++        if primary.isStrong { keys.insert(primary) }
++        for uri in [guid].compactMap({ $0 }) + externalIDs.uris {
++            let key = resolve(guid: uri, externalIDs: ExternalIDs(uris: [uri]), type: type, title: "", year: nil,
++                              edition: edition, isClip: isClip, identity: identity)
++            if key.isStrong { keys.insert(key) }
++        }
++        return keys
++    }
+ }
+ 
+ // Movie copies may use different Plex agents but still share an external ID.
+@@ -227,7 +263,7 @@ extension MediaDetails {
+ extension ContentKey {
+     var isMovie: Bool {
+         switch self {
+-        case .plex(let guid): guid.hasPrefix("plex://movie/")
++        case .native(let guid): guid.hasPrefix("plex://movie/")
+         case .external(_, let namespace, _): namespace == "movie"
+         default: false
+         }
+@@ -236,7 +272,7 @@ extension ContentKey {
+     var movieEdition: String? {
+         let value: String
+         switch self {
+-        case .plex(let guid): value = guid
++        case .native(let guid): value = guid
+         case .external(_, _, let id): value = id
+         default: return nil
+         }
+@@ -244,16 +280,16 @@ extension ContentKey {
+     }
+ 
+     static func movieKeys(
+-        guid: String?, guids: [PlexGuid], title: String, year: Int?,
++        guid: String?, externalIDs: ExternalIDs, title: String, year: Int?,
+         edition: String?, identity: MediaItemID
+     ) -> Set<ContentKey> {
+         var keys = Set<ContentKey>()
+-        for external in guids {
+-            let key = resolve(guid: nil, guids: [external], type: .movie,
++        for external in externalIDs.uris {
++            let key = resolve(guid: nil, externalIDs: ExternalIDs(uris: [external]), type: .movie,
+                               title: title, year: year, edition: edition, identity: identity)
+             if key.isStrong { keys.insert(key) }
+         }
+-        let primary = resolve(guid: guid, guids: guids, type: .movie,
++        let primary = resolve(guid: guid, externalIDs: externalIDs, type: .movie,
+                               title: title, year: year, edition: edition, identity: identity)
+         if primary.isStrong { keys.insert(primary) }
+         return keys
+@@ -263,7 +299,7 @@ extension ContentKey {
+ extension MediaItem {
+     var movieContentKeys: Set<ContentKey> {
+         guard type == .movie, !isClip else { return [] }
+-        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
++        return ContentKey.movieKeys(guid: guid, externalIDs: externalIDs, title: title,
+                                        year: year, edition: editionTitle, identity: id)
+     }
+ }
+@@ -271,7 +307,7 @@ extension MediaItem {
+ extension MediaDetails {
+     var movieContentKeys: Set<ContentKey> {
+         guard type == .movie, !isClip else { return [] }
+-        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
++        return ContentKey.movieKeys(guid: guid, externalIDs: externalIDs, title: title,
+                                        year: year, edition: editionTitle, identity: id)
+     }
+ }
+diff --git a/Dusk/Sources/Domain/ExternalIDs.swift b/Dusk/Sources/Domain/ExternalIDs.swift
+new file mode 100644
+index 0000000..cca9cf0
+--- /dev/null
++++ b/Dusk/Sources/Domain/ExternalIDs.swift
+@@ -0,0 +1,45 @@
++import Foundation
++
++/// The external ids an item carries (tmdb, imdb, tvdb, …), in the order the
++/// server listed them (docs/jellyfin/04-architecture.md §4.1).
++///
++/// Values are kept raw and in order, not collapsed to one per namespace:
++/// callers differ in which one they want (the first, the first that parses
++/// as a number, the first that looks like an imdb id), and each keeps its own
++/// rule. Plex sends them as `Guid` entries (`tmdb://546554`).
++struct ExternalIDs: Hashable, Sendable {
++    /// Provider-prefixed ids, `<namespace>://<value>`, in server order.
++    let uris: [String]
++
++    init(uris: [String] = []) {
++        self.uris = uris
++    }
++
++    /// Every value for `namespace` (`tmdb`, `imdb`, `tvdb`), in order.
++    /// The namespace prefix matches case-insensitively; empty values are skipped.
++    func values(for namespace: String) -> [String] {
++        uris.compactMap { Self.value(of: $0, for: namespace) }
++    }
++
++    /// The first value for `namespace`.
++    func first(_ namespace: String) -> String? {
++        uris.lazy.compactMap { Self.value(of: $0, for: namespace) }.first
++    }
++
++    var tmdb: String? { first("tmdb") }
++    var imdb: String? { first("imdb") }
++    var tvdb: String? { first("tvdb") }
++
++    /// The value of one `<namespace>://<value>` uri, or nil when it belongs to
++    /// another namespace.
++    static func value(of uri: String, for namespace: String) -> String? {
++        let prefix = "\(namespace)://"
++        guard uri.lowercased().hasPrefix(prefix) else { return nil }
++        return String(uri.dropFirst(prefix.count)).nilIfEmpty
++    }
++
++    /// The same ids followed by `others`.
++    func appending(_ others: [String]) -> ExternalIDs {
++        ExternalIDs(uris: uris + others)
++    }
++}
+diff --git a/Dusk/Sources/Domain/MediaDetails.swift b/Dusk/Sources/Domain/MediaDetails.swift
+index 677ae4e..6144ef7 100644
+--- a/Dusk/Sources/Domain/MediaDetails.swift
++++ b/Dusk/Sources/Domain/MediaDetails.swift
+@@ -536,7 +536,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+     let language: String?
+     let languageCode: String?
+     let languageTag: String?
+-    let isSelected: Bool?
++    let isServerSelected: Bool?
+     let isDefault: Bool?
+ 
+     // Video stream fields
+@@ -558,13 +558,10 @@ struct MediaStream: Codable, Sendable, Identifiable {
+     /// for `hev1` HEVC, see `StreamResolver.containsHEV1Video`.
+     var codecID: String?
+ 
+-    // Dolby Vision fields (video streams). Plex only sends these when the
+-    // stream carries a DV layer; `doviProfile` 5 has no HDR10-compatible
+-    // base layer, which StreamResolver routes through the Dolby Vision remux.
+-    let doviPresent: Bool?
+-    let doviProfile: Int?
+-    let doviLevel: Int?
+-    let doviBLCompatID: Int?
++    // Dolby Vision (video streams). Plex only sends these when the stream
++    // carries a DV layer; profile 5 has no HDR10-compatible base layer, which
++    // StreamResolver routes through the Dolby Vision remux.
++    let dolbyVision: DolbyVisionInfo?
+ 
+     // Audio stream fields
+     let channels: Int?
+@@ -581,7 +578,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         case id, kind = "streamType", codec
+         case displayTitle, extendedDisplayTitle
+         case language, languageCode, languageTag
+-        case isSelected = "selected"
++        case isServerSelected = "selected"
+         case isDefault = "default"
+         case width, height, bitrate, frameRate, bitDepth
+         case colorSpace, colorRange, colorPrimaries, colorTransfer = "colorTrc"
+@@ -640,7 +637,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         self.language = language
+         self.languageCode = languageCode
+         self.languageTag = languageTag
+-        self.isSelected = isSelected
++        self.isServerSelected = isSelected
+         self.isDefault = isDefault
+         self.width = width
+         self.height = height
+@@ -654,10 +651,9 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         self.chromaSubsampling = chromaSubsampling
+         self.profile = profile
+         self.level = level
+-        self.doviPresent = doviPresent
+-        self.doviProfile = doviProfile
+-        self.doviLevel = doviLevel
+-        self.doviBLCompatID = doviBLCompatID
++        self.dolbyVision = DolbyVisionInfo(
++            present: doviPresent, profile: doviProfile, level: doviLevel, blCompatID: doviBLCompatID
++        )
+         self.channels = channels
+         self.channelLayout = channelLayout
+         self.samplingRate = samplingRate
+@@ -679,7 +675,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         languageTag = try container.decodeIfPresent(String.self, forKey: .languageTag)
+ 
+         // Plex returns Bool-ish fields as Int (0/1) or Bool depending on endpoint
+-        isSelected = try Self.decodeBoolish(container: container, key: .isSelected)
++        isServerSelected = try Self.decodeBoolish(container: container, key: .isServerSelected)
+         isDefault = try Self.decodeBoolish(container: container, key: .isDefault)
+         isForced = try Self.decodeBoolish(container: container, key: .isForced)
+         isHearingImpaired = try Self.decodeBoolish(container: container, key: .isHearingImpaired)
+@@ -697,10 +693,12 @@ struct MediaStream: Codable, Sendable, Identifiable {
+         profile = try container.decodeIfPresent(String.self, forKey: .profile)
+         level = try container.decodeIfPresent(Int.self, forKey: .level)
+         codecID = try? container.decodeIfPresent(String.self, forKey: .codecID)
+-        doviPresent = try Self.decodeBoolish(container: container, key: .doviPresent)
+-        doviProfile = try container.decodeIfPresent(Int.self, forKey: .doviProfile)
+-        doviLevel = try container.decodeIfPresent(Int.self, forKey: .doviLevel)
+-        doviBLCompatID = try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
++        dolbyVision = DolbyVisionInfo(
++            present: try Self.decodeBoolish(container: container, key: .doviPresent),
++            profile: try container.decodeIfPresent(Int.self, forKey: .doviProfile),
++            level: try container.decodeIfPresent(Int.self, forKey: .doviLevel),
++            blCompatID: try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
++        )
+         channels = try container.decodeIfPresent(Int.self, forKey: .channels)
+         // Older offline snapshots used Dusk's property name as the JSON key.
+         let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
+@@ -805,7 +803,7 @@ extension MediaStream {
+         try container.encodeIfPresent(language, forKey: .language)
+         try container.encodeIfPresent(languageCode, forKey: .languageCode)
+         try container.encodeIfPresent(languageTag, forKey: .languageTag)
+-        try container.encodeIfPresent(isSelected, forKey: .isSelected)
++        try container.encodeIfPresent(isServerSelected, forKey: .isServerSelected)
+         try container.encodeIfPresent(isDefault, forKey: .isDefault)
+         try container.encodeIfPresent(width, forKey: .width)
+         try container.encodeIfPresent(height, forKey: .height)
+@@ -820,10 +818,10 @@ extension MediaStream {
+         try container.encodeIfPresent(profile, forKey: .profile)
+         try container.encodeIfPresent(level, forKey: .level)
+         try container.encodeIfPresent(codecID, forKey: .codecID)
+-        try container.encodeIfPresent(doviPresent, forKey: .doviPresent)
+-        try container.encodeIfPresent(doviProfile, forKey: .doviProfile)
+-        try container.encodeIfPresent(doviLevel, forKey: .doviLevel)
+-        try container.encodeIfPresent(doviBLCompatID, forKey: .doviBLCompatID)
++        try container.encodeIfPresent(dolbyVision?.present, forKey: .doviPresent)
++        try container.encodeIfPresent(dolbyVision?.profile, forKey: .doviProfile)
++        try container.encodeIfPresent(dolbyVision?.level, forKey: .doviLevel)
++        try container.encodeIfPresent(dolbyVision?.blCompatID, forKey: .doviBLCompatID)
+         try container.encodeIfPresent(channels, forKey: .channels)
+         try container.encodeIfPresent(samplingRate, forKey: .samplingRate)
+         try container.encodeIfPresent(channelLayout, forKey: .channelLayout)
+@@ -832,3 +830,23 @@ extension MediaStream {
+         try container.encodeIfPresent(key, forKey: .key)
+     }
+ }
++
++/// Dolby Vision signalling of a video stream. Plex sends the four fields
++/// independently (`DOVIPresent`, `DOVIProfile`, `DOVILevel`,
++/// `DOVIBLCompatID`), so each stays optional on its own: `present == true` is
++/// not the same as "some field is known". The stream's `dolbyVision` is nil
++/// only when none of them is.
++struct DolbyVisionInfo: Sendable, Hashable {
++    let present: Bool?
++    let profile: Int?
++    let level: Int?
++    let blCompatID: Int?
++
++    init?(present: Bool?, profile: Int?, level: Int?, blCompatID: Int?) {
++        guard present != nil || profile != nil || level != nil || blCompatID != nil else { return nil }
++        self.present = present
++        self.profile = profile
++        self.level = level
++        self.blCompatID = blCompatID
++    }
++}
+diff --git a/Dusk/Sources/Domain/MediaItem.swift b/Dusk/Sources/Domain/MediaItem.swift
+index 46b62bd..e034a84 100644
+--- a/Dusk/Sources/Domain/MediaItem.swift
++++ b/Dusk/Sources/Domain/MediaItem.swift
+@@ -316,14 +316,21 @@ struct Tag: Codable, Sendable, Hashable {
+     }
+ }
+ 
++/// One entry of Plex's `Guid` array (`tmdb://603`). Read through `ExternalIDs`.
+ struct PlexGuid: Codable, Sendable, Hashable {
+     let id: String
++}
+ 
+-    func value(for provider: String) -> String? {
+-        let prefix = "\(provider)://"
+-        guard id.lowercased().hasPrefix(prefix) else { return nil }
+-        return String(id.dropFirst(prefix.count)).nilIfEmpty
+-    }
++extension MediaItem {
++    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
++}
++
++extension MediaDetails {
++    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
++}
++
++extension WatchlistEntry {
++    var externalIDs: ExternalIDs { ExternalIDs(uris: guids.map(\.id)) }
+ }
+ 
+ /// A cast/crew member with role information.
+diff --git a/Dusk/Sources/Domain/Watchlist.swift b/Dusk/Sources/Domain/Watchlist.swift
+index 7e90221..13bde90 100644
+--- a/Dusk/Sources/Domain/Watchlist.swift
++++ b/Dusk/Sources/Domain/Watchlist.swift
+@@ -96,7 +96,7 @@ struct WatchlistEntry: Decodable, Hashable, Sendable, Identifiable {
+     }
+ 
+     var tmdbID: Int? {
+-        guids.lazy.compactMap { $0.value(for: "tmdb").flatMap(Int.init) }.first
++        externalIDs.values(for: "tmdb").lazy.compactMap(Int.init).first
+     }
+ 
+     func posterURL(width: Int) -> URL? {
+diff --git a/Dusk/Sources/Features/Detail/DetailSharedViews.swift b/Dusk/Sources/Features/Detail/DetailSharedViews.swift
+index a8c0043..18e957b 100644
+--- a/Dusk/Sources/Features/Detail/DetailSharedViews.swift
++++ b/Dusk/Sources/Features/Detail/DetailSharedViews.swift
+@@ -979,7 +979,7 @@ struct DetailMacMediaSection: View {
+     }
+ 
+     private static func dynamicRange(_ stream: MediaStream) -> String? {
+-        if stream.doviPresent == true { return "Dolby Vision" }
++        if stream.dolbyVision?.present == true { return "Dolby Vision" }
+         switch stream.colorTransfer?.lowercased() {
+         case "smpte2084": return "HDR10"
+         case "arib-std-b67": return "HLG"
+diff --git a/Dusk/Sources/Features/Detail/ShowDetailViewModel.swift b/Dusk/Sources/Features/Detail/ShowDetailViewModel.swift
+index b38073e..7c321e1 100644
+--- a/Dusk/Sources/Features/Detail/ShowDetailViewModel.swift
++++ b/Dusk/Sources/Features/Detail/ShowDetailViewModel.swift
+@@ -395,8 +395,7 @@ final class ShowDetailViewModel {
+               let details,
+               let service = seerrService,
+               service.isAvailableForCurrentContext,
+-              let tmdbID = details.guids
+-                .compactMap({ $0.value(for: "tmdb") })
++              let tmdbID = details.externalIDs.values(for: "tmdb")
+                 .compactMap(Int.init)
+                 .first else {
+             return
+diff --git a/Dusk/Sources/Features/Player/DisplayModeMatcher.swift b/Dusk/Sources/Features/Player/DisplayModeMatcher.swift
+index d095633..f61513e 100644
+--- a/Dusk/Sources/Features/Player/DisplayModeMatcher.swift
++++ b/Dusk/Sources/Features/Player/DisplayModeMatcher.swift
+@@ -289,7 +289,7 @@ enum DisplayModeMatcher {
+         }
+         // Dolby Vision profiles that reach a local engine carry an HDR10 base
+         // layer, so PQ is the right request even when the TRC field is absent.
+-        if stream?.doviPresent == true, (stream?.doviProfile ?? 0) != 5 {
++        if stream?.dolbyVision?.present == true, (stream?.dolbyVision?.profile ?? 0) != 5 {
+             return kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
+         }
+         return kCMFormatDescriptionTransferFunction_ITU_R_709_2
+@@ -310,7 +310,7 @@ enum DisplayModeMatcher {
+         let transfer = transferFunction(for: stream)
+         if CFEqual(transfer, kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ) {
+             // A DV file outside a DV remux shows its HDR10 base layer.
+-            return stream?.doviPresent == true ? "HDR10 (Dolby Vision base layer)" : "HDR10 (PQ)"
++            return stream?.dolbyVision?.present == true ? "HDR10 (Dolby Vision base layer)" : "HDR10 (PQ)"
+         }
+         if CFEqual(transfer, kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG) {
+             return "HLG"
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+index e7eae3e..8968f0a 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Session.swift
+@@ -794,7 +794,7 @@ extension PlaybackCoordinator {
+             let audioStreamSummary = part.streams
+                 .filter { $0.kind == .audio }
+                 .map { stream in
+-                    "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isSelected ?? false)]"
++                    "[\(stream.displayTitle ?? stream.codec ?? "?") lang=\(stream.languageCode ?? stream.languageTag ?? "nil") ch=\(stream.channels.map(String.init) ?? "?") default=\(stream.isDefault ?? false) selected=\(stream.isServerSelected ?? false)]"
+                 }
+                 .joined(separator: " ")
+             let preferredLanguageLabel = preferences.defaultAudioLanguage
+@@ -1129,7 +1129,7 @@ extension PlaybackCoordinator {
+         }
+ 
+         let audioStreams = debugInfo.part.streams.filter { $0.kind == .audio }
+-        let fallbackStream = audioStreams.first { $0.isSelected ?? false }
++        let fallbackStream = audioStreams.first { $0.isServerSelected ?? false }
+             ?? audioStreams.first { $0.isDefault ?? false }
+             ?? audioStreams.first
+         let streamID = track?.plexStreamID ?? fallbackStream?.id
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+index 7bdde2c..34c417a 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+SpatialAudio.swift
+@@ -782,7 +782,7 @@ extension PlaybackCoordinator {
+             audioCodec = "eac3"
+         } else {
+             audioCodec = (audioStreams.first { $0.id == activeAudioStreamID }
+-                ?? audioStreams.first { $0.isSelected == true }
++                ?? audioStreams.first { $0.isServerSelected == true }
+                 ?? audioStreams.first)?.codec
+         }
+         return RemuxVariantCodecs.codecs(video: video, audioCodec: audioCodec, hasAudio: !audioStreams.isEmpty)
+diff --git a/Dusk/Sources/Features/Player/PlaybackCoordinator+Timeline.swift b/Dusk/Sources/Features/Player/PlaybackCoordinator+Timeline.swift
+index 640ae73..51600fd 100644
+--- a/Dusk/Sources/Features/Player/PlaybackCoordinator+Timeline.swift
++++ b/Dusk/Sources/Features/Player/PlaybackCoordinator+Timeline.swift
+@@ -111,7 +111,7 @@ extension PlaybackCoordinator {
+     /// `TraktService` only queues, so playback never waits on or sees Trakt.
+     func reportFinishedToTrakt() {
+         guard let traktService, let details = activeItemDetails, details.itemID == itemID else { return }
+-        traktService.recordFinished(type: details.type, guid: details.guid, guids: details.guids)
++        traktService.recordFinished(type: details.type, guid: details.guid, externalIDs: details.externalIDs)
+     }
+ 
+     func reportTimelineOrQueueOfflineSync(
+diff --git a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+index 1d1ad4f..3c2ef5e 100644
+--- a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
++++ b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+@@ -377,12 +377,12 @@ struct PlaybackDebugInfo: Sendable {
+     }
+ 
+     private var selectedAudioStream: MediaStream? {
+-        part.streams.first { $0.kind == .audio && ($0.isSelected ?? false) }
++        part.streams.first { $0.kind == .audio && ($0.isServerSelected ?? false) }
+             ?? part.streams.first { $0.kind == .audio }
+     }
+ 
+     private var selectedSubtitleStream: MediaStream? {
+-        part.streams.first { $0.kind == .subtitle && ($0.isSelected ?? false) }
++        part.streams.first { $0.kind == .subtitle && ($0.isServerSelected ?? false) }
+     }
+ 
+     private static func formatBitrateKbps(_ value: Int) -> String {
+diff --git a/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift b/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
+index 81c910c..633c8bf 100644
+--- a/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
++++ b/Dusk/Sources/Features/Player/PlayerViewModel+TrackSelection.swift
+@@ -92,7 +92,7 @@ extension PlayerViewModel {
+                 .map(SubtitleTrack.init(stream:)) ?? []
+             selectedAudioTrackID = serverSelectedAudioStreamID.flatMap { Int($0) }
+                 ?? audioTracks.first(where: { track in
+-                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isSelected ?? false
++                    sourcePart?.streams.first(where: { $0.id == track.plexStreamID })?.isServerSelected ?? false
+                 })?.id
+                 ?? audioTracks.first?.id
+             selectedSubtitleTrackID = serverSelectedSubtitleStreamID.flatMap { Int($0) }
+@@ -356,7 +356,7 @@ extension PlayerViewModel {
+     /// inside this group, so it may swap codecs but never the spoken language.
+     func defaultAudioAnchorLanguageCode() -> String? {
+         let audioStreams = sourcePart?.streams.filter { $0.kind == .audio } ?? []
+-        if let anchor = audioStreams.first(where: { $0.isSelected ?? false })
++        if let anchor = audioStreams.first(where: { $0.isServerSelected ?? false })
+             ?? audioStreams.first(where: { $0.isDefault ?? false })
+             ?? audioStreams.first {
+             return Self.normalizedLanguageCode(anchor.languageCode ?? anchor.languageTag)
+@@ -405,7 +405,7 @@ extension PlayerViewModel {
+         }
+ 
+         if let sourceStream = sourcePart?.streams.first(where: {
+-            $0.kind == .audio && ($0.isSelected ?? false)
++            $0.kind == .audio && ($0.isServerSelected ?? false)
+         }), let matchedTrack = bestMatchingAudioTrack(for: sourceStream) {
+             return matchedTrack.id
+         }
+@@ -699,7 +699,7 @@ extension PlayerViewModel {
+     func audioSelectionScore(for track: AudioTrack, originalIndex: Int) -> Int {
+         let isPlexSelected = sourcePart?.streams.contains(where: {
+             $0.kind == .audio &&
+-                ($0.isSelected ?? false) &&
++                ($0.isServerSelected ?? false) &&
+                 scoreAudioMatch(track: track, stream: $0) >= 5
+         }) == true
+ 
+@@ -787,7 +787,7 @@ extension PlayerViewModel {
+         if let preferredLanguage {
+             scopeLanguage = preferredLanguage
+         } else {
+-            let anchor = audioStreams.first(where: { $0.isSelected ?? false })
++            let anchor = audioStreams.first(where: { $0.isServerSelected ?? false })
+                 ?? audioStreams.first(where: { $0.isDefault ?? false })
+                 ?? audioStreams.first
+             scopeLanguage = normalizedLanguageCode(anchor?.languageCode ?? anchor?.languageTag)
+@@ -810,13 +810,13 @@ extension PlayerViewModel {
+                 let lhsScore = audioSelectionScore(
+                     for: AudioTrack(stream: lhs.element),
+                     originalIndex: lhs.offset,
+-                    isPlexSelected: lhs.element.isSelected ?? false,
++                    isPlexSelected: lhs.element.isServerSelected ?? false,
+                     isPlexDefault: lhs.element.isDefault ?? false
+                 )
+                 let rhsScore = audioSelectionScore(
+                     for: AudioTrack(stream: rhs.element),
+                     originalIndex: rhs.offset,
+-                    isPlexSelected: rhs.element.isSelected ?? false,
++                    isPlexSelected: rhs.element.isServerSelected ?? false,
+                     isPlexDefault: rhs.element.isDefault ?? false
+                 )
+ 
+@@ -846,7 +846,7 @@ extension PlayerViewModel {
+         ), audioStreams.indices.contains(position) {
+             return audioStreams[position]
+         }
+-        return audioStreams.first(where: { $0.isSelected ?? false })
++        return audioStreams.first(where: { $0.isServerSelected ?? false })
+             ?? audioStreams.first(where: { $0.isDefault ?? false })
+             ?? audioStreams.first
+     }
+@@ -883,7 +883,7 @@ extension PlayerViewModel {
+         ), audioStreams.indices.contains(position) {
+             return audioStreams[position].id
+         }
+-        return audioStreams.first(where: { $0.isSelected ?? false })?.id
++        return audioStreams.first(where: { $0.isServerSelected ?? false })?.id
+             ?? audioStreams.first(where: { $0.isDefault ?? false })?.id
+             ?? audioStreams.first?.id
+     }
+@@ -945,7 +945,7 @@ extension PlayerViewModel {
+     /// choice saved by any Plex client (or a bulk tool such as PASTA), else
+     /// Plex's own pick from the account language settings.
+     static func serverSelectedStreamID(of type: StreamKind, inPart part: MediaPart?) -> String? {
+-        part?.streams.first { $0.kind == type && ($0.isSelected ?? false) }?.id
++        part?.streams.first { $0.kind == type && ($0.isServerSelected ?? false) }?.id
+     }
+ 
+     func scoreSubtitleMatch(track: SubtitleTrack, stream: MediaStream) -> Int {
+diff --git a/Dusk/Sources/Features/Player/ShowTrackPreferences.swift b/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
+index 33edc9a..71dea22 100644
+--- a/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
++++ b/Dusk/Sources/Features/Player/ShowTrackPreferences.swift
+@@ -83,8 +83,8 @@ struct ShowTrackPreferences: Codable, Equatable, Sendable {
+     static func hasHDRVideo(in part: MediaPart) -> Bool {
+         part.streams.contains {
+             $0.kind == .video && ($0.isHDRVideo || StreamResolver.hdrTransfer(of: $0) != nil ||
+-                $0.doviPresent == true || $0.doviProfile != nil ||
+-                $0.doviBLCompatID != nil || $0.doviLevel != nil)
++                $0.dolbyVision?.present == true || $0.dolbyVision?.profile != nil ||
++                $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil)
+         }
+     }
+ 
+diff --git a/Dusk/Sources/Features/Search/SearchViewModel.swift b/Dusk/Sources/Features/Search/SearchViewModel.swift
+index 8cfe4a6..ed9a207 100644
+--- a/Dusk/Sources/Features/Search/SearchViewModel.swift
++++ b/Dusk/Sources/Features/Search/SearchViewModel.swift
+@@ -133,7 +133,7 @@ final class SearchViewModel {
+ 
+         let plexItems = plexGroups.flatMap(\.items)
+         let plexTMDBIDs = Set(
+-            plexItems.flatMap(\.guids).compactMap { $0.value(for: "tmdb") }.compactMap(Int.init)
++            plexItems.flatMap { $0.externalIDs.values(for: "tmdb") }.compactMap(Int.init)
+         )
+         let plexFallbackKeys = Set(plexItems.map(fallbackKey))
+ 
+diff --git a/Dusk/Sources/Playback/RemuxHLSLoader.swift b/Dusk/Sources/Playback/RemuxHLSLoader.swift
+index 4a0478c..e432d9d 100644
+--- a/Dusk/Sources/Playback/RemuxHLSLoader.swift
++++ b/Dusk/Sources/Playback/RemuxHLSLoader.swift
+@@ -115,11 +115,11 @@ struct DolbyVisionConfiguration: Sendable, Equatable {
+     }
+ 
+     init?(stream: MediaStream) {
+-        guard let profile = stream.doviProfile, (0...127).contains(profile) else { return nil }
++        guard let profile = stream.dolbyVision?.profile, (0...127).contains(profile) else { return nil }
+         self.profile = profile
+-        self.level = stream.doviLevel.flatMap { (1...63).contains($0) ? $0 : nil }
++        self.level = stream.dolbyVision?.level.flatMap { (1...63).contains($0) ? $0 : nil }
+             ?? Self.fallbackLevel(for: stream)
+-        self.blSignalCompatibilityID = min(max(stream.doviBLCompatID ?? 0, 0), 15)
++        self.blSignalCompatibilityID = min(max(stream.dolbyVision?.blCompatID ?? 0, 0), 15)
+         if let width = stream.width, let height = stream.height, width > 0, height > 0 {
+             lumaPictureSize = Double(width) * Double(height)
+             lumaSampleRate = stream.frameRate.flatMap { $0 > 0 ? Double(width) * Double(height) * $0 : nil }
+diff --git a/Dusk/Sources/Playback/StreamResolver+AV1.swift b/Dusk/Sources/Playback/StreamResolver+AV1.swift
+index 72c89ee..5d9c556 100644
+--- a/Dusk/Sources/Playback/StreamResolver+AV1.swift
++++ b/Dusk/Sources/Playback/StreamResolver+AV1.swift
+@@ -60,12 +60,12 @@ extension StreamResolver {
+             }
+             let knownSDR = ["bt709", "smpte170m", "smpte240m", "gamma22", "gamma28", "iec61966-2-1"]
+                 .contains($0.colorTransfer?.lowercased() ?? "")
+-            return hdrTags || hdrTransfer(of: $0) != nil || $0.doviPresent == true ||
+-                $0.doviProfile != nil || $0.doviBLCompatID != nil || $0.doviLevel != nil ||
++            return hdrTags || hdrTransfer(of: $0) != nil || $0.dolbyVision?.present == true ||
++                $0.dolbyVision?.profile != nil || $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil ||
+                 (($0.bitDepth ?? 8) > 8 && !knownSDR)
+         }
+         let supportedProfile = videos.allSatisfy {
+-            ($0.bitDepth ?? 8) <= 10 && $0.doviPresent != true && $0.doviProfile == nil && $0.doviBLCompatID == nil && $0.doviLevel == nil &&
++            ($0.bitDepth ?? 8) <= 10 && $0.dolbyVision?.present != true && $0.dolbyVision?.profile == nil && $0.dolbyVision?.blCompatID == nil && $0.dolbyVision?.level == nil &&
+                 ($0.chromaSubsampling == nil || ["4:2:0", "420"].contains($0.chromaSubsampling!))
+         }
+         if capabilities.hardwareDecode && supportedProfile {
+@@ -112,7 +112,7 @@ extension StreamResolver {
+         containsAV1(media) && capabilities.hardwareDecode &&
+             media.parts.flatMap(\.streams).filter { $0.kind == .video }.allSatisfy {
+                 isAV1Codec($0.codec ?? media.videoCodec) && ($0.bitDepth ?? 8) <= 10 &&
+-                    $0.doviPresent != true && $0.doviProfile == nil && $0.doviBLCompatID == nil && $0.doviLevel == nil &&
++                    $0.dolbyVision?.present != true && $0.dolbyVision?.profile == nil && $0.dolbyVision?.blCompatID == nil && $0.dolbyVision?.level == nil &&
+                     ($0.chromaSubsampling == nil || ["4:2:0", "420"].contains($0.chromaSubsampling!))
+             }
+     }
+diff --git a/Dusk/Sources/Playback/StreamResolver.swift b/Dusk/Sources/Playback/StreamResolver.swift
+index 5f98c34..cadf83a 100644
+--- a/Dusk/Sources/Playback/StreamResolver.swift
++++ b/Dusk/Sources/Playback/StreamResolver.swift
+@@ -62,8 +62,8 @@ enum StreamResolver {
+         let sdrTransfers: Set<String> = ["bt709", "smpte170m", "smpte240m", "gamma22", "gamma28", "iec61966-2-1"]
+         guard !videoStreams.isEmpty, videoStreams.allSatisfy({ stream in
+             !stream.isHDRVideo && hdrTransfer(of: stream) == nil &&
+-                stream.doviPresent != true && stream.doviProfile == nil &&
+-                stream.doviBLCompatID == nil && stream.doviLevel == nil &&
++                stream.dolbyVision?.present != true && stream.dolbyVision?.profile == nil &&
++                stream.dolbyVision?.blCompatID == nil && stream.dolbyVision?.level == nil &&
+                 (stream.bitDepth.map { (1...8).contains($0) } == true ||
+                     sdrTransfers.contains(stream.colorTransfer?.lowercased() ?? ""))
+         }) else { return decision }
+@@ -430,7 +430,7 @@ enum StreamResolver {
+             return "video codec is not H.264/HEVC"
+         }
+         let hasHDRVideo = media.parts.flatMap(\.streams).contains {
+-            $0.kind == .video && ($0.isHDRVideo || $0.doviPresent == true)
++            $0.kind == .video && ($0.isHDRVideo || $0.dolbyVision?.present == true)
+         }
+         if hasHDRVideo && !displaySupportsHDR {
+             return "HDR video on a display without HDR playback"
+@@ -565,7 +565,7 @@ enum StreamResolver {
+     /// or a Dolby Vision profile whose base layer is HDR (7, 8.1, 8.4, 8.6).
+     /// Profile 5 has its own path; 8.2 (SDR base) is not HDR.
+     static func isRemuxableHDRVideo(_ stream: MediaStream) -> Bool {
+-        guard stream.kind == .video, stream.doviProfile != 5 else { return false }
++        guard stream.kind == .video, stream.dolbyVision?.profile != 5 else { return false }
+         switch hdrTransfer(of: stream) {
+         case .pq?, .hlg?: return true
+         case nil: return false
+@@ -584,8 +584,8 @@ enum StreamResolver {
+         let trc = stream.colorTransfer?.lowercased() ?? ""
+         if trc.contains("2084") || trc.contains("pq") { return .pq }
+         if trc.contains("hlg") || trc.contains("b67") { return .hlg }
+-        guard trc.isEmpty, stream.doviPresent == true || stream.doviProfile != nil else { return nil }
+-        switch (stream.doviProfile, stream.doviBLCompatID) {
++        guard trc.isEmpty, stream.dolbyVision?.present == true || stream.dolbyVision?.profile != nil else { return nil }
++        switch (stream.dolbyVision?.profile, stream.dolbyVision?.blCompatID) {
+         case (8?, 4?): return .hlg
+         case (7?, _), (8?, 1?), (8?, 6?): return .pq
+         default: return nil
+@@ -597,8 +597,8 @@ enum StreamResolver {
+     static func containsHDRVideo(inPart part: MediaPart) -> Bool {
+         part.streams.contains {
+             $0.kind == .video && ($0.isHDRVideo || hdrTransfer(of: $0) != nil ||
+-                $0.doviPresent == true || $0.doviProfile != nil ||
+-                $0.doviBLCompatID != nil || $0.doviLevel != nil)
++                $0.dolbyVision?.present == true || $0.dolbyVision?.profile != nil ||
++                $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil)
+         }
+     }
+ 
+@@ -612,7 +612,7 @@ enum StreamResolver {
+             .flatMap(DolbyVisionConfiguration.init(stream:)) {
+             return configuration.displayName
+         }
+-        if let profile = stream.doviProfile {
++        if let profile = stream.dolbyVision?.profile {
+             return "Dolby Vision \(profile) (HDR10 base layer)"
+         }
+         return hdrTransfer(of: stream) == .hlg ? "HLG" : "HDR10"
+@@ -628,7 +628,7 @@ enum StreamResolver {
+             .flatMap(\.streams)
+             .first { stream in
+                 guard stream.kind == .video, stream.codec?.lowercased() != "av1" else { return false }
+-                switch (stream.doviProfile, stream.doviBLCompatID) {
++                switch (stream.dolbyVision?.profile, stream.dolbyVision?.blCompatID) {
+                 case (5?, _): return true
+                 case (8?, 1?), (8?, 4?): return includesProfile8
+                 default: return false
+@@ -644,7 +644,7 @@ enum StreamResolver {
+             .first { stream in
+                 stream.kind == .video
+                     && stream.codec?.lowercased() == "hevc"
+-                    && stream.doviProfile == 7
++                    && stream.dolbyVision?.profile == 7
+             }
+     }
+ 
+@@ -705,7 +705,7 @@ enum StreamResolver {
+     static func dolbyVisionProfile5Stream(in media: MediaVersion) -> MediaStream? {
+         media.parts.lazy
+             .flatMap(\.streams)
+-            .first { $0.kind == .video && $0.doviProfile == 5 }
++            .first { $0.kind == .video && $0.dolbyVision?.profile == 5 }
+     }
+ 
+     /// Check every video stream in every part; parts without stream metadata
+diff --git a/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift b/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
+index 5870ac2..ac82951 100644
+--- a/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
++++ b/Dusk/Sources/PlexService/MultiServer/PlexService+MovieCopies.swift
+@@ -56,7 +56,7 @@ extension PlexService {
+         let session = serverSessionToken
+         let hidden = await loadedHiddenLibraryFilter()
+         let guids = ([details.guid].compactMap { $0?.nilIfEmpty }
+-            + details.guids.filter { $0.value(for: "tmdb") != nil || $0.value(for: "imdb") != nil }.map(\.id))
++            + details.externalIDs.uris.filter { ExternalIDs.value(of: $0, for: "tmdb") != nil || ExternalIDs.value(of: $0, for: "imdb") != nil })
+         let matches = await withTaskGroup(of: [MediaItem].self) { group in
+             for guid in Set(guids) {
+                 group.addTask { (try? await self.serverItems(guid: guid, serverID: serverID)) ?? [] }
+diff --git a/Dusk/Sources/Shared/MediaFormatting.swift b/Dusk/Sources/Shared/MediaFormatting.swift
+index b96e996..ae0c48c 100644
+--- a/Dusk/Sources/Shared/MediaFormatting.swift
++++ b/Dusk/Sources/Shared/MediaFormatting.swift
+@@ -194,7 +194,7 @@ enum MediaTextFormatter {
+     static func playbackVersionTitle(_ media: MediaVersion) -> String {
+         var parts = [playbackVersionResolution(media)].compactMap { $0 }
+         if let video = media.parts.flatMap(\.streams).first(where: { $0.kind == .video }) {
+-            if video.doviPresent == true || video.doviProfile != nil {
++            if video.dolbyVision?.present == true || video.dolbyVision?.profile != nil {
+                 parts.append("Dolby Vision")
+             } else if StreamResolver.hdrTransfer(of: video) != nil {
+                 parts.append(StreamResolver.hdrVideoLabel(for: media))
+diff --git a/Dusk/Sources/TraktService/TraktModels.swift b/Dusk/Sources/TraktService/TraktModels.swift
+index e6a5d11..4ef3645 100644
+--- a/Dusk/Sources/TraktService/TraktModels.swift
++++ b/Dusk/Sources/TraktService/TraktModels.swift
+@@ -38,7 +38,7 @@ enum TraktHistoryMapper {
+     static func entry(
+         type: MediaKind,
+         guid: String?,
+-        guids: [PlexGuid],
++        externalIDs: ExternalIDs,
+         watchedAt: Date,
+         profileID: String
+     ) -> TraktHistoryEntry? {
+@@ -46,10 +46,10 @@ enum TraktHistoryMapper {
+ 
+         // Modern agents: the `Guid` array (imdb://, tmdb://, tvdb://).
+         var ids = TraktIDs()
+-        for item in guids {
+-            if ids.imdb == nil, let value = item.value(for: "imdb"), value.hasPrefix("tt") { ids.imdb = value }
+-            if ids.tmdb == nil, let value = item.value(for: "tmdb").flatMap(Int.init) { ids.tmdb = value }
+-            if ids.tvdb == nil, let value = item.value(for: "tvdb").flatMap(Int.init) { ids.tvdb = value }
++        for uri in externalIDs.uris {
++            if ids.imdb == nil, let value = ExternalIDs.value(of: uri, for: "imdb"), value.hasPrefix("tt") { ids.imdb = value }
++            if ids.tmdb == nil, let value = ExternalIDs.value(of: uri, for: "tmdb").flatMap(Int.init) { ids.tmdb = value }
++            if ids.tvdb == nil, let value = ExternalIDs.value(of: uri, for: "tvdb").flatMap(Int.init) { ids.tvdb = value }
+         }
+         if !ids.isEmpty {
+             return TraktHistoryEntry(
+diff --git a/Dusk/Sources/TraktService/TraktService.swift b/Dusk/Sources/TraktService/TraktService.swift
+index 81eacef..7f03fc5 100644
+--- a/Dusk/Sources/TraktService/TraktService.swift
++++ b/Dusk/Sources/TraktService/TraktService.swift
+@@ -323,12 +323,12 @@ final class TraktService {
+ 
+     /// Called once per playback session when Plex scrobbles it (the 90 %
+     /// mark or a finished stop). Never throws, never blocks.
+-    func recordFinished(type: MediaKind, guid: String?, guids: [PlexGuid], at date: Date = .now) {
++    func recordFinished(type: MediaKind, guid: String?, externalIDs: ExternalIDs, at date: Date = .now) {
+         guard isAvailable,
+               let profileID = plexService.activeProfileID,
+               accounts[profileID] != nil else { return }
+         guard let entry = TraktHistoryMapper.entry(
+-            type: type, guid: guid, guids: guids, watchedAt: date, profileID: profileID
++            type: type, guid: guid, externalIDs: externalIDs, watchedAt: date, profileID: profileID
+         ) else {
+             traktLogger.info("Finished \(type.rawValue, privacy: .public) has no Trakt-matchable id; skipped")
+             return
+diff --git a/DuskTests/FieldVocabularyTests.swift b/DuskTests/FieldVocabularyTests.swift
+new file mode 100644
+index 0000000..c10c811
+--- /dev/null
++++ b/DuskTests/FieldVocabularyTests.swift
+@@ -0,0 +1,88 @@
++import Foundation
++import Testing
++@testable import Dusk
++
++/// P0-03: neutral field names over unchanged Plex keys, `DolbyVisionInfo`,
++/// `ExternalIDs` and `ContentKey.native`.
++@Suite("Field vocabulary")
++struct FieldVocabularyTests {
++    private func object(_ data: Data) throws -> NSDictionary {
++        try #require(try JSONSerialization.jsonObject(with: data) as? NSDictionary)
++    }
++
++    @Test func partialDolbyVisionAndNumericKindRoundTrip() throws {
++        let text = #"{"id":5,"streamType":1,"codec":"hevc","selected":true,"colorTrc":"smpte2084","DOVIProfile":8,"DOVIBLCompatID":1}"#
++        let stream = try JSONDecoder().decode(MediaStream.self, from: Data(text.utf8))
++        #expect(stream.kind == .video)
++        #expect(stream.isServerSelected == true)
++        #expect(stream.colorTransfer == "smpte2084")
++        let dv = try #require(stream.dolbyVision)
++        #expect(dv.present == nil)
++        #expect(dv.profile == 8)
++        #expect(dv.level == nil)
++        #expect(dv.blCompatID == 1)
++        #expect(try object(JSONEncoder().encode(stream)).isEqual(try object(Data(text.utf8))))
++    }
++
++    @Test func noDolbyVisionFieldsMeansNoInfo() throws {
++        let text = #"{"id":6,"streamType":2,"codec":"eac3"}"#
++        let stream = try JSONDecoder().decode(MediaStream.self, from: Data(text.utf8))
++        #expect(stream.kind == .audio)
++        #expect(stream.dolbyVision == nil)
++        #expect(try object(JSONEncoder().encode(stream)).isEqual(try object(Data(text.utf8))))
++    }
++
++    @Test func presentOnlyIsKeptApartFromAProfile() throws {
++        let stream = try JSONDecoder().decode(MediaStream.self, from: Data(#"{"id":7,"streamType":1,"DOVIPresent":1}"#.utf8))
++        #expect(stream.dolbyVision?.present == true)
++        #expect(stream.dolbyVision?.profile == nil)
++    }
++
++    @Test func externalIDsKeepServerOrderAndEveryValue() {
++        let ids = ExternalIDs(uris: ["TMDB://abc", "imdb://tt1", "tmdb://42", "tvdb://", "tmdb://7"])
++        #expect(ids.values(for: "tmdb") == ["abc", "42", "7"])
++        #expect(ids.tmdb == "abc")
++        #expect(ids.imdb == "tt1")
++        #expect(ids.tvdb == nil)
++    }
++
++    @Test func watchlistTakesTheFirstNumericTMDBID() {
++        let entry = WatchlistEntry(itemID: "1", guid: "plex://movie/x", type: .movie, title: "X",
++                                   guids: [PlexGuid(id: "tmdb://abc"), PlexGuid(id: "tmdb://42")])
++        #expect(entry.tmdbID == 42)
++    }
++
++    @Test func traktTakesTheFirstValueThatPassesItsFilter() throws {
++        let entry = try #require(TraktHistoryMapper.entry(
++            type: .movie, guid: nil,
++            externalIDs: ExternalIDs(uris: ["imdb://nm1", "tmdb://x", "imdb://tt2", "tmdb://9"]),
++            watchedAt: Date(timeIntervalSince1970: 0), profileID: "p"
++        ))
++        #expect(entry.ids == TraktIDs(imdb: "tt2", tmdb: 9))
++    }
++
++    @Test func contentKeyAppendsTheScalarGuidAfterTheArray() {
++        let identity = MediaItemID(serverID: "a", itemID: "1")
++        let fromArray = ContentKey.resolve(guid: "tmdb://1", externalIDs: ExternalIDs(uris: ["tmdb://2"]),
++                                           type: .movie, title: "T", year: nil, identity: identity)
++        #expect(fromArray == .external(provider: "tmdb", namespace: "movie", id: "2"))
++        let fromScalar = ContentKey.resolve(guid: "imdb://tt3", externalIDs: ExternalIDs(),
++                                            type: .movie, title: "T", year: nil, identity: identity)
++        #expect(fromScalar == .external(provider: "imdb", namespace: "movie", id: "tt3"))
++        let native = ContentKey.resolve(guid: "plex://movie/ABC", externalIDs: ExternalIDs(uris: ["tmdb://2"]),
++                                        type: .movie, title: "T", year: nil, identity: identity)
++        #expect(native == .native("plex://movie/abc"))
++    }
++
++    @Test func aliasesCarryEveryStrongKey() {
++        let aliases = ContentKey.aliases(
++            guid: "plex://movie/abc", externalIDs: ExternalIDs(uris: ["tmdb://2", "imdb://tt3", "local://9"]),
++            type: .movie, edition: nil, isClip: false, identity: MediaItemID(serverID: "a", itemID: "1")
++        )
++        #expect(aliases == [
++            .native("plex://movie/abc"),
++            .external(provider: "tmdb", namespace: "movie", id: "2"),
++            .external(provider: "imdb", namespace: "movie", id: "tt3"),
++        ])
++    }
++}
+diff --git a/DuskTests/TraktMappingTests.swift b/DuskTests/TraktMappingTests.swift
+index 3250e16..bfc2bd5 100644
+--- a/DuskTests/TraktMappingTests.swift
++++ b/DuskTests/TraktMappingTests.swift
+@@ -10,7 +10,7 @@ struct TraktMappingTests {
+         TraktHistoryMapper.entry(
+             type: type,
+             guid: guid,
+-            guids: guids.map(PlexGuid.init(id:)),
++            externalIDs: ExternalIDs(uris: guids),
+             watchedAt: date,
+             profileID: "profile"
+         )
+diff --git a/docs/data-and-plex.md b/docs/data-and-plex.md
+index 05079f3..fa1fb24 100644
+--- a/docs/data-and-plex.md
++++ b/docs/data-and-plex.md
+@@ -545,7 +545,7 @@ Subtitle search and download (`PlexService+Subtitles.swift`):
+   round-trip routinely exceeds the session's 15s request default. 30s is also the
+   session's `timeoutIntervalForResource`, so it is the practical ceiling.
+ - `externalSubtitleURL(for:)` builds the item's server base URL + `stream.key` +
+-  `X-Plex-Token` for sidecar streams (`streamType == .subtitle` with a non-nil `key`) so the
++  `X-Plex-Token` for sidecar streams (`kind == .subtitle` with a non-nil `key`) so the
+   engine can attach them via VLCKit `addPlaybackSlave`. Server token, never the
+   account token; log only through `sanitizedPlaybackURLString`.
+ - `canDownloadSubtitles(serverID:)` gates the affordance per server: an owned
+@@ -834,14 +834,25 @@ always carries the server.
+   one (`Domain/MediaIDCoding.swift`), so `downloads.json` and the
+   converted-media blob are unchanged. Order ids with `mediaIDPrecedes`, never
+   `<` on the strings.
++- More neutral names over unchanged Plex keys: `resumeOffsetMs` (`viewOffset`),
++  `playCount` (`viewCount`), `lastPlayedAt` (`lastViewedAt`), `episodeCount` /
++  `watchedEpisodeCount` (`leafCount` / `viewedLeafCount`), `MediaStream.kind`
++  (`streamType`, `StreamKind` keeps Plex's 1/2/3), `isServerSelected`
++  (`selected`), `colorTransfer` (`colorTrc`). The four DOVI fields are
++  `dolbyVision: DolbyVisionInfo?`, each still optional on its own.
++- External ids are read through `ExternalIDs` (`item.externalIDs`): every
++  `<namespace>://<value>` in server order; each caller keeps its own rule
++  (first, first numeric, first that looks like an imdb id).
+ - `Providers/Core/ServerRegistry.swift`: which provider a `serverID` belongs
+   to; a server with no record is Plex. Lookup only, nothing stored yet.
+ - `Domain/ContentKey.swift` is the *cross-server* identity used for merging:
+-  the scalar `guid` when it starts with `plex://`, else tmdb > imdb > tvdb from
+-  the `guids` array namespaced by type, else `type|normalizedTitle|year`
++  the scalar `guid` when it starts with `plex://` (`.native`), else tmdb > imdb >
++  tvdb from the external ids namespaced by type, else `type|normalizedTitle|year`
+   (seasons: show|season, episodes: show|season|episode), else `.instance(id)` —
+   this one copy and nothing else. It answers "is this the same title as that one,
+   on another server" — never use it as a storage key or a request parameter.
++  `contentAliases` lists every strong key a copy carries (native plus each
++  external id); nothing reads it yet, it is for providers without a native id.
+   - Namespaces are **per type**, not collapsed: a show, its season and its
+     episode routinely carry the same tvdb id and must never merge. Clips
+     ("Other Videos", which report `type == "movie"` with `subtype == "clip"`)

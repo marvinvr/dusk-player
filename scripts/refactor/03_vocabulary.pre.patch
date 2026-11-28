@@ -1,0 +1,30 @@
+diff --git a/Dusk/Sources/PlexService/PlexService+Playback.swift b/Dusk/Sources/PlexService/PlexService+Playback.swift
+index 218f05e..f84c740 100644
+--- a/Dusk/Sources/PlexService/PlexService+Playback.swift
++++ b/Dusk/Sources/PlexService/PlexService+Playback.swift
+@@ -934,6 +934,10 @@ private struct PlexTranscodeDecisionResponse: Decodable {
+         let location: String?
+         let channels: Int?
+         let profile: String?
++
++        enum CodingKeys: String, CodingKey {
++            case streamType, codec, decision, location, channels, profile
++        }
+     }
+ 
+     struct Container: Decodable {
+diff --git a/Dusk/Sources/Siri/SiriTitleCatalog.swift b/Dusk/Sources/Siri/SiriTitleCatalog.swift
+index c1c2257..0f1906a 100644
+--- a/Dusk/Sources/Siri/SiriTitleCatalog.swift
++++ b/Dusk/Sources/Siri/SiriTitleCatalog.swift
+@@ -14,6 +14,10 @@ struct SiriCatalogEntry: Codable, Hashable, Sendable {
+     let title: String
+     let year: Int?
+     let lastViewedAt: Int?
++
++    enum CodingKeys: String, CodingKey {
++        case id, kind, title, year, lastViewedAt
++    }
+ }
+ 
+ /// The movies and shows Dusk registers with Siri.

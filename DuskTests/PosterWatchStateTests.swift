@@ -3,8 +3,8 @@ import Testing
 @testable import Dusk
 
 /// What a poster card in a hub row or grid shows from the item's own Plex
-/// watch state: the progress bar from `viewOffset`, the checkmark from
-/// `viewCount` (or every episode watched for shows and seasons).
+/// watch state: the progress bar from `resumeOffsetMs`, the checkmark from
+/// `playCount` (or every episode watched for shows and seasons).
 @Suite("Poster watch state")
 struct PosterWatchStateTests {
     private func item(_ fields: [String: Any]) throws -> MediaItem {
@@ -44,7 +44,7 @@ struct PosterWatchStateTests {
     @Test("isWatched uses leaf counts for shows and seasons, viewCount for episodes (#88)")
     func isWatchedByType() throws {
         for type in ["show", "season"] {
-            // A container's viewCount is a play count: one episode played is not "watched".
+            // A container's playCount is a play count: one episode played is not "watched".
             #expect(!(try item(["type": type, "viewCount": 1, "leafCount": 10, "viewedLeafCount": 1])).isWatched, "\(type)")
             #expect(try item(["type": type, "viewCount": 10, "leafCount": 10, "viewedLeafCount": 10]).isWatched, "\(type)")
             #expect(!(try item(["type": type, "viewCount": 2])).isWatched, "\(type)")

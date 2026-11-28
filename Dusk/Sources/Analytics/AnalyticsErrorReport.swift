@@ -416,8 +416,8 @@ enum AnalyticsErrorSanitizer {
     /// integers, so only those digits make it into the string.
     static func hdr(of stream: MediaStream?) -> String? {
         guard let stream else { return nil }
-        if let profile = stream.doviProfile, (0...10).contains(profile) {
-            if let compat = stream.doviBLCompatID, (0...10).contains(compat) {
+        if let profile = stream.dolbyVision?.profile, (0...10).contains(profile) {
+            if let compat = stream.dolbyVision?.blCompatID, (0...10).contains(compat) {
                 return "dv\(profile).\(compat)"
             }
             return "dv\(profile)"
@@ -561,7 +561,7 @@ enum AnalyticsErrorSanitizer {
         media: MediaVersion?,
         part: MediaPart?
     ) -> AnalyticsMediaProfile {
-        let video = part?.streams.first { $0.streamType == .video }
+        let video = part?.streams.first { $0.kind == .video }
         return AnalyticsMediaProfile(
             engine: engine.map(Self.engine),
             delivery: decision.map(Self.delivery),

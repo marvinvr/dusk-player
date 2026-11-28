@@ -9,7 +9,7 @@ import Testing
 struct TVLibraryMergeTests {
     private func episodeFields(
         _ key: String, section: Int = 1, guid: String? = "plex://episode/mmc-s2e21",
-        lastViewedAt: Int? = nil, offset: Int = 0
+        lastPlayedAt: Int? = nil, offset: Int = 0
     ) -> [String: Any] {
         var value: [String: Any] = [
             "ratingKey": key, "key": "/library/metadata/\(key)", "type": "episode",
@@ -19,32 +19,32 @@ struct TVLibraryMergeTests {
             "duration": 1_400_000, "viewOffset": offset,
         ]
         if let guid { value["guid"] = guid }
-        if let lastViewedAt { value["lastViewedAt"] = lastViewedAt }
+        if let lastPlayedAt { value["lastViewedAt"] = lastPlayedAt }
         return value
     }
 
     private func episode(
         _ key: String, section: Int = 1, guid: String? = "plex://episode/mmc-s2e21",
-        lastViewedAt: Int? = nil, offset: Int = 0, server: String = "a"
+        lastPlayedAt: Int? = nil, offset: Int = 0, server: String = "a"
     ) throws -> MediaItem {
-        let value = episodeFields(key, section: section, guid: guid, lastViewedAt: lastViewedAt, offset: offset)
+        let value = episodeFields(key, section: section, guid: guid, lastPlayedAt: lastPlayedAt, offset: offset)
         let decoder = JSONDecoder()
         decoder.userInfo[.duskServerID] = server
         return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: value))
     }
 
     @Test func singleServerContinueWatchingKeepsMostRecentlyWatchedCopy() throws {
-        let tv = try episode("tv", lastViewedAt: 100, offset: 600_000)
-        let kids = try episode("kids", section: 2, lastViewedAt: 200, offset: 300_000)
-        let other = try episode("other", guid: "plex://episode/daniel-tiger-s4e13", lastViewedAt: 150)
+        let tv = try episode("tv", lastPlayedAt: 100, offset: 600_000)
+        let kids = try episode("kids", section: 2, lastPlayedAt: 200, offset: 300_000)
+        let other = try episode("other", guid: "plex://episode/daniel-tiger-s4e13", lastPlayedAt: 150)
         let merged = ContinueWatchingMerge.merge([[tv, other, kids]])
         #expect(merged.items.map(\.id) == [kids.id, other.id])
         #expect(merged.alternates[tv.contentKey] == [tv.id, kids.id])
     }
 
     @Test func sameLastViewedFallsBackToFurthestProgress() throws {
-        let tv = try episode("tv", lastViewedAt: 100, offset: 600_000)
-        let kids = try episode("kids", section: 2, lastViewedAt: 100, offset: 300_000)
+        let tv = try episode("tv", lastPlayedAt: 100, offset: 600_000)
+        let kids = try episode("kids", section: 2, lastPlayedAt: 100, offset: 300_000)
         #expect(MediaItemMerge.interleave([[kids, tv]]).items.map(\.id) == [tv.id])
     }
 
@@ -73,9 +73,9 @@ struct TVLibraryMergeTests {
     }
 
     @Test func multiServerContinueWatchingCollapsesEveryCopy() throws {
-        let tv = try episode("tv", lastViewedAt: 100)
-        let kids = try episode("kids", section: 2, lastViewedAt: 300)
-        let remote = try episode("remote", lastViewedAt: 200, server: "b")
+        let tv = try episode("tv", lastPlayedAt: 100)
+        let kids = try episode("kids", section: 2, lastPlayedAt: 300)
+        let remote = try episode("remote", lastPlayedAt: 200, server: "b")
         let merged = ContinueWatchingMerge.merge([[tv, kids], [remote]])
         #expect(merged.items.map(\.id) == [kids.id])
         #expect(merged.alternates[tv.contentKey] == [tv.id, kids.id, remote.id])

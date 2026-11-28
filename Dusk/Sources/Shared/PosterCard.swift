@@ -609,8 +609,8 @@ extension MediaItem {
         case .movie, .episode, .clip:
             return !isWatched
         case .show, .season:
-            if let leafCount, leafCount > 0, let viewedLeafCount {
-                return viewedLeafCount < leafCount
+            if let episodeCount, episodeCount > 0, let watchedEpisodeCount {
+                return watchedEpisodeCount < episodeCount
             }
             return !isWatched
         default:
@@ -619,7 +619,7 @@ extension MediaItem {
     }
 
     /// Continue Watching still lists a title the user has finished before once
-    /// they start it again. `viewCount` then hides Mark Watched on poster
+    /// they start it again. `playCount` then hides Mark Watched on poster
     /// menus, but this row is the in-progress copy, and marking it watched is
     /// the scrobble that takes it off the row.
     /// A movie, episode or video with a resume position (a rewatch too): its
@@ -648,12 +648,12 @@ extension MediaItem {
         case .movie, .episode, .clip:
             return isWatched || isPartiallyWatched
         case .show:
-            if let viewedLeafCount {
-                return viewedLeafCount > 0
+            if let watchedEpisodeCount {
+                return watchedEpisodeCount > 0
             }
             return isWatched || isPartiallyWatched
         case .season:
-            if let viewedLeafCount, viewedLeafCount > 0 {
+            if let watchedEpisodeCount, watchedEpisodeCount > 0 {
                 return true
             }
             return isWatched || isPartiallyWatched || canMarkWatchedFromContextMenu

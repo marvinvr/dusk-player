@@ -98,7 +98,7 @@ struct TrueHDAudioRoutingTests {
         let streams = media.parts[0].streams
         let decision = StreamResolver.evaluate(media: media)
         let audio = PlayerViewModel.preferredRemuxAudioStream(inPart: media.parts[0], preferredLanguage: nil)
-        let subtitle = streams.first { $0.streamType == .subtitle }
+        let subtitle = streams.first { $0.kind == .subtitle }
         #expect(decision.engine == .vlcKit)
         #expect(!decision.requiresServerTranscode)
         #expect(StreamResolver.hdrVideoRemuxBlocker(
@@ -281,7 +281,7 @@ struct TrueHDAudioRoutingTests {
         hdrVideoRemuxEnabled: Bool = true
     ) -> String? {
         let streams = media.parts[0].streams
-        guard let audio = streams.first(where: { $0.streamType == .audio }) else {
+        guard let audio = streams.first(where: { $0.kind == .audio }) else {
             return "no audio"
         }
         return StreamResolver.hdrAudioConversionRemuxBlocker(

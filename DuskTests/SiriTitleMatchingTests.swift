@@ -12,7 +12,7 @@ struct SiriTitleMatchingTests {
         key: String? = nil,
         server: String = "server-a",
         inProgress: Bool = false,
-        lastViewedAt: Int? = nil
+        lastPlayedAt: Int? = nil
     ) -> SiriTitleCandidate {
         SiriTitleCandidate(
             id: MediaItemID(serverID: server, itemID: key ?? title),
@@ -20,7 +20,7 @@ struct SiriTitleMatchingTests {
             title: title,
             year: year,
             isInProgress: inProgress,
-            lastViewedAt: lastViewedAt
+            lastPlayedAt: lastPlayedAt
         )
     }
 
@@ -137,11 +137,11 @@ struct SiriTitleMatchingTests {
     @Test("Watch history breaks a tie between versions")
     func historyBreaksTie() {
         let uk = candidate("The Office", year: 2001, key: "1")
-        let us = candidate("The Office (US)", year: 2005, key: "2", lastViewedAt: 1_700_000_000)
+        let us = candidate("The Office (US)", year: 2005, key: "2", lastPlayedAt: 1_700_000_000)
         #expect(resolve("the office", [uk, us]) == .match(us))
 
-        let inProgress = candidate("The Office (US)", year: 2005, key: "2", inProgress: true, lastViewedAt: 1)
-        let rewatched = candidate("The Office", year: 2001, key: "1", lastViewedAt: 2)
+        let inProgress = candidate("The Office (US)", year: 2005, key: "2", inProgress: true, lastPlayedAt: 1)
+        let rewatched = candidate("The Office", year: 2001, key: "1", lastPlayedAt: 2)
         #expect(resolve("the office", [rewatched, inProgress]) == .match(inProgress))
     }
 
@@ -180,7 +180,7 @@ struct SiriTitleMatchingTests {
         _ number: Int,
         watched: Bool = false,
         inProgress: Bool = false,
-        lastViewedAt: Int? = nil
+        lastPlayedAt: Int? = nil
     ) -> SiriNextEpisodePicker.Episode {
         SiriNextEpisodePicker.Episode(
             id: MediaItemID(serverID: "server-a", itemID: "\(season)x\(number)"),
@@ -188,15 +188,15 @@ struct SiriTitleMatchingTests {
             index: number,
             isWatched: watched,
             isInProgress: inProgress,
-            lastViewedAt: lastViewedAt
+            lastPlayedAt: lastPlayedAt
         )
     }
 
     @Test("An episode in progress resumes")
     func resumesInProgress() {
         let episodes = [
-            episode(1, 1, watched: true, lastViewedAt: 10),
-            episode(1, 2, inProgress: true, lastViewedAt: 20),
+            episode(1, 1, watched: true, lastPlayedAt: 10),
+            episode(1, 2, inProgress: true, lastPlayedAt: 20),
             episode(1, 3),
         ]
         #expect(SiriNextEpisodePicker.pick(from: episodes) == episodes[1])
@@ -206,8 +206,8 @@ struct SiriTitleMatchingTests {
     func nextAfterLastWatched() {
         let episodes = [
             episode(1, 1),
-            episode(1, 2, watched: true, lastViewedAt: 10),
-            episode(2, 1, watched: true, lastViewedAt: 30),
+            episode(1, 2, watched: true, lastPlayedAt: 10),
+            episode(2, 1, watched: true, lastPlayedAt: 30),
             episode(2, 2),
             episode(1, 3),
         ]
@@ -223,8 +223,8 @@ struct SiriTitleMatchingTests {
     @Test("A fully watched show starts over, an empty one has nothing")
     func fullyWatchedAndEmpty() {
         let episodes = [
-            episode(1, 2, watched: true, lastViewedAt: 20),
-            episode(1, 1, watched: true, lastViewedAt: 10),
+            episode(1, 2, watched: true, lastPlayedAt: 20),
+            episode(1, 1, watched: true, lastPlayedAt: 10),
         ]
         #expect(SiriNextEpisodePicker.pick(from: episodes)?.id.itemID == "1x1")
         #expect(SiriNextEpisodePicker.pick(from: []) == nil)

@@ -267,7 +267,7 @@ extension PlaybackDebugInfo {
             return live
         }
 
-        let stream = part.streams.first { $0.streamType == .video }
+        let stream = part.streams.first { $0.kind == .video }
         var quality = live
         quality.width = live.width ?? stream?.width ?? media.width
         quality.height = live.height ?? stream?.height ?? media.height
@@ -288,7 +288,7 @@ extension PlaybackDebugInfo {
         // libvlc draws into an 8-bit, untagged surface, so an HDR source
         // reaches the screen as SDR, and only its base layer ever plays.
         if engine == .vlcKit {
-            guard let stream = part.streams.first(where: { $0.streamType == .video }),
+            guard let stream = part.streams.first(where: { $0.kind == .video }),
                   let transfer = StreamResolver.hdrTransfer(of: stream) else { return PlaybackVideoQuality.sdrLabel }
             let label = transfer == .hlg ? PlaybackVideoQuality.hlgLabel : PlaybackVideoQuality.hdr10Label
             return "\(label) (SDR output)"

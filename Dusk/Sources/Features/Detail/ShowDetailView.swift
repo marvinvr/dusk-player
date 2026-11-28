@@ -229,7 +229,7 @@ struct ShowDetailView: View {
                     Task {
                         await playback.play(
                             id: ep.id,
-                            resumeOffsetMilliseconds: ep.viewOffset,
+                            resumeOffsetMilliseconds: ep.resumeOffsetMs,
                             resumeOffsetDurationMilliseconds: ep.duration,
                             placeholder: PlaybackPlaceholder(episode: ep)
                         )
@@ -250,7 +250,7 @@ struct ShowDetailView: View {
                             await playback.playVersion(
                                 id: episode.id,
                                 mediaID: version.id,
-                                resumeOffsetMilliseconds: episode.viewOffset,
+                                resumeOffsetMilliseconds: episode.resumeOffsetMs,
                                 placeholder: PlaybackPlaceholder(episode: episode)
                             )
                         }

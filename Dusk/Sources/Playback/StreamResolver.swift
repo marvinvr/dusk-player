@@ -51,21 +51,21 @@ enum StreamResolver {
               !decision.requiresServerTranscode,
               let selectedSubtitleStreamID,
               part.streams.contains(where: {
-                  $0.streamType == .subtitle && $0.id == selectedSubtitleStreamID && $0.key == nil
+                  $0.kind == .subtitle && $0.id == selectedSubtitleStreamID && $0.key == nil
               }) else { return decision }
         let request = VideoEnhancementRequest.make(mode: enhancementMode, media: media, part: part)
         guard request.isPotentiallyEnabled, request.preflightUnavailabilityReason == nil else { return decision }
 
         // vmem is SDR-only. Require positive SDR evidence and reject *every*
         // HDR/DV hint, even when Plex omitted bitDepth or spelled PQ as ST2084.
-        let videoStreams = part.streams.filter { $0.streamType == .video }
+        let videoStreams = part.streams.filter { $0.kind == .video }
         let sdrTransfers: Set<String> = ["bt709", "smpte170m", "smpte240m", "gamma22", "gamma28", "iec61966-2-1"]
         guard !videoStreams.isEmpty, videoStreams.allSatisfy({ stream in
             !stream.isHDRVideo && hdrTransfer(of: stream) == nil &&
-                stream.doviPresent != true && stream.doviProfile == nil &&
-                stream.doviBLCompatID == nil && stream.doviLevel == nil &&
+                stream.dolbyVision?.present != true && stream.dolbyVision?.profile == nil &&
+                stream.dolbyVision?.blCompatID == nil && stream.dolbyVision?.level == nil &&
                 (stream.bitDepth.map { (1...8).contains($0) } == true ||
-                    sdrTransfers.contains(stream.colorTrc?.lowercased() ?? ""))
+                    sdrTransfers.contains(stream.colorTransfer?.lowercased() ?? ""))
         }) else { return decision }
         return Decision(
             engine: .vlcKit,
@@ -254,7 +254,7 @@ enum StreamResolver {
         }
         return media.parts.contains { part in
             part.streams.contains {
-                $0.streamType == .video && $0.codec?.lowercased() == "hevc"
+                $0.kind == .video && $0.codec?.lowercased() == "hevc"
                     && $0.codecID?.lowercased() == "hev1"
             }
         }
@@ -269,7 +269,7 @@ enum StreamResolver {
         forceVLCKit: Bool = false
     ) -> Bool {
         guard !forceAVPlayer, !forceVLCKit, !isDolbyVisionProfile5(media) else { return false }
-        let videoStreams = media.parts.flatMap(\.streams).filter { $0.streamType == .video }
+        let videoStreams = media.parts.flatMap(\.streams).filter { $0.kind == .video }
         guard videoStreams.contains(where: { $0.codec?.lowercased() == "hevc" }),
               !videoStreams.contains(where: { $0.codecID?.nilIfEmpty != nil }) else {
             return false
@@ -312,7 +312,7 @@ enum StreamResolver {
         // AVPlayer-compatible. External text subs (srt, vtt) are fine. Embedded
         // bitmap subs (PGS, VOBSUB) and complex styled subs (ASS/SSA) require VLCKit.
         for part in media.parts {
-            for stream in part.streams where stream.streamType == .subtitle {
+            for stream in part.streams where stream.kind == .subtitle {
                 guard let codec = stream.codec?.lowercased() else { continue }
                 if !avSubtitleCodecs.contains(codec) {
                     return Decision(
@@ -357,7 +357,7 @@ enum StreamResolver {
         // video used to route it to VLCKit, whose HLS demuxer started late
         // and lost its clock on every source timestamp jump.
         let hasVideoMetadata = media.videoCodec?.nilIfEmpty != nil
-            || media.parts.contains { $0.streams.contains { $0.streamType == .video } }
+            || media.parts.contains { $0.streams.contains { $0.kind == .video } }
         guard hasVideoMetadata else {
             return Decision(engine: .avPlayer, reason: "Plex Live HLS without codec details plays through AVPlayer")
         }
@@ -368,7 +368,7 @@ enum StreamResolver {
             return decision
         }
         for part in media.parts {
-            for stream in part.streams where stream.streamType == .subtitle {
+            for stream in part.streams where stream.kind == .subtitle {
                 guard let codec = stream.codec?.lowercased() else { continue }
                 if !avSubtitleCodecs.contains(codec) {
                     return Decision(
@@ -424,13 +424,13 @@ enum StreamResolver {
             return videoDecision.reason
         }
         let videoCodecs = media.parts.flatMap(\.streams)
-            .filter { $0.streamType == .video }
+            .filter { $0.kind == .video }
             .compactMap { $0.codec?.lowercased() }
         guard !videoCodecs.isEmpty, videoCodecs.allSatisfy({ $0 == "h264" || $0 == "hevc" }) else {
             return "video codec is not H.264/HEVC"
         }
         let hasHDRVideo = media.parts.flatMap(\.streams).contains {
-            $0.streamType == .video && ($0.isHDRVideo || $0.doviPresent == true)
+            $0.kind == .video && ($0.isHDRVideo || $0.dolbyVision?.present == true)
         }
         if hasHDRVideo && !displaySupportsHDR {
             return "HDR video on a display without HDR playback"
@@ -470,7 +470,7 @@ enum StreamResolver {
         guard isDolbyVisionProfile5(media) else { return "not Dolby Vision profile 5" }
         guard media.parts.count == 1 else { return "multi-part media" }
         let videoCodecs = media.parts.flatMap(\.streams)
-            .filter { $0.streamType == .video }
+            .filter { $0.kind == .video }
             .compactMap { $0.codec?.lowercased() }
         guard !videoCodecs.isEmpty, videoCodecs.allSatisfy({ $0 == "hevc" }) else {
             return "video codec is not HEVC"
@@ -507,7 +507,7 @@ enum StreamResolver {
             return "not a VLCKit direct-play file"
         }
         guard media.parts.count == 1 else { return "multi-part media" }
-        let videoStreams = media.parts.flatMap(\.streams).filter { $0.streamType == .video }
+        let videoStreams = media.parts.flatMap(\.streams).filter { $0.kind == .video }
         guard !videoStreams.isEmpty, videoStreams.allSatisfy({ $0.codec?.lowercased() == "hevc" }) else {
             return "video codec is not HEVC"
         }
@@ -565,7 +565,7 @@ enum StreamResolver {
     /// or a Dolby Vision profile whose base layer is HDR (7, 8.1, 8.4, 8.6).
     /// Profile 5 has its own path; 8.2 (SDR base) is not HDR.
     static func isRemuxableHDRVideo(_ stream: MediaStream) -> Bool {
-        guard stream.streamType == .video, stream.doviProfile != 5 else { return false }
+        guard stream.kind == .video, stream.dolbyVision?.profile != 5 else { return false }
         switch hdrTransfer(of: stream) {
         case .pq?, .hlg?: return true
         case nil: return false
@@ -577,15 +577,15 @@ enum StreamResolver {
         case hlg
     }
 
-    /// The stream's HDR transfer, from Plex's (ffprobe-spelled) `colorTrc`,
+    /// The stream's HDR transfer, from Plex's (ffprobe-spelled) `colorTransfer`,
     /// falling back to the Dolby Vision base-layer compatibility ID when
     /// the TRC is missing. nil means SDR or unknown.
     static func hdrTransfer(of stream: MediaStream) -> HDRTransfer? {
-        let trc = stream.colorTrc?.lowercased() ?? ""
+        let trc = stream.colorTransfer?.lowercased() ?? ""
         if trc.contains("2084") || trc.contains("pq") { return .pq }
         if trc.contains("hlg") || trc.contains("b67") { return .hlg }
-        guard trc.isEmpty, stream.doviPresent == true || stream.doviProfile != nil else { return nil }
-        switch (stream.doviProfile, stream.doviBLCompatID) {
+        guard trc.isEmpty, stream.dolbyVision?.present == true || stream.dolbyVision?.profile != nil else { return nil }
+        switch (stream.dolbyVision?.profile, stream.dolbyVision?.blCompatID) {
         case (8?, 4?): return .hlg
         case (7?, _), (8?, 1?), (8?, 6?): return .pq
         default: return nil
@@ -596,9 +596,9 @@ enum StreamResolver {
     /// i.e. anything a move to VLCKit would flatten (or, for DV5, break).
     static func containsHDRVideo(inPart part: MediaPart) -> Bool {
         part.streams.contains {
-            $0.streamType == .video && ($0.isHDRVideo || hdrTransfer(of: $0) != nil ||
-                $0.doviPresent == true || $0.doviProfile != nil ||
-                $0.doviBLCompatID != nil || $0.doviLevel != nil)
+            $0.kind == .video && ($0.isHDRVideo || hdrTransfer(of: $0) != nil ||
+                $0.dolbyVision?.present == true || $0.dolbyVision?.profile != nil ||
+                $0.dolbyVision?.blCompatID != nil || $0.dolbyVision?.level != nil)
         }
     }
 
@@ -612,7 +612,7 @@ enum StreamResolver {
             .flatMap(DolbyVisionConfiguration.init(stream:)) {
             return configuration.displayName
         }
-        if let profile = stream.doviProfile {
+        if let profile = stream.dolbyVision?.profile {
             return "Dolby Vision \(profile) (HDR10 base layer)"
         }
         return hdrTransfer(of: stream) == .hlg ? "HLG" : "HDR10"
@@ -627,8 +627,8 @@ enum StreamResolver {
         media.parts.lazy
             .flatMap(\.streams)
             .first { stream in
-                guard stream.streamType == .video, stream.codec?.lowercased() != "av1" else { return false }
-                switch (stream.doviProfile, stream.doviBLCompatID) {
+                guard stream.kind == .video, stream.codec?.lowercased() != "av1" else { return false }
+                switch (stream.dolbyVision?.profile, stream.dolbyVision?.blCompatID) {
                 case (5?, _): return true
                 case (8?, 1?), (8?, 4?): return includesProfile8
                 default: return false
@@ -642,9 +642,9 @@ enum StreamResolver {
         media.parts.lazy
             .flatMap(\.streams)
             .first { stream in
-                stream.streamType == .video
+                stream.kind == .video
                     && stream.codec?.lowercased() == "hevc"
-                    && stream.doviProfile == 7
+                    && stream.dolbyVision?.profile == 7
             }
     }
 
@@ -705,7 +705,7 @@ enum StreamResolver {
     static func dolbyVisionProfile5Stream(in media: MediaVersion) -> MediaStream? {
         media.parts.lazy
             .flatMap(\.streams)
-            .first { $0.streamType == .video && $0.doviProfile == 5 }
+            .first { $0.kind == .video && $0.dolbyVision?.profile == 5 }
     }
 
     /// Check every video stream in every part; parts without stream metadata
@@ -715,7 +715,7 @@ enum StreamResolver {
         var checkedStreamMetadata = false
 
         for part in media.parts {
-            for stream in part.streams where stream.streamType == .video {
+            for stream in part.streams where stream.kind == .video {
                 checkedStreamMetadata = true
                 if let decision = videoDecision(
                     codec: stream.codec ?? media.videoCodec,
@@ -786,7 +786,7 @@ enum StreamResolver {
         var checkedStreamMetadata = false
 
         for part in media.parts {
-            for stream in part.streams where stream.streamType == .audio {
+            for stream in part.streams where stream.kind == .audio {
                 checkedStreamMetadata = true
                 if let decision = audioDecision(codec: stream.codec ?? media.audioCodec) {
                     return decision
@@ -894,7 +894,7 @@ private extension StreamResolver {
 
         private static func primaryVideoStream(in media: MediaVersion) -> MediaStream? {
             for part in media.parts {
-                if let stream = part.streams.first(where: { $0.streamType == .video }) {
+                if let stream = part.streams.first(where: { $0.kind == .video }) {
                     return stream
                 }
             }

@@ -4,7 +4,7 @@ import OSLog
 extension PlaybackCoordinator {
     /// Called only by explicit picker/download actions, including selecting Off
     /// again. Engine discovery, automatic selection and recovery never save.
-    func rememberShowTrackChoice(type: PlexStreamType, streamID: String?) {
+    func rememberShowTrackChoice(type: StreamKind, streamID: String?) {
         // A real pick is the viewer's to keep on the server, so the earlier
         // selection is no longer written back for that half.
         if type == .audio {
@@ -23,7 +23,7 @@ extension PlaybackCoordinator {
             remembered.subtitles = .off
         } else {
             guard let streamID,
-                  let stream = part.streams.first(where: { $0.streamType == type && $0.id == streamID }),
+                  let stream = part.streams.first(where: { $0.kind == type && $0.id == streamID }),
                   let descriptor = ShowTrackDescriptor(stream: stream) else { return }
             if type == .audio {
                 remembered.audio = descriptor

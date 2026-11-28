@@ -89,7 +89,7 @@ extension PlaybackCoordinator {
         default: playbackSource.shouldAutoPlay
         }
 
-        let audioStreams = debugInfo.part.streams.filter { $0.streamType == .audio }
+        let audioStreams = debugInfo.part.streams.filter { $0.kind == .audio }
         let audioPosition = audioStreams.firstIndex { $0.id == activeAudioStreamID }
         pendingExplicitTrackSelection = ExplicitTrackSelection(
             audioStreamID: activeAudioStreamID,

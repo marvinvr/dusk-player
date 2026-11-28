@@ -262,7 +262,7 @@ struct LibraryRecommendationEngine {
 
             if var existing = signalByIdentity[identity.identity] {
                 existing.weight = min(existing.weight + (0.35 * recencyWeight), 2.0)
-                existing.lastViewedAt = max(existing.lastViewedAt, viewedAt)
+                existing.lastPlayedAt = max(existing.lastPlayedAt, viewedAt)
                 signalByIdentity[identity.identity] = existing
             } else {
                 signalByIdentity[identity.identity] = RecommendationTasteSignal(
@@ -270,7 +270,7 @@ struct LibraryRecommendationEngine {
                     id: identity.id,
                     type: identity.type,
                     weight: recencyWeight,
-                    lastViewedAt: viewedAt
+                    lastPlayedAt: viewedAt
                 )
             }
         }
@@ -280,7 +280,7 @@ struct LibraryRecommendationEngine {
                 return $0.weight > $1.weight
             }
 
-            return $0.lastViewedAt > $1.lastViewedAt
+            return $0.lastPlayedAt > $1.lastPlayedAt
         }
     }
 
@@ -305,8 +305,8 @@ struct LibraryRecommendationEngine {
             var pageHasPotentiallyRecentItems = false
 
             for item in items where isRecommendationSignalItem(item) {
-                if let lastViewedAt = item.lastViewedAt {
-                    if lastViewedAt >= epochSeconds {
+                if let lastPlayedAt = item.lastPlayedAt {
+                    if lastPlayedAt >= epochSeconds {
                         recentItems.append(item)
                         pageHasPotentiallyRecentItems = true
                     } else if recentItems.isEmpty {

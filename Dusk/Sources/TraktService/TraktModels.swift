@@ -38,7 +38,7 @@ enum TraktHistoryMapper {
     static func entry(
         type: MediaKind,
         guid: String?,
-        guids: [PlexGuid],
+        externalIDs: ExternalIDs,
         watchedAt: Date,
         profileID: String
     ) -> TraktHistoryEntry? {
@@ -46,10 +46,10 @@ enum TraktHistoryMapper {
 
         // Modern agents: the `Guid` array (imdb://, tmdb://, tvdb://).
         var ids = TraktIDs()
-        for item in guids {
-            if ids.imdb == nil, let value = item.value(for: "imdb"), value.hasPrefix("tt") { ids.imdb = value }
-            if ids.tmdb == nil, let value = item.value(for: "tmdb").flatMap(Int.init) { ids.tmdb = value }
-            if ids.tvdb == nil, let value = item.value(for: "tvdb").flatMap(Int.init) { ids.tvdb = value }
+        for uri in externalIDs.uris {
+            if ids.imdb == nil, let value = ExternalIDs.value(of: uri, for: "imdb"), value.hasPrefix("tt") { ids.imdb = value }
+            if ids.tmdb == nil, let value = ExternalIDs.value(of: uri, for: "tmdb").flatMap(Int.init) { ids.tmdb = value }
+            if ids.tvdb == nil, let value = ExternalIDs.value(of: uri, for: "tvdb").flatMap(Int.init) { ids.tvdb = value }
         }
         if !ids.isEmpty {
             return TraktHistoryEntry(

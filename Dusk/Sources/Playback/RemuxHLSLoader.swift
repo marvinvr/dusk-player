@@ -115,11 +115,11 @@ struct DolbyVisionConfiguration: Sendable, Equatable {
     }
 
     init?(stream: MediaStream) {
-        guard let profile = stream.doviProfile, (0...127).contains(profile) else { return nil }
+        guard let profile = stream.dolbyVision?.profile, (0...127).contains(profile) else { return nil }
         self.profile = profile
-        self.level = stream.doviLevel.flatMap { (1...63).contains($0) ? $0 : nil }
+        self.level = stream.dolbyVision?.level.flatMap { (1...63).contains($0) ? $0 : nil }
             ?? Self.fallbackLevel(for: stream)
-        self.blSignalCompatibilityID = min(max(stream.doviBLCompatID ?? 0, 0), 15)
+        self.blSignalCompatibilityID = min(max(stream.dolbyVision?.blCompatID ?? 0, 0), 15)
         if let width = stream.width, let height = stream.height, width > 0, height > 0 {
             lumaPictureSize = Double(width) * Double(height)
             lumaSampleRate = stream.frameRate.flatMap { $0 > 0 ? Double(width) * Double(height) * $0 : nil }
@@ -236,7 +236,7 @@ enum RemuxVariantCodecs {
     /// `hvc1.2.4.L153.b0` (Main 10) / `hvc1.1.6.L120.b0` (Main); `hev1` when
     /// the source's sample entry is `hev1`/`dvhe`, which a remux keeps.
     static func hevcCodec(for stream: MediaStream) -> String? {
-        guard stream.streamType == .video, stream.codec?.lowercased() == "hevc" else { return nil }
+        guard stream.kind == .video, stream.codec?.lowercased() == "hevc" else { return nil }
         let profile: String
         // Every Dolby Vision profile Dusk signals is Main 10 ("main 10").
         let reported = stream.profile?.lowercased().trimmingCharacters(in: .whitespaces)

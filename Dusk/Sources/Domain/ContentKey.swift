@@ -29,8 +29,8 @@ import Foundation
 /// key is good enough to collapse a row on screen, never good enough to send
 /// playback to another server — see `ContentAlternatesIndex`.
 enum ContentKey: Hashable, Sendable {
-    /// Plex's own global metadata id (`plex://movie/5d776...`).
-    case plex(String)
+    /// The provider's own global metadata id (Plex: `plex://movie/5d776...`).
+    case native(String)
     /// `provider:namespace:id`, e.g. tmdb for a movie.
     case external(provider: String, namespace: String, id: String)
     /// Title/year (or show/season/episode) fallback.
@@ -44,7 +44,7 @@ enum ContentKey: Hashable, Sendable {
     /// is genuinely the same thing.
     var isStrong: Bool {
         switch self {
-        case .plex, .external: true
+        case .native, .external: true
         case .heuristic, .instance: false
         }
     }
@@ -60,7 +60,7 @@ extension ContentKey {
     ///   - guid: the scalar `guid` field; only used when it is a `plex://` id.
     ///     Legacy agent guids (`com.plexapp.agents.imdb://…`) and `local://`
     ///     are ignored because they are not comparable across servers.
-    ///   - guids: the `Guid` array, which carries the external ids.
+    ///   - externalIDs: the item's external ids (Plex's `Guid` array).
     ///   - episode: show title plus season/episode numbers when the item is an
     ///     episode or a season, so the heuristic can key on the show rather than
     ///     the title — "Season 1" is the title of every show's first season.
@@ -74,7 +74,7 @@ extension ContentKey {
     ///     the heuristic would say nothing, so unrelated items can never merge.
     static func resolve(
         guid: String?,
-        guids: [PlexGuid],
+        externalIDs: ExternalIDs,
         type: MediaKind,
         title: String,
         year: Int?,
@@ -85,15 +85,15 @@ extension ContentKey {
     ) -> ContentKey {
         let editionSuffix = edition.map(normalized).flatMap(\.nilIfEmpty).map { "|edition:\($0)" } ?? ""
         if let plexGUID = guid?.nilIfEmpty, plexGUID.lowercased().hasPrefix("plex://") {
-            return .plex(plexGUID.lowercased() + editionSuffix)
+            return .native(plexGUID.lowercased() + editionSuffix)
         }
 
         let namespace = isClip ? "clip" : type.rawValue
         // Some agents send an external URI as the scalar guid rather than in
         // Guid[]. Provider-prefixed IDs are equally strong in either location.
-        let externalGuids = guids + [guid.map { PlexGuid(id: $0) }].compactMap { $0 }
+        let externalGuids = externalIDs.appending([guid].compactMap { $0 })
         for provider in externalProviders {
-            if let value = externalGuids.lazy.compactMap({ $0.value(for: provider) }).first {
+            if let value = externalGuids.first(provider) {
                 return .external(provider: provider, namespace: namespace, id: value.lowercased() + editionSuffix)
             }
         }
@@ -153,7 +153,7 @@ extension ContentKey {
     init(item: MediaItem) {
         self = Self.resolve(
             guid: item.guid,
-            guids: item.guids,
+            externalIDs: item.externalIDs,
             type: item.type,
             title: item.title,
             year: item.year,
@@ -175,7 +175,7 @@ extension ContentKey {
     init(details: MediaDetails) {
         self = Self.resolve(
             guid: details.guid,
-            guids: details.guids,
+            externalIDs: details.externalIDs,
             type: details.type,
             title: details.title,
             year: details.year,
@@ -215,11 +215,47 @@ extension ContentKey {
 extension MediaItem {
     /// Cross-server content identity. See `ContentKey`.
     var contentKey: ContentKey { ContentKey(item: self) }
+
+    /// Every strong key this copy carries. See `ContentKey.aliases`.
+    var contentAliases: Set<ContentKey> {
+        ContentKey.aliases(guid: guid, externalIDs: externalIDs, type: type,
+                           edition: editionTitle, isClip: isClip, identity: id)
+    }
 }
 
 extension MediaDetails {
     /// Cross-server content identity. See `ContentKey`.
     var contentKey: ContentKey { ContentKey(details: self) }
+
+    /// Every strong key this copy carries. See `ContentKey.aliases`.
+    var contentAliases: Set<ContentKey> {
+        ContentKey.aliases(guid: guid, externalIDs: externalIDs, type: type,
+                           edition: editionTitle, isClip: isClip, identity: id)
+    }
+}
+
+extension ContentKey {
+    /// Every strong key a copy carries: its primary key when that is strong,
+    /// plus one key per native or external id (docs/jellyfin/04-architecture.md
+    /// §6.2). The merge layer can use these to re-key a copy whose provider has
+    /// no native global id onto the key of a copy that has one. Nothing reads
+    /// them yet: with Plex alone every copy already has its primary key, so
+    /// merging is unchanged.
+    static func aliases(
+        guid: String?, externalIDs: ExternalIDs, type: MediaKind,
+        edition: String?, isClip: Bool, identity: MediaItemID
+    ) -> Set<ContentKey> {
+        var keys = Set<ContentKey>()
+        let primary = resolve(guid: guid, externalIDs: externalIDs, type: type, title: "", year: nil,
+                              edition: edition, isClip: isClip, identity: identity)
+        if primary.isStrong { keys.insert(primary) }
+        for uri in [guid].compactMap({ $0 }) + externalIDs.uris {
+            let key = resolve(guid: uri, externalIDs: ExternalIDs(uris: [uri]), type: type, title: "", year: nil,
+                              edition: edition, isClip: isClip, identity: identity)
+            if key.isStrong { keys.insert(key) }
+        }
+        return keys
+    }
 }
 
 // Movie copies may use different Plex agents but still share an external ID.
@@ -227,7 +263,7 @@ extension MediaDetails {
 extension ContentKey {
     var isMovie: Bool {
         switch self {
-        case .plex(let guid): guid.hasPrefix("plex://movie/")
+        case .native(let guid): guid.hasPrefix("plex://movie/")
         case .external(_, let namespace, _): namespace == "movie"
         default: false
         }
@@ -236,7 +272,7 @@ extension ContentKey {
     var movieEdition: String? {
         let value: String
         switch self {
-        case .plex(let guid): value = guid
+        case .native(let guid): value = guid
         case .external(_, _, let id): value = id
         default: return nil
         }
@@ -244,16 +280,16 @@ extension ContentKey {
     }
 
     static func movieKeys(
-        guid: String?, guids: [PlexGuid], title: String, year: Int?,
+        guid: String?, externalIDs: ExternalIDs, title: String, year: Int?,
         edition: String?, identity: MediaItemID
     ) -> Set<ContentKey> {
         var keys = Set<ContentKey>()
-        for external in guids {
-            let key = resolve(guid: nil, guids: [external], type: .movie,
+        for external in externalIDs.uris {
+            let key = resolve(guid: nil, externalIDs: ExternalIDs(uris: [external]), type: .movie,
                               title: title, year: year, edition: edition, identity: identity)
             if key.isStrong { keys.insert(key) }
         }
-        let primary = resolve(guid: guid, guids: guids, type: .movie,
+        let primary = resolve(guid: guid, externalIDs: externalIDs, type: .movie,
                               title: title, year: year, edition: edition, identity: identity)
         if primary.isStrong { keys.insert(primary) }
         return keys
@@ -263,7 +299,7 @@ extension ContentKey {
 extension MediaItem {
     var movieContentKeys: Set<ContentKey> {
         guard type == .movie, !isClip else { return [] }
-        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
+        return ContentKey.movieKeys(guid: guid, externalIDs: externalIDs, title: title,
                                        year: year, edition: editionTitle, identity: id)
     }
 }
@@ -271,7 +307,7 @@ extension MediaItem {
 extension MediaDetails {
     var movieContentKeys: Set<ContentKey> {
         guard type == .movie, !isClip else { return [] }
-        return ContentKey.movieKeys(guid: guid, guids: guids, title: title,
+        return ContentKey.movieKeys(guid: guid, externalIDs: externalIDs, title: title,
                                        year: year, edition: editionTitle, identity: id)
     }
 }

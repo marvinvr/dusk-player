@@ -32,8 +32,8 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
     let summary: String?
     let year: Int?
     let duration: Int?
-    let viewOffset: Int?
-    let viewCount: Int?
+    let resumeOffsetMs: Int?
+    let playCount: Int?
     let thumb: String?
     let art: String?
     let clearLogo: String?
@@ -60,8 +60,8 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
 
     // Show/season counts
     let childCount: Int?
-    let leafCount: Int?
-    let viewedLeafCount: Int?
+    let episodeCount: Int?
+    let watchedEpisodeCount: Int?
 
     // Episode hierarchy (when type == .episode)
     let index: Int?
@@ -91,9 +91,9 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
 
     enum CodingKeys: String, CodingKey {
         case itemID = "ratingKey", key, type, subtype, libraryID = "librarySectionID", librarySectionTitle, title, editionTitle, summary, year, guid
-        case duration, viewOffset, viewCount, thumb, art, clearLogo, contentRating, primaryExtraKey
+        case duration, resumeOffsetMs = "viewOffset", playCount = "viewCount", thumb, art, clearLogo, contentRating, primaryExtraKey
         case rating, audienceRating, ratingImage, audienceRatingImage, userRating, studio, originallyAvailableAt
-        case childCount, leafCount, viewedLeafCount
+        case childCount, episodeCount = "leafCount", watchedEpisodeCount = "viewedLeafCount"
         case index, parentIndex, parentID = "parentRatingKey", parentThumb, grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
         case genres = "Genre"
         case directors = "Director"
@@ -126,8 +126,8 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
         summary = try container.decodeIfPresent(String.self, forKey: .summary)
         year = try container.decodeIfPresent(Int.self, forKey: .year)
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        viewOffset = try container.decodeIfPresent(Int.self, forKey: .viewOffset)
-        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
+        resumeOffsetMs = try container.decodeIfPresent(Int.self, forKey: .resumeOffsetMs)
+        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         art = try container.decodeIfPresent(String.self, forKey: .art)
         clearLogo = try container.decodePlexImageURLIfPresent(type: "clearLogo", explicitKey: .clearLogo, arrayKey: .images)
@@ -142,8 +142,8 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
         studio = try container.decodeIfPresent(String.self, forKey: .studio)
         originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
         childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
-        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
-        viewedLeafCount = try container.decodeIfPresent(Int.self, forKey: .viewedLeafCount)
+        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
+        watchedEpisodeCount = try container.decodeIfPresent(Int.self, forKey: .watchedEpisodeCount)
         index = try container.decodeIfPresent(Int.self, forKey: .index)
         parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
         parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
@@ -180,7 +180,7 @@ extension MediaDetails {
             for partIndex in copy.media[mediaIndex].parts.indices
             where copy.media[mediaIndex].parts[partIndex].id == partID {
                 for streamIndex in copy.media[mediaIndex].parts[partIndex].streams.indices
-                where copy.media[mediaIndex].parts[partIndex].streams[streamIndex].streamType == .video {
+                where copy.media[mediaIndex].parts[partIndex].streams[streamIndex].kind == .video {
                     copy.media[mediaIndex].parts[partIndex].streams[streamIndex].codecID = sampleEntry
                 }
             }
@@ -459,7 +459,7 @@ struct MediaPart: Codable, Sendable, Identifiable {
         return entries.enumerated().compactMap { index, entry in
             if let stream = entry.stream { return stream }
             plexMediaLogger.error(
-                "Dropping undecodable stream \(index, privacy: .public) (streamType \(entry.streamType.map(String.init) ?? "?", privacy: .public), codec \(entry.codec ?? "?", privacy: .public)): \(entry.failure ?? "unknown error", privacy: .public)"
+                "Dropping undecodable stream \(index, privacy: .public) (streamType \(entry.kind.map(String.init) ?? "?", privacy: .public), codec \(entry.codec ?? "?", privacy: .public)): \(entry.failure ?? "unknown error", privacy: .public)"
             )
             return nil
         }
@@ -493,24 +493,24 @@ struct MediaPart: Codable, Sendable, Identifiable {
 /// valid, otherwise whatever is readable for logging.
 private struct LenientStream: Decodable {
     let stream: MediaStream?
-    let streamType: Int?
+    let kind: Int?
     let codec: String?
     let failure: String?
 
     private enum ProbeKeys: String, CodingKey {
-        case streamType, codec
+        case kind = "streamType", codec
     }
 
     init(from decoder: Decoder) throws {
         do {
             stream = try MediaStream(from: decoder)
-            streamType = nil
+            kind = nil
             codec = nil
             failure = nil
         } catch {
             let probe = try? decoder.container(keyedBy: ProbeKeys.self)
             stream = nil
-            streamType = try? probe?.decodeIfPresent(Int.self, forKey: .streamType)
+            kind = try? probe?.decodeIfPresent(Int.self, forKey: .kind)
             codec = try? probe?.decodeIfPresent(String.self, forKey: .codec)
             failure = String(describing: error)
         }
@@ -520,7 +520,7 @@ private struct LenientStream: Decodable {
 // MARK: - Stream (individual track)
 
 /// Stream type constants matching the Plex API.
-enum PlexStreamType: Int, Codable, Sendable {
+enum StreamKind: Int, Codable, Sendable {
     case video = 1
     case audio = 2
     case subtitle = 3
@@ -529,14 +529,14 @@ enum PlexStreamType: Int, Codable, Sendable {
 /// A single audio, video, or subtitle track within a media part.
 struct MediaStream: Codable, Sendable, Identifiable {
     let id: String
-    let streamType: PlexStreamType
+    let kind: StreamKind
     let codec: String?
     let displayTitle: String?
     let extendedDisplayTitle: String?
     let language: String?
     let languageCode: String?
     let languageTag: String?
-    let isSelected: Bool?
+    let isServerSelected: Bool?
     let isDefault: Bool?
 
     // Video stream fields
@@ -548,7 +548,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
     let colorSpace: String?
     let colorRange: String?
     let colorPrimaries: String?
-    let colorTrc: String?
+    let colorTransfer: String?
     let chromaSubsampling: String?
     let profile: String?
     let level: Int?
@@ -558,13 +558,10 @@ struct MediaStream: Codable, Sendable, Identifiable {
     /// for `hev1` HEVC, see `StreamResolver.containsHEV1Video`.
     var codecID: String?
 
-    // Dolby Vision fields (video streams). Plex only sends these when the
-    // stream carries a DV layer; `doviProfile` 5 has no HDR10-compatible
-    // base layer, which StreamResolver routes through the Dolby Vision remux.
-    let doviPresent: Bool?
-    let doviProfile: Int?
-    let doviLevel: Int?
-    let doviBLCompatID: Int?
+    // Dolby Vision (video streams). Plex only sends these when the stream
+    // carries a DV layer; profile 5 has no HDR10-compatible base layer, which
+    // StreamResolver routes through the Dolby Vision remux.
+    let dolbyVision: DolbyVisionInfo?
 
     // Audio stream fields
     let channels: Int?
@@ -578,13 +575,13 @@ struct MediaStream: Codable, Sendable, Identifiable {
     let key: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, streamType, codec
+        case id, kind = "streamType", codec
         case displayTitle, extendedDisplayTitle
         case language, languageCode, languageTag
-        case isSelected = "selected"
+        case isServerSelected = "selected"
         case isDefault = "default"
         case width, height, bitrate, frameRate, bitDepth
-        case colorSpace, colorRange, colorPrimaries, colorTrc
+        case colorSpace, colorRange, colorPrimaries, colorTransfer = "colorTrc"
         case chromaSubsampling, profile, level, codecID
         case doviPresent = "DOVIPresent"
         case doviProfile = "DOVIProfile"
@@ -599,7 +596,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
 
     init(
         id: String,
-        streamType: PlexStreamType,
+        kind: StreamKind,
         codec: String?,
         displayTitle: String?,
         extendedDisplayTitle: String?,
@@ -616,7 +613,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
         colorSpace: String?,
         colorRange: String?,
         colorPrimaries: String?,
-        colorTrc: String?,
+        colorTransfer: String?,
         chromaSubsampling: String?,
         profile: String?,
         level: Int?,
@@ -633,14 +630,14 @@ struct MediaStream: Codable, Sendable, Identifiable {
         codecID: String? = nil
     ) {
         self.id = id
-        self.streamType = streamType
+        self.kind = kind
         self.codec = codec
         self.displayTitle = displayTitle
         self.extendedDisplayTitle = extendedDisplayTitle
         self.language = language
         self.languageCode = languageCode
         self.languageTag = languageTag
-        self.isSelected = isSelected
+        self.isServerSelected = isSelected
         self.isDefault = isDefault
         self.width = width
         self.height = height
@@ -650,14 +647,13 @@ struct MediaStream: Codable, Sendable, Identifiable {
         self.colorSpace = colorSpace
         self.colorRange = colorRange
         self.colorPrimaries = colorPrimaries
-        self.colorTrc = colorTrc
+        self.colorTransfer = colorTransfer
         self.chromaSubsampling = chromaSubsampling
         self.profile = profile
         self.level = level
-        self.doviPresent = doviPresent
-        self.doviProfile = doviProfile
-        self.doviLevel = doviLevel
-        self.doviBLCompatID = doviBLCompatID
+        self.dolbyVision = DolbyVisionInfo(
+            present: doviPresent, profile: doviProfile, level: doviLevel, blCompatID: doviBLCompatID
+        )
         self.channels = channels
         self.channelLayout = channelLayout
         self.samplingRate = samplingRate
@@ -670,7 +666,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         id = try container.decodeID(forKey: .id)
-        streamType = try container.decode(PlexStreamType.self, forKey: .streamType)
+        kind = try container.decode(StreamKind.self, forKey: .kind)
         codec = try container.decodeIfPresent(String.self, forKey: .codec)
         displayTitle = try container.decodeIfPresent(String.self, forKey: .displayTitle)
         extendedDisplayTitle = try container.decodeIfPresent(String.self, forKey: .extendedDisplayTitle)
@@ -679,7 +675,7 @@ struct MediaStream: Codable, Sendable, Identifiable {
         languageTag = try container.decodeIfPresent(String.self, forKey: .languageTag)
 
         // Plex returns Bool-ish fields as Int (0/1) or Bool depending on endpoint
-        isSelected = try Self.decodeBoolish(container: container, key: .isSelected)
+        isServerSelected = try Self.decodeBoolish(container: container, key: .isServerSelected)
         isDefault = try Self.decodeBoolish(container: container, key: .isDefault)
         isForced = try Self.decodeBoolish(container: container, key: .isForced)
         isHearingImpaired = try Self.decodeBoolish(container: container, key: .isHearingImpaired)
@@ -692,15 +688,17 @@ struct MediaStream: Codable, Sendable, Identifiable {
         colorSpace = try container.decodeIfPresent(String.self, forKey: .colorSpace)
         colorRange = try container.decodeIfPresent(String.self, forKey: .colorRange)
         colorPrimaries = try container.decodeIfPresent(String.self, forKey: .colorPrimaries)
-        colorTrc = try container.decodeIfPresent(String.self, forKey: .colorTrc)
+        colorTransfer = try container.decodeIfPresent(String.self, forKey: .colorTransfer)
         chromaSubsampling = try container.decodeIfPresent(String.self, forKey: .chromaSubsampling)
         profile = try container.decodeIfPresent(String.self, forKey: .profile)
         level = try container.decodeIfPresent(Int.self, forKey: .level)
         codecID = try? container.decodeIfPresent(String.self, forKey: .codecID)
-        doviPresent = try Self.decodeBoolish(container: container, key: .doviPresent)
-        doviProfile = try container.decodeIfPresent(Int.self, forKey: .doviProfile)
-        doviLevel = try container.decodeIfPresent(Int.self, forKey: .doviLevel)
-        doviBLCompatID = try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
+        dolbyVision = DolbyVisionInfo(
+            present: try Self.decodeBoolish(container: container, key: .doviPresent),
+            profile: try container.decodeIfPresent(Int.self, forKey: .doviProfile),
+            level: try container.decodeIfPresent(Int.self, forKey: .doviLevel),
+            blCompatID: try container.decodeIfPresent(Int.self, forKey: .doviBLCompatID)
+        )
         channels = try container.decodeIfPresent(Int.self, forKey: .channels)
         // Older offline snapshots used Dusk's property name as the JSON key.
         let legacy = try decoder.container(keyedBy: LegacyCodingKeys.self)
@@ -798,14 +796,14 @@ extension MediaStream {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encodeID(id, forKey: .id)
-        try container.encode(streamType, forKey: .streamType)
+        try container.encode(kind, forKey: .kind)
         try container.encodeIfPresent(codec, forKey: .codec)
         try container.encodeIfPresent(displayTitle, forKey: .displayTitle)
         try container.encodeIfPresent(extendedDisplayTitle, forKey: .extendedDisplayTitle)
         try container.encodeIfPresent(language, forKey: .language)
         try container.encodeIfPresent(languageCode, forKey: .languageCode)
         try container.encodeIfPresent(languageTag, forKey: .languageTag)
-        try container.encodeIfPresent(isSelected, forKey: .isSelected)
+        try container.encodeIfPresent(isServerSelected, forKey: .isServerSelected)
         try container.encodeIfPresent(isDefault, forKey: .isDefault)
         try container.encodeIfPresent(width, forKey: .width)
         try container.encodeIfPresent(height, forKey: .height)
@@ -815,20 +813,40 @@ extension MediaStream {
         try container.encodeIfPresent(colorSpace, forKey: .colorSpace)
         try container.encodeIfPresent(colorRange, forKey: .colorRange)
         try container.encodeIfPresent(colorPrimaries, forKey: .colorPrimaries)
-        try container.encodeIfPresent(colorTrc, forKey: .colorTrc)
+        try container.encodeIfPresent(colorTransfer, forKey: .colorTransfer)
         try container.encodeIfPresent(chromaSubsampling, forKey: .chromaSubsampling)
         try container.encodeIfPresent(profile, forKey: .profile)
         try container.encodeIfPresent(level, forKey: .level)
         try container.encodeIfPresent(codecID, forKey: .codecID)
-        try container.encodeIfPresent(doviPresent, forKey: .doviPresent)
-        try container.encodeIfPresent(doviProfile, forKey: .doviProfile)
-        try container.encodeIfPresent(doviLevel, forKey: .doviLevel)
-        try container.encodeIfPresent(doviBLCompatID, forKey: .doviBLCompatID)
+        try container.encodeIfPresent(dolbyVision?.present, forKey: .doviPresent)
+        try container.encodeIfPresent(dolbyVision?.profile, forKey: .doviProfile)
+        try container.encodeIfPresent(dolbyVision?.level, forKey: .doviLevel)
+        try container.encodeIfPresent(dolbyVision?.blCompatID, forKey: .doviBLCompatID)
         try container.encodeIfPresent(channels, forKey: .channels)
         try container.encodeIfPresent(samplingRate, forKey: .samplingRate)
         try container.encodeIfPresent(channelLayout, forKey: .channelLayout)
         try container.encodeIfPresent(isForced, forKey: .isForced)
         try container.encodeIfPresent(isHearingImpaired, forKey: .isHearingImpaired)
         try container.encodeIfPresent(key, forKey: .key)
+    }
+}
+
+/// Dolby Vision signalling of a video stream. Plex sends the four fields
+/// independently (`DOVIPresent`, `DOVIProfile`, `DOVILevel`,
+/// `DOVIBLCompatID`), so each stays optional on its own: `present == true` is
+/// not the same as "some field is known". The stream's `dolbyVision` is nil
+/// only when none of them is.
+struct DolbyVisionInfo: Sendable, Hashable {
+    let present: Bool?
+    let profile: Int?
+    let level: Int?
+    let blCompatID: Int?
+
+    init?(present: Bool?, profile: Int?, level: Int?, blCompatID: Int?) {
+        guard present != nil || profile != nil || level != nil || blCompatID != nil else { return nil }
+        self.present = present
+        self.profile = profile
+        self.level = level
+        self.blCompatID = blCompatID
     }
 }

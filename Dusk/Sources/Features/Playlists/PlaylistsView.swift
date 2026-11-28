@@ -161,7 +161,7 @@ struct PlaylistsRootContent: View {
     /// name only when playlists come from more than one server.
     private func subtitle(for playlist: Playlist) -> String? {
         var parts: [String] = []
-        if let count = playlist.leafCount {
+        if let count = playlist.episodeCount {
             parts.append(count == 1 ? "1 item" : "\(count) items")
         }
         if let duration = MediaTextFormatter.compactDuration(milliseconds: playlist.duration) {

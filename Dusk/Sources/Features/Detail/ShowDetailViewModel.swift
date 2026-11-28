@@ -104,7 +104,7 @@ final class ShowDetailViewModel {
 
     /// The whole show is "watched" once every episode has been viewed.
     var isWatched: Bool {
-        guard let viewed = details?.viewedLeafCount, let total = details?.leafCount, total > 0 else {
+        guard let viewed = details?.watchedEpisodeCount, let total = details?.episodeCount, total > 0 else {
             return false
         }
         return viewed >= total
@@ -143,7 +143,7 @@ final class ShowDetailViewModel {
         if DownloadsFeature.isVisible && isUsingCachedData {
             return MediaTextFormatter.episodeCount(downloadManager?.downloadedEpisodeCount(show: id))
         }
-        return MediaTextFormatter.episodeCount(details?.leafCount)
+        return MediaTextFormatter.episodeCount(details?.episodeCount)
     }
 
     var visibleSeasons: [Season] {
@@ -203,7 +203,7 @@ final class ShowDetailViewModel {
 
     func seasonSubtitle(_ season: Season) -> String? {
         guard DownloadsFeature.isVisible else {
-            return MediaTextFormatter.episodeCount(season.leafCount)
+            return MediaTextFormatter.episodeCount(season.episodeCount)
         }
 
         #if os(macOS)
@@ -211,9 +211,9 @@ final class ShowDetailViewModel {
         // download state lives on the season page and in Downloads.
         // The unwatched count is spelled out here rather than as a badge.
         if !showsOfflineAvailability {
-            let episodes = MediaTextFormatter.episodeCount(season.leafCount)
+            let episodes = MediaTextFormatter.episodeCount(season.episodeCount)
             guard let unwatched = season.unwatchedEpisodeCount, unwatched > 0,
-                  unwatched != season.leafCount else { return episodes }
+                  unwatched != season.episodeCount else { return episodes }
             return [episodes, "\(unwatched) unwatched"].compactMap { $0 }.joined(separator: " · ")
         }
         #endif
@@ -222,17 +222,17 @@ final class ShowDetailViewModel {
             let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
             if showsOfflineAvailability {
                 // The poster badge already says Downloaded / Not Downloaded.
-                let total = season.leafCount ?? downloadedCount
+                let total = season.episodeCount ?? downloadedCount
                 guard downloadedCount > 0, downloadedCount < total else {
-                    return MediaTextFormatter.episodeCount(season.leafCount)
+                    return MediaTextFormatter.episodeCount(season.episodeCount)
                 }
                 return "\(downloadedCount) of \(total) downloaded"
             } else if downloadedCount > 0 {
-                let total = season.leafCount ?? downloadedCount
+                let total = season.episodeCount ?? downloadedCount
                 return "\(downloadedCount) of \(total) downloaded"
             }
         }
-        return MediaTextFormatter.episodeCount(season.leafCount)
+        return MediaTextFormatter.episodeCount(season.episodeCount)
     }
 
     func seasonProgress(_ season: Season) -> Double? {
@@ -244,15 +244,15 @@ final class ShowDetailViewModel {
         #endif
         if showsDownloadProgress, DownloadsFeature.isVisible, let downloadManager {
             let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
-            if let total = season.leafCount, total > 0, downloadedCount > 0 {
+            if let total = season.episodeCount, total > 0, downloadedCount > 0 {
                 return Double(downloadedCount) / Double(total)
             }
         }
 
         // Fully watched seasons show a checkmark next to the title instead of a
         // full progress bar, so suppress the bar once everything has been viewed.
-        guard let total = season.leafCount,
-              let viewed = season.viewedLeafCount,
+        guard let total = season.episodeCount,
+              let viewed = season.watchedEpisodeCount,
               total > 0,
               viewed > 0,
               viewed < total else { return nil }
@@ -263,7 +263,7 @@ final class ShowDetailViewModel {
         guard showsOfflineAvailability, let downloadManager else { return nil }
         let downloadedCount = downloadManager.downloadedEpisodeCount(season: season.id)
         guard downloadedCount > 0 else { return "Not Downloaded" }
-        guard let total = season.leafCount, total > 0, downloadedCount < total else { return "Downloaded" }
+        guard let total = season.episodeCount, total > 0, downloadedCount < total else { return "Downloaded" }
         return "Partial"
     }
 
@@ -344,7 +344,7 @@ final class ShowDetailViewModel {
     var offlineBannerText: String? {
         guard showsOfflineAvailability else { return nil }
         let downloadedCount = downloadManager?.downloadedEpisodeCount(show: id) ?? 0
-        guard let total = details?.leafCount, total > 0, downloadedCount > 0 else {
+        guard let total = details?.episodeCount, total > 0, downloadedCount > 0 else {
             return nil
         }
 
@@ -395,8 +395,7 @@ final class ShowDetailViewModel {
               let details,
               let service = seerrService,
               service.isAvailableForCurrentContext,
-              let tmdbID = details.guids
-                .compactMap({ $0.value(for: "tmdb") })
+              let tmdbID = details.externalIDs.values(for: "tmdb")
                 .compactMap(Int.init)
                 .first else {
             return
@@ -492,8 +491,8 @@ final class ShowDetailViewModel {
         offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID(for: episode),
             itemID: episode.itemID,
-            fallback: episode.viewOffset
-        ) ?? episode.viewOffset
+            fallback: episode.resumeOffsetMs
+        ) ?? episode.resumeOffsetMs
     }
 
     /// An episode decoded from this show's server is already stamped with it;

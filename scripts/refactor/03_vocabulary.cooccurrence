@@ -1,0 +1,12 @@
+leafCount:episodeCount Dusk/Sources/Features/Detail/SeasonDetailViewModel.swift
+leafCount:episodeCount Dusk/Sources/Features/Detail/ShowDetailViewModel.swift
+leafCount:episodeCount Dusk/Sources/Features/Playlists/AddToPlaylist.swift
+streamType:kind Dusk/Sources/Analytics/AnalyticsErrorReport.swift
+streamType:kind Dusk/Sources/Downloads/PlexDownloadQueue.swift
+streamType:kind DuskTests/AnalyticsErrorReportTests.swift
+streamType:kind DuskTests/DolbyVision7PlaylistTests.swift
+streamType:kind DuskTests/DolbyVision7ProxyTests.swift
+streamType:kind DuskTests/LegacyContainerTests.swift
+streamType:kind DuskTests/MediaIDCodingTests.swift
+streamType:kind DuskTests/PlaybackVideoQualityTests.swift
+streamType:kind DuskTests/ShowTrackPreferenceTests.swift

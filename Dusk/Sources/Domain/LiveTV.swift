@@ -934,8 +934,8 @@ struct PlexLiveTuneResponse: Decodable {
         /// H.264, MP2 audio, unknown codecs) goes through the transcoder.
         var supportsLiveDirectPlay: Bool {
             let streams = (Part ?? []).flatMap { $0.Stream ?? [] }
-            let video = streams.filter { $0.streamType == PlexStreamType.video.rawValue }
-            let audio = streams.filter { $0.streamType == PlexStreamType.audio.rawValue }
+            let video = streams.filter { $0.kind == StreamKind.video.rawValue }
+            let audio = streams.filter { $0.kind == StreamKind.audio.rawValue }
             guard (container ?? "mpegts").lowercased() == "mpegts",
                   (videoCodec ?? video.first?.codec)?.lowercased() == "h264",
                   !video.contains(where: { $0.scanType?.lowercased() == "interlaced" }),
@@ -1029,7 +1029,7 @@ struct PlexLiveTuneResponse: Decodable {
     struct TuneStream: Decodable {
         let id: Int?
         let index: Int?
-        let streamType: Int?
+        let kind: Int?
         let codec: String?
         let width: Int?
         let height: Int?
@@ -1044,7 +1044,7 @@ struct PlexLiveTuneResponse: Decodable {
         let scanType: String?
 
         private enum CodingKeys: String, CodingKey {
-            case id, index, streamType, codec, width, height, bitrate, frameRate, bitDepth
+            case id, index, kind = "streamType", codec, width, height, bitrate, frameRate, bitDepth
             case profile, level, channels, audioChannelLayout, samplingRate, scanType
         }
 
@@ -1052,7 +1052,7 @@ struct PlexLiveTuneResponse: Decodable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             id = container.lenientInt(forKey: .id)
             index = container.lenientInt(forKey: .index)
-            streamType = container.lenientInt(forKey: .streamType)
+            kind = container.lenientInt(forKey: .kind)
             codec = container.lenientString(forKey: .codec)
             width = container.lenientInt(forKey: .width)
             height = container.lenientInt(forKey: .height)
@@ -1068,13 +1068,13 @@ struct PlexLiveTuneResponse: Decodable {
         }
 
         func makeStream(id fallbackID: Int) -> MediaStream? {
-            guard let streamType, let type = PlexStreamType(rawValue: streamType) else {
+            guard let kind, let type = StreamKind(rawValue: kind) else {
                 return nil
             }
 
             return MediaStream(
                 id: String(id ?? index ?? fallbackID),
-                streamType: type,
+                kind: type,
                 codec: codec,
                 displayTitle: nil,
                 extendedDisplayTitle: nil,
@@ -1091,7 +1091,7 @@ struct PlexLiveTuneResponse: Decodable {
                 colorSpace: nil,
                 colorRange: nil,
                 colorPrimaries: nil,
-                colorTrc: nil,
+                colorTransfer: nil,
                 chromaSubsampling: nil,
                 profile: profile,
                 level: level,

@@ -217,7 +217,7 @@ struct SiriTitleCandidate: Equatable, Sendable {
     /// Partly watched, or a show with an episode in progress.
     let isInProgress: Bool
     /// Unix seconds; any watch history at all is a signal.
-    let lastViewedAt: Int?
+    let lastPlayedAt: Int?
 
     init(
         id: MediaItemID,
@@ -225,14 +225,14 @@ struct SiriTitleCandidate: Equatable, Sendable {
         title: String,
         year: Int?,
         isInProgress: Bool = false,
-        lastViewedAt: Int? = nil
+        lastPlayedAt: Int? = nil
     ) {
         self.id = id
         self.kind = kind
         self.title = title
         self.year = year
         self.isInProgress = isInProgress
-        self.lastViewedAt = lastViewedAt
+        self.lastPlayedAt = lastPlayedAt
     }
 }
 
@@ -269,7 +269,7 @@ enum SiriTitleMatcher {
             contenders = narrowed(contenders) { $0.year == year }
         }
         contenders = narrowed(contenders) { $0.isInProgress }
-        contenders = narrowed(contenders) { $0.lastViewedAt != nil }
+        contenders = narrowed(contenders) { $0.lastPlayedAt != nil }
 
         if contenders.count == 1, let only = contenders.first {
             return .match(only)
@@ -421,7 +421,7 @@ enum SiriNextEpisodePicker {
         let index: Int?
         let isWatched: Bool
         let isInProgress: Bool
-        let lastViewedAt: Int?
+        let lastPlayedAt: Int?
     }
 
     static func pick(from episodes: [Episode]) -> Episode? {
@@ -432,13 +432,13 @@ enum SiriNextEpisodePicker {
 
         if let resuming = ordered
             .filter(\.isInProgress)
-            .max(by: { ($0.lastViewedAt ?? 0) < ($1.lastViewedAt ?? 0) }) {
+            .max(by: { ($0.lastPlayedAt ?? 0) < ($1.lastPlayedAt ?? 0) }) {
             return resuming
         }
 
         if let lastWatched = ordered.indices
-            .filter({ ordered[$0].isWatched && ordered[$0].lastViewedAt != nil })
-            .max(by: { (ordered[$0].lastViewedAt ?? 0) < (ordered[$1].lastViewedAt ?? 0) }),
+            .filter({ ordered[$0].isWatched && ordered[$0].lastPlayedAt != nil })
+            .max(by: { (ordered[$0].lastPlayedAt ?? 0) < (ordered[$1].lastPlayedAt ?? 0) }),
            let next = ordered[(lastWatched + 1)...].first(where: { !$0.isWatched }) {
             return next
         }

@@ -133,7 +133,7 @@ final class SearchViewModel {
 
         let plexItems = plexGroups.flatMap(\.items)
         let plexTMDBIDs = Set(
-            plexItems.flatMap(\.guids).compactMap { $0.value(for: "tmdb") }.compactMap(Int.init)
+            plexItems.flatMap { $0.externalIDs.values(for: "tmdb") }.compactMap(Int.init)
         )
         let plexFallbackKeys = Set(plexItems.map(fallbackKey))
 

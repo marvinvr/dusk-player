@@ -10,7 +10,7 @@ struct TraktMappingTests {
         TraktHistoryMapper.entry(
             type: type,
             guid: guid,
-            guids: guids.map(PlexGuid.init(id:)),
+            externalIDs: ExternalIDs(uris: guids),
             watchedAt: date,
             profileID: "profile"
         )

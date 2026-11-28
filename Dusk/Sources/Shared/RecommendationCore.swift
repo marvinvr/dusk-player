@@ -12,7 +12,7 @@ struct RecommendationTasteSignal: Sendable {
     let id: MediaItemID
     let type: MediaKind?
     var weight: Double
-    var lastViewedAt: Int
+    var lastPlayedAt: Int
 
     var itemID: String { id.itemID }
     var serverID: String? { id.serverID }
@@ -203,13 +203,13 @@ enum RecommendationCandidateSupport {
     static func isCompleted(_ item: MediaItem) -> Bool {
         switch item.type {
         case .show, .season:
-            if let leafCount = item.leafCount,
-               leafCount > 0,
-               let viewedLeafCount = item.viewedLeafCount {
-                return viewedLeafCount >= leafCount
+            if let episodeCount = item.episodeCount,
+               episodeCount > 0,
+               let watchedEpisodeCount = item.watchedEpisodeCount {
+                return watchedEpisodeCount >= episodeCount
             }
 
-            return (item.viewCount ?? 0) > 0
+            return (item.playCount ?? 0) > 0
         default:
             return item.isWatched
         }

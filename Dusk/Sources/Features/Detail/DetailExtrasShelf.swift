@@ -58,7 +58,7 @@ final class DetailExtrasModel {
         Task {
             await playback.play(
                 id: item.id,
-                resumeOffsetMilliseconds: item.viewOffset,
+                resumeOffsetMilliseconds: item.resumeOffsetMs,
                 resumeOffsetDurationMilliseconds: item.duration,
                 placeholder: placeholder
             )

@@ -12,7 +12,7 @@ private let plexSubtitlesLogger = Logger(
 /// OpenSubtitles account, API key, or rate-limit handling of its own. The server
 /// searches, downloads the chosen file, writes it as a sidecar next to the media,
 /// and refreshes the item. Afterwards the new track appears in
-/// `getMediaDetails(itemID:)` as a `MediaStream` with `streamType == .subtitle`
+/// `getMediaDetails(itemID:)` as a `MediaStream` with `kind == .subtitle`
 /// and a non-nil `key` (`/library/streams/{id}`), which `externalSubtitleURL(for:)`
 /// turns into a URL the playback engine can attach as a slave.
 extension PlexService {
@@ -121,7 +121,7 @@ extension PlexService {
     /// streams carry a `key`, and embedded tracks are selected in the engine
     /// instead of fetched.
     func externalSubtitleURL(for stream: MediaStream, serverID: String? = nil) -> URL? {
-        guard stream.streamType == .subtitle, let key = stream.key?.nilIfEmpty else { return nil }
+        guard stream.kind == .subtitle, let key = stream.key?.nilIfEmpty else { return nil }
         guard let connection = pool.connection(for: serverID) else {
             plexSubtitlesLogger.error(
                 "Failed to build external subtitle URL for stream \(stream.id, privacy: .public): missing server base URL"

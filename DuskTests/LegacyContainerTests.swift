@@ -126,7 +126,7 @@ struct LegacyContainerTests {
             #expect(converted.parts[0].container == "mkv")
             try #require(converted.parts[0].streams.count == 1)
             #expect(converted.parts[0].streams[0].id == "93")
-            #expect(converted.parts[0].streams[0].streamType == .audio)
+            #expect(converted.parts[0].streams[0].kind == .audio)
             #expect(converted.parts[0].streams[0].codec == "aac")
             #expect(converted.parts[0].streams[0].languageCode == "eng")
             #expect(converted.parts[0].streams[0].channels == 2)
@@ -579,11 +579,11 @@ struct LegacyContainerTests {
         #expect(entries == [
             SiriCatalogEntry(
                 id: MediaItemID(serverID: "a3d5f7e9b1c2d4e6f8a0b2c4d6e8f0a1b3c5d7e9", itemID: "1001"),
-                kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
+                kind: .movie, title: "Arrival", year: 2016, lastPlayedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
                 id: MediaItemID(serverID: "b7c9e1f3a5d7b9c1e3f5a7c9e1b3d5f7a9c1e3f5", itemID: "2000"),
-                kind: .show, title: "Severance", year: nil, lastViewedAt: nil
+                kind: .show, title: "Severance", year: nil, lastPlayedAt: nil
             ),
         ])
         #expect(entries.map { PlexTitleEntity($0).id } == [

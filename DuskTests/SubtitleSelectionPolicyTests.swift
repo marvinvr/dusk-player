@@ -27,7 +27,7 @@ struct SubtitleSelectionPolicyTests {
 
     private func pick(_ policy: SubtitleSelectionPolicy, audio: String?, streams: String = streams) throws -> Int? {
         let part = try self.part(streams)
-        let tracks = part.streams.filter { $0.streamType == .subtitle }.map(SubtitleTrack.init(stream:))
+        let tracks = part.streams.filter { $0.kind == .subtitle }.map(SubtitleTrack.init(stream:))
         return policy.preferredTrack(in: tracks, audioLanguage: audio)?.id
     }
 
@@ -129,7 +129,7 @@ struct SubtitleSelectionPolicyTests {
 
     private func pick(_ policy: SubtitleSelectionPolicy, audio: String?, streams: String, serverSelected: Bool) throws -> Int? {
         let part = try self.part(streams)
-        let tracks = part.streams.filter { $0.streamType == .subtitle }.map(SubtitleTrack.init(stream:))
+        let tracks = part.streams.filter { $0.kind == .subtitle }.map(SubtitleTrack.init(stream:))
         return policy.preferredTrack(
             in: tracks,
             audioLanguage: audio,

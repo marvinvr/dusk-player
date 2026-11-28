@@ -13,7 +13,11 @@ struct SiriCatalogEntry: Codable, Hashable, Sendable {
     let kind: SiriTitleKind
     let title: String
     let year: Int?
-    let lastViewedAt: Int?
+    let lastPlayedAt: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, kind, title, year, lastPlayedAt = "lastViewedAt"
+    }
 }
 
 /// The movies and shows Dusk registers with Siri.
@@ -141,7 +145,7 @@ final class SiriTitleCatalog {
 
         let watched = perServer
             .flatMap(\.value.watched)
-            .sorted { ($0.lastViewedAt ?? 0) > ($1.lastViewedAt ?? 0) }
+            .sorted { ($0.lastPlayedAt ?? 0) > ($1.lastPlayedAt ?? 0) }
         let added = perServer.flatMap(\.value.added)
 
         var seen: Set<String> = []
@@ -179,7 +183,7 @@ final class SiriTitleCatalog {
                 sort: "lastViewedAt:desc",
                 serverID: serverID
             ) {
-                watched += items.filter { $0.lastViewedAt != nil }
+                watched += items.filter { $0.lastPlayedAt != nil }
             }
             if let items = try? await service.getLibraryItems(
                 sectionId: library.key,
@@ -206,7 +210,7 @@ final class SiriTitleCatalog {
             kind: kind,
             title: item.title,
             year: item.year,
-            lastViewedAt: item.lastViewedAt
+            lastPlayedAt: item.lastPlayedAt
         )
     }
 }

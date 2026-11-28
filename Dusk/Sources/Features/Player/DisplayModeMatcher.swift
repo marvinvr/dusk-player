@@ -93,7 +93,7 @@ enum DisplayModeMatcher {
             return
         }
 
-        let videoStream = part.streams.first { $0.streamType == .video }
+        let videoStream = part.streams.first { $0.kind == .video }
         guard let refreshRate = matchableRefreshRate(for: videoStream) else {
             statusLabel = "No frame rate in metadata"
             return
@@ -280,7 +280,7 @@ enum DisplayModeMatcher {
         // The transfer characteristic is what actually decides SDR vs HDR here,
         // so it is read from the stream's own TRC rather than inferred from the
         // looser "is this HDR" heuristics used elsewhere.
-        let trc = stream?.colorTrc?.lowercased() ?? ""
+        let trc = stream?.colorTransfer?.lowercased() ?? ""
         if trc.contains("2084") || trc.contains("pq") {
             return kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
         }
@@ -289,7 +289,7 @@ enum DisplayModeMatcher {
         }
         // Dolby Vision profiles that reach a local engine carry an HDR10 base
         // layer, so PQ is the right request even when the TRC field is absent.
-        if stream?.doviPresent == true, (stream?.doviProfile ?? 0) != 5 {
+        if stream?.dolbyVision?.present == true, (stream?.dolbyVision?.profile ?? 0) != 5 {
             return kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ
         }
         return kCMFormatDescriptionTransferFunction_ITU_R_709_2
@@ -310,7 +310,7 @@ enum DisplayModeMatcher {
         let transfer = transferFunction(for: stream)
         if CFEqual(transfer, kCMFormatDescriptionTransferFunction_SMPTE_ST_2084_PQ) {
             // A DV file outside a DV remux shows its HDR10 base layer.
-            return stream?.doviPresent == true ? "HDR10 (Dolby Vision base layer)" : "HDR10 (PQ)"
+            return stream?.dolbyVision?.present == true ? "HDR10 (Dolby Vision base layer)" : "HDR10 (PQ)"
         }
         if CFEqual(transfer, kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG) {
             return "HLG"

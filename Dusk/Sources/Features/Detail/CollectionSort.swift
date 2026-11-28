@@ -77,7 +77,7 @@ enum CollectionSort {
         case .duration:
             return item.duration.map { .number(Double($0)) }
         case .lastViewed:
-            return item.lastViewedAt.map { .number(Double($0)) }
+            return item.lastPlayedAt.map { .number(Double($0)) }
         case .userRating, .lastEpisodeAdded, .random:
             return nil
         }

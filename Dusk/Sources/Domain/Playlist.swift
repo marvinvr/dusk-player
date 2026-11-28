@@ -23,15 +23,15 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
     /// Total runtime in milliseconds. (The `/items` container reports it in
     /// seconds — never read it from there.)
     let duration: Int?
-    let leafCount: Int?
-    let viewCount: Int?
-    let lastViewedAt: Int?
+    let episodeCount: Int?
+    let playCount: Int?
+    let lastPlayedAt: Int?
     let addedAt: Int?
     let updatedAt: Int?
 
     enum CodingKeys: String, CodingKey {
         case itemID = "ratingKey", title, summary, smart, playlistType, composite, thumb
-        case duration, leafCount, viewCount, lastViewedAt, addedAt, updatedAt
+        case duration, episodeCount = "leafCount", playCount = "viewCount", lastPlayedAt = "lastViewedAt", addedAt, updatedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -51,9 +51,9 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
         composite = try container.decodeIfPresent(String.self, forKey: .composite)
         thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
         duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        leafCount = try container.decodeIfPresent(Int.self, forKey: .leafCount)
-        viewCount = try container.decodeIfPresent(Int.self, forKey: .viewCount)
-        lastViewedAt = try container.decodeIfPresent(Int.self, forKey: .lastViewedAt)
+        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
+        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
+        lastPlayedAt = try container.decodeIfPresent(Int.self, forKey: .lastPlayedAt)
         addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
         updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
     }
@@ -68,9 +68,9 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
         composite: String? = nil,
         thumb: String? = nil,
         duration: Int? = nil,
-        leafCount: Int? = nil,
-        viewCount: Int? = nil,
-        lastViewedAt: Int? = nil,
+        episodeCount: Int? = nil,
+        playCount: Int? = nil,
+        lastPlayedAt: Int? = nil,
         addedAt: Int? = nil,
         updatedAt: Int? = nil
     ) {
@@ -83,9 +83,9 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
         self.composite = composite
         self.thumb = thumb
         self.duration = duration
-        self.leafCount = leafCount
-        self.viewCount = viewCount
-        self.lastViewedAt = lastViewedAt
+        self.episodeCount = episodeCount
+        self.playCount = playCount
+        self.lastPlayedAt = lastPlayedAt
         self.addedAt = addedAt
         self.updatedAt = updatedAt
     }
@@ -99,13 +99,13 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
         Playlist(
             serverID: serverID, itemID: itemID, title: newTitle, summary: summary,
             smart: smart, playlistType: playlistType, composite: composite, thumb: thumb,
-            duration: duration, leafCount: leafCount, viewCount: viewCount,
-            lastViewedAt: lastViewedAt, addedAt: addedAt, updatedAt: updatedAt
+            duration: duration, episodeCount: episodeCount, playCount: playCount,
+            lastPlayedAt: lastPlayedAt, addedAt: addedAt, updatedAt: updatedAt
         )
     }
 
     static func == (lhs: Playlist, rhs: Playlist) -> Bool {
-        lhs.id == rhs.id && lhs.title == rhs.title && lhs.leafCount == rhs.leafCount
+        lhs.id == rhs.id && lhs.title == rhs.title && lhs.episodeCount == rhs.episodeCount
             && lhs.duration == rhs.duration && lhs.composite == rhs.composite
     }
 

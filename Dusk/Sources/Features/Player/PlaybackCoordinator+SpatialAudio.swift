@@ -72,11 +72,11 @@ extension PlaybackCoordinator {
         // show from the file (the loader retags the init segment hvc1).
         let isHEV1Remux = !isDolbyVisionRemux && resolverDecision.requiresServerTranscode
             && StreamResolver.containsHEV1Video(media)
-        let audioStream = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
+        let audioStream = part.streams.first { $0.kind == .audio && $0.id == audioStreamID }
         if StreamResolver.containsAV1(media), !isAV1Remux { return nil }
         if isAV1Remux && !resolverDecision.requiresServerTranscode && !convertsAudio { return nil }
         let subtitleStream = subtitleStreamID.flatMap { id in
-            part.streams.first { $0.streamType == .subtitle && $0.id == id }
+            part.streams.first { $0.kind == .subtitle && $0.id == id }
         }
         // Picture wins for HDR/DV + TrueHD/DTS even when VLCKit decodes the
         // audio. Decide before the first Plex request, including on stock
@@ -378,7 +378,7 @@ extension PlaybackCoordinator {
         audioStreamID: String?, subtitleStreamID: String?,
         sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
     ) async -> SpatialAudioRemux? {
-        let audio = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }
+        let audio = part.streams.first { $0.kind == .audio && $0.id == audioStreamID }
         for stage in stages {
             guard !Task.isCancelled else { return nil }
             let convertsAudio = stage == .convertedAudio
@@ -486,7 +486,7 @@ extension PlaybackCoordinator {
         let expectedPresentationID = playerPresentationID
         let audioStreamID = activeAudioStreamID
         let subtitleStreamID = activeSubtitleStreamID
-        let audioCodec = part.streams.first { $0.streamType == .audio && $0.id == audioStreamID }?.codec
+        let audioCodec = part.streams.first { $0.kind == .audio && $0.id == audioStreamID }?.codec
         // Keep converting when the remux being rebuilt already converts this
         // very stream (a subtitle change, the Dolby Vision 7 retry): TrueHD is
         // locally decodable on Dusk's VLCKit, so the codec alone would drop
@@ -570,7 +570,7 @@ extension PlaybackCoordinator {
 
         let media = details.media[mediaIndex]
         let subtitleStreamID = activeSubtitleStreamID.flatMap { id -> String? in
-            guard let stream = part.streams.first(where: { $0.streamType == .subtitle && $0.id == id }) else {
+            guard let stream = part.streams.first(where: { $0.kind == .subtitle && $0.id == id }) else {
                 return nil
             }
             return StreamResolver.canRideRemux(subtitle: stream) ? id : nil
@@ -689,7 +689,7 @@ extension PlaybackCoordinator {
 
         var audioTrackPosition: Int?
         if keepsExplicitTracks {
-            let audioStreams = part.streams.filter { $0.streamType == .audio }
+            let audioStreams = part.streams.filter { $0.kind == .audio }
             // Never open libvlc on a track it cannot decode (TrueHD): that is
             // a silent start. Automatic selection picks a decodable one.
             audioTrackPosition = audioStreams.firstIndex {
@@ -732,7 +732,7 @@ extension PlaybackCoordinator {
             shouldAutoPlay: wasPlaying,
             audioTrackPositionOverride: audioTrackPosition,
             audioChannelCountOverride: resolverDecision.usesEnhancedSubtitleRenderer
-                ? part.streams.first(where: { $0.streamType == .audio && $0.id == activeAudioStreamID })?.channels
+                ? part.streams.first(where: { $0.kind == .audio && $0.id == activeAudioStreamID })?.channels
                 : nil
         )
     }
@@ -775,14 +775,14 @@ extension PlaybackCoordinator {
     /// part's video plus the audio the remux carries (E-AC-3 when Plex
     /// converts the active stream, otherwise that stream's copied codec).
     func remuxVariantCodecs(in part: MediaPart) -> String? {
-        guard let video = part.streams.first(where: { $0.streamType == .video }) else { return nil }
-        let audioStreams = part.streams.filter { $0.streamType == .audio }
+        guard let video = part.streams.first(where: { $0.kind == .video }) else { return nil }
+        let audioStreams = part.streams.filter { $0.kind == .audio }
         let audioCodec: String?
         if let conversion = remuxAudioConversion, conversion.audioStreamID == activeAudioStreamID {
             audioCodec = "eac3"
         } else {
             audioCodec = (audioStreams.first { $0.id == activeAudioStreamID }
-                ?? audioStreams.first { $0.isSelected == true }
+                ?? audioStreams.first { $0.isServerSelected == true }
                 ?? audioStreams.first)?.codec
         }
         return RemuxVariantCodecs.codecs(video: video, audioCodec: audioCodec, hasAudio: !audioStreams.isEmpty)
@@ -796,7 +796,7 @@ extension PlaybackCoordinator {
             return conversion.restoresDolbyAtmos
         }
         guard let stream = part.streams.first(where: {
-            $0.streamType == .audio && $0.id == activeAudioStreamID
+            $0.kind == .audio && $0.id == activeAudioStreamID
         }) else {
             return false
         }

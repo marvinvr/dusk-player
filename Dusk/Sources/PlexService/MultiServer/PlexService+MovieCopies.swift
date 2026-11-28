@@ -24,11 +24,11 @@ struct MoviePlaybackVersion: Identifiable, Sendable {
 
     static func mostAdvancedCopy(in copies: [MediaDetails]) -> MediaDetails? {
         copies.max { lhs, rhs in
-            let watched = (lhs.viewCount ?? 0) > 0
-            let otherWatched = (rhs.viewCount ?? 0) > 0
+            let watched = (lhs.playCount ?? 0) > 0
+            let otherWatched = (rhs.playCount ?? 0) > 0
             if watched != otherWatched { return !watched }
-            return Double(lhs.viewOffset ?? 0) / Double(max(lhs.duration ?? 1, 1))
-                < Double(rhs.viewOffset ?? 0) / Double(max(rhs.duration ?? 1, 1))
+            return Double(lhs.resumeOffsetMs ?? 0) / Double(max(lhs.duration ?? 1, 1))
+                < Double(rhs.resumeOffsetMs ?? 0) / Double(max(rhs.duration ?? 1, 1))
         }
     }
 
@@ -56,7 +56,7 @@ extension PlexService {
         let session = serverSessionToken
         let hidden = await loadedHiddenLibraryFilter()
         let guids = ([details.guid].compactMap { $0?.nilIfEmpty }
-            + details.guids.filter { $0.value(for: "tmdb") != nil || $0.value(for: "imdb") != nil }.map(\.id))
+            + details.externalIDs.uris.filter { ExternalIDs.value(of: $0, for: "tmdb") != nil || ExternalIDs.value(of: $0, for: "imdb") != nil })
         let matches = await withTaskGroup(of: [MediaItem].self) { group in
             for guid in Set(guids) {
                 group.addTask { (try? await self.serverItems(guid: guid, serverID: serverID)) ?? [] }

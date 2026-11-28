@@ -39,7 +39,7 @@ enum SubtitleDownloadApplication {
     /// Sidecar subtitle streams in `language` (all when nil).
     static func sidecars(in streams: [MediaStream], language: String?) -> [MediaStream] {
         streams.filter { stream in
-            stream.streamType == .subtitle && stream.key != nil
+            stream.kind == .subtitle && stream.key != nil
                 && (language == nil
                     || PlayerViewModel.normalizedLanguageCode(stream.languageCode ?? stream.language) == language)
         }

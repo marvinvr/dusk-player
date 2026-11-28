@@ -371,11 +371,11 @@ struct LegacyContainerRecorder {
         let entries = [
             SiriCatalogEntry(
                 id: MediaItemID(serverID: V.serverA, itemID: "1001"),
-                kind: .movie, title: "Arrival", year: 2016, lastViewedAt: 1_767_225_600
+                kind: .movie, title: "Arrival", year: 2016, lastPlayedAt: 1_767_225_600
             ),
             SiriCatalogEntry(
                 id: MediaItemID(serverID: V.serverB, itemID: "2000"),
-                kind: .show, title: "Severance", year: nil, lastViewedAt: nil
+                kind: .show, title: "Severance", year: nil, lastPlayedAt: nil
             ),
         ]
         try LegacyFixture.record(try JSONEncoder().encode(entries), as: "LegacyContainer-SiriCatalogEntries.json")

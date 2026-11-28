@@ -106,7 +106,7 @@ final class MovieDetailViewModel {
 
     var isWatched: Bool {
         _ = offlineStateVersion
-        let fallback = (resumeDetails?.viewCount ?? 0) > 0
+        let fallback = (resumeDetails?.playCount ?? 0) > 0
         return offlinePlaybackSyncManager?.effectiveWatched(
             serverID: serverID,
             itemID: itemID,
@@ -130,8 +130,8 @@ final class MovieDetailViewModel {
         guard let offset = offlinePlaybackSyncManager?.effectiveViewOffsetMs(
             serverID: serverID,
             itemID: itemID,
-            fallback: resumeDetails?.viewOffset
-        ) ?? resumeDetails?.viewOffset, offset > 0 else { return nil }
+            fallback: resumeDetails?.resumeOffsetMs
+        ) ?? resumeDetails?.resumeOffsetMs, offset > 0 else { return nil }
         return TimeInterval(offset) / 1000.0
     }
 

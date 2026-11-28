@@ -91,7 +91,7 @@ struct MacItemContextMenu: View {
     private var playTitle: String? {
         switch item.type {
         case .movie, .episode, .clip:
-            return (item.viewOffset ?? 0) > 0 && !item.isWatched ? "Resume" : "Play"
+            return (item.resumeOffsetMs ?? 0) > 0 && !item.isWatched ? "Resume" : "Play"
         default:
             return nil
         }
@@ -103,7 +103,7 @@ struct MacItemContextMenu: View {
         Task {
             await playback.play(
                 id: item.id,
-                resumeOffsetMilliseconds: item.isWatched ? nil : item.viewOffset,
+                resumeOffsetMilliseconds: item.isWatched ? nil : item.resumeOffsetMs,
                 resumeOffsetDurationMilliseconds: item.duration,
                 placeholder: PlaybackPlaceholder(item: item)
             )

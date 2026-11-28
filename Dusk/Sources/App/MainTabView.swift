@@ -237,7 +237,7 @@ struct MainTabView: View {
             )
             await playback.play(
                 id: link.id,
-                resumeOffsetMilliseconds: details?.viewOffset,
+                resumeOffsetMilliseconds: details?.resumeOffsetMs,
                 resumeOffsetDurationMilliseconds: details?.duration,
                 placeholder: details.map(PlaybackPlaceholder.init(details:))
             )

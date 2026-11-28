@@ -497,7 +497,7 @@ struct ShowTrackPreferenceTests {
             """.utf8))
         let part = media.parts[0]
         let decision = StreamResolver.evaluate(media: media)
-        let audio = try #require(part.streams.first { $0.streamType == .audio })
+        let audio = try #require(part.streams.first { $0.kind == .audio })
         func blocker(_ subtitleID: String?) -> String? {
             StreamResolver.hdrAudioConversionRemuxBlocker(
                 media: media, decision: decision, audioStream: audio,
@@ -522,8 +522,8 @@ struct ShowTrackPreferenceTests {
 
     private func preferences(from details: MediaDetails) throws -> ShowTrackPreferences {
         let streams = details.media[0].parts[0].streams
-        let audio = try #require(streams.first { $0.streamType == .audio })
-        let subtitle = try #require(streams.first { $0.streamType == .subtitle })
+        let audio = try #require(streams.first { $0.kind == .audio })
+        let subtitle = try #require(streams.first { $0.kind == .subtitle })
         let audioDescriptor: ShowTrackDescriptor = try #require(ShowTrackDescriptor(stream: audio))
         let subtitleDescriptor: ShowTrackDescriptor = try #require(ShowTrackDescriptor(stream: subtitle))
         return ShowTrackPreferences(audio: audioDescriptor, subtitles: .track(subtitleDescriptor))

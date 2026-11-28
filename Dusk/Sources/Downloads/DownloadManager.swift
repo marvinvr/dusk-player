@@ -337,7 +337,7 @@ final class DownloadManager {
                 thumbPath: cachedShow?.thumb ?? first.thumbPath,
                 artPath: cachedShow?.art ?? first.artPath,
                 downloadedEpisodeCount: episodes.count,
-                totalEpisodeCount: cachedShow?.leafCount,
+                totalEpisodeCount: cachedShow?.episodeCount,
                 smartRule: rules.first { $0.showID == MediaItemID(serverID: serverID, itemID: showKey) }
             )
         }
@@ -357,7 +357,7 @@ final class DownloadManager {
                 thumbPath: cachedShow?.thumb ?? rule.thumbPath,
                 artPath: cachedShow?.art ?? rule.artPath,
                 downloadedEpisodeCount: 0,
-                totalEpisodeCount: cachedShow?.leafCount,
+                totalEpisodeCount: cachedShow?.episodeCount,
                 smartRule: rule,
                 pendingEpisodeCount: records.filter {
                     $0.type == .episode && $0.status != .completed && matchesBranch($0, of: rule.showID)

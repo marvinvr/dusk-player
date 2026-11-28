@@ -356,7 +356,7 @@ struct CollectionDetailView: View {
         Task {
             await playback.play(
                 id: item.id,
-                resumeOffsetMilliseconds: item.viewOffset,
+                resumeOffsetMilliseconds: item.resumeOffsetMs,
                 resumeOffsetDurationMilliseconds: item.duration,
                 placeholder: PlaybackPlaceholder(item: item),
                 queue: viewModel.playThrough?.queue(startingAt: item.id)
