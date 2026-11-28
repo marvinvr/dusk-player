@@ -9,12 +9,12 @@ private let plexMediaLogger = Logger(
 /// Full metadata for a Plex item including the media/part/stream hierarchy.
 /// Returned from `GET /library/metadata/{itemID}`. Used by StreamResolver
 /// to determine which playback engine to use and to construct the direct play URL.
-struct MediaDetails: Decodable, Sendable, Identifiable {
+struct MediaDetails: Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
     var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
-    /// Machine identifier of the server this payload came from, stamped by
-    /// `ServerPool.decoder(for:)`.
+    /// Machine identifier of the server this payload came from, stamped by the
+    /// provider's mapper (`PlexItemMapper`).
     let serverID: String?
 
     let itemID: String
@@ -88,80 +88,6 @@ struct MediaDetails: Decodable, Sendable, Identifiable {
     /// The media versions for this item. A single item can have multiple
     /// versions (e.g. different resolutions or codecs).
     var media: [MediaVersion]
-
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", key, type, subtype, libraryID = "librarySectionID", librarySectionTitle, title, editionTitle, summary, year, guid
-        case duration, resumeOffsetMs = "viewOffset", playCount = "viewCount", thumb, art, clearLogo, contentRating, primaryExtraKey
-        case rating, audienceRating, ratingImage, audienceRatingImage, userRating, studio, originallyAvailableAt
-        case childCount, episodeCount = "leafCount", watchedEpisodeCount = "viewedLeafCount"
-        case index, parentIndex, parentID = "parentRatingKey", parentThumb, grandparentID = "grandparentRatingKey", grandparentTitle, grandparentThumb
-        case genres = "Genre"
-        case directors = "Director"
-        case writers = "Writer"
-        case roles = "Role"
-        case collections = "Collection"
-        case guids = "Guid"
-        case markers = "Marker"
-        case media = "Media"
-        case images = "Image"
-        case ratings = "Rating"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        serverID = decoder.duskServerID
-        itemID = try container.decode(String.self, forKey: .itemID)
-        key = try container.decode(String.self, forKey: .key)
-        type = try container.decode(MediaKind.self, forKey: .type)
-        subtype = try container.decodeIfPresent(String.self, forKey: .subtype)
-        // Plex serializes libraryID as a number; tolerate strings too.
-        if let numericSectionID = try? container.decodeIfPresent(Int.self, forKey: .libraryID) {
-            libraryID = String(numericSectionID)
-        } else {
-            libraryID = (try? container.decodeIfPresent(String.self, forKey: .libraryID)) ?? nil
-        }
-        librarySectionTitle = try container.decodeIfPresent(String.self, forKey: .librarySectionTitle)
-        title = try container.decode(String.self, forKey: .title)
-        editionTitle = MediaItem.trimmedEditionTitle(try container.decodeIfPresent(String.self, forKey: .editionTitle))
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)
-        year = try container.decodeIfPresent(Int.self, forKey: .year)
-        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        resumeOffsetMs = try container.decodeIfPresent(Int.self, forKey: .resumeOffsetMs)
-        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        art = try container.decodeIfPresent(String.self, forKey: .art)
-        clearLogo = try container.decodePlexImageURLIfPresent(type: "clearLogo", explicitKey: .clearLogo, arrayKey: .images)
-        contentRating = try container.decodeIfPresent(String.self, forKey: .contentRating)
-        primaryExtraKey = try? container.decodeIfPresent(String.self, forKey: .primaryExtraKey)
-        rating = try container.decodeIfPresent(Double.self, forKey: .rating)
-        audienceRating = try container.decodeIfPresent(Double.self, forKey: .audienceRating)
-        ratingImage = try? container.decodeIfPresent(String.self, forKey: .ratingImage)
-        audienceRatingImage = try? container.decodeIfPresent(String.self, forKey: .audienceRatingImage)
-        userRating = try? container.decodeIfPresent(Double.self, forKey: .userRating)
-        ratings = (try? container.decodeIfPresent([Rating].self, forKey: .ratings)) ?? []
-        studio = try container.decodeIfPresent(String.self, forKey: .studio)
-        originallyAvailableAt = try container.decodeIfPresent(String.self, forKey: .originallyAvailableAt)
-        childCount = try container.decodeIfPresent(Int.self, forKey: .childCount)
-        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
-        watchedEpisodeCount = try container.decodeIfPresent(Int.self, forKey: .watchedEpisodeCount)
-        index = try container.decodeIfPresent(Int.self, forKey: .index)
-        parentIndex = try container.decodeIfPresent(Int.self, forKey: .parentIndex)
-        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
-        parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
-        grandparentID = try container.decodeIfPresent(String.self, forKey: .grandparentID)
-        grandparentTitle = try container.decodeIfPresent(String.self, forKey: .grandparentTitle)
-        grandparentThumb = try container.decodeIfPresent(String.self, forKey: .grandparentThumb)
-        genres = try container.decodeIfPresent([Tag].self, forKey: .genres)
-        directors = try container.decodeIfPresent([Tag].self, forKey: .directors)
-        writers = try container.decodeIfPresent([Tag].self, forKey: .writers)
-        roles = try container.decodeIfPresent([Person].self, forKey: .roles)
-        collections = try container.decodeIfPresent([Tag].self, forKey: .collections)
-        guid = try container.decodeIfPresent(String.self, forKey: .guid)
-        guids = try container.decodeIfPresent([PlexGuid].self, forKey: .guids) ?? []
-        markers = (try container.decodeIfPresent([Marker].self, forKey: .markers) ?? [])
-            .sorted { $0.startTimeOffset < $1.startTimeOffset }
-        media = try container.decodeIfPresent([MediaVersion].self, forKey: .media) ?? []
-    }
 }
 
 extension MediaDetails {
@@ -186,17 +112,6 @@ extension MediaDetails {
             }
         }
         return copy
-    }
-}
-
-private extension KeyedDecodingContainer where Key == MediaDetails.CodingKeys {
-    func decodePlexImageURLIfPresent(type: String, explicitKey: Key, arrayKey: Key) throws -> String? {
-        if let explicitValue = try decodeIfPresent(String.self, forKey: explicitKey) {
-            return explicitValue
-        }
-
-        let images = try decodeIfPresent([PlexImageResource].self, forKey: arrayKey) ?? []
-        return images.first(where: { $0.type.caseInsensitiveCompare(type) == .orderedSame })?.url
     }
 }
 

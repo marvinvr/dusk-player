@@ -2,12 +2,12 @@ import Foundation
 
 /// A season within a TV show.
 /// Returned from `GET /library/metadata/{showRatingKey}/children`.
-struct Season: Codable, Sendable, Identifiable {
+struct Season: Sendable, Identifiable {
     /// Server-scoped identity; see `MediaItemID`.
     var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
-    /// Stamped by `ServerPool.decoder(for:)`; never part of the Plex payload,
-    /// so it is excluded from `CodingKeys` and dropped when re-encoded.
+    /// Stamped by the provider's mapper (`PlexItemMapper`); never part of the
+    /// server payload.
     let serverID: String?
 
     let itemID: String
@@ -31,32 +31,6 @@ struct Season: Codable, Sendable, Identifiable {
     // Timestamps
     let addedAt: Int?
     let updatedAt: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", key, title, index
-        case parentID = "parentRatingKey", parentTitle, parentThumb
-        case thumb, art
-        case episodeCount = "leafCount", watchedEpisodeCount = "viewedLeafCount"
-        case addedAt, updatedAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        serverID = decoder.duskServerID
-        itemID = try container.decode(String.self, forKey: .itemID)
-        key = try container.decode(String.self, forKey: .key)
-        title = try container.decode(String.self, forKey: .title)
-        index = try container.decode(Int.self, forKey: .index)
-        parentID = try container.decodeIfPresent(String.self, forKey: .parentID)
-        parentTitle = try container.decodeIfPresent(String.self, forKey: .parentTitle)
-        parentThumb = try container.decodeIfPresent(String.self, forKey: .parentThumb)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        art = try container.decodeIfPresent(String.self, forKey: .art)
-        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
-        watchedEpisodeCount = try container.decodeIfPresent(Int.self, forKey: .watchedEpisodeCount)
-        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
-        updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
-    }
 }
 
 extension Season {

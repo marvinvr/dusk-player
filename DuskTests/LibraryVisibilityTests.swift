@@ -20,11 +20,10 @@ struct LibraryVisibilityTests {
 
     @Test("Visibility survives an encode/decode round trip")
     func roundTrip() throws {
-        let original = try library("3", hidden: 2)
-        let decoder = JSONDecoder()
-        decoder.userInfo[.duskServerID] = "a"
-        let decoded = try decoder.decode(Library.self, from: JSONEncoder().encode(original))
-        #expect(decoded.visibility == .excludedFromHomeAndSearch)
+        let original = try libraryDTO("3", hidden: 2)
+        let decoded = try JSONDecoder().decode(PlexLibraryDTO.self, from: JSONEncoder().encode(original))
+        #expect(decoded.hidden == .excludedFromHomeAndSearch)
+        #expect(PlexItemMapper.map(decoded, serverID: "a").visibility == .excludedFromHomeAndSearch)
     }
 
     @Test("Scopes: exclude-from-home leaves Home, exclude-from-search also leaves search")
@@ -85,12 +84,14 @@ struct LibraryVisibilityTests {
 
     // MARK: - Fixtures
 
-    private func library(_ key: String, hidden: Any? = nil, server: String = "a") throws -> Library {
+    private func libraryDTO(_ key: String, hidden: Any? = nil) throws -> PlexLibraryDTO {
         var json: [String: Any] = ["key": key, "title": "Library \(key)", "type": "movie"]
         json["hidden"] = hidden
-        let decoder = JSONDecoder()
-        decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(Library.self, from: JSONSerialization.data(withJSONObject: json))
+        return try JSONDecoder().decode(PlexLibraryDTO.self, from: JSONSerialization.data(withJSONObject: json))
+    }
+
+    private func library(_ key: String, hidden: Any? = nil, server: String = "a") throws -> Library {
+        PlexItemMapper.map(try libraryDTO(key, hidden: hidden), serverID: server)
     }
 
     private func item(section: Int, title: String = "Movie") -> [String: Any] {
@@ -98,9 +99,8 @@ struct LibraryVisibilityTests {
     }
 
     private func decodeItem(_ json: [String: Any]) throws -> MediaItem {
-        let decoder = JSONDecoder()
-        decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: json))
+        let dto = try JSONDecoder().decode(PlexItemDTO.self, from: JSONSerialization.data(withJSONObject: json))
+        return PlexItemMapper.map(dto, serverID: "a")
     }
 
     private func hub(
@@ -109,8 +109,7 @@ struct LibraryVisibilityTests {
     ) throws -> HomeRow {
         var json: [String: Any] = ["title": title, "key": key, "type": "movie", "hubIdentifier": identifier, "Metadata": items]
         json["librarySectionID"] = section
-        let decoder = JSONDecoder()
-        decoder.userInfo[.duskServerID] = "a"
-        return try decoder.decode(HomeRow.self, from: JSONSerialization.data(withJSONObject: json))
+        let dto = try JSONDecoder().decode(PlexHubDTO.self, from: JSONSerialization.data(withJSONObject: json))
+        return PlexItemMapper.map(dto, serverID: "a")
     }
 }

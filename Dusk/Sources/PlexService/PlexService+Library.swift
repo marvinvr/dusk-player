@@ -7,7 +7,9 @@ import Foundation
 /// a different server's rating keys.
 extension PlexService {
     func getLibraries(serverID: String? = nil) async throws -> [Library] {
-        try await fetchDirectories(path: "/library/sections", serverID: serverID)
+        let targetID = try resolveServerID(serverID)
+        let sections: [PlexLibraryDTO] = try await fetchDirectories(path: "/library/sections", serverID: targetID)
+        return sections.map { PlexItemMapper.map($0, serverID: targetID) }
     }
 
     func getLibraryItems(
@@ -33,12 +35,13 @@ extension PlexService {
                 .map { URLQueryItem(name: $0.key, value: $0.value) }
         )
 
-        let items: [MediaItem] = try await fetchMetadata(
+        let targetID = try resolveServerID(serverID)
+        let items: [PlexItemDTO] = try await fetchMetadata(
             path: "/library/sections/\(sectionId)/all",
             queryItems: queryItems,
-            serverID: serverID
+            serverID: targetID
         )
-        return items
+        return items.map { PlexItemMapper.map($0, serverID: targetID) }
     }
 
     func getLibraryItemCount(
@@ -63,7 +66,7 @@ extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<PlexItemDTO>.self, from: data, serverID: targetID)
         return response.MediaContainer.totalSize ?? response.MediaContainer.size ?? 0
     }
 
@@ -109,7 +112,7 @@ extension PlexService {
     /// is the server's most expensive read (10s on a 43k-movie test server,
     /// far longer on slower hardware), so it gets more than the usual 30s.
     func getLibraryHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
-        try await fetchHubs(
+        try await fetchHomeRows(
             path: "/hubs/sections/\(sectionId)",
             queryItems: [
                 URLQueryItem(name: "count", value: String(count)),
@@ -125,7 +128,7 @@ extension PlexService {
     /// against 10s on the same server), so a big library paints before its
     /// full hub rows are in.
     func getLibraryPromotedHubs(sectionId: String, count: Int = 12, serverID: String? = nil) async throws -> [HomeRow] {
-        let hubs = try await fetchHubs(
+        let hubs = try await fetchHomeRows(
             path: "/hubs/promoted",
             queryItems: [
                 URLQueryItem(name: "contentDirectoryID", value: sectionId),
@@ -142,16 +145,21 @@ extension PlexService {
     }
 
     func getSeasons(showKey: String, serverID: String? = nil) async throws -> [Season] {
-        try await fetchMetadata(path: "/library/metadata/\(showKey)/children", serverID: serverID)
+        let targetID = try resolveServerID(serverID)
+        let seasons: [PlexSeasonDTO] = try await fetchMetadata(
+            path: "/library/metadata/\(showKey)/children",
+            serverID: targetID
+        )
+        return seasons.map { PlexItemMapper.map($0, serverID: targetID) }
     }
 
     func getEpisodes(seasonKey: String, serverID: String? = nil) async throws -> [Episode] {
-        try await fetchMetadata(path: "/library/metadata/\(seasonKey)/children", serverID: serverID)
+        try await fetchEpisodes(path: "/library/metadata/\(seasonKey)/children", serverID: serverID)
     }
 
     /// Every episode of a show, across all its seasons, in one request.
     func getAllEpisodes(showKey: String, serverID: String? = nil) async throws -> [Episode] {
-        try await fetchMetadata(path: "/library/metadata/\(showKey)/allLeaves", serverID: serverID)
+        try await fetchEpisodes(path: "/library/metadata/\(showKey)/allLeaves", serverID: serverID)
     }
 
     /// Walks forward from an episode to the next one. Everything it reads comes
@@ -248,7 +256,7 @@ extension PlexService {
     /// `includeGuids=1` so merging across servers can match the same title by
     /// its global Plex guid instead of falling back to title/year heuristics.
     func getHubs(serverID: String? = nil) async throws -> [HomeRow] {
-        try await fetchHubs(
+        try await fetchHomeRows(
             path: "/hubs",
             queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
             serverID: serverID
@@ -256,7 +264,7 @@ extension PlexService {
     }
 
     func getContinueWatching(serverID: String? = nil) async throws -> [MediaItem] {
-        let hubs = try await fetchHubs(
+        let hubs = try await fetchHomeRows(
             path: "/hubs/continueWatching",
             queryItems: [URLQueryItem(name: "includeGuids", value: "1")],
             serverID: serverID
@@ -289,8 +297,9 @@ extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let response = try decodeJSON(HubItemsResponse.self, from: data, serverID: targetID)
-        let items = (response.MediaContainer.Metadata ?? []) + (response.MediaContainer.Directory ?? [])
+        let response = try decodeJSON(PlexHubItemsResponseDTO.self, from: data, serverID: targetID)
+        let items = ((response.MediaContainer.Metadata ?? []) + (response.MediaContainer.Directory ?? []))
+            .map { PlexItemMapper.map($0, serverID: targetID) }
         return await loadedHiddenLibraryFilter().filtering(items)
     }
 
@@ -298,7 +307,7 @@ extension PlexService {
     /// server excludes from global search: search feeds both the Search screen
     /// and Siri.
     func search(query: String, serverID: String? = nil) async throws -> [SearchSection] {
-        let hubs = try await fetchHubs(
+        let hubs = try await fetchHomeRows(
             path: "/hubs/search",
             queryItems: [
                 URLQueryItem(name: "query", value: query),
@@ -325,14 +334,14 @@ extension PlexService {
             checkFiles: checkFiles,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<MediaDetails>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<PlexMediaDetailsDTO>.self, from: data, serverID: targetID)
         let items = response.MediaContainer.Metadata ?? []
 
         guard let details = items.first else {
             throw PlexServiceError.decodingError("No metadata found for ratingKey \(itemID)")
         }
 
-        return details
+        return PlexItemMapper.map(details, serverID: targetID)
     }
 
     /// - Parameter checkFiles: when `true`, asks Plex to stat the backing files so
@@ -362,5 +371,31 @@ extension PlexService {
             path: PlexMetadataCache.childrenEndpoint(itemID),
             serverID: serverID
         )
+    }
+
+    // MARK: - Decoding
+
+    private func fetchEpisodes(path: String, serverID: String?) async throws -> [Episode] {
+        let targetID = try resolveServerID(serverID)
+        let episodes: [PlexEpisodeDTO] = try await fetchMetadata(path: path, serverID: targetID)
+        return episodes.map { PlexItemMapper.map($0, serverID: targetID) }
+    }
+
+    /// `MediaContainer.Hub` rows, mapped onto the server they came from.
+    private func fetchHomeRows(
+        path: String,
+        queryItems: [URLQueryItem]? = nil,
+        timeoutInterval: TimeInterval? = nil,
+        serverID: String? = nil
+    ) async throws -> [HomeRow] {
+        let targetID = try resolveServerID(serverID)
+        let data = try await rawServerRequest(
+            path: path,
+            queryItems: queryItems,
+            timeoutInterval: timeoutInterval,
+            serverID: targetID
+        )
+        let response = try decodeJSON(PlexHubResponseDTO.self, from: data, serverID: targetID)
+        return (response.MediaContainer.Hub ?? []).map { PlexItemMapper.map($0, serverID: targetID) }
     }
 }

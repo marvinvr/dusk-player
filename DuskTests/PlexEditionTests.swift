@@ -25,9 +25,8 @@ struct PlexEditionTests {
         ]
         if let guid { fields["guid"] = guid }
         if let edition { fields["editionTitle"] = edition }
-        let decoder = JSONDecoder()
-        decoder.userInfo[.duskServerID] = server
-        return try decoder.decode(MediaItem.self, from: JSONSerialization.data(withJSONObject: fields))
+        let dto = try JSONDecoder().decode(PlexItemDTO.self, from: JSONSerialization.data(withJSONObject: fields))
+        return PlexItemMapper.map(dto, serverID: server)
     }
 
     // MARK: Decoding and display
@@ -40,8 +39,9 @@ struct PlexEditionTests {
         { "ratingKey": "1", "key": "/library/metadata/1", "type": "movie",
           "title": "Blade Runner", "year": 1982, "editionTitle": "Final Cut" }
         """
-        let details = try JSONDecoder().decode(MediaDetails.self, from: Data(json.utf8))
-        #expect(details.editionTitle == "Final Cut")
+        let dto = try JSONDecoder().decode(PlexMediaDetailsDTO.self, from: Data(json.utf8))
+        #expect(dto.editionTitle == "Final Cut")
+        #expect(PlexItemMapper.map(dto, serverID: nil).editionTitle == "Final Cut")
     }
 
     @Test func blankEditionTitleReadsAsNoEdition() throws {
