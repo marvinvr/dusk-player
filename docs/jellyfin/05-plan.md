@@ -331,6 +331,28 @@ provider).
   `docs/codebase-map.md`, `docs/playback.md`) and `docs/data-and-plex.md` →
   provider layering; full §3 gate.
 - **Accept.** G1 – G7 on iOS, tvOS and macOS. Tag `provider-abstraction-done`.
+- **As built (2026-11-28).** Done: routing and self-healing moved verbatim into
+  `PlexServerRouter`, which asks the pool through `SessionRecovering`; every
+  facet route goes to `serverProvider(for:)`; one plex.tv path
+  (`PlexAccountProvider.plexTVData`); Settings and Mac read `profiles` /
+  `activeProfile`; `permissions` are live and replace the two ownership
+  checks; neutral names by `scripts/refactor/19_boundary.sh`
+  (`MediaServiceError` keeps the reported domain `Dusk.PlexServiceError`);
+  `TransportSecurity` for generic credential checks; Plex-only facade glue in
+  `Providers/Plex/Facade/`; G7 enforced on the 04 §5.4 pattern with the
+  exceptions in `provider_boundary_allowlist.txt`; `FakeMediaServerProvider`
+  and two view-model tests; the three rules rewritten. Still open, for the J
+  packages that need them: the feature callers that pass Plex sort strings
+  and `/filters` parameters (recommendation engines, Siri, video shelves,
+  `VideoDetailViewModel`, `LibraryGenreSupport`) through the raw routes in
+  `+PlexFacets`; the `+PlexFacets` routes themselves (live-stream consumers,
+  image forwarders) as facet members; the row-string parsing in
+  `MediaItemMerge` / `LibraryRecommendationsViewModel` /
+  `HomeWatchlistPlacement`; `removeFromContinueWatching` on `HomeProviding`;
+  the download quality menus; `metadataSnapshotFormat` on `ProviderFactory`;
+  the probe and candidate list moving into the account provider (04 §7.1);
+  `PlexItemDecodingBridge`; captured `/hubs` fixtures. The list below is the
+  wave-4 input this note answers.
 - **Left by wave 4** (merged together with J-00b; the package reports were the
   source). Most of these are what the boundary check will flag:
   - **Routing.** Every server facet is still built by the facade, with the
