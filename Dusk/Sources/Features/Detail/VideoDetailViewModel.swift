@@ -169,7 +169,7 @@ final class VideoDetailViewModel {
         // A clip's `art` is rare; its `thumb` (16:9 frame grab) works as backdrop.
         let path = details?.art ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     /// The route's server wins; the download record and the primary server are

@@ -765,19 +765,15 @@ final class HomeViewModel {
 
     func heroBackgroundURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         plexService.imageURL(
-            for: heroBackgroundPath(for: item),
-            serverID: item.serverID,
-            width: width,
-            height: height
+            for: ArtworkRef(serverID: item.serverID, path: heroBackgroundPath(for: item)),
+            size: ImageSize(width: width, height: height)
         )
     }
 
     func heroTitleLogoURL(for item: MediaItem, width: Int, height: Int) -> URL? {
         plexService.imageURL(
-            for: item.clearLogo,
-            serverID: item.serverID,
-            width: width,
-            height: height
+            for: ArtworkRef(serverID: item.serverID, path: item.clearLogo),
+            size: ImageSize(width: width, height: height)
         )
     }
 
@@ -1074,7 +1070,7 @@ final class HomeViewModel {
         case .season:
             return item.art ?? item.banner ?? item.thumb ?? item.parentThumb
         default:
-            return item.preferredLandscapePath
+            return item.preferredLandscape?.locator
         }
     }
 }

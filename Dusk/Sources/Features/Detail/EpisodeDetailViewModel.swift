@@ -125,13 +125,13 @@ final class EpisodeDetailViewModel {
     func backdropURL(width: Int, height: Int) -> URL? {
         let path = SeriesBackdropArtwork.path(season: seasonDetails, show: showDetails, episode: details)
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         let path = details?.parentThumb ?? details?.grandparentThumb ?? details?.thumb
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     /// The show's title logo (clear-logo art) inherited onto the episode metadata.
@@ -139,7 +139,7 @@ final class EpisodeDetailViewModel {
     /// didn't attach a clear logo, in which case the hero falls back to text.
     func showTitleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     private func reload() async {

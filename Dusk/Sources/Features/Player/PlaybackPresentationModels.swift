@@ -18,7 +18,7 @@ struct PlaybackAttemptContext: Sendable {
 /// The little we know about an item at the instant the user presses Play,
 /// used to fill the loading screen before `getMediaDetails` returns. Carries
 /// relative Plex art paths rather than resolved URLs so the loading view can
-/// size them itself via `PlexService.imageURL(for:width:height:)`.
+/// size them itself via `PlexService.imageURL(for:size:)`.
 struct PlaybackPlaceholder: Sendable {
     /// How the loading screen leads. Library items lead with their poster;
     /// Live TV leads with the channel, whose logo is the one image that is
@@ -61,8 +61,8 @@ extension PlaybackPlaceholder {
         self.init(
             title: item.continueWatchingDisplayTitle,
             subtitle: item.standardPosterSubtitle,
-            posterPath: item.preferredPosterPath,
-            backdropPath: item.preferredLandscapePath,
+            posterPath: item.preferredPoster?.locator,
+            backdropPath: item.preferredLandscape?.locator,
             serverID: item.serverID
         )
     }

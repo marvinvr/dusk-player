@@ -230,7 +230,7 @@ struct MediaItemActionCarouselSection<ContextMenuContent: View>: View {
     var subtitle: (MediaItem) -> String?
     var posterURL: (MediaItem, Int, Int) -> URL?
     /// Loaded when `posterURL` fails, for rows of posters; see
-    /// `MediaItem.fallbackPosterPath`. Nil for rows of stills.
+    /// `MediaItem.fallbackPoster`. Nil for rows of stills.
     var fallbackPosterURL: ((MediaItem, Int, Int) -> URL?)? = nil
     var progress: (MediaItem) -> Double? = { $0.posterProgress }
     /// Whether `posterURL` hands back an unwatched episode's own still.

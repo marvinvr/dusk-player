@@ -6,12 +6,19 @@ import AppKit
 #endif
 
 extension PlexService {
-    /// - Parameter serverID: The server the artwork path belongs to. nil means
-    ///   the primary server, which is only correct for artwork that has no item
-    ///   behind it; everything derived from a `MediaItem`/`MediaDetails`
-    ///   passes that model's `serverID`.
-    func imageURL(for path: String?, serverID: String? = nil, width: Int? = nil, height: Int? = nil) -> URL? {
-        guard let path else { return nil }
+    /// The URL that loads `ref` at `size` (docs/jellyfin/04-architecture.md §10).
+    ///
+    /// `ref.serverID` is the server the artwork belongs to. nil means the
+    /// primary server, which is only correct for artwork that has no item
+    /// behind it; everything derived from a `MediaItem`/`MediaDetails` carries
+    /// that model's `serverID`.
+    func imageURL(for ref: ArtworkRef?, size: ImageSize = .original) -> URL? {
+        guard let ref else { return nil }
+        return imageURL(path: ref.locator, serverID: ref.serverID, width: size.width, height: size.height)
+    }
+
+    /// For Plex the locator is the server-relative path (or an absolute URL).
+    private func imageURL(path: String, serverID: String?, width: Int?, height: Int?) -> URL? {
         // IPTV logos and programme icons are absolute URLs on their own hosts
         // and have nothing to do with any Plex server.
         if serverID == IPTVImages.serverID {

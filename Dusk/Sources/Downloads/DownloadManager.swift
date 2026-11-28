@@ -2099,10 +2099,8 @@ final class DownloadManager {
                   let targetURL = fileStore.artworkURL(for: path),
                   !FileManager.default.fileExists(atPath: targetURL.path),
                   let sourceURL = plexService.imageURL(
-                      for: path,
-                      serverID: serverID,
-                      width: width,
-                      height: height
+                      for: ArtworkRef(serverID: serverID, path: path),
+                      size: ImageSize(width: width, height: height)
                   ) else {
                 continue
             }

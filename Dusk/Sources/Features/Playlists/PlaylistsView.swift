@@ -120,10 +120,8 @@ struct PlaylistsRootContent: View {
         return PosterNavigationCard(
             route: .playlist(id: playlist.id),
             imageURL: plexService.imageURL(
-                for: playlist.artworkPath,
-                serverID: playlist.serverID,
-                width: side,
-                height: side
+                for: ArtworkRef(serverID: playlist.serverID, path: playlist.artworkPath),
+                size: ImageSize(width: side, height: side)
             ),
             title: playlist.title,
             subtitle: subtitle(for: playlist),

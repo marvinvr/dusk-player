@@ -431,10 +431,8 @@ struct PlayerUpNextPosterView: View {
 
     private var thumbnailURL: URL? {
         plexService.imageURL(
-            for: presentation.item.upNextStillPath,
-            serverID: presentation.item.serverID,
-            width: 640,
-            height: 360
+            for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.upNextStillPath),
+            size: ImageSize(width: 640, height: 360)
         )
     }
 

@@ -199,11 +199,11 @@ final class PlaylistDetailViewModel {
     func backdropURL(width: Int, height: Int) -> URL? {
         if let first = entries.first?.item {
             let path = first.type == .episode ? (first.grandparentArt ?? first.art) : first.art
-            if let url = plexService.imageURL(for: path ?? first.thumb, serverID: first.serverID, width: width, height: height) {
+            if let url = plexService.imageURL(for: ArtworkRef(serverID: first.serverID, path: path ?? first.thumb), size: ImageSize(width: width, height: height)) {
                 return url
             }
         }
-        return plexService.imageURL(for: playlist?.artworkPath, serverID: id.serverID, width: width, height: height)
+        return plexService.imageURL(for: ArtworkRef(serverID: id.serverID, path: playlist?.artworkPath), size: ImageSize(width: width, height: height))
     }
 
     /// `The Bear · S2 E6` for an episode, the year for a movie, the clip line

@@ -51,7 +51,7 @@ final class DetailExtrasModel {
         let placeholder = PlaybackPlaceholder(
             title: item.title,
             subtitle: ownerTitle ?? subtitle(for: item),
-            posterPath: item.preferredPosterPath,
+            posterPath: item.preferredPoster?.locator,
             backdropPath: item.art ?? item.thumb,
             serverID: item.serverID
         )

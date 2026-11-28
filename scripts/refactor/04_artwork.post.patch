@@ -1,0 +1,506 @@
+diff --git a/Dusk/Sources/Domain/Artwork.swift b/Dusk/Sources/Domain/Artwork.swift
+new file mode 100644
+index 0000000..e10d28d
+--- /dev/null
++++ b/Dusk/Sources/Domain/Artwork.swift
+@@ -0,0 +1,99 @@
++import Foundation
++
++/// An image a server can serve, named by an opaque locator only its provider
++/// reads (docs/jellyfin/04-architecture.md §10). For Plex the locator is the
++/// server-relative path (`/library/metadata/1/thumb/1700000000`) or an absolute
++/// URL, exactly the strings models and `downloads.json` already hold.
++struct ArtworkRef: Hashable, Codable, Sendable {
++    let serverID: String?
++    let locator: String
++
++    init(serverID: String?, locator: String) {
++        self.serverID = serverID
++        self.locator = locator
++    }
++
++    /// nil when there is no path; an empty path is kept, as callers always did.
++    init?(serverID: String?, path: String?) {
++        guard let path else { return nil }
++        self.init(serverID: serverID, locator: path)
++    }
++
++    /// This ref, or nil when its locator is empty.
++    var nonEmpty: ArtworkRef? { locator.isEmpty ? nil : self }
++}
++
++/// How large an image is wanted, in points; `nil` sides leave it to the
++/// server. Providers scale to the display and pick their own parameters.
++struct ImageSize: Hashable, Sendable {
++    var width: Int?
++    var height: Int?
++
++    init(width: Int? = nil, height: Int? = nil) {
++        self.width = width
++        self.height = height
++    }
++
++    /// The image as stored, no resize.
++    static let original = ImageSize()
++}
++
++/// Every artwork slot an item can carry, each a ref on the item's server.
++struct ArtworkSet: Hashable, Sendable {
++    var poster: ArtworkRef? = nil
++    var backdrop: ArtworkRef? = nil
++    var logo: ArtworkRef? = nil
++    var banner: ArtworkRef? = nil
++    var parentPoster: ArtworkRef? = nil
++    var grandparentPoster: ArtworkRef? = nil
++    var grandparentBackdrop: ArtworkRef? = nil
++
++    /// Best available primary image for compact cards and rows. Usually
++    /// portrait-style; for clips the default branch is intentionally
++    /// poster-first because a clip's poster is its 16:9 frame grab. An episode
++    /// shows its season's poster, so the art changes per season; a season
++    /// without its own poster either has no parent poster or the show's, and
++    /// both land on the show poster.
++    func preferredPoster(for kind: MediaKind) -> ArtworkRef? {
++        switch kind {
++        case .episode:
++            return parentPoster?.nonEmpty ?? grandparentPoster?.nonEmpty
++                ?? poster ?? grandparentBackdrop ?? backdrop ?? banner
++        case .season:
++            return poster ?? parentPoster ?? backdrop ?? banner
++        default:
++            return poster ?? parentPoster ?? grandparentPoster ?? backdrop ?? grandparentBackdrop ?? banner
++        }
++    }
++
++    /// What a poster card shows when `preferredPoster` does not load. A
++    /// season's own poster can be missing on the server while Plex still sends
++    /// its path, so a new season of an old show in Recently Added would be a
++    /// blank card; the show's poster stands in for it. The same goes for an
++    /// episode showing its season's poster.
++    func fallbackPoster(for kind: MediaKind) -> ArtworkRef? {
++        let showPoster: ArtworkRef?
++        switch kind {
++        case .season:
++            showPoster = parentPoster?.nonEmpty
++        case .episode:
++            showPoster = grandparentPoster?.nonEmpty
++        default:
++            return nil
++        }
++        guard let showPoster, showPoster != preferredPoster(for: kind) else { return nil }
++        return showPoster
++    }
++
++    /// Best available landscape-style image for feature rows.
++    func preferredLandscape(for kind: MediaKind) -> ArtworkRef? {
++        switch kind {
++        case .episode:
++            return poster ?? backdrop ?? grandparentBackdrop ?? banner ?? grandparentPoster ?? parentPoster
++        case .season:
++            return backdrop ?? banner ?? poster ?? parentPoster
++        default:
++            return banner ?? backdrop ?? poster ?? parentPoster ?? grandparentBackdrop ?? grandparentPoster
++        }
++    }
++}
+diff --git a/Dusk/Sources/Domain/MediaItem.swift b/Dusk/Sources/Domain/MediaItem.swift
+index e034a84..f2a23bb 100644
+--- a/Dusk/Sources/Domain/MediaItem.swift
++++ b/Dusk/Sources/Domain/MediaItem.swift
+@@ -238,54 +238,27 @@ extension MediaItem {
+         }
+     }
+ 
+-    /// Best available primary image path for compact cards and rows.
+-    /// Usually portrait-style; for clips the default branch is intentionally
+-    /// thumb-first because a clip's `thumb` is its 16:9 frame grab. An episode
+-    /// shows its season's poster, so the art changes per season; a season
+-    /// without its own poster either sends no `parentThumb` or the show's,
+-    /// and both land on the show poster.
+-    var preferredPosterPath: String? {
+-        switch type {
+-        case .episode:
+-            return parentThumb?.nilIfEmpty ?? grandparentThumb?.nilIfEmpty
+-                ?? thumb ?? grandparentArt ?? art ?? banner
+-        case .season:
+-            return thumb ?? parentThumb ?? art ?? banner
+-        default:
+-            return thumb ?? parentThumb ?? grandparentThumb ?? art ?? grandparentArt ?? banner
+-        }
++    /// The item's artwork, each ref on the item's own server.
++    var artwork: ArtworkSet {
++        ArtworkSet(
++            poster: ArtworkRef(serverID: serverID, path: thumb),
++            backdrop: ArtworkRef(serverID: serverID, path: art),
++            logo: ArtworkRef(serverID: serverID, path: clearLogo),
++            banner: ArtworkRef(serverID: serverID, path: banner),
++            parentPoster: ArtworkRef(serverID: serverID, path: parentThumb),
++            grandparentPoster: ArtworkRef(serverID: serverID, path: grandparentThumb),
++            grandparentBackdrop: ArtworkRef(serverID: serverID, path: grandparentArt)
++        )
+     }
+ 
+-    /// What a poster card shows when `preferredPosterPath` does not load. A
+-    /// season's own poster can be missing on the server while Plex still sends
+-    /// its path, so a new season of an old show in Recently Added would be a
+-    /// blank card; the show's poster stands in for it. The same goes for an
+-    /// episode showing its season's poster.
+-    var fallbackPosterPath: String? {
+-        let showPoster: String?
+-        switch type {
+-        case .season:
+-            showPoster = parentThumb?.nilIfEmpty
+-        case .episode:
+-            showPoster = grandparentThumb?.nilIfEmpty
+-        default:
+-            return nil
+-        }
+-        guard let showPoster, showPoster != preferredPosterPath else { return nil }
+-        return showPoster
+-    }
++    /// See `ArtworkSet.preferredPoster(for:)`.
++    var preferredPoster: ArtworkRef? { artwork.preferredPoster(for: type) }
+ 
+-    /// Best available landscape-style image path for feature rows.
+-    var preferredLandscapePath: String? {
+-        switch type {
+-        case .episode:
+-            return thumb ?? art ?? grandparentArt ?? banner ?? grandparentThumb ?? parentThumb
+-        case .season:
+-            return art ?? banner ?? thumb ?? parentThumb
+-        default:
+-            return banner ?? art ?? thumb ?? parentThumb ?? grandparentArt ?? grandparentThumb
+-        }
+-    }
++    /// See `ArtworkSet.fallbackPoster(for:)`.
++    var fallbackPoster: ArtworkRef? { artwork.fallbackPoster(for: type) }
++
++    /// See `ArtworkSet.preferredLandscape(for:)`.
++    var preferredLandscape: ArtworkRef? { artwork.preferredLandscape(for: type) }
+ }
+ 
+ // MARK: - Nested tag types
+diff --git a/Dusk/Sources/Features/Detail/DetailExtrasShelf.swift b/Dusk/Sources/Features/Detail/DetailExtrasShelf.swift
+index 97c3d3c..9126157 100644
+--- a/Dusk/Sources/Features/Detail/DetailExtrasShelf.swift
++++ b/Dusk/Sources/Features/Detail/DetailExtrasShelf.swift
+@@ -51,7 +51,7 @@ final class DetailExtrasModel {
+         let placeholder = PlaybackPlaceholder(
+             title: item.title,
+             subtitle: ownerTitle ?? subtitle(for: item),
+-            posterPath: item.preferredPosterPath,
++            posterPath: item.preferredPoster?.locator,
+             backdropPath: item.art ?? item.thumb,
+             serverID: item.serverID
+         )
+diff --git a/Dusk/Sources/Features/Home/HomeViewModel.swift b/Dusk/Sources/Features/Home/HomeViewModel.swift
+index daf53a8..4d85a62 100644
+--- a/Dusk/Sources/Features/Home/HomeViewModel.swift
++++ b/Dusk/Sources/Features/Home/HomeViewModel.swift
+@@ -1070,7 +1070,7 @@ final class HomeViewModel {
+         case .season:
+             return item.art ?? item.banner ?? item.thumb ?? item.parentThumb
+         default:
+-            return item.preferredLandscapePath
++            return item.preferredLandscape?.locator
+         }
+     }
+ }
+diff --git a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+index 3c2ef5e..20a6a0f 100644
+--- a/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
++++ b/Dusk/Sources/Features/Player/PlaybackPresentationModels.swift
+@@ -18,7 +18,7 @@ struct PlaybackAttemptContext: Sendable {
+ /// The little we know about an item at the instant the user presses Play,
+ /// used to fill the loading screen before `getMediaDetails` returns. Carries
+ /// relative Plex art paths rather than resolved URLs so the loading view can
+-/// size them itself via `PlexService.imageURL(for:width:height:)`.
++/// size them itself via `PlexService.imageURL(for:size:)`.
+ struct PlaybackPlaceholder: Sendable {
+     /// How the loading screen leads. Library items lead with their poster;
+     /// Live TV leads with the channel, whose logo is the one image that is
+@@ -61,8 +61,8 @@ extension PlaybackPlaceholder {
+         self.init(
+             title: item.continueWatchingDisplayTitle,
+             subtitle: item.standardPosterSubtitle,
+-            posterPath: item.preferredPosterPath,
+-            backdropPath: item.preferredLandscapePath,
++            posterPath: item.preferredPoster?.locator,
++            backdropPath: item.preferredLandscape?.locator,
+             serverID: item.serverID
+         )
+     }
+diff --git a/Dusk/Sources/PlexService/PlexService+Images.swift b/Dusk/Sources/PlexService/PlexService+Images.swift
+index d8854a6..48d9770 100644
+--- a/Dusk/Sources/PlexService/PlexService+Images.swift
++++ b/Dusk/Sources/PlexService/PlexService+Images.swift
+@@ -6,12 +6,19 @@ import AppKit
+ #endif
+ 
+ extension PlexService {
+-    /// - Parameter serverID: The server the artwork path belongs to. nil means
+-    ///   the primary server, which is only correct for artwork that has no item
+-    ///   behind it; everything derived from a `MediaItem`/`MediaDetails`
+-    ///   passes that model's `serverID`.
+-    func imageURL(for path: String?, serverID: String? = nil, width: Int? = nil, height: Int? = nil) -> URL? {
+-        guard let path else { return nil }
++    /// The URL that loads `ref` at `size` (docs/jellyfin/04-architecture.md §10).
++    ///
++    /// `ref.serverID` is the server the artwork belongs to. nil means the
++    /// primary server, which is only correct for artwork that has no item
++    /// behind it; everything derived from a `MediaItem`/`MediaDetails` carries
++    /// that model's `serverID`.
++    func imageURL(for ref: ArtworkRef?, size: ImageSize = .original) -> URL? {
++        guard let ref else { return nil }
++        return imageURL(path: ref.locator, serverID: ref.serverID, width: size.width, height: size.height)
++    }
++
++    /// For Plex the locator is the server-relative path (or an absolute URL).
++    private func imageURL(path: String, serverID: String?, width: Int?, height: Int?) -> URL? {
+         // IPTV logos and programme icons are absolute URLs on their own hosts
+         // and have nothing to do with any Plex server.
+         if serverID == IPTVImages.serverID {
+diff --git a/Dusk/Sources/Shared/MediaItemPosterCollections.swift b/Dusk/Sources/Shared/MediaItemPosterCollections.swift
+index 6cde626..8963019 100644
+--- a/Dusk/Sources/Shared/MediaItemPosterCollections.swift
++++ b/Dusk/Sources/Shared/MediaItemPosterCollections.swift
+@@ -230,7 +230,7 @@ struct MediaItemActionCarouselSection<ContextMenuContent: View>: View {
+     var subtitle: (MediaItem) -> String?
+     var posterURL: (MediaItem, Int, Int) -> URL?
+     /// Loaded when `posterURL` fails, for rows of posters; see
+-    /// `MediaItem.fallbackPosterPath`. Nil for rows of stills.
++    /// `MediaItem.fallbackPoster`. Nil for rows of stills.
+     var fallbackPosterURL: ((MediaItem, Int, Int) -> URL?)? = nil
+     var progress: (MediaItem) -> Double? = { $0.posterProgress }
+     /// Whether `posterURL` hands back an unwatched episode's own still.
+diff --git a/Dusk/Sources/Shared/MediaItemPresentation.swift b/Dusk/Sources/Shared/MediaItemPresentation.swift
+index 2de43d0..4fa3789 100644
+--- a/Dusk/Sources/Shared/MediaItemPresentation.swift
++++ b/Dusk/Sources/Shared/MediaItemPresentation.swift
+@@ -175,17 +175,17 @@ extension MediaItem {
+     /// items from several servers, and the paths are only valid on theirs.
+     @MainActor
+     func posterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
+-        plexService.imageURL(for: ArtworkRef(serverID: serverID, path: preferredPosterPath), size: ImageSize(width: width, height: height))
++        plexService.imageURL(for: preferredPoster, size: ImageSize(width: width, height: height))
+     }
+ 
+     @MainActor
+     func fallbackPosterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
+-        plexService.imageURL(for: ArtworkRef(serverID: serverID, path: fallbackPosterPath), size: ImageSize(width: width, height: height))
++        plexService.imageURL(for: fallbackPoster, size: ImageSize(width: width, height: height))
+     }
+ 
+     @MainActor
+     func landscapeImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
+-        plexService.imageURL(for: ArtworkRef(serverID: serverID, path: preferredLandscapePath), size: ImageSize(width: width, height: height))
++        plexService.imageURL(for: preferredLandscape, size: ImageSize(width: width, height: height))
+     }
+ }
+ 
+diff --git a/Dusk/Sources/Shared/PlatformPosterCard.swift b/Dusk/Sources/Shared/PlatformPosterCard.swift
+index ee2c291..e066842 100644
+--- a/Dusk/Sources/Shared/PlatformPosterCard.swift
++++ b/Dusk/Sources/Shared/PlatformPosterCard.swift
+@@ -16,7 +16,7 @@ extension View {
+ struct PosterNavigationCard<ContextMenuContent: View>: View {
+     let route: AppNavigationRoute
+     let imageURL: URL?
+-    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
++    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPoster`.
+     var fallbackImageURL: URL? = nil
+     let title: String
+     var subtitle: String?
+@@ -154,7 +154,7 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
+ struct PosterActionCard<ContextMenuContent: View>: View {
+     let action: () -> Void
+     let imageURL: URL?
+-    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
++    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPoster`.
+     var fallbackImageURL: URL? = nil
+     let title: String
+     var subtitle: String?
+diff --git a/Dusk/Sources/Shared/PosterCard.swift b/Dusk/Sources/Shared/PosterCard.swift
+index ec8bf4f..75906c8 100644
+--- a/Dusk/Sources/Shared/PosterCard.swift
++++ b/Dusk/Sources/Shared/PosterCard.swift
+@@ -306,10 +306,10 @@ extension MediaItem {
+         type == .episode && !isWatched
+     }
+ 
+-    /// Whether `preferredLandscapePath` is the unwatched episode's own still
++    /// Whether `preferredLandscape` is the unwatched episode's own still
+     /// rather than inherited show art.
+     var landscapeImageIsUnwatchedEpisodeStill: Bool {
+-        isUnwatchedEpisode && thumb != nil && preferredLandscapePath == thumb
++        isUnwatchedEpisode && thumb != nil && preferredLandscape?.locator == thumb
+     }
+ }
+ 
+diff --git a/Dusk/Sources/TopShelf/TopShelfPublisher.swift b/Dusk/Sources/TopShelf/TopShelfPublisher.swift
+index 7f97454..516ca94 100644
+--- a/Dusk/Sources/TopShelf/TopShelfPublisher.swift
++++ b/Dusk/Sources/TopShelf/TopShelfPublisher.swift
+@@ -226,8 +226,8 @@ private extension TopShelfPublisher {
+             // The focused tile in points, poster or 16:9. `imageURL` scales for
+             // the screen, and Plex never upscales.
+             let (imagePath, width, height) = item.isClip
+-                ? (item.preferredLandscapePath, 640, 360)
+-                : (item.preferredPosterPath, 380, 570)
++                ? (item.preferredLandscape?.locator, 640, 360)
++                : (item.preferredPoster?.locator, 380, 570)
+             guard let imagePath,
+                   let imageURL = plexService.imageURL(
+                       for: ArtworkRef(serverID: item.serverID, path: imagePath),
+@@ -265,7 +265,7 @@ private extension TopShelfPublisher {
+             )
+             self.imageURL = imageURL
+             self.fallbackImageURL = plexService.imageURL(
+-                for: ArtworkRef(serverID: item.serverID, path: item.fallbackPosterPath),
++                for: item.fallbackPoster,
+                 size: ImageSize(width: width, height: height)
+             )
+             self.blursImage = blursImage
+diff --git a/DuskTests/ArtworkRefTests.swift b/DuskTests/ArtworkRefTests.swift
+new file mode 100644
+index 0000000..b21972f
+--- /dev/null
++++ b/DuskTests/ArtworkRefTests.swift
+@@ -0,0 +1,38 @@
++import Foundation
++import Testing
++@testable import Dusk
++
++/// P0-04: artwork travels as `ArtworkRef`s; for Plex the locator is the path
++/// the models always held, so every image URL is unchanged.
++@Suite("Artwork refs")
++struct ArtworkRefTests {
++    @Test func aMissingPathIsNoRefButAnEmptyOneIsKept() {
++        #expect(ArtworkRef(serverID: "a", path: nil) == nil)
++        let empty = ArtworkRef(serverID: "a", path: "")
++        #expect(empty?.locator == "")
++        #expect(empty?.nonEmpty == nil)
++        #expect(ArtworkRef(serverID: "a", path: "/t")?.nonEmpty?.locator == "/t")
++    }
++
++    @Test func itemArtworkStaysOnTheItemsServer() throws {
++        let json = #"{"ratingKey":"7","key":"/library/metadata/7","type":"movie","title":"M","thumb":"/library/metadata/7/thumb/1","art":"/library/metadata/7/art/1"}"#
++        let decoder = JSONDecoder()
++        decoder.userInfo[.duskServerID] = "srv-b"
++        let item = try decoder.decode(MediaItem.self, from: Data(json.utf8))
++        #expect(item.artwork.poster == ArtworkRef(serverID: "srv-b", locator: "/library/metadata/7/thumb/1"))
++        #expect(item.artwork.backdrop?.locator == "/library/metadata/7/art/1")
++        #expect(item.preferredPoster == item.artwork.poster)
++        #expect(item.preferredLandscape == item.artwork.backdrop)
++        #expect(item.fallbackPoster == nil)
++    }
++
++    @Test func seasonFallsBackToItsShowPosterOnlyWhenItDiffers() {
++        let show = ArtworkRef(serverID: "a", locator: "/show")
++        var set = ArtworkSet(poster: ArtworkRef(serverID: "a", locator: "/season"), parentPoster: show)
++        #expect(set.preferredPoster(for: .season)?.locator == "/season")
++        #expect(set.fallbackPoster(for: .season) == show)
++        set.poster = nil
++        #expect(set.preferredPoster(for: .season) == show)
++        #expect(set.fallbackPoster(for: .season) == nil)
++    }
++}
+diff --git a/DuskTests/EpisodePosterArtworkTests.swift b/DuskTests/EpisodePosterArtworkTests.swift
+index 103e8d4..718cbf1 100644
+--- a/DuskTests/EpisodePosterArtworkTests.swift
++++ b/DuskTests/EpisodePosterArtworkTests.swift
+@@ -23,8 +23,8 @@ struct EpisodePosterArtworkTests {
+             "parentThumb": "/library/metadata/20/thumb/2",
+             "grandparentThumb": "/library/metadata/10/thumb/3",
+         ])
+-        #expect(episode.preferredPosterPath == "/library/metadata/20/thumb/2")
+-        #expect(episode.fallbackPosterPath == "/library/metadata/10/thumb/3")
++        #expect(episode.preferredPoster?.locator == "/library/metadata/20/thumb/2")
++        #expect(episode.fallbackPoster?.locator == "/library/metadata/10/thumb/3")
+     }
+ 
+     @Test("A season without its own poster lands on the show poster")
+@@ -35,8 +35,8 @@ struct EpisodePosterArtworkTests {
+             "parentThumb": "/library/metadata/10/thumb/3",
+             "grandparentThumb": "/library/metadata/10/thumb/3",
+         ])
+-        #expect(inherited.preferredPosterPath == "/library/metadata/10/thumb/3")
+-        #expect(inherited.fallbackPosterPath == nil)
++        #expect(inherited.preferredPoster?.locator == "/library/metadata/10/thumb/3")
++        #expect(inherited.fallbackPoster?.locator == nil)
+ 
+         for parentThumb: Any in [NSNull(), ""] {
+             let missing = try item([
+@@ -45,16 +45,16 @@ struct EpisodePosterArtworkTests {
+                 "parentThumb": parentThumb,
+                 "grandparentThumb": "/library/metadata/10/thumb/3",
+             ])
+-            #expect(missing.preferredPosterPath == "/library/metadata/10/thumb/3")
+-            #expect(missing.fallbackPosterPath == nil)
++            #expect(missing.preferredPoster?.locator == "/library/metadata/10/thumb/3")
++            #expect(missing.fallbackPoster?.locator == nil)
+         }
+     }
+ 
+     @Test("Without season or show art the episode still is the last resort")
+     func stillLastResort() throws {
+         let episode = try item(["type": "episode", "thumb": "/library/metadata/1/thumb/1"])
+-        #expect(episode.preferredPosterPath == "/library/metadata/1/thumb/1")
+-        #expect(episode.fallbackPosterPath == nil)
++        #expect(episode.preferredPoster?.locator == "/library/metadata/1/thumb/1")
++        #expect(episode.fallbackPoster?.locator == nil)
+     }
+ 
+     @Test("Seasons keep their own poster with the show's as fallback")
+@@ -64,8 +64,8 @@ struct EpisodePosterArtworkTests {
+             "thumb": "/library/metadata/20/thumb/2",
+             "parentThumb": "/library/metadata/10/thumb/3",
+         ])
+-        #expect(season.preferredPosterPath == "/library/metadata/20/thumb/2")
+-        #expect(season.fallbackPosterPath == "/library/metadata/10/thumb/3")
+-        #expect(try item(["type": "movie", "thumb": "/m"]).fallbackPosterPath == nil)
++        #expect(season.preferredPoster?.locator == "/library/metadata/20/thumb/2")
++        #expect(season.fallbackPoster?.locator == "/library/metadata/10/thumb/3")
++        #expect(try item(["type": "movie", "thumb": "/m"]).fallbackPoster?.locator == nil)
+     }
+ }
+diff --git a/docs/data-and-plex.md b/docs/data-and-plex.md
+index fa1fb24..8d38d6e 100644
+--- a/docs/data-and-plex.md
++++ b/docs/data-and-plex.md
+@@ -782,7 +782,11 @@ File: `PlexService+Photos.swift`, model `Domain/PhotoItem.swift`.
+ 
+ ## Image URL And Data Handling
+ File: `PlexService+Images.swift`.
+-- Call `plexService.imageURL(for:width:height:)` from view models/UI helpers.
++- Call `plexService.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
++  helpers. An `ArtworkRef` is the server id plus an opaque locator (for Plex the
++  server-relative path); `MediaItem.artwork` is an `ArtworkSet`, and the poster/
++  landscape fallback order lives on it (`preferredPoster(for:)`, …). A ref keeps
++  the call site's server, never a guessed one.
+ - With dimensions, URLs go through `/photo/:/transcode` using display-scaled
+   pixel dimensions, `minSize=1`, and `upscale=0`.
+ - The transcode `url` is the server-relative path (`transcodeSourceURLString`),
+diff --git a/docs/ui-features.md b/docs/ui-features.md
+index 3481295..717c765 100644
+--- a/docs/ui-features.md
++++ b/docs/ui-features.md
+@@ -443,15 +443,15 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
+   old show arrives as that season (or episode). Poster cards (`MediaItemPosterCarouselSection`,
+   `MediaItemPosterGrid`) title them by their show (`MediaItem.posterCardTitle`) with the
+   numbering underneath (`hubPosterSubtitle` on Home: "Season 6", "S6 · E3"), and a
+-  season whose own poster fails to load falls back to the show's (`fallbackPosterPath`
++  season whose own poster fails to load falls back to the show's (`fallbackPoster`
+   → `DuskAsyncImage(fallbackURL:)`): Plex can send a season poster path even when the
+   season has none (unconfirmed against a real PMS; the show poster also covers any other failure). Home keeps one card per show in Recently Added (`oneCardPerShow`).
+-- An episode's poster (`MediaItem.preferredPosterPath`: every poster row and grid, the
++- An episode's poster (`MediaItem.preferredPoster`: every poster row and grid, the
+   compact Continue Watching row, pinned playlists, Top Shelf) is its season's poster
+   (`parentThumb`), then the show's (`grandparentThumb`), then its own still, so the art
+   changes per season. A season without its own poster sends no `parentThumb` or the
+   show's; a season path that fails to load falls back to the show poster the same way
+-  as seasons do (`fallbackPosterPath`, also passed through `MediaItemActionCarouselSection`
++  as seasons do (`fallbackPoster`, also passed through `MediaItemActionCarouselSection`
+   → `PosterActionCard`). 16:9 still rows, heroes and backdrops are unchanged.
+ - `HomeCinematicHero` owns hero rotation, drag navigation on iOS, tvOS focus-driven
+   paging, image preloading, title-logo fallback, pager state, and motion

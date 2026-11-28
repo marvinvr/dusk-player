@@ -238,54 +238,27 @@ extension MediaItem {
         }
     }
 
-    /// Best available primary image path for compact cards and rows.
-    /// Usually portrait-style; for clips the default branch is intentionally
-    /// thumb-first because a clip's `thumb` is its 16:9 frame grab. An episode
-    /// shows its season's poster, so the art changes per season; a season
-    /// without its own poster either sends no `parentThumb` or the show's,
-    /// and both land on the show poster.
-    var preferredPosterPath: String? {
-        switch type {
-        case .episode:
-            return parentThumb?.nilIfEmpty ?? grandparentThumb?.nilIfEmpty
-                ?? thumb ?? grandparentArt ?? art ?? banner
-        case .season:
-            return thumb ?? parentThumb ?? art ?? banner
-        default:
-            return thumb ?? parentThumb ?? grandparentThumb ?? art ?? grandparentArt ?? banner
-        }
+    /// The item's artwork, each ref on the item's own server.
+    var artwork: ArtworkSet {
+        ArtworkSet(
+            poster: ArtworkRef(serverID: serverID, path: thumb),
+            backdrop: ArtworkRef(serverID: serverID, path: art),
+            logo: ArtworkRef(serverID: serverID, path: clearLogo),
+            banner: ArtworkRef(serverID: serverID, path: banner),
+            parentPoster: ArtworkRef(serverID: serverID, path: parentThumb),
+            grandparentPoster: ArtworkRef(serverID: serverID, path: grandparentThumb),
+            grandparentBackdrop: ArtworkRef(serverID: serverID, path: grandparentArt)
+        )
     }
 
-    /// What a poster card shows when `preferredPosterPath` does not load. A
-    /// season's own poster can be missing on the server while Plex still sends
-    /// its path, so a new season of an old show in Recently Added would be a
-    /// blank card; the show's poster stands in for it. The same goes for an
-    /// episode showing its season's poster.
-    var fallbackPosterPath: String? {
-        let showPoster: String?
-        switch type {
-        case .season:
-            showPoster = parentThumb?.nilIfEmpty
-        case .episode:
-            showPoster = grandparentThumb?.nilIfEmpty
-        default:
-            return nil
-        }
-        guard let showPoster, showPoster != preferredPosterPath else { return nil }
-        return showPoster
-    }
+    /// See `ArtworkSet.preferredPoster(for:)`.
+    var preferredPoster: ArtworkRef? { artwork.preferredPoster(for: type) }
 
-    /// Best available landscape-style image path for feature rows.
-    var preferredLandscapePath: String? {
-        switch type {
-        case .episode:
-            return thumb ?? art ?? grandparentArt ?? banner ?? grandparentThumb ?? parentThumb
-        case .season:
-            return art ?? banner ?? thumb ?? parentThumb
-        default:
-            return banner ?? art ?? thumb ?? parentThumb ?? grandparentArt ?? grandparentThumb
-        }
-    }
+    /// See `ArtworkSet.fallbackPoster(for:)`.
+    var fallbackPoster: ArtworkRef? { artwork.fallbackPoster(for: type) }
+
+    /// See `ArtworkSet.preferredLandscape(for:)`.
+    var preferredLandscape: ArtworkRef? { artwork.preferredLandscape(for: type) }
 }
 
 // MARK: - Nested tag types

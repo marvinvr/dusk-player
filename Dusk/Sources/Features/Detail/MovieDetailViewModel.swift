@@ -160,17 +160,17 @@ final class MovieDetailViewModel {
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: details?.thumb, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
     }
 
     func backdropURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.art)
-            ?? plexService.imageURL(for: details?.art, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.art), size: ImageSize(width: width, height: height))
     }
 
     func titleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     /// The route's server wins; the download record and the primary server are

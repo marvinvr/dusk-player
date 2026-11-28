@@ -16,7 +16,7 @@ extension View {
 struct PosterNavigationCard<ContextMenuContent: View>: View {
     let route: AppNavigationRoute
     let imageURL: URL?
-    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
+    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPoster`.
     var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?
@@ -154,7 +154,7 @@ extension PosterNavigationCard where ContextMenuContent == EmptyView {
 struct PosterActionCard<ContextMenuContent: View>: View {
     let action: () -> Void
     let imageURL: URL?
-    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPosterPath`.
+    /// Loaded when `imageURL` fails; see `MediaItem.fallbackPoster`.
     var fallbackImageURL: URL? = nil
     let title: String
     var subtitle: String?

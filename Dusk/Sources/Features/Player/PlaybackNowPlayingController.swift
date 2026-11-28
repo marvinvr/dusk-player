@@ -473,10 +473,8 @@ private extension PlaybackNowPlayingController {
         let artworkPath = nowPlayingArtworkPath(for: details)
 
         guard let artworkURL = plexService.imageURL(
-            for: artworkPath,
-            serverID: details.serverID,
-            width: 640,
-            height: 640
+            for: ArtworkRef(serverID: details.serverID, path: artworkPath),
+            size: ImageSize(width: 640, height: 640)
         ) else {
             return
         }
@@ -501,10 +499,8 @@ private extension PlaybackNowPlayingController {
 
     func loadLiveArtwork(path: String?, serverID: String?, using plexService: PlexService) {
         guard let artworkURL = plexService.imageURL(
-            for: path,
-            serverID: serverID,
-            width: 640,
-            height: 360
+            for: ArtworkRef(serverID: serverID, path: path),
+            size: ImageSize(width: 640, height: 360)
         ) else {
             return
         }

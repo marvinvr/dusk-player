@@ -198,12 +198,12 @@ final class SeasonDetailViewModel {
     func backdropURL(width: Int, height: Int, show: MediaDetails? = nil) -> URL? {
         let path = SeriesBackdropArtwork.path(season: details, show: show ?? showDetails)
         return downloadManager?.localArtworkURL(for: path)
-            ?? plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.thumb)
-            ?? plexService.imageURL(for: details?.thumb, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.thumb), size: ImageSize(width: width, height: height))
     }
 
     /// The show's title logo (clear-logo art) inherited onto the season metadata.
@@ -211,17 +211,15 @@ final class SeasonDetailViewModel {
     /// didn't attach a clear logo, in which case the hero falls back to text.
     func showTitleLogoURL(width: Int, height: Int) -> URL? {
         downloadManager?.localArtworkURL(for: details?.clearLogo)
-            ?? plexService.imageURL(for: details?.clearLogo, serverID: serverID, width: width, height: height)
+            ?? plexService.imageURL(for: ArtworkRef(serverID: serverID, path: details?.clearLogo), size: ImageSize(width: width, height: height))
     }
 
     func episodeImageURL(_ episode: Episode, width: Int, height: Int) -> URL? {
         let path = episode.thumb ?? episode.grandparentThumb
         return downloadManager?.localArtworkURL(for: path)
             ?? plexService.imageURL(
-                for: path,
-                serverID: serverID(for: episode),
-                width: width,
-                height: height
+                for: ArtworkRef(serverID: serverID(for: episode), path: path),
+                size: ImageSize(width: width, height: height)
             )
     }
 

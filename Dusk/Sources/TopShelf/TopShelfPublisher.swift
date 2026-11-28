@@ -226,14 +226,12 @@ private extension TopShelfPublisher {
             // The focused tile in points, poster or 16:9. `imageURL` scales for
             // the screen, and Plex never upscales.
             let (imagePath, width, height) = item.isClip
-                ? (item.preferredLandscapePath, 640, 360)
-                : (item.preferredPosterPath, 380, 570)
+                ? (item.preferredLandscape?.locator, 640, 360)
+                : (item.preferredPoster?.locator, 380, 570)
             guard let imagePath,
                   let imageURL = plexService.imageURL(
-                      for: imagePath,
-                      serverID: item.serverID,
-                      width: width,
-                      height: height
+                      for: ArtworkRef(serverID: item.serverID, path: imagePath),
+                      size: ImageSize(width: width, height: height)
                   ),
                   let displayURL = TopShelfLink.url(.open, for: item),
                   let playURL = Self.isPlayable(item) ? TopShelfLink.url(.play, for: item) : displayURL else {
@@ -267,10 +265,8 @@ private extension TopShelfPublisher {
             )
             self.imageURL = imageURL
             self.fallbackImageURL = plexService.imageURL(
-                for: item.fallbackPosterPath,
-                serverID: item.serverID,
-                width: width,
-                height: height
+                for: item.fallbackPoster,
+                size: ImageSize(width: width, height: height)
             )
             self.blursImage = blursImage
             self.signature = [

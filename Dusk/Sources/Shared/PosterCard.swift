@@ -306,10 +306,10 @@ extension MediaItem {
         type == .episode && !isWatched
     }
 
-    /// Whether `preferredLandscapePath` is the unwatched episode's own still
+    /// Whether `preferredLandscape` is the unwatched episode's own still
     /// rather than inherited show art.
     var landscapeImageIsUnwatchedEpisodeStill: Bool {
-        isUnwatchedEpisode && thumb != nil && preferredLandscapePath == thumb
+        isUnwatchedEpisode && thumb != nil && preferredLandscape?.locator == thumb
     }
 }
 

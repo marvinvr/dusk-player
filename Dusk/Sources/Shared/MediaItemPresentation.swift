@@ -175,17 +175,17 @@ extension MediaItem {
     /// items from several servers, and the paths are only valid on theirs.
     @MainActor
     func posterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredPosterPath, serverID: serverID, width: width, height: height)
+        plexService.imageURL(for: preferredPoster, size: ImageSize(width: width, height: height))
     }
 
     @MainActor
     func fallbackPosterImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: fallbackPosterPath, serverID: serverID, width: width, height: height)
+        plexService.imageURL(for: fallbackPoster, size: ImageSize(width: width, height: height))
     }
 
     @MainActor
     func landscapeImageURL(plexService: PlexService, width: Int, height: Int) -> URL? {
-        plexService.imageURL(for: preferredLandscapePath, serverID: serverID, width: width, height: height)
+        plexService.imageURL(for: preferredLandscape, size: ImageSize(width: width, height: height))
     }
 }
 

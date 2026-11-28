@@ -414,10 +414,8 @@ private struct PlayerAirPlayRemoteBackground: View {
                 if let posterPath = placeholder?.posterPath {
                     PosterArtwork(
                         imageURL: plexService.imageURL(
-                            for: posterPath,
-                            serverID: placeholder?.serverID,
-                            width: Int(width),
-                            height: Int(width * 1.5)
+                            for: ArtworkRef(serverID: placeholder?.serverID, path: posterPath),
+                            size: ImageSize(width: Int(width), height: Int(width * 1.5))
                         ),
                         width: width
                     )
@@ -513,10 +511,8 @@ private struct PlayerAirPlayRemoteBackground: View {
 
     private var backdropURL: URL? {
         plexService.imageURL(
-            for: placeholder?.backdropPath,
-            serverID: placeholder?.serverID,
-            width: 1280,
-            height: 720
+            for: ArtworkRef(serverID: placeholder?.serverID, path: placeholder?.backdropPath),
+            size: ImageSize(width: 1280, height: 720)
         )
     }
 

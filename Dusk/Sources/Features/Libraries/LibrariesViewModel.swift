@@ -163,10 +163,8 @@ final class LibrariesViewModel {
     /// Composite artwork lives on the library's own server.
     func artURL(for library: Library, width: Int, height: Int) -> URL? {
         plexService.imageURL(
-            for: library.composite ?? library.art ?? library.thumb,
-            serverID: library.serverID,
-            width: width,
-            height: height
+            for: ArtworkRef(serverID: library.serverID, path: library.composite ?? library.art ?? library.thumb),
+            size: ImageSize(width: width, height: height)
         )
     }
 

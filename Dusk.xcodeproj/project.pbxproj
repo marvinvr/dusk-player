@@ -668,6 +668,7 @@
 		6BC58BD82B29478E0DA0FAFC /* PlexService+Subtitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F021B7FD231064CABD32B41 /* PlexService+Subtitles.swift */; };
 		6BE19D246F6160D94068027D /* ShowTrackPreferenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6634157E10A377EE2ACF5A0 /* ShowTrackPreferenceTests.swift */; };
 		6C2927F73F63E22F74438067 /* jellyfin-item-dv-p5-jellyfin-4k-test-2024.json in Resources */ = {isa = PBXBuildFile; fileRef = 5238CBA5A482795CECE1153D /* jellyfin-item-dv-p5-jellyfin-4k-test-2024.json */; };
+		6C6F5105F828B3AFBA221CBC /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD6E29FDA075666DCA0D829 /* Artwork.swift */; };
 		6C9A5CE43C8B0B0302AD314B /* MediaItemMerge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 707C07C305C33EEAADF1C2D4 /* MediaItemMerge.swift */; };
 		6CDAB6A58ED0E6F51F308EBA /* PlexTransportSecurityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B86EFEAB19F3535CCC2A8761 /* PlexTransportSecurityTests.swift */; };
 		6D0995D7126F68960A53D3AE /* MediaItemPager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD63B6584D68B08EB25BA80 /* MediaItemPager.swift */; };
@@ -678,6 +679,7 @@
 		6D9000B8F421F0DB61A64CDA /* SearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25FE8C06EE0E6E21DD598B7C /* SearchView.swift */; };
 		6D91D0A9CCF1AD25F7BF2887 /* PlaybackEngineFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A5D35CEE6AC31BD13C6A72D /* PlaybackEngineFactory.swift */; };
 		6DB3FB93727E10492254DA89 /* jellyfin-items-movies-browse.json in Resources */ = {isa = PBXBuildFile; fileRef = B57A8510A27F2E3622A40CAE /* jellyfin-items-movies-browse.json */; };
+		6DBCB264CBE0C9E25CA71BA6 /* ArtworkRefTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443114C05FAE413AE820ED6C /* ArtworkRefTests.swift */; };
 		6DC640DD8C6EC9C68FDB8E63 /* SeerrLocalNetworkGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA6A70DDBBFFE63B7209F44 /* SeerrLocalNetworkGate.swift */; };
 		6DD668D249B04518B0C9A0C4 /* jellyfin-shows-episodes-the-office-s01.json in Resources */ = {isa = PBXBuildFile; fileRef = 1300583B9F7E6A99567ABF68 /* jellyfin-shows-episodes-the-office-s01.json */; };
 		6E03271BCA1506522B848632 /* PlexService+Downloads.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22C7082E5500E2733ADFA319 /* PlexService+Downloads.swift */; };
@@ -817,6 +819,7 @@
 		82C533CEEAECC860215B8F94 /* PlexService+Auth.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB337983FD00FD7C85386570 /* PlexService+Auth.swift */; };
 		8303CEC53818B19FDA95569C /* PictureInPictureStartRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CF7181E2C7035DB5EE83BE4 /* PictureInPictureStartRequest.swift */; };
 		8341A6B05109C7B740A26F5C /* SubtitleTextDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 391C54B3D3132EDA8BDDEF6A /* SubtitleTextDecoder.swift */; };
+		83424E374D286561BA54D5B3 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD6E29FDA075666DCA0D829 /* Artwork.swift */; };
 		834E2A1E18F3F8794D942868 /* M3UParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7405282E843904156EA80F4 /* M3UParser.swift */; };
 		838B9507A48C14A293FF25B6 /* MacUILayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFE887D9B930EB3D3A2294F5 /* MacUILayout.swift */; };
 		839F622AF5AF089BD01D84AE /* TraktConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13DDFB928DEF426DC2C417E0 /* TraktConfiguration.swift */; };
@@ -929,6 +932,7 @@
 		95D87D6A41A477D280541E56 /* MacPlayerCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B102923EA6B3A850B96F417 /* MacPlayerCommands.swift */; };
 		95FC743170CFCA7C1BD2FFAD /* LibraryLetterIndexBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6980E1B7C41F529678F4A4B8 /* LibraryLetterIndexBar.swift */; };
 		96141A4B4992625B2D145387 /* PlayerDebugOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7153AA7BE468FE8A85C79CE5 /* PlayerDebugOverlayView.swift */; };
+		961591472010CA667892D8B0 /* Artwork.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DD6E29FDA075666DCA0D829 /* Artwork.swift */; };
 		9637E5A6AC511E8A1E67260F /* VideoEnhancementSubtitleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A71A082582DC33E7B57165B7 /* VideoEnhancementSubtitleTests.swift */; };
 		963A141248FD90522E088A82 /* jellyfin-item-hdr10-profile-b-eac3-5-1-2020.json in Resources */ = {isa = PBXBuildFile; fileRef = F67FA333EFF2830E67D697E7 /* jellyfin-item-hdr10-profile-b-eac3-5-1-2020.json */; };
 		965D9FC2C97E82A42EC6F7E0 /* ExternalIDs.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB880C956080F38C967D91EC /* ExternalIDs.swift */; };
@@ -1363,6 +1367,7 @@
 		D985FD0FCA8A23F93012992B /* SubtitleSearchViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CF0C29393E5D69F6D27233A /* SubtitleSearchViewModel.swift */; };
 		D9AB17C074AF67A155FD8781 /* StillWatchingInteractionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 778F3DBC9A04516CCB8EFDFA /* StillWatchingInteractionTests.swift */; };
 		D9AE0B6C4F081A75FE98299D /* LibraryVideoShelfLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39904EDD7105D765C08B457C /* LibraryVideoShelfLoader.swift */; };
+		D9C93FEE9E30AB0790C71371 /* ArtworkRefTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 443114C05FAE413AE820ED6C /* ArtworkRefTests.swift */; };
 		D9D2A1E137EA23E35EF581BD /* LegacyContainerSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 450C5D44AAF25340FED2053E /* LegacyContainerSupport.swift */; };
 		D9E3ADCE59FBDB1D392B1AD3 /* AV1RoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B36B46CCD2EE566DD0BA932F /* AV1RoutingTests.swift */; };
 		DA662AF826D8EDF9B8585AE5 /* RemuxSegmentRelay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78773C124A046E21F9C01CB3 /* RemuxSegmentRelay.swift */; };
@@ -1720,6 +1725,7 @@
 		0D3E76F43D925B7AE0DF9A93 /* DownloadManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadManager.swift; sourceTree = "<group>"; };
 		0DC19B518E09095636A52856 /* LegacyContainer-real-metadata-fc8ecaaf76de.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "LegacyContainer-real-metadata-fc8ecaaf76de.json"; sourceTree = "<group>"; };
 		0DCA4052D2CDD88037C8C931 /* StreamResolver+AV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StreamResolver+AV1.swift"; sourceTree = "<group>"; };
+		0DD6E29FDA075666DCA0D829 /* Artwork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Artwork.swift; sourceTree = "<group>"; };
 		0E385B39AF6CB33FCB55FCE6 /* LiveTV.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveTV.swift; sourceTree = "<group>"; };
 		0E399169D8B88B0336E26AFF /* jellyfin-items-filters.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "jellyfin-items-filters.json"; sourceTree = "<group>"; };
 		0EFBB973751EBC36DDAE5AA6 /* MacWindow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacWindow.swift; sourceTree = "<group>"; };
@@ -1852,6 +1858,7 @@
 		438642C3D6246C7502CD9F50 /* MacPlayerMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlayerMenu.swift; sourceTree = "<group>"; };
 		43D6DC6EBC070670B2F40480 /* Library.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Library.swift; sourceTree = "<group>"; };
 		44138FC9EA46A6BC60F9EEAF /* JellyfinSystemDTO.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JellyfinSystemDTO.swift; sourceTree = "<group>"; };
+		443114C05FAE413AE820ED6C /* ArtworkRefTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkRefTests.swift; sourceTree = "<group>"; };
 		450C5D44AAF25340FED2053E /* LegacyContainerSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyContainerSupport.swift; sourceTree = "<group>"; };
 		4517DC82041A6D29D57DA834 /* LibrarySortMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibrarySortMenu.swift; sourceTree = "<group>"; };
 		454D16527A6597376006EFF2 /* VideoEnhancementShaders.metal */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.metal; path = VideoEnhancementShaders.metal; sourceTree = "<group>"; };
@@ -2723,6 +2730,7 @@
 			children = (
 				2D00B7F0BBB157F960A4A7AA /* Fixtures */,
 				ACECE6741157A32EFA6BFAEC /* AnalyticsErrorReportTests.swift */,
+				443114C05FAE413AE820ED6C /* ArtworkRefTests.swift */,
 				5BF3D45ECDF04BE0293956B1 /* AudioOffsetTests.swift */,
 				3761B594F8C0D19A20B14093 /* AudioTrackSelectionTests.swift */,
 				B36B46CCD2EE566DD0BA932F /* AV1RoutingTests.swift */,
@@ -2939,6 +2947,7 @@
 		8639689B76F23F84E9B9181E /* Domain */ = {
 			isa = PBXGroup;
 			children = (
+				0DD6E29FDA075666DCA0D829 /* Artwork.swift */,
 				4744438A664FDA8BFF86BA56 /* AudioTrack.swift */,
 				57D659A2F23F5CB8EDF724D4 /* ContentKey.swift */,
 				E5136FF4D1C6C505E02BEEE3 /* DuskJSONValue.swift */,
@@ -3881,6 +3890,7 @@
 				A65A07D355238E77129975F8 /* AnalyticsEvent.swift in Sources */,
 				97E627F945F79816C4232E8B /* AppIconPickerView.swift in Sources */,
 				E6F1C33B56A1E529C3EC5E25 /* AppNavigation.swift in Sources */,
+				961591472010CA667892D8B0 /* Artwork.swift in Sources */,
 				EF0F16384665A2F178552CD9 /* AudioOffsetPolicy.swift in Sources */,
 				7D26B99F16FE27685941710F /* AudioSubtitleSettingsView.swift in Sources */,
 				032B29879FFA2AB4E7887C0E /* AudioTrack.swift in Sources */,
@@ -4272,6 +4282,7 @@
 				E9ED62B0891AFA6ED423DD05 /* AnalyticsEvent.swift in Sources */,
 				5E5DA6401E13A7959FE88D4E /* AppIconPickerView.swift in Sources */,
 				215CD0BC99459872F4B3A3A3 /* AppNavigation.swift in Sources */,
+				6C6F5105F828B3AFBA221CBC /* Artwork.swift in Sources */,
 				0B919D3F214B745E1BB6ED40 /* AudioOffsetPolicy.swift in Sources */,
 				3EE144E6CB5B2B64EB3C71E7 /* AudioSubtitleSettingsView.swift in Sources */,
 				C14B8B6C7DD9D162686E53B0 /* AudioTrack.swift in Sources */,
@@ -4664,6 +4675,7 @@
 			files = (
 				D9E3ADCE59FBDB1D392B1AD3 /* AV1RoutingTests.swift in Sources */,
 				848CBBC6AA06F530BB1B78C7 /* AnalyticsErrorReportTests.swift in Sources */,
+				D9C93FEE9E30AB0790C71371 /* ArtworkRefTests.swift in Sources */,
 				02835DB1555DE53B30EA4306 /* AudioOffsetTests.swift in Sources */,
 				91DB2AB07479F2EA7B77F44C /* AudioTrackSelectionTests.swift in Sources */,
 				8526A687A65C3514313A9DD2 /* CollectionSortTests.swift in Sources */,
@@ -4774,6 +4786,7 @@
 				3E5708606C4B48B5C63967E9 /* AnalyticsEvent.swift in Sources */,
 				DF9867AF7613E3C42A490A26 /* AppIconPickerView.swift in Sources */,
 				766F87E595D492A1D024D4C2 /* AppNavigation.swift in Sources */,
+				83424E374D286561BA54D5B3 /* Artwork.swift in Sources */,
 				A4A295EE57BE75F5E1F18A16 /* AudioOffsetPolicy.swift in Sources */,
 				A208B4921EE38FD750132654 /* AudioSubtitleSettingsView.swift in Sources */,
 				9B7AC27E31480D4C9F923BBE /* AudioTrack.swift in Sources */,
@@ -5157,6 +5170,7 @@
 			files = (
 				9ECCBB84D532E02CC2B639E5 /* AV1RoutingTests.swift in Sources */,
 				B41FE993970216F0E64675D8 /* AnalyticsErrorReportTests.swift in Sources */,
+				6DBCB264CBE0C9E25CA71BA6 /* ArtworkRefTests.swift in Sources */,
 				3C46B306614B06DAD136329F /* AudioOffsetTests.swift in Sources */,
 				75ADB082B45928F9CE70D15D /* AudioTrackSelectionTests.swift in Sources */,
 				D084644582A2F63AB9650597 /* CollectionSortTests.swift in Sources */,

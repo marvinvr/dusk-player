@@ -494,7 +494,7 @@ final class LiveTVViewModel {
         guard lineup.provider.isIPTV else { return imageURL(for:width:height:) }
         let plexService = plexService
         return { path, width, height in
-            plexService.imageURL(for: path, serverID: IPTVImages.serverID, width: width, height: height)
+            plexService.imageURL(for: ArtworkRef(serverID: IPTVImages.serverID, path: path), size: ImageSize(width: width, height: height))
         }
     }
 
@@ -502,10 +502,8 @@ final class LiveTVViewModel {
         // Explicit because `imageURL` falls back to the primary server, while
         // the DVR may live on another one.
         plexService.imageURL(
-            for: path,
-            serverID: provider?.serverID ?? plexService.liveTVServerID,
-            width: width,
-            height: height
+            for: ArtworkRef(serverID: provider?.serverID ?? plexService.liveTVServerID, path: path),
+            size: ImageSize(width: width, height: height)
         )
     }
 

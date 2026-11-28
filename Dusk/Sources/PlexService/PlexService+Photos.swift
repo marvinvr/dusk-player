@@ -75,10 +75,8 @@ extension PlexService {
     /// box (`minSize=1`), and the tile crops what overflows.
     func photoThumbnailURL(for item: PhotoItem, side: Int) -> URL? {
         imageURL(
-            for: item.isAlbum ? (item.composite ?? item.thumb) : item.thumb,
-            serverID: item.serverID,
-            width: side,
-            height: side
+            for: ArtworkRef(serverID: item.serverID, path: item.isAlbum ? (item.composite ?? item.thumb) : item.thumb),
+            size: ImageSize(width: side, height: side)
         )
     }
 
@@ -90,7 +88,7 @@ extension PlexService {
         guard item.kind == .photo, let partKey = item.partKey,
               let connection = pool.connection(for: item.serverID),
               let original = transcodeSourceURLString(for: partKey, serverID: item.serverID) else {
-            return imageURL(for: item.thumb, serverID: item.serverID, width: width, height: height)
+            return imageURL(for: ArtworkRef(serverID: item.serverID, path: item.thumb), size: ImageSize(width: width, height: height))
         }
 
         let base = connection.baseURL.absoluteString.hasSuffix("/")

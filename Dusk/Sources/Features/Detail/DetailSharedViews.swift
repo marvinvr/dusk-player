@@ -1672,7 +1672,7 @@ struct ActorCreditCard: View {
 
         Group {
             if let thumbPath = person.thumb {
-                DuskAsyncImage(url: plexService.imageURL(for: thumbPath, serverID: serverID, width: imageSize, height: imageSize)) { phase in
+                DuskAsyncImage(url: plexService.imageURL(for: ArtworkRef(serverID: serverID, path: thumbPath), size: ImageSize(width: imageSize, height: imageSize))) { phase in
                     switch phase {
                     case .success(let image):
                         image

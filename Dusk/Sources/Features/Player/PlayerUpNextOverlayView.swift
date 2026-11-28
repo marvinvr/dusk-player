@@ -337,19 +337,15 @@ struct PlayerUpNextOverlayView: View {
 
     private var stillURL: URL? {
         plexService.imageURL(
-            for: presentation.item.upNextStillPath,
-            serverID: presentation.item.serverID,
-            width: 1280,
-            height: 720
+            for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.upNextStillPath),
+            size: ImageSize(width: 1280, height: 720)
         )
     }
 
     private var backdropURL: URL? {
         plexService.imageURL(
-            for: presentation.item.art ?? presentation.item.thumb ?? presentation.item.grandparentThumb,
-            serverID: presentation.item.serverID,
-            width: 1280,
-            height: 720
+            for: ArtworkRef(serverID: presentation.item.serverID, path: presentation.item.art ?? presentation.item.thumb ?? presentation.item.grandparentThumb),
+            size: ImageSize(width: 1280, height: 720)
         )
     }
 

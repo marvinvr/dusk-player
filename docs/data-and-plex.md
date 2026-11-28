@@ -782,7 +782,11 @@ File: `PlexService+Photos.swift`, model `Domain/PhotoItem.swift`.
 
 ## Image URL And Data Handling
 File: `PlexService+Images.swift`.
-- Call `plexService.imageURL(for:width:height:)` from view models/UI helpers.
+- Call `plexService.imageURL(for: ArtworkRef, size: ImageSize)` from view models/UI
+  helpers. An `ArtworkRef` is the server id plus an opaque locator (for Plex the
+  server-relative path); `MediaItem.artwork` is an `ArtworkSet`, and the poster/
+  landscape fallback order lives on it (`preferredPoster(for:)`, …). A ref keeps
+  the call site's server, never a guessed one.
 - With dimensions, URLs go through `/photo/:/transcode` using display-scaled
   pixel dimensions, `minSize=1`, and `upscale=0`.
 - The transcode `url` is the server-relative path (`transcodeSourceURLString`),

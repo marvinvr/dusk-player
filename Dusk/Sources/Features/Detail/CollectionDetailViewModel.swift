@@ -222,7 +222,7 @@ final class CollectionDetailViewModel {
     func backdropURL(width: Int, height: Int) -> URL? {
         // A collection without its own background borrows its first title's.
         let path = collection?.art ?? items.first(where: { $0.art != nil })?.art ?? collection?.thumb
-        return plexService.imageURL(for: path, serverID: serverID, width: width, height: height)
+        return plexService.imageURL(for: ArtworkRef(serverID: serverID, path: path), size: ImageSize(width: width, height: height))
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {

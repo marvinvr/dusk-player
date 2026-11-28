@@ -63,7 +63,7 @@ final class ActorDetailViewModel {
     }
 
     func personImageURL(size: Int) -> URL? {
-        plexService.imageURL(for: person.thumb, serverID: serverID, width: size, height: size)
+        plexService.imageURL(for: ArtworkRef(serverID: serverID, path: person.thumb), size: ImageSize(width: size, height: size))
     }
 
     func posterURL(for item: MediaItem, width: Int, height: Int) -> URL? {
