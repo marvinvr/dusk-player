@@ -16,6 +16,9 @@ proxy:
   * lets through GET/HEAD and only the writes a smoke run needs (timeline,
     scrobble/unscrobble, play queues, transcode decisions); every other write
     is answered 403 and logged as blocked, so the shared server is not changed;
+  * answers the remux ladder's part stream selection (`PUT /library/parts/<id>`)
+    itself with 200, logged as local and never forwarded: the ladder goes on to
+    its decision request, and plex-demo's stored selection stays as it is;
   * appends every request to --log as JSON lines (same format as
     parity_mock.py), tokens removed.
 """
@@ -37,6 +40,8 @@ FAKE_TOKEN = "dusk-screenshot-demo-token"
 ALLOWED_WRITES = re.compile(
     r"^/(:/(timeline|scrobble|unscrobble|progress)|playQueues|video/:/transcode/|music/:/transcode/"
     r"|api/v2/pins)")
+# Answered here with 200 and never forwarded (see the module docstring).
+LOCAL_WRITES = re.compile(r"^/library/parts/\d+$")
 HOP_HEADERS = {"connection", "keep-alive", "proxy-connection", "transfer-encoding", "te", "trailer", "upgrade",
                "host", "content-length"}
 TOKEN_QUERY = re.compile(r"(X-Plex-Token=)[^&]*", re.IGNORECASE)
@@ -76,11 +81,13 @@ class Proxy(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         pass
 
-    def record(self, status, blocked=False):
+    def record(self, status, blocked=False, local=False):
         entry = {"time": round(time.time(), 3), "role": self.role, "method": self.command,
                  "target": scrub(self.path), "status": status}
         if blocked:
             entry["blocked"] = True
+        if local:
+            entry["local"] = True
         with LOG_LOCK:
             State.log.write(json.dumps(entry) + "\n")
             State.log.flush()
@@ -94,6 +101,12 @@ class Proxy(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length") or 0)
         body = self.rfile.read(length) if length else None
         path = urllib.parse.urlparse(self.path).path
+        if self.command == "PUT" and self.role != "plextv" and LOCAL_WRITES.match(path):
+            self.record(200, local=True)
+            self.send_response(200)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
         if self.command not in ("GET", "HEAD") and not ALLOWED_WRITES.match(path):
             self.record(403, blocked=True)
             self.send_response(403)

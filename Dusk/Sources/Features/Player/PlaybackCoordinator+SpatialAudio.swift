@@ -88,7 +88,7 @@ extension PlaybackCoordinator {
                 decision: resolverDecision,
                 audioStream: $0,
                 subtitleStream: subtitleStream,
-                displaySupportsHDR: AVPlayer.eligibleForHDRPlayback,
+                displaySupportsHDR: Self.remuxDisplaySupportsHDR,
                 hdrVideoRemuxEnabled: preferences.hdrVideoRemuxEnabled
             ) == nil
         } ?? false
@@ -131,7 +131,7 @@ extension PlaybackCoordinator {
             blocker = StreamResolver.dolbyVisionRemuxBlocker(
                 media: media,
                 subtitleStream: subtitleStream,
-                displaySupportsHDR: AVPlayer.eligibleForHDRPlayback
+                displaySupportsHDR: Self.remuxDisplaySupportsHDR
             )
         } else {
             let spatialAudioBlocker = considersSpatialAudio
@@ -140,7 +140,7 @@ extension PlaybackCoordinator {
                     decision: resolverDecision,
                     audioStream: audioStream,
                     subtitleStream: subtitleStream,
-                    displaySupportsHDR: AVPlayer.eligibleForHDRPlayback,
+                    displaySupportsHDR: Self.remuxDisplaySupportsHDR,
                     convertsAudio: convertsAudio
                 )
                 : "Dolby Atmos remux is off"
@@ -150,7 +150,7 @@ extension PlaybackCoordinator {
                     decision: resolverDecision,
                     audioStream: audioStream,
                     subtitleStream: subtitleStream,
-                    displaySupportsHDR: AVPlayer.eligibleForHDRPlayback
+                    displaySupportsHDR: Self.remuxDisplaySupportsHDR
                 )
                 : "HDR remux is off"
             qualifiesForSpatialAudio = spatialAudioBlocker == nil
@@ -833,4 +833,16 @@ struct RemuxAudioConversion: Sendable, Equatable {
 struct ExplicitTrackSelection: Sendable, Equatable {
     let audioStreamID: String?
     let subtitleStreamID: String?
+}
+
+extension PlaybackCoordinator {
+    /// Whether the display shows HDR, for the remux ladder's HDR gates.
+    /// Screenshot mode can claim it (`-DuskScreenshotHDRDisplay 1`) so the
+    /// plex-demo smoke check reaches the remux decisions on a simulator.
+    static var remuxDisplaySupportsHDR: Bool {
+        #if DEBUG
+        if ScreenshotMode.forcesHDRDisplay { return true }
+        #endif
+        return AVPlayer.eligibleForHDRPlayback
+    }
 }

@@ -40,6 +40,8 @@
     {"name": "search", "screen": "search", "args": {"DuskScreenshotSearch": "sintel"}},
     {"name": "play-direct", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "1", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "60"}},
     {"name": "play-remux", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "10", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "20"}},
+    {"name": "play-dv7-atmos", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "17", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "20", "DuskScreenshotHDRDisplay": "1"}},
+    {"name": "play-dv7-truehd", "screen": "player", "seconds": 25, "pixels": false, "args": {"DuskScreenshotItem": "18", "DuskScreenshotItemType": "movie", "DuskScreenshotPlayOffset": "20", "DuskScreenshotHDRDisplay": "1"}},
     {"name": "download", "screen": "downloads", "seconds": 30, "pixels": false, "args": {"DuskScreenshotDownloads": "episode:166504"}}
   ]
 }

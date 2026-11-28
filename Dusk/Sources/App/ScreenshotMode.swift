@@ -33,6 +33,7 @@ enum ScreenshotMode {
         static let trakt = "DuskScreenshotTrakt"
         static let traktSignIn = "DuskScreenshotTraktSignIn"
         static let mute = "DuskScreenshotMute"
+        static let hdrDisplay = "DuskScreenshotHDRDisplay"
         static let iptvPlaylist = "DuskScreenshotIPTVPlaylist"
         static let iptvGuide = "DuskScreenshotIPTVGuide"
         static let iptvName = "DuskScreenshotIPTVName"
@@ -77,6 +78,14 @@ enum ScreenshotMode {
     /// bools are unreliable).
     static var mutesPlayback: Bool {
         guard isActive, let value = defaults.string(forKey: Key.mute) else { return false }
+        return ["1", "yes", "true"].contains(value.lowercased())
+    }
+
+    /// `-DuskScreenshotHDRDisplay 1`: the remux ladder treats the display as
+    /// HDR-capable, so G6 reaches the Atmos / HDR / Dolby Vision remux
+    /// decisions on a simulator, whose display AVPlayer reports as SDR.
+    static var forcesHDRDisplay: Bool {
+        guard isActive, let value = defaults.string(forKey: Key.hdrDisplay) else { return false }
         return ["1", "yes", "true"].contains(value.lowercased())
     }
 
