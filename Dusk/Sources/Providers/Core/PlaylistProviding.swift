@@ -1,4 +1,42 @@
 import Foundation
 
-/// Playlist reads and edits. Empty until P0-13.
-protocol PlaylistProviding: Sendable {}
+/// Playlist reads and edits on one server (docs/jellyfin/04-architecture.md §3).
+/// A playlist lives on a single server and belongs to the signed-in profile;
+/// its items can only come from that server, so every call goes to the
+/// playlist's own server. Values come back stamped with that server.
+///
+/// The cross-server list and the shared `PlaylistStore` are the facade's.
+///
+/// The methods run on the main actor, where the facade and its request routing
+/// live.
+///
+/// Entries are still keyed by Plex's numeric `playlistItemID` and an add
+/// still answers `PlexPlaylistAddResult`; both keep their shape until the
+/// boundary pass (05-plan P0-19) and J-07 (which turns "move after" into an
+/// index where the server wants one).
+protocol PlaylistProviding: Sendable {
+    /// The server's video playlists, in its own order.
+    @MainActor func playlists() async throws -> [Playlist]
+
+    /// One playlist, or nil when the server has none by that id.
+    @MainActor func playlist(id: String) async throws -> Playlist?
+
+    /// Every entry of a playlist, in playlist order.
+    @MainActor func entries(playlistID: String) async throws -> [PlaylistEntry]
+
+    /// A new regular playlist holding `itemIDs` (never empty: Plex cannot
+    /// create an empty one).
+    @MainActor func createPlaylist(title: String, itemIDs: [String]) async throws -> Playlist
+
+    /// Appends items; a show or season adds its episodes.
+    @MainActor func add(itemIDs: [String], to playlistID: String) async throws -> PlexPlaylistAddResult
+
+    @MainActor func removeEntry(_ entryID: Int, from playlistID: String) async throws
+
+    /// Moves an entry right after `afterEntryID`, or to the top when nil.
+    @MainActor func moveEntry(_ entryID: Int, after afterEntryID: Int?, in playlistID: String) async throws
+
+    @MainActor func rename(playlistID: String, to title: String) async throws
+
+    @MainActor func delete(playlistID: String) async throws
+}

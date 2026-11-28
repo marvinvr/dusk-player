@@ -1,27 +1,22 @@
 import Foundation
 
-/// Plex playlists. Each one lives on a single server and belongs to the
-/// signed-in user, so every call is routed to the playlist's own server and an
-/// item can only be added to a playlist on the server it came from.
-///
-/// Verified against a real PMS (1.43): `PUT /playlists/{id}?title=&summary=`
-/// renames; adding a show or season `uri` expands it into its episodes and the
-/// server skips ones the playlist already holds (`leafCountAdded` vs
-/// `leafCountRequested`); smart playlists reject item edits with HTTP 400 and
-/// list their items without a `playlistItemID`; the list's `duration` is in
-/// milliseconds but the `/items` container's is in seconds.
+/// Playlists, routed to the playlist's server's `PlaylistProviding`. Each one
+/// lives on a single server and belongs to the signed-in user, so every call
+/// goes to the playlist's own server and an item can only be added to a
+/// playlist on the server it came from.
+extension MediaService: PlexPlaylistsTransport {}
+
 extension MediaService {
+    /// The playlist facet of one server. Built here rather than read off
+    /// `session.provider` while routing and self-healing still live in the
+    /// facade (`PlexPlaylistsTransport`).
+    func playlistFacet(on serverID: String?) throws -> any PlaylistProviding {
+        PlexPlaylists(serverID: try resolveServerID(serverID), transport: self)
+    }
+
     /// Video playlists on one server, in the server's order (title).
     func getPlaylists(serverID: String) async throws -> [Playlist] {
-        let targetID = try resolveServerID(serverID)
-        let playlists: [PlexPlaylistDTO] = try await fetchMetadata(
-            path: "/playlists",
-            queryItems: [URLQueryItem(name: "playlistType", value: "video")],
-            serverID: targetID
-        )
-        return playlists
-            .map { PlexUserContentMapper.playlist($0, serverID: targetID) }
-            .filter(\.isVideo)
+        try await playlistFacet(on: serverID).playlists()
     }
 
     /// Video playlists from every connected server, streamed as each answers.
@@ -34,125 +29,42 @@ extension MediaService {
     }
 
     func getPlaylist(itemID: String, serverID: String?) async throws -> Playlist? {
-        let targetID = try resolveServerID(serverID)
-        let playlists: [PlexPlaylistDTO] = try await fetchMetadata(
-            path: "/playlists/\(itemID)",
-            serverID: targetID
-        )
-        return playlists.first.map { PlexUserContentMapper.playlist($0, serverID: targetID) }
+        try await playlistFacet(on: serverID).playlist(id: itemID)
     }
 
     /// Every entry of a playlist, in playlist order, paged through.
     func getPlaylistEntries(itemID: String, serverID: String?) async throws -> [PlaylistEntry] {
-        let targetID = try resolveServerID(serverID)
-        let pageSize = 200
-        var entries: [PlaylistEntry] = []
-        while true {
-            let data = try await rawServerRequest(
-                path: "/playlists/\(itemID)/items",
-                queryItems: [
-                    URLQueryItem(name: "X-Plex-Container-Start", value: String(entries.count)),
-                    URLQueryItem(name: "X-Plex-Container-Size", value: String(pageSize)),
-                ],
-                serverID: targetID
-            )
-            // Stamped decoder: each entry's nested `MediaItem` reads the server from it.
-            let container = try decodeJSON(MetadataResponse<PlexPlaylistEntryDTO>.self, from: data, serverID: targetID)
-                .MediaContainer
-            let page = (container.Metadata ?? []).map(PlexUserContentMapper.playlistEntry)
-            entries += page
-            let total = container.totalSize ?? container.size ?? entries.count
-            if page.isEmpty || page.count < pageSize || entries.count >= total { break }
-        }
-        return entries
+        try await playlistFacet(on: serverID).entries(playlistID: itemID)
     }
 
     /// Plex cannot create an empty regular playlist, so a new one always
     /// starts with the items it was created from.
     func createPlaylist(title: String, ratingKeys: [String], serverID: String) async throws -> Playlist {
-        let data = try await rawServerRequest(
-            method: "POST",
-            path: "/playlists",
-            queryItems: [
-                URLQueryItem(name: "type", value: "video"),
-                URLQueryItem(name: "title", value: title),
-                URLQueryItem(name: "smart", value: "0"),
-                URLQueryItem(name: "uri", value: libraryURI(ratingKeys: ratingKeys, serverID: serverID)),
-            ],
-            serverID: serverID
-        )
-        guard let playlist = try decodeJSON(MetadataResponse<PlexPlaylistDTO>.self, from: data, serverID: serverID)
-            .MediaContainer.Metadata?.first else {
-            throw PlexServiceError.decodingError("Plex did not return the new playlist.")
-        }
-        // The server `decodeJSON` stamped: an empty id falls back to the primary.
-        return PlexUserContentMapper.playlist(playlist, serverID: serverID.nilIfEmpty ?? pool.primary?.serverID)
+        try await playlistFacet(on: serverID).createPlaylist(title: title, itemIDs: ratingKeys)
     }
 
     /// Appends items (a show or season adds all its episodes).
     @discardableResult
     func addToPlaylist(_ playlist: Playlist, ratingKeys: [String]) async throws -> PlexPlaylistAddResult {
-        let serverID = try resolveServerID(playlist.serverID)
-        let data = try await rawServerRequest(
-            method: "PUT",
-            path: "/playlists/\(playlist.itemID)/items",
-            queryItems: [
-                URLQueryItem(name: "uri", value: libraryURI(ratingKeys: ratingKeys, serverID: serverID)),
-            ],
-            serverID: serverID
-        )
-        let container = try? decodeJSON(PlaylistAddResponse.self, from: data, serverID: serverID).MediaContainer
-        let requested = container?.leafCountRequested ?? ratingKeys.count
-        return PlexPlaylistAddResult(added: container?.leafCountAdded ?? requested, requested: requested)
+        try await playlistFacet(on: playlist.serverID).add(itemIDs: ratingKeys, to: playlist.itemID)
     }
 
     func removeFromPlaylist(_ playlist: Playlist, playlistItemID: Int) async throws {
-        _ = try await rawServerRequest(
-            method: "DELETE",
-            path: "/playlists/\(playlist.itemID)/items/\(playlistItemID)",
-            serverID: playlist.serverID
-        )
+        try await playlistFacet(on: playlist.serverID).removeEntry(playlistItemID, from: playlist.itemID)
     }
 
     /// Moves an entry right after `afterPlaylistItemID`, or to the top when nil.
     func movePlaylistItem(_ playlist: Playlist, playlistItemID: Int, after afterPlaylistItemID: Int?) async throws {
-        _ = try await rawServerRequest(
-            method: "PUT",
-            path: "/playlists/\(playlist.itemID)/items/\(playlistItemID)/move",
-            queryItems: afterPlaylistItemID.map { [URLQueryItem(name: "after", value: String($0))] },
-            serverID: playlist.serverID
-        )
+        try await playlistFacet(on: playlist.serverID)
+            .moveEntry(playlistItemID, after: afterPlaylistItemID, in: playlist.itemID)
     }
 
     func renamePlaylist(_ playlist: Playlist, to title: String) async throws {
-        _ = try await rawServerRequest(
-            method: "PUT",
-            path: "/playlists/\(playlist.itemID)",
-            queryItems: [URLQueryItem(name: "title", value: title)],
-            serverID: playlist.serverID
-        )
+        try await playlistFacet(on: playlist.serverID).rename(playlistID: playlist.itemID, to: title)
     }
 
     func deletePlaylist(_ playlist: Playlist) async throws {
-        _ = try await rawServerRequest(
-            method: "DELETE",
-            path: "/playlists/\(playlist.itemID)",
-            serverID: playlist.serverID
-        )
-    }
-
-    /// `server://{machineID}/com.plexapp.plugins.library/library/metadata/{rk,rk}`.
-    func libraryURI(ratingKeys: [String], serverID: String) -> String {
-        "server://\(serverID)/com.plexapp.plugins.library/library/metadata/\(ratingKeys.joined(separator: ","))"
-    }
-}
-
-private struct PlaylistAddResponse: Decodable {
-    let MediaContainer: Container
-
-    struct Container: Decodable {
-        let leafCountAdded: Int?
-        let leafCountRequested: Int?
+        try await playlistFacet(on: playlist.serverID).delete(playlistID: playlist.itemID)
     }
 }
 

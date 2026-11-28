@@ -51,9 +51,9 @@ struct PlexPlaylistDTO: Decodable, Sendable {
 /// `playlistItemID` every edit is keyed on (absent for smart playlists).
 struct PlexPlaylistEntryDTO: Decodable, Sendable {
     let playlistItemID: Int?
-    /// The same row decoded as a library item. It reads the server stamp from
-    /// the decoder, so this DTO must be decoded through `decodeJSON(…, serverID:)`.
-    let item: MediaItem
+    /// The same row as a library item; `PlexUserContentMapper.playlistEntry`
+    /// maps it onto the server it came from.
+    let item: PlexItemDTO
 
     enum CodingKeys: String, CodingKey {
         case playlistItemID
@@ -66,6 +66,6 @@ struct PlexPlaylistEntryDTO: Decodable, Sendable {
         } else {
             playlistItemID = (try? container.decodeIfPresent(String.self, forKey: .playlistItemID)).flatMap { $0.flatMap(Int.init) }
         }
-        item = try MediaItem(from: decoder)
+        item = try PlexItemDTO(from: decoder)
     }
 }
