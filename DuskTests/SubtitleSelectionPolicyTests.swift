@@ -293,8 +293,8 @@ struct SubtitleSelectionPolicyTests {
         return UserPreferences.storedSubtitleSettings(defaults: defaults)
     }
 
-    private func profile(_ json: String) throws -> PlexAccountLanguageDefaults {
-        let profile = try JSONDecoder().decode(PlexAccountLanguageDefaults.Profile.self, from: Data(json.utf8))
-        return PlexAccountLanguageDefaults(profile: profile)
+    private func profile(_ json: String) throws -> AccountLanguageDefaults {
+        let profile = try JSONDecoder().decode(PlexAccountProfileDTO.self, from: Data(json.utf8))
+        return PlexAccountPreferences.languageDefaults(from: profile)
     }
 }

@@ -456,6 +456,15 @@ the user's library order is **not** a PMS setting. It lives on plex.tv, per Plex
 account, in the `experience` user setting. Order, pinning, and hiding are all the
 same array: `sidebarSettings.pinnedSources`. Array position is the order.
 
+The facade routes to the account's `AccountPreferencesProviding`
+(`Providers/Plex/PlexAccountPreferences.swift`, through `PlexAccountTransport`):
+one read (`libraryLayout()`) or one read-then-write (`saveLibraryLayout`). The
+store holds only the neutral `AccountLibraryLayout` (server, library key, hidden,
+in account order); `LibraryOrderArrangement` applies it to the sections. The raw
+blob and `PlexPinnedSource` entries stay inside the provider, which re-reads them
+for every write (`PlexPinnedSourceArrangement` builds the new list). The facade
+picks the servers whose pins may be rewritten; the provider may only drop more.
+
 - Read: `GET /api/v2/user?includeSubscriptions=1&includeProviders=1&includeSettings=1&includeSharedSettings=1`
   with the account token. `settings` -> the entry with `id == "experience"` ->
   `value` is a **stringified** JSON document -> decode it, then read
@@ -575,8 +584,10 @@ Where to edit:
   `MediaService+WatchState.swift`.
 - Home, Continue Watching and library hub rows: `MediaService+Hubs.swift`.
 - Subtitle search/download endpoints: `MediaService+Subtitles.swift`.
-- Account-level plex.tv settings (library order): `MediaService+LibraryOrder.swift`,
-  with the shared state in `LibraryOrderStore.swift`.
+- Account-level plex.tv settings (library order, language defaults):
+  `MediaService+LibraryOrder.swift` / `+LanguageDefaults.swift` route to
+  `Providers/Plex/PlexAccountPreferences.swift`, with the shared state in
+  `LibraryOrderStore.swift`.
 - New response shapes: a DTO in `Dusk/Sources/Providers/Plex/DTO/` plus its
   mapping in `Providers/Plex/Mappers/`; the domain type gets a memberwise
   initialiser, not `Decodable`.
@@ -719,10 +730,12 @@ File: `MediaService+Streams.swift`.
 - Never log raw playback URLs; use `sanitizedPlaybackURLString(for:)`.
 
 ## Plex Watchlist (plex.tv Discover)
-File: `MediaService+Watchlist.swift`, models `Domain/Watchlist.swift`
-(`WatchlistEntry`, `PlexWatchlistAvailability`, `PlexHomeHubSetting`), shared
-state `MediaService/WatchlistStore.swift` (`media.watchlist`).
-- Account-level, on `https://discover.provider.plex.tv` (`MediaService.discoverBase`,
+File: `MediaService+Watchlist.swift` (load, server matching, optimistic edits),
+routed to `WatchlistProviding` = `Providers/Plex/PlexWatchlist.swift` (the
+Discover and plex.tv calls); models `Domain/Watchlist.swift` (`WatchlistEntry`,
+`WatchlistAvailability`, `PlexHomeHubSetting`), shared state
+`MediaService/WatchlistStore.swift` (`media.watchlist`).
+- Account-level, on `https://discover.provider.plex.tv` (`PlexWatchlist.discoverBase`,
   the mock's `/discover` prefix in screenshot mode), with the active profile's token.
   Verified on a real account 2026-10-25: `GET /library/sections/watchlist/all?sort=watchlistedAt:desc`
   (paged, `totalSize`), `PUT /actions/addToWatchlist|removeFromWatchlist?ratingKey=`

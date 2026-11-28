@@ -721,7 +721,7 @@ final class UserPreferences {
     /// has not chosen in Dusk. They are remembered, so a relaunch before the
     /// account answers starts from the same defaults, and they keep following
     /// the account until the viewer picks something in Dusk.
-    func applyPlexAccountLanguageDefaults(_ accountDefaults: PlexAccountLanguageDefaults) {
+    func applyPlexAccountLanguageDefaults(_ accountDefaults: AccountLanguageDefaults) {
         let defaults = UserDefaults.standard
         defaults.set(accountDefaults.audioLanguage, forKey: Keys.accountAudioLanguage)
         defaults.set(accountDefaults.subtitleLanguage, forKey: Keys.accountSubtitleLanguage)

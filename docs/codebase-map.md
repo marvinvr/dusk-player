@@ -306,7 +306,8 @@ Playlists:
 Watchlist:
 
 - `MediaService.watchlist` (`WatchlistStore`) is the account's Plex Watchlist and its
-  server matches; `MediaService+Watchlist` loads/edits it (plex.tv Discover).
+  server matches; `MediaService+Watchlist` loads/edits it through the account's
+  `WatchlistProviding` (`Providers/Plex/PlexWatchlist`, plex.tv Discover).
 - Home's row is `Home/HomeWatchlistShelf` placed by `HomeWatchlistPlacement`;
   `Features/Watchlist` has the bookmark/menu actions and the off-server page.
   See `docs/ui-features.md` → "Watchlist".
