@@ -774,19 +774,27 @@ providers.
 
 ### 12.6 Markers and scrub previews
 
-`MarkerProviding.markers(for:)` returns `[Marker]`. Plex reads them from the
-details payload it already fetched; Jellyfin calls `/MediaSegments/{id}` in
-parallel with the playback request. `Intro → .intro`, `Outro → .credits`
-(`isFinal` when it ends at the runtime); `Recap`, `Preview` and `Commercial`
-are mapped into the domain and **not shown**, because Plex has no equivalent
-and a button that exists on one server only is a visible difference. The
-synthesised credits estimate keeps its sentinel id (`"estimated-credits"`).
+`MarkerProviding.markers(for: MediaDetails)` returns `[Marker]`. Plex reads
+them from the details payload it already fetched (`includeMarkers=1`), so the
+call is synchronous and makes no request; Jellyfin calls `/MediaSegments/{id}`
+in parallel with the playback request, so J-05 either puts the segments on
+`MediaDetails.markers` when it loads details or makes this call async. The
+player still builds its view model from `MediaDetails.markers` in
+`PlayerSessionView.init`, where no service is reachable. `Intro → .intro`,
+`Outro → .credits` (`isFinal` when it ends at the runtime); `Recap`, `Preview`
+and `Commercial` are mapped into the domain and **not shown**, because Plex
+has no equivalent and a button that exists on one server only is a visible
+difference. The synthesised credits estimate keeps its sentinel id
+(`Marker.estimatedCreditsID`, today `"-1"`; any value no server uses works).
 
-`MarkerProviding.scrubPreview(for:version:)` returns a
-`ScrubPreviewSource` with one method, `frame(at:) async -> CGImage?`. Plex's
-implementation wraps the BIF parser; Jellyfin's fetches trickplay sheets
-lazily and crops the tile (03 §10.6). The generated-preview fallback covers
-both when the server has none.
+`MarkerProviding.scrubPreview(forPartID:)` returns a `ScrubPreviewSource` with
+one method, `frame(at:) async -> CGImage?`. It is keyed on the playing part,
+not the version: a multi-part item plays one part at a time. Plex's
+implementation (`PlexMarkers`) fetches and parses the part's BIF file; its
+frame set is `PlexScrubPreviewSource`, which the player controls still read
+synchronously (moving them to the protocol is a view change after Phase 0).
+Jellyfin's fetches trickplay sheets lazily and crops the tile (03 §10.6). A
+generated-preview fallback for servers with none is not in the tree.
 
 ### 12.7 Pre-rolls, AirPlay, SharePlay
 
