@@ -824,7 +824,9 @@ extension PlaybackCoordinator {
                     && StreamResolver.containsHEV1Video(media),
                 repairsKeyframeTimestamps: playbackDecision.isSpatialAudio,
                 credentialPolicy: self.media.playback(for: serverID).credentialPolicy,
-                traits: self.media.playback(for: serverID).traits
+                traits: self.media.playback(for: serverID).traits,
+                filtersServerVariants: playbackDecision.isServerHLSStream
+                    && self.media.playback(for: serverID).traits.remuxNeedsVariantFilter
             )
             debugInfo = PlaybackDebugInfo(
                 title: details.title,
@@ -1478,7 +1480,9 @@ extension PlaybackCoordinator {
                 && StreamResolver.containsHEV1Video(media),
             repairsKeyframeTimestamps: playbackDecision.isSpatialAudio,
             credentialPolicy: self.media.playback(for: activePlaybackServerID).credentialPolicy,
-            traits: self.media.playback(for: activePlaybackServerID).traits
+            traits: self.media.playback(for: activePlaybackServerID).traits,
+            filtersServerVariants: playbackDecision.isServerHLSStream
+                && self.media.playback(for: activePlaybackServerID).traits.remuxNeedsVariantFilter
         )
         debugInfo = PlaybackDebugInfo(
             title: details.title,

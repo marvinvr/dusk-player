@@ -543,6 +543,10 @@ struct HLSAttributeList {
             attributes.append((name, rawValue))
         }
     }
+
+    mutating func remove(_ name: String) {
+        attributes.removeAll { $0.name == name }
+    }
 }
 
 /// Relabels a `hev1` HEVC sample entry as `hvc1` in a remux's init segment.
@@ -754,7 +758,9 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
     ///   - credentialPolicy: the playing server's (`PlaybackSource.credentialPolicy`).
     ///   - traits: which init-segment patches the server's remux needs. The
     ///     `#EXT-X-STREAM-INF` line is rewritten from `dolbyVision` whatever
-    ///     they say; the `dvcC`/`dvvC` and `dec3` patches run only when asked.
+    ///     they say; the `dvcC`/`dvvC` and `dec3` patches run only when asked,
+    ///     and the master is cut to its first variant (`HLSVariantFilter`)
+    ///     only when `remuxNeedsVariantFilter` says so.
     init(
         session: URLSession? = nil,
         credentialPolicy: any CredentialTransportPolicy = TransportSecurity.defaultPolicy,
@@ -890,7 +896,10 @@ final class RemuxHLSLoader: NSObject, AVAssetResourceLoaderDelegate, @unchecked 
         segmentRelay: RemuxSegmentRelay? = nil
     ) -> (data: Data, contentType: String) {
         if Self.isPlaylist(data) {
-            let text = String(decoding: data, as: UTF8.self)
+            var text = String(decoding: data, as: UTF8.self)
+            if traits.remuxNeedsVariantFilter {
+                text = HLSVariantFilter.firstVariantOnly(text, keepsDolbyVision: dolbyVision != nil)
+            }
             let relayURL = segmentRelay.map { relay in { (url: URL) in relay.relayURL(for: url) } }
             return (Data(rewrittenPlaylist(text, baseURL: serverURL, segmentURL: relayURL).utf8), "public.m3u-playlist")
         }

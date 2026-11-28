@@ -15,3 +15,25 @@ protocol CredentialTransportPolicy: Sendable {
     /// stream's playlists and segments themselves.
     var session: URLSession { get }
 }
+
+/// Log-safe playback URLs: every provider's credential query item
+/// (`X-Plex-Token`, Jellyfin's `ApiKey`) with its value replaced.
+enum PlaybackURLRedaction {
+    static let credentialQueryItems = ["X-Plex-Token", "ApiKey", "api_key"]
+
+    /// `urlString` unchanged when it carries none of them.
+    static func redacted(_ urlString: String) -> String {
+        guard var components = URLComponents(string: urlString),
+              let items = components.queryItems,
+              items.contains(where: isCredential) else {
+            return urlString
+        }
+        components.queryItems = items.map { isCredential($0) ? URLQueryItem(name: $0.name, value: "<redacted>") : $0 }
+        return components.string ?? urlString
+    }
+
+    private static func isCredential(_ item: URLQueryItem) -> Bool {
+        credentialQueryItems.contains { item.name.caseInsensitiveCompare($0) == .orderedSame }
+            && item.value != "<redacted>"
+    }
+}

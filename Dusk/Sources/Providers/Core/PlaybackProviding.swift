@@ -53,6 +53,20 @@ struct ServerStreamRequest: Sendable {
     let streamSessionID: String
     let audioStreamID: String?
     let subtitle: SubtitleRequest
+    /// The Dolby Vision signalling this attempt will play (the same decision
+    /// that configures `RemuxHLSLoader`). Servers that write the signalling
+    /// themselves (Jellyfin) are asked for exactly this; Plex ignores it.
+    var dolbyVision: RemuxDolbyVision = .none
+}
+
+/// Which Dolby Vision a server stream may carry.
+enum RemuxDolbyVision: Sendable, Hashable {
+    /// None: the server strips it and sends the HDR10/HLG base layer.
+    case none
+    /// Profile 5, 8.1 and 8.4 as they are.
+    case native
+    /// Profile 7 with its enhancement layer, for the on-device 8.1 conversion.
+    case profile7Conversion
 }
 
 /// What a server stream is for.

@@ -42,7 +42,7 @@ extension MediaService {
     }
 
     func sanitizedPlaybackURLString(for url: URL) -> String {
-        PlexPlayback.sanitizedURLString(for: url)
+        PlaybackURLRedaction.redacted(PlexPlayback.sanitizedURLString(for: url))
     }
 
     /// Pure request construction (`PlexPlayback.transcodeQueryItems`) with

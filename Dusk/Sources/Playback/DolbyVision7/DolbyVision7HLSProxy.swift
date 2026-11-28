@@ -240,6 +240,9 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
     private let restoresDolbyAtmos: Bool
     /// `CODECS` for a variant Plex lists without one (`RemuxVariantCodecs`).
     private let fallbackCodecs: String?
+    /// The server's master lists variants besides the remux (Jellyfin,
+    /// `PlaybackTraits.remuxNeedsVariantFilter`): keep only the first.
+    private let filtersVariants: Bool
     private let sampleRewriter: any DolbyVisionSampleRewriting
     private let fetcher: any HLSUpstreamFetching
     private let token: String
@@ -282,6 +285,7 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         target: DolbyVisionConfiguration,
         restoresDolbyAtmos: Bool,
         fallbackCodecs: String? = nil,
+        filtersVariants: Bool = false,
         sampleRewriter: any DolbyVisionSampleRewriting = DoviBridgeSampleRewriter(),
         fetcher: any HLSUpstreamFetching = URLSessionHLSUpstreamFetcher.shared,
         requestHeadTimeout: TimeInterval = 10
@@ -290,6 +294,7 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         self.target = target
         self.restoresDolbyAtmos = restoresDolbyAtmos
         self.fallbackCodecs = fallbackCodecs
+        self.filtersVariants = filtersVariants
         self.sampleRewriter = sampleRewriter
         self.fetcher = fetcher
         self.requestHeadTimeout = requestHeadTimeout
@@ -698,7 +703,10 @@ final class DolbyVision7HLSProxy: @unchecked Sendable {
         guard (200..<300).contains(masterResponse.statusCode) else {
             throw DolbyVision7ConversionError.proxyUnavailable("master playlist returned HTTP \(masterResponse.statusCode)")
         }
-        let masterText = String(decoding: masterData, as: UTF8.self)
+        var masterText = String(decoding: masterData, as: UTF8.self)
+        if filtersVariants {
+            masterText = HLSVariantFilter.firstVariantOnly(masterText, keepsDolbyVision: true)
+        }
         guard masterText.contains("#EXT-X-STREAM-INF") else {
             throw DolbyVision7ConversionError.unsupportedPlaylist("no variant in the master playlist")
         }

@@ -108,6 +108,7 @@ extension MediaService {
         audioStreamID: String?,
         subtitleStreamID: String?,
         convertsAudio: Bool = false,
+        dolbyVision: RemuxDolbyVision = .none,
         serverID: String? = nil
     ) async throws -> ServerStream {
         try await openServerStream(
@@ -118,6 +119,7 @@ extension MediaService {
             transcodeSessionID: transcodeSessionID,
             audioStreamID: audioStreamID,
             subtitleStreamID: subtitleStreamID,
+            dolbyVision: dolbyVision,
             serverID: serverID
         )
     }
@@ -130,6 +132,7 @@ extension MediaService {
         transcodeSessionID: String,
         audioStreamID: String?,
         subtitleStreamID: String?,
+        dolbyVision: RemuxDolbyVision = .none,
         serverID: String?
     ) async throws -> ServerStream {
         try await playback(for: serverID).openServerStream(
@@ -140,7 +143,8 @@ extension MediaService {
                 playbackSessionID: sessionIdentifier,
                 streamSessionID: transcodeSessionID,
                 audioStreamID: audioStreamID,
-                subtitle: subtitleStreamID.map { .stream(id: $0, delivery: intent.subtitleDelivery) } ?? .none
+                subtitle: subtitleStreamID.map { .stream(id: $0, delivery: intent.subtitleDelivery) } ?? .none,
+                dolbyVision: dolbyVision
             )
         )
     }

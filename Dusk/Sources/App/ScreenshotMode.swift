@@ -85,8 +85,9 @@ enum ScreenshotMode {
     /// `-DuskScreenshotHDRDisplay 1`: the remux ladder treats the display as
     /// HDR-capable, so G6 reaches the Atmos / HDR / Dolby Vision remux
     /// decisions on a simulator, whose display AVPlayer reports as SDR.
+    /// Also honoured outside screenshot mode, like `mutesPlayback`.
     static var forcesHDRDisplay: Bool {
-        guard isActive, let value = defaults.string(forKey: Key.hdrDisplay) else { return false }
+        guard let value = defaults.string(forKey: Key.hdrDisplay) else { return false }
         return ["1", "yes", "true"].contains(value.lowercased())
     }
 

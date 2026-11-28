@@ -178,7 +178,13 @@ Details that matter for an implementation:
 11. `EnableTranscoding: false` and `AllowVideoStreamCopy: false` in the body
     had no visible effect on the response in these probes. Do not build the
     "remux only" guarantee on those flags; build it on the profile and on the
-    `TranscodingInfo` check.
+    `TranscodingInfo` check. (J-06: `AllowVideoStreamCopy`/`AllowAudioStreamCopy`
+    false do reach the transcoding URL, `allowVideoStreamCopy=false`, and force
+    the re-encode; Dusk uses them for a manual quality only.)
+12. (J-06) An H.264 re-encode of a Dolby Vision MKV (Knives Out) into fMP4
+    comes back with an unreadable init segment (`stsd` of size 0, `dby1`
+    brand); the same request with `Container: "ts"` plays. SDR, HDR10, DV 7
+    and DV 8.1 MP4 sources re-encode into fMP4 fine.
 
 ### 5.2 The master playlist trap [live]
 
@@ -230,7 +236,8 @@ Consequences for Dusk:
   `SUPPLEMENTAL-CODECS`), which is what AVPlayer wants for cross-compatible
   profile 8.
 - **DV 7 can be had with its `dvcC` intact** by claiming `DOVIWithEL` (and
-  `DOVIWithELHDR10Plus`). That is the input `DolbyVision7HLSProxy` +
+  `DOVIWithELHDR10Plus`) **together with `DOVI`** (J-06, measured on Dune:
+  `DOVIWithEL` without `DOVI` gives `hvc1` with no DV box). That is the input `DolbyVision7HLSProxy` +
   `DuskDovi` need. Claim it only when the conversion will run; otherwise leave
   it out and take the server's HDR10 base layer. Whether the server removes
   the RPU NAL units or only the config box in the fallback case was not

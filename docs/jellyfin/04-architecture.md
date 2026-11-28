@@ -708,7 +708,13 @@ PGS track (02 §10), both of which break "the decision engine is Dusk's".
 **Decision: the coordinator calls `confirm` once, when the engine reports the
 first frame, for any stream whose proof is `.predicted`; a mismatch closes the
 stream and falls through the ladder on the existing fallback path.** For Plex
-`confirm` returns nil and costs nothing.
+`confirm` returns nil and costs nothing. As built (J-06): a mismatch is only
+logged; the ladder is not re-entered.
+
+As built (J-06), the request carries no `DeviceVideoCapabilities`: it carries
+`dolbyVision: RemuxDolbyVision` (`.none` / `.native` / `.profile7Conversion`),
+filled from the loader's own decisions; the range list is base + that claim.
+Profile 7 conversion claims `DOVI` as well as `DOVIWithEL` (03 §5.3).
 
 ### 12.3 HLS output: one loader, provider traits
 
@@ -752,7 +758,9 @@ One policy for both providers, chosen by the coordinator from
 - VLCKit direct play: embedded tracks need nothing; sidecars come from
   `sidecarSubtitle(for:of:format:)` and are added as today.
 - AVPlayer, text track: `.external` WebVTT rendered by Dusk's overlay
-  (instant switching, no new server session). Plex continues to use its
+  (instant switching, no new server session). As built (J-06): no such
+  overlay exists on AVPlayer, so Jellyfin remuxes carry the text track as an
+  `Hls` WebVTT rendition, like Plex's segments, and a change rebuilds. Plex continues to use its
   in-manifest `segments-subs` path where it is used today; the request type
   carries both so neither is a special case.
 - AVPlayer, bitmap track: the file goes to VLCKit, which is what

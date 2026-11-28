@@ -192,10 +192,14 @@ struct PlaybackSource: Sendable {
     /// What the server's HLS output needs from `RemuxHLSLoader` (which
     /// init-segment patches run). Defaults like `credentialPolicy`.
     var traits: PlaybackTraits = .plex
+    /// A server HLS stream whose master must be cut to its first variant
+    /// (`PlaybackTraits.remuxNeedsVariantFilter`): never set for Plex.
+    var filtersServerVariants = false
 
     /// Route the HLS playlists and init segment through `RemuxHLSLoader`.
     var usesRemuxHLSLoader: Bool {
-        (restoresDolbyAtmos || dolbyVisionRemux != nil || retagsHEV1SampleEntry || repairsKeyframeTimestamps)
+        (restoresDolbyAtmos || dolbyVisionRemux != nil || retagsHEV1SampleEntry || repairsKeyframeTimestamps
+            || filtersServerVariants)
             && dolbyVision7Conversion == nil
     }
     /// Present only for a tuned Plex Live TV session. The player uses it for
@@ -438,6 +442,16 @@ extension PlaybackDecision {
     var isSpatialAudio: Bool {
         if case .spatialAudio = self { return true }
         return false
+    }
+
+    /// A server HLS stream AVPlayer loads itself: a remux, the server-stream
+    /// rung or a manual quality. Not AirPlay (the receiver fetches the URL)
+    /// and not Live TV.
+    var isServerHLSStream: Bool {
+        switch self {
+        case .spatialAudio, .serverStream, .transcode: true
+        case .directPlay, .localDownload, .airPlay, .liveTV: false
+        }
     }
 }
 

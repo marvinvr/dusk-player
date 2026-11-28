@@ -714,6 +714,67 @@ gate unchanged.
   started unasked (server log). Real-device checks on an Apple TV 4K with a
   Dolby Vision display are listed for Marvin; simulator results alone do not
   close this package.
+- **As built (2026-11-28).**
+  - `JellyfinPlayback.openServerStream`: one `/Items/{id}` read for the
+    version's streams, then `PlaybackInfo` with a profile from
+    `JellyfinStreamProfile` per `StreamIntent` (no direct-play entry, one HLS
+    profile, explicit source / audio / subtitle indexes). Stream opens
+    `.predicted` from the transcoding URL; `confirm` reads
+    `/Sessions?deviceId=` → `TranscodingInfo` (a mismatch is logged, the
+    ladder is not re-entered). Ping and `DELETE /Videos/ActiveEncodings` go
+    through `JellyfinServerStreams` (stream id → server `PlaySessionId`).
+  - Shared changes (Plex ignores all of them): `ServerStreamRequest.dolbyVision`
+    (`RemuxDolbyVision`, filled by `remuxDolbyVisionRequest(for:)` from the
+    loader's own two decisions), `PlaybackSource.filtersServerVariants` +
+    `PlaybackDecision.isServerHLSStream`, `HLSVariantFilter` in
+    `RemuxHLSLoader` and `DolbyVision7HLSProxy` behind
+    `remuxNeedsVariantFilter`, `PlaybackURLRedaction` for log URLs (ApiKey
+    was logged in clear since J-05), `-DuskScreenshotHDRDisplay` honoured
+    outside screenshot mode (DEBUG harness, like `-DuskScreenshotMute`).
+  - Deviations: text subtitles ride a remux as `Hls` WebVTT renditions, as
+    on Plex (04 §12.4's external-WebVTT overlay does not exist on AVPlayer);
+    manual quality, and the server-stream rung when it burns a subtitle in,
+    are H.264 in MPEG-TS (fMP4 init broken for a DV MKV re-encode, 03 §5.1
+    item 12); profile 7 conversion claims `DOVI` as well
+    as `DOVIWithEL` (03 §5.3). No device profile caching, no
+    `DeviceVideoCapabilities` type: the range list is base + the claim.
+  - Verified against jellyfin-demo (iPhone and Apple TV simulators, forced
+    HDR display, logging proxy): Knives Out (DV 8.1 + E-AC-3 Atmos MKV) →
+    lossless remux, `IsVideoDirect`/`IsAudioDirect` true, quality line
+    "HEVC · Dolby Vision 8.1", AVPlayer reports E-AC-3 JOC; no request to the
+    tone-mapped variant. Dune Part Two (DV 7 + TrueHD Atmos) → HEVC copied,
+    the chosen AC-3 track copied; switching to TrueHD rebuilds as E-AC-3 5.1
+    with video copied (confirmed). Manual 720p 4 Mbps → H.264 720p TS.
+    Probed: AirPlay H.264 + stereo AAC, AV1 fallback re-encoded with audio
+    copied, the server-stream rung on DTS-HD MA (video copied, AC-3 5.1),
+    the WebVTT rendition of an SRT track. A closed player and a quality
+    switch both stop the old encoding.
+  - Simulator limits (same on plex-demo, G6 requests unchanged): the DV 7 →
+    8.1 proxy loses its loopback connection right after preflight and the
+    ladder retries unconverted (HDR10 base); the SDR panel refuses a forced-HDR
+    master, and with a subtitle rendition there is no media-playlist fallback
+    (`HLSMediaPlaylistFallback`), so a subtitle inside an HDR remux is
+    unverified here.
+  - Open, for Marvin on an Apple TV 4K with a Dolby Vision display:
+    1. Knives Out: Dolby Vision engages (TV badge), Atmos reaches the
+       receiver.
+    2. Dune Part Two with the TrueHD track: DV 7 → 8.1 conversion runs
+       (quality line "Dolby Vision 8.1 (from profile 7)"), E-AC-3 5.1.
+    3. DV P5 and DV P8.4 test files through the remux.
+    4. A text subtitle in Knives Out's remux shows, in sync (Jellyfin's
+       WebVTT carries `X-TIMESTAMP-MAP=MPEGTS:900000`).
+    5. AirPlay from an iPhone to an Apple TV.
+  - Not compared side by side with plex-demo in the simulator: G6 shows the
+    Plex requests unchanged, but the same files were not played on both. Dune
+    starts differently: the shared pre-start audio pick takes the English
+    AC-3 track on Jellyfin (the server's default there is the Portuguese
+    AC-3, index 3) where plex-demo's G6 run converts the TrueHD track.
+  - Other gaps: the coordinator's user-visible reasons and errors still
+    say "Plex" ("via lossless Plex remux", "The Plex server is
+    unreachable."); predicted converted codecs follow the profile's first
+    codec while the server may pick AC-3 or H.264 (only logged); a burned-in
+    external subtitle at index 0 cannot be requested (`"0"` is the ladder's
+    Off); the tvOS AUDIO row shows the version's codec, not the converted one.
 
 ### J-07 Playlists, collections, watchlist — M
 

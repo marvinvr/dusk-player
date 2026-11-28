@@ -194,7 +194,7 @@ extension PlaybackCoordinator {
         func hdrFallback() async -> SpatialAudioRemux? {
             guard StreamResolver.containsHDRVideo(inPart: part), !Task.isCancelled else { return nil }
             return await requestHDRServerRemux(
-                itemID: itemID, mediaIndex: mediaIndex, part: part,
+                itemID: itemID, mediaIndex: mediaIndex, media: media, part: part,
                 audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
                 sessionIdentifier: sessionIdentifier, serverID: serverID,
                 stages: [.convertedAudio]
@@ -211,6 +211,7 @@ extension PlaybackCoordinator {
                 audioStreamID: audioStreamID,
                 subtitleStreamID: subtitleStreamID,
                 convertsAudio: convertsAudio,
+                dolbyVision: remuxDolbyVisionRequest(for: media),
                 serverID: serverID
             )
             let acceptsStreams: Bool
@@ -344,7 +345,7 @@ extension PlaybackCoordinator {
         case .convertedAudio: []
         }
         let remux = await requestHDRServerRemux(
-            itemID: itemID, mediaIndex: mediaIndex, part: part,
+            itemID: itemID, mediaIndex: mediaIndex, media: media, part: part,
             audioStreamID: activeAudioStreamID, subtitleStreamID: activeSubtitleStreamID,
             sessionIdentifier: sessionIdentifier, serverID: serverID, stages: stages
         )
@@ -375,7 +376,7 @@ extension PlaybackCoordinator {
     }
 
     private func requestHDRServerRemux(
-        itemID: String, mediaIndex: Int, part: MediaPart,
+        itemID: String, mediaIndex: Int, media: MediaVersion, part: MediaPart,
         audioStreamID: String?, subtitleStreamID: String?,
         sessionIdentifier: String, serverID: String?, stages: [HDRRemuxFallback]
     ) async -> SpatialAudioRemux? {
@@ -389,7 +390,8 @@ extension PlaybackCoordinator {
                     itemID: itemID, mediaIndex: mediaIndex,
                     sessionIdentifier: sessionIdentifier, transcodeSessionID: sessionID,
                     audioStreamID: audioStreamID, subtitleStreamID: subtitleStreamID,
-                    convertsAudio: convertsAudio, serverID: serverID
+                    convertsAudio: convertsAudio, dolbyVision: remuxDolbyVisionRequest(for: media),
+                    serverID: serverID
                 )
                 let streams = result.decisions
                 let copiesHDRVideo = streams.container?.lowercased() == "mp4"
@@ -771,6 +773,16 @@ extension PlaybackCoordinator {
             return nil
         }
         return StreamResolver.dolbyVision7ConversionTarget(in: media)
+    }
+
+    /// The Dolby Vision a remux of `media` asks the server for: the same two
+    /// decisions that configure `RemuxHLSLoader` and the profile 7 proxy when
+    /// the stream plays, so what the server writes and what Dusk signals
+    /// cannot disagree. Only servers that write the signalling read it.
+    func remuxDolbyVisionRequest(for media: MediaVersion) -> RemuxDolbyVision {
+        if remuxDolbyVision7Conversion(for: media, decision: .spatialAudio) != nil { return .profile7Conversion }
+        if remuxDolbyVisionConfiguration(for: media, decision: .spatialAudio) != nil { return .native }
+        return .none
     }
 
     /// `CODECS` for the remux variant, for when Plex's master omits it: the

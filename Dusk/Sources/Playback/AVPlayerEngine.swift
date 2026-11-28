@@ -965,7 +965,8 @@ final class AVPlayerEngine: NSObject, PlaybackEngine {
             upstreamMasterURL: source.url,
             target: target,
             restoresDolbyAtmos: source.restoresDolbyAtmos,
-            fallbackCodecs: source.remuxVariantCodecs
+            fallbackCodecs: source.remuxVariantCodecs,
+            filtersVariants: source.traits.remuxNeedsVariantFilter
         )
         proxy.onFatalError = { [weak self] error in
             Task { @MainActor [weak self] in

@@ -334,6 +334,56 @@ so the whole live HUD is derived from one instant.
   There is deliberately no `aac` channel limitation — capping it would fight
   Plex's decision engine rather than widening what Dusk accepts.
 
+### Jellyfin server streams
+
+Same ladder, same acceptance rules; only the request differs
+(`JellyfinPlayback`, `JellyfinStreamProfile`, docs/jellyfin/03-prior-art.md
+§5, 04-architecture.md §12.2–12.3).
+
+- One `/Items/{id}` read for the chosen version's streams, then
+  `POST /Items/{id}/PlaybackInfo` with a profile built for that request: no
+  direct-play entry, one HLS transcoding profile, explicit `MediaSourceId`,
+  `AudioStreamIndex` and `SubtitleStreamIndex` (`-1` off). Without the
+  indexes the server swaps the audio track or burns in a PGS subtitle.
+- Per intent: lossless remux = exactly the source's video codec and the
+  chosen track's audio codec (fMP4); converted audio = `eac3`; the
+  server-stream rung = `hevc,h264` + `eac3,ac3,aac` (H.264 in MPEG-TS when
+  it burns a subtitle in); AV1 fallback = no AV1
+  in the list; manual quality = H.264 in MPEG-TS with
+  `AllowVideoStreamCopy`/`AllowAudioStreamCopy` false, the preset's bitrate
+  and a width/height condition; AirPlay = H.264 + stereo AAC in MPEG-TS.
+  Re-encodes of that kind are MPEG-TS because the server's fMP4 init segment
+  for a re-encode of a Dolby Vision MKV (Knives Out) is unreadable.
+- Dolby Vision is a range-type claim (`ServerStreamRequest.dolbyVision`,
+  filled by `remuxDolbyVisionRequest(for:)` from the same two decisions that
+  configure the loader and the profile 7 proxy). None: the server strips
+  Dolby Vision and copies the HDR10/HLG base layer. Native: 5 / 8.1 / 8.4 as
+  they are (the server writes `dvcC`/`dvvC` itself). Profile 7 conversion:
+  `DOVIWithEL` **and** `DOVI`; without `DOVI` the server drops the `dvcC`
+  the proxy needs.
+- The answer only predicts the copy (`.predicted`), from the transcoding
+  URL's codec lists, `TranscodeReasons`, copy flags and `SubtitleMethod`
+  (`Encode` appears in every URL; it means burn-in only with a subtitle
+  index). The coordinator's gates run on that prediction; `confirm` reads
+  `GET /Sessions?deviceId=` → `TranscodingInfo` after the first frame and a
+  mismatch is logged.
+- The master lists a tone-mapped H.264 variant next to the copy (DV 5 a
+  third), every text subtitle as a rendition, and a trickplay image stream.
+  `PlaybackTraits.remuxNeedsVariantFilter` makes every server HLS stream on
+  AVPlayer (`PlaybackDecision.isServerHLSStream`, so not AirPlay) go through
+  `RemuxHLSLoader`, which keeps the first variant, the `DEFAULT=YES`
+  subtitle (the requested one) and strips a `dvh1` supplemental codec the
+  server advertises after stripping Dolby Vision (`HLSVariantFilter`). The
+  profile 7 proxy filters its master the same way. Plex never sets the trait.
+- Text subtitles ride a remux as WebVTT renditions (`Hls`), like Plex's
+  segments; a new subtitle is a new stream. 04 §12.4's external-WebVTT
+  overlay does not exist on AVPlayer.
+- `PlaySessionId` is the server's; `JellyfinServerStreams` maps the
+  coordinator's stream id to it for `/Sessions/Playing/Ping` and
+  `DELETE /Videos/ActiveEncodings` (a stream closed while its request is in
+  flight is stopped when the answer lands).
+- Log URLs go through `PlaybackURLRedaction` (`X-Plex-Token`, `ApiKey`).
+
 ## Automatic Track Languages
 
 - Audio: `defaultAudioLanguage` scopes the pre-start pick
