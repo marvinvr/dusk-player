@@ -2130,6 +2130,7 @@ private struct LiftedCueOverlay: View {
     private static let fontHeight = 0.047
 
     let engine: AVPlayerEngine
+    @State private var textHeight: CGFloat = 0
 
     var body: some View {
         if let overlay = engine.liftedCueOverlay {
@@ -2146,14 +2147,24 @@ private struct LiftedCueOverlay: View {
                             Color(overlay.style.background),
                             in: RoundedRectangle(cornerRadius: overlay.pictureHeight * 0.016, style: .continuous)
                         )
+                        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { textHeight = $0 }
                 }
             }
             .padding(.bottom, overlay.pictureBottomInset + overlay.pictureHeight * Self.restingCueBottom)
-            .offset(y: -overlay.lift * overlay.pictureHeight)
+            .offset(y: -rise(overlay))
             .animation(.easeInOut(duration: 0.3), value: overlay.lift)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
         }
+    }
+
+    /// How far the cue rises, in points. A tall cue in a short picture never
+    /// rises past the picture's top edge (#84): it may then overlap the Up
+    /// Next card, but it stays readable. libvlc clamps its own cues the same way.
+    private func rise(_ overlay: LiftedCueOverlayState) -> CGFloat {
+        let topGap = overlay.pictureHeight * Self.restingCueBottom
+        let room = overlay.pictureHeight * (1 - Self.restingCueBottom) - topGap - textHeight
+        return min(overlay.lift * overlay.pictureHeight, max(room, 0))
     }
 
     private func font(_ overlay: LiftedCueOverlayState) -> Font {

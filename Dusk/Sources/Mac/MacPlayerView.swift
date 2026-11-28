@@ -723,13 +723,13 @@ private struct MacPlayerSessionView: View {
         let presentationID = playback.playerPresentationID
         let itemID = playback.itemID
         Task {
-            let nothingFollows = await playback.presentUpNextPosterIfPossible(
+            let offersSkipCredits = await playback.presentUpNextPosterIfPossible(
                 creditsMarkerID: marker.id,
                 isEstimated: marker.isEstimated,
                 presentationID: presentationID,
                 itemID: itemID
             )
-            if nothingFollows, viewModel.reachedCreditsMarker?.id == marker.id {
+            if offersSkipCredits, viewModel.reachedCreditsMarker?.id == marker.id {
                 viewModel.creditsMarkerWithoutUpNextID = marker.id
             }
         }

@@ -38,6 +38,7 @@ final class UserPreferences {
         static let autoSkipIntroMode = "autoSkipIntroMode"
         static let autoSkipIntro = "autoSkipIntro"
         static let autoSkipCredits = "autoSkipCredits"
+        static let upNextDuringCreditsEnabled = "upNextDuringCreditsEnabled"
         static let videoEnhancementMode = "videoEnhancementMode"
         static let forceAVPlayer = "forceAVPlayer"
         static let forceVLCKit = "forceVLCKit"
@@ -143,6 +144,13 @@ final class UserPreferences {
     /// Automatically skip credits markers after a brief countdown.
     var autoSkipCredits: Bool {
         didSet { UserDefaults.standard.set(autoSkipCredits, forKey: Keys.autoSkipCredits) }
+    }
+
+    /// Show the Up Next card while an episode's credits roll (#84). Off, the
+    /// credits behave as if the viewer had dismissed the card: Continuous Play
+    /// goes through the full-screen Up Next screen at the end.
+    var upNextDuringCreditsEnabled: Bool {
+        didSet { UserDefaults.standard.set(upNextDuringCreditsEnabled, forKey: Keys.upNextDuringCreditsEnabled) }
     }
 
     /// Enable left/right double-tap seeking on touch-based platforms.
@@ -499,6 +507,7 @@ final class UserPreferences {
         )
         let autoSkipIntroMode = Self.storedAutoSkipIntroMode(defaults: defaults)
         let autoSkipCredits = defaults.object(forKey: Keys.autoSkipCredits) as? Bool ?? false
+        let upNextDuringCreditsEnabled = defaults.object(forKey: Keys.upNextDuringCreditsEnabled) as? Bool ?? true
         let playerDoubleTapSeekEnabled = defaults.object(forKey: Keys.playerDoubleTapSeekEnabled) as? Bool ?? true
         let playerEpisodeButtonsEnabled = defaults.bool(forKey: Keys.playerEpisodeButtonsEnabled)
         let playerAdvancedControlsEnabled = defaults.bool(forKey: Keys.playerAdvancedControlsEnabled)
@@ -576,6 +585,7 @@ final class UserPreferences {
         self.continuousPlayPassoutProtectionEpisodeLimit = continuousPlayPassoutProtectionEpisodeLimit
         self.autoSkipIntroMode = autoSkipIntroMode
         self.autoSkipCredits = autoSkipCredits
+        self.upNextDuringCreditsEnabled = upNextDuringCreditsEnabled
         self.playerDoubleTapSeekEnabled = playerDoubleTapSeekEnabled
         self.playerEpisodeButtonsEnabled = playerEpisodeButtonsEnabled
         self.playerAdvancedControlsEnabled = playerAdvancedControlsEnabled

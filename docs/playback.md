@@ -2239,8 +2239,15 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   rules. So while lifted, `LiftedCueOverlay` draws the cues from an
   `AVPlayerItemLegibleOutput` as plain text in the caption style. Taking over drops
   the track for a second to clear the native cue (HLS ignores anything shorter);
-  native rendering returns at the first gap after the poster leaves. Device
-  unchecked: VLC on a 4K Apple TV (tvOS simulators show no VLCKit picture).
+  native rendering returns at the first gap after the poster leaves. Neither
+  engine can push a cue off the picture (#84): libvlc's `SpuAreaFitInside`
+  clamps a margin-raised cue to the picture's top edge, and `LiftedCueOverlay`
+  caps its rise by the measured text height the same way (a tall cue in a
+  short picture may then overlap the poster, but stays readable). The vout's
+  pixel scale is `window.screen.scale` (libvlc 3.0.x `ios.m`), which is what
+  `displayScale` feeds in. Device unchecked: VLC on a 4K Apple TV (tvOS
+  simulators show no VLCKit picture). With Up Next During Credits off there is
+  no poster, so nothing is lifted.
 - **Auto-skip fires at most once per marker per playback session.** Skipping a
   marker — by countdown or by tapping Skip Intro — records its id in
   `PlaybackCoordinator.spentAutoSkipMarkerIDs`, and `updateAutoSkipState` never
@@ -2371,8 +2378,9 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
   `PlayerViewModel.activeSkipMarker`. The intro always gets one. The last credits
   marker belongs to the bottom-right Up Next poster (see "Timeline, Scrobble, and
   Up Next") unless nothing follows the item (a film, a show's last episode, a
-  queue's end: `presentUpNextPosterIfPossible` returns true); it then gets Skip
-  Credits. Earlier credits markers always do, because a scene follows them. A
+  queue's end), or Up Next During Credits is off while Auto-Skip Credits would
+  have counted down on the poster (`presentUpNextPosterIfPossible` returns true
+  for both); it then gets Skip Credits. Earlier credits markers always do, because a scene follows them. A
   credits skip that reaches the item's end goes through `handlePlaybackEnded`
   instead of a seek. Estimated credits never get a chip.
 
@@ -2680,6 +2688,16 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     credits marker in `spentAutoSkipMarkerIDs`. Seeking back before the credits
     and reaching them again therefore raises a `manual` poster instead of
     restarting a countdown the viewer already saw or waved off.
+- **Up Next During Credits** (`UserPreferences.upNextDuringCreditsEnabled`,
+  default on; Settings › Playback › Behavior on all three platforms, #84) turns
+  the poster off. `presentUpNextPosterIfPossible` then raises nothing, as if
+  the viewer had dismissed the card: the credits play out and the natural end
+  takes the no-poster path below (the full-screen overlay, with its Continuous
+  Play countdown when that is on, instead of the poster's direct advance).
+  Where the poster would have been `timedAutoplay` it returns true instead, so
+  the credits get the Skip Credits chip like a film and Auto-Skip Credits keeps
+  a visible countdown (chip, then the overlay's countdown). Estimated credits
+  and manual posters show nothing.
 - No Plex credits marker: `PlayerViewModel.estimatedCreditsMarker` synthesizes
   one (`isEstimated`) spanning `duration − clamp(4 %, 45 s, 2 min)` to the end
   (~50 s on a 22 min sitcom, 2 min on an hour drama), so the poster still shows.
