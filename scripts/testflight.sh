@@ -40,10 +40,10 @@ set -uo pipefail
 # --- per-repo config ---------------------------------------------------------------------
 PROJECT_SUBDIR=""          # directory with project.yml / the .xcodeproj, relative to the repo root
 SCHEMES="ios:Dusk tvos:Dusk-tvOS macos:Dusk-macOS"  # space separated <platform>:<scheme>, platform ios, tvos or macos
-EXTERNAL_GROUPS="JellyFin:2.0.*" # optional comma separated external TestFlight groups, each <name>[:<version glob>]: a VALID
+EXTERNAL_GROUPS="External:1.9.*,JellyFin:2.0.*" # optional comma separated external TestFlight groups, each <name>[:<version glob>]: a VALID
                            # build whose version matches is added to them and submitted for Beta App Review (internal
-                           # groups with "all builds" get it automatically). Marvin 2026-11-27: only the JellyFin group,
-                           # only 2.0.* builds; the old "External" group (public link) gets no new builds.
+                           # groups with "all builds" get it automatically). Marvin 2026-11-28: 1.9.* to the old "External"
+                           # group (public link), 2.0.* to JellyFin, every later version internal only.
                            # (external=PENDING_OTHER_BUILD_IN_REVIEW: an older build of the same version is still in
                            # beta review, Apple allows one per version; submit this one once that review is done)
 export EXTERNAL_SKIP_VERSIONS=""  # space separated version globs kept internal-only (Marvin 2026-11-07: 1.8 goes external too)
