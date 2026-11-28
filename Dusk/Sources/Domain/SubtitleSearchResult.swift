@@ -12,7 +12,7 @@ import Foundation
 /// `com.plexapp.agents.opensubtitles:///...`) that identifies the candidate when
 /// asking the server to download it. It is required, because a result we cannot
 /// download is useless to the UI.
-struct SubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
+struct SubtitleSearchResult: Identifiable, Sendable, Hashable {
     /// Stable identity for SwiftUI lists.
     ///
     /// Search results are not library streams, so most servers send `id: 0` (or
@@ -37,39 +37,6 @@ struct SubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
     let isForced: Bool?
     /// File format (`srt`, `ass`, ...). Often identical to `codec`.
     let format: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id, key, codec, title, providerTitle, sourceTitle, score
-        case languageCode, language, format
-        case isHearingImpaired = "hearingImpaired"
-        case isForced = "forced"
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        key = try container.decode(String.self, forKey: .key)
-        codec = try container.decodeIfPresent(String.self, forKey: .codec)
-        title = try container.decodeIfPresent(String.self, forKey: .title)
-        providerTitle = try container.decodeIfPresent(String.self, forKey: .providerTitle)
-        sourceTitle = try container.decodeIfPresent(String.self, forKey: .sourceTitle)
-        score = Self.decodeScore(container: container)
-        languageCode = try container.decodeIfPresent(String.self, forKey: .languageCode)
-        language = try container.decodeIfPresent(String.self, forKey: .language)
-        isHearingImpaired = container.decodeSubtitleBoolish(forKey: .isHearingImpaired)
-        isForced = container.decodeSubtitleBoolish(forKey: .isForced)
-        format = try container.decodeIfPresent(String.self, forKey: .format)
-
-        // Plex reuses the `Stream` shape for search hits, where `id` is a
-        // placeholder rather than a library stream id.
-        let rawID = (try? container.decodeIfPresent(Int.self, forKey: .id))
-            ?? Int((try? container.decodeIfPresent(String.self, forKey: .id)) ?? "")
-        if let rawID, rawID != 0 {
-            id = String(rawID)
-        } else {
-            id = key
-        }
-    }
 
     /// Memberwise init for previews, tests, and synthesized rows.
     init(
@@ -130,43 +97,6 @@ struct SubtitleSearchResult: Decodable, Identifiable, Sendable, Hashable {
             parts.append("Forced")
         }
         return parts.joined(separator: " · ")
-    }
-
-    /// Plex sends `score` as an int, a double, or a string depending on server
-    /// version and provider.
-    private static func decodeScore(container: KeyedDecodingContainer<CodingKeys>) -> Int? {
-        if let intValue = try? container.decodeIfPresent(Int.self, forKey: .score) {
-            return intValue
-        }
-        if let doubleValue = try? container.decodeIfPresent(Double.self, forKey: .score) {
-            return Int(doubleValue.rounded())
-        }
-        if let stringValue = try? container.decodeIfPresent(String.self, forKey: .score) {
-            if let intValue = Int(stringValue) { return intValue }
-            if let doubleValue = Double(stringValue) { return Int(doubleValue.rounded()) }
-        }
-        return nil
-    }
-}
-
-private extension KeyedDecodingContainer {
-    /// Plex sends flag fields as `true`/`false` or as `1`/`0`, and occasionally
-    /// as `"1"`. Mirrors `MediaStream.decodeBoolish` without touching it.
-    func decodeSubtitleBoolish(forKey key: Key) -> Bool? {
-        if let boolValue = try? decodeIfPresent(Bool.self, forKey: key) {
-            return boolValue
-        }
-        if let intValue = try? decodeIfPresent(Int.self, forKey: key) {
-            return intValue != 0
-        }
-        if let stringValue = try? decodeIfPresent(String.self, forKey: key) {
-            switch stringValue.lowercased() {
-            case "1", "true": return true
-            case "0", "false": return false
-            default: return nil
-            }
-        }
-        return nil
     }
 }
 

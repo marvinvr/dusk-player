@@ -64,9 +64,11 @@ extension PlexService {
             queryItems: queryItems,
             serverID: targetID
         )
-        let response = try decodeJSON(MetadataResponse<PhotoItem>.self, from: data, serverID: targetID)
+        let response = try decodeJSON(MetadataResponse<PlexPhotoItemDTO>.self, from: data, serverID: targetID)
         return PlexPhotoPage(
-            items: (response.MediaContainer.Metadata ?? []).filter { $0.kind != nil },
+            items: (response.MediaContainer.Metadata ?? [])
+                .map { PlexUserContentMapper.photoItem($0, serverID: targetID) }
+                .filter { $0.kind != nil },
             totalSize: response.MediaContainer.totalSize
         )
     }

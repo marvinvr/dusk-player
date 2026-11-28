@@ -413,7 +413,8 @@ Extras (`PlexService+Extras.swift`, `Domain/Extra.swift`):
   6 scene/sample, 7 live music video, 8 lyric video, 9 concert, 10 featurette,
   11 short, 12 other) and the same kind as a camelCase `subtype`; `PlexExtraType`
   takes the number (int or string) and falls back to the subtype. The payload is
-  decoded twice (`MediaItem` + `PlexExtraFields`) and paired by rating key, so
+  decoded twice (`MediaItem` + `PlexExtraFieldsDTO`) and paired by rating key in
+  `PlexUserContentMapper.extras(items:fields:)`, so
   `MediaItem` carries no extra-only fields; non-clip rows are dropped.
 - Each extra has its own rating key and plays like any clip (`PlaybackCoordinator.play`),
   so pre-rolls (movies only), Up Next and adjacent-episode controls never apply. Its

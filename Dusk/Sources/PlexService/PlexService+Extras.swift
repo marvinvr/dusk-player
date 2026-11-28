@@ -13,8 +13,8 @@ extension PlexService {
         )
         let items = try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: targetID)
             .MediaContainer.Metadata ?? []
-        let fields = (try? decodeJSON(MetadataResponse<PlexExtraFields>.self, from: data, serverID: targetID))?
+        let fields = (try? decodeJSON(MetadataResponse<PlexExtraFieldsDTO>.self, from: data, serverID: targetID))?
             .MediaContainer.Metadata ?? []
-        return Extra.extras(items: items, fields: fields)
+        return PlexUserContentMapper.extras(items: items, fields: fields)
     }
 }

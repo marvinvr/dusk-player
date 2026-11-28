@@ -3,11 +3,11 @@ import Foundation
 /// A Plex playlist (`GET /playlists`). Every playlist lives on one server and
 /// belongs to the signed-in (Home) user; its items can only come from that
 /// server. Dusk shows video playlists only.
-struct Playlist: Decodable, Sendable, Identifiable, Hashable {
+struct Playlist: Sendable, Identifiable, Hashable {
     /// Server-scoped identity; see `MediaItemID`.
     var id: MediaItemID { MediaItemID(serverID: serverID, itemID: itemID) }
 
-    /// Stamped by `ServerPool.decoder(for:)`.
+    /// Stamped by the provider mapper.
     let serverID: String?
 
     let itemID: String
@@ -28,35 +28,6 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
     let lastPlayedAt: Int?
     let addedAt: Int?
     let updatedAt: Int?
-
-    enum CodingKeys: String, CodingKey {
-        case itemID = "ratingKey", title, summary, smart, playlistType, composite, thumb
-        case duration, episodeCount = "leafCount", playCount = "viewCount", lastPlayedAt = "lastViewedAt", addedAt, updatedAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        serverID = decoder.duskServerID
-        itemID = try container.decode(String.self, forKey: .itemID)
-        title = try container.decode(String.self, forKey: .title)
-        summary = try container.decodeIfPresent(String.self, forKey: .summary)?.nilIfEmpty
-        if let value = try? container.decodeIfPresent(Bool.self, forKey: .smart) {
-            smart = value
-        } else if let value = try? container.decodeIfPresent(Int.self, forKey: .smart) {
-            smart = value != 0
-        } else {
-            smart = (try? container.decodeIfPresent(String.self, forKey: .smart)) == "1"
-        }
-        playlistType = try container.decodeIfPresent(String.self, forKey: .playlistType)
-        composite = try container.decodeIfPresent(String.self, forKey: .composite)
-        thumb = try container.decodeIfPresent(String.self, forKey: .thumb)
-        duration = try container.decodeIfPresent(Int.self, forKey: .duration)
-        episodeCount = try container.decodeIfPresent(Int.self, forKey: .episodeCount)
-        playCount = try container.decodeIfPresent(Int.self, forKey: .playCount)
-        lastPlayedAt = try container.decodeIfPresent(Int.self, forKey: .lastPlayedAt)
-        addedAt = try container.decodeIfPresent(Int.self, forKey: .addedAt)
-        updatedAt = try container.decodeIfPresent(Int.self, forKey: .updatedAt)
-    }
 
     init(
         serverID: String?,
@@ -118,26 +89,12 @@ struct Playlist: Decodable, Sendable, Identifiable, Hashable {
 /// metadata plus the `playlistItemID` every edit is keyed on. Smart playlists
 /// send no `playlistItemID` (their items cannot be edited), and the same item
 /// may appear twice in a regular one, so entries are told apart by it.
-struct PlaylistEntry: Decodable, Sendable, Identifiable, Hashable {
+struct PlaylistEntry: Sendable, Identifiable, Hashable {
     let playlistItemID: Int?
     let item: MediaItem
 
     /// Unique within one playlist listing.
     var id: String { playlistItemID.map(String.init) ?? item.id.storageKey }
-
-    enum CodingKeys: String, CodingKey {
-        case playlistItemID
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        if let value = try? container.decodeIfPresent(Int.self, forKey: .playlistItemID) {
-            playlistItemID = value
-        } else {
-            playlistItemID = (try? container.decodeIfPresent(String.self, forKey: .playlistItemID)).flatMap { $0.flatMap(Int.init) }
-        }
-        item = try MediaItem(from: decoder)
-    }
 
     init(playlistItemID: Int?, item: MediaItem) {
         self.playlistItemID = playlistItemID

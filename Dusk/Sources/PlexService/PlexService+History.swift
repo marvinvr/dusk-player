@@ -25,6 +25,7 @@ extension PlexService {
 
         guard clampedLimit > 0 else { return [] }
 
+        let targetID = try resolveServerID(serverID)
         var entries: [PlaybackHistoryEntry] = []
         var start = 0
 
@@ -45,8 +46,10 @@ extension PlexService {
             let page: [PlaybackHistoryEntry] = try await fetchMetadata(
                 path: "/status/sessions/history/all",
                 queryItems: queryItems,
-                serverID: serverID
-            )
+                serverID: targetID
+            ).map { (dto: PlexPlaybackHistoryEntryDTO) in
+                PlexUserContentMapper.playbackHistoryEntry(dto, serverID: targetID)
+            }
 
             guard !page.isEmpty else { break }
 
