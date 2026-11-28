@@ -555,22 +555,24 @@ private struct MacAccountSettingsPane: View {
 
         MacSettingsPane(height: 460) {
             Section {
-                MacPlexAccountRow(user: media.signedInUser)
-                LabeledContent {
-                    Button("Manage in Browser…") {
-                        openURL(SettingsSupport.plexAccountURL)
+                if media.hasOnlineAccount {
+                    MacPlexAccountRow(user: media.signedInUser)
+                    LabeledContent {
+                        Button("Manage in Browser…") {
+                            openURL(SettingsSupport.plexAccountURL)
+                        }
+                    } label: {
+                        Text("Plex Account")
+                        Text("Your account settings on plex.tv, including account deletion.")
                     }
-                } label: {
-                    Text("Plex Account")
-                    Text("Your account settings on plex.tv, including account deletion.")
                 }
                 LabeledContent {
                     Button("Sign Out…", role: .destructive) {
                         confirmsSignOut = true
                     }
                 } label: {
-                    Text("Sign Out of Plex")
-                    Text("Dusk forgets this Plex session and returns to sign-in.")
+                    Text("Sign Out of \(media.accountProductName)")
+                    Text("Dusk forgets this \(media.accountProductName) session and returns to sign-in.")
                 }
             }
 
@@ -589,12 +591,14 @@ private struct MacAccountSettingsPane: View {
                             }
                         }
                     }
-                    Toggle(isOn: automaticHomeSignInBinding) {
-                        Text("Automatically Sign In")
-                        Text("When off, Dusk asks who’s watching whenever it starts.")
+                    if media.offersAutomaticProfileSignIn {
+                        Toggle(isOn: automaticHomeSignInBinding) {
+                            Text("Automatically Sign In")
+                            Text("When off, Dusk asks who’s watching whenever it starts.")
+                        }
                     }
                 } header: {
-                    Text("Plex Home")
+                    Text(media.profilesSectionTitle)
                 }
             }
 
@@ -630,13 +634,13 @@ private struct MacAccountSettingsPane: View {
             )
             .macUISheetSize(minWidth: 560, idealWidth: 720, minHeight: 440, idealHeight: 560)
         }
-        .confirmationDialog("Sign out of Plex?", isPresented: $confirmsSignOut, titleVisibility: .visible) {
+        .confirmationDialog("Sign out of \(media.accountProductName)?", isPresented: $confirmsSignOut, titleVisibility: .visible) {
             Button("Sign Out", role: .destructive) {
                 media.signOut()
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Dusk forgets this Plex session and returns to sign-in.")
+            Text("Dusk forgets this \(media.accountProductName) session and returns to sign-in.")
         }
     }
 

@@ -6,17 +6,37 @@ import OSLog
 /// `PlexProfiles`'; the state transitions, teardown and persistence stay here.
 extension MediaService {
     /// The primary account's profiles, for the picker.
-    var profiles: [Profile] { plexAccount.profiles.all }
+    var profiles: [Profile] { primaryAccount.profiles.all }
 
     /// The active profile, when the account has one.
-    var activeProfile: Profile? { plexAccount.profiles.current }
+    var activeProfile: Profile? { primaryAccount.profiles.current }
 
     /// More than one profile to switch between.
-    var canSwitchProfiles: Bool { plexAccount.profiles.canSwitch }
+    var canSwitchProfiles: Bool { primaryAccount.profiles.canSwitch }
+
+    /// What a protected profile asks for: a Plex Home PIN, or a password.
+    var profileSecret: ProfileSecretKind { accountSession?.profileSecret ?? .pin }
+
+    /// The Settings section that lists the profiles.
+    var profilesSectionTitle: String { accountSession == nil ? "Plex Home" : "Users" }
+
+    /// Only Plex Home can open on a remembered member or ask at launch;
+    /// other accounts always reopen on their last user.
+    var offersAutomaticProfileSignIn: Bool { accountSession == nil }
 
     /// Switches the active profile. `secret` is the Plex Home PIN for a
-    /// protected member; it is sent only in the switch request.
+    /// protected member (a password on accounts with their own session); it
+    /// is sent only in the switch request.
     func switchProfile(_ profile: Profile, secret: String?, remember: Bool) async throws {
+        if let accountSession {
+            let previous = activeProfileID
+            try await accountSession.switchProfile(profile, secret: secret)
+            if activeProfileID != previous {
+                // Server sessions carry the previous user's token.
+                tearDownServerSessions()
+            }
+            return
+        }
         guard let user = plexAccount.plexProfiles.homeUser(for: profile) else {
             throw MediaServiceError.homeUserUnavailable
         }
@@ -33,6 +53,8 @@ extension MediaService {
     /// or their remembered automatic-sign-in credential. iOS may resume that
     /// cached identity offline, leaving online validation pending.
     func bootstrapHomeSession() async throws {
+        // An account with its own session has no Plex Home to resolve.
+        if accountSession != nil { return }
         guard let primaryAccountToken else {
             throw MediaServiceError.notAuthenticated
         }
@@ -184,6 +206,10 @@ extension MediaService {
     /// current session. State is cleared only after another user successfully
     /// switches.
     func requestHomeUserSelection() {
+        if let accountSession {
+            accountSession.requestProfileSelection()
+            return
+        }
         guard hasPlexHome else { return }
         homeSelectionRequested = true
     }
@@ -191,6 +217,10 @@ extension MediaService {
     /// Lets a presented picker be dismissed when it was opened from Settings.
     /// Startup selection remains mandatory because it has no active Home user.
     func cancelHomeUserSelection() {
+        if let accountSession {
+            accountSession.cancelProfileSelection()
+            return
+        }
         guard activeHomeUser != nil else { return }
         homeSelectionRequested = false
     }

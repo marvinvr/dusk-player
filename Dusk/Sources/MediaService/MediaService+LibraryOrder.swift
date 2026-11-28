@@ -12,7 +12,7 @@ extension MediaService {
     /// The signed-in account's preferences facet. One account until J-13
     /// adds linked ones.
     var accountPreferences: any AccountPreferencesProviding {
-        plexAccount.preferences
+        primaryAccount.preferences
     }
 
     /// Cache identity of the current session. The pinned list is per account

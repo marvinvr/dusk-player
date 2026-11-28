@@ -34,6 +34,9 @@ extension MediaService {
     /// go through `ServerConnectionCoordinator` instead.
     @discardableResult
     func connectAllServers(trigger: String = "Connect") async throws -> [ServerSession] {
+        if let accountSession {
+            return try await connectAccountSessionServers(accountSession, trigger: trigger)
+        }
         guard !needsHomeUserSelection, activeAccountToken != nil else {
             throw MediaServiceError.notAuthenticated
         }
@@ -92,6 +95,17 @@ extension MediaService {
     /// plus the endpoint that worked last, are usually all a LAN needs.
     @discardableResult
     func reconnectServer(serverID: String, reason: String = "Reconnect") async throws -> ServerSession {
+        if let accountSession {
+            guard let server = accountSession.accountServers().first(where: { $0.clientIdentifier == serverID }) else {
+                throw MediaServiceError.noServerConnected
+            }
+            plexConnectionLogger.notice("Re-selecting connection for \(server.name, privacy: .public): \(reason, privacy: .public)")
+            guard let connection = await pool.connect(to: server, priority: serverPriority, trigger: reason) else {
+                throw connectionFailure(for: server)
+            }
+            serverRecoveryCooldowns[serverID] = nil
+            return connection
+        }
         guard activeAccountToken != nil else { throw MediaServiceError.notAuthenticated }
 
         let session = serverSessionToken
@@ -124,6 +138,35 @@ extension MediaService {
             serverRecoveryCooldowns[serverID] = nil
             return connection
         }
+    }
+
+    /// The connect pass of an account that runs its own session: its
+    /// servers come from the account (no discovery round trip), refreshed
+    /// identity first, then the same priority fold and parallel race as Plex.
+    private func connectAccountSessionServers(
+        _ accountSession: any AccountSession,
+        trigger: String
+    ) async throws -> [ServerSession] {
+        guard accountSession.activeProfileID != nil, !accountSession.needsProfileSelection else {
+            throw MediaServiceError.notAuthenticated
+        }
+        let session = serverSessionToken
+        serverRecoveryCooldowns = [:]
+        // The user's permissions and name can change on the server; a
+        // revoked token ends this user's session here (throws).
+        do {
+            try await accountSession.refresh()
+        } catch MediaServiceError.unauthorized {
+            // That user's sessions carried the revoked token.
+            tearDownServerSessions()
+            throw MediaServiceError.unauthorized
+        }
+        guard session == serverSessionToken else { return [] }
+
+        let servers = accountSession.accountServers()
+        serverPriority.reconcile(discovered: servers)
+        await pool.connectAll(servers, priority: serverPriority, trigger: trigger, using: bootstrapSession)
+        return pool.connections
     }
 
     private static func isTransportFailure(_ error: MediaServiceError) -> Bool {
@@ -189,7 +232,7 @@ extension MediaService {
     /// Re-authorizes a single server. A 401 from one server says nothing about
     /// the others, so this never touches the rest of the pool.
     func refreshServerAuthorization(serverID: String) async throws {
-        guard !needsHomeUserSelection, activeAccountToken != nil else {
+        guard accountSession != nil || (!needsHomeUserSelection && activeAccountToken != nil) else {
             throw MediaServiceError.unauthorized
         }
         try await recoverServer(serverID: serverID, reason: "Not connected / token refresh")

@@ -38,8 +38,8 @@ struct SettingsTVView: View {
 
                 if media.canSwitchProfiles, let activeProfile = media.activeProfile {
                     TVSettingsSection(
-                        title: "Plex Home",
-                        footer: "When off, Dusk asks who’s watching at launch."
+                        title: media.profilesSectionTitle,
+                        footer: media.offersAutomaticProfileSignIn ? "When off, Dusk asks who’s watching at launch." : nil
                     ) {
                         HStack(spacing: 22) {
                             ProfileAvatar(profile: activeProfile, size: 68)
@@ -71,12 +71,14 @@ struct SettingsTVView: View {
                             viewModel.showHomeUserPicker = true
                         }
 
-                        tvRowDivider
+                        if media.offersAutomaticProfileSignIn {
+                            tvRowDivider
 
-                        TVSettingsToggleRow(
-                            title: "Automatically Sign In",
-                            isOn: automaticHomeSignInBinding
-                        )
+                            TVSettingsToggleRow(
+                                title: "Automatically Sign In",
+                                isOn: automaticHomeSignInBinding
+                            )
+                        }
                     }
                 }
 
@@ -180,7 +182,7 @@ struct SettingsTVView: View {
                         confirmsSigningOut = true
                     }
                     .confirmationDialog(
-                        "Sign out of Plex?",
+                        "Sign out of \(media.accountProductName)?",
                         isPresented: $confirmsSigningOut,
                         titleVisibility: .visible
                     ) {

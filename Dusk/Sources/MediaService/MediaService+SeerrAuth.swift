@@ -5,6 +5,6 @@ extension MediaService {
     /// §16): the account's own facet, built on every read so it always carries
     /// the active profile's credential.
     var seerrAuth: any SeerrAuthProviding {
-        accountProvider.seerrAuth
+        primaryAccount.seerrAuth
     }
 }

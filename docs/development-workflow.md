@@ -67,7 +67,7 @@ Prefer existing files and same-type extension patterns for small additions. Add 
 
 ## Architectural Guardrails
 
-- Plex is the only backend. Do not add provider abstractions without a real second backend.
+- Plex and Jellyfin are the backends, behind the provider protocols in `Providers/Core/` (`docs/data-and-plex.md` → Provider Layering). Code outside `Providers/` and the sign-in flow never names a provider type (G7).
 - Views do not call the network directly. SwiftUI views talk to `@Observable` view models; view models call `MediaService`.
 - Use async/await. Avoid Combine except when wrapping callback APIs.
 - Keep AVPlayer/VLCKit specifics in `Playback/` behind `PlaybackEngine`.
@@ -353,7 +353,7 @@ builds against each other, not against absolute numbers.
 - Building iOS simulator without `ARCHS=arm64 ONLY_ACTIVE_ARCH=YES`.
 - Treating `Dusk.xcodeproj` as hand-authored.
 - Adding view-level networking instead of using view models and `MediaService`.
-- Reintroducing broad backend abstractions while Plex is the only backend.
+- Branching on a provider kind outside `Providers/`; ask a facet or `ServerPermissions` instead.
 - Duplicating formatting, state views, posters, or grids instead of checking `Shared/`.
 - Putting AVPlayer/VLCKit-specific behavior into generic player UI.
 - Assuming docs platform versions are newer than `project.yml`.

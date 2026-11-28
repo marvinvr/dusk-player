@@ -72,6 +72,10 @@ final class PlexServerRouter {
         if pool.session(for: targetID) == nil {
             try await pool.refreshServerAuthorization(serverID: targetID)
         }
+        // Before anything is sent to it, the restored-endpoint check included.
+        if let session = pool.session(for: targetID) {
+            try Self.requirePlex(session)
+        }
         // A session whose endpoint no request can be built on can never
         // answer. Re-select instead of failing with "Invalid URL." until the
         // next full pass.
@@ -205,6 +209,7 @@ final class PlexServerRouter {
                 throw MediaServiceError.noServerConnected
             }
         }
+        try Self.requirePlex(connection)
 
         guard let url = client.buildURL(base: connection.baseURL.absoluteString, path: path, queryItems: queryItems) else {
             throw MediaServiceError.invalidURL
@@ -220,6 +225,16 @@ final class PlexServerRouter {
 
         let needsSlowQuerySession = (timeoutInterval ?? 0) > PlexClient.requestResourceTimeout
         return try await executeRequest(request, using: needsSlowQuerySession ? client.slowQuerySession : nil)
+    }
+
+    /// A Plex request never goes to another provider's server: its path means
+    /// nothing there, and its token header would carry that server's
+    /// credential under Plex's name. A route that has not moved behind a
+    /// facet yet fails instead.
+    static func requirePlex(_ connection: ServerSession) throws {
+        if let kind = connection.provider?.descriptor.kind, kind != .plex {
+            throw MediaServiceError.noServerConnected
+        }
     }
 
     /// Connection-type failures: refused, unreachable, DNS, TLS, timeouts
@@ -275,6 +290,9 @@ final class PlexServerRouter {
         if pool.session(for: serverID) == nil {
             try await pool.refreshServerAuthorization(serverID: serverID)
         }
+        if let session = pool.session(for: serverID) {
+            try Self.requirePlex(session)
+        }
 
         do {
             return try await sendScrubPreviewData(path: path, accept: accept, serverID: serverID)
@@ -294,6 +312,7 @@ final class PlexServerRouter {
                 throw MediaServiceError.noServerConnected
             }
         }
+        try Self.requirePlex(connection)
 
         guard let url = client.buildURL(base: connection.baseURL.absoluteString, path: path) else {
             throw MediaServiceError.invalidURL

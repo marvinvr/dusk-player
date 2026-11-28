@@ -5,17 +5,40 @@ import OSLog
 /// account credential are `PlexAccountProvider`'s; this keeps the state
 /// transitions (teardown on an account change, the Home reset) in one place.
 extension MediaService {
-    /// The sign-in host's flows, in registry order. Plex is the only one.
+    /// The sign-in host's flows, in registry order.
     var signInFlows: [any SignInFlow] { accounts.signInFlows }
 
-    /// The end of every sign-in flow: the account it signed in to and the
-    /// credential it obtained.
+    /// The primary account's own session when that account runs one: every
+    /// provider but Plex, whose Plex Home state the facade runs (`+Home`).
+    /// nil while Plex is signed in, and while nobody is.
+    var accountSession: (any AccountSession)? {
+        guard primaryAccountToken == nil else { return nil }
+        return accounts.primaryProvider?.session
+    }
+
+    /// The primary account: the one with its own session, else Plex's.
+    var primaryAccount: any MediaAccountProvider {
+        if accountSession != nil, let provider = accounts.primaryProvider { return provider }
+        return accountProvider
+    }
+
+    /// The signed-in account's product name ("Plex", "Jellyfin"), for the
+    /// account rows and the sign-out prompt.
+    var accountProductName: String { primaryAccount.account.displayName }
+
+    /// The account lives on a website Dusk can link to (plex.tv). A Jellyfin
+    /// user exists only on its server.
+    var hasOnlineAccount: Bool { accountSession == nil }
+
+    /// The end of the Plex sign-in flow: the account it signed in to and the
+    /// credential it obtained. Jellyfin's flow ends in
+    /// `completeJellyfinSignIn`, because its account is more than a token.
     func completeSignIn(_ account: StoredAccount, credential: String) {
         switch account.kind {
         case .plex:
             setAuthToken(credential)
         case .jellyfin:
-            assertionFailure("No Jellyfin sign-in flow is registered yet")
+            assertionFailure("Jellyfin sign-in completes through completeJellyfinSignIn")
         }
     }
 
@@ -43,6 +66,10 @@ extension MediaService {
 
     func signOut() {
         tearDownServerSessions(forgetServers: true)
+        if let accountSession {
+            Task { await accountSession.signOutAll() }
+            return
+        }
         clearAuthToken()
     }
 

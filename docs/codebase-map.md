@@ -20,7 +20,8 @@ Dusk/Sources
                        per file, transport security, DTO/, Mappers/, Models/ (plex.tv account
                        shapes), Facade/ (facade extensions that are Plex-only so far)
     ProviderSetup, TransportSecurity  the build's providers, wired for MediaService
-    Jellyfin/          Client, DTOs and mappers (not wired in yet)
+    Jellyfin/          Client, DTOs, mappers; Account/ (sign-in flow, saved users, profiles,
+                       probe), JellyfinServerProvider, JellyfinImages, Facets/ (placeholders until J-02 …)
   MediaService/        The facade: AccountStore + session state, sign-in/Home orchestration,
                        the multi-server session pool and its per-server recovery,
                        API calls, images, playback + subtitle URLs
@@ -38,7 +39,8 @@ Dusk/Sources
   Downloads/           Queue, file store, metadata cache, offline sync
   Shared/              Reusable UI, formatting, image loading, recommendation helpers
   Features/
-    Account/           Sign-in and Plex Home profile picker
+    Account/           Sign-in host (Plex + Jellyfin flows, shared tvOS code screen) and
+                       the profile picker
     Home/              Home hubs, continue watching, recommendations
     Libraries/         Library list, library item grids, recommendations
     LiveTV/            Channel guide, on-now Home shelf, Live TV state
@@ -80,7 +82,7 @@ SwiftUI environment:
 step:
 
 ```text
-.signedOut     -> SignInView (host; shows the one flow, SignInPlexFlowView)
+.signedOut     -> SignInView (host: SignInPlexFlowView, plus a button per other flow → SignInJellyfinFlowView)
 .bootstrapping -> loading / retry
 .needsProfile  -> HomeUserPickerView (the account's Profiles)
 .ready         -> MainTabView

@@ -18,10 +18,18 @@ struct Profile: Sendable, Hashable, Identifiable {
     let isRestricted: Bool
 }
 
+/// The secret a protected profile asks for.
+enum ProfileSecretKind: Sendable, Hashable {
+    /// A Plex Home PIN: four digits.
+    case pin
+    /// An account password, any text.
+    case password
+}
+
 /// Profiles on an account: list, current, whether there is anything to switch
-/// to. The switch itself stays a facade verb (`MediaService.switchProfile`)
-/// because it tears down every server session; it joins this protocol with the
-/// second provider (J-01), whose secret is a password rather than a PIN.
+/// to. The switch itself is a facade verb (`MediaService.switchProfile`)
+/// because it tears down every server session; Plex's runs in `+Home`, other
+/// accounts' in `AccountSession.switchProfile`.
 protocol ProfileProviding: Sendable {
     /// More than one profile to choose from.
     @MainActor var canSwitch: Bool { get }

@@ -462,6 +462,51 @@ matrix (§6) against `plex-demo` and `jellyfin-demo` as `duskcompare`.
   logging each other out; wrong address and wrong password show the existing
   error presentation; an existing Plex install upgraded to this build is
   still signed in (G4).
+- **As built (2026-11-28).**
+  - Sign-in host: Plex's welcome screen gains "Sign in with Jellyfin" under
+    Plex's own button. Jellyfin asks for the address, then password, or a
+    Quick Connect code. Apple TV opens on the code when the server has Quick
+    Connect on. The tvOS code screen is shared (`SignInCodeScreen`).
+  - Accounts: `JellyfinAccountProvider` keeps every saved user, each with its
+    own random `DeviceId`. Records live in new keys only (`JellyfinAccounts`,
+    `JellyfinActiveAccountID`, Keychain `JellyfinAccessToken.<id>`).
+  - The facade reads a non-Plex primary through `AccountSession`
+    (`MediaService.accountSession`). The pool connects that account's one
+    server with the account's probe. A server id finds its provider through
+    the accounts that hold it (`ProviderFactory.ownsServer`), so no registry
+    is persisted.
+  - Switch User lists the saved users plus `/Users/Public`. An unsaved user
+    asks for a password. Saved users switch without a logout. Sign-out logs
+    every saved user out.
+  - Settings shows "Users" and drops the Plex-only rows (Automatically Sign
+    In, Manage/Delete Plex Account).
+  - Images are J-03's `JellyfinImages`. Every other facet is a placeholder that
+    answers empty (`Providers/Jellyfin/Facets/`, one file per facet for J-02 …
+    J-08a).
+  - `PlexServerRouter.requirePlex` keeps not-yet-routed Plex routes off a
+    Jellyfin server. `getCurrentUser` makes no plex.tv call while no Plex
+    account is signed in.
+  - Verified against jellyfin-demo:
+    - iPhone and Apple TV: password sign-in, wrong address, wrong password
+      and cold-relaunch restore.
+    - Apple TV: Quick Connect sign-in, the picker listing the public users,
+      and sign-out with logout.
+    - Two DeviceIds of the same user held at once.
+    - A logging proxy in front of the server saw only Jellyfin routes, each
+      with the `MediaBrowser` header and no `X-Plex` header, through
+      sign-in and a cold relaunch.
+  - Not verified live: switching between two *saved* users. Only
+    `duskcompare`'s password was cleared for use, so this is covered by
+    unit tests only.
+  - Open:
+    - A bare host only tries the 04 ladder. `jellyfin-demo` answers on
+      `http://host` (port 80) and needs the scheme typed.
+    - Connection Diagnostics labels Jellyfin candidates "plex.tv" (the
+      `.plex` candidate source).
+    - The iOS welcome tagline still says "The Plex App We Deserve." (brand
+      copy, Marvin's call).
+    - Library order is read-only (`notImplemented` on save, J-11).
+    - Seerr has no Jellyfin sign-in yet (J-12).
 
 ### J-03 Images — S
 
@@ -473,9 +518,8 @@ keys, person and chapter images. **Accept:** matrix rows "posters",
   stored state. `ImageSize` stayed without a `mode`: every call site passes a
   box, and `fill*` already gives Plex's cover-without-crop pixels (measured:
   poster, still, backdrop and logo dimensions match plex-demo at the same
-  boxes). Chapters use `max*`, the only fit case. Open: J-01's
-  placeholder image facet is swapped for it when J-01 lands; nothing maps or
-  shows chapter images yet; a `jf:` ref whose server is not connected falls
+  boxes). Chapters use `max*`, the only fit case. `JellyfinServerProvider`
+  (J-01) returns it. Open: nothing maps or shows chapter images yet; a `jf:` ref whose server is not connected falls
   through to `PlexImages` and yields an unloadable `jf:` URL (placeholder).
 
 ### J-02 Catalog and browse — L

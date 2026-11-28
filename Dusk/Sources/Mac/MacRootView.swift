@@ -84,7 +84,7 @@ struct MacRootView: View {
             .frame(minWidth: 520, minHeight: 440)
         }
         #endif
-        .alert("Sign out of Plex?", isPresented: $bindableRouter.isSignOutConfirmationPresented) {
+        .alert("Sign out of \(media.accountProductName)?", isPresented: $bindableRouter.isSignOutConfirmationPresented) {
             Button("Sign Out", role: .destructive) {
                 media.signOut()
             }

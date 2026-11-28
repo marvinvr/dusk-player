@@ -2,8 +2,9 @@
 
 Agent-facing map for Dusk's data layer and its Plex provider. Views call view
 models, view models call `MediaService`, and `MediaService` routes each call to
-the item's server's provider (see Provider Layering). Plex is the only provider
-wired in so far. The optional Seerr request companion has a separate boundary
+the item's server's provider (see Provider Layering). Plex and Jellyfin are
+wired in; Jellyfin's account and session are live (J-01) and its facets fill in
+package by package (docs/jellyfin/05-plan.md). The optional Seerr request companion has a separate boundary
 documented in `docs/seerr-integration.md`.
 
 ## Provider Layering
@@ -45,7 +46,41 @@ docs/jellyfin/04-architecture.md §2–§8 is the design; this is how it is buil
   provider type name, `ProviderKind` or `X-Plex` outside `Providers/` and the
   sign-in flow; the few frozen names it allows are listed with their reasons in
   `scripts/parity/provider_boundary_allowlist.txt`.
-- Tests reach a fake provider through `FakeMediaServerProvider` (test target).
+- Tests reach a fake provider through `FakeMediaServerProvider` (test target);
+  a test factory registered after the standard ones wins for its kind
+  (`ProviderRegistry.factory(for:)` takes the last).
+- **Accounts.** The Plex account's Plex Home state stays on the facade
+  (`+Home`, `+PlexAccount`). Every other account runs its own session through
+  `MediaAccountProvider.session` (`AccountSession`): when such an account is
+  the primary one (`MediaService.accountSession`, nil while Plex is signed in),
+  `sessionState`, `activeProfileID`, `homeBootstrapCompleted`,
+  `needsHomeUserSelection`, the profile verbs, the connect pass
+  (`connectAllServers` → `accountServers()`, no discovery round trip),
+  per-server recovery and sign-out read it instead. Account preferences,
+  watchlist and Seerr route to `primaryAccount`.
+- **Which provider a server id belongs to:** `ProviderRegistry.kind(for:registry:)`
+  — a `ServerRegistry` record, else the provider whose accounts hold the id
+  (`ProviderFactory.ownsServer`), else Plex. Nothing new is persisted for it:
+  a Jellyfin account's record already carries its server id, so a restored
+  pool session finds its provider at launch.
+- **Probing:** the pool asks the server's factory for a `ConnectionProbe`
+  (`connectionProbe(serverID:credential:)`); nil is the built-in Plex probe,
+  unchanged. Jellyfin's is `/System/Info/Public` (identity gate on `Id`) then
+  `/Users/Me` (token check).
+- A Plex request never reaches another provider's server:
+  `PlexServerRouter.requirePlex` fails the not-yet-routed raw routes instead.
+- **Jellyfin accounts** (`Providers/Jellyfin/Account/`): one record per user
+  (`JellyfinAccountRecord`, id = storage scope `jellyfin-<serverID>-<userID>`)
+  in UserDefaults `JellyfinAccounts` + `JellyfinActiveAccountID`, the token in
+  Keychain `JellyfinAccessToken.<id>`. Each record has its own random
+  `DeviceId`, created when its sign-in starts (one token per DeviceId,
+  03 §10.2). The pool's per-server token copy (`PlexServerAuthToken.<id>`) is
+  disposable; Switch User tears the pool down and never logs a user out.
+  Candidates are the typed URL and the server's `LocalAddress`; a bare host
+  tries `https://host`, `http://host:8096`, `https://host:8920` in parallel,
+  a typed scheme only itself. `Policy` maps to `ServerPermissions`
+  (`JellyfinPolicySnapshot`) and is refreshed from `/Users/Me` on every
+  connect pass; a revoked token (401) forgets that user.
 
 ## Responsibilities
 - `MediaService/` is the facade: routes to each server's provider facets,

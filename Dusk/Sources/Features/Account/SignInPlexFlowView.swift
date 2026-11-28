@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(tvOS)
-import CoreImage.CIFilterBuiltins
-#endif
 
 /// Plex's sign-in steps inside the sign-in host (`SignInView`): a plex.tv PIN
 /// approved in the browser (iOS, macOS) or with the plex.tv/link code and QR
@@ -9,6 +6,8 @@ import CoreImage.CIFilterBuiltins
 struct SignInPlexFlowView: View {
     @Environment(MediaService.self) private var media
     let flow: PlexSignInFlow
+    /// The other providers' entries on the welcome screen, under Plex's own.
+    var otherFlows: [SignInHostEntry] = []
     @Environment(\.openURL) private var openURL
     @State private var linkPinCode: String?
     @State private var isSigningIn = false
@@ -113,6 +112,15 @@ struct SignInPlexFlowView: View {
             .controlSize(.large)
             .keyboardShortcut(.defaultAction)
 
+            ForEach(otherFlows) { entry in
+                Button(action: entry.action) {
+                    Text(entry.title)
+                        .frame(minWidth: 180)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+            }
+
             // A quiet link, not a blue one (no tint): link cursor, and
             // underlined under the pointer so it reads as clickable.
             Button {
@@ -215,6 +223,18 @@ struct SignInPlexFlowView: View {
 
                 if isSigningIn {
                     cancelButton
+                } else {
+                    ForEach(otherFlows) { entry in
+                        Button(action: entry.action) {
+                            Text(entry.title)
+                                .font(DuskFont.buttonLabel(ios: .headline))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 8)
+                        }
+                        .detailHeroNativeSecondaryButtonStyle()
+                        .frame(maxWidth: 420)
+                        .padding(.horizontal, 40)
+                    }
                 }
             }
 
@@ -249,7 +269,7 @@ struct SignInPlexFlowView: View {
                 .foregroundStyle(Color.duskTextPrimary)
                 .padding(.top, 28)
 
-            Text("Sign in with your Plex account to get started.")
+            Text(otherFlows.isEmpty ? "Sign in with your Plex account to get started." : "Sign in to get started.")
                 .font(DuskFont.TV.pageSubtitle)
                 .foregroundStyle(Color.duskTextSecondary)
                 .multilineTextAlignment(.center)
@@ -263,106 +283,45 @@ struct SignInPlexFlowView: View {
                     .padding(.top, 24)
             }
 
-            Button {
-                Task { await signIn() }
-            } label: {
-                Text("Sign in with Plex")
-                    .font(DuskFont.TV.buttonLabel)
-                    .frame(minWidth: 380)
+            VStack(spacing: 24) {
+                Button {
+                    Task { await signIn() }
+                } label: {
+                    Text("Sign in with Plex")
+                        .font(DuskFont.TV.buttonLabel)
+                        .frame(minWidth: 380)
+                }
+                .detailHeroNativePrimaryButtonStyle()
+
+                ForEach(otherFlows) { entry in
+                    Button(action: entry.action) {
+                        Text(entry.title)
+                            .font(DuskFont.TV.buttonLabel)
+                            .frame(minWidth: 380)
+                    }
+                    .detailHeroNativePrimaryButtonStyle()
+                }
             }
-            .detailHeroNativePrimaryButtonStyle()
             .padding(.top, 56)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private var tvLinkContent: some View {
-        HStack(alignment: .center, spacing: 96) {
-            tvQRCodePanel
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Sign in with Plex")
-                    .font(DuskFont.TV.pageTitle)
-                    .foregroundStyle(Color.duskTextPrimary)
-
-                Text("Scan the QR code with your phone,\nor go to \(Text("plex.tv/link").foregroundStyle(Color.duskTextPrimary)) and enter this code.")
-                    .font(DuskFont.TV.pageSubtitle)
-                    .foregroundStyle(Color.duskTextSecondary)
-                    .lineSpacing(4)
-                    .fixedSize()
-                    .padding(.top, 14)
-
-                tvCodeTiles
-                    .padding(.top, 44)
-
-                HStack(spacing: 14) {
-                    ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 28, height: 28)
-                    Text(linkPinCode == nil ? "Getting a code…" : "Waiting for approval…")
-                        .font(DuskFont.TV.caption)
-                        .foregroundStyle(Color.duskTextSecondary)
-                }
-                .padding(.top, 28)
-
-                HStack(spacing: 24) {
-                    Button {
-                        Task { await signIn() }
-                    } label: {
-                        Text("New Code")
-                            .font(DuskFont.TV.buttonLabel)
-                            .frame(minWidth: 220)
-                    }
-                    .detailHeroNativePrimaryButtonStyle()
-
-                    Button {
-                        cancelSignIn()
-                    } label: {
-                        Text("Cancel")
-                            .font(DuskFont.TV.buttonLabel)
-                            .frame(minWidth: 220)
-                    }
-                    .detailHeroNativePrimaryButtonStyle()
-                }
-                .padding(.top, 48)
+        SignInCodeScreen(
+            title: "Sign in with Plex",
+            instructions: Text("Scan the QR code with your phone,\nor go to \(Text("plex.tv/link").foregroundStyle(Color.duskTextPrimary)) and enter this code."),
+            code: linkPinCode,
+            codeLength: 4,
+            showsQRCode: true,
+            qrPayload: linkPinCode.map(Self.linkURL(code:)),
+            status: linkPinCode == nil ? "Getting a code…" : "Waiting for approval…"
+        ) {
+            SignInCodeScreenButton(title: "New Code") {
+                Task { await signIn() }
             }
-            .fixedSize()
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    /// The QR code on a white card (its quiet zone), so phones read it on the
-    /// dark background.
-    private var tvQRCodePanel: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .fill(.white)
-
-            if let linkPinCode, let qrImage = SignInQRCode.image(for: Self.linkURL(code: linkPinCode)) {
-                Image(decorative: qrImage, scale: 1)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
-                    .padding(36)
-            } else {
-                ProgressView()
-                    .tint(.black)
-            }
-        }
-        .frame(width: 480, height: 480)
-    }
-
-    /// The four-character code as separate glass tiles, so it reads from the
-    /// couch and can't be mistaken for a word.
-    private var tvCodeTiles: some View {
-        let characters = linkPinCode.map { $0.map(String.init) } ?? Array(repeating: " ", count: 4)
-        return HStack(spacing: 18) {
-            ForEach(Array(characters.enumerated()), id: \.offset) { _, character in
-                Text(character)
-                    .font(.system(size: 76, weight: .semibold, design: .rounded))
-                    .foregroundStyle(Color.duskTextPrimary)
-                    .frame(width: 112, height: 136)
-                    .glassEffect(.regular, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            SignInCodeScreenButton(title: "Cancel") {
+                cancelSignIn()
             }
         }
     }
@@ -581,19 +540,3 @@ struct SignInPlexFlowView: View {
     }
     #endif
 }
-
-#if os(tvOS)
-/// Renders a QR code at one pixel per module. The view scales it up with
-/// `.interpolation(.none)`, so the modules stay sharp at any size.
-enum SignInQRCode {
-    private static let context = CIContext()
-
-    static func image(for string: String) -> CGImage? {
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage else { return nil }
-        return context.createCGImage(output, from: output.extent)
-    }
-}
-#endif

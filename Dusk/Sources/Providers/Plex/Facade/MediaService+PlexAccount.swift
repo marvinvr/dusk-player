@@ -51,8 +51,11 @@ extension MediaService {
         get { plexAccount.state.activeHomeUser }
         set { plexAccount.state.activeHomeUser = newValue }
     }
+    /// Always true while another account runs its own session: the Plex
+    /// Home bootstrap is not its gate, and every caller that waits for it
+    /// (playback, Siri, downloads) then proceeds.
     var homeBootstrapCompleted: Bool {
-        get { plexAccount.state.homeBootstrapCompleted }
+        get { accountSession != nil || plexAccount.state.homeBootstrapCompleted }
         set { plexAccount.state.homeBootstrapCompleted = newValue }
     }
     /// Cached identity is usable offline; Plex Home still needs online validation.
@@ -74,7 +77,10 @@ extension MediaService {
     }
 
     var hasPlexHome: Bool { plexAccount.state.hasPlexHome }
-    var needsHomeUserSelection: Bool { plexAccount.state.needsHomeUserSelection }
+    var needsHomeUserSelection: Bool {
+        if let accountSession { return accountSession.needsProfileSelection }
+        return plexAccount.state.needsHomeUserSelection
+    }
     /// Every set persists the choice (and the remembered member token), as the
     /// stored property's `didSet` did; `PlexAccountProvider.restoreCredentials`
     /// runs the same step for the launch-time assignment.

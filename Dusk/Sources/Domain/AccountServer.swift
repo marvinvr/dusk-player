@@ -18,7 +18,9 @@ struct AccountServer: Codable, Sendable, Identifiable {
     let sourceTitle: String?
     let connections: [ServerEndpoint]
 
-    private init(
+    /// Memberwise, for a provider that builds its server record itself rather
+    /// than decoding plex.tv's (`JellyfinAccountProvider`).
+    init(
         name: String,
         clientIdentifier: String,
         product: String?,

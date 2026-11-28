@@ -4,11 +4,11 @@ import Foundation
 /// §3, §7). Built from a `StoredAccount` by its provider's
 /// `ProviderFactory.restoreAccount(from:)`; `AccountStore` holds the result.
 ///
-/// The account owns its credential and the discovery of its servers. The
-/// facade still orchestrates sign-in, profile switches and the connect pass
-/// (state transitions, teardown, persistence), and the pool still consumes the
-/// provider's own server snapshots: wiring the pool through `servers()` and
-/// `probe(_:in:)` arrives with the first account that is not Plex.
+/// The account owns its credential and the discovery of its servers. For
+/// Plex the facade still orchestrates sign-in, Plex Home switches and the
+/// connect pass (`MediaService+Auth`, `+Home`, `+Servers`). Every other
+/// account runs its own session through `session` (`AccountSession`), and the
+/// pool probes its servers with `probe(_:in:)`.
 protocol MediaAccountProvider: AnyObject, Sendable {
     var account: AccountDescriptor { get }
 
@@ -32,6 +32,45 @@ protocol MediaAccountProvider: AnyObject, Sendable {
     var watchlist: (any WatchlistProviding)? { get }
     /// Built on every read, so it carries the active profile's credential.
     @MainActor var seerrAuth: any SeerrAuthProviding { get }
+
+    /// The account's own session, for an account whose profiles the facade
+    /// does not bootstrap. nil for Plex: its Plex Home state lives on the
+    /// facade (`MediaService+Home`).
+    @MainActor var session: (any AccountSession)? { get }
+}
+
+extension MediaAccountProvider {
+    @MainActor var session: (any AccountSession)? { nil }
+}
+
+/// The session of an account that resolves its own profiles and servers
+/// (docs/jellyfin/04-architecture.md §7). The facade reads it instead of the
+/// Plex Home state when such an account is the primary one, and keeps the
+/// teardown and the pool.
+@MainActor
+protocol AccountSession: AnyObject {
+    /// A profile is signed in (or one has to be chosen).
+    var isSignedIn: Bool { get }
+    /// The storage scope of the active profile; nil while none is active.
+    var activeProfileID: String? { get }
+    /// The profile picker is up: asked for from Settings, or nothing is active.
+    var needsProfileSelection: Bool { get }
+    /// What the profile picker asks for when a profile is protected.
+    var profileSecret: ProfileSecretKind { get }
+
+    /// The active profile's servers, with their credentials, as the pool
+    /// connects them. Never reaches the network.
+    func accountServers() -> [AccountServer]
+    /// Re-reads what the server says about the active profile after launch
+    /// (its permissions). A transport failure is not a sign-out.
+    func refresh() async throws
+    /// Makes `profile` the active one. `secret` goes only into this request.
+    /// The facade tears the server sessions down afterwards.
+    func switchProfile(_ profile: Profile, secret: String?) async throws
+    func requestProfileSelection()
+    func cancelProfileSelection()
+    /// Ends every profile's session on the server and forgets them here.
+    func signOutAll() async
 }
 
 /// Who is signed in, as the account names them (the Mac's account row).

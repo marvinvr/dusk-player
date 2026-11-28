@@ -2,6 +2,8 @@ import Foundation
 
 extension MediaService {
     func getCurrentUser() async throws -> PlexUser {
+        // No plex.tv account behind another provider's session.
+        guard accountSession == nil else { throw MediaServiceError.notAuthenticated }
         if let currentUser {
             return currentUser
         }

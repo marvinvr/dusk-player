@@ -256,7 +256,8 @@ enum ConnectionSelector {
         session: URLSession,
         trigger: String,
         grace: Duration = defaultGrace,
-        waitForAll: Bool = false
+        waitForAll: Bool = false,
+        probe customProbe: ConnectionProbe? = nil
     ) async -> Selection {
         let startedAt = Date()
         let clock = ContinuousClock()
@@ -296,7 +297,10 @@ enum ConnectionSelector {
         return await withTaskGroup(of: Event.self) { group -> Selection in
             for (index, candidate) in candidates.enumerated() {
                 group.addTask {
-                    .probe(index, await probe(candidate, serverID: serverID, headers: authorized, session: session))
+                    if let customProbe {
+                        return .probe(index, await customProbe(candidate))
+                    }
+                    return .probe(index, await probe(candidate, serverID: serverID, headers: authorized, session: session))
                 }
             }
 

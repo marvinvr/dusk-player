@@ -99,7 +99,7 @@ struct HomeUserPickerView: View {
             #endif
         }
         .confirmationDialog(
-            "Sign out of Plex?",
+            "Sign out of \(media.accountProductName)?",
             isPresented: $confirmsSigningOut,
             titleVisibility: .visible
         ) {
@@ -131,7 +131,7 @@ struct HomeUserPickerView: View {
                             .font(.system(size: 28, weight: .bold))
                             .foregroundStyle(Color.duskTextPrimary)
 
-                        Text("Choose a Plex Home user. Watch history and recommendations stay with each profile.")
+                        Text(pickerPrompt)
                             .font(.body)
                             .foregroundStyle(Color.duskTextSecondary)
                             .multilineTextAlignment(.center)
@@ -154,9 +154,11 @@ struct HomeUserPickerView: View {
                     .fixedSize()
 
                     VStack(spacing: 16) {
-                        Toggle("Remember this user", isOn: $rememberSelection)
-                            .toggleStyle(.checkbox)
-                            .help("Open Dusk with this profile next time. You can change this anytime in Settings.")
+                        if offersRememberSelection {
+                            Toggle("Remember this user", isOn: $rememberSelection)
+                                .toggleStyle(.checkbox)
+                                .help("Open Dusk with this profile next time. You can change this anytime in Settings.")
+                        }
 
                         if let switchError {
                             Label(switchError, systemImage: "exclamationmark.triangle.fill")
@@ -229,8 +231,10 @@ struct HomeUserPickerView: View {
                 // instead of leaving empty grid columns on the right.
                 .frame(maxWidth: min(680, CGFloat(users.count) * 198 - 18))
 
-                selectionOptions
-                    .frame(maxWidth: 680)
+                if offersRememberSelection {
+                    selectionOptions
+                        .frame(maxWidth: 680)
+                }
 
                 bottomActions
             }
@@ -274,8 +278,10 @@ struct HomeUserPickerView: View {
                     }
                 }
 
-                selectionOptions
-                    .frame(maxWidth: 1120)
+                if offersRememberSelection {
+                    selectionOptions
+                        .frame(maxWidth: 1120)
+                }
 
                 bottomActions
             }
@@ -299,6 +305,25 @@ struct HomeUserPickerView: View {
     }
     #endif
 
+    /// A Plex Home PIN means Plex Home; any other account picks a user of
+    /// its server.
+    private var pickerPrompt: String {
+        switch media.profileSecret {
+        case .pin:
+            isMac
+                ? "Choose a Plex Home user. Watch history and recommendations stay with each profile."
+                : "Choose a Plex Home user. Watch history and recommendations will stay with this profile."
+        case .password:
+            "Choose a user. Watch history and recommendations stay with each user."
+        }
+    }
+
+    /// Only Plex Home asks whether to reopen on the chosen member; other
+    /// accounts always reopen on the last user.
+    private var offersRememberSelection: Bool {
+        media.profileSecret == .pin
+    }
+
     private func pickerHeader(titleSize: CGFloat, iconSize: CGFloat) -> some View {
         VStack(spacing: 18) {
             Image(systemName: "person.2.fill")
@@ -310,7 +335,7 @@ struct HomeUserPickerView: View {
                     .font(.system(size: titleSize, weight: .bold, design: .rounded))
                     .foregroundStyle(Color.duskTextPrimary)
 
-                Text("Choose a Plex Home user. Watch history and recommendations will stay with this profile.")
+                Text(pickerPrompt)
                     .font(DuskFont.pageSubtitle(ios: .body))
                     .foregroundStyle(Color.duskTextSecondary)
                     .multilineTextAlignment(.center)
@@ -392,6 +417,30 @@ struct HomeUserPickerView: View {
 
     @ViewBuilder
     private func pinEntry(for user: Profile) -> some View {
+        if media.profileSecret == .password {
+            HomeUserPasswordView(
+                user: user,
+                password: $pin,
+                isSubmitting: switchingProfileID != nil,
+                error: switchError,
+                onSubmit: { switchTo(user, pin: pin) },
+                onBack: macBackAction
+            )
+        } else {
+            pinPadEntry(for: user)
+        }
+    }
+
+    private var macBackAction: (() -> Void)? {
+        #if os(macOS)
+        leavePINEntry
+        #else
+        nil
+        #endif
+    }
+
+    @ViewBuilder
+    private func pinPadEntry(for user: Profile) -> some View {
         #if os(tvOS)
         TVHomeUserPINView(
             user: user,
@@ -662,6 +711,124 @@ private struct MacHomeUserCard: View {
     }
 }
 #endif
+
+/// The password a saved-elsewhere user needs before it joins this device
+/// (an account whose profiles are users with passwords). Held only in the
+/// picker's transient state, like a PIN.
+private struct HomeUserPasswordView: View {
+    let user: Profile
+    @Binding var password: String
+    let isSubmitting: Bool
+    let error: String?
+    let onSubmit: () -> Void
+    /// Mac only: Back next to Continue (iOS has the overlay one, tvOS Menu).
+    var onBack: (() -> Void)?
+
+    @FocusState private var fieldIsFocused: Bool
+
+    var body: some View {
+        VStack(spacing: 24) {
+            ProfileAvatar(profile: user, size: avatarSize)
+
+            VStack(spacing: 8) {
+                Text("Enter Password")
+                    #if os(tvOS)
+                    .font(DuskFont.TV.pageTitleRounded)
+                    #elseif os(macOS)
+                    .font(.title2.bold())
+                    #else
+                    .font(.largeTitle.bold())
+                    #endif
+                    .foregroundStyle(Color.duskTextPrimary)
+
+                Text("Enter the password for \(user.displayName).")
+                    .font(DuskFont.pageSubtitle(ios: .body))
+                    .foregroundStyle(Color.duskTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            SecureField("Password", text: $password)
+                .textContentType(.password)
+                #if os(macOS)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 260)
+                #elseif os(tvOS)
+                .frame(width: 620)
+                #else
+                .padding(.horizontal, 18)
+                .frame(maxWidth: 360, minHeight: 52)
+                .background(Color.duskSurface, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .submitLabel(.go)
+                #endif
+                .focused($fieldIsFocused)
+                .onSubmit(onSubmit)
+                .disabled(isSubmitting)
+
+            if let error {
+                Text(error)
+                    .font(DuskFont.body(ios: .footnote))
+                    .foregroundStyle(.red)
+                    .multilineTextAlignment(.center)
+            }
+
+            HStack(spacing: 10) {
+                #if os(macOS)
+                if let onBack {
+                    Button("Back", action: onBack)
+                        .keyboardShortcut(.cancelAction)
+                        .disabled(isSubmitting)
+                }
+                #endif
+                Button(action: onSubmit) {
+                    HStack(spacing: 8) {
+                        if isSubmitting {
+                            ProgressView()
+                                #if os(macOS)
+                                .controlSize(.small)
+                                #endif
+                        }
+                        Text("Continue")
+                    }
+                    #if os(tvOS)
+                    .font(DuskFont.TV.buttonLabel)
+                    .frame(minWidth: 380)
+                    #elseif os(iOS)
+                    .font(.headline)
+                    .frame(maxWidth: 360)
+                    .padding(.vertical, 8)
+                    #else
+                    .frame(minWidth: 90)
+                    #endif
+                }
+                #if os(macOS)
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                .keyboardShortcut(.defaultAction)
+                #else
+                .detailHeroNativePrimaryButtonStyle()
+                #endif
+                .disabled(isSubmitting)
+            }
+        }
+        .padding(.horizontal, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            #if !os(tvOS)
+            fieldIsFocused = true
+            #endif
+        }
+    }
+
+    private var avatarSize: CGFloat {
+        #if os(tvOS)
+        176
+        #elseif os(macOS)
+        80
+        #else
+        104
+        #endif
+    }
+}
 
 #if !os(tvOS)
 private struct IOSHomeUserPINView: View {

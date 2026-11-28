@@ -21,7 +21,7 @@ enum ServerConnectionState: Sendable, Equatable {
     var isConnected: Bool { connection != nil }
 }
 
-/// Every Plex server this account can use, and the live session with each one.
+/// Every server the signed-in account can use, and the live session with each one.
 ///
 /// The pool replaces "the one connected server": servers connect in parallel and
 /// each commits its own state as soon as it resolves, so one unreachable server
@@ -83,8 +83,6 @@ final class ServerPool {
         self.serverRegistry = serverRegistry
     }
 
-    /// The provider for a session with `server`, from the factory of the
-    /// server's kind. Every server the pool knows today is a Plex server.
     /// The provider of a server the pool knows: its live session's, or one
     /// built from the account's record of it. nil for an id the pool has
     /// never seen.
@@ -93,8 +91,16 @@ final class ServerPool {
         return servers[serverID].flatMap(makeProvider(for:))
     }
 
+    /// The factory of `serverID`'s provider (`ProviderRegistry.kind(for:registry:)`).
+    private func factory(for serverID: String) -> (any ProviderFactory)? {
+        guard let providers else { return nil }
+        return providers.factory(for: providers.kind(for: serverID, registry: serverRegistry))
+    }
+
+    /// The provider for a session with `server`, from the factory of the
+    /// server's kind.
     private func makeProvider(for server: AccountServer) -> (any MediaServerProvider)? {
-        providers?.factory(for: serverRegistry.kind(for: server.clientIdentifier))?.makeServerProvider(
+        factory(for: server.clientIdentifier)?.makeServerProvider(
             ServerSessionSeed(
                 serverID: server.clientIdentifier,
                 name: server.name,
@@ -121,7 +127,7 @@ final class ServerPool {
                     await ConnectionSelector.select(
                         candidates: work.candidates, serverID: work.serverID, serverName: work.name,
                         token: work.token, headers: work.headers, session: session,
-                        trigger: work.trigger, waitForAll: true
+                        trigger: work.trigger, waitForAll: true, probe: work.probe
                     )
                 }
             }
@@ -601,12 +607,15 @@ final class ServerPool {
         let candidates: [ConnectionCandidate]
         let headers: [String: String]
         let trigger: String
+        /// The server's provider's probe; nil is the built-in Plex probe.
+        var probe: ConnectionProbe? = nil
     }
 
     private nonisolated static func resolve(_ work: ProbeWork, session: URLSession) async -> ConnectionSelector.Selection {
         await ConnectionSelector.select(
             candidates: work.candidates, serverID: work.serverID, serverName: work.name,
-            token: work.token, headers: work.headers, session: session, trigger: work.trigger
+            token: work.token, headers: work.headers, session: session, trigger: work.trigger,
+            probe: work.probe
         )
     }
 
@@ -676,7 +685,8 @@ final class ServerPool {
         headers.removeValue(forKey: ConnectionSelector.credentialHeader)
         return .ready(ProbeWork(
             serverID: serverID, name: server.name, token: token,
-            candidates: candidates, headers: headers, trigger: trigger
+            candidates: candidates, headers: headers, trigger: trigger,
+            probe: factory(for: serverID)?.connectionProbe(serverID: serverID, credential: token)
         ))
     }
 

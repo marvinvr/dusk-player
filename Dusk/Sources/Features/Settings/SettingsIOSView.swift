@@ -102,14 +102,18 @@ struct SettingsIOSView: View {
                     }
                     .duskSuppressTVOSButtonChrome()
 
-                    Toggle("Automatically Sign In", isOn: automaticHomeSignInBinding)
-                        .foregroundStyle(Color.duskTextPrimary)
+                    if media.offersAutomaticProfileSignIn {
+                        Toggle("Automatically Sign In", isOn: automaticHomeSignInBinding)
+                            .foregroundStyle(Color.duskTextPrimary)
+                    }
                 } header: {
-                    Text("Plex Home")
+                    Text(media.profilesSectionTitle)
                         .foregroundStyle(Color.duskTextSecondary)
                 } footer: {
-                    Text("When off, Dusk asks who’s watching at launch.")
-                        .foregroundStyle(Color.duskTextSecondary)
+                    if media.offersAutomaticProfileSignIn {
+                        Text("When off, Dusk asks who’s watching at launch.")
+                            .foregroundStyle(Color.duskTextSecondary)
+                    }
                 }
                 .listRowBackground(Color.duskSurface)
             }
@@ -246,6 +250,7 @@ struct SettingsIOSView: View {
             privacySection
 
             Section {
+                if media.hasOnlineAccount {
                 Button {
                     presentedAccountURL = SettingsSupport.plexAccountURL
                 } label: {
@@ -271,13 +276,14 @@ struct SettingsIOSView: View {
                     )
                 }
                 .duskSuppressTVOSButtonChrome()
+                }
 
                 Button("Sign Out", role: .destructive) {
                     confirmsSigningOut = true
                 }
                 .duskSuppressTVOSButtonChrome()
                 .confirmationDialog(
-                    "Sign out of Plex?",
+                    "Sign out of \(media.accountProductName)?",
                     isPresented: $confirmsSigningOut,
                     titleVisibility: .visible
                 ) {

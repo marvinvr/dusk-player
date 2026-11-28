@@ -13,8 +13,13 @@ in Dusk. Read this with `docs/codebase-map.md`, `STYLE.md`, and `docs/data-and-p
   controls, navigation buttons and the tab bar selection are neutral and adapt
   over both artwork and light content backgrounds.
 - `ContentView` is the account-bootstrap root gate: unauthenticated users see
-  `SignInView`; signed-in Plex Home accounts are checked and, when needed, show
-  `HomeUserPickerView`; an active Home identity enters `MainTabView`. **There is
+  `SignInView` (Plex's welcome screen with a "Sign in with Jellyfin" button
+  under Plex's own; Jellyfin asks for the server address, then user name +
+  password or a Quick Connect code — Apple TV opens on the code when the server
+  has Quick Connect on, on the same code screen as Plex's link code); signed-in
+  Plex Home accounts are checked and, when needed, show `HomeUserPickerView`
+  (Jellyfin: the saved users of the server plus its login-screen users, a
+  password instead of a PIN); an active identity enters `MainTabView`. **There is
   no server step in onboarding.**
 - Cold launch is covered by `LaunchSplashOverlay` (`App/LaunchSplash.swift`), not a
   spinner. It starts as a pixel copy of the launch storyboards (same logo size,

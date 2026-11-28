@@ -11,7 +11,7 @@ import OSLog
 extension MediaService {
     /// The signed-in account's watchlist facet, like `accountPreferences`.
     var watchlistProvider: (any WatchlistProviding)? {
-        plexAccount.watchlist
+        primaryAccount.watchlist
     }
 
     /// How long a loaded list is reused when Home reloads.

@@ -31,7 +31,7 @@ struct ProviderRegistryTests {
         ))
         #expect(provider.client === service.client)
         #expect(service.providers.factory(for: .plex) != nil)
-        #expect(service.providers.factory(for: .jellyfin) == nil)
+        #expect(service.providers.factory(for: .jellyfin) is JellyfinProviderFactory)
     }
 
     @Test func theProviderIsNotPartOfSessionEquality() {

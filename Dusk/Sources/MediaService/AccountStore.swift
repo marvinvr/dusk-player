@@ -27,8 +27,9 @@ struct ProfileScope: Sendable, Hashable {
 /// Nothing here is persisted. Each provider reads its own records in place
 /// from the credentials it already stores (`ProviderFactory.storedAccounts()`),
 /// so an install signed in before accounts existed reads exactly as it was
-/// written. Plex is the only provider, so there is at most one account and it
-/// is the primary one; linked accounts (04 §7.3) arrive with J-13.
+/// written. One account is signed in from the sign-in screen at a time (Plex,
+/// or the active Jellyfin user, listed first); linked accounts (04 §7.3)
+/// arrive with J-13.
 @MainActor
 @Observable
 final class AccountStore {

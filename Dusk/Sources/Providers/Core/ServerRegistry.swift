@@ -17,8 +17,9 @@ struct ServerRecord: Codable, Sendable, Hashable {
 /// Plex**: that is every id persisted before Jellyfin support, so nothing on
 /// disk needs a record to keep working.
 ///
-/// Lookup only for now: nothing registers a server yet and nothing is stored.
-/// Persisting records arrives with the first provider that needs one.
+/// Not persisted: a provider whose accounts know their server ids claims them
+/// through `ProviderFactory.ownsServer` (`ProviderRegistry.kind(for:registry:)`),
+/// so records are only the tests' explicit overrides.
 struct ServerRegistry: Sendable {
     private var records: [String: ServerRecord] = [:]
 

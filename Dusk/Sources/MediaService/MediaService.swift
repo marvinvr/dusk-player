@@ -14,8 +14,9 @@ final class MediaService {
     /// `activeAccountToken` explicitly.
     var authToken: String? { activeAccountToken }
 
-    var isAuthenticated: Bool { primaryAccountToken != nil }
+    var isAuthenticated: Bool { primaryAccountToken != nil || accountSession?.isSignedIn == true }
     var activeProfileID: String? {
+        if let accountSession { return accountSession.activeProfileID }
         if needsHomeUserSelection, activeHomeUser == nil {
             return nil
         }
@@ -28,19 +29,29 @@ final class MediaService {
     /// What `ContentView` shows: one value instead of `isAuthenticated`,
     /// `homeBootstrapCompleted` and `needsHomeUserSelection`.
     var sessionState: SessionState {
+        if let accountSession {
+            if !accountSession.isSignedIn { return .signedOut }
+            return accountSession.needsProfileSelection ? .needsProfile : .ready
+        }
         if !isAuthenticated { return .signedOut }
         if !homeBootstrapCompleted { return .bootstrapping }
         if needsHomeUserSelection { return .needsProfile }
         return .ready
     }
     var isSessionReady: Bool {
-        isAuthenticated
+        if let accountSession {
+            return accountSession.isSignedIn
+                && accountSession.activeProfileID != nil
+                && !accountSession.needsProfileSelection
+        }
+        return isAuthenticated
             && homeBootstrapCompleted
             && activeProfileID != nil
             && !needsHomeUserSelection
     }
     var shouldAdoptLegacyProfileData: Bool {
-        homeBootstrapCompleted
+        accountSession == nil
+            && homeBootstrapCompleted
             && primaryProfileID != nil
             && activeAccountToken == primaryAccountToken
             && (activeHomeUser == nil || activeHomeUser?.stableProfileID == primaryProfileID)
@@ -78,8 +89,8 @@ final class MediaService {
 
     @ObservationIgnored var streamSelectionWriteTask: Task<Void, Error>?
 
-    /// The signed-in account's provider. It owns the account's credentials and
-    /// profile state, its account requests and server discovery, and the
+    /// The Plex account's provider. It owns the account's credentials and
+    /// Plex Home state, its account requests and server discovery, and the
     /// request core its servers' facets send through.
     let accountProvider: any MediaAccountProvider
     /// The provider factories. The pool builds each session's server provider
@@ -135,6 +146,12 @@ final class MediaService {
         accountProvider.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
         // The account's routed send asks this service's pool for every step.
         accountProvider.attach(recovering: self)
+        // Before the pool restores last launch's sessions: a restored server
+        // finds its provider through the accounts that hold it.
+        for account in standard.additionalAccounts {
+            account.restoreCredentials(readsStoredSignIn: readsStoredSignIn)
+            account.attach(recovering: self)
+        }
 
         pool.configure(
             probeSession: probeSession,

@@ -98,11 +98,16 @@ extension MediaService {
     /// on, so each request resolves the highest-priority server when it is
     /// sent.
     func serverProvider(for serverID: String?) -> any MediaServerProvider {
-        let id = serverID?.nilIfEmpty
+        var id = serverID?.nilIfEmpty
+        // An account with its own session has one server, so nil is that
+        // server, never a Plex primary-tracking provider.
+        if id == nil, let accountSession {
+            id = accountSession.accountServers().first?.clientIdentifier
+        }
         if let id, let provider = pool.provider(for: id) {
             return provider
         }
-        let factory = providers.factory(for: serverRegistry.kind(for: id)) ?? providers.factories[0]
+        let factory = providers.factory(for: providers.kind(for: id, registry: serverRegistry)) ?? providers.factories[0]
         return factory.makeServerProvider(
             ServerSessionSeed(serverID: id ?? "", name: "", version: nil, owned: false, sourceTitle: nil)
         )

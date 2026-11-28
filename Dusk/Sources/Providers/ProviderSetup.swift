@@ -6,7 +6,11 @@ import Foundation
 /// The only place outside a provider's folder that names a provider type.
 enum ProviderSetup {
     struct Standard {
+        /// The Plex account, which the facade's Plex Home orchestration drives.
         let account: any MediaAccountProvider
+        /// The other providers' accounts. Each runs its own session
+        /// (`AccountSession`); the facade restores and attaches them too.
+        let additionalAccounts: [any MediaAccountProvider]
         let registry: ProviderRegistry
     }
 
@@ -17,6 +21,13 @@ enum ProviderSetup {
     static func standard(clientIdentifier: String, urlProtocolClasses: [AnyClass]? = nil) -> Standard {
         let client = PlexClient(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
         let account = PlexAccountProvider(client: client)
-        return Standard(account: account, registry: ProviderRegistry([PlexProviderFactory(account: account)]))
+        let jellyfin = JellyfinAccountProvider(
+            sessions: urlProtocolClasses.map { JellyfinSessions(urlProtocolClasses: $0) } ?? .standard
+        )
+        return Standard(
+            account: account,
+            additionalAccounts: [jellyfin],
+            registry: ProviderRegistry([PlexProviderFactory(account: account), JellyfinProviderFactory(account: jellyfin)])
+        )
     }
 }
