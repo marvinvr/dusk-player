@@ -1,22 +1,5 @@
 import Foundation
 
-/// How a Plex facet reaches its server: the facade's routed request, which
-/// picks the server, re-authorizes a missing session, validates a restored
-/// endpoint, refreshes the token on a 401 and re-selects a failing connection
-/// (`MediaService.rawServerRequest`). `PlexClient` sends single attempts only,
-/// so until it carries that routing itself (04 §8 `SessionRecovering`) the
-/// facade hands itself in.
-@MainActor
-protocol PlexUserDataTransport: AnyObject, Sendable {
-    func rawServerRequest(
-        method: String,
-        path: String,
-        queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval?,
-        serverID: String?
-    ) async throws -> Data
-}
-
 /// Plex's `UserDataProviding`: `/:/timeline`, `/:/scrobble` and
 /// `/:/unscrobble` on one server.
 struct PlexUserData: UserDataProviding {
@@ -25,9 +8,9 @@ struct PlexUserData: UserDataProviding {
     let serverID: String?
     /// nil only on the provider's own facet (see `PlexServerProvider.userData`),
     /// which then refuses every call.
-    let transport: (any PlexUserDataTransport)?
+    let transport: (any PlexServerTransport)?
 
-    nonisolated init(serverID: String?, transport: (any PlexUserDataTransport)?) {
+    nonisolated init(serverID: String?, transport: (any PlexServerTransport)?) {
         self.serverID = serverID
         self.transport = transport
     }

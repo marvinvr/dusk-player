@@ -4,12 +4,11 @@ import Foundation
 /// lives on a single server and belongs to the signed-in user, so every call
 /// goes to the playlist's own server and an item can only be added to a
 /// playlist on the server it came from.
-extension MediaService: PlexPlaylistsTransport {}
 
 extension MediaService {
     /// The playlist facet of one server. Built here rather than read off
     /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexPlaylistsTransport`).
+    /// facade (`PlexServerTransport`).
     func playlistFacet(on serverID: String?) throws -> any PlaylistProviding {
         PlexPlaylists(serverID: try resolveServerID(serverID), transport: self)
     }

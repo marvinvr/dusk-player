@@ -15,8 +15,8 @@ import Foundation
 struct PlexPlaylists: PlaylistProviding {
     let serverID: String
     /// nil on the value `PlexServerProvider.playlists` hands out, which then
-    /// throws `noServerConnected`; see `PlexPlaylistsTransport`.
-    let transport: (any PlexPlaylistsTransport)?
+    /// throws `noServerConnected`; see `PlexServerTransport`.
+    let transport: (any PlexServerTransport)?
 
     /// Video playlists only: Dusk shows no audio or photo playlists.
     @MainActor func playlists() async throws -> [Playlist] {
@@ -143,31 +143,10 @@ struct PlexPlaylists: PlaylistProviding {
             .MediaContainer.Metadata ?? []
     }
 
-    @MainActor private func routed() throws -> any PlexPlaylistsTransport {
+    @MainActor private func routed() throws -> any PlexServerTransport {
         guard let transport else { throw PlexServiceError.noServerConnected }
         return transport
     }
-}
-
-/// How the Plex playlists facet reaches its server for now.
-///
-/// Routing, the token refresh and self-healing still live in
-/// `MediaService+Networking` (05-plan P0-06), and a provider is built without
-/// any of them, so the facade builds this facet itself with itself as the
-/// transport (`MediaService.playlists(on:)`). Once the pool owns recovery (04 §8,
-/// P0-16) the facet sends through `PlexClient` and the facade routes through
-/// `session.provider.playlists`.
-@MainActor
-protocol PlexPlaylistsTransport: AnyObject, Sendable {
-    func rawServerRequest(
-        method: String,
-        path: String,
-        queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval?,
-        serverID: String?
-    ) async throws -> Data
-
-    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String?) throws -> T
 }
 
 /// The `PUT /playlists/{id}/items` answer.
@@ -181,7 +160,7 @@ private struct PlaylistAddResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexPlaylistsTransport`. Nothing reads it in
+    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
     /// Phase 0; the facade uses `MediaService.playlists(on:)`.
     var playlists: any PlaylistProviding { PlexPlaylists(serverID: descriptor.id, transport: nil) }
 }

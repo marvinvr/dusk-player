@@ -13,7 +13,7 @@ import Foundation
 extension MediaService {
     /// The catalog facet of one server. Built here rather than read off
     /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexCatalogTransport`).
+    /// facade (`PlexServerTransport`).
     func catalog(on serverID: String) -> any CatalogProviding {
         plexCatalog(on: serverID)
     }
@@ -260,20 +260,9 @@ extension MediaService {
             queryItems.append(URLQueryItem(name: "checkFiles", value: "1"))
         }
         return try await rawServerRequest(
-            path: PlexMetadataCache.metadataEndpoint(itemID),
+            path: PlexMetadataSnapshotFormat.metadataEndpoint(itemID),
             queryItems: queryItems,
             serverID: serverID
         )
     }
-
-    func getChildrenPayload(itemID: String, serverID: String? = nil) async throws -> Data {
-        try await rawServerRequest(
-            path: PlexMetadataCache.childrenEndpoint(itemID),
-            serverID: serverID
-        )
-    }
 }
-
-/// The facade sends the Plex catalog and rating facets' requests
-/// (`PlexCatalogTransport`).
-extension MediaService: PlexCatalogTransport {}

@@ -398,7 +398,7 @@ Files: the facade routes in `MediaService+Library.swift`, `+Collections`,
 `Providers/Plex/PlexCatalog.swift` (`CatalogProviding`, docs/jellyfin/04 §9) and
 `PlexUserRating.swift` (`UserRatingProviding`). The facade builds both facets
 with itself as transport (`catalog(on:)`, `plexCatalog(on:)`, `userRating(on:)`;
-`PlexCatalogTransport`) until P0-16 routes through `session.provider`. Hidden
+`PlexServerTransport`) until the routing leaves the facade. Hidden
 libraries, merging, alternates and the next/previous episode walk stay in the
 facade.
 

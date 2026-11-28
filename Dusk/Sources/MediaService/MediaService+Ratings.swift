@@ -3,7 +3,7 @@ import Foundation
 extension MediaService {
     /// The user-rating facet of one server. Built here rather than read off
     /// `session.provider` while routing still lives in the facade
-    /// (`PlexCatalogTransport`).
+    /// (`PlexServerTransport`).
     func userRating(on serverID: String) -> any UserRatingProviding {
         PlexUserRating(serverID: serverID, transport: self)
     }

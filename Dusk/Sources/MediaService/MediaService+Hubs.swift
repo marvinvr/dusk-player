@@ -8,7 +8,7 @@ import Foundation
 extension MediaService {
     /// The home facet of one server. Built here rather than read off
     /// `session.provider` while routing and self-healing still live in the
-    /// facade (`PlexHomeRowsTransport`).
+    /// facade (`PlexServerTransport`).
     func home(on serverID: String) -> any HomeProviding {
         PlexHomeRows(serverID: serverID, transport: self)
     }
@@ -45,20 +45,4 @@ extension MediaService {
         let items = try await home(on: resolveServerID(serverID)).rowItems(rowKey: hubKey, start: start, size: size)
         return await loadedHiddenLibraryFilter().filtering(items)
     }
-
-    /// `MediaContainer.Hub` rows of any hub path, mapped onto the server they
-    /// came from. Only `search` (`MediaService+Library`) still asks for a raw
-    /// path; Home's own rows go through the facet's verbs.
-    func fetchHomeRows(
-        path: String,
-        queryItems: [URLQueryItem]? = nil,
-        timeoutInterval: TimeInterval? = nil,
-        serverID: String? = nil
-    ) async throws -> [HomeRow] {
-        try await PlexHomeRows(serverID: resolveServerID(serverID), transport: self)
-            .rows(path: path, queryItems: queryItems, timeoutInterval: timeoutInterval)
-    }
 }
-
-/// The facade sends the Plex home facet's requests (`PlexHomeRowsTransport`).
-extension MediaService: PlexHomeRowsTransport {}

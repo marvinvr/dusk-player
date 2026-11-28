@@ -5,7 +5,7 @@ import Foundation
 /// profile's token and refresh it on a 401 (`MediaService+Networking`).
 /// `PlexClient` sends single attempts only, so until it carries that routing
 /// itself (04 §8 `SessionRecovering`) the facade hands itself in, as it does
-/// for the server facets (`PlexUserDataTransport`).
+/// for the server facets (`PlexServerTransport`).
 @MainActor
 protocol PlexAccountTransport: AnyObject, Sendable {
     /// The token account-scoped calls go out with (the active Home member's).

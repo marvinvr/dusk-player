@@ -2,12 +2,12 @@ import Foundation
 
 /// Plex's `UserRatingProviding`: `PUT /:/rate`, on Plex's 0–10 scale.
 ///
-/// Every request goes to `serverID` through `transport` (`PlexCatalogTransport`).
+/// Every request goes to `serverID` through `transport` (`PlexServerTransport`).
 struct PlexUserRating: UserRatingProviding {
     let serverID: String
     /// nil on the value `PlexServerProvider.rating` hands out, which then
     /// throws `noServerConnected`.
-    let transport: (any PlexCatalogTransport)?
+    let transport: (any PlexServerTransport)?
 
     /// `rating=-1` clears it.
     func setRating(_ rating: Int?, itemID: String) async throws {
@@ -27,7 +27,7 @@ struct PlexUserRating: UserRatingProviding {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexCatalogTransport`. Nothing reads it in
+    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
     /// Phase 0; the facade uses `MediaService.userRating(on:)`.
     var rating: (any UserRatingProviding)? { PlexUserRating(serverID: descriptor.id, transport: nil) }
 }

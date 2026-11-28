@@ -364,3 +364,8 @@ final class MediaService {
         }
     }
 }
+
+/// The facade sends the Plex server facets' requests (`PlexServerTransport`).
+/// Declared here: the protocol is `Sendable`, which must be conformed to in
+/// the class's own file.
+extension MediaService: PlexServerTransport {}

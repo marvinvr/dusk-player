@@ -9,8 +9,8 @@ import Foundation
 struct PlexHomeRows: HomeProviding {
     let serverID: String
     /// nil on the value `PlexServerProvider.home` hands out, which then throws
-    /// `noServerConnected`; see `PlexHomeRowsTransport`.
-    let transport: (any PlexHomeRowsTransport)?
+    /// `noServerConnected`; see `PlexServerTransport`.
+    let transport: (any PlexServerTransport)?
 
     /// `includeGuids=1` so merging across servers can match the same title by
     /// its global Plex guid instead of falling back to title/year heuristics.
@@ -171,31 +171,10 @@ struct PlexHomeRows: HomeProviding {
         return (response.MediaContainer.Hub ?? []).map { PlexHubMapper.map($0, serverID: serverID) }
     }
 
-    @MainActor private func routed() throws -> any PlexHomeRowsTransport {
+    @MainActor private func routed() throws -> any PlexServerTransport {
         guard let transport else { throw PlexServiceError.noServerConnected }
         return transport
     }
-}
-
-/// How the Plex home facet reaches its server for now.
-///
-/// Routing, the token refresh and self-healing still live in
-/// `MediaService+Networking` (05-plan P0-06), and a provider is built without
-/// any of them, so the facade builds this facet itself with itself as the
-/// transport (`MediaService.home(on:)`). Once the pool owns recovery (04 §8,
-/// P0-16) the facet sends through `PlexClient` and the facade routes through
-/// `session.provider.home`.
-@MainActor
-protocol PlexHomeRowsTransport: AnyObject, Sendable {
-    func rawServerRequest(
-        method: String,
-        path: String,
-        queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval?,
-        serverID: String?
-    ) async throws -> Data
-
-    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String?) throws -> T
 }
 
 private struct ManagedHubResponse: Decodable {
@@ -207,7 +186,7 @@ private struct ManagedHubResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexHomeRowsTransport`. Nothing reads it in
+    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
     /// Phase 0; the facade uses `MediaService.home(on:)`.
     var home: any HomeProviding { PlexHomeRows(serverID: descriptor.id, transport: nil) }
 }

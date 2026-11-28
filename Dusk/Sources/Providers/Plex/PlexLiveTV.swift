@@ -394,21 +394,11 @@ enum PlexLiveTVStream: Sendable {
 /// (04 §8, P0-16) the facet sends through `PlexClient` and the facade routes
 /// through `session.provider.liveTV`.
 @MainActor
-protocol PlexLiveTVTransport: AnyObject, Sendable {
+protocol PlexLiveTVTransport: PlexServerTransport {
     var clientIdentifier: String { get }
 
     /// The id itself, or the highest-priority server for nil.
     func resolveServerID(_ serverID: String?) throws -> String
-
-    func rawServerRequest(
-        method: String,
-        path: String,
-        queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval?,
-        serverID: String?
-    ) async throws -> Data
-
-    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String?) throws -> T
 
     /// A direct play of the tuned session's own HLS, or nil when the server
     /// does not offer one.

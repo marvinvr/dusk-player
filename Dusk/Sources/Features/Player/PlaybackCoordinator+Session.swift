@@ -2295,24 +2295,12 @@ extension PlaybackCoordinator {
                snapshot.durationMs > 0,
                snapshot.timeMs > Int(Double(snapshot.durationMs) * 0.9) {
                 hasScrobbled = true
-                reportFinishedToTrakt()
-                if activePlaybackUsesLocalDownload {
-                    offlinePlaybackSyncManager?.recordProgress(
-                        serverID: activePlaybackServerID,
-                        itemID: itemID,
-                        viewOffsetMs: snapshot.timeMs,
-                        durationMs: snapshot.durationMs,
-                        state: .stopped
-                    )
-                    Task {
-                        await offlinePlaybackSyncManager?.syncPendingActions()
-                    }
-                } else {
-                    let serverID = activePlaybackServerID
-                    Task {
-                        try? await self.media.scrobble(itemID: itemID, serverID: serverID)
-                    }
-                }
+                recordFinishedPlayback(
+                    itemID: itemID,
+                    timeMs: snapshot.timeMs,
+                    durationMs: snapshot.durationMs,
+                    state: .stopped
+                )
             }
 
             // Keep Next N Unwatched: a finished episode leaves the show's

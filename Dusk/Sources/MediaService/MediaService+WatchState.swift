@@ -2,7 +2,6 @@ import Foundation
 
 /// Progress reports and watched state, routed to the item's server's
 /// `UserDataProviding` (docs/jellyfin/04-architecture.md §12.5).
-extension MediaService: PlexUserDataTransport {}
 
 extension MediaService {
     /// The user-data facet of `serverID` (nil = the primary server, which is
@@ -11,7 +10,7 @@ extension MediaService {
     /// Every server is a Plex server until J-01. The facet is built here rather
     /// than read off the session's provider because the routed send it needs
     /// (re-authorization, restored-endpoint validation, 401 refresh, recovery)
-    /// still lives in this facade; see `PlexUserDataTransport`.
+    /// still lives in this facade; see `PlexServerTransport`.
     func userData(on serverID: String?) throws -> any UserDataProviding {
         PlexUserData(serverID: try resolveServerID(serverID), transport: self)
     }
@@ -40,19 +39,12 @@ extension MediaService {
         )
     }
 
-    /// The player's "finished" write (`PlaybackCoordinator+Session` still calls
-    /// it by this name). Same as `setWatched(true, …)`.
-    func scrobble(itemID: String, serverID: String? = nil) async throws {
-        try await setWatched(true, itemID: itemID, serverID: serverID)
-    }
-
     /// `PlaybackTraits.serverAppliesWatchedThreshold` for the server: true
     /// when it marks an item played on its own from the stopped report, so the
     /// coordinator's 90 % rule must not write it a second time. Plex never
-    /// does. Reads the provider's traits once `PlaybackProviding.traits`
-    /// exists (P0-09).
+    /// does.
     func serverAppliesWatchedThreshold(serverID: String?) -> Bool {
-        false
+        playback(for: serverID).traits.serverAppliesWatchedThreshold
     }
 
     /// Hides an item from the server-wide "Continue Watching" hub without

@@ -11,8 +11,8 @@ import Foundation
 struct PlexCatalog: CatalogProviding {
     let serverID: String
     /// nil on the value `PlexServerProvider.catalog` hands out, which then
-    /// throws `noServerConnected`; see `PlexCatalogTransport`.
-    let transport: (any PlexCatalogTransport)?
+    /// throws `noServerConnected`; see `PlexServerTransport`.
+    let transport: (any PlexServerTransport)?
 
     // MARK: - Libraries and browse
 
@@ -338,7 +338,7 @@ struct PlexCatalog: CatalogProviding {
 
     // MARK: - Requests
 
-    private func routed() throws -> any PlexCatalogTransport {
+    private func routed() throws -> any PlexServerTransport {
         guard let transport else { throw PlexServiceError.noServerConnected }
         return transport
     }
@@ -526,27 +526,6 @@ extension LibrarySortOption {
     var plexValue: String { PlexCatalog.sortValue(self) }
 }
 
-/// How the Plex catalog and rating facets reach their server for now.
-///
-/// Routing, the token refresh and self-healing still live in
-/// `MediaService+Networking` (05-plan P0-06), and a provider is built without
-/// any of them, so the facade builds these facets itself with itself as the
-/// transport (`MediaService.plexCatalog(on:)`, `userRating(on:)`). Once the
-/// pool owns recovery (04 §8, P0-16) the facets send through `PlexClient` and
-/// the facade routes through `session.provider.catalog` / `.rating`.
-@MainActor
-protocol PlexCatalogTransport: AnyObject, Sendable {
-    func rawServerRequest(
-        method: String,
-        path: String,
-        queryItems: [URLQueryItem]?,
-        timeoutInterval: TimeInterval?,
-        serverID: String?
-    ) async throws -> Data
-
-    func decodeJSON<T: Decodable>(_ type: T.Type, from data: Data, serverID: String?) throws -> T
-}
-
 /// Section settings rarely change while the app runs; one read per section
 /// per launch is enough.
 @MainActor
@@ -586,7 +565,7 @@ private struct SectionPrefsResponse: Decodable {
 }
 
 extension PlexServerProvider {
-    /// Not routed yet: see `PlexCatalogTransport`. Nothing reads it in
+    /// Not routed yet: see `PlexServerTransport`. Nothing reads it in
     /// Phase 0; the facade uses `MediaService.catalog(on:)`.
     var catalog: any CatalogProviding { PlexCatalog(serverID: descriptor.id, transport: nil) }
 }
