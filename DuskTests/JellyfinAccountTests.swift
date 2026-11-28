@@ -19,6 +19,7 @@ struct JellyfinAccountTests {
             "https://jellyfin.example.com",
             "http://jellyfin.example.com:8096",
             "https://jellyfin.example.com:8920",
+            "http://jellyfin.example.com",
         ])
     }
 

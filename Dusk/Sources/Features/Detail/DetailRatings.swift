@@ -123,7 +123,8 @@ private struct DetailUserStars: View {
 }
 
 /// The hero's Rate action: an icon-only secondary that opens a menu of star
-/// ratings (and Clear). The icon fills once the title is rated.
+/// ratings (and Clear). The icon fills once the title is rated. Absent when
+/// the title's server has no user ratings.
 struct DetailRateHeroButton: View {
     @Environment(MediaService.self) private var media
 
@@ -131,6 +132,12 @@ struct DetailRateHeroButton: View {
     let id: MediaItemID
 
     var body: some View {
+        if media.canRate(id) {
+            menu
+        }
+    }
+
+    private var menu: some View {
         Menu {
             Section("Your Rating") {
                 ForEach((1...5).reversed(), id: \.self) { stars in

@@ -141,12 +141,16 @@ struct DetailExtrasShelf: View {
 
 /// The hero's Trailer action: an icon-only secondary button that plays the
 /// title's trailer extra, absent while the extras load or when there is none.
+/// Without a trailer extra, a web-only trailer (`remoteTrailerURL`) opens in
+/// its app or the browser; tvOS has no browser, so there it stays hidden.
 struct DetailTrailerHeroButton: View {
     @Environment(PlaybackCoordinator.self) private var playback
+    @Environment(\.openURL) private var openURL
 
     let model: DetailExtrasModel
     let primaryExtraKey: String?
     let ownerTitle: String?
+    var remoteTrailerURL: URL? = nil
 
     var body: some View {
         if let trailer = model.trailer(primaryExtraKey: primaryExtraKey) {
@@ -157,6 +161,22 @@ struct DetailTrailerHeroButton: View {
             }
             .detailHeroNativeSecondaryButtonStyle()
             .accessibilityLabel("Play Trailer")
+        } else if let remoteTrailerURL = openableRemoteTrailerURL {
+            Button {
+                openURL(remoteTrailerURL)
+            } label: {
+                DetailHeroSecondaryIconLabel(systemImage: "movieclapper", title: "Play Trailer")
+            }
+            .detailHeroNativeSecondaryButtonStyle()
+            .accessibilityLabel("Play Trailer")
         }
+    }
+
+    private var openableRemoteTrailerURL: URL? {
+        #if os(tvOS)
+        nil
+        #else
+        remoteTrailerURL
+        #endif
     }
 }

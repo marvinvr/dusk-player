@@ -408,7 +408,8 @@ struct SeriesDetailView: View {
             DetailTrailerHeroButton(
                 model: showExtras,
                 primaryExtraKey: viewModel.show?.details?.primaryExtraKey,
-                ownerTitle: viewModel.show?.details?.title
+                ownerTitle: viewModel.show?.details?.title,
+                remoteTrailerURL: viewModel.show?.details?.remoteTrailerURL
             )
 
             Button {

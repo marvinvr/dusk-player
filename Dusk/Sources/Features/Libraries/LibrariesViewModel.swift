@@ -135,10 +135,7 @@ final class LibrariesViewModel {
         await withTaskGroup(of: LibraryItemCountCheck.self) { group in
             for library in uncounted {
                 group.addTask { [media] in
-                    let count = try? await media.getLibraryItemCount(
-                        sectionId: library.key,
-                        serverID: library.serverID
-                    )
+                    let count = try? await media.libraryItemCount(in: library)
                     // A cancelled load (the shell's task restarts as servers
                     // connect) says nothing about the section: leave it
                     // uncounted for the next load.

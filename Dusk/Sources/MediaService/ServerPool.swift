@@ -536,7 +536,13 @@ final class ServerPool {
     /// raw-address `http://` form of an HTTPS plex.direct connection, and the
     /// endpoint this device used last when plex.tv no longer lists it. Order is
     /// not priority — `ConnectionSelector` ranks them — but it is stable.
-    static func connectionCandidates(for server: AccountServer, lastKnownGood: URL? = nil) -> [ConnectionCandidate] {
+    /// - Parameter listedSource: what the server's own connections are
+    ///   labelled in Connection Diagnostics (`ProviderFactory.listedConnectionSource`).
+    static func connectionCandidates(
+        for server: AccountServer,
+        lastKnownGood: URL? = nil,
+        listedSource: ConnectionCandidateSource = .plex
+    ) -> [ConnectionCandidate] {
         var candidates: [ConnectionCandidate] = []
         var seen = Set<String>()
 
@@ -547,7 +553,7 @@ final class ServerPool {
         }
 
         for connection in server.sortedConnections where !connection.isKnownUnreachableAddress {
-            append(connection.uri, connection, .plex)
+            append(connection.uri, connection, listedSource)
             append(httpsUpgradeURI(for: connection.uri), connection, .httpsUpgrade)
             if !connection.relay {
                 append(connection.httpFallbackURI, connection, .httpFallback)
@@ -673,9 +679,11 @@ final class ServerPool {
             return .unavailable(.unauthorized)
         }
 
+        let factory = factory(for: serverID)
         let candidates = Self.connectionCandidates(
             for: server,
-            lastKnownGood: states[serverID]?.connection?.baseURL ?? Self.storedBaseURL(serverID: serverID)
+            lastKnownGood: states[serverID]?.connection?.baseURL ?? Self.storedBaseURL(serverID: serverID),
+            listedSource: factory?.listedConnectionSource ?? .plex
         )
         guard !candidates.isEmpty else {
             return .unavailable(.offline("No connections for \(server.name)"))
@@ -686,7 +694,7 @@ final class ServerPool {
         return .ready(ProbeWork(
             serverID: serverID, name: server.name, token: token,
             candidates: candidates, headers: headers, trigger: trigger,
-            probe: factory(for: serverID)?.connectionProbe(serverID: serverID, credential: token)
+            probe: factory?.connectionProbe(serverID: serverID, credential: token)
         ))
     }
 

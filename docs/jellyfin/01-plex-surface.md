@@ -232,7 +232,7 @@ All server calls go through `rawServerRequest` and are scoped by `serverID`.
 | Libraries | `/library/sections` | `getLibraries` — `+Library:10` |
 | Items | `/library/sections/{id}/all` + `X-Plex-Container-Start/Size`, `sort`, filters | `getLibraryItems` :13, `getLibraryItemCount` :44 |
 | A–Z | `/library/sections/{id}/firstCharacter` | `getLibraryFirstCharacters` :73 |
-| Filters | `/library/sections/{id}/filters`, each filter's `key` | `getLibraryFilters`, `getLibraryFilterValues` |
+| Filters | `/library/sections/{id}/filters`, each filter's `key` | `libraryGenreChoices` (catalog `genreChoices`), `libraryFilterFields` / `libraryFilterChoices` |
 | Children | `/library/metadata/{k}/children`, `/allLeaves` | `getSeasons`, `getEpisodes`, `getAllEpisodes` |
 | Details | `/library/metadata/{rk}?includeMarkers=1&includeGuids=1&checkFiles=1` | `getMediaDetails(Payload)` |
 | Hubs | `/hubs?includeGuids=1`, `/hubs/continueWatching`, hub `key` paging, `/hubs/sections/{id}`, `/hubs/promoted?contentDirectoryID=` | `getHubs` :250, `getContinueWatching` :258, `getHubItems` :270, `getLibraryHubs` :111, `getLibraryPromotedHubs` :127 |

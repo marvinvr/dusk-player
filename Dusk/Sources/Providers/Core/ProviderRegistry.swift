@@ -19,11 +19,15 @@ protocol ProviderFactory: Sendable {
     /// How the pool tests one endpoint of `serverID` with `credential`. nil:
     /// the pool's built-in probe (Plex's `/identity` + `/library/sections`).
     @MainActor func connectionProbe(serverID: String, credential: String) -> ConnectionProbe?
+    /// Where this provider's servers' listed connections come from, as
+    /// Connection Diagnostics names it.
+    var listedConnectionSource: ConnectionCandidateSource { get }
 }
 
 extension ProviderFactory {
     @MainActor func ownsServer(_ serverID: String) -> Bool { false }
     @MainActor func connectionProbe(serverID: String, credential: String) -> ConnectionProbe? { nil }
+    var listedConnectionSource: ConnectionCandidateSource { .plex }
 }
 
 /// Tests one candidate endpoint of one server: does it answer as that server

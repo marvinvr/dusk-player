@@ -13,9 +13,8 @@ import Foundation
 ///
 /// Main-actor isolated, where the facade and its request routing live.
 ///
-/// Not declared yet (04 §9): `trailer(item)` (still part of `details`),
-/// `items(matching: ExternalIDs, kind)` and `playbackHistory(limit)`, which no
-/// Phase 0 flow routes through the catalog.
+/// A web-only trailer rides on `MediaDetails.remoteTrailerURL`; a local one
+/// is an extra (04 §9, `trailer(item)`).
 @MainActor
 protocol CatalogProviding: Sendable {
     // MARK: Libraries and browse
@@ -51,6 +50,10 @@ protocol CatalogProviding: Sendable {
 
     /// The values a `.values` field offers, in the server's order.
     func filterChoices(for field: LibraryFilterField) async throws -> [LibraryFilterChoice]
+
+    /// The genres the grid's genre menu offers. Each `value` is what
+    /// `LibraryFilter.genre` sends back.
+    func genreChoices(libraryID: String) async throws -> [LibraryFilterChoice]
 
     // MARK: Collections
 
@@ -99,6 +102,22 @@ protocol CatalogProviding: Sendable {
     /// them. The facade drops hidden libraries and splits the groups into
     /// `SearchSection`s.
     func searchGroups(query: String) async throws -> [HomeRow]
+
+    /// Titles of this server that are the title `ids` name: the point lookup
+    /// of watchlist matching and movie copies (04 §6.2). `kind`, `title` and
+    /// `year` narrow it; a server without an id lookup searches by them.
+    func items(matching ids: ExternalIDs, kind: MediaKind?, title: String?, year: Int?) async throws -> [MediaItem]
+
+    /// What the user watched in a library since `since`, newest first, at
+    /// most `limit` entries read `pageSize` at a time. `accountID` names the
+    /// server account whose history it is where the token alone does not.
+    func playbackHistory(
+        libraryID: String,
+        since: Date,
+        limit: Int,
+        pageSize: Int,
+        accountID: Int?
+    ) async throws -> [PlaybackHistoryEntry]
 
     // MARK: Photos
 

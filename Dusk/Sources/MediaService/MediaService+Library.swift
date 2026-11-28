@@ -61,6 +61,17 @@ extension MediaService {
             .filterFields(libraryID: library.key, includesCollection: includesCollection)
     }
 
+    /// How many titles the library lists.
+    func libraryItemCount(in library: Library) async throws -> Int {
+        try await catalog(on: resolveServerID(library.serverID))
+            .itemCount(libraryID: library.key, kind: library.libraryType, filter: LibraryFilter())
+    }
+
+    /// The genres a library's genre menu offers.
+    func libraryGenreChoices(sectionId: String, serverID: String? = nil) async throws -> [LibraryFilterChoice] {
+        try await catalog(on: resolveServerID(serverID)).genreChoices(libraryID: sectionId)
+    }
+
     /// The values a Filters sheet field offers.
     func libraryFilterChoices(for field: LibraryFilterField, in library: Library) async throws -> [LibraryFilterChoice] {
         try await catalog(on: resolveServerID(library.serverID)).filterChoices(for: field)

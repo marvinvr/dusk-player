@@ -4,8 +4,9 @@ import Foundation
 /// (docs/jellyfin/04-architecture.md §7.1).
 ///
 /// - A typed scheme is taken as it is: `http://jellyfin-demo` is only that.
-/// - A bare host tries `https://host`, `http://host:8096`, `https://host:8920`,
-///   in that order of preference (Jellyfin's default ports).
+/// - A bare host tries `https://host`, `http://host:8096`, `https://host:8920`
+///   (Jellyfin's default ports), then `http://host` (a proxy on port 80), in
+///   that order of preference.
 /// - A host with a port tries HTTPS, then HTTP, on that port.
 /// - A path is kept (a reverse proxy at `/jellyfin`); trailing slashes and a
 ///   pasted `/web/…` page path are dropped.
@@ -48,7 +49,7 @@ enum JellyfinAddress {
         if let port = parts.port {
             return [url("https", port), url("http", port)].compactMap { $0 }
         }
-        return [url("https", nil), url("http", 8096), url("https", 8920)].compactMap { $0 }
+        return [url("https", nil), url("http", 8096), url("https", 8920), url("http", nil)].compactMap { $0 }
     }
 
     /// `/jellyfin/` → `/jellyfin`; `/web/index.html` and `/jellyfin/web/#/home`

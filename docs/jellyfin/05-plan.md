@@ -498,13 +498,9 @@ matrix (§6) against `plex-demo` and `jellyfin-demo` as `duskcompare`.
   - Not verified live: switching between two *saved* users. Only
     `duskcompare`'s password was cleared for use, so this is covered by
     unit tests only.
-  - Open:
-    - A bare host only tries the 04 ladder. `jellyfin-demo` answers on
-      `http://host` (port 80) and needs the scheme typed.
-    - Connection Diagnostics labels Jellyfin candidates "plex.tv" (the
-      `.plex` candidate source).
-    - The iOS welcome tagline still says "The Plex App We Deserve." (brand
-      copy, Marvin's call).
+  - Open (the bare-host `http://host` candidate, the Connection Diagnostics
+    "server address" label and the iOS tagline "Sign in to get started."
+    landed with J-02):
     - Library order is read-only (`notImplemented` on save, J-11).
     - Seerr has no Jellyfin sign-in yet (J-12).
 
@@ -533,6 +529,47 @@ keys, person and chapter images. **Accept:** matrix rows "posters",
   jump (lands on the same first title as Plex for the shared libraries),
   movie / show / season / episode / person pages, search. Unit tests assert on
   **results**, not status codes.
+- **As built (2026-11-28).**
+  - `Providers/Jellyfin/Facets/JellyfinCatalog.swift` plus
+    `JellyfinBrowseVocabulary` (sorts, filters, A–Z as pure functions). Full
+    mapping in `docs/data-and-plex.md` → Library, Search, Hubs, And Detail
+    Endpoints.
+  - New catalog members, each Plex's request moved over unchanged:
+    `genreChoices` (the genre menu, which used to read raw `/filters`),
+    `items(matching:kind:title:year:)` (watchlist's `serverItems`) and
+    `playbackHistory` (`getPlaybackHistory`). The libraries list's empty
+    check uses the neutral count. `getLibraryFilters` and
+    `getLibraryFilterValues` are gone.
+  - `homevideos` is classified by its photo and video counts. A view that
+    holds both appears once, as whichever it holds more of.
+  - Trailers: a local trailer is an extra and plays. A web-only one opens
+    outside the app on iOS and macOS (`MediaDetails.remoteTrailerURL`) and is
+    hidden on tvOS. The `canOpenURL` variant needs the YouTube app on a
+    device, so it is not built.
+  - The Rate button is hidden when the server has no rating facet
+    (`MediaService.canRate`).
+  - Verified against jellyfin-demo, on iPhone and Apple TV simulators
+    (`~/dusk-qa/jellyfin/J-02/`) and in `JellyfinCatalogLiveTests`, which
+    asserts on titles:
+    - grid, sort, Filters sheet, collection filter (Weekend Watch → Big Buck
+      Bunny, Sintel), director, genre and resolution filters;
+    - A–Z on Paging Test (520), where each offset lands on its letter;
+    - movie with extras and the trailer button, web trailer (Knives Out);
+    - show → seasons → episodes, episode page, person page (Steve Carell);
+    - search, the Videos grid.
+  - A–Z against plex-demo's `/firstCharacter` offsets: Real Movies and Real
+    TV land on the same first titles. On Paging Test 24 of 27 buckets start
+    on the same title. `#`, L and R differ because the servers make sort
+    names differently (Plex keeps `[`, `&` and a lower-case "the"). The
+    Movies libraries hold differently named test files, so they cannot be
+    compared.
+  - Open:
+    - Library Recommended tabs and Home are empty until J-04.
+    - Collections chip, grid and page are J-07.
+    - The Photos library is listed (its count includes photos) but stays
+      empty until J-10.
+    - Hidden libraries are J-11: Jellyfin list items carry no library id,
+      so search results are not filtered by them yet.
 
 ### J-05 Playback I — L
 

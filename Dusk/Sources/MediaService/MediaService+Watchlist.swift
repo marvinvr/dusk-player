@@ -158,16 +158,7 @@ extension MediaService {
     }
 
     func serverItems(guid: String, serverID: String) async throws -> [MediaItem] {
-        let data = try await rawServerRequest(
-            path: "/library/all",
-            queryItems: [
-                URLQueryItem(name: "guid", value: guid),
-                URLQueryItem(name: "includeGuids", value: "1"),
-            ],
-            serverID: serverID
-        )
-        return try decodeJSON(MetadataResponse<MediaItem>.self, from: data, serverID: serverID)
-            .MediaContainer.Metadata ?? []
+        try await catalog(on: serverID).items(matching: ExternalIDs(uris: [guid]), kind: nil, title: nil, year: nil)
     }
 
     // MARK: - Edits

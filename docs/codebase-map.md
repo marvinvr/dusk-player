@@ -21,7 +21,8 @@ Dusk/Sources
                        shapes), Facade/ (facade extensions that are Plex-only so far)
     ProviderSetup, TransportSecurity  the build's providers, wired for MediaService
     Jellyfin/          Client, DTOs, mappers; Account/ (sign-in flow, saved users, profiles,
-                       probe), JellyfinServerProvider, JellyfinImages, Facets/ (placeholders until J-02 …)
+                       probe), JellyfinServerProvider, JellyfinImages, Facets/ (JellyfinCatalog + browse
+                       vocabulary since J-02; the rest placeholders until their J package)
   MediaService/        The facade: AccountStore + session state, sign-in/Home orchestration,
                        the multi-server session pool and its per-server recovery,
                        API calls, images, playback + subtitle URLs

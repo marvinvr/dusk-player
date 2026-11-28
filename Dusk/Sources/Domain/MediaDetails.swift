@@ -82,6 +82,10 @@ struct MediaDetails: Sendable, Identifiable {
     /// The media versions for this item. A single item can have multiple
     /// versions (e.g. different resolutions or codecs).
     var media: [MediaVersion]
+
+    /// A trailer only on the web (a YouTube link), for a title without a
+    /// local one. Dusk cannot play it, so it opens outside the app.
+    var remoteTrailerURL: URL? = nil
 }
 
 extension MediaDetails {

@@ -207,7 +207,8 @@ struct ShowDetailView: View {
                 DetailTrailerHeroButton(
                     model: extras,
                     primaryExtraKey: viewModel.details?.primaryExtraKey,
-                    ownerTitle: viewModel.details?.title
+                    ownerTitle: viewModel.details?.title,
+                    remoteTrailerURL: viewModel.details?.remoteTrailerURL
                 )
                 downloadButton()
                 watchedButton()

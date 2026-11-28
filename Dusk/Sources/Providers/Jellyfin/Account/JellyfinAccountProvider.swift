@@ -143,7 +143,7 @@ final class JellyfinAccountProvider: MediaAccountProvider {
                         sourceTitle: nil
                     ),
                     credential: server.accessToken,
-                    candidates: ServerPool.connectionCandidates(for: server)
+                    candidates: ServerPool.connectionCandidates(for: server, listedSource: .serverAddress)
                 )
             }
         }

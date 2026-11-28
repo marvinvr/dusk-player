@@ -89,6 +89,9 @@ struct JellyfinItemQuery: Hashable, Sendable {
     var fields: [JellyfinItemField] = []
     var sortBy: [JellyfinSortKey] = []
     var sortOrder: JellyfinSortOrder?
+    /// One order per `sortBy` key (`Descending,Ascending`); wins over
+    /// `sortOrder` when set.
+    var sortOrders: [JellyfinSortOrder] = []
     var startIndex: Int?
     /// `0` returns only `TotalRecordCount`.
     var limit: Int?
@@ -114,6 +117,8 @@ struct JellyfinItemQuery: Hashable, Sendable {
     var is4K: Bool?
     var isHD: Bool?
     var hasSubtitles: Bool?
+    /// `false` leaves out episodes the server only knows from metadata.
+    var isMissing: Bool?
     var hasTmdbID: Bool?
     var hasImdbID: Bool?
     var hasTvdbID: Bool?
@@ -134,7 +139,11 @@ struct JellyfinItemQuery: Hashable, Sendable {
         query.add("mediaTypes", list: mediaTypes)
         query.add("fields", list: fields)
         query.add("sortBy", list: sortBy)
-        query.add("sortOrder", sortOrder?.rawValue)
+        if sortOrders.isEmpty {
+            query.add("sortOrder", sortOrder?.rawValue)
+        } else {
+            query.add("sortOrder", list: sortOrders.map(\.rawValue))
+        }
         query.add("startIndex", startIndex)
         query.add("limit", limit)
         query.add("enableTotalRecordCount", enableTotalRecordCount)
@@ -159,6 +168,7 @@ struct JellyfinItemQuery: Hashable, Sendable {
         query.add("is4K", is4K)
         query.add("isHD", isHD)
         query.add("hasSubtitles", hasSubtitles)
+        query.add("isMissing", isMissing)
         query.add("hasTmdbId", hasTmdbID)
         query.add("hasImdbId", hasImdbID)
         query.add("hasTvdbId", hasTvdbID)

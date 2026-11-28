@@ -4,12 +4,11 @@ import Foundation
 /// §3). Its permissions are that user's `Policy`; its facets build a
 /// `JellyfinClient` for each request from the live session (`client()`).
 ///
-/// Images are J-03's `JellyfinImages`; direct play, reports, watched state,
-/// markers and scrub previews are J-05's. The other facets are placeholders
-/// that answer empty until their packages land (catalog J-02 — details already
-/// load for the player —, home J-04, server streams J-06, playlists J-07,
-/// downloads J-08a); Live TV (J-09) and subtitle search (J-11) stay nil until
-/// then.
+/// Images are J-03's `JellyfinImages`; the catalog is J-02's; direct play,
+/// reports, watched state, markers and scrub previews are J-05's. The other
+/// facets are placeholders that answer empty until their packages land (home
+/// J-04, server streams J-06, playlists J-07, downloads J-08a); Live TV (J-09)
+/// and subtitle search (J-11) stay nil until then.
 final class JellyfinServerProvider: MediaServerProvider {
     let descriptor: ServerDescriptor
     let account: JellyfinAccountProvider

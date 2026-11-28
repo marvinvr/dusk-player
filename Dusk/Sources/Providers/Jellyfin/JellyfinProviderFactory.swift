@@ -30,6 +30,9 @@ struct JellyfinProviderFactory: ProviderFactory {
         account.record(forServer: serverID) != nil
     }
 
+    /// The address the user typed and the server's `LocalAddress`.
+    var listedConnectionSource: ConnectionCandidateSource { .serverAddress }
+
     @MainActor
     func connectionProbe(serverID: String, credential: String) -> ConnectionProbe? {
         account.connectionProbe(serverID: serverID, credential: credential)

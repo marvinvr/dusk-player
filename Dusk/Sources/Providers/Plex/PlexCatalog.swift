@@ -66,6 +66,23 @@ struct PlexCatalog: CatalogProviding {
         return try await rawFilterValues(path: path).map(Self.filterChoice)
     }
 
+    /// The section's `genre` row of `/filters`, then that row's values. Each
+    /// value is the genre id inside the value's key.
+    func genreChoices(libraryID: String) async throws -> [LibraryFilterChoice] {
+        let filters = try await rawFilters(libraryID: libraryID)
+        guard let genreFilter = filters.first(where: {
+            $0.filter.localizedCaseInsensitiveCompare("genre") == .orderedSame
+        }) else {
+            return []
+        }
+        return try await rawFilterValues(path: genreFilter.key).compactMap { value in
+            guard let id = Self.filterValue(fromKey: value.key, parameter: genreFilter.filter), !id.isEmpty else {
+                return nil
+            }
+            return LibraryFilterChoice(value: id, title: value.title)
+        }
+    }
+
     // MARK: - Collections
 
     /// The section's `collection` filter values: one per channel in a video
@@ -213,6 +230,69 @@ struct PlexCatalog: CatalogProviding {
         )
         let response = try transport.decodeJSON(PlexHubResponseDTO.self, from: data, serverID: serverID)
         return (response.MediaContainer.Hub ?? []).map { PlexItemMapper.map($0, serverID: serverID) }
+    }
+
+    /// `/library/all?guid=`: Plex looks up its own guid (the first id).
+    func items(matching ids: ExternalIDs, kind: MediaKind?, title: String?, year: Int?) async throws -> [MediaItem] {
+        guard let guid = ids.uris.first else { return [] }
+        let rows: [PlexItemDTO] = try await metadata(
+            path: "/library/all",
+            queryItems: [
+                URLQueryItem(name: "guid", value: guid),
+                URLQueryItem(name: "includeGuids", value: "1"),
+            ]
+        )
+        return rows.map { PlexItemMapper.map($0, serverID: serverID) }
+    }
+
+    /// `/status/sessions/history/all` for one section, paged until `limit`.
+    func playbackHistory(
+        libraryID: String,
+        since: Date,
+        limit: Int,
+        pageSize: Int,
+        accountID: Int?
+    ) async throws -> [PlaybackHistoryEntry] {
+        let epochSeconds = Int(since.timeIntervalSince1970.rounded(.down))
+        let clampedLimit = max(limit, 0)
+        let clampedPageSize = max(pageSize, 1)
+
+        guard clampedLimit > 0 else { return [] }
+
+        var entries: [PlaybackHistoryEntry] = []
+        var start = 0
+
+        while entries.count < clampedLimit {
+            let currentPageSize = min(clampedPageSize, clampedLimit - entries.count)
+            var queryItems = [
+                URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
+                URLQueryItem(name: "X-Plex-Container-Size", value: String(currentPageSize)),
+                URLQueryItem(name: "sort", value: "viewedAt:desc"),
+                URLQueryItem(name: "librarySectionID", value: libraryID),
+                URLQueryItem(name: "viewedAt>", value: String(epochSeconds)),
+            ]
+
+            if let accountID {
+                queryItems.append(URLQueryItem(name: "accountId", value: String(accountID)))
+            }
+
+            let rows: [PlexPlaybackHistoryEntryDTO] = try await metadata(
+                path: "/status/sessions/history/all",
+                queryItems: queryItems
+            )
+            let page = rows.map { PlexUserContentMapper.playbackHistoryEntry($0, serverID: serverID) }
+
+            guard !page.isEmpty else { break }
+
+            entries.append(contentsOf: page)
+            start += page.count
+
+            if page.count < currentPageSize {
+                break
+            }
+        }
+
+        return entries
     }
 
     // MARK: - Photos
@@ -507,6 +587,22 @@ extension PlexCatalog {
     /// decoded value, which is encoded once when the query is built.
     nonisolated static func filterChoice(_ value: LibraryFilterValue) -> LibraryFilterChoice {
         LibraryFilterChoice(value: value.key.removingPercentEncoding ?? value.key, title: value.title)
+    }
+
+    /// A filter value's id from its key: the `parameter` query value
+    /// (`/library/sections/1/all?genre=12`), else the last path component.
+    nonisolated static func filterValue(fromKey key: String, parameter: String) -> String? {
+        if let components = URLComponents(string: key),
+           let queryItems = components.queryItems,
+           let value = queryItems.first(where: { $0.name == parameter })?.value {
+            return value
+        }
+
+        if key.hasPrefix("/") {
+            return key.split(separator: "/").last.map(String.init)
+        }
+
+        return key.isEmpty ? nil : key
     }
 
     /// The section prefs' `collectionMode` value.

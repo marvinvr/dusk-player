@@ -317,7 +317,12 @@ struct MovieDetailView: View {
     }
 
     private func trailerButton(_ details: MediaDetails) -> some View {
-        DetailTrailerHeroButton(model: extras, primaryExtraKey: details.primaryExtraKey, ownerTitle: details.title)
+        DetailTrailerHeroButton(
+            model: extras,
+            primaryExtraKey: details.primaryExtraKey,
+            ownerTitle: details.title,
+            remoteTrailerURL: details.remoteTrailerURL
+        )
     }
 
     private func downloadButton(_ details: MediaDetails) -> some View {

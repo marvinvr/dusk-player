@@ -221,6 +221,10 @@ struct FakeCatalog: CatalogProviding {
         throw FakeProviderError.unsupported(#function)
     }
 
+    func genreChoices(libraryID: String) async throws -> [LibraryFilterChoice] {
+        throw FakeProviderError.unsupported(#function)
+    }
+
     func channelCollections(libraryID: String) async throws -> [MediaCollection] {
         throw FakeProviderError.unsupported(#function)
     }
@@ -276,6 +280,20 @@ struct FakeCatalog: CatalogProviding {
     }
 
     func searchGroups(query: String) async throws -> [HomeRow] {
+        throw FakeProviderError.unsupported(#function)
+    }
+
+    func items(matching ids: ExternalIDs, kind: MediaKind?, title: String?, year: Int?) async throws -> [MediaItem] {
+        throw FakeProviderError.unsupported(#function)
+    }
+
+    func playbackHistory(
+        libraryID: String,
+        since: Date,
+        limit: Int,
+        pageSize: Int,
+        accountID: Int?
+    ) async throws -> [PlaybackHistoryEntry] {
         throw FakeProviderError.unsupported(#function)
     }
 

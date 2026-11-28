@@ -37,10 +37,14 @@ enum ConnectionCandidateSource: String, Sendable, Codable {
     case httpFallback
     /// The endpoint this device used last, when plex.tv no longer lists it.
     case lastKnownGood
+    /// An address the server is signed in at: the one typed at sign-in, or
+    /// the LAN address the server reports.
+    case serverAddress
 
     var label: String {
         switch self {
         case .plex: "plex.tv"
+        case .serverAddress: "server address"
         case .httpsUpgrade: "https upgrade"
         case .httpFallback: "http fallback"
         case .lastKnownGood: "last used"

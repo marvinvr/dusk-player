@@ -77,8 +77,9 @@ docs/jellyfin/04-architecture.md §2–§8 is the design; this is how it is buil
   03 §10.2). The pool's per-server token copy (`PlexServerAuthToken.<id>`) is
   disposable; Switch User tears the pool down and never logs a user out.
   Candidates are the typed URL and the server's `LocalAddress`; a bare host
-  tries `https://host`, `http://host:8096`, `https://host:8920` in parallel,
-  a typed scheme only itself. `Policy` maps to `ServerPermissions`
+  tries `https://host`, `http://host:8096`, `https://host:8920`, `http://host`
+  in parallel and takes the first in that order that answers (an earlier one
+  that times out holds the answer for up to 8 s), a typed scheme only itself. `Policy` maps to `ServerPermissions`
   (`JellyfinPolicySnapshot`) and is refreshed from `/Users/Me` on every
   connect pass; a revoked token (401) forgets that user.
 
@@ -341,7 +342,10 @@ reach his server on build 76):
   `ServerEndpoint` category. Settings › Server Priority › Connection
   Diagnostics lists each candidate, its outcome, latency and the winner, can
   probe everything to completion (`ServerPool.diagnoseAll`), re-select, and
-  copy the report (iOS). Ask testers for that report before guessing.
+  copy the report (iOS). Ask testers for that report before guessing. A
+  candidate's source label comes from its provider's factory
+  (`ProviderFactory.listedConnectionSource`): "plex.tv" for Plex, "server
+  address" for Jellyfin's typed address and `LocalAddress`.
 - `LiveConnectionProbeTests` is an opt-in real-network check
   (`TEST_RUNNER_DUSK_LIVE_TOKEN_FILE=<file>`, `TEST_RUNNER_DUSK_LIVE_AWAY=1`
   drops LAN/tailnet connections); skipped otherwise.
@@ -474,8 +478,8 @@ Files: the facade routes in `MediaService+Library.swift`, `+Collections`,
 `Providers/Plex/PlexCatalog.swift` (`CatalogProviding`, docs/jellyfin/04 §9) and
 `PlexUserRating.swift` (`UserRatingProviding`), reached through the server's
 provider (`catalog(on:)`, `userRating(on:)`). The raw routes whose callers still
-pass Plex sort strings and `/filters` parameters (`getLibraryItems`,
-`getLibraryItemCount`, `getLibraryFilters`, `getLibraryFilterValues`) are in
+pass Plex sort strings and filter parameters (`getLibraryItems`,
+`getLibraryItemCount`) are in
 `Providers/Plex/Facade/MediaService+PlexFacets.swift`. Hidden
 libraries, merging, alternates and the next/previous episode walk stay in the
 facade.
@@ -489,11 +493,54 @@ watch-state parameter by library kind, picked values, toggles as `=1`,
 `includeCollections=1` for folding), the `offeredFilters` list, and the fixed
 sort lists (`sortFields(for:)`). The grid (`LibraryItemsViewModel`) uses the
 neutral routes (`libraryItems(in:…)`, `libraryLetterCounts`,
-`librarySortFields`, `libraryFilterFields`, `libraryFilterChoices`); the
-recommendation shelves, Siri, video channels and the genre menu still pass Plex
-strings through `getLibraryItems` / `getLibraryItemCount` /
-`getLibraryFilters` / `getLibraryFilterValues`, which forward unchanged to
-`PlexCatalog.raw…`.
+`librarySortFields`, `libraryFilterFields`, `libraryFilterChoices`), the genre
+menu `libraryGenreChoices` (catalog `genreChoices`: Plex reads the section's
+`genre` `/filters` row, then its values, as before) and the libraries list's
+empty-library check `libraryItemCount(in:)`; the recommendation shelves, Siri
+and video channels still pass Plex strings through `getLibraryItems` /
+`getLibraryItemCount`, which forward unchanged to `PlexCatalog.raw…` (Plex
+servers only). The watchlist's server lookup (`serverItems(guid:)`) is the
+catalog's `items(matching:…)` (Plex: `/library/all?guid=`) and
+`getPlaybackHistory` its `playbackHistory` (Plex:
+`/status/sessions/history/all`); both send the requests they always did.
+
+Jellyfin's catalog (`Providers/Jellyfin/Facets/JellyfinCatalog.swift`, J-02):
+- One base `/Items` query per listing (`JellyfinBrowseVocabulary.baseQuery`:
+  `parentId` = library, `recursive`, item types by library kind) serves the
+  page, the count (`limit=0`) and the A–Z table, so the letter offsets match
+  the grid. Sorts map onto `SortName`, `PremiereDate`, `ProductionYear`,
+  `DateCreated`, `DateLastContentAdded`, `CriticRating`, `CommunityRating`,
+  `Runtime`, `DatePlayed`, `Random`, with a `SortName` tiebreak; there is no
+  "Your Rating" sort.
+- Filters: genre (`/Genres` names), watch state (`isPlayed`, `IsResumable`),
+  decade (expanded to `years`), year and content rating (`/Items/Filters`),
+  resolution (`is4K` / `isHD`, only values with titles), studio (`/Studios`,
+  shows too), director / actor (`/Persons`, `personIds` + `personTypes`) and
+  collection (a BoxSet's member ids matched inside the library with `ids=`,
+  because BoxSets are server-wide). No HDR, Dolby Vision or audio-language
+  filter exists. A field's `.values(source:)` handle carries library id and
+  kind (`ChoiceSource`), since `filterChoices(for:)` gets only the field.
+- A–Z: 26 `nameLessThan` counts in parallel (`#` = before "A", "Z" keeps the
+  rest), cached in memory per server, user and query until the total changes.
+- A `homevideos` view is a photo library when it holds more photos than
+  videos (two `limit=0` counts, cached for the launch); otherwise a Videos
+  library.
+- Details are `/Items/{id}`; a title without a local trailer carries its first
+  https `RemoteTrailers` link as `MediaDetails.remoteTrailerURL`, which the
+  hero's Trailer button opens outside the app on iOS and macOS (hidden on
+  tvOS). Extras are `/LocalTrailers` then `/SpecialFeatures` (theme videos
+  dropped). Episodes of a season are `/Items?parentId={season}` in
+  `ParentIndexNumber, IndexNumber` order, `isMissing=false`.
+- Cast members carry their person id in `Person.filter` (`personIds=<id>`),
+  which `Person.personID` reads like Plex's `actor=<id>`.
+- Search: one request per group (films + videos as "Movies", "Shows",
+  "Episodes", `limit=10`), the same `type`s Plex's hubs use. No people group:
+  Plex's actor hub never showed either.
+- `items(matching:)` searches by title (and year, kind) and keeps the items
+  whose `ProviderIds` match; `playbackHistory` is `DatePlayed`-sorted items
+  until one predates `since` (one entry per title, not per play).
+- No Rate button: `MediaService.canRate` is false while a server's provider has
+  no `rating` facet. Collections listings and pages are J-07, photos J-10.
 
 Library:
 - `getLibraries()` -> `/library/sections`, decoded as `[Library]`.
@@ -503,9 +550,9 @@ Library:
   are sent in key order.
 - `getLibraryItemCount(sectionId:filters:)` reads `totalSize`/`size` from a
   one-item page.
-- `getLibraryFilters(sectionId:)` and `getLibraryFilterValues(path:)` decode
-  filter directories (the genre menu); `libraryFilterFields` /
-  `libraryFilterChoices` are the same reads as the sheet's neutral fields.
+- `libraryGenreChoices(sectionId:)` (the genre menu) and `libraryFilterFields` /
+  `libraryFilterChoices` (the sheet) read the section's `/filters` rows and a
+  row's values.
 - `getLibraryCollections(sectionId:)` -> `/library/sections/{sectionId}/collection`
   filter values, decoded as `[MediaCollection]` (key + title). Fetch a
   collection's items with `getLibraryItems(filters: ["collection": key])`.

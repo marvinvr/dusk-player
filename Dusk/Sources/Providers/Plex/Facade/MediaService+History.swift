@@ -13,6 +13,7 @@ extension MediaService {
         return user
     }
 
+    /// The catalog's `playbackHistory` of one library.
     func getPlaybackHistory(
         accountId: Int?,
         librarySectionId: String,
@@ -21,48 +22,13 @@ extension MediaService {
         pageSize: Int = 200,
         serverID: String? = nil
     ) async throws -> [PlaybackHistoryEntry] {
-        let epochSeconds = Int(viewedSince.timeIntervalSince1970.rounded(.down))
-        let clampedLimit = max(limit, 0)
-        let clampedPageSize = max(pageSize, 1)
-
-        guard clampedLimit > 0 else { return [] }
-
-        let targetID = try resolveServerID(serverID)
-        var entries: [PlaybackHistoryEntry] = []
-        var start = 0
-
-        while entries.count < clampedLimit {
-            let currentPageSize = min(clampedPageSize, clampedLimit - entries.count)
-            var queryItems = [
-                URLQueryItem(name: "X-Plex-Container-Start", value: String(start)),
-                URLQueryItem(name: "X-Plex-Container-Size", value: String(currentPageSize)),
-                URLQueryItem(name: "sort", value: "viewedAt:desc"),
-                URLQueryItem(name: "librarySectionID", value: librarySectionId),
-                URLQueryItem(name: "viewedAt>", value: String(epochSeconds)),
-            ]
-
-            if let accountId {
-                queryItems.append(URLQueryItem(name: "accountId", value: String(accountId)))
-            }
-
-            let page: [PlaybackHistoryEntry] = try await fetchMetadata(
-                path: "/status/sessions/history/all",
-                queryItems: queryItems,
-                serverID: targetID
-            ).map { (dto: PlexPlaybackHistoryEntryDTO) in
-                PlexUserContentMapper.playbackHistoryEntry(dto, serverID: targetID)
-            }
-
-            guard !page.isEmpty else { break }
-
-            entries.append(contentsOf: page)
-            start += page.count
-
-            if page.count < currentPageSize {
-                break
-            }
-        }
-
-        return entries
+        guard limit > 0 else { return [] }
+        return try await catalog(on: resolveServerID(serverID)).playbackHistory(
+            libraryID: librarySectionId,
+            since: viewedSince,
+            limit: limit,
+            pageSize: pageSize,
+            accountID: accountId
+        )
     }
 }

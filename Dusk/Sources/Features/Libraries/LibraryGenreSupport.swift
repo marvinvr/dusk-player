@@ -8,23 +8,12 @@ enum LibraryGenreSupport {
         serverID: String? = nil,
         media: MediaService
     ) async throws -> [LibraryGenreOption] {
-        let filters = try await media.getLibraryFilters(
+        let values = try await media.libraryGenreChoices(
             sectionId: sectionId,
             serverID: serverID
         )
-
-        guard let genreFilter = filters.first(where: {
-            $0.filter.localizedCaseInsensitiveCompare("genre") == .orderedSame
-        }) else {
-            return [.all]
-        }
-
-        let values = try await media.getLibraryFilterValues(
-            path: genreFilter.key,
-            serverID: serverID
-        )
         let genres = values
-            .compactMap { genreOption(from: $0, parameterName: genreFilter.filter) }
+            .map { LibraryGenreOption(title: $0.title, value: $0.value) }
             .sorted {
                 $0.title.localizedStandardCompare($1.title) == .orderedAscending
             }
@@ -115,32 +104,6 @@ enum LibraryGenreSupport {
         }
 
         return matches
-    }
-
-    static func genreOption(
-        from filterValue: LibraryFilterValue,
-        parameterName: String
-    ) -> LibraryGenreOption? {
-        guard let value = extractFilterValue(from: filterValue.key, parameterName: parameterName),
-              !value.isEmpty else {
-            return nil
-        }
-
-        return LibraryGenreOption(title: filterValue.title, value: value)
-    }
-
-    static func extractFilterValue(from key: String, parameterName: String) -> String? {
-        if let components = URLComponents(string: key),
-           let queryItems = components.queryItems,
-           let value = queryItems.first(where: { $0.name == parameterName })?.value {
-            return value
-        }
-
-        if key.hasPrefix("/") {
-            return key.split(separator: "/").last.map(String.init)
-        }
-
-        return key.isEmpty ? nil : key
     }
 
     static func containsGenre(

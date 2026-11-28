@@ -347,9 +347,10 @@ struct SignInPlexFlowView: View {
                 Text("Dusk")
                     .font(titleFont)
                     .foregroundStyle(Color.duskTextPrimary)
-                Text("The Plex App We Deserve.")
+                Text(otherFlows.isEmpty ? "Sign in with your Plex account to get started." : "Sign in to get started.")
                     .font(DuskFont.caption(ios: .subheadline))
                     .foregroundStyle(Color.duskTextSecondary)
+                    .multilineTextAlignment(.center)
             }
         }
     }

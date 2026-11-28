@@ -200,13 +200,15 @@ enum JellyfinItemMapper {
     /// are not libraries in Dusk's sense (collections, playlists, Live TV,
     /// music, books). Home videos become a movie section with the `clip`
     /// subtype, which is how `Library.libraryType` already recognises a
-    /// Videos library.
-    static func mapLibrary(_ dto: JellyfinItemDTO, serverID: String?) -> Library? {
+    /// Videos library; a `homevideos` view that holds mostly photos
+    /// (`homeVideosHoldPhotos`, counted by the catalog) is a photo library.
+    static func mapLibrary(_ dto: JellyfinItemDTO, serverID: String?, homeVideosHoldPhotos: Bool = false) -> Library? {
         let type: String
         var subtype: String?
         switch dto.collectionType {
         case let value? where value.matches(.movies): type = "movie"
         case let value? where value.matches(.tvShows): type = "show"
+        case let value? where value.matches(.homeVideos) && homeVideosHoldPhotos: type = "photo"
         case let value? where value.matches(.homeVideos), let value? where value.matches(.musicVideos):
             type = "movie"
             subtype = "clip"
@@ -248,12 +250,13 @@ enum JellyfinItemMapper {
     }
 
     /// A cast member. `Person.id` is an `Int` (a Plex tag id) and cannot hold
-    /// a Jellyfin GUID, so it stays nil and the person id rides in `tagKey`
-    /// until the domain type has a string id (J-00b report, Domain gaps).
+    /// a Jellyfin GUID, so it stays nil and the person id rides in `filter`
+    /// (`personIds=<id>`), which `Person.personID` reads the way it reads
+    /// Plex's `actor=<id>`; `tagKey` keeps it too.
     static func mapRole(_ dto: JellyfinPersonDTO) -> Person {
         Person(
             id: nil,
-            filter: nil,
+            filter: "personIds=\(JellyfinID.normalized(dto.id))",
             tag: dto.name ?? "",
             tagKey: JellyfinID.normalized(dto.id),
             role: dto.role?.nilIfEmpty,

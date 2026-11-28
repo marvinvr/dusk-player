@@ -384,7 +384,7 @@ ProfileScope    { id: String }                                          the app-
 - **No LAN discovery (UDP 7359).** Broadcast needs the multicast networking
   entitlement on iOS and a local-network prompt, for a convenience Plex users
   never needed. The URL field accepts a bare host and tries `https://host`,
-  `http://host:8096`, `https://host:8920` in that order.
+  `http://host:8096`, `https://host:8920`, `http://host` in that order.
 
 ### 7.2 Sign-in
 
@@ -498,8 +498,9 @@ rows before they become `SearchSection`s; the letter table is
 **Decision (2026-11-28): the photo timeline needs no client grouping.** Plex's `clusterZoomLevel=1` only widens the
 type filter beyond loose root photos, and the grid has always shown one flat
 newest-first list, so there is no server grouping to replace (a Jellyfin
-`photoPage(.timeline)` returns the same flat list). `trailer`,
-`items(matching:)` and `playbackHistory` are not declared yet. Callers outside
+`photoPage(.timeline)` returns the same flat list). J-02 declared
+`items(matching:kind:title:year:)`, `playbackHistory` and `genreChoices`; the
+trailer is an extra, or `MediaDetails.remoteTrailerURL` for a web-only one. Callers outside
 the catalog's files that still pass Plex sort strings or filter parameters go
 through `PlexCatalog.raw…` routes (listed in `docs/data-and-plex.md`).
 
