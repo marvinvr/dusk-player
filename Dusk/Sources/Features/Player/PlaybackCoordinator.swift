@@ -45,6 +45,10 @@ final class PlaybackCoordinator {
     /// when not in credits, when there is no next episode, or while the
     /// full-screen `upNextPresentation` is showing instead.
     var upNextPoster: UpNextPosterPresentation?
+    /// Up Next During Credits off (#84): what the hidden card would have
+    /// advanced to at the natural end (its `timedAutoplay`/`autoAdvanceAtEnd`
+    /// modes), so turning the card off keeps that direct advance.
+    @ObservationIgnored var hiddenUpNextAdvance: UpNextCandidate?
     /// The server's pre-roll videos while they play ahead of a movie; nil
     /// otherwise. See `PlaybackCoordinator+Prerolls`.
     var prerollPlayback: PrerollPlayback?
@@ -982,6 +986,7 @@ final class PlaybackCoordinator {
         cancelUpNextPosterCountdown()
         upNextPresentation = nil
         upNextPoster = nil
+        hiddenUpNextAdvance = nil
         prerollPlayback = nil
         clearAdjacentEpisodes()
         playbackQueue = nil

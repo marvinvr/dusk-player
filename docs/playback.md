@@ -2690,14 +2690,16 @@ inspection can separately confirm AV1 video copy and retained PQ/HLG metadata.
     restarting a countdown the viewer already saw or waved off.
 - **Up Next During Credits** (`UserPreferences.upNextDuringCreditsEnabled`,
   default on; Settings › Playback › Behavior on all three platforms, #84) turns
-  the poster off. `presentUpNextPosterIfPossible` then raises nothing, as if
-  the viewer had dismissed the card: the credits play out and the natural end
-  takes the no-poster path below (the full-screen overlay, with its Continuous
-  Play countdown when that is on, instead of the poster's direct advance).
-  Where the poster would have been `timedAutoplay` it returns true instead, so
-  the credits get the Skip Credits chip like a film and Auto-Skip Credits keeps
-  a visible countdown (chip, then the overlay's countdown). Estimated credits
-  and manual posters show nothing.
+  the poster off without changing how the episode ends.
+  `presentUpNextPosterIfPossible` raises nothing and, when the hidden poster's
+  mode would advance on its own (`timedAutoplay` / `autoAdvanceAtEnd`), keeps
+  the candidate in `hiddenUpNextAdvance`; `handlePlaybackEnded` then starts it
+  straight away (`startHiddenUpNextAdvance`, the overlay only as loading
+  state). For `timedAutoplay` it also returns true, so the credits get the Skip
+  Credits chip like a film and Auto-Skip Credits keeps a visible countdown; the
+  chip's skip reaches the end and advances. Manual modes and estimated credits
+  show nothing and end on the full-screen overlay as today. Seeking back before
+  the credits (`dismissUpNextPoster`) and every new session clear the candidate.
 - No Plex credits marker: `PlayerViewModel.estimatedCreditsMarker` synthesizes
   one (`isEstimated`) spanning `duration − clamp(4 %, 45 s, 2 min)` to the end
   (~50 s on a 22 min sitcom, 2 min on an hour drama), so the poster still shows.
