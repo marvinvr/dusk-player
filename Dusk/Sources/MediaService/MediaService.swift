@@ -88,7 +88,7 @@ final class MediaService {
     /// The signed-in accounts, read in place from each provider's credentials.
     let accounts: AccountStore
     /// Which provider each server id belongs to. Empty: every server is Plex.
-    let serverRegistry = ServerRegistry()
+    let serverRegistry: ServerRegistry
     let decoder: JSONDecoder
     let encoder: JSONEncoder
 
@@ -98,10 +98,20 @@ final class MediaService {
     /// next screen refresh.
     static let serverRecoveryCooldown: TimeInterval = 30
 
-    /// - Parameter urlProtocolClasses: Tests only: serves every session's requests.
-    init(urlProtocolClasses: [AnyClass]? = nil) {
+    /// - Parameters:
+    ///   - urlProtocolClasses: Tests only: serves every session's requests.
+    ///   - serverRegistry: Tests only: server ids that belong to another
+    ///     provider. The default (empty) makes every server Plex.
+    ///   - additionalProviderFactories: Tests only: registered after the
+    ///     standard factories, so Plex stays first (`DuskTests/Fakes`).
+    init(
+        urlProtocolClasses: [AnyClass]? = nil,
+        serverRegistry: ServerRegistry = ServerRegistry(),
+        additionalProviderFactories: [any ProviderFactory] = []
+    ) {
         self.decoder = JSONDecoder()
         self.encoder = JSONEncoder()
+        self.serverRegistry = serverRegistry
 
         let clientIdentifier: String
         if let stored = UserDefaults.standard.string(forKey: Self.defaultsClientIDKey) {
@@ -112,7 +122,7 @@ final class MediaService {
             clientIdentifier = id
         }
         let standard = ProviderSetup.standard(clientIdentifier: clientIdentifier, urlProtocolClasses: urlProtocolClasses)
-        let providers = standard.registry
+        let providers = ProviderRegistry(standard.registry.factories + additionalProviderFactories)
         self.accountProvider = standard.account
         self.providers = providers
         self.accounts = AccountStore(registry: providers)
