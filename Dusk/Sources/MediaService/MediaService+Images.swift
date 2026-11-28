@@ -1,12 +1,8 @@
 import Foundation
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
 
 extension MediaService {
-    /// The URL that loads `ref` at `size` (docs/jellyfin/04-architecture.md §10).
+    /// The URL that loads `ref` at `size` (docs/jellyfin/04-architecture.md §10),
+    /// built by the provider of the ref's server (`ImageProviding`).
     ///
     /// `ref.serverID` is the server the artwork belongs to. nil means the
     /// primary server, which is only correct for artwork that has no item
@@ -14,60 +10,14 @@ extension MediaService {
     /// that model's `serverID`.
     func imageURL(for ref: ArtworkRef?, size: ImageSize = .original) -> URL? {
         guard let ref else { return nil }
-        return imageURL(path: ref.locator, serverID: ref.serverID, width: size.width, height: size.height)
-    }
-
-    /// For Plex the locator is the server-relative path (or an absolute URL).
-    private func imageURL(path: String, serverID: String?, width: Int?, height: Int?) -> URL? {
         // IPTV logos and programme icons are absolute URLs on their own hosts
-        // and have nothing to do with any Plex server.
-        if serverID == IPTVImages.serverID {
-            return M3UParser.httpURL(path)
+        // and have nothing to do with any server.
+        if ref.serverID == IPTVImages.serverID {
+            return IPTVImageProvider().url(for: ref, size: size, session: nil)
         }
 
-        let requestSize = imageRequestSize(width: width, height: height)
-        if requestSize.hasDimensions,
-           let transcodedURL = transcodedImageURL(for: path, size: requestSize, serverID: serverID) {
-            return transcodedURL
-        }
-
-        return directImageURL(for: path, serverID: serverID)
-    }
-
-    func directImageURL(for path: String, serverID: String? = nil) -> URL? {
-        guard let urlString = imageRequestURLString(for: path, includeToken: false, serverID: serverID) else {
-            return nil
-        }
-        return URL(string: urlString)
-    }
-
-    func transcodedImageURL(for path: String, size: ImageRequestSize, serverID: String? = nil) -> URL? {
-        guard let connection = pool.connection(for: serverID),
-              let originalURLString = transcodeSourceURLString(for: path, serverID: serverID) else {
-            return nil
-        }
-
-        let baseURL = connection.baseURL
-        let base = baseURL.absoluteString.hasSuffix("/")
-            ? String(baseURL.absoluteString.dropLast())
-            : baseURL.absoluteString
-        guard var components = URLComponents(string: base + "/photo/:/transcode") else {
-            return nil
-        }
-
-        var items = [
-            URLQueryItem(name: "width", value: String(max(size.width ?? 1, 1))),
-            URLQueryItem(name: "minSize", value: "1"),
-            URLQueryItem(name: "upscale", value: "0"),
-            URLQueryItem(name: "url", value: originalURLString),
-        ]
-
-        if let height = size.height {
-            items.append(URLQueryItem(name: "height", value: String(height)))
-        }
-
-        components.queryItems = items
-        return PlexTransportSecurity.authenticatedURL(components.url)
+        let session = pool.connection(for: ref.serverID)
+        return imageProvider(for: session).url(for: ref, size: size, session: session)
     }
 
     func imageData(for url: URL) async throws -> Data {
@@ -79,6 +29,35 @@ extension MediaService {
         request.httpMethod = "GET"
         request.cachePolicy = .returnCacheDataElseLoad
         return try await executeBinaryRequest(request)
+    }
+
+    /// The image facet of `session`'s server. A server that is not connected,
+    /// or a session built outside the pool (tests), has no provider to ask;
+    /// every such server is Plex today, so Plex answers (absolute-URL artwork
+    /// still resolves without a session).
+    private func imageProvider(for session: ServerSession?) -> any ImageProviding {
+        session?.provider?.images ?? PlexImages(client: client)
+    }
+
+    /// Plex only, for `+Photos` (the viewer builds its own `/photo/:/transcode`
+    /// URL) until the catalog facet takes it over.
+    func transcodeSourceURLString(for path: String, serverID: String? = nil) -> String? {
+        PlexImages(client: client).transcodeSourceURLString(for: path, session: pool.connection(for: serverID))
+    }
+
+    /// Plex only: the image URL string on the server's connection, optionally
+    /// with the token in the query.
+    func imageRequestURLString(for path: String, includeToken: Bool, serverID: String? = nil) -> String? {
+        PlexImages(client: client).imageRequestURLString(
+            for: path,
+            includeToken: includeToken,
+            session: pool.connection(for: serverID)
+        )
+    }
+
+    /// `points` in display pixels (`ImageDisplayScale`).
+    func scaledImageDimension(_ dimension: Int?) -> Int? {
+        ImageDisplayScale.pixels(dimension)
     }
 
     func scrubPreviewSource(forPartID partID: String, serverID: String? = nil) async -> PlexScrubPreviewSource? {
@@ -106,6 +85,8 @@ extension MediaService {
     /// Checked against *every* connected server, not just the primary one:
     /// artwork for an item that lives on the second server is served by that
     /// server, and matching only the primary would send it out unauthenticated.
+    /// Needed while `DuskAsyncImage`, downloads and Top Shelf fetch by URL
+    /// rather than by `ArtworkRef`.
     func imageServerConnection(for url: URL) -> ServerSession? {
         pool.connections.first { connection in
             let baseURL = connection.baseURL
@@ -118,18 +99,14 @@ extension MediaService {
         }
     }
 
-    func shouldAuthenticateImageRequest(for url: URL) -> Bool {
-        imageServerConnection(for: url) != nil
-    }
-
     private func rawImageServerRequest(url: URL, connection: ServerSession) async throws -> Data {
         do {
-            return try await sendImageServerRequest(url: url, token: connection.token)
+            return try await sendImageServerRequest(url: url, connection: connection)
         } catch let error as PlexServiceError where error == .unauthorized {
             plexAuthLogger.notice("Image request unauthorized for \(url.path, privacy: .public); attempting token refresh")
             let refreshed = try await refreshedImageConnection(serverID: connection.serverID)
             do {
-                return try await sendImageServerRequest(url: url, token: refreshed.token)
+                return try await sendImageServerRequest(url: url, connection: refreshed)
             } catch let retryError as PlexServiceError where retryError == .unauthorized {
                 // Only this server is out; the rest of the pool keeps working.
                 pool.markUnauthorized(serverID: connection.serverID)
@@ -163,11 +140,10 @@ extension MediaService {
         }
     }
 
-    private func sendImageServerRequest(url: URL, token: String) async throws -> Data {
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.cachePolicy = .returnCacheDataElseLoad
-        applyHeaders(to: &request, token: token)
+    /// One authenticated attempt on `connection`'s server, through the image
+    /// cache and `executeRequest` (transport check, fresh-sign-in retry).
+    private func sendImageServerRequest(url: URL, connection: ServerSession) async throws -> Data {
+        let request = imageProvider(for: connection).authenticatedRequest(for: url, session: connection)
 
         if let cachedResponse = AppImageCache.cachedResponse(for: request) {
             return cachedResponse.data
@@ -238,63 +214,6 @@ extension MediaService {
         }
     }
 
-    func imageRequestURLString(for path: String, includeToken: Bool, serverID: String? = nil) -> String? {
-        if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
-            return (try? PlexTransportSecurity.validate(URLRequest(url: absoluteURL))) != nil ? absoluteURL.absoluteString : nil
-        }
-
-        guard let connection = pool.connection(for: serverID) else { return nil }
-        let baseURL = connection.baseURL
-        let base = baseURL.absoluteString.hasSuffix("/")
-            ? String(baseURL.absoluteString.dropLast())
-            : baseURL.absoluteString
-        guard var components = URLComponents(string: base + path) else { return nil }
-
-        if includeToken {
-            var items = components.queryItems ?? []
-            items.append(URLQueryItem(name: "X-Plex-Token", value: connection.token))
-            components.queryItems = items
-        }
-
-        return PlexTransportSecurity.authenticatedURL(components.url)?.absoluteString
-    }
-
-    /// The `url` for `/photo/:/transcode`. Library paths are sent relative, as
-    /// Plex Web does. Sending the server its own full URL breaks posters on a
-    /// LAN connection: the server fetches itself and gets a 404. Artwork that
-    /// is already a full URL is sent unchanged. nil for a library path when the
-    /// server is not connected.
-    func transcodeSourceURLString(for path: String, serverID: String? = nil) -> String? {
-        if let absoluteURL = URL(string: path), absoluteURL.scheme != nil {
-            return (try? PlexTransportSecurity.validate(URLRequest(url: absoluteURL))) != nil ? absoluteURL.absoluteString : nil
-        }
-        guard pool.connection(for: serverID) != nil else { return nil }
-        return path.hasPrefix("/") ? path : "/" + path
-    }
-
-    func imageRequestSize(width: Int?, height: Int?) -> ImageRequestSize {
-        ImageRequestSize(
-            width: scaledImageDimension(width),
-            height: scaledImageDimension(height)
-        )
-    }
-
-    func scaledImageDimension(_ dimension: Int?) -> Int? {
-        guard let dimension, dimension > 0 else { return nil }
-        return Int(ceil(Double(dimension) * Double(displayScale)))
-    }
-
-    var displayScale: CGFloat {
-        #if canImport(UIKit)
-        UIScreen.main.scale
-        #elseif os(macOS)
-        // Retina Macs draw at 2x; artwork is requested for the sharpest screen.
-        NSScreen.screens.map(\.backingScaleFactor).max() ?? 2
-        #else
-        1
-        #endif
-    }
-
     private func defaultPort(for scheme: String?) -> Int? {
         switch scheme?.lowercased() {
         case "http":
@@ -304,15 +223,6 @@ extension MediaService {
         default:
             return nil
         }
-    }
-}
-
-struct ImageRequestSize {
-    let width: Int?
-    let height: Int?
-
-    var hasDimensions: Bool {
-        width != nil || height != nil
     }
 }
 
