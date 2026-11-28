@@ -743,19 +743,23 @@ by the pre-refactor build still plays (G4).
   - Snapshot: fetching is a facet member (`metadataSnapshot`) because Jellyfin
     `.details` is item + `/MediaSegments` and `.children` needs the item's
     type. Payloads sit in the 04 §15.3 envelope under `jellyfin:/Items/{id}`
-    (pinned). Plex's request is unchanged (G2).
+    (pinned). Plex sends the same request through its router: G6's Plex
+    episode download made the same snapshot reads and file transfer as the
+    baseline.
   - Offline replay: verified on the server, a sessionless Stopped/Progress
     stores the position, marks played past 90 % and never counts a play. The
     sync manager skips its own watched write for such a server, because every
     timeline tick past 90 % syncs again and each `/UserPlayedItems` counted a
-    play.
+    play. So a film finished offline ends Played with its `PlayCount`
+    unchanged, where online play counts one.
   - Verified on jellyfin-demo (iPhone simulator, through a killable proxy):
     - A film with an external `.ass` downloaded with its sidecar. Weekend
       Projects downloaded under Keep Next 3.
     - With the proxy killed, a cold launch reached the offline shell. The show,
       season and film pages decoded from the Jellyfin snapshots. Downloads
-      played on AVPlayer (episode) and VLCKit (film), and the film's subtitle
-      menu listed the saved external track.
+      played on AVPlayer (episode) and VLCKit (film). The film's subtitle
+      menu listed the saved external track and it could be selected. No cue
+      was on screen when the screenshot was taken.
     - Back online, the queued 1:21 position reached the server.
     - After marking S01E01 watched on the server, a foreground refill removed
       it and downloaded S01E04.
@@ -765,9 +769,16 @@ by the pre-refactor build still plays (G4).
     - No user with downloading off exists on the demo, so the hidden button
       is not checked live.
     - Apple TV has no download UI.
-    - The Smart Downloads refill does not run on a cold launch whose server
-      was restored before `DownloadManager` started (generic, not Jellyfin
-      specific). Foregrounding or finishing an episode refills.
+    - On Jellyfin, the Smart Downloads refill did not run on a cold launch;
+      foregrounding did run it. Probably the server is already connected when
+      `DownloadManager` starts, so it never "appears". If so, Plex behaves
+      the same, but that was not checked.
+    - Not tapped in the simulator: Download Season, an episode row's
+      Download Episode, the Mac menu. The season's snapshot reads (the
+      season, its episodes, the show's seasons) did run, during the Keep
+      Next episode downloads.
+    - Offline cold launch: Home still showed a spinner after 12 s. Not
+      followed up; Downloads worked.
 
 ### J-08b Downloads: converted quality — L, R
 
