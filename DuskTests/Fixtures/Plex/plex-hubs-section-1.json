@@ -1,0 +1,51 @@
+{
+  "MediaContainer": {
+    "size": 5,
+    "allowSync": true,
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "Hub": [
+      {
+        "hubKey": "/library/metadata/1101", "key": "/hubs/sections/1/inProgress", "title": "Continue Watching",
+        "type": "movie", "hubIdentifier": "movie.inprogress.1", "context": "hub.movie.inprogress", "size": 1, "more": false,
+        "style": "shelf", "promoted": true, "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1101", "key": "/library/metadata/1101", "type": "movie", "title": "Knives Out", "year": 2019,
+           "librarySectionID": 1, "viewOffset": 1200000}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1102", "key": "/hubs/sections/1/recentlyAdded", "title": "Recently Added",
+        "type": "movie", "hubIdentifier": "movie.recentlyadded.1", "context": "hub.movie.recentlyadded", "size": 1, "more": true,
+        "style": "shelf", "promoted": true, "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1102", "key": "/library/metadata/1102", "type": "movie", "title": "Dune: Part Two", "year": 2024,
+           "librarySectionID": 1, "addedAt": 1700000300}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1102", "key": "/hubs/sections/1/recentlyReleased", "title": "Recently Released",
+        "type": "movie", "hubIdentifier": "movie.recentlyreleased.1", "context": "hub.movie.recentlyreleased", "size": 1,
+        "more": true, "style": "shelf", "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1102", "key": "/library/metadata/1102", "type": "movie", "title": "Dune: Part Two", "year": 2024,
+           "librarySectionID": 1}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1104", "key": "/hubs/sections/1/topRated", "title": "Top Rated", "type": "movie",
+        "hubIdentifier": "movie.toprated.1", "context": "hub.movie.toprated", "size": 1, "more": true, "style": "shelf",
+        "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1104", "key": "/library/metadata/1104", "type": "movie", "title": "Alien", "year": 1979, "librarySectionID": 1}
+        ]
+      },
+      {
+        "key": "/hubs/sections/1/genre", "title": "Thrillers", "type": "movie", "size": 1, "more": false, "style": "shelf",
+        "Metadata": [
+          {"ratingKey": "1101", "key": "/library/metadata/1101", "type": "movie", "title": "Knives Out", "year": 2019, "librarySectionID": 1}
+        ]
+      }
+    ]
+  }
+}

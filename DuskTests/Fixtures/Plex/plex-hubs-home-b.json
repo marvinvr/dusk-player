@@ -1,0 +1,44 @@
+{
+  "MediaContainer": {
+    "size": 4,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "Hub": [
+      {
+        "hubKey": "/library/metadata/501", "key": "/hubs/home/continueWatching", "title": "Continue Watching",
+        "type": "mixed", "hubIdentifier": "home.continue", "context": "hub.home.continue", "size": 1, "more": false,
+        "style": "hero", "promoted": true,
+        "Metadata": [
+          {"ratingKey": "501", "key": "/library/metadata/501", "type": "movie", "title": "Tears of Steel", "year": 2012,
+           "librarySectionID": 4, "viewOffset": 60000}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/502", "key": "/hubs/home/recentlyAdded?type=1&sectionID=4", "title": "Recently Added in Movies",
+        "type": "movie", "hubIdentifier": "movie.recentlyadded.4", "context": "hub.movie.recentlyadded", "size": 1, "more": false,
+        "style": "shelf", "promoted": true, "librarySectionID": 4, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "502", "key": "/library/metadata/502", "guid": "plex://movie/5d776825880197001ec967c0", "type": "movie",
+           "title": "Elephants Dream", "year": 2006, "librarySectionID": 4, "addedAt": 1700000400}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/601", "key": "/hubs/home/recentlyAdded?type=1&sectionID=5", "title": "Recently Added in Films",
+        "type": "movie", "hubIdentifier": "movie.recentlyadded.5", "context": "hub.movie.recentlyadded", "size": 1, "more": false,
+        "style": "shelf", "promoted": true, "librarySectionID": 5, "librarySectionTitle": "Films",
+        "Metadata": [
+          {"ratingKey": "601", "key": "/library/metadata/601", "type": "movie", "title": "Cosmos Laundromat", "year": 2015,
+           "librarySectionID": 5, "addedAt": 1700000500}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/503", "key": "/hubs/sections/4/curated/1", "title": "Oh, the Horror!",
+        "type": "movie", "hubIdentifier": "movie.curated.4.1", "context": "hub.movie.curated", "size": 1, "more": false,
+        "style": "shelf", "librarySectionID": 4, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "503", "key": "/library/metadata/503", "type": "movie", "title": "The Thing", "year": 1982, "librarySectionID": 4}
+        ]
+      }
+    ]
+  }
+}

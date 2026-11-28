@@ -1,0 +1,104 @@
+{
+  "MediaContainer": {
+    "size": 11,
+    "allowSync": true,
+    "identifier": "com.plexapp.plugins.library",
+    "Hub": [
+      {
+        "hubKey": "/library/metadata/2101,1101", "key": "/hubs/home/continueWatching", "title": "Continue Watching",
+        "type": "mixed", "hubIdentifier": "home.continue", "context": "hub.home.continue", "size": 2, "more": false,
+        "style": "hero", "promoted": true,
+        "Metadata": [
+          {"ratingKey": "2101", "key": "/library/metadata/2101", "guid": "plex://episode/5d9c0874ffd9ef001e99607a", "type": "episode",
+           "title": "Pilot", "grandparentTitle": "The Office", "grandparentRatingKey": "2001", "parentRatingKey": "2011",
+           "index": 1, "parentIndex": 1, "librarySectionID": 2, "viewOffset": 600000, "addedAt": 1700000100},
+          {"ratingKey": "1101", "key": "/library/metadata/1101", "guid": "plex://movie/5d776d1847dd6e001f6f0a6c", "type": "movie",
+           "title": "Knives Out", "year": 2019, "librarySectionID": 1, "viewOffset": 1200000, "addedAt": 1700000200}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/2102", "key": "/hubs/home/onDeck", "title": "On Deck", "type": "mixed",
+        "hubIdentifier": "home.ondeck", "context": "hub.home.ondeck", "size": 1, "more": false, "style": "shelf", "promoted": true,
+        "Metadata": [
+          {"ratingKey": "2102", "key": "/library/metadata/2102", "type": "episode", "title": "Diversity Day",
+           "grandparentTitle": "The Office", "grandparentRatingKey": "2001", "index": 2, "parentIndex": 1, "librarySectionID": 2}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1102,1103", "key": "/hubs/home/recentlyAdded?type=1", "title": "Recently Added Movies",
+        "type": "movie", "hubIdentifier": "home.movies.recent", "context": "hub.home.movies.recent", "size": 2, "more": true,
+        "style": "shelf", "promoted": true,
+        "Metadata": [
+          {"ratingKey": "1102", "key": "/library/metadata/1102", "guid": "plex://movie/5d776b59ad5437001f79c6f8", "type": "movie",
+           "title": "Dune: Part Two", "year": 2024, "librarySectionID": 1, "addedAt": 1700000300},
+          {"ratingKey": "1103", "key": "/library/metadata/1103", "guid": "plex://movie/5d776c5c7a53e9001e7b4a5e", "type": "movie",
+           "title": "Paddington 2", "year": 2017, "librarySectionID": 1, "addedAt": 1700000250}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1102", "key": "/hubs/home/recentlyAdded?type=1&sectionID=1", "title": "Recently Added in Movies",
+        "type": "movie", "hubIdentifier": "movie.recentlyadded.1", "context": "hub.movie.recentlyadded", "size": 2, "more": true,
+        "style": "shelf", "promoted": true, "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1102", "key": "/library/metadata/1102", "guid": "plex://movie/5d776b59ad5437001f79c6f8", "type": "movie",
+           "title": "Dune: Part Two", "year": 2024, "librarySectionID": 1, "addedAt": 1700000300},
+          {"ratingKey": "1103", "key": "/library/metadata/1103", "guid": "plex://movie/5d776c5c7a53e9001e7b4a5e", "type": "movie",
+           "title": "Paddington 2", "year": 2017, "librarySectionID": 1, "addedAt": 1700000250}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/2011", "key": "/hubs/home/recentlyAdded?type=2&sectionID=2", "title": "Recently Added in TV Shows",
+        "type": "season", "hubIdentifier": "tv.recentlyadded.2", "context": "hub.tv.recentlyadded", "size": 1, "more": false,
+        "style": "shelf", "promoted": true, "librarySectionTitle": "TV Shows",
+        "Metadata": [
+          {"ratingKey": "2011", "key": "/library/metadata/2011/children", "type": "season", "title": "Season 1",
+           "parentTitle": "The Office", "parentRatingKey": "2001", "index": 1, "librarySectionID": 2, "addedAt": 1700000100}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1104", "key": "/hubs/sections/1/curated/1", "title": "Oh, the Horror!",
+        "type": "movie", "hubIdentifier": "movie.curated.1.1", "context": "hub.movie.curated", "size": 1, "more": false,
+        "style": "shelf", "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1104", "key": "/library/metadata/1104", "type": "movie", "title": "Alien", "year": 1979, "librarySectionID": 1}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1105", "key": "/library/collections/99487/children", "title": "Marvel",
+        "type": "movie", "hubIdentifier": "custom.collection.1.99487.99487", "context": "hub.custom.collection", "size": 1,
+        "more": false, "style": "shelf", "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1105", "key": "/library/metadata/1105", "type": "movie", "title": "Iron Man", "year": 2008, "librarySectionID": 1}
+        ]
+      },
+      {
+        "hubKey": "", "key": "/playlists/all?type=15&sort=lastViewedAt:desc&playlistType=video,audio", "title": "Recent Playlists",
+        "type": "playlist", "hubIdentifier": "home.playlists", "context": "hub.home.playlists", "size": 0, "more": false,
+        "style": "shelf", "promoted": true
+      },
+      {
+        "hubKey": "/library/metadata/3101", "key": "/hubs/home/topRated", "title": "Top Rated", "type": "movie",
+        "hubIdentifier": "movie.toprated.3", "context": "hub.movie.toprated", "size": 1, "more": false, "style": "shelf",
+        "Metadata": [
+          {"ratingKey": "3101", "key": "/library/metadata/3101", "type": "movie", "title": "Big Buck Bunny", "year": 2008, "librarySectionID": 3}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1106", "key": "/hubs/featured", "title": "Featured", "type": "movie", "size": 1,
+        "more": false, "style": "shelf",
+        "Metadata": [
+          {"ratingKey": "1106", "key": "/library/metadata/1106", "type": "movie", "title": "Sintel", "year": 2010, "librarySectionID": 1}
+        ]
+      },
+      {
+        "hubKey": "/library/metadata/1101", "key": "/hubs/sections/1/inProgress", "title": "Continue Watching",
+        "type": "movie", "hubIdentifier": "movie.inprogress.1", "context": "hub.movie.inprogress", "size": 1, "more": false,
+        "style": "shelf", "librarySectionID": 1, "librarySectionTitle": "Movies",
+        "Metadata": [
+          {"ratingKey": "1101", "key": "/library/metadata/1101", "type": "movie", "title": "Knives Out", "year": 2019,
+           "librarySectionID": 1, "viewOffset": 1200000}
+        ]
+      }
+    ]
+  }
+}
